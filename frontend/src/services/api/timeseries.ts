@@ -39,7 +39,7 @@ export async function fetchData(
     if (Number.isFinite(lookaroundMs) && lookaroundMs > 0) params.set('lookaround_ms', String(Math.round(lookaroundMs)));
 
     const tableFromIPC = await ensureArrowParser();
-    const url = `/api/data?${params.toString()}`;
+    const url = `/api/v1/data?${params.toString()}`;
 
     dbg('GET', url);
     const res = await globalThis.fetch(url, signal ? { signal, cache: 'no-store' } : { cache: 'no-store' });

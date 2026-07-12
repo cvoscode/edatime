@@ -51,11 +51,11 @@ describe('api http request invalidation', () => {
             .mockReturnValueOnce(second.promise);
         vi.stubGlobal('fetch', fetchMock);
 
-        const staleRequest = getJson('/api/metadata', 'Metadata');
+        const staleRequest = getJson('/api/v1/metadata', 'Metadata');
 
         invalidateDatasetRequestScope();
 
-        const freshRequest = getJson('/api/metadata', 'Metadata');
+        const freshRequest = getJson('/api/v1/metadata', 'Metadata');
 
         expect(fetchMock).toHaveBeenCalledTimes(2);
 
@@ -84,15 +84,15 @@ describe('api http request options', () => {
         }));
         vi.stubGlobal('fetch', fetchMock);
 
-        const first = postJson('/api/upload', { x: 1 }, 'Upload');
-        const second = postJson('/api/upload', { x: 1 }, 'Upload');
+        const first = postJson('/api/v1/upload', { x: 1 }, 'Upload');
+        const second = postJson('/api/v1/upload', { x: 1 }, 'Upload');
 
         // Same scope, same body => same dedupe key => single fetch.
         expect(fetchMock).toHaveBeenCalledTimes(1);
 
         invalidateDatasetRequestScope();
 
-        const third = postJson('/api/upload', { x: 1 }, 'Upload');
+        const third = postJson('/api/v1/upload', { x: 1 }, 'Upload');
 
         // New scope => new dedupe key => fresh fetch.
         expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -111,9 +111,9 @@ describe('api http request options', () => {
             .mockReturnValueOnce(second.promise);
         vi.stubGlobal('fetch', fetchMock);
 
-        const staleRequest = postJson('/api/drift/stats', { col: 'a' }, 'Drift stats');
+        const staleRequest = postJson('/api/v1/drift/stats', { col: 'a' }, 'Drift stats');
         invalidateDatasetRequestScope();
-        const freshRequest = postJson('/api/drift/stats', { col: 'a' }, 'Drift stats');
+        const freshRequest = postJson('/api/v1/drift/stats', { col: 'a' }, 'Drift stats');
 
         expect(fetchMock).toHaveBeenCalledTimes(2);
 

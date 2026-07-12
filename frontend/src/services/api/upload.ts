@@ -3,11 +3,11 @@ import { getJson, postJson } from './http.js';
 // ── Upload ─────────────────────────────────────────────────────────────────
 
 export async function previewUpload(formData: FormData, signal?: AbortSignal): Promise<Response> {
-    return globalThis.fetch('/api/upload/preview', { method: 'POST', body: formData, signal });
+    return globalThis.fetch('/api/v1/upload/preview', { method: 'POST', body: formData, signal });
 }
 
 export async function uploadDataset(formData: FormData): Promise<Response> {
-    return globalThis.fetch('/api/upload', { method: 'POST', body: formData });
+    return globalThis.fetch('/api/v1/upload', { method: 'POST', body: formData });
 }
 
 // ── Database ────────────────────────────────────────────────────────────────
@@ -18,31 +18,31 @@ export async function uploadDataset(formData: FormData): Promise<Response> {
 // mutate the active dataset snapshot, so it remains dataset-scoped.
 
 export async function fetchDatabaseTables(): Promise<unknown> {
-    return getJson<unknown>('/api/database/tables', 'Database tables', { datasetScoped: false });
+    return getJson<unknown>('/api/v1/database/tables', 'Database tables', { datasetScoped: false });
 }
 
 export async function connectDatabase(body: unknown): Promise<unknown> {
-    return postJson<unknown>('/api/database/connect', body, 'Database connect', { datasetScoped: false });
+    return postJson<unknown>('/api/v1/database/connect', body, 'Database connect', { datasetScoped: false });
 }
 
 export async function loadDatabaseTable(body: unknown): Promise<unknown> {
-    return postJson<unknown>('/api/database/load', body, 'Database load');
+    return postJson<unknown>('/api/v1/database/load', body, 'Database load');
 }
 
 export async function deleteDatabaseConnection(): Promise<Response> {
-    return globalThis.fetch('/api/database/connect', { method: 'DELETE' });
+    return globalThis.fetch('/api/v1/database/connect', { method: 'DELETE' });
 }
 
 export async function fetchDatabaseStatus(): Promise<unknown> {
-    return getJson<unknown>('/api/database/status', 'Database status', { datasetScoped: false });
+    return getJson<unknown>('/api/v1/database/status', 'Database status', { datasetScoped: false });
 }
 
 // ── Drift ──────────────────────────────────────────────────────────────────
 
 export async function fetchDriftStats<T>(payload: unknown, signal?: AbortSignal): Promise<T> {
-    return postJson<T>('/api/drift/stats', payload, 'Drift stats', signal);
+    return postJson<T>('/api/v1/drift/stats', payload, 'Drift stats', signal);
 }
 
 export async function fetchDriftInvestigation<T>(payload: unknown, signal?: AbortSignal): Promise<T> {
-    return postJson<T>('/api/drift/investigate', payload, 'Drift investigation', signal);
+    return postJson<T>('/api/v1/drift/investigate', payload, 'Drift investigation', signal);
 }

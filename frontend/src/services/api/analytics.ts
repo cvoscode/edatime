@@ -27,7 +27,7 @@ export async function fetchRollingBands(
     signalOrOptions?: AbortSignal | ApiRequestOptions,
 ): Promise<RollingResponse> {
     const params = new URLSearchParams({ start, end, columns, window: String(window) });
-    const url = `/api/analytics/rolling?${params.toString()}`;
+    const url = `/api/v1/analytics/rolling?${params.toString()}`;
     return getJson<RollingResponse>(url, 'Rolling bands', signalOrOptions);
 }
 
@@ -65,7 +65,7 @@ export async function fetchAnomalies(
 ): Promise<AnomalyResponse> {
     const params = new URLSearchParams({ start, end, columns, method });
     if (threshold !== undefined) params.set('threshold', String(threshold));
-    const url = `/api/analytics/anomalies?${params.toString()}`;
+    const url = `/api/v1/analytics/anomalies?${params.toString()}`;
     return getJson<AnomalyResponse>(url, 'Anomaly detection', signalOrOptions);
 }
 
@@ -104,7 +104,7 @@ export async function fetchFft(
     signalOrOptions?: AbortSignal | ApiRequestOptions,
 ): Promise<FftResponse> {
     const params = new URLSearchParams({ start, end, columns, max_points: String(maxPoints) });
-    const url = `/api/analytics/fft?${params.toString()}`;
+    const url = `/api/v1/analytics/fft?${params.toString()}`;
     return getJson<FftResponse>(url, 'FFT', signalOrOptions);
 }
 
@@ -152,7 +152,7 @@ export async function fetchSpectrogram(
     if (scaleOptions?.clipParam != null && Number.isFinite(scaleOptions.clipParam)) {
         params.set('clip_param', String(scaleOptions.clipParam));
     }
-    const url = `/api/analytics/spectrogram?${params.toString()}`;
+    const url = `/api/v1/analytics/spectrogram?${params.toString()}`;
     return getJson<SpectrogramResponse>(url, 'Spectrogram', signalOrOptions);
 }
 
@@ -188,7 +188,7 @@ export async function fetchCausalGraph(
     maxCondsDim?: number,
     fdrMethod = 'none',
 ): Promise<CausalGraphResponse> {
-    const url = '/api/analytics/causal';
+    const url = '/api/v1/analytics/causal';
     const body: Record<string, unknown> = {
         columns: columns.join(','),
         tau_max: tauMax,
@@ -215,7 +215,7 @@ export async function postTransform(
     expression: string,
     outputName: string,
 ): Promise<TransformResponse> {
-    const url = '/api/transform';
+    const url = '/api/v1/transform';
     return postJson<TransformResponse>(url, { expression, output_name: outputName }, 'Transform');
 }
 
@@ -234,7 +234,7 @@ export interface CorrelationMatrixResponse {
 }
 
 export async function fetchCorrelationMatrix(): Promise<CorrelationMatrixResponse> {
-    return getJson<CorrelationMatrixResponse>('/api/scatter/correlations/matrix', 'Correlation matrix');
+    return getJson<CorrelationMatrixResponse>('/api/v1/scatter/correlations/matrix', 'Correlation matrix');
 }
 
 // ── Outlier Removal ─────────────────────────────────────────────────────────
@@ -258,7 +258,7 @@ export async function postRemoveOutliers(
     if (threshold !== undefined) body.threshold = threshold;
     if (window !== undefined) body.window = window;
 
-    const url = '/api/analytics/remove_outliers';
+    const url = '/api/v1/analytics/remove_outliers';
     return postJson<OutlierRemovalResult>(url, body, 'Outlier removal');
 }
 
@@ -278,7 +278,7 @@ export async function fetchSpectralFilter(
     signalOrOptions?: AbortSignal | ApiRequestOptions,
 ): Promise<SpectralFilterResponse> {
     return getJson<SpectralFilterResponse>(
-        `/api/analytics/spectral-filter?${params.toString()}`,
+        `/api/v1/analytics/spectral-filter?${params.toString()}`,
         'Spectral filter',
         signalOrOptions,
     );

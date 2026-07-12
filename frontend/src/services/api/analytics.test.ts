@@ -72,7 +72,7 @@ describe('analytics api helpers', () => {
         );
 
         const requestUrl = new URL(String(fetchMock.mock.calls[0]?.[0]), 'http://localhost');
-        expect(requestUrl.pathname).toBe('/api/analytics/rolling');
+        expect(requestUrl.pathname).toBe('/api/v1/analytics/rolling');
         expect(requestUrl.searchParams.get('start')).toBe('2025-01-01T00:00:00.000Z');
         expect(requestUrl.searchParams.get('end')).toBe('2025-01-02T00:00:00.000Z');
         expect(requestUrl.searchParams.get('columns')).toBe('value,temp');
@@ -90,7 +90,7 @@ describe('analytics api helpers', () => {
         );
 
         const requestUrl = new URL(String(fetchMock.mock.calls[0]?.[0]), 'http://localhost');
-        expect(requestUrl.pathname).toBe('/api/analytics/anomalies');
+        expect(requestUrl.pathname).toBe('/api/v1/analytics/anomalies');
         expect(requestUrl.searchParams.get('method')).toBe('mad');
         expect(requestUrl.searchParams.get('threshold')).toBeNull();
     });
@@ -141,7 +141,7 @@ describe('analytics api helpers', () => {
         );
 
         const requestUrl = new URL(String(fetchMock.mock.calls[0]?.[0]), 'http://localhost');
-        expect(requestUrl.pathname).toBe('/api/analytics/fft');
+        expect(requestUrl.pathname).toBe('/api/v1/analytics/fft');
         expect(requestUrl.searchParams.get('max_points')).toBe('4096');
     });
 
@@ -163,7 +163,7 @@ describe('analytics api helpers', () => {
         );
 
         const requestUrl = new URL(String(fetchMock.mock.calls[0]?.[0]), 'http://localhost');
-        expect(requestUrl.pathname).toBe('/api/analytics/spectrogram');
+        expect(requestUrl.pathname).toBe('/api/v1/analytics/spectrogram');
         expect(requestUrl.searchParams.get('window_size')).toBe('320');
         expect(requestUrl.searchParams.get('hop_size')).toBe('48');
         expect(requestUrl.searchParams.get('max_points')).toBe('4096');
@@ -216,7 +216,7 @@ describe('analytics api helpers', () => {
             'bh',
         );
 
-        expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/analytics/causal');
+        expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/analytics/causal');
         expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -248,13 +248,13 @@ describe('analytics api helpers', () => {
         await postTransform('col("x") * 2', 'x_scaled');
         await postRemoveOutliers(['value'], 'zscore', 3, 25);
 
-        expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/transform');
+        expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/transform');
         expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
             expression: 'col("x") * 2',
             output_name: 'x_scaled',
         });
 
-        expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/analytics/remove_outliers');
+        expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/v1/analytics/remove_outliers');
         expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
             columns: 'value',
             method: 'zscore',
@@ -276,10 +276,10 @@ describe('analytics api helpers', () => {
             filter_type: 'bandpass',
         }));
 
-        expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/scatter/correlations/matrix');
+        expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/scatter/correlations/matrix');
 
         const requestUrl = new URL(String(fetchMock.mock.calls[1]?.[0]), 'http://localhost');
-        expect(requestUrl.pathname).toBe('/api/analytics/spectral-filter');
+        expect(requestUrl.pathname).toBe('/api/v1/analytics/spectral-filter');
         expect(requestUrl.searchParams.get('column')).toBe('value');
         expect(requestUrl.searchParams.get('filter_type')).toBe('bandpass');
     });

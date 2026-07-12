@@ -515,8 +515,8 @@ describe('drift page accessibility and debug metadata', () => {
             expect(fetchMock).toHaveBeenCalledTimes(2);
         });
 
-        expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/drift/investigate');
-        expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/drift/stats');
+        expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/drift/investigate');
+        expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/v1/drift/stats');
         expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toMatchObject({
             column: 'value',
             window: 'daily',

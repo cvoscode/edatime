@@ -75,7 +75,7 @@ export async function fetchScatterPoints(
         payload.line_filters = JSON.stringify(normalizeScatterLineFilters(options!.lineFilters));
     }
 
-    const url = '/api/scatter/points';
+    const url = '/api/v1/scatter/points';
     dbg('POST (Scatter points)', { url, body: payload });
 
     const res = await globalThis.fetch(url, {
@@ -243,7 +243,7 @@ export async function fetchScatterMatrix(
         payload.line_filters = JSON.stringify(normalizeScatterLineFilters(options.lineFilters));
     }
 
-    const url = '/api/scatter/matrix';
+    const url = '/api/v1/scatter/matrix';
     dbg('POST (Scatter matrix)', { url, body: payload });
 
     const res = await globalThis.fetch(url, {
@@ -333,7 +333,7 @@ export async function fetchScatterCorrelations(
         params.set('base', String(base));
     }
     params.set('mode', mode);
-    const url = `/api/scatter/correlations?${params.toString()}`;
+    const url = `/api/v1/scatter/correlations?${params.toString()}`;
     const data = await getJson<unknown>(url, 'Scatter correlations');
     assertScatterCorrelations(data);
     return data;

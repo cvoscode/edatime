@@ -81,7 +81,7 @@ describe('API client fetch helpers', () => {
             expect(metadata.total_rows).toBe(720);
             expect(metadata.columns).toHaveLength(2);
             expect(metadata.numeric_columns).toContain('value');
-            expect(mockFetch).toHaveBeenCalledWith('/api/metadata', { cache: 'no-store' });
+            expect(mockFetch).toHaveBeenCalledWith('/api/v1/metadata', { cache: 'no-store' });
         });
 
         it('throws on non-object metadata', async () => {
@@ -186,7 +186,7 @@ describe('API client fetch helpers', () => {
             const result = await fetchData('1704067200000', '1706745600000', 1000, 'value');
 
             const calledUrl = mockFetch.mock.calls[0][0];
-            expect(calledUrl).toContain('/api/data?');
+            expect(calledUrl).toContain('/api/v1/data?');
             expect(calledUrl).toContain('start=1704067200000');
             expect(calledUrl).toContain('end=1706745600000');
             expect(calledUrl).toContain('width=1000');
@@ -447,7 +447,7 @@ describe('API client fetch helpers', () => {
             });
 
             await fetchScatterCorrelations('col_a', 0.75, 'pearson_diff');
-            expect(mockFetch).toHaveBeenCalledWith('/api/scatter/correlations?threshold=0.75&base=col_a&mode=pearson_diff', { cache: 'no-store' });
+            expect(mockFetch).toHaveBeenCalledWith('/api/v1/scatter/correlations?threshold=0.75&base=col_a&mode=pearson_diff', { cache: 'no-store' });
         });
 
         it('throws if correlations array is missing', async () => {
@@ -486,7 +486,7 @@ describe('API client fetch helpers', () => {
             await fetchScatterPoints('col_a', 'col_b', 5000);
 
             expect(mockFetch).toHaveBeenCalledWith(
-                expect.stringContaining('/api/scatter/points'),
+                expect.stringContaining('/api/v1/scatter/points'),
                 expect.objectContaining({ method: 'POST' }),
             );
         });
@@ -590,7 +590,7 @@ describe('API client fetch helpers', () => {
 
             const request = mockFetch.mock.calls.at(-1)?.[1] as RequestInit | undefined;
             expect(mockFetch).toHaveBeenCalledWith(
-                expect.stringContaining('/api/scatter/matrix'),
+                expect.stringContaining('/api/v1/scatter/matrix'),
                 expect.objectContaining({ method: 'POST' }),
             );
             expect(JSON.parse(String(request?.body ?? '{}'))).toEqual({

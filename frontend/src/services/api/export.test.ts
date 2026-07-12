@@ -124,7 +124,7 @@ describe('Parquet export API', () => {
 
         await exportScatterParquet({ filters: { columnRanges: {} } }, { signal: controller.signal });
 
-        expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/scatter/export/parquet');
+        expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/scatter/export/parquet');
         expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
             method: 'POST',
             signal: controller.signal,

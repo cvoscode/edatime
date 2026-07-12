@@ -201,7 +201,7 @@ describe('drift compute payload', () => {
             includeChangePoints: true,
             includeCorrelations: true,
         });
-        expect(request[0]).toBe('/api/drift/investigate');
+        expect(request[0]).toBe('/api/v1/drift/investigate');
         expect(body.column).toBeUndefined();
     });
 
