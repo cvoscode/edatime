@@ -29,8 +29,8 @@ const {
     };
 });
 
-// Mock createTimeseriesPageController from ./timeseriesPage.js
-vi.mock('./timeseriesPage.js', () => ({
+// Mock the feature-owned timeseries controller.
+vi.mock('../features/timeseries/controller.js', () => ({
     createTimeseriesPageController: mockCreateTimeseriesPageController,
 }));
 

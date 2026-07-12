@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createTimeseriesPageController } from './timeseriesPage.js';
+import { createTimeseriesPageController } from './controller.js';
 import {
     chartState,
     setChartInstance,
     setInitialView,
     setViewport,
     setZoomHistory,
-} from '../store/chartState.js';
-import { setMetadata } from '../store/datasetState.js';
+} from '../../store/chartState.js';
+import { setMetadata } from '../../store/datasetState.js';
 import {
     runtimeState,
     setFetchDebounceId,
@@ -17,14 +17,14 @@ import {
     setPendingRestoreY,
     setPendingYMode,
     setRefetchOnZoom,
-} from '../store/runtimeState.js';
+} from '../../store/runtimeState.js';
 import {
     setAdaptiveLineFilters,
     setColumnRanges,
     setSelectedColorColumn,
     setSelectedCols,
-} from '../store/uiState.js';
-import { createWorkspaceStore } from '../workspace/workspaceStore.js';
+} from '../../store/uiState.js';
+import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 
 describe('createTimeseriesPageController', () => {
     beforeEach(() => {

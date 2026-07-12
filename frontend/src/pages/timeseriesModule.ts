@@ -4,7 +4,7 @@
  * Replaces the per-page trampolines currently in app.ts.
  */
 
-import { createTimeseriesPageController } from './timeseriesPage.js';
+import { createTimeseriesPageController } from '../features/timeseries/controller.js';
 import { createTimeseriesEntrypoint } from '../features/timeseries/entrypoint.js';
 import { createTimeseriesLifecycle } from '../features/timeseries/lifecycle.js';
 import { createDatasetBootstrap } from '../app/bootstrap/datasetBootstrap.js';
