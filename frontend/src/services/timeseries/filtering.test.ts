@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { createWorkspaceStore, makeWorkspaceSnapshot } from '../../workspace/workspaceStore.js';
-import { datasetState } from '../../store/index.js';
 import {
     applyFilterIntentToData,
     applyColumnRangesToData,
@@ -9,7 +8,6 @@ import {
     clipDataToViewport,
     computeBounds,
     ensureRangeStateFromData,
-    sanitizeSelectedColumns,
 } from './filtering.js';
 
 describe('timeseries filtering helpers', () => {
@@ -27,18 +25,6 @@ describe('timeseries filtering helpers', () => {
         } as any, workspace);
 
         expect(workspace.getSnapshot().filters.columnRanges).toEqual({ value: { from: 2, to: 8 } });
-    });
-
-    it('publishes sanitized selections to the workspace', () => {
-        const workspace = createWorkspaceStore();
-        datasetState.metadata = {
-            columns: [{ name: 'timestamp', dtype: 'datetime[ms]' }, { name: 'value', dtype: 'float64' }],
-        } as any;
-        workspace.setSelection(['timestamp', 'value'], 'bucket');
-
-        sanitizeSelectedColumns(workspace);
-
-        expect(workspace.getSnapshot().selection).toEqual({ columns: ['value'], colorColumn: 'bucket' });
     });
 
     it('normalizes adaptive line filters for query payloads', () => {

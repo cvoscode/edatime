@@ -5,8 +5,7 @@ import type {
     FilteredDataObject,
     ScatterLineFilterSpec,
 } from '../../types.js';
-import { datasetState } from '../../store/datasetState.js';
-import { setColumnRanges, setSelectedCols } from '../../store/uiState.js';
+import { setColumnRanges } from '../../store/uiState.js';
 import type { WorkspaceSnapshot, WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 export type TimeseriesFilterIntent = Pick<WorkspaceSnapshot, 'selection' | 'filters'>;
@@ -224,38 +223,4 @@ export function applyFilterIntentToData(
         { ...intent.filters.columnRanges },
         [...intent.filters.adaptiveLines],
     );
-}
-
-/**
- * Remove selected columns that are time/dataset columns or don't exist
- * in the current metadata.
- */
-export function sanitizeSelectedColumns(
-    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setSelection'>,
-): void {
-    const blockedNames = new Set(['ts', 'timestamp', 'time']);
-    const datetimeCols = new Set(
-        (datasetState.metadata?.columns || [])
-            .filter((col) => /date|time/i.test(String(col?.dtype || '')))
-            .map((col) => String(col?.name || '').toLowerCase()),
-    );
-
-    const validColNames = new Set(
-        (datasetState.metadata?.columns || []).map((c) => String(c?.name || '').trim()),
-    );
-
-    const intent = workspace.getSnapshot();
-    const selectedColumns = intent.selection.columns;
-    const filtered = selectedColumns.filter((col) => {
-        const name = String(col || '').trim();
-        if (!name) return false;
-        const lower = name.toLowerCase();
-        if (blockedNames.has(lower)) return false;
-        if (datetimeCols.has(lower)) return false;
-        // Only keep columns that exist in the current dataset
-        if (!validColNames.has(name)) return false;
-        return true;
-    });
-    workspace.setSelection(filtered, intent.selection.colorColumn);
-    setSelectedCols(filtered);
 }

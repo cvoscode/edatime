@@ -4,9 +4,9 @@ import {
     applyFilterIntentToData,
     applyColumnRangesToData,
     clipDataToViewport,
-    sanitizeSelectedColumns,
     type TimeseriesFilterIntent,
 } from '../services/timeseries/filtering.js';
+import { sanitizeSelectedColumns } from '../features/timeseries/columnSelection.js';
 import { createEmptyStateController, isRangeOutsideDataset } from '../ui/emptyState.js';
 import { announceChartLoading, announceDataUpdate } from '../utils/a11y.js';
 import { computeFrontendRollingBands } from '../bootstrap/analyticsOverlay.js';
