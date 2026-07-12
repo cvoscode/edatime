@@ -2,14 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildRangeControls } from './rangeControls.js';
 import {
     datasetState,
-    uiState,
-    setAdaptiveFilterColumn,
-    setAdaptiveLineFilters,
-    setColumnRanges,
     setMetadata,
-    setPendingAdaptivePoint,
-    setSelectedCols,
-} from '../../store/index.js';
+} from '../../store/datasetState.js';
+import { setAdaptiveFilterColumn, setAdaptiveLineFilters, setColumnRanges, setPendingAdaptivePoint, setSelectedCols, uiState } from '../../store/uiState.js';
 import { createWorkspaceStore, makeWorkspaceSnapshot, type WorkspaceStore } from '../../workspace/workspaceStore.js';
 import { __resetFilterModalOpenerForTests, registerFilterModalOpener } from './filterModalService.js';
 

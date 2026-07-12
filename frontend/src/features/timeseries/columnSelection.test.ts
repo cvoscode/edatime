@@ -2,10 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { sanitizeSelectedColumns, ensureAdaptiveTargetStillValid } from './columnSelection.js';
 import {
     datasetState,
-    setAdaptiveFilterColumn,
     setMetadata,
-    uiState,
-} from '../../store/index.js';
+} from '../../store/datasetState.js';
+import { setAdaptiveFilterColumn, uiState } from '../../store/uiState.js';
 import { createWorkspaceStore, type WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 describe('columnSelection', () => {

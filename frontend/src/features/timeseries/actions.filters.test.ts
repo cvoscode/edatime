@@ -3,10 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initTimeseriesActions } from './actions.js';
 import {
     getScatterViewSnapshot,
-    setAdaptiveLineFilters,
-    setColumnRanges,
     setScatterViewSnapshot,
-} from '../../store/index.js';
+} from '../../store/scatterState.js';
+import { setAdaptiveLineFilters, setColumnRanges } from '../../store/uiState.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 
 function buildDom(): void {

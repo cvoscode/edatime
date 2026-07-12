@@ -2,13 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { initFilterModalController } from './filterModalController.js';
 import {
     setChartInstance,
-    datasetState,
-    uiState,
-    setColumnRanges,
-    setLastFetchedData,
-    setMetadata,
-    setSelectedCols,
-} from '../../store/index.js';
+} from '../../store/chartState.js';
+import { datasetState, setMetadata } from '../../store/datasetState.js';
+import { setLastFetchedData } from '../../store/runtimeState.js';
+import { setColumnRanges, setSelectedCols, uiState } from '../../store/uiState.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 import { __resetFilterModalOpenerForTests, openFilterForColumn } from './filterModalService.js';
 

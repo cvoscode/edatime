@@ -2,13 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildColumnToggles } from './columnsController.js';
 import {
     datasetState,
-    setAdaptiveFilterColumn,
-    setFilterText,
     setMetadata,
-    setSelectedColorColumn,
-    setSelectedCols,
-    setSeriesColors,
-} from '../../store/index.js';
+} from '../../store/datasetState.js';
+import { setAdaptiveFilterColumn, setFilterText, setSelectedColorColumn, setSelectedCols, setSeriesColors } from '../../store/uiState.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 
 function buildDom(): void {
