@@ -99,6 +99,7 @@ import {
     initCtrlPan,
 } from './chartInteractions.js';
 import { ChartOverlays } from './chartOverlays.js';
+import { clampLegendPosition, isShiftOnlyGesture } from './legendInteraction.js';
 import {
     DEFAULT_CHART_GRID,
     computeChartGrid,
@@ -1029,16 +1030,7 @@ export class DataChart {
         if (!el) return;
         const ke = event as KeyboardEvent;
         const pe = event as PointerEvent;
-        const shiftOnly = (
-            ((typeof ke.shiftKey === 'boolean' && ke.shiftKey)
-                && !(typeof ke.ctrlKey === 'boolean' && ke.ctrlKey)
-                && !(typeof ke.metaKey === 'boolean' && ke.metaKey)
-                && !(typeof ke.altKey === 'boolean' && ke.altKey))
-            || ((typeof pe.shiftKey === 'boolean' && pe.shiftKey)
-                && !(typeof pe.ctrlKey === 'boolean' && pe.ctrlKey)
-                && !(typeof pe.metaKey === 'boolean' && pe.metaKey)
-                && !(typeof pe.altKey === 'boolean' && pe.altKey))
-        );
+        const shiftOnly = isShiftOnlyGesture(ke) || isShiftOnlyGesture(pe);
         el.classList.toggle('is-shift-active', shiftOnly);
         // Mirror the hint on the chart container so other handlers
         // (notably box-zoom) can cheaply check `is-shift-active` and
@@ -1134,13 +1126,7 @@ export class DataChart {
         const container = this._container;
         const legend = this._legendEl;
         if (!container || !legend) return { left: 8, top: 8 };
-        const margin = 8;
-        const maxLeft = Math.max(margin, container.clientWidth - legend.offsetWidth - margin);
-        const maxTop = Math.max(margin, container.clientHeight - legend.offsetHeight - margin);
-        return {
-            left: Math.min(maxLeft, Math.max(margin, Math.round(position.left))),
-            top: Math.min(maxTop, Math.max(margin, Math.round(position.top))),
-        };
+        return clampLegendPosition(position, container, legend);
     }
 
     private _startLegendDrag(event: PointerEvent): void {

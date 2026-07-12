@@ -149,6 +149,11 @@ Complete: FFT and Timeseries layout/lifecycle tests now live with their features
 
 Continue replacing cross-feature deep imports with small public surfaces, then extend the architecture checker once the remaining direct seams have been migrated.
 
+### In progress: DataChart decomposition
+
+- Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.
+- Added direct unit coverage for this policy while retaining the existing DataChart legend characterization tests; the next extraction moves legend DOM lifecycle ownership.
+
 ## Target Architecture
 
 ```text
