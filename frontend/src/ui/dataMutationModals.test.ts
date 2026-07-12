@@ -30,7 +30,7 @@ vi.mock('./primitives/Dropdown.js', () => ({
     getDropdownValue: (id: string) => (id === 'outlier-method' ? 'zscore' : ''),
 }));
 
-import { setSelectedCols } from '../store/index.js';
+import { setSelectedCols } from '../store/uiState.js';
 import { initOutlierModal } from './dataMutationModals.js';
 
 describe('dataMutationModals', () => {

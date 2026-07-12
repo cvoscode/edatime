@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { setAdaptiveLineFilters, setPendingAdaptivePoint } from '../store/index.js';
+import { setAdaptiveLineFilters, setPendingAdaptivePoint } from '../store/uiState.js';
 import { createWorkspaceStore } from '../workspace/workspaceStore.js';
 import { initDrawControls } from './drawControls.js';
 

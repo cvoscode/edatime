@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { setMetadata } from '../store/index.js';
+import { setMetadata } from '../store/datasetState.js';
 import {
     __quickRangeForTest,
     initQuickRangeControls,

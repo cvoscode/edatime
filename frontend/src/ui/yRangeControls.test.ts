@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { setChartInstance } from '../store/index.js';
+import { setChartInstance } from '../store/chartState.js';
 import { initYRangeControls } from './yRangeControls.js';
 
 describe('initYRangeControls — production no-op behavior', () => {

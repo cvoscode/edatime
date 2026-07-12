@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { setMetadata } from '../store/index.js';
+import { setMetadata } from '../store/datasetState.js';
 import { buildMetaBar, setMetaText } from './metaBar.js';
 
 describe('metaBar', () => {

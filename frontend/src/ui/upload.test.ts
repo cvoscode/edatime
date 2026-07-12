@@ -46,7 +46,8 @@ import {
     formatUploadRowCount,
     loadedRowCountFromResponse,
 } from './upload';
-import { datasetState, uiState } from '../store/index.js';
+import { datasetState } from '../store/datasetState.js';
+import { uiState } from '../store/uiState.js';
 import type { DatasetMetadata } from '../types';
 
 function makeMetadata(overrides: Partial<DatasetMetadata> = {}): DatasetMetadata {

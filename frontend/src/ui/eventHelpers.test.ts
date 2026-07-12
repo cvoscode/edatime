@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { setAdaptiveLineFilters } from '../store/index.js';
+import { setAdaptiveLineFilters } from '../store/uiState.js';
 import { emitAdaptiveFiltersChange } from './eventHelpers.js';
 
 describe('eventHelpers', () => {

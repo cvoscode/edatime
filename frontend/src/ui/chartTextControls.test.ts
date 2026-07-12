@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { chartState, setChartInstance, setChartText } from '../store/index.js';
+import { chartState, setChartInstance, setChartText } from '../store/chartState.js';
 import { initChartTextControls } from './chartTextControls.js';
 
 describe('chartTextControls', () => {

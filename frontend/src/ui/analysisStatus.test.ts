@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { chartState, setChartInstance, setPendingRestoreY, setPendingYMode } from '../store/index.js';
+import { chartState, setChartInstance } from '../store/chartState.js';
+import { setPendingRestoreY, setPendingYMode } from '../store/runtimeState.js';
 import { updateAnalysisYRange } from './analysisStatus.js';
 
 describe('analysisStatus', () => {
