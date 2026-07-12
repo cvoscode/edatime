@@ -14,11 +14,11 @@ import {
     downloadBlob,
 } from './helpers.js';
 import {
-    appState,
     currentControls,
     type ScatterControls,
     buildScatterQueryContext,
 } from './state.js';
+import { scatterState } from '../store/scatterState.js';
 import { exportScatterParquet as exportScatterParquetBlob } from '../services/api/index.js';
 import type { WorkspaceSnapshot } from '../workspace/workspaceStore.js';
 import { scaleScatterPlotGrid } from './layout.js';
@@ -52,10 +52,10 @@ export function drawScatterSeriesToCanvas(
     plotLeft: number, plotTop: number, plotWidth: number, plotHeight: number,
     controls: ScatterControls, scale: number,
 ): void {
-    const xSpan = Math.max(1e-9, appState.scatter.view.xMax - appState.scatter.view.xMin);
-    const ySpan = Math.max(1e-9, appState.scatter.view.yMax - appState.scatter.view.yMin);
-    const points = appState.scatter.points;
-    const categoricalGroups = buildCategoricalColorGroups(appState.scatter.colorLabels);
+    const xSpan = Math.max(1e-9, scatterState.view.xMax - scatterState.view.xMin);
+    const ySpan = Math.max(1e-9, scatterState.view.yMax - scatterState.view.yMin);
+    const points = scatterState.points;
+    const categoricalGroups = buildCategoricalColorGroups(scatterState.colorLabels);
 
     if (controls.renderMode === 'density') {
         const binSize = Math.max(2, (Number(controls.binSize) || 10) * scale);
@@ -65,8 +65,8 @@ export function drawScatterSeriesToCanvas(
         let maxCount = 0;
         for (const [x, y] of points) {
             if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-            const nx = (x - appState.scatter.view.xMin) / xSpan;
-            const ny = (y - appState.scatter.view.yMin) / ySpan;
+            const nx = (x - scatterState.view.xMin) / xSpan;
+            const ny = (y - scatterState.view.yMin) / ySpan;
             if (nx < 0 || nx > 1 || ny < 0 || ny > 1) continue;
             const col = Math.max(0, Math.min(cols - 1, Math.floor(nx * cols)));
             const row = Math.max(0, Math.min(rows - 1, Math.floor((1 - ny) * rows)));
@@ -96,14 +96,14 @@ export function drawScatterSeriesToCanvas(
     for (let i = 0; i < points.length; i += stride) {
         const [x, y] = points[i];
         if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-        const px = plotLeft + ((x - appState.scatter.view.xMin) / xSpan) * plotWidth;
-        const py = plotTop + (1 - ((y - appState.scatter.view.yMin) / ySpan)) * plotHeight;
+        const px = plotLeft + ((x - scatterState.view.xMin) / xSpan) * plotWidth;
+        const py = plotTop + (1 - ((y - scatterState.view.yMin) / ySpan)) * plotHeight;
         let fill = '#4a9eff';
         if (controls.selectedColorColumn && categoricalGroups) {
-            fill = categoricalGroups.colorByLabel.get(normalizeCategoryLabel(appState.scatter.colorLabels?.[i])) || fill;
-        } else if (controls.selectedColorColumn && Array.isArray(appState.scatter.colorValues) && Number.isFinite(appState.scatter.colorMin) && Number.isFinite(appState.scatter.colorMax) && appState.scatter.colorMax! > appState.scatter.colorMin!) {
-            const v = Number(appState.scatter.colorValues[i]);
-            if (Number.isFinite(v)) fill = sampleGradient(palette, (v - appState.scatter.colorMin!) / (appState.scatter.colorMax! - appState.scatter.colorMin!));
+            fill = categoricalGroups.colorByLabel.get(normalizeCategoryLabel(scatterState.colorLabels?.[i])) || fill;
+        } else if (controls.selectedColorColumn && Array.isArray(scatterState.colorValues) && Number.isFinite(scatterState.colorMin) && Number.isFinite(scatterState.colorMax) && scatterState.colorMax! > scatterState.colorMin!) {
+            const v = Number(scatterState.colorValues[i]);
+            if (Number.isFinite(v)) fill = sampleGradient(palette, (v - scatterState.colorMin!) / (scatterState.colorMax! - scatterState.colorMin!));
         }
         ctx.fillStyle = fill;
         ctx.beginPath();
@@ -164,30 +164,30 @@ export function renderScatterExportToCanvas(canvas: HTMLCanvasElement): boolean 
     ctx.font = `${fontSize}px Inter, system-ui, -apple-system, sans-serif`;
 
     // Y ticks
-    const yTicks = buildLinearTicks(appState.scatter.view.yMin, appState.scatter.view.yMax, 6);
+    const yTicks = buildLinearTicks(scatterState.view.yMin, scatterState.view.yMax, 6);
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = textDim;
     for (const tick of yTicks) {
-        const py = plotBottom - ((tick - appState.scatter.view.yMin) / Math.max(1e-9, appState.scatter.view.yMax - appState.scatter.view.yMin)) * plotHeight;
+        const py = plotBottom - ((tick - scatterState.view.yMin) / Math.max(1e-9, scatterState.view.yMax - scatterState.view.yMin)) * plotHeight;
         ctx.strokeStyle = borderHi; ctx.globalAlpha = 0.35;
         ctx.beginPath(); ctx.moveTo(plotLeft, py); ctx.lineTo(plotRight, py); ctx.stroke();
         ctx.globalAlpha = 1; ctx.strokeStyle = border;
         ctx.beginPath(); ctx.moveTo(plotLeft - tickLen, py); ctx.lineTo(plotLeft, py); ctx.stroke();
-        ctx.fillText(formatValueForColumn(controls.y, tick, Math.max(1, appState.scatter.view.yMax - appState.scatter.view.yMin), appState.scatter.columnTypes), plotLeft - tickLen - labelPad, py);
+        ctx.fillText(formatValueForColumn(controls.y, tick, Math.max(1, scatterState.view.yMax - scatterState.view.yMin), scatterState.columnTypes), plotLeft - tickLen - labelPad, py);
     }
 
     // X ticks
-    const xTicks = buildLinearTicks(appState.scatter.view.xMin, appState.scatter.view.xMax, 6);
+    const xTicks = buildLinearTicks(scatterState.view.xMin, scatterState.view.xMax, 6);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     for (const tick of xTicks) {
-        const px = plotLeft + ((tick - appState.scatter.view.xMin) / Math.max(1e-9, appState.scatter.view.xMax - appState.scatter.view.xMin)) * plotWidth;
+        const px = plotLeft + ((tick - scatterState.view.xMin) / Math.max(1e-9, scatterState.view.xMax - scatterState.view.xMin)) * plotWidth;
         ctx.strokeStyle = borderHi; ctx.globalAlpha = 0.25;
         ctx.beginPath(); ctx.moveTo(px, plotTop); ctx.lineTo(px, plotBottom); ctx.stroke();
         ctx.globalAlpha = 1; ctx.strokeStyle = border;
         ctx.beginPath(); ctx.moveTo(px, plotBottom); ctx.lineTo(px, plotBottom + tickLen); ctx.stroke();
-        ctx.fillText(formatValueForColumn(controls.x, tick, Math.max(1, appState.scatter.view.xMax - appState.scatter.view.xMin), appState.scatter.columnTypes), px, plotBottom + tickLen + labelPad);
+        ctx.fillText(formatValueForColumn(controls.x, tick, Math.max(1, scatterState.view.xMax - scatterState.view.xMin), scatterState.columnTypes), px, plotBottom + tickLen + labelPad);
     }
 
     // Title
@@ -215,7 +215,7 @@ export function renderScatterExportToCanvas(canvas: HTMLCanvasElement): boolean 
     ctx.restore();
 
     // Correlation box
-    const corr = appState.scatter.correlationsByColumn.get(controls.y || '');
+    const corr = scatterState.correlationsByColumn.get(controls.y || '');
     const mode = normalizeCorrelationMetric(getSetting('defaultCorrelationMetric'));
     ctx.save();
     ctx.fillStyle = surface; ctx.strokeStyle = border; ctx.lineWidth = 1 * scale;
@@ -234,9 +234,9 @@ export function renderScatterExportToCanvas(canvas: HTMLCanvasElement): boolean 
     // Continuous color legend
     const showContinuousLegend = controls.renderMode === 'density' || (
         controls.selectedColorColumn
-        && !buildCategoricalColorGroups(appState.scatter.colorLabels)
-        && Number.isFinite(appState.scatter.colorMin) && Number.isFinite(appState.scatter.colorMax)
-        && appState.scatter.colorMax! > appState.scatter.colorMin!
+        && !buildCategoricalColorGroups(scatterState.colorLabels)
+        && Number.isFinite(scatterState.colorMin) && Number.isFinite(scatterState.colorMax)
+        && scatterState.colorMax! > scatterState.colorMin!
     );
     if (showContinuousLegend) {
         const palette = paletteForScale(controls.renderMode === 'density' ? controls.colormap : controls.colorScale);
@@ -257,9 +257,9 @@ export function renderScatterExportToCanvas(canvas: HTMLCanvasElement): boolean 
         ctx.fillStyle = gradient;
         ctx.fillRect(legendX + 10 * scale, legendY + 22 * scale, legendW - 20 * scale, 8 * scale);
         ctx.fillStyle = textDim; ctx.textBaseline = 'middle';
-        ctx.fillText(controls.renderMode === 'density' ? 'Low' : formatTwoDecimals(appState.scatter.colorMin!), legendX + 10 * scale, legendY + 34 * scale);
+        ctx.fillText(controls.renderMode === 'density' ? 'Low' : formatTwoDecimals(scatterState.colorMin!), legendX + 10 * scale, legendY + 34 * scale);
         ctx.textAlign = 'right';
-        ctx.fillText(controls.renderMode === 'density' ? 'High' : formatTwoDecimals(appState.scatter.colorMax!), legendX + legendW - 10 * scale, legendY + 34 * scale);
+        ctx.fillText(controls.renderMode === 'density' ? 'High' : formatTwoDecimals(scatterState.colorMax!), legendX + legendW - 10 * scale, legendY + 34 * scale);
         ctx.restore();
     }
 
@@ -271,23 +271,23 @@ export function renderScatterExportToCanvas(canvas: HTMLCanvasElement): boolean 
 export function buildVisibleScatterRows() {
     const controls = currentControls();
     const rows: any[] = [];
-    const xSpan = Math.max(1, appState.scatter.view.xMax - appState.scatter.view.xMin);
-    const ySpan = Math.max(1, appState.scatter.view.yMax - appState.scatter.view.yMin);
+    const xSpan = Math.max(1, scatterState.view.xMax - scatterState.view.xMin);
+    const ySpan = Math.max(1, scatterState.view.yMax - scatterState.view.yMin);
 
-    for (let i = 0; i < appState.scatter.points.length; i++) {
-        const x = Number(appState.scatter.points[i]?.[0]);
-        const y = Number(appState.scatter.points[i]?.[1]);
+    for (let i = 0; i < scatterState.points.length; i++) {
+        const x = Number(scatterState.points[i]?.[0]);
+        const y = Number(scatterState.points[i]?.[1]);
         if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-        if (x < appState.scatter.view.xMin || x > appState.scatter.view.xMax || y < appState.scatter.view.yMin || y > appState.scatter.view.yMax) continue;
+        if (x < scatterState.view.xMin || x > scatterState.view.xMax || y < scatterState.view.yMin || y > scatterState.view.yMax) continue;
         const row: any = {
             x, y,
-            x_label: formatValueForColumn(controls.x, x, xSpan, appState.scatter.columnTypes),
-            y_label: formatValueForColumn(controls.y, y, ySpan, appState.scatter.columnTypes),
+            x_label: formatValueForColumn(controls.x, x, xSpan, scatterState.columnTypes),
+            y_label: formatValueForColumn(controls.y, y, ySpan, scatterState.columnTypes),
         };
-        if (controls.selectedColorColumn && Array.isArray(appState.scatter.colorLabels)) {
-            row.color = normalizeCategoryLabel(appState.scatter.colorLabels[i]);
-        } else if (controls.selectedColorColumn && Array.isArray(appState.scatter.colorValues)) {
-            const cv = Number(appState.scatter.colorValues[i]);
+        if (controls.selectedColorColumn && Array.isArray(scatterState.colorLabels)) {
+            row.color = normalizeCategoryLabel(scatterState.colorLabels[i]);
+        } else if (controls.selectedColorColumn && Array.isArray(scatterState.colorValues)) {
+            const cv = Number(scatterState.colorValues[i]);
             row.color = Number.isFinite(cv) ? cv : null;
         }
         rows.push(row);

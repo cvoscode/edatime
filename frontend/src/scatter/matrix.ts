@@ -13,7 +13,6 @@ import {
     MATRIX_MAX_COLUMNS,
 } from './helpers.js';
 import {
-    appState,
     currentControls,
     buildScatterQueryContext,
     buildOverviewContextKey,
@@ -21,6 +20,7 @@ import {
     type MatrixCellData,
     type ScatterControls,
 } from './state.js';
+import { scatterState } from '../store/scatterState.js';
 import { setDropdownValue } from '../ui/primitives/Dropdown.js';
 import { describeDistributionMode, renderMatrixGrid } from './matrixGrid.js';
 import type { WorkspaceSnapshot } from '../workspace/workspaceStore.js';
@@ -35,12 +35,12 @@ function collectOverviewColumns(): string[] {
     const push = (c: string) => { if (!c || columns.includes(c)) return; columns.push(c); };
     push(controls.x);
     push(controls.y);
-    for (const item of appState.scatter.lastSuggestions || []) {
+    for (const item of scatterState.lastSuggestions || []) {
         push(item?.x);
         push(item?.y);
         if (columns.length >= MATRIX_MAX_COLUMNS) break;
     }
-    for (const column of (appState.scatter.metadata as any)?.numeric_columns || []) {
+    for (const column of (scatterState.metadata as any)?.numeric_columns || []) {
         push(column);
         if (columns.length >= MATRIX_MAX_COLUMNS) break;
     }
@@ -49,12 +49,12 @@ function collectOverviewColumns(): string[] {
 
 function buildOverviewColumns(): string[] {
     const derived = collectOverviewColumns();
-    const next = appState.scatter.matrixColumnOrder.filter((column) => derived.includes(column));
+    const next = scatterState.matrixColumnOrder.filter((column) => derived.includes(column));
     for (const column of derived) {
         if (!next.includes(column)) next.push(column);
     }
-    appState.scatter.matrixColumnOrder = next.slice(0, MATRIX_MAX_COLUMNS);
-    return appState.scatter.matrixColumnOrder;
+    scatterState.matrixColumnOrder = next.slice(0, MATRIX_MAX_COLUMNS);
+    return scatterState.matrixColumnOrder;
 }
 
 /* ── Data fetch ───────────────────────────────────────── */
@@ -104,7 +104,7 @@ async function fetchMatrixBatchData(
     colorColumn: string,
 ): Promise<Map<string, MatrixCellData>> {
     const cacheKey = buildMatrixBatchCacheKey(pairs, context, colorColumn);
-    const cached = appState.scatter.matrixBatchCache.get(cacheKey);
+    const cached = scatterState.matrixBatchCache.get(cacheKey);
     if (cached) return cached;
 
     const signal = getMatrixRenderSignal();
@@ -117,19 +117,19 @@ async function fetchMatrixBatchData(
     )
         .then((response) => response.cells)
         .catch((error: any) => {
-            appState.scatter.matrixBatchCache.delete(cacheKey);
+            scatterState.matrixBatchCache.delete(cacheKey);
             throw error;
         });
 
-    appState.scatter.matrixBatchCache.set(cacheKey, request);
+    scatterState.matrixBatchCache.set(cacheKey, request);
 
     const MAX_MATRIX_BATCH_CACHE = 64;
-    if (appState.scatter.matrixBatchCache.size > MAX_MATRIX_BATCH_CACHE) {
-        const keys = appState.scatter.matrixBatchCache.keys();
-        let toRemove = appState.scatter.matrixBatchCache.size - MAX_MATRIX_BATCH_CACHE;
+    if (scatterState.matrixBatchCache.size > MAX_MATRIX_BATCH_CACHE) {
+        const keys = scatterState.matrixBatchCache.keys();
+        let toRemove = scatterState.matrixBatchCache.size - MAX_MATRIX_BATCH_CACHE;
         for (const k of keys) {
             if (toRemove-- <= 0) break;
-            appState.scatter.matrixBatchCache.delete(k);
+            scatterState.matrixBatchCache.delete(k);
         }
     }
 
@@ -215,11 +215,11 @@ export async function renderScatterOverview(
 
     const controls = currentControls();
     setPanelStatus('scatter-matrix-status', 'Refreshing matrix for the current filters and linked time window...');
-    const requestId = ++appState.scatter.overviewRequestId;
+    const requestId = ++scatterState.overviewRequestId;
     // Abort any in-flight matrix batch from a previous render so the new
     // render wins cleanly without piling up overlapping requests.
     beginMatrixRender();
-    const pairs = buildMatrixFetchPairs(columns, controls, appState.scatter.lastSuggestions);
+    const pairs = buildMatrixFetchPairs(columns, controls, scatterState.lastSuggestions);
     const matrixContext = buildScatterQueryContext({
         colorColumn: controls.selectedColorColumn,
         scopeToColumns: false,
@@ -227,8 +227,8 @@ export async function renderScatterOverview(
 
     const datasets = new Map<string, MatrixCellData>();
     const rerenderOrderedGrid = (nextColumns: string[]) => {
-        appState.scatter.matrixColumnOrder = nextColumns.slice(0, MATRIX_MAX_COLUMNS);
-        renderMatrixGrid(appState.scatter.matrixColumnOrder, datasets, onCellClick, rerenderOrderedGrid);
+        scatterState.matrixColumnOrder = nextColumns.slice(0, MATRIX_MAX_COLUMNS);
+        renderMatrixGrid(scatterState.matrixColumnOrder, datasets, onCellClick, rerenderOrderedGrid);
     };
     renderMatrixGrid(columns, datasets, onCellClick, rerenderOrderedGrid);
 
@@ -236,7 +236,7 @@ export async function renderScatterOverview(
     let lastReportedCompleted = 0;
 
     const updateStatus = () => {
-        const groups = buildCategoricalColorGroups(appState.scatter.colorLabels);
+        const groups = buildCategoricalColorGroups(scatterState.colorLabels);
         const groupText = groups && controls.selectedColorColumn
             ? ` Grouped distributions use ${controls.selectedColorColumn}.`
             : '';
@@ -250,15 +250,15 @@ export async function renderScatterOverview(
 
     try {
         const batchData = await fetchMatrixBatchData(pairs, matrixContext, controls.selectedColorColumn);
-        if (requestId !== appState.scatter.overviewRequestId) return;
+        if (requestId !== scatterState.overviewRequestId) return;
         batchData.forEach((data, key) => {
             datasets.set(key, data);
         });
         lastReportedCompleted = pairs.length;
-        renderMatrixGrid(appState.scatter.matrixColumnOrder.length > 0 ? appState.scatter.matrixColumnOrder : columns, datasets, onCellClick, rerenderOrderedGrid);
+        renderMatrixGrid(scatterState.matrixColumnOrder.length > 0 ? scatterState.matrixColumnOrder : columns, datasets, onCellClick, rerenderOrderedGrid);
         updateStatus();
     } catch (error) {
-        if (requestId !== appState.scatter.overviewRequestId) return;
+        if (requestId !== scatterState.overviewRequestId) return;
         if (error instanceof Error && error.name === 'AbortError') return;
         console.error(error);
         renderMatrixGrid(columns, new Map(), onCellClick, null);

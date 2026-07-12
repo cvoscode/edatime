@@ -14,7 +14,8 @@ import { toast, dismissAllToasts } from '../utils/toast.js';
 import { getDropdownValue } from '../ui/primitives/Dropdown.js';
 import { EchartsScatterChart } from '../chart/EchartsScatterChart.js';
 import { fetchScatterPoints } from '../services/api/index.js';
-import { appState, uiState, setColumnRanges, setAdaptiveLineFilters, getScatterViewSnapshot, setScatterViewSnapshot } from '../store/index.js';
+import { getScatterViewSnapshot, scatterState, setScatterViewSnapshot } from '../store/scatterState.js';
+import { setAdaptiveLineFilters, setColumnRanges, uiState } from '../store/uiState.js';
 import { buildAdaptiveLineFiltersForQueryState } from '../services/timeseries/filtering.js';
 import {
     getEl,
@@ -85,7 +86,7 @@ let workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters'> | null = null;
 /** Request task for scatter data fetching with abort-before-new semantics. */
 const scatterTask = createRequestTask({
     setLoading: (loading: boolean) => {
-        appState.scatter.loading = loading;
+        scatterState.loading = loading;
         const scatterLoading = getEl('scatter-chart-loading');
         if (scatterLoading) scatterLoading.hidden = !loading;
     },
@@ -143,7 +144,7 @@ async function setScatterView(viewName: string, options: { render?: boolean } = 
     // filters when the user toggles back and forth. Globals are the
     // shared source for the scatter query context; the snapshot exists
     // only to remember what filters were staged while on the other view.
-    const previousView = (appState.scatter.activeView === 'matrix' ? 'matrix' : 'plot') as 'plot' | 'matrix';
+    const previousView = (scatterState.activeView === 'matrix' ? 'matrix' : 'plot') as 'plot' | 'matrix';
     const nextViewName: 'plot' | 'matrix' = nextView === 'matrix' ? 'matrix' : 'plot';
     if (previousView !== nextViewName) {
         const liveLineFilters = buildAdaptiveLineFiltersForQueryState(uiState.adaptiveLineFilters || []);
@@ -182,13 +183,13 @@ async function setScatterView(viewName: string, options: { render?: boolean } = 
     // appears empty because the cached view box covers zero in-range
     // points. We drop any saved view history and force the next
     // `renderScatter` to reset to the full extent.
-    if (appState.scatter.activeView === 'matrix' && nextView === 'plot') {
-        appState.scatter.view = { ...appState.scatter.full };
-        appState.scatter.zoomHistory = [];
+    if (scatterState.activeView === 'matrix' && nextView === 'plot') {
+        scatterState.view = { ...scatterState.full };
+        scatterState.zoomHistory = [];
         _preserveViewOnNextRender = false;
         _warnOnEmptyPlotAfterMatrix = true;
     }
-    appState.scatter.activeView = nextView;
+    scatterState.activeView = nextView;
     setSidebarAnalyticsSelection(nextView);
     syncScatterViewButtons(nextView);
     syncModeUI();
@@ -210,11 +211,11 @@ async function setScatterView(viewName: string, options: { render?: boolean } = 
     // the previous zoom/pan state lingering over an unrelated point set.
     await renderScatter();
     syncScatterEmptyState();
-    requestAnimationFrame(() => appState.scatter.chart?.resize?.());
+    requestAnimationFrame(() => scatterState.chart?.resize?.());
 }
 
 function refreshActiveScatterView(): Promise<void> {
-    return setScatterView(appState.scatter.activeView, { render: true });
+    return setScatterView(scatterState.activeView, { render: true });
 }
 
 /* ── Main render pipeline ─────────────────────────────── */
@@ -261,14 +262,14 @@ async function renderScatter(): Promise<void> {
     const yValue = getDropdownValue('scatter-y-col');
 
     if (!container || !xSelect || !ySelect || !xValue || !yValue) {
-        appState.scatter.loading = false;
-        appState.scatter.totalPoints = 0;
+        scatterState.loading = false;
+        scatterState.totalPoints = 0;
         syncScatterEmptyState();
         return;
     }
 
     showError('');
-    const requestId = ++appState.scatter.scatterRequestId;
+    const requestId = ++scatterState.scatterRequestId;
     syncScatterEmptyState();
 
     await scatterTask.run(async (signal) => {
@@ -303,22 +304,22 @@ async function renderScatter(): Promise<void> {
             queryContext,
             signal,
         );
-        if (requestId !== appState.scatter.scatterRequestId) return;
+        if (requestId !== scatterState.scatterRequestId) return;
 
-        appState.scatter.lastQueryContextKey = queryContextKey;
+        scatterState.lastQueryContextKey = queryContextKey;
         const points: [number, number][] = Array.isArray(response.points) ? response.points : [];
 
-        appState.scatter.totalPoints = Number(response.total_points ?? points.length);
-        appState.scatter.allPoints = points;
-        appState.scatter.allColorValues = Array.isArray(response.color_values) ? response.color_values : null;
-        appState.scatter.allColorLabels = Array.isArray(response.color_labels) ? response.color_labels : null;
-        appState.scatter.colorColumn = response.color || '';
+        scatterState.totalPoints = Number(response.total_points ?? points.length);
+        scatterState.allPoints = points;
+        scatterState.allColorValues = Array.isArray(response.color_values) ? response.color_values : null;
+        scatterState.allColorLabels = Array.isArray(response.color_labels) ? response.color_labels : null;
+        scatterState.colorColumn = response.color || '';
         // Audit issue 2.2: surface the cardinality summary so the
         // colorbar can show a "X other categories collapsed" hint
         // when the categorical color column has a long tail.
-        appState.scatter.colorCardinality = response.color_cardinality ?? null;
+        scatterState.colorCardinality = response.color_cardinality ?? null;
         const carriedFilterCount = queryContext.filters.length + queryContext.lineFilters.length;
-        if (_warnOnEmptyPlotAfterMatrix && appState.scatter.totalPoints === 0 && carriedFilterCount > 0) {
+        if (_warnOnEmptyPlotAfterMatrix && scatterState.totalPoints === 0 && carriedFilterCount > 0) {
             toast(
                 'Active matrix filters hide all scatter points. Clear them to repopulate the plot.',
                 'warning',
@@ -346,58 +347,58 @@ async function renderScatter(): Promise<void> {
         applyScatterStateFromCache(!preserveView);
         const renderSignature = buildRenderSignature(ctl);
 
-        if (appState.scatter.chart && appState.scatter.lastRenderSignature !== renderSignature) {
+        if (scatterState.chart && scatterState.lastRenderSignature !== renderSignature) {
             disposeScatterChart();
             container = resetScatterContainer() || getEl('scatter-chart');
         }
 
-        const nextOption = buildOption(appState.scatter.points, container);
+        const nextOption = buildOption(scatterState.points, container);
 
-        if (!appState.scatter.chart) {
+        if (!scatterState.chart) {
             const gpuAvailable = await isGPUAvailable();
             if (!gpuAvailable) {
                 setGpuUnavailable(true);
                 const fallbackChart = new EchartsScatterChart('scatter-chart');
                 await fallbackChart.init();
-                appState.scatter.chart = fallbackChart as any;
+                scatterState.chart = fallbackChart as any;
             } else {
                 setGpuUnavailable(false);
                 const chartOptions: Record<string, unknown> = { ...nextOption };
                 const powerPreference = defaultGpuPowerPreference();
                 if (powerPreference) chartOptions.powerPreference = powerPreference;
-                appState.scatter.chart = await createChart(container!, chartOptions as any);
+                scatterState.chart = await createChart(container!, chartOptions as any);
             }
-            const chart = appState.scatter.chart;
+            const chart = scatterState.chart;
             if (!chart) return;
-            appState.scatter.lastRenderSignature = renderSignature;
+            scatterState.lastRenderSignature = renderSignature;
             chart.setOption(nextOption);
             initSelectionZoom(container!);
             chart.onPerformanceUpdate?.(() => {
                 const now = performance.now();
-                if (now - appState.scatter.lastUpdateMs < 100) return;
-                appState.scatter.lastUpdateMs = now;
+                if (now - scatterState.lastUpdateMs < 100) return;
+                scatterState.lastUpdateMs = now;
                 updateBinnedReadout();
             });
         } else {
-            appState.scatter.chart.setOption(nextOption);
-            appState.scatter.lastRenderSignature = renderSignature;
-            requestAnimationFrame(() => appState.scatter.chart?.resize?.());
+            scatterState.chart.setOption(nextOption);
+            scatterState.lastRenderSignature = renderSignature;
+            requestAnimationFrame(() => scatterState.chart?.resize?.());
         }
 
         updateColorbarUI();
         updateBinnedReadout();
         updateCorrelationStats();
-        renderSuggestions(appState.scatter.lastSuggestions);
+        renderSuggestions(scatterState.lastSuggestions);
         updateMarginalPlots();
     });
 }
 
 async function rerenderScatterFromCache(resetViewFlag = true): Promise<void> {
-    if (Array.isArray(appState.scatter.allPoints) && appState.scatter.allPoints.length > 0) {
+    if (Array.isArray(scatterState.allPoints) && scatterState.allPoints.length > 0) {
         applyScatterStateFromCache(resetViewFlag);
-        if (appState.scatter.chart) renderCurrentOption();
+        if (scatterState.chart) renderCurrentOption();
         updateCorrelationStats();
-        renderSuggestions(appState.scatter.lastSuggestions);
+        renderSuggestions(scatterState.lastSuggestions);
     }
     syncScatterEmptyState();
     await refreshActiveScatterView();
@@ -469,8 +470,8 @@ export async function initScatterPage(
 
     const numeric: string[] = ((metadata as any)?.numeric_columns || []).filter((c: any) => c);
     const hadRestoredPair = !!(getDropdownValue('scatter-x-col') && getDropdownValue('scatter-y-col'));
-    appState.scatter.metadata = metadata;
-    appState.scatter.columnTypes = new Map(
+    scatterState.metadata = metadata;
+    scatterState.columnTypes = new Map(
         ((metadata as any)?.columns || []).map((col: any) => [
             String(col?.name || '').toLowerCase(),
             String(col?.dtype || ''),
@@ -495,14 +496,14 @@ export async function initScatterPage(
         ySelect.innerHTML = '';
     }
 
-    appState.scatter.loading = !appState.scatter.pageInitialized
+    scatterState.loading = !scatterState.pageInitialized
         && !page.hidden
         && !!getDropdownValue('scatter-x-col')
         && !!getDropdownValue('scatter-y-col');
     syncScatterEmptyState();
     syncScatterFilterBadge();
 
-    if (!appState.scatter.initialized) {
+    if (!scatterState.initialized) {
         await bindControls();
         // Wire the per-segment overflow popout now that the toolbar
         // segments exist in their final shape. The overflow logic
@@ -512,9 +513,9 @@ export async function initScatterPage(
         if (toolbar) {
             try { initScatterToolbarOverflow(toolbar); } catch { /* noop */ }
         }
-        appState.scatter.initialized = true;
+        scatterState.initialized = true;
     }
-    if (appState.scatter.pageInitialized) return;
+    if (scatterState.pageInitialized) return;
 
     const isVisible = !page.hidden;
     if (!isVisible) return;
@@ -528,7 +529,7 @@ export async function initScatterPage(
             preferTopPairOnFirstLoad: !hadRestoredPair,
         });
         await renderScatter();
-        appState.scatter.pageInitialized = true;
+        scatterState.pageInitialized = true;
     } catch (err: any) {
         handleErr(err);
     }
