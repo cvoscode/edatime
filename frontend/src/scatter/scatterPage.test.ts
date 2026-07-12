@@ -138,28 +138,13 @@ vi.mock('../services/api/index.js', () => ({
     fetchScatterPoints: (...args: unknown[]) => fetchScatterPointsMock(...args),
 }));
 
-// scatterPage imports the canonical store; mirror the legacy `../state.js`
-// mock so property assignments on `appState.scatter` are visible to the
-// test. Without this, the real ScatterState singleton is used and the
-// assertions in the "records scatter.metadata" test would fail.
+// scatterPage imports the canonical store; mirror the focused slices so
+// the page test can stage chart/ui/dataset/scatter state without touching
+// the real singleton instances.
 vi.mock('../store/index.js', async (importOriginal) => {
     const actual = await importOriginal<typeof import('../store/index.js')>();
     return {
         ...actual,
-        appState: {
-            ...actual.appState,
-            get metadata() { return freshDatasetState.metadata; },
-            set metadata(value) { freshDatasetState.metadata = value; },
-            get currentStart() { return freshChartState.currentStart; },
-            set currentStart(value) { freshChartState.currentStart = value; },
-            get currentEnd() { return freshChartState.currentEnd; },
-            set currentEnd(value) { freshChartState.currentEnd = value; },
-            get columnRanges() { return freshUiState.columnRanges; },
-            set columnRanges(value) { freshUiState.columnRanges = value; },
-            get adaptiveLineFilters() { return freshUiState.adaptiveLineFilters; },
-            set adaptiveLineFilters(value) { freshUiState.adaptiveLineFilters = value; },
-            scatter: freshScatterState,
-        },
         chartState: freshChartState,
         uiState: freshUiState,
         datasetState: freshDatasetState,
@@ -596,7 +581,6 @@ describe('initScatterPage view toggles', () => {
 
     it('renders on scatter page-change when the linked brush range changed since the last scatter render', async () => {
         const { initScatterPage } = await import('./scatterPage.js');
-        const { appState } = await import('../store/index.js');
         const { computeInteractiveScatterLimit } = await import('./renderLimit.js');
 
         const metadata = {
@@ -610,7 +594,7 @@ describe('initScatterPage view toggles', () => {
             time_range: { min: 0, max: 1_000 },
             column_profiles: [],
         } as any;
-        appState.metadata = metadata;
+        freshDatasetState.metadata = metadata;
         const scatterChart = document.getElementById('scatter-chart') as HTMLElement;
         Object.defineProperty(scatterChart, 'getBoundingClientRect', {
             value: () => ({ width: 600, height: 300 }),
@@ -620,8 +604,8 @@ describe('initScatterPage view toggles', () => {
 
         expect(fetchScatterPointsMock).toHaveBeenCalledTimes(1);
 
-        appState.currentStart = 100;
-        appState.currentEnd = 500;
+        freshChartState.currentStart = 100;
+        freshChartState.currentEnd = 500;
 
         window.dispatchEvent(new CustomEvent('edatime:page-change', {
             detail: { page: 'scatter', analyticsView: 'plot' },

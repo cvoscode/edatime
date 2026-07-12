@@ -1,9 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-    appStateComposite,
     chartState,
     datasetState,
-    runtimeState,
     scatterState,
     store,
     uiState,
@@ -14,7 +12,6 @@ import {
     setPreviewSelectedColumns,
     setSelectedCols,
 } from './uiState.js';
-import { setLastFetchedData, setRefetchOnZoom } from './runtimeState.js';
 
 describe('store contract', () => {
     beforeEach(() => {
@@ -23,8 +20,6 @@ describe('store contract', () => {
         setColumnRange('value', { from: 0, to: 1 });
         uiState.columnRanges = {};
         setPreviewSelectedColumns([]);
-        setLastFetchedData(null);
-        setRefetchOnZoom(true);
         setChartInstance(null);
         scatterState.activeView = 'plot';
         scatterState.zoomHistory = [];
@@ -62,28 +57,6 @@ describe('store contract', () => {
         expect(uiState.columnRanges).not.toBe(previousRanges);
     });
 
-    it('keeps runtime state synchronized through the legacy appState facade', () => {
-        const data = {
-            ts: Float64Array.from([1, 2]),
-            values: { value: Float64Array.from([3, 4]) },
-            color: null,
-            color_column: null,
-            _meta: {
-                downsampled: false,
-                downsampleKnown: true,
-                returnedRows: 2,
-                targetPoints: 10,
-            },
-        };
-
-        appStateComposite.lastFetchedData = data;
-        appStateComposite.refetchOnZoom = false;
-
-        expect(runtimeState.lastFetchedData).toBe(data);
-        expect(runtimeState.refetchOnZoom).toBe(false);
-        expect(appStateComposite.lastFetchedData).toBe(data);
-    });
-
     it('disposes the previous chart instance when replacing it', () => {
         const previous = {
             deepDispose: vi.fn(),
@@ -108,13 +81,4 @@ describe('store contract', () => {
         expect(chart.deepDispose).not.toHaveBeenCalled();
     });
 
-    it('delegates scatter and profile/upload preview fields from appState', () => {
-        appStateComposite.scatter.activeView = 'matrix';
-        appStateComposite.previewSelectedColumns = ['value'];
-        appStateComposite.profileFilterText = 'val';
-
-        expect(scatterState.activeView).toBe('matrix');
-        expect(uiState.previewSelectedColumns).toEqual(['value']);
-        expect(uiState.profileFilterText).toBe('val');
-    });
 });
