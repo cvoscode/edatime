@@ -8,7 +8,7 @@
  * exposes the same interface as other analysis page runtimes.
  */
 import { fetchSpectrogram, type SpectrogramResult } from '../services/api/index.js';
-import { appState } from '../store/index.js';
+import { chartState, datasetState } from '../store/index.js';
 import { exportEChartsPNG, exportEChartsSVG, exportEChartsHTML } from '../utils/chartExport.js';
 import {
     getDropdownOptions,
@@ -104,7 +104,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
     let autoComputeStarted = false;
     let autoComputeExplained = false;
     const workspaceSnapshot = () => deps.workspace?.getSnapshot();
-    const workspaceMetadata = () => workspaceSnapshot()?.dataset.metadata ?? appState.metadata;
+    const workspaceMetadata = () => workspaceSnapshot()?.dataset.metadata ?? datasetState.metadata;
     const workspaceViewport = () => workspaceSnapshot()?.viewport;
 
     const getSpectrogramWinCustomInput = () => document.getElementById('spectrogram-win-size-custom') as HTMLInputElement | null;
@@ -874,8 +874,8 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     return;
                 }
                 const viewport = workspaceViewport();
-                const startMs = viewport?.xMin ?? appState.currentStart;
-                const endMs = viewport?.xMax ?? appState.currentEnd;
+                const startMs = viewport?.xMin ?? chartState.currentStart;
+                const endMs = viewport?.xMax ?? chartState.currentEnd;
                 if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
                     return;
                 }
@@ -938,7 +938,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 if (autoComputeStarted || spectrogramResult) return;
                 if (!getDropdownValue('spectrogram-col-select')) return;
                 const viewport = workspaceViewport();
-                if (!Number.isFinite(viewport?.xMin ?? appState.currentStart) || !Number.isFinite(viewport?.xMax ?? appState.currentEnd)) return;
+                if (!Number.isFinite(viewport?.xMin ?? chartState.currentStart) || !Number.isFinite(viewport?.xMax ?? chartState.currentEnd)) return;
                 autoComputeStarted = true;
                 if (!autoComputeExplained) {
                     autoComputeExplained = true;

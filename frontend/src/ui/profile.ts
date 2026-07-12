@@ -5,10 +5,9 @@
  *  - reads from metadata.column_profiles (not metadata.columns)
  *  - uses the existing HTML grid structure (profile-grid-viewport / spacer / rows)
  *  - builds rows via DOM createElement, not innerHTML
- *  - uses appState.profileGridSort { key, dir } for sort state
+ *  - uses uiState.profileGridSort { key, dir } for sort state
  */
 
-import { appState } from '../store/index.js';
 import { PROFILE_ROW_HEIGHT, PROFILE_OVERSCAN, PROFILE_COLUMNS, getDefaultProfileColumnWidths } from '../services/profile/profile.js';
 import {
     formatCount,
@@ -19,11 +18,14 @@ import {
     toFiniteNumberOrNull,
 } from '../utils/format.js';
 import {
+    datasetState,
     setColumnProfiles,
     setPreviewSelectedColumns,
     setProfileGridBound,
+    setProfileGridColWidths,
     setProfileGridHeaderBound,
     setProfileGridSort,
+    uiState,
 } from '../store/index.js';
 import type { DatasetMetadata, ProfileRow } from '../types.js';
 
@@ -130,10 +132,10 @@ export function hydrateColumnProfiles(metadata: DatasetMetadata): void {
 let cachedFilteredProfiles: ProfileRow[] | null = null;
 let cachedFilteredProfilesKey: string | null = null;
 function getFilteredColumnProfiles(): ProfileRow[] {
-    const profiles: ProfileRow[] = appState.columnProfiles || [];
-    const q = (appState.profileFilterText || '').trim().toLowerCase();
-    const category = appState.profileFilterCategory || 'all';
-    const sort = appState.profileGridSort || {};
+    const profiles: ProfileRow[] = datasetState.columnProfiles;
+    const q = uiState.profileFilterText.trim().toLowerCase();
+    const category = uiState.profileFilterCategory || 'all';
+    const sort = uiState.profileGridSort || {};
     const cacheKey = `${profiles.length}|${q}|${category}|${sort.key ?? ''}|${sort.dir ?? ''}`;
     if (cachedFilteredProfiles && cachedFilteredProfilesKey === cacheKey && cachedFilteredProfiles.length >= profiles.length) {
         return cachedFilteredProfiles;
@@ -162,17 +164,17 @@ export function invalidateProfileGridViewModel(): void {
 function applyProfileGridColumnsTemplate(): void {
     const grid = document.getElementById('profile-grid');
     if (!grid) return;
-    const widths = appState.profileGridColWidths || getDefaultProfileColumnWidths();
+    const widths = uiState.profileGridColWidths || getDefaultProfileColumnWidths();
     const template = widths
         .map((w: number, idx: number) => `${Math.max(PROFILE_COLUMNS[idx]?.minWidth ?? 40, Math.round((Number(w) || PROFILE_COLUMNS[idx]?.defaultWidth) ?? 100))}px`)
         .join(' ');
     grid.style.setProperty('--profile-grid-cols', template);
 }
 
-function getSelectablePreviewColumns(profiles: ProfileRow[] = appState.columnProfiles || []): string[] {
+function getSelectablePreviewColumns(profiles: ProfileRow[] = datasetState.columnProfiles): string[] {
     return profiles
         .map((profile) => profile.name)
-        .filter((name) => name && name !== appState.previewTimeColumn);
+        .filter((name) => name && name !== uiState.previewTimeColumn);
 }
 
 export function formatUploadSelectionStatus(
@@ -197,10 +199,10 @@ export function formatUploadSelectionStatus(
     return `${chosenCount} of ${analysisCount} analysis columns selected.`;
 }
 
-function syncUploadSelectionUI(profiles: ProfileRow[] = appState.columnProfiles || []): void {
+function syncUploadSelectionUI(profiles: ProfileRow[] = datasetState.columnProfiles): void {
     const allCheckbox = document.getElementById('profile-select-all-checkbox') as HTMLInputElement | null;
     const selectable = getSelectablePreviewColumns(profiles);
-    const selected = new Set(appState.previewSelectedColumns || []);
+    const selected = new Set(uiState.previewSelectedColumns);
     const selectedCount = selectable.filter((name) => selected.has(name)).length;
 
     if (allCheckbox) {
@@ -213,8 +215,8 @@ function updateProfileGridHeaderState(): void {
     const header = document.querySelector('.profile-grid-header');
     if (!header) return;
 
-    const sortKey = appState.profileGridSort?.key;
-    const sortDir = appState.profileGridSort?.dir;
+    const sortKey = uiState.profileGridSort?.key;
+    const sortDir = uiState.profileGridSort?.dir;
     const cells = Array.from(header.children) as HTMLElement[];
     for (const cell of cells) {
         const key = cell.dataset.sortKey;
@@ -236,7 +238,7 @@ function updateProfileGridHeaderState(): void {
 }
 
 function initProfileGridHeaderControls(): void {
-    if (appState.profileGridHeaderBound) return;
+    if (uiState.profileGridHeaderBound) return;
 
     const header = document.querySelector('.profile-grid-header');
     if (!header) return;
@@ -252,7 +254,7 @@ function initProfileGridHeaderControls(): void {
         if (def.sortable) {
             cell.tabIndex = 0;
             cell.addEventListener('click', () => {
-                const current = appState.profileGridSort || { key: def.key, dir: 'asc' as const };
+                const current = uiState.profileGridSort || { key: def.key, dir: 'asc' as const };
                 if (current.key === def.key) {
                     setProfileGridSort({ key: def.key, dir: current.dir === 'asc' ? 'desc' : 'asc' });
                 } else {
@@ -277,11 +279,13 @@ function initProfileGridHeaderControls(): void {
                 event.preventDefault();
                 event.stopPropagation();
                 const startX = event.clientX;
-                const startW = Number(appState.profileGridColWidths[idx]) || def.defaultWidth;
+                const startW = Number(uiState.profileGridColWidths[idx]) || def.defaultWidth;
                 const onMove = (moveEvent: PointerEvent) => {
                     const dx = moveEvent.clientX - startX;
                     const next = Math.max(def.minWidth, startW + dx);
-                    appState.profileGridColWidths[idx] = next;
+                    const widths = [...uiState.profileGridColWidths];
+                    widths[idx] = next;
+                    setProfileGridColWidths(widths);
                     applyProfileGridColumnsTemplate();
                 };
                 const onUp = () => {
@@ -314,20 +318,20 @@ function createSelectionCell(profile: ProfileRow): HTMLDivElement {
 
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
-    checkbox.checked = (appState.previewSelectedColumns || []).includes(profile.name);
+    checkbox.checked = uiState.previewSelectedColumns.includes(profile.name);
     checkbox.setAttribute('aria-label', `Select ${profile.name} for upload`);
 
-    if (profile.name === appState.previewTimeColumn) {
+    if (profile.name === uiState.previewTimeColumn) {
         checkbox.disabled = true;
         checkbox.checked = true;
         checkbox.title = 'Time column is required';
     }
 
     checkbox.addEventListener('change', () => {
-        const selected = new Set(appState.previewSelectedColumns || []);
+        const selected = new Set(uiState.previewSelectedColumns);
         if (checkbox.checked) selected.add(profile.name);
         else selected.delete(profile.name);
-        if (appState.previewTimeColumn) selected.add(appState.previewTimeColumn);
+        if (uiState.previewTimeColumn) selected.add(uiState.previewTimeColumn);
         setPreviewSelectedColumns(Array.from(selected));
         syncUploadSelectionUI();
     });
@@ -442,7 +446,7 @@ export function renderColumnProfilesGrid(resetScroll = false): void {
 // ─── Init grid container ────────────────────────────────────────────────────
 
 export function initColumnProfilesGrid(): void {
-    if (appState.profileGridBound) return;
+    if (uiState.profileGridBound) return;
     const viewport = document.getElementById('profile-grid-viewport');
     const header = document.querySelector('.profile-grid-header') as HTMLElement | null;
     if (!viewport) return;

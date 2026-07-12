@@ -1,11 +1,10 @@
-import { appState } from '../store/index.js';
 import { fetchFft, fetchSpectralFilter } from '../services/api/index.js';
 import { FftChart, type FftTrace } from '../chart/FftChart.js';
 import { EchartsLineChart } from '../chart/EchartsLineChart.js';
 import { exportContainerCanvasPNG, exportContainerCanvasSVG, exportContainerCanvasHTML, exportTraceCSV } from '../utils/chartExport.js';
 import { toast } from '../utils/toast.js';
 import { getAnalyticsChipColor, getNumericColumns } from './analyticsPageUtils.js';
-import { setSpectralFilterPreview } from '../store/index.js';
+import { analyticsState, chartState, datasetState, setSpectralFilterPreview, uiState } from '../store/index.js';
 import { renderSeriesChipList } from '../ui/index.js';
 import { getDropdownValue, setDropdownDisabled } from '../ui/primitives/Dropdown.js';
 import { setSeriesColor } from '../utils/seriesColors.js';
@@ -79,7 +78,7 @@ export function __resetFftPageForTests(): void {
 }
 
 function fftColumns(): string[] {
-    return getNumericColumns(workspace?.getSnapshot().dataset.metadata ?? appState.metadata);
+    return getNumericColumns(workspace?.getSnapshot().dataset.metadata ?? datasetState.metadata);
 }
 
 function fftColorFor(column: string, fallbackIndex: number): string {
@@ -251,8 +250,8 @@ async function ensureFftChartReady(): Promise<void> {
 
 async function fetchAndAddTrace(column: string): Promise<void> {
     const viewport = workspace?.getSnapshot().viewport;
-    const startMs = viewport?.xMin ?? appState.currentStart;
-    const endMs = viewport?.xMax ?? appState.currentEnd;
+    const startMs = viewport?.xMin ?? chartState.currentStart;
+    const endMs = viewport?.xMax ?? chartState.currentEnd;
     if (startMs == null || endMs == null || !Number.isFinite(startMs) || !Number.isFinite(endMs)) return;
     const startIso = new Date(startMs).toISOString();
     const endIso = new Date(endMs).toISOString();
@@ -278,7 +277,7 @@ async function fetchAndAddTrace(column: string): Promise<void> {
 }
 
 async function seedInitialFftSelection(): Promise<void> {
-    if (fftInitialSelectionSeeded || !appState.metadata || fftTraces.length > 0) return;
+    if (fftInitialSelectionSeeded || !datasetState.metadata || fftTraces.length > 0) return;
     const columns = fftColumns();
     if (columns.length === 0) {
         fftInitialSelectionSeeded = true;
@@ -311,7 +310,7 @@ async function seedInitialFftSelection(): Promise<void> {
 
 function renderChips(): void {
     const bar = document.getElementById('fft-traces-bar');
-    if (!bar || !appState.metadata) return;
+    if (!bar || !datasetState.metadata) return;
     const columns = fftColumns();
 
     renderSeriesChipList({
@@ -496,15 +495,15 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
             document.getElementById('fft-filter-apply-btn')?.addEventListener('click', async () => {
                 const filterType = getDropdownValue('fft-filter-type');
                 if (!filterType || filterType === 'none') {
-                    if (appState.spectralFilterPreview) {
+                    if (analyticsState.spectralFilterPreview) {
                         setSpectralFilterPreview(null);
-                        appState.chart?.requestOverlayRender?.();
+                        chartState.chart?.requestOverlayRender?.();
                         deps.renderTimeseries();
                     }
                     return;
                 }
 
-                const column = fftTraces[0]?.column || appState.selectedCols[0];
+                const column = fftTraces[0]?.column || uiState.selectedCols[0];
                 if (!column) {
                     toast('Select a column chip below first.', 'warning');
                     return;
@@ -516,8 +515,8 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
 
                 if (statusEl) statusEl.textContent = 'Computing…';
                 try {
-                    const start = appState.currentStart;
-                    const end = appState.currentEnd;
+                    const start = chartState.currentStart;
+                    const end = chartState.currentEnd;
                     if (start == null || end == null || !Number.isFinite(start) || !Number.isFinite(end)) {
                         throw new Error('No range selected');
                     }
@@ -616,7 +615,7 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
         },
         onEveryPageChange() {
             // Re-render chips on every page change (fft needs to reflect selected columns from any page)
-            if (appState.metadata) {
+            if (datasetState.metadata) {
                 renderChips();
                 void seedInitialFftSelection();
             }

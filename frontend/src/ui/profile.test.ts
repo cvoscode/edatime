@@ -12,6 +12,7 @@ import {
     sortProfileRows,
 } from './profile';
 import { appState } from '../store/appStateCompat';
+import { datasetState, uiState } from '../store/index.js';
 import type { DatasetMetadata } from '../types';
 
 function makeMeta(overrides: Partial<DatasetMetadata> = {}): DatasetMetadata {
@@ -352,5 +353,41 @@ describe('renderColumnProfilesGrid', () => {
             .join(' ');
         expect(rowText).toContain('timestamp');
         expect(rowText).not.toContain('value');
+    });
+
+    it('updates preview selection through uiState when a non-time column checkbox is toggled', () => {
+        appState.previewTimeColumn = 'timestamp';
+        appState.previewSelectedColumns = ['timestamp'];
+        appState.columnProfiles = [
+            {
+                name: 'timestamp',
+                dtype: 'datetime64[ms]',
+                nonNullCount: 3,
+                nullCount: 0,
+                min: 0,
+                max: 1,
+                histCounts: [],
+            },
+            {
+                name: 'value',
+                dtype: 'Float64',
+                nonNullCount: 3,
+                nullCount: 0,
+                min: 1,
+                max: 3,
+                histCounts: [],
+            },
+        ];
+
+        renderColumnProfilesGrid(true);
+
+        const checkboxes = Array.from(document.querySelectorAll<HTMLInputElement>('.profile-cell-check input[type="checkbox"]'));
+        expect(datasetState.columnProfiles).toHaveLength(2);
+        expect(uiState.previewSelectedColumns).toEqual(['timestamp']);
+
+        checkboxes[1].click();
+
+        expect(uiState.previewTimeColumn).toBe('timestamp');
+        expect(uiState.previewSelectedColumns).toEqual(['timestamp', 'value']);
     });
 });
