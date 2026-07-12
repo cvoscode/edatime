@@ -8,12 +8,12 @@ import { SERIES_COLORS } from '../utils/seriesColors.js';
 import { applyFilterIntentToData, buildAdaptiveLineY } from '../services/timeseries/filtering.js';
 import {
     appendAdaptiveLineFilter,
-    chartState,
-    runtimeState,
     setAdaptiveFilterColumn,
     setPendingAdaptivePoint,
     uiState,
-} from '../store/index.js';
+} from '../store/uiState.js';
+import { chartState } from '../store/chartState.js';
+import { runtimeState } from '../store/runtimeState.js';
 import type { AdaptiveLineFilter } from '../types.js';
 import type { WorkspaceStore, WorkspaceSnapshot } from '../workspace/workspaceStore.js';
 

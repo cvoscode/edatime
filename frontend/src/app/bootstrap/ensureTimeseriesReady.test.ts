@@ -41,12 +41,18 @@ vi.mock('../webgpuGuard.js', () => ({
     checkWebGPU: checkWebGPUMock,
 }));
 
-vi.mock('../../store/index.js', () => ({
+vi.mock('../../store/chartState.js', () => ({
     chartState: appStateMock,
-    datasetState: appStateMock,
-    setAnalysisBound: setAnalysisBoundMock,
     setChartInstance: setChartInstanceMock,
     setInitialView: setInitialViewMock,
+}));
+
+vi.mock('../../store/datasetState.js', () => ({
+    datasetState: appStateMock,
+}));
+
+vi.mock('../../store/runtimeState.js', () => ({
+    setAnalysisBound: setAnalysisBoundMock,
 }));
 
 vi.mock('../../ui/toolbar.js', () => ({
