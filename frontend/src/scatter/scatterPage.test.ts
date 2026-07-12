@@ -8,6 +8,21 @@ const renderScatterMatrixViewMock = vi.fn();
 const emptyStateUpdateMock = vi.fn();
 const toastMock = vi.fn();
 const requestGpuAdapterMock = vi.hoisted(() => vi.fn(async (..._args: unknown[]): Promise<{ name: string } | null> => ({ name: 'mock-adapter' })));
+const freshChartState = vi.hoisted(() => ({
+    currentStart: 0 as number | null,
+    currentEnd: 1_000 as number | null,
+}));
+const freshUiState = vi.hoisted(() => ({
+    columnRanges: {} as Record<string, { from: number; to: number }>,
+    adaptiveLineFilters: [] as any[],
+}));
+const freshDatasetState = vi.hoisted(() => ({
+    metadata: null as any,
+}));
+const scatterViewSnapshots = vi.hoisted(() => ({
+    plot: { columnRanges: {} as Record<string, { from: number; to: number }>, lineFilters: [] as any[] },
+    matrix: { columnRanges: {} as Record<string, { from: number; to: number }>, lineFilters: [] as any[] },
+}));
 
 const freshScatterState = vi.hoisted(() => ({
     chart: null,
@@ -50,6 +65,61 @@ const freshScatterState = vi.hoisted(() => ({
     scatterRequestId: 0,
 }));
 
+vi.mock('../store/chartState.js', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../store/chartState.js')>();
+    return {
+        ...actual,
+        chartState: freshChartState,
+    };
+});
+
+vi.mock('../store/uiState.js', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../store/uiState.js')>();
+    return {
+        ...actual,
+        uiState: freshUiState,
+        setColumnRanges: (ranges: Record<string, { from: number; to: number }>) => {
+            freshUiState.columnRanges = { ...ranges };
+        },
+        setAdaptiveLineFilters: (filters: any[]) => {
+            freshUiState.adaptiveLineFilters = [...filters];
+        },
+    };
+});
+
+vi.mock('../store/datasetState.js', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../store/datasetState.js')>();
+    return {
+        ...actual,
+        datasetState: freshDatasetState,
+    };
+});
+
+vi.mock('../store/scatterState.js', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../store/scatterState.js')>();
+    return {
+        ...actual,
+        scatterState: freshScatterState,
+        getScatterViewSnapshot: (view: 'plot' | 'matrix') => {
+            const snapshot = scatterViewSnapshots[view];
+            return {
+                columnRanges: { ...snapshot.columnRanges },
+                lineFilters: snapshot.lineFilters.slice(),
+            };
+        },
+        setScatterViewSnapshot: (view: 'plot' | 'matrix', snapshot: { columnRanges: Record<string, { from: number; to: number }>; lineFilters: any[] }) => {
+            scatterViewSnapshots[view] = {
+                columnRanges: { ...snapshot.columnRanges },
+                lineFilters: snapshot.lineFilters.slice(),
+            };
+        },
+        clearScatterViewSnapshots: () => {
+            scatterViewSnapshots.plot = { columnRanges: {}, lineFilters: [] };
+            scatterViewSnapshots.matrix = { columnRanges: {}, lineFilters: [] };
+        },
+    };
+});
+
 vi.mock('../../libs/chartgpu/dist/index.js', () => ({
     createChart: (...args: unknown[]) => createChartMock(...args),
 }));
@@ -74,11 +144,6 @@ vi.mock('../store/appStateCompat.js', async (importOriginal) => {
         ...actual,
         appState: {
             ...actual.appState,
-            metadata: null,
-            currentStart: 0,
-            currentEnd: 1_000,
-            columnRanges: {},
-            adaptiveLineFilters: [],
             scatter: freshScatterState,
         },
         buildAdaptiveLineFiltersForQuery: () => [],
@@ -95,13 +160,22 @@ vi.mock('../store/index.js', async (importOriginal) => {
         ...actual,
         appState: {
             ...actual.appState,
-            metadata: null,
-            currentStart: 0,
-            currentEnd: 1_000,
-            columnRanges: {},
-            adaptiveLineFilters: [],
+            get metadata() { return freshDatasetState.metadata; },
+            set metadata(value) { freshDatasetState.metadata = value; },
+            get currentStart() { return freshChartState.currentStart; },
+            set currentStart(value) { freshChartState.currentStart = value; },
+            get currentEnd() { return freshChartState.currentEnd; },
+            set currentEnd(value) { freshChartState.currentEnd = value; },
+            get columnRanges() { return freshUiState.columnRanges; },
+            set columnRanges(value) { freshUiState.columnRanges = value; },
+            get adaptiveLineFilters() { return freshUiState.adaptiveLineFilters; },
+            set adaptiveLineFilters(value) { freshUiState.adaptiveLineFilters = value; },
             scatter: freshScatterState,
         },
+        chartState: freshChartState,
+        uiState: freshUiState,
+        datasetState: freshDatasetState,
+        scatterState: freshScatterState,
     };
 });
 
@@ -207,6 +281,13 @@ describe('initScatterPage view toggles', () => {
         buildDom();
         requestGpuAdapterMock.mockReset();
         requestGpuAdapterMock.mockResolvedValue({ name: 'mock-adapter' });
+        freshChartState.currentStart = 0;
+        freshChartState.currentEnd = 1_000;
+        freshUiState.columnRanges = {};
+        freshUiState.adaptiveLineFilters = [];
+        freshDatasetState.metadata = null;
+        scatterViewSnapshots.plot = { columnRanges: {}, lineFilters: [] };
+        scatterViewSnapshots.matrix = { columnRanges: {}, lineFilters: [] };
 
         // Reset the fresh state before each test
         freshScatterState.chart = null;

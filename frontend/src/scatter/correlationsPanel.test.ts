@@ -1,22 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-const appStateMock: {
-    scatter: {
-        suggestionThreshold: number;
-        lastSuggestions: Array<{ x: string; y: string; correlation: number }>;
-        lastTopPairs: Array<{ x: string; y: string; correlation: number; count: number }>;
-    };
-} = {
-    scatter: {
-        suggestionThreshold: 0.7,
-        lastSuggestions: [],
-        lastTopPairs: [],
-    },
-};
-
-vi.mock('../store/index.js', () => ({
-    appState: appStateMock,
-}));
+import { scatterState } from '../store/scatterState.js';
 
 vi.mock('../ui/primitives/Dropdown.js', () => ({
     getDropdownValue: vi.fn((id: string) => {
@@ -48,13 +31,14 @@ vi.mock('./rendering.js', () => ({
 describe('renderSuggestions', () => {
     beforeEach(() => {
         document.body.innerHTML = '<div id="scatter-suggestions"></div>';
-        appStateMock.scatter.lastSuggestions = [];
-        appStateMock.scatter.lastTopPairs = [];
+        scatterState.suggestionThreshold = 0.7;
+        scatterState.lastSuggestions = [];
+        scatterState.lastTopPairs = [];
     });
 
     it('shows a top-pair fallback when thresholded suggestions are empty', async () => {
         const { renderSuggestions } = await import('./correlationsPanel.js');
-        appStateMock.scatter.lastTopPairs = [
+        scatterState.lastTopPairs = [
             { x: 'HULL', y: 'MULL', correlation: 0.91, count: 256 },
             { x: 'HUFL', y: 'OT', correlation: 0.67, count: 256 },
         ];

@@ -15,7 +15,7 @@
 
 import { getDropdownValue } from '../ui/primitives/Dropdown.js';
 import { renderSeriesChipList } from '../ui/seriesChipList.js';
-import { appState } from '../store/index.js';
+import { chartState } from '../store/chartState.js';
 import { formatUtcDatetimeInputValue } from '../utils/datetimeInput.js';
 import { getSeriesColor } from '../utils/seriesColors.js';
 
@@ -232,8 +232,8 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
     function applyReferencePreset(preset: string): void {
         if (preset === 'custom') return;
         if (preset === 'viewport') {
-            const start = Number(appState.currentStart);
-            const end = Number(appState.currentEnd);
+            const start = Number(chartState.currentStart);
+            const end = Number(chartState.currentEnd);
             if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
                 if (refStartInput) refStartInput.value = formatUtcDatetimeInputValue(start);
                 if (refEndInput) refEndInput.value = formatUtcDatetimeInputValue(end);

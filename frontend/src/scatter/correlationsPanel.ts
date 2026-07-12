@@ -8,7 +8,8 @@
  */
 
 import { fetchScatterCorrelations } from '../services/api/index.js';
-import { appState } from '../store/index.js';
+import { scatterState } from '../store/scatterState.js';
+import type { ScatterState } from '../store/scatterState.js';
 import { getDropdownValue, setDropdownOptions, setDropdownValue } from '../ui/primitives/Dropdown.js';
 import { normalizeCorrelationMetric } from '../utils/correlationModes.js';
 import { getSetting } from '../utils/settings.js';
@@ -40,7 +41,7 @@ function isFiniteNumber(value: unknown): value is number {
 function buildCurrentPairStats(
     responsesByMode: Map<string, { correlations?: Array<{ column: string; value?: number | null; count?: number }> }>,
     yColumn: string,
-): typeof appState.scatter.currentPairStats {
+): ScatterState['currentPairStats'] {
     const findRow = (mode: string) => responsesByMode.get(mode)?.correlations?.find((row) => row.column === yColumn);
     const pearsonRaw = findRow('pearson_raw');
     const spearmanRaw = findRow('spearman_raw');
@@ -89,12 +90,12 @@ export function renderSuggestions(
     const xValue = getDropdownValue('scatter-x-col');
     const yValue = getDropdownValue('scatter-y-col');
 
-    appState.scatter.lastSuggestions = Array.isArray(suggestions) ? suggestions.slice() : [];
+    scatterState.lastSuggestions = Array.isArray(suggestions) ? suggestions.slice() : [];
     box.innerHTML = '';
 
     if (!Array.isArray(suggestions) || suggestions.length === 0) {
-        const topPairs = Array.isArray(appState.scatter.lastTopPairs)
-            ? appState.scatter.lastTopPairs.filter((pair) => pair?.x && pair?.y).slice(0, 5)
+        const topPairs = Array.isArray(scatterState.lastTopPairs)
+            ? scatterState.lastTopPairs.filter((pair) => pair?.x && pair?.y).slice(0, 5)
             : [];
         if (topPairs.length > 0) {
             const fallback = document.createElement('div');
@@ -116,7 +117,7 @@ export function renderSuggestions(
         }
         const empty = document.createElement('span');
         empty.className = 'scatter-suggestion-empty';
-        empty.textContent = `No suggestions above |corr| >= ${appState.scatter.suggestionThreshold.toFixed(2)}.`;
+        empty.textContent = `No suggestions above |corr| >= ${scatterState.suggestionThreshold.toFixed(2)}.`;
         box.appendChild(empty);
         return;
     }
@@ -150,7 +151,7 @@ function buildSuggestionButton(
         setDropdownValue('scatter-x-col', x);
         setDropdownValue('scatter-y-col', y);
         updateCorrelationStats();
-        renderSuggestions(appState.scatter.lastSuggestions);
+        renderSuggestions(scatterState.lastSuggestions);
         const handler = activeApplyHandler;
         if (handler) {
             void Promise.resolve(handler(x, y)).catch((err) => {
@@ -171,7 +172,7 @@ export async function refreshCorrelationsAndSuggestions(
     const ySelect = getEl('scatter-y-col');
     if (!xSelect || !ySelect) return;
 
-    const meta = appState.scatter.metadata as any;
+    const meta = scatterState.metadata as any;
     const numericCols = Array.isArray(meta?.numeric_columns) ? meta.numeric_columns : [];
     if (numericCols.length < 2) return;
 
@@ -179,7 +180,7 @@ export async function refreshCorrelationsAndSuggestions(
     const currentY = getDropdownValue('scatter-y-col');
     const currentColor = getDropdownValue('scatter-color-column');
     const mode = normalizeCorrelationMetric(getSetting('defaultCorrelationMetric'));
-    const response = await fetchScatterCorrelations(currentX || null, appState.scatter.suggestionThreshold, mode);
+    const response = await fetchScatterCorrelations(currentX || null, scatterState.suggestionThreshold, mode);
 
     const numeric = Array.isArray(response.numeric_columns) ? response.numeric_columns : [];
     if (numeric.length < 2) throw new Error('Need at least two numeric columns for scatter plotting.');
@@ -189,7 +190,7 @@ export async function refreshCorrelationsAndSuggestions(
     // landing view is the most striking correlation in the dataset. Once
     // the user has picked a pair, preserve that choice across refreshes.
     const topPairs = Array.isArray(response.top_pairs) ? response.top_pairs : [];
-    appState.scatter.lastTopPairs = topPairs.slice();
+    scatterState.lastTopPairs = topPairs.slice();
     const hasUserPair = !!(currentX && currentY) && !options.preferTopPairOnFirstLoad;
     const preferredX = hasUserPair
         ? currentX
@@ -204,11 +205,11 @@ export async function refreshCorrelationsAndSuggestions(
 
     if (getEl('scatter-color-column')) {
         const colorOptions = [''].concat(
-            ((appState.scatter.metadata as any)?.columns || [])
+            ((scatterState.metadata as any)?.columns || [])
                 .map((col: any) => String(col?.name || ''))
                 .filter(Boolean),
         );
-        const preferredColor = appState.scatter.colorColumn || currentColor;
+        const preferredColor = scatterState.colorColumn || currentColor;
         setDropdownOptions('scatter-color-column', colorOptions.map((col) => ({
             value: col,
             label: col || 'None',
@@ -226,7 +227,7 @@ export async function refreshCorrelationsAndSuggestions(
         if (familyMode === mode && response.base_column === selectedBase) {
             return [familyMode, response] as const;
         }
-        return [familyMode, await fetchScatterCorrelations(selectedBase, appState.scatter.suggestionThreshold, familyMode as typeof mode)] as const;
+        return [familyMode, await fetchScatterCorrelations(selectedBase, scatterState.suggestionThreshold, familyMode as typeof mode)] as const;
     }));
     const responsesByMode = new Map<string, typeof response>();
     for (const settled of settledResponses) {
@@ -238,12 +239,12 @@ export async function refreshCorrelationsAndSuggestions(
 
     if (!selectedY && yCandidates.length > 0) setDropdownValue('scatter-y-col', yCandidates[0]!);
 
-    appState.scatter.correlationsByColumn = new Map();
+    scatterState.correlationsByColumn = new Map();
     for (const row of activeResponse.correlations || []) {
-        appState.scatter.correlationsByColumn.set(row.column, row);
+        scatterState.correlationsByColumn.set(row.column, row);
     }
     const activeY = getDropdownValue('scatter-y-col') || selectedY || '';
-    appState.scatter.currentPairStats = activeY ? buildCurrentPairStats(responsesByMode, activeY) : null;
+    scatterState.currentPairStats = activeY ? buildCurrentPairStats(responsesByMode, activeY) : null;
 
     renderSuggestions(activeResponse.suggestions || []);
     updateCorrelationStats();

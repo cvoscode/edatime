@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { chartState } from '../store/chartState.js';
+import { datasetState } from '../store/datasetState.js';
+import { scatterState } from '../store/scatterState.js';
+import { uiState } from '../store/uiState.js';
 import {
     getScatterEmptyStateController,
     syncScatterEmptyState,
@@ -30,25 +34,6 @@ vi.mock('./rendering.js', () => ({
     exportScatterHTML: vi.fn(),
     exportScatterData: vi.fn(),
 }));
-
-vi.mock('../store/index.js', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('../store/index.js')>();
-    return {
-        ...actual,
-        appState: {
-            scatter: {
-                loading: false,
-                chart: null,
-                totalPoints: 0,
-            },
-            metadata: null,
-            currentStart: 0,
-            currentEnd: 1_000,
-            columnRanges: {},
-            adaptiveLineFilters: [],
-        },
-    };
-});
 
 vi.mock('./state.js', async (importOriginal) => {
     const actual = await importOriginal<typeof import('./state.js')>();
@@ -96,6 +81,13 @@ describe('getScatterEmptyStateController', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         buildDom();
+        chartState.currentStart = 0;
+        chartState.currentEnd = 1_000;
+        datasetState.metadata = null;
+        uiState.adaptiveLineFilters = [];
+        scatterState.loading = false;
+        scatterState.chart = null;
+        scatterState.totalPoints = 0;
         // Reset module-level GPU state so it doesn't leak between tests
         setGpuUnavailable(false);
     });
@@ -159,9 +151,8 @@ describe('syncScatterFilterBadge', () => {
     it('shows the inherited-filter banner even when points exist', async () => {
         const { getActiveScatterFilterColumns } = await import('./state.js');
         (getActiveScatterFilterColumns as ReturnType<typeof vi.fn>).mockReturnValue(['HUFL']);
-        const { appState } = await import('../store/index.js');
-        appState.scatter.totalPoints = 42;
-        appState.adaptiveLineFilters = [{ column: 'OT' }] as any;
+        scatterState.totalPoints = 42;
+        uiState.adaptiveLineFilters = [{ column: 'OT' }] as any;
 
         syncScatterEmptyState();
 
@@ -216,10 +207,9 @@ describe('syncScatterEmptyState', () => {
     it('hides empty state when axes are selected and points exist', async () => {
         // Ensure GPU unavailable is reset so this test runs in a clean state
         setGpuUnavailable(false);
-        const { appState } = await import('../store/index.js');
-        appState.scatter.totalPoints = 100;
-        appState.scatter.loading = false;
-        appState.scatter.chart = {} as any; // chart exists to satisfy the gpu-unavailable guard
+        scatterState.totalPoints = 100;
+        scatterState.loading = false;
+        scatterState.chart = {} as any; // chart exists to satisfy the gpu-unavailable guard
         syncScatterEmptyState();
         // visible: false because hasAxes=true and totalPoints > 0 and chart exists
         expect(emptyStateUpdateMock).toHaveBeenCalledWith(

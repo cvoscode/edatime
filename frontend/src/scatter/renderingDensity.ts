@@ -1,5 +1,5 @@
 import { formatTwoDecimals } from '../formatUtils.js';
-import { appState } from '../store/index.js';
+import { scatterState } from '../store/scatterState.js';
 import { getChartPalette } from '../utils/theme.js';
 import {
     escapeHtml,
@@ -21,7 +21,7 @@ import {
 } from './layout.js';
 
 export function buildDensitySeries(points: [number, number][], controls: ScatterControls): any[] {
-    const view = appState.scatter.view;
+    const view = scatterState.view;
     const series: any = {
         type: 'scatter',
         name: 'density',
@@ -41,7 +41,7 @@ export function buildDensitySeries(points: [number, number][], controls: Scatter
     };
 
     const colorColumn = controls.selectedColorColumn || controls.colorColumn || '';
-    const values = appState.scatter.allColorValues ?? appState.scatter.colorValues;
+    const values = scatterState.allColorValues ?? scatterState.colorValues;
     if (colorColumn && Array.isArray(values) && values.length > 0) {
         let sum = 0;
         let count = 0;
@@ -72,18 +72,18 @@ export function buildDensityTooltipCache(series: any[], controls: ScatterControl
     const metrics = getDensityTooltipMetrics(controls, container);
     if (!metrics) return null;
 
-    const xSpan = appState.scatter.view.xMax - appState.scatter.view.xMin;
-    const ySpan = appState.scatter.view.yMax - appState.scatter.view.yMin;
+    const xSpan = scatterState.view.xMax - scatterState.view.xMin;
+    const ySpan = scatterState.view.yMax - scatterState.view.yMin;
     if (!(xSpan > 0) || !(ySpan > 0)) return null;
 
     const key = [
-        appState.scatter.view.xMin, appState.scatter.view.xMax, appState.scatter.view.yMin, appState.scatter.view.yMax,
+        scatterState.view.xMin, scatterState.view.xMax, scatterState.view.yMin, scatterState.view.yMax,
         metrics.plotWidth, metrics.plotHeight,
         metrics.binSizePx, metrics.devicePixelRatio,
         controls.selectedColorColumn || controls.colorColumn || '', controls.renderMode || '',
     ].join('|');
 
-    if (appState.scatter.densityTooltipCache?.key === key) return appState.scatter.densityTooltipCache;
+    if (scatterState.densityTooltipCache?.key === key) return scatterState.densityTooltipCache;
 
     const binsBySeriesIndex = new Map<number, Map<string, number>>();
     const metaBySeriesIndex = new Map<number, any>();
@@ -122,7 +122,7 @@ export function buildDensityTooltipCache(series: any[], controls: ScatterControl
     const marginalCountsX = primaryBins ? buildDensityMarginalCounts('x', stubForCounts, 0) : null;
     const marginalCountsY = primaryBins ? buildDensityMarginalCounts('y', stubForCounts, 0) : null;
 
-    appState.scatter.densityTooltipCache = {
+    scatterState.densityTooltipCache = {
         key,
         binSize: metrics.binSizeCss,
         metrics,
@@ -131,14 +131,14 @@ export function buildDensityTooltipCache(series: any[], controls: ScatterControl
         marginalCountsX,
         marginalCountsY,
     };
-    return appState.scatter.densityTooltipCache;
+    return scatterState.densityTooltipCache;
 }
 
 export function densityTooltipFormatterFactory(controls: ScatterControls, container: HTMLElement | null) {
     return (params: any) => {
         const p = Array.isArray(params) ? params[0] : params;
         if (!p) return '';
-        const cache = appState.scatter.densityTooltipCache || buildDensityTooltipCache(appState.scatter.lastOptionSeries || [], controls, container);
+        const cache = scatterState.densityTooltipCache || buildDensityTooltipCache(scatterState.lastOptionSeries || [], controls, container);
         const x = Number(p?.value?.[0]);
         const y = Number(p?.value?.[1]);
         const seriesIndex = Number(p?.seriesIndex);
@@ -150,10 +150,10 @@ export function densityTooltipFormatterFactory(controls: ScatterControls, contai
             if (bucket) density = bins.get(`${bucket.bx},${bucket.by}`) ?? null;
         }
         const parts: string[] = [];
-        const xSpanLabel = Math.max(1, appState.scatter.view.xMax - appState.scatter.view.xMin);
-        const ySpanLabel = Math.max(1, appState.scatter.view.yMax - appState.scatter.view.yMin);
-        parts.push(`<div><span style="opacity:0.85;">${escapeHtml(controls.x || 'X')}:</span> <span style="font-variant-numeric:tabular-nums;">${escapeHtml(formatValueForColumn(controls.x, x, xSpanLabel, appState.scatter.columnTypes))}</span></div>`);
-        parts.push(`<div><span style="opacity:0.85;">${escapeHtml(controls.y || 'Y')}:</span> <span style="font-variant-numeric:tabular-nums;">${escapeHtml(formatValueForColumn(controls.y, y, ySpanLabel, appState.scatter.columnTypes))}</span></div>`);
+        const xSpanLabel = Math.max(1, scatterState.view.xMax - scatterState.view.xMin);
+        const ySpanLabel = Math.max(1, scatterState.view.yMax - scatterState.view.yMin);
+        parts.push(`<div><span style="opacity:0.85;">${escapeHtml(controls.x || 'X')}:</span> <span style="font-variant-numeric:tabular-nums;">${escapeHtml(formatValueForColumn(controls.x, x, xSpanLabel, scatterState.columnTypes))}</span></div>`);
+        parts.push(`<div><span style="opacity:0.85;">${escapeHtml(controls.y || 'Y')}:</span> <span style="font-variant-numeric:tabular-nums;">${escapeHtml(formatValueForColumn(controls.y, y, ySpanLabel, scatterState.columnTypes))}</span></div>`);
         const meta = cache?.metaBySeriesIndex?.get(seriesIndex);
         const colorColumn = controls.selectedColorColumn || controls.colorColumn || '';
         if (colorColumn && meta && Number.isFinite(meta.colorCenter)) {
@@ -270,7 +270,7 @@ function projectDensityPointToBin(
     y: number,
     metrics: NonNullable<DensityTooltipCache['metrics']>,
 ): { bx: number; by: number } | null {
-    const view = appState.scatter.view;
+    const view = scatterState.view;
     const xSpan = view.xMax - view.xMin;
     const ySpan = view.yMax - view.yMin;
     if (!Number.isFinite(x) || !Number.isFinite(y) || !(xSpan > 0) || !(ySpan > 0)) return null;

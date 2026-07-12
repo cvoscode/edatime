@@ -20,7 +20,7 @@ import {
     lowerBoundByX,
     upperBoundByX,
 } from './helpers.js';
-import { appState } from '../store/index.js';
+import { scatterState } from '../store/scatterState.js';
 import { getCorrelationModeBasisLabel, normalizeCorrelationMetric } from '../utils/correlationModes.js';
 import { getSetting } from '../utils/settings.js';
 import {
@@ -53,14 +53,14 @@ import {
 
 export function buildNormalScatterSeries(points: [number, number][], controls: ScatterControls): any[] {
     const colorColumn = controls.selectedColorColumn;
-    const values = appState.scatter.colorValues;
-    const categoricalGroups = colorColumn ? buildCategoricalColorGroups(appState.scatter.colorLabels) : null;
+    const values = scatterState.colorValues;
+    const categoricalGroups = colorColumn ? buildCategoricalColorGroups(scatterState.colorLabels) : null;
 
     if (categoricalGroups) {
         return categoricalGroups.categories.map((label) => {
             const data: [number, number][] = [];
             for (let i = 0; i < points.length; i++) {
-                if (normalizeCategoryLabel(appState.scatter.colorLabels?.[i]) !== label) continue;
+                if (normalizeCategoryLabel(scatterState.colorLabels?.[i]) !== label) continue;
                 data.push(points[i]);
             }
             return { type: 'scatter', name: label, data, symbolSize: 3, color: categoricalGroups.colorByLabel.get(label) || getChartPalette().scatterPoint, sampling: 'none' };
@@ -73,20 +73,20 @@ export function buildNormalScatterSeries(points: [number, number][], controls: S
 
     // Derive min/max only from finite values so the scale is stable even when
     // the array contains NaN/Infinity (which are now filtered out here).
-    const min = Number.isFinite(appState.scatter.colorMin) ? appState.scatter.colorMin! : null;
-    const max = Number.isFinite(appState.scatter.colorMax) ? appState.scatter.colorMax! : null;
+    const min = Number.isFinite(scatterState.colorMin) ? scatterState.colorMin : null;
+    const max = Number.isFinite(scatterState.colorMax) ? scatterState.colorMax : null;
     if (min === null || max === null || !(max > min)) {
         return [{ type: 'scatter', name: `${controls.x || 'x'} vs ${controls.y || 'y'}`, data: points, symbolSize: 3, color: getChartPalette().scatterPoint, sampling: 'none' }];
     }
 
     // Use valueCount based on the original allColorValues array length
     // so that idx < valueCount guards against out-of-bounds access.
-    const valueCount = Math.min(points.length, appState.scatter.allColorValues?.length ?? points.length);
+    const valueCount = Math.min(points.length, scatterState.allColorValues?.length ?? points.length);
     const bins = 64;
     const span = max - min;
     const grouped: [number, number][][] = Array.from({ length: bins }, () => []);
     for (let idx = 0; idx < points.length; idx++) {
-        const rawV = idx < valueCount ? Number(appState.scatter.allColorValues?.[idx]) : Number.NaN;
+        const rawV = idx < valueCount ? Number(scatterState.allColorValues?.[idx]) : Number.NaN;
         if (!Number.isFinite(rawV)) continue;
         const v = rawV;
         let b = Math.floor(((v - min) / span) * bins);
@@ -117,17 +117,17 @@ export function scatterTooltipFormatterFactory(controls: ScatterControls) {
         if (!p) return '';
         const x = Number(p?.value?.[0]);
         const y = Number(p?.value?.[1]);
-        const xSpan = Math.max(1, appState.scatter.view.xMax - appState.scatter.view.xMin);
-        const ySpan = Math.max(1, appState.scatter.view.yMax - appState.scatter.view.yMin);
+        const xSpan = Math.max(1, scatterState.view.xMax - scatterState.view.xMin);
+        const ySpan = Math.max(1, scatterState.view.yMax - scatterState.view.yMin);
         const parts = [
-            `<div><span style="opacity:0.85;">${escapeHtml(controls.x || 'X')}:</span> <span style="font-variant-numeric:tabular-nums;">${escapeHtml(formatValueForColumn(controls.x, x, xSpan, appState.scatter.columnTypes))}</span></div>`,
-            `<div><span style="opacity:0.85;">${escapeHtml(controls.y || 'Y')}:</span> <span style="font-variant-numeric:tabular-nums;">${escapeHtml(formatValueForColumn(controls.y, y, ySpan, appState.scatter.columnTypes))}</span></div>`,
+            `<div><span style="opacity:0.85;">${escapeHtml(controls.x || 'X')}:</span> <span style="font-variant-numeric:tabular-nums;">${escapeHtml(formatValueForColumn(controls.x, x, xSpan, scatterState.columnTypes))}</span></div>`,
+            `<div><span style="opacity:0.85;">${escapeHtml(controls.y || 'Y')}:</span> <span style="font-variant-numeric:tabular-nums;">${escapeHtml(formatValueForColumn(controls.y, y, ySpan, scatterState.columnTypes))}</span></div>`,
         ];
-        if (controls.selectedColorColumn && Array.isArray(appState.scatter.colorLabels)) {
+        if (controls.selectedColorColumn && Array.isArray(scatterState.colorLabels)) {
             const label = p?.seriesName || null;
             if (label) parts.push(`<div><span style="opacity:0.85;">${escapeHtml(controls.selectedColorColumn)}:</span> <span style="font-variant-numeric:tabular-nums;">${escapeHtml(String(label))}</span></div>`);
-        } else if (controls.selectedColorColumn && Array.isArray(appState.scatter.colorValues)) {
-            const colorValue = Number(appState.scatter.colorValues[Number(p?.dataIndex)]);
+        } else if (controls.selectedColorColumn && Array.isArray(scatterState.colorValues)) {
+            const colorValue = Number(scatterState.colorValues[Number(p?.dataIndex)]);
             if (Number.isFinite(colorValue)) parts.push(`<div><span style="opacity:0.85;">${escapeHtml(controls.selectedColorColumn)}:</span> <span style="font-variant-numeric:tabular-nums;">${escapeHtml(formatTwoDecimals(colorValue))}</span></div>`);
         }
         return parts.join('');
@@ -166,13 +166,13 @@ function renderColorbarCanvas(): void {
 }
 
 export function updateColorbarUI(): void {
-    if (appState.scatter.activeView !== 'plot') { setColorbarVisible(false); return; }
+    if (scatterState.activeView !== 'plot') { setColorbarVisible(false); return; }
     const ctl = currentControls();
     const isDensity = ctl.renderMode === 'density';
     const hasContinuousColor = !!ctl.selectedColorColumn
-        && Array.isArray(appState.scatter.colorValues) && appState.scatter.colorValues.length > 0
-        && Number.isFinite(appState.scatter.colorMin) && Number.isFinite(appState.scatter.colorMax)
-        && appState.scatter.colorMax! > appState.scatter.colorMin!;
+        && Array.isArray(scatterState.colorValues) && scatterState.colorValues.length > 0
+        && Number.isFinite(scatterState.colorMin) && Number.isFinite(scatterState.colorMax)
+        && scatterState.colorMax! > scatterState.colorMin!;
     if (!isDensity && !hasContinuousColor) { setColorbarVisible(false); return; }
     const show = isDensity || hasContinuousColor;
     setColorbarVisible(show);
@@ -190,13 +190,13 @@ export function updateColorbarUI(): void {
         if (cardEl) cardEl.hidden = true;
     } else {
         if (nameEl) nameEl.textContent = `${ctl.selectedColorColumn} (${ctl.colorScale})`;
-        if (minEl) minEl.textContent = formatTwoDecimals(appState.scatter.colorMin!);
-        if (maxEl) maxEl.textContent = formatTwoDecimals(appState.scatter.colorMax!);
+        if (minEl) minEl.textContent = formatTwoDecimals(scatterState.colorMin!);
+        if (maxEl) maxEl.textContent = formatTwoDecimals(scatterState.colorMax!);
         // Audit issue 2.2: when the backend collapsed categorical
         // labels into a single "Other" bucket, surface the count
         // under the colorbar so the user knows the legend is
         // truncated. Hidden when no bucketing happened.
-        const cardinality = appState.scatter.colorCardinality;
+        const cardinality = scatterState.colorCardinality;
         if (cardEl) {
             if (cardinality && cardinality.bucketed > 0) {
                 cardEl.textContent = `${cardinality.used} shown · ${cardinality.bucketed} other`;
@@ -374,9 +374,9 @@ function drawMarginalY(canvas: HTMLCanvasElement, values: number[], viewMin: num
 }
 
 export function updateMarginalPlots(): void {
-    const isPlot = appState.scatter.activeView === 'plot';
+    const isPlot = scatterState.activeView === 'plot';
     const ctl = currentControls();
-    const hasPoints = appState.scatter.points.length > 0;
+    const hasPoints = scatterState.points.length > 0;
     // Marginals are shown in both scatter and density modes; in density the
     // right panel hosts the y-marginal and the colorbar side-by-side via flex.
     const showMarginals = isPlot && hasPoints;
@@ -399,8 +399,8 @@ export function updateMarginalPlots(): void {
     }
     if (marginalY) marginalY.hidden = false;
 
-    const view = appState.scatter.view;
-    const visiblePoints = appState.scatter.points.filter((p) => {
+    const view = scatterState.view;
+    const visiblePoints = scatterState.points.filter((p) => {
         const x = Number(p?.[0]);
         const y = Number(p?.[1]);
         return Number.isFinite(x) && Number.isFinite(y)
@@ -413,12 +413,12 @@ export function updateMarginalPlots(): void {
 
     if (ctl.renderMode === 'density' && mode === 'histogram') {
         const chartEl = getEl('scatter-chart');
-        const densitySeries = appState.scatter.lastOptionSeries || buildDensitySeries(appState.scatter.points, ctl);
+        const densitySeries = scatterState.lastOptionSeries || buildDensitySeries(scatterState.points, ctl);
         // Ensure the cache is warm, then prefer the marginal counts that
         // `buildDensityTooltipCache` derives alongside the 2D bin map.
         // Falling back to a one-shot recomputation keeps the helper safe
         // for callers that read marginals before the cache was populated.
-        const cache = appState.scatter.densityTooltipCache || buildDensityTooltipCache(densitySeries, ctl, chartEl);
+        const cache = scatterState.densityTooltipCache || buildDensityTooltipCache(densitySeries, ctl, chartEl);
         const xCounts = cache?.marginalCountsX ?? buildDensityMarginalCounts('x', cache);
         const yCounts = cache?.marginalCountsY ?? buildDensityMarginalCounts('y', cache);
         const binSize = Number(cache?.metrics?.binSizeCss ?? cache?.binSize);
@@ -440,23 +440,23 @@ export function updateMarginalPlots(): void {
 export function buildOption(points: [number, number][], container: HTMLElement | null): any {
     const ctl = currentControls();
     const isDensity = ctl.renderMode === 'density';
-    const xSpan = Math.max(1, appState.scatter.view.xMax - appState.scatter.view.xMin);
-    const ySpan = Math.max(1, appState.scatter.view.yMax - appState.scatter.view.yMin);
-    const xTickFormatter = isTemporalColumn(ctl.x, appState.scatter.columnTypes)
+    const xSpan = Math.max(1, scatterState.view.xMax - scatterState.view.xMin);
+    const ySpan = Math.max(1, scatterState.view.yMax - scatterState.view.yMin);
+    const xTickFormatter = isTemporalColumn(ctl.x, scatterState.columnTypes)
         ? (v: number) => formatTimestamp(v, xSpan)
         : (v: number) => formatTwoDecimals(v);
-    const yTickFormatter = isTemporalColumn(ctl.y, appState.scatter.columnTypes)
+    const yTickFormatter = isTemporalColumn(ctl.y, scatterState.columnTypes)
         ? (v: number) => formatTimestamp(v, ySpan)
         : (v: number) => formatTwoDecimals(v);
 
     const series = isDensity ? buildDensitySeries(points, ctl) : buildNormalScatterSeries(points, ctl);
-    appState.scatter.lastOptionSeries = series;
+    scatterState.lastOptionSeries = series;
 
     const option: any = {
         theme: 'dark',
         grid: { ...SCATTER_PLOT_GRID },
-        xAxis: { type: 'value', name: ctl.x || 'x', min: appState.scatter.view.xMin, max: appState.scatter.view.xMax, tickFormatter: xTickFormatter },
-        yAxis: { type: 'value', name: ctl.y || 'y', min: appState.scatter.view.yMin, max: appState.scatter.view.yMax, tickFormatter: yTickFormatter },
+        xAxis: { type: 'value', name: ctl.x || 'x', min: scatterState.view.xMin, max: scatterState.view.xMax, tickFormatter: xTickFormatter },
+        yAxis: { type: 'value', name: ctl.y || 'y', min: scatterState.view.yMin, max: scatterState.view.yMax, tickFormatter: yTickFormatter },
         legend: { show: false },
         series,
     };
@@ -465,7 +465,7 @@ export function buildOption(points: [number, number][], container: HTMLElement |
         option.tooltip = { show: true, trigger: 'item', formatter: densityTooltipFormatterFactory(ctl, container) };
         buildDensityTooltipCache(series, ctl, container);
     } else {
-        appState.scatter.densityTooltipCache = null;
+        scatterState.densityTooltipCache = null;
         option.tooltip = { show: true, trigger: 'item', formatter: scatterTooltipFormatterFactory(ctl) };
     }
     return option;
@@ -474,26 +474,26 @@ export function buildOption(points: [number, number][], container: HTMLElement |
 /* ── View management ──────────────────────────────────── */
 
 export function renderCurrentOption(): void {
-    if (!appState.scatter.chart) return;
+    if (!scatterState.chart) return;
     const container = getEl('scatter-chart');
-    appState.scatter.chart.setOption(buildOption(appState.scatter.points, container));
-    requestAnimationFrame(() => appState.scatter.chart?.resize?.());
+    scatterState.chart.setOption(buildOption(scatterState.points, container));
+    requestAnimationFrame(() => scatterState.chart?.resize?.());
     updateColorbarUI();
     updateBinnedReadout();
     updateMarginalPlots();
 }
 
 export function applyView(nextView: ScatterView, pushHistory = false): void {
-    const current = { ...appState.scatter.view };
+    const current = { ...scatterState.view };
     const next = clampView(nextView);
-    if (pushHistory) appState.scatter.zoomHistory = [...appState.scatter.zoomHistory, current].slice(-30);
-    appState.scatter.view = next;
+    if (pushHistory) scatterState.zoomHistory = [...scatterState.zoomHistory, current].slice(-30);
+    scatterState.view = next;
     refreshView();
 }
 
 export function resetView(clearHistory = true): void {
-    if (clearHistory) appState.scatter.zoomHistory = [];
-    appState.scatter.view = { ...appState.scatter.full };
+    if (clearHistory) scatterState.zoomHistory = [];
+    scatterState.view = { ...scatterState.full };
     refreshView();
 }
 
@@ -512,7 +512,7 @@ export function resetView(clearHistory = true): void {
  */
 function refreshView(): void {
     const isDensity = currentControls().renderMode === 'density';
-    if (isDensity && appState.scatter.chart) {
+    if (isDensity && scatterState.chart) {
         // Force the next renderScatter() to recreate the chart so the
         // density binning is rebuilt against the new view bounds.
         disposeScatterChart();
@@ -555,9 +555,9 @@ export function updateCorrelationStats(): void {
     const openCausalBtn = getEl('scatter-open-causal-btn') as HTMLButtonElement | null;
     const xValue = getDropdownValue('scatter-x-col');
     const yValue = getDropdownValue('scatter-y-col');
-    const corr = appState.scatter.correlationsByColumn.get(yValue || '');
+    const corr = scatterState.correlationsByColumn.get(yValue || '');
     const mode = normalizeCorrelationMetric(getSetting('defaultCorrelationMetric'));
-    const pairStats = appState.scatter.currentPairStats;
+    const pairStats = scatterState.currentPairStats;
     const useDiffBasis = mode.endsWith('_diff');
     const pearson = useDiffBasis ? pairStats?.pearsonDiff : pairStats?.pearsonRaw;
     const spearman = useDiffBasis ? pairStats?.spearmanDiff : pairStats?.spearmanRaw;
@@ -586,7 +586,7 @@ export function updateCorrelationStats(): void {
 /* ── Selection zoom ───────────────────────────────────── */
 
 export function initSelectionZoom(container: HTMLElement): void {
-    if (!container || appState.scatter.selectionBox) return;
+    if (!container || scatterState.selectionBox) return;
     if (window.getComputedStyle(container).position === 'static') container.style.position = 'relative';
 
     const box = document.createElement('div');
@@ -597,49 +597,49 @@ export function initSelectionZoom(container: HTMLElement): void {
         pointerEvents: 'none', display: 'none', zIndex: '8',
     });
     container.appendChild(box);
-    appState.scatter.selectionBox = box;
+    scatterState.selectionBox = box;
 
     const renderSelectionBox = () => {
-        if (!appState.scatter.selectionBox || !appState.scatter.drag) return;
-        const left = Math.min(appState.scatter.drag.startX, appState.scatter.drag.endX);
-        const right = Math.max(appState.scatter.drag.startX, appState.scatter.drag.endX);
-        const top = Math.min(appState.scatter.drag.startY, appState.scatter.drag.endY);
-        const bottom = Math.max(appState.scatter.drag.startY, appState.scatter.drag.endY);
-        appState.scatter.selectionBox.style.left = `${left}px`;
-        appState.scatter.selectionBox.style.top = `${top}px`;
-        appState.scatter.selectionBox.style.width = `${Math.max(0, right - left)}px`;
-        appState.scatter.selectionBox.style.height = `${Math.max(0, bottom - top)}px`;
-        appState.scatter.selectionBox.style.display = 'block';
+        if (!scatterState.selectionBox || !scatterState.drag) return;
+        const left = Math.min(scatterState.drag.startX, scatterState.drag.endX);
+        const right = Math.max(scatterState.drag.startX, scatterState.drag.endX);
+        const top = Math.min(scatterState.drag.startY, scatterState.drag.endY);
+        const bottom = Math.max(scatterState.drag.startY, scatterState.drag.endY);
+        scatterState.selectionBox.style.left = `${left}px`;
+        scatterState.selectionBox.style.top = `${top}px`;
+        scatterState.selectionBox.style.width = `${Math.max(0, right - left)}px`;
+        scatterState.selectionBox.style.height = `${Math.max(0, bottom - top)}px`;
+        scatterState.selectionBox.style.display = 'block';
     };
 
-    const hideSelectionBox = () => { if (appState.scatter.selectionBox) appState.scatter.selectionBox.style.display = 'none'; };
+    const hideSelectionBox = () => { if (scatterState.selectionBox) scatterState.selectionBox.style.display = 'none'; };
 
     container.addEventListener('pointerdown', (ev) => {
         if (ev.button !== 0) return;
         const rect = container.getBoundingClientRect();
-        appState.scatter.drag = { pointerId: ev.pointerId, startX: ev.clientX - rect.left, endX: ev.clientX - rect.left, startY: ev.clientY - rect.top, endY: ev.clientY - rect.top };
+        scatterState.drag = { pointerId: ev.pointerId, startX: ev.clientX - rect.left, endX: ev.clientX - rect.left, startY: ev.clientY - rect.top, endY: ev.clientY - rect.top };
         try { container.setPointerCapture(ev.pointerId); } catch { }
         renderSelectionBox();
     });
 
     container.addEventListener('pointermove', (ev) => {
-        if (!appState.scatter.drag || ev.pointerId !== appState.scatter.drag.pointerId) return;
+        if (!scatterState.drag || ev.pointerId !== scatterState.drag.pointerId) return;
         const rect = container.getBoundingClientRect();
-        appState.scatter.drag.endX = ev.clientX - rect.left;
-        appState.scatter.drag.endY = ev.clientY - rect.top;
+        scatterState.drag.endX = ev.clientX - rect.left;
+        scatterState.drag.endY = ev.clientY - rect.top;
         renderSelectionBox();
     });
 
     const finishDrag = (ev: PointerEvent) => {
-        if (!appState.scatter.drag || ev.pointerId !== appState.scatter.drag.pointerId) return;
+        if (!scatterState.drag || ev.pointerId !== scatterState.drag.pointerId) return;
         const drag: DragState = {
-            pointerId: appState.scatter.drag.pointerId,
-            startX: appState.scatter.drag.startX,
-            startY: appState.scatter.drag.startY,
-            endX: appState.scatter.drag.endX,
-            endY: appState.scatter.drag.endY,
+            pointerId: scatterState.drag.pointerId,
+            startX: scatterState.drag.startX,
+            startY: scatterState.drag.startY,
+            endX: scatterState.drag.endX,
+            endY: scatterState.drag.endY,
         };
-        appState.scatter.drag = null;
+        scatterState.drag = null;
         hideSelectionBox();
         try { container.releasePointerCapture(ev.pointerId); } catch { }
 
@@ -657,7 +657,7 @@ export function initSelectionZoom(container: HTMLElement): void {
         const rect = container.getBoundingClientRect();
         const width = Math.max(1, rect.width);
         const height = Math.max(1, rect.height);
-        const cur = appState.scatter.view;
+        const cur = scatterState.view;
         const next = dragToViewport(
             drag,
             width,
@@ -674,7 +674,7 @@ export function initSelectionZoom(container: HTMLElement): void {
     container.addEventListener('pointercancel', finishDrag);
     container.addEventListener('dblclick', (ev) => {
         if (ev.shiftKey) return;
-        if (appState.scatter.zoomHistory.length > 0) { applyView(appState.scatter.zoomHistory.pop()!, false); return; }
+        if (scatterState.zoomHistory.length > 0) { applyView(scatterState.zoomHistory.pop()!, false); return; }
         resetView(false);
     });
 
@@ -684,7 +684,7 @@ export function initSelectionZoom(container: HTMLElement): void {
 
 export function syncModeUI(): void {
     const ctl = currentControls();
-    const view = appState.scatter.activeView || 'plot';
+    const view = scatterState.activeView || 'plot';
     const isPlot = view === 'plot';
     const isMatrix = view === 'matrix';
     const isDensity = isPlot && ctl.renderMode === 'density';

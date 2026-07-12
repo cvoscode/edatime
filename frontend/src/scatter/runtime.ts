@@ -17,7 +17,10 @@ import {
     exportScatterData,
 } from './rendering.js';
 import { getEl } from './helpers.js';
-import { appState } from '../store/index.js';
+import { chartState } from '../store/chartState.js';
+import { datasetState } from '../store/datasetState.js';
+import { scatterState } from '../store/scatterState.js';
+import { uiState } from '../store/uiState.js';
 import { createEmptyStateController, isRangeOutsideDataset } from '../ui/emptyState.js';
 import { isLinkedBrushEnabled, currentControls, getActiveScatterFilterColumns } from './state.js';
 import { defaultGpuPowerPreference, requestGpuAdapter } from '../utils/platform.js';
@@ -55,10 +58,10 @@ function syncScatterFilterBanner(): void {
     const columnCount = activeColumns.length;
     const adaptiveCount = intent
         ? intent.filters.adaptiveLines.length
-        : (Array.isArray(appState.adaptiveLineFilters) ? appState.adaptiveLineFilters.length : 0);
+        : (Array.isArray(uiState.adaptiveLineFilters) ? uiState.adaptiveLineFilters.length : 0);
     const hasZoomRange = intent
         ? intent.viewport?.xMin != null && intent.viewport?.xMax != null
-        : Number.isFinite(appState.currentStart) && Number.isFinite(appState.currentEnd);
+        : Number.isFinite(chartState.currentStart) && Number.isFinite(chartState.currentEnd);
     const hasFilters = hasZoomRange || columnCount > 0 || adaptiveCount > 0;
 
     banner.hidden = !hasFilters;
@@ -129,24 +132,24 @@ export function setGpuUnavailable(val: boolean): void {
 export function syncScatterEmptyState(message?: string): void {
     const emptyState = getScatterEmptyStateController();
     const hasAxes = !!getDropdownValue('scatter-x-col') && !!getDropdownValue('scatter-y-col');
-    const isLoading = appState.scatter.loading && hasAxes && !(_gpuUnavailable && !appState.scatter.chart);
+    const isLoading = scatterState.loading && hasAxes && !(_gpuUnavailable && !scatterState.chart);
     syncScatterFilterBadge();
     syncScatterFilterBanner();
 
     const intent = currentIntent();
-    const start = intent?.viewport?.xMin ?? appState.currentStart;
-    const end = intent?.viewport?.xMax ?? appState.currentEnd;
+    const start = intent?.viewport?.xMin ?? chartState.currentStart;
+    const end = intent?.viewport?.xMax ?? chartState.currentEnd;
     const linkedRangeOutside = isLinkedBrushEnabled()
-        && isRangeOutsideDataset(appState.metadata?.time_range, start, end);
+        && isRangeOutsideDataset(datasetState.metadata?.time_range, start, end);
 
     let reason: string;
-    if (_gpuUnavailable && !appState.scatter.chart) {
+    if (_gpuUnavailable && !scatterState.chart) {
         reason = 'gpu-unavailable';
     } else if (!hasAxes) {
         reason = 'no-columns-selected';
     } else if (isLoading) {
         reason = 'loading';
-    } else if (appState.scatter.totalPoints === 0) {
+    } else if (scatterState.totalPoints === 0) {
         reason = linkedRangeOutside ? 'linked-range-outside-dataset' : 'no-data-after-filters';
     } else {
         reason = '';
@@ -161,10 +164,10 @@ export function syncScatterEmptyState(message?: string): void {
     const scopedFilterCount = new Set(activeColumns).size;
     const adaptiveFilterCount = intent
         ? intent.filters.adaptiveLines.length
-        : (Array.isArray(appState.adaptiveLineFilters) ? appState.adaptiveLineFilters.length : 0);
+        : (Array.isArray(uiState.adaptiveLineFilters) ? uiState.adaptiveLineFilters.length : 0);
 
     const text = message
-        || (_gpuUnavailable && !appState.scatter.chart
+        || (_gpuUnavailable && !scatterState.chart
             ? 'WebGPU is not available. Scatter rendering requires a WebGPU-capable browser (Chrome 113+, Edge 113+, Safari 18+).'
             : !hasAxes
                 ? 'Choose X and Y numeric columns to render the scatter plot.'
@@ -177,9 +180,9 @@ export function syncScatterEmptyState(message?: string): void {
                             : 'No points match the current query.');
 
     emptyState.update({
-        visible: !isLoading && !(hasAxes && appState.scatter.totalPoints > 0 && !(_gpuUnavailable && !appState.scatter.chart)),
+        visible: !isLoading && !(hasAxes && scatterState.totalPoints > 0 && !(_gpuUnavailable && !scatterState.chart)),
         reason,
-        title: _gpuUnavailable && !appState.scatter.chart
+        title: _gpuUnavailable && !scatterState.chart
             ? 'WebGPU unavailable'
             : !hasAxes
                 ? 'Choose scatter axes'
@@ -231,7 +234,7 @@ export function initScatterPageRuntime(): void {
             png: { fn: exportScatterPNG, filename: 'edatime_scatter.png' },
             svg: { fn: exportScatterSVG, filename: 'edatime_scatter.svg' },
             html: { fn: exportScatterHTML, filename: 'edatime_scatter.html' },
-            csv: { fn: exportScatterData, filename: 'edatime_scatter.csv', dataCheck: () => appState.scatter.totalPoints > 0 },
+            csv: { fn: exportScatterData, filename: 'edatime_scatter.csv', dataCheck: () => scatterState.totalPoints > 0 },
         },
         init() {
             syncScatterEmptyState();

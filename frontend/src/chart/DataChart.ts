@@ -8,7 +8,7 @@ import { DEBUG, dbg } from '../debug.js';
 import { escapeHtml, downloadUrl, downloadBlob } from '../utils/dom.js';
 import { defaultGpuPowerPreference } from '../utils/platform.js';
 import { formatTwoDecimals } from '../formatUtils.js';
-import { appState } from '../store/index.js';
+import { analyticsState, datasetState, uiState } from '../store/index.js';
 import { getSeriesColor } from '../utils/seriesColors.js';
 import { buildAdaptiveLineY } from '../services/timeseries/filtering.js';
 import { getAnnotationsForPage } from './annotations.js';
@@ -572,7 +572,7 @@ export class DataChart {
                 const seriesColors = Array.isArray(dataObj.colorByColumn?.[colName])
                     ? dataObj.colorByColumn[colName]
                     : dataObj.color;
-                const wantsColorBy = !!appState.selectedColorColumn
+                const wantsColorBy = !!uiState.selectedColorColumn
                     && Array.isArray(seriesColors)
                     && seriesColors.length === points.length;
 
@@ -580,7 +580,7 @@ export class DataChart {
                     return [{ __colorCandidate: true, colName, idx, visible, points, colorValues: seriesColors }];
                 }
 
-                const numColIdx = appState.numericCols.indexOf(colName);
+                const numColIdx = datasetState.numericCols.indexOf(colName);
                 const color = getSeriesColor(colName, numColIdx >= 0 ? numColIdx : idx);
                 const lineSeries = { type: 'line' as const, name: colName, color, visible, data: points };
                 if (showMarkers && visible) {
@@ -591,7 +591,7 @@ export class DataChart {
                 return [lineSeries];
             });
 
-        const colorColumn = appState.selectedColorColumn;
+        const colorColumn = uiState.selectedColorColumn;
         const colorDecoratedSeries: SeriesConfig[] = [];
         const colorbarWrap = document.getElementById('timeseries-colorbar-wrap');
         const categoricalWrap = document.getElementById('timeseries-categorical-wrap');
@@ -1247,7 +1247,7 @@ export class DataChart {
             getOverlayCanvas: () => this._overlayCanvas,
             getGrid: () => this._currentGrid,
             getYRange: () => this.getYRange(),
-            getPendingAdaptivePoint: () => appState.pendingAdaptivePoint,
+            getPendingAdaptivePoint: () => uiState.pendingAdaptivePoint,
         });
 
         canvas.addEventListener('pointerdown', (e) => {
@@ -1313,8 +1313,8 @@ export class DataChart {
     }
 
     private _renderRollingBandsToCtx(ctx: CanvasRenderingContext2D, scale: { x: number; y: number }): void {
-        const bands = appState.rollingBands;
-        if (!bands || bands.length === 0 || !appState.rollingEnabled) return;
+        const bands = analyticsState.rollingBands;
+        if (!bands || bands.length === 0 || !analyticsState.rollingEnabled) return;
         if (!this._container) return;
 
         const xMin = Number(this._xMin);
@@ -1341,7 +1341,7 @@ export class DataChart {
         for (const band of bands) {
             const n = band.ts.length;
             if (n < 2) continue;
-            const bandColor = band.color || getSeriesColor(band.column, appState.selectedCols.indexOf(band.column));
+            const bandColor = band.color || getSeriesColor(band.column, uiState.selectedCols.indexOf(band.column));
 
             // 2-sigma band (lighter)
             ctx.fillStyle = this._applyAlphaToColor(bandColor, 0.18) || rollingPalette.rollingBandOuter;
@@ -1398,8 +1398,8 @@ export class DataChart {
     }
 
     private _renderAnomalyRegionsToCtx(ctx: CanvasRenderingContext2D, scale: { x: number; y: number }): void {
-        const regions = appState.anomalyRegions;
-        if (!regions || regions.length === 0 || !appState.anomalyEnabled) return;
+        const regions = analyticsState.anomalyRegions;
+        if (!regions || regions.length === 0 || !analyticsState.anomalyEnabled) return;
         if (!this._container) return;
 
         const xMin = Number(this._xMin);
@@ -1420,7 +1420,7 @@ export class DataChart {
         const anomalyPalette = getChartPalette();
         ctx.lineWidth = 1 * Math.min(scale.x, scale.y);
 
-        if (appState.anomalyGlobalEnabled && appState.anomalySummaryStats) {
+        if (analyticsState.anomalyGlobalEnabled && analyticsState.anomalySummaryStats) {
             const mergedRanges = regions
                 .map((region) => [Math.max(xMin, region.start_ms), Math.min(xMax, region.end_ms)] as const)
                 .filter(([start, end]) => start < end)
@@ -1447,7 +1447,7 @@ export class DataChart {
             const sx = plotLeft + ((rStart - xMin) / (xMax - xMin)) * plotWidth;
             const ex = plotLeft + ((rEnd - xMin) / (xMax - xMin)) * plotWidth;
             const w = Math.max(2, ex - sx);
-            const regionColor = getSeriesColor(region.column, appState.selectedCols.indexOf(region.column));
+            const regionColor = getSeriesColor(region.column, uiState.selectedCols.indexOf(region.column));
 
             ctx.fillStyle = this._applyAlphaToColor(regionColor, 0.16) || anomalyPalette.anomalyFill;
             ctx.strokeStyle = this._applyAlphaToColor(regionColor, 0.55) || anomalyPalette.anomalyStroke;
@@ -1471,12 +1471,12 @@ export class DataChart {
     }
 
     private _renderAdaptiveFilterLinesToCtx(ctx: CanvasRenderingContext2D, scale: { x: number; y: number }): void {
-        const filters = Array.isArray(appState.adaptiveLineFilters) ? appState.adaptiveLineFilters : [];
-        const pending = appState.pendingAdaptivePoint;
+        const filters = Array.isArray(uiState.adaptiveLineFilters) ? uiState.adaptiveLineFilters : [];
+        const pending = uiState.pendingAdaptivePoint;
         if (filters.length === 0 && !pending) return;
         if (!this._container) return;
 
-        const visibleCols = new Set(appState.selectedCols || []);
+        const visibleCols = new Set(uiState.selectedCols || []);
         const xMin = Number(this._xMin);
         const xMax = Number(this._xMax);
         const yRange = this.getYRange();

@@ -4,7 +4,7 @@
  * Extracted from DataChart.ts to reduce its size and improve maintainability.
  */
 
-import { appState } from '../store/index.js';
+import { analyticsState, uiState } from '../store/index.js';
 import { buildAdaptiveLineY } from '../services/timeseries/filtering.js';
 import { getChartPalette } from '../utils/theme.js';
 import { getSeriesColor } from '../utils/seriesColors.js';
@@ -76,8 +76,8 @@ export class ChartOverlays {
     }
 
     private _renderRollingBandsToCtx(ctx: CanvasRenderingContext2D, scale: { x: number; y: number }): void {
-        const bands = appState.rollingBands;
-        if (!bands || bands.length === 0 || !appState.rollingEnabled) return;
+        const bands = analyticsState.rollingBands;
+        if (!bands || bands.length === 0 || !analyticsState.rollingEnabled) return;
 
         const xMin = this._opts.getXMin();
         const xMax = this._opts.getXMax();
@@ -97,7 +97,7 @@ export class ChartOverlays {
         for (const band of bands) {
             const n = band.ts.length;
             if (n < 2) continue;
-            const bandColor = band.color || getSeriesColor(band.column, appState.selectedCols.indexOf(band.column));
+            const bandColor = band.color || getSeriesColor(band.column, uiState.selectedCols.indexOf(band.column));
 
             ctx.fillStyle = this._applyAlphaToColor(bandColor, 0.18) || rollingPalette.rollingBandOuter;
             ctx.beginPath();
@@ -151,8 +151,8 @@ export class ChartOverlays {
     }
 
     private _renderAnomalyRegionsToCtx(ctx: CanvasRenderingContext2D, scale: { x: number; y: number }): void {
-        const regions = appState.anomalyRegions;
-        if (!regions || regions.length === 0 || !appState.anomalyEnabled) return;
+        const regions = analyticsState.anomalyRegions;
+        if (!regions || regions.length === 0 || !analyticsState.anomalyEnabled) return;
 
         const xMin = this._opts.getXMin();
         const xMax = this._opts.getXMax();
@@ -166,7 +166,7 @@ export class ChartOverlays {
         const anomalyPalette = getChartPalette();
         ctx.lineWidth = 1 * strokeScale;
 
-        if (appState.anomalyGlobalEnabled && appState.anomalySummaryStats) {
+        if (analyticsState.anomalyGlobalEnabled && analyticsState.anomalySummaryStats) {
             const mergedRanges = regions
                 .map((region) => [Math.max(xMin, region.start_ms), Math.min(xMax, region.end_ms)] as const)
                 .filter(([start, end]) => start < end)
@@ -193,7 +193,7 @@ export class ChartOverlays {
             const sx = plotLeft + ((rStart - xMin) / (xMax - xMin)) * plotWidth;
             const ex = plotLeft + ((rEnd - xMin) / (xMax - xMin)) * plotWidth;
             const w = Math.max(2, ex - sx);
-            const regionColor = getSeriesColor(region.column, appState.selectedCols.indexOf(region.column));
+            const regionColor = getSeriesColor(region.column, uiState.selectedCols.indexOf(region.column));
             ctx.fillStyle = this._applyAlphaToColor(regionColor, 0.16) || anomalyPalette.anomalyFill;
             ctx.strokeStyle = this._applyAlphaToColor(regionColor, 0.55) || anomalyPalette.anomalyStroke;
             ctx.fillRect(sx, plotTop, w, plotHeight);
@@ -203,7 +203,7 @@ export class ChartOverlays {
     }
 
     private _renderAdaptiveFilterLinesToCtx(ctx: CanvasRenderingContext2D, scale: { x: number; y: number }): void {
-        const filters = Array.isArray(appState.adaptiveLineFilters) ? appState.adaptiveLineFilters : [];
+        const filters = Array.isArray(uiState.adaptiveLineFilters) ? uiState.adaptiveLineFilters : [];
         const pending = this._opts.getPendingAdaptivePoint();
         if (filters.length === 0 && !pending) return;
 
@@ -223,7 +223,7 @@ export class ChartOverlays {
         const adaptivePalette = getChartPalette();
 
         for (const filter of filters) {
-            if (!appState.selectedCols?.includes(filter.column)) continue;
+            if (!uiState.selectedCols?.includes(filter.column)) continue;
             const segStart = Math.max(xMin, Math.min(Number(filter.x1), Number(filter.x2)));
             const segEnd = Math.min(xMax, Math.max(Number(filter.x1), Number(filter.x2)));
             if (!Number.isFinite(segStart) || !Number.isFinite(segEnd) || !(segEnd > segStart)) continue;
@@ -249,7 +249,7 @@ export class ChartOverlays {
             ctx.fillText(label, Math.min(ex, plotRight - 140 * strokeScale), Math.min(sy, ey) - 4 * strokeScale);
         }
 
-        if (pending && appState.selectedCols?.includes(pending.column)) {
+        if (pending && uiState.selectedCols?.includes(pending.column)) {
             const px = Number(pending.x);
             const py = Number(pending.y);
             const hasTwoPoints = Number.isFinite(pending.x2) && Number.isFinite(pending.y2);
