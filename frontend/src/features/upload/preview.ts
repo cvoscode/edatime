@@ -12,8 +12,9 @@ import {
     setPreviewSelectedColumns,
     setPreviewTimeColumn,
 } from '../../store/index.js';
+import { datasetState } from '../../store/datasetState.js';
+import { uiState } from '../../store/uiState.js';
 import { formatCount, formatAnalysisTime, formatToDatetimeLocal } from '../../utils/format.js';
-import { appState } from '../../store/index.js';
 import { getPartialTimeRangeInputs } from './partialLoadControls.js';
 import { toast } from '../../utils/toast.js';
 import { getDropdownValue, setDropdownOptions, setDropdownValue } from '../../ui/primitives/Dropdown.js';
@@ -70,7 +71,7 @@ export async function runFilePreview(
         const formData = new FormData();
         formData.append('file', file);
 
-        const timeColumn = String(appState.previewTimeColumn || '').trim();
+        const timeColumn = String(uiState.previewTimeColumn || '').trim();
         if (timeColumn) formData.append('time_column', timeColumn);
 
         const res = await previewUpload(formData, _previewController.signal);
@@ -91,7 +92,7 @@ export async function runFilePreview(
         applyTimeRangeFromMetadata(previewMetadata, true);
 
         const previewRows = Number(previewMetadata.total_rows || (result as any)?.preview_rows || 0);
-        if (!appState.previewTimeColumn && !previewMetadata.time_range) {
+        if (!uiState.previewTimeColumn && !previewMetadata.time_range) {
             setUploadPreviewStatus('No time column detected in preview. Please select one from the dropdown before upload.', 'warning');
         } else {
             setUploadPreviewStatus(`Preview ready (${formatCount(previewRows)} rows)`, 'success');
@@ -122,8 +123,8 @@ export function applyPreviewColumnSelection(
         .map((col) => String(col?.name || '').trim())
         .filter(Boolean));
 
-    const timeColumnExists = appState.previewTimeColumn && columns.some((col) => String(col?.name || '').trim() === appState.previewTimeColumn);
-    const calledTimeColumn = metadataTimeCol || detectedTimeCol || (timeColumnExists ? appState.previewTimeColumn : null);
+    const timeColumnExists = uiState.previewTimeColumn && columns.some((col) => String(col?.name || '').trim() === uiState.previewTimeColumn);
+    const calledTimeColumn = metadataTimeCol || detectedTimeCol || (timeColumnExists ? uiState.previewTimeColumn : null);
     setPreviewTimeColumn(calledTimeColumn);
 
     const timeColumnControl = document.getElementById('time-column-select') as HTMLElement | null;

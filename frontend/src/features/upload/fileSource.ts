@@ -8,7 +8,8 @@
 import {
     uploadDataset,
 } from '../../services/api/index.js';
-import { appState } from '../../store/index.js';
+import { datasetState } from '../../store/datasetState.js';
+import { uiState } from '../../store/uiState.js';
 import {
     setMetadata,
     setDatasetRevision,
@@ -84,7 +85,7 @@ export async function submitFileUpload(params: FileUploadParams): Promise<void> 
         return;
     }
 
-    if (!appState.previewTimeColumn && !(appState.metadata && appState.metadata.time_range)) {
+    if (!uiState.previewTimeColumn && !(datasetState.metadata && datasetState.metadata.time_range)) {
         statusEl!.textContent = 'No time column selected. Please choose a time column in the upload panel before ingest.';
         statusEl!.className = 'upload-status error';
         toast('No time column selected. Please choose a time column in the upload panel before ingest.', 'error', {});
@@ -127,14 +128,14 @@ export async function submitFileUpload(params: FileUploadParams): Promise<void> 
         if (tEndIso) formData.append('time_end', tEndIso);
     }
 
-    const selectedColumns = Array.isArray(appState.previewSelectedColumns)
-        ? appState.previewSelectedColumns.filter(Boolean)
+    const selectedColumns = Array.isArray(uiState.previewSelectedColumns)
+        ? uiState.previewSelectedColumns.filter(Boolean)
         : [];
     if (selectedColumns.length > 0) {
         formData.append('columns', JSON.stringify(selectedColumns));
     }
 
-    const timeColumn = String(appState.previewTimeColumn || '').trim();
+    const timeColumn = String(uiState.previewTimeColumn || '').trim();
     if (timeColumn) formData.append('time_column', timeColumn);
 
     uploadBtn.disabled = true;
