@@ -10,7 +10,7 @@
  * the user navigates to the page (lazy via `pageModules`).
  */
 
-import { initPageHelp, type PageHelpContent } from '../ui/pageHelp.js';
+import { initPageHelp, type PageHelpContent } from '../../ui/pageHelp.js';
 
 export const SPECTROGRAM_HELP: PageHelpContent = {
     pageName: 'Spectrogram',

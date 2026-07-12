@@ -3,7 +3,7 @@
  */
 import { createSpectrogramChartRuntime } from './spectrogramChartRuntime.js';
 import { __resetSpectrogramChartRuntimeForTests } from './spectrogramChartRuntime.js';
-import { initSpectrogramHelp } from './spectrogramHelp.js';
+import { initSpectrogramHelp } from '../features/spectrogram/help.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 interface SpectrogramPageDeps {

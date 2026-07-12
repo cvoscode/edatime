@@ -29,7 +29,7 @@ describe('spectrogram page help button', () => {
     });
 
     it('initSpectrogramHelp binds the button and opens the modal on click', async () => {
-        const { initSpectrogramHelp } = await import('./spectrogramHelp.js');
+        const { initSpectrogramHelp } = await import('./help.js');
         initSpectrogramHelp();
 
         const trigger = document.getElementById('spectrogram-help-btn') as HTMLButtonElement;
@@ -49,7 +49,7 @@ describe('spectrogram page help button', () => {
     });
 
     it('initSpectrogramHelp is safe to call twice (idempotent)', async () => {
-        const { initSpectrogramHelp } = await import('./spectrogramHelp.js');
+        const { initSpectrogramHelp } = await import('./help.js');
         initSpectrogramHelp();
         initSpectrogramHelp();
         const trigger = document.getElementById('spectrogram-help-btn') as HTMLButtonElement;
