@@ -138,18 +138,6 @@ vi.mock('../services/api/index.js', () => ({
     fetchScatterPoints: (...args: unknown[]) => fetchScatterPointsMock(...args),
 }));
 
-vi.mock('../store/appStateCompat.js', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('../store/appStateCompat.js')>();
-    return {
-        ...actual,
-        appState: {
-            ...actual.appState,
-            scatter: freshScatterState,
-        },
-        buildAdaptiveLineFiltersForQuery: () => [],
-    };
-});
-
 // scatterPage imports the canonical store; mirror the legacy `../state.js`
 // mock so property assignments on `appState.scatter` are visible to the
 // test. Without this, the real ScatterState singleton is used and the

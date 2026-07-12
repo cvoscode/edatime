@@ -241,7 +241,7 @@ describe('spectrogramPage colorbar filter', () => {
     });
 
     async function mountAndCompute(): Promise<void> {
-        const { appState } = await import('../store/appStateCompat.js');
+        const { appState } = await import('../store/index.js');
         appState.currentStart = 0;
         appState.currentEnd = 1e6;
         const { initSpectrogramPage } = await import('../pages/spectrogramPage.js');
@@ -302,7 +302,7 @@ describe('spectrogramPage colorbar filter', () => {
     });
 
     it('auto-computes on first load when a default column is already selected', async () => {
-        const { appState } = await import('../store/appStateCompat.js');
+        const { appState } = await import('../store/index.js');
         const { fetchSpectrogram } = await import('../services/api/index.js');
         const beforeCalls = vi.mocked(fetchSpectrogram).mock.calls.length;
         appState.currentStart = 0;
@@ -350,7 +350,7 @@ describe('spectrogramPage colorbar filter', () => {
     });
 
     it('reveals custom window and hop inputs and sends absolute sample values on Compute', async () => {
-        const { appState } = await import('../store/appStateCompat.js');
+        const { appState } = await import('../store/index.js');
         const { fetchSpectrogram } = await import('../services/api/index.js');
         const { setDropdownValue } = await import('../ui/primitives/Dropdown.js');
         appState.currentStart = 0;
@@ -390,7 +390,7 @@ describe('spectrogramPage colorbar filter', () => {
     });
 
     it('renders normalized spectrogram values even when log scale remains checked', async () => {
-        const { appState } = await import('../store/appStateCompat.js');
+        const { appState } = await import('../store/index.js');
         const { fetchSpectrogram } = await import('../services/api/index.js');
         const { setDropdownValue } = await import('../ui/primitives/Dropdown.js');
         appState.currentStart = 0;

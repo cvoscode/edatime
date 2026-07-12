@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as api from '../services/api/index.js';
-import { appState } from '../store/appStateCompat.js';
+import { appState } from '../store/index.js';
 import { setScatterViewSnapshot } from '../store/scatterState.js';
 import {
     __resetMatrixRenderControllerForTests,

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { appState } from '../store/appStateCompat.js';
+import { appState } from '../store/index.js';
 import { applySession, type SessionSnapshot } from './session.js';
 import { createWorkspaceStore } from '../workspace/workspaceStore.js';
 

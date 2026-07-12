@@ -36,10 +36,6 @@ vi.mock('../../store/index.js', () => ({
     setDatasetRevision: setDatasetRevisionMock,
 }));
 
-vi.mock('../../store/appStateCompat.js', () => ({
-    appState: fakeState,
-}));
-
 vi.mock('../../ui/profile.js', () => ({
     hydrateColumnProfiles: hydrateColumnProfilesMock,
     renderColumnProfilesGrid: renderColumnProfilesGridMock,

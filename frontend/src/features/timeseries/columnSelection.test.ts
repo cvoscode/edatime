@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { appState } from '../../store/appStateCompat.js';
 import { sanitizeSelectedColumns, ensureAdaptiveTargetStillValid } from './columnSelection.js';
 import {
+    appState,
     datasetState,
     setAdaptiveFilterColumn,
     setMetadata,

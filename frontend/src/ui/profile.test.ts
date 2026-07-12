@@ -11,8 +11,7 @@ import {
     renderColumnProfilesGrid,
     sortProfileRows,
 } from './profile';
-import { appState } from '../store/appStateCompat';
-import { datasetState, uiState } from '../store/index.js';
+import { appState, datasetState, uiState } from '../store/index.js';
 import type { DatasetMetadata } from '../types';
 
 function makeMeta(overrides: Partial<DatasetMetadata> = {}): DatasetMetadata {

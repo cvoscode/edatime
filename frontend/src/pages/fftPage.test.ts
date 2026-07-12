@@ -108,7 +108,7 @@ describe('initFftPage', () => {
             }],
         }));
 
-        const { appState } = await import('../store/appStateCompat.js');
+        const { appState } = await import('../store/index.js');
         appState.metadata = {
             total_rows: 10,
             columns: [],
@@ -154,7 +154,7 @@ describe('initFftPage', () => {
             }],
         });
 
-        const { appState } = await import('../store/appStateCompat.js');
+        const { appState } = await import('../store/index.js');
         appState.metadata = {
             total_rows: 10,
             columns: [],
@@ -196,7 +196,7 @@ describe('initFftPage', () => {
             }],
         });
 
-        const { appState } = await import('../store/appStateCompat.js');
+        const { appState } = await import('../store/index.js');
         appState.metadata = {
             total_rows: 10,
             columns: [],
@@ -246,7 +246,7 @@ describe('initFftPage', () => {
             }],
         });
 
-        const { appState } = await import('../store/appStateCompat.js');
+        const { appState } = await import('../store/index.js');
         appState.metadata = {
             total_rows: 10,
             columns: [],
@@ -292,7 +292,7 @@ describe('initFftPage', () => {
     it('falls back to ECharts when the WebGPU FFT chart cannot initialize', async () => {
         fftChartInstance.init.mockRejectedValueOnce(new Error('No WebGPU adapter found'));
 
-        const { appState } = await import('../store/appStateCompat.js');
+        const { appState } = await import('../store/index.js');
         appState.metadata = {
             total_rows: 10,
             columns: [],
@@ -314,7 +314,7 @@ describe('initFftPage', () => {
     });
 
     it('enables clip method and param when fft outliers toggle is checked (input event)', async () => {
-        const { appState } = await import('../store/appStateCompat.js');
+        const { appState } = await import('../store/index.js');
         appState.metadata = {
             total_rows: 10,
             columns: [],
@@ -358,7 +358,7 @@ describe('initFftPage', () => {
     });
 
     it('hides advanced clip controls until outlier clipping is enabled', async () => {
-        const { appState } = await import('../store/appStateCompat.js');
+        const { appState } = await import('../store/index.js');
         appState.metadata = {
             total_rows: 10,
             columns: [],
@@ -389,7 +389,7 @@ describe('initFftPage', () => {
     });
 
     it('hides inactive spectral cutoff inputs until the selected filter uses them', async () => {
-        const { appState } = await import('../store/appStateCompat.js');
+        const { appState } = await import('../store/index.js');
         appState.metadata = {
             total_rows: 10,
             columns: [],
@@ -437,7 +437,7 @@ describe('initFftPage', () => {
             }],
         });
 
-        const { appState } = await import('../store/appStateCompat.js');
+        const { appState } = await import('../store/index.js');
         appState.metadata = {
             total_rows: 10,
             columns: [],

@@ -159,10 +159,6 @@ vi.mock('../bootstrap/sessionBootstrap.js', () => ({
     startSessionPersistence: startSessionPersistenceMock,
 }));
 
-vi.mock('../store/appStateCompat.js', () => ({
-    appState: { metadata: null, chart: null, selectedCols: [] },
-}));
-
 vi.mock('../store/index.js', () => ({
     appStateComposite: { metadata: null, chart: null, selectedCols: [] },
     chartState: { chart: null, stackFromZero: false },

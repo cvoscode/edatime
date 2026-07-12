@@ -11,7 +11,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { appState } from '../store/appStateCompat.js';
+import { appState } from '../store/index.js';
 import { updateColorbarUI } from './rendering.js';
 
 function setupDom() {

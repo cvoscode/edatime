@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createWorkspaceStore, makeWorkspaceSnapshot } from '../../workspace/workspaceStore.js';
-import { appState } from '../../store/appStateCompat.js';
+import { appState } from '../../store/index.js';
 import {
     applyFilterIntentToData,
     applyColumnRangesToData,

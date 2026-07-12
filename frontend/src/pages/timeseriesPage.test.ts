@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createTimeseriesPageController } from './timeseriesPage.js';
-import { appState } from '../store/appStateCompat.js';
+import { appState } from '../store/index.js';
 import {
     setChartInstance,
     setFetchDebounceId,
