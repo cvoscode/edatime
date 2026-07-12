@@ -68,6 +68,7 @@ import { ChartOverlays } from './chartOverlays.js';
 import { buildLegendEntries } from './legendInteraction.js';
 import { LegendOverlayController } from './legendOverlayController.js';
 import { DrawingController } from './drawingController.js';
+import { TextOverlayController } from './textOverlayController.js';
 import { computeZoomPercentRange } from './zoomRangePolicy.js';
 import { computeDisplayYRange } from './displayYRangePolicy.js';
 import {
@@ -117,9 +118,7 @@ export class DataChart {
     _chartTitle = '';
     _xAxisLabel = '';
     _yAxisLabel = '';
-    _titleEl: HTMLElement | null = null;
-    _xLabelEl: HTMLElement | null = null;
-    _yLabelEl: HTMLElement | null = null;
+    _textOverlays: TextOverlayController | null = null;
 
     _overlayCanvas: HTMLCanvasElement | null = null;
     _overlayCtx: CanvasRenderingContext2D | null = null;
@@ -157,6 +156,8 @@ export class DataChart {
         this._themeUnsub?.();
         this._themeUnsub = null;
         this._overlays = null;
+        this._textOverlays?.destroy();
+        this._textOverlays = null;
         this._legendOverlay?.destroy();
         this._legendOverlay = null;
         this.chartInstance = null;
@@ -185,10 +186,9 @@ export class DataChart {
 
         this._legendOverlay?.destroy();
         this._legendOverlay = null;
+        this._textOverlays?.destroy();
+        this._textOverlays = null;
         this._container = null;
-        this._titleEl = null;
-        this._xLabelEl = null;
-        this._yLabelEl = null;
         // Release ChartGPU instance (guards against device-lost scenarios).
         try {
             this.chartInstance?.dispose?.();
@@ -869,31 +869,21 @@ export class DataChart {
 
     private _initTextOverlays(): void {
         if (!this._container) return;
-        const container = this._container;
-        ensureRelativePosition(container);
-        const mk = (cls: string): HTMLElement => {
-            const el = document.createElement('div');
-            el.className = `chart-text-overlay ${cls}`;
-            el.style.display = 'none';
-            container.appendChild(el);
-            return el;
-        };
-        this._titleEl = mk('chart-title-overlay');
-        this._xLabelEl = mk('chart-xlabel-overlay');
-        this._yLabelEl = mk('chart-ylabel-overlay');
-        this._syncTextOverlays();
+        const overlays = this._getTextOverlays();
+        overlays.init(this._container, this._getTextOverlayContent());
     }
 
     private _syncTextOverlays(): void {
-        const set = (el: HTMLElement | null, text: string) => {
-            if (!el) return;
-            const t = String(text ?? '').trim();
-            el.textContent = t;
-            el.style.display = t ? 'block' : 'none';
-        };
-        set(this._titleEl, this._chartTitle);
-        set(this._xLabelEl, this._xAxisLabel);
-        set(this._yLabelEl, this._yAxisLabel);
+        this._textOverlays?.sync(this._getTextOverlayContent());
+    }
+
+    private _getTextOverlays(): TextOverlayController {
+        if (!this._textOverlays) this._textOverlays = new TextOverlayController();
+        return this._textOverlays;
+    }
+
+    private _getTextOverlayContent(): { title: string; xLabel: string; yLabel: string } {
+        return { title: this._chartTitle, xLabel: this._xAxisLabel, yLabel: this._yAxisLabel };
     }
 
     /* ── Drawing overlay ────────────────────────────────── */

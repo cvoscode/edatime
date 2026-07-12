@@ -162,6 +162,8 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Kept series visibility and export-entry decisions in `DataChart`; controller callbacks make that boundary explicit. Direct controller tests cover rendering, delegation, Shift-only dragging, clamping, hover suppression, and removal cleanup.
 - Extracted user drawing ownership into `DrawingController`: draw mode/state, pointer lifecycle, animation-frame coalescing, listener cleanup, and screen/export shape rendering no longer live in `DataChart`.
 - `DataChart` retains only composition of chart-specific overlay layers with the drawing surface. Direct controller tests characterize gesture coordinates, enabled/disabled input, committed drawings, and redraw requests.
+- Extracted title and axis-label DOM ownership into `TextOverlayController`; it now creates, synchronizes, hides, and disposes text overlays independently of chart rendering state.
+- Direct controller tests cover normalized content, empty-label visibility, and cleanup. `DataChart` retains only the chart text values and forwards them to this controller.
 
 ### Next: DataChart renderer seams
 
