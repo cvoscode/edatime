@@ -158,6 +158,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Extracted robust Y-range normalization, bounds calculation, and spike-detection suggestion policy with direct tests; rendering ownership remains in DataChart.
 - Extracted viewport-to-percent zoom conversion with direct boundary tests; chart rendering continues to own application of the computed range.
 - Extracted display Y-range padding and non-negative floor policy with direct tests; DataChart now only applies the resulting axis option.
+- Extracted the legend DOM lifecycle into `LegendOverlayController`: element creation/removal, listener disposal, Shift hint state, drag positioning, and hover suppression are now owned outside `DataChart`.
+- Kept series visibility and export-entry decisions in `DataChart`; controller callbacks make that boundary explicit. Direct controller tests cover rendering, delegation, Shift-only dragging, clamping, hover suppression, and removal cleanup.
+
+### Next: DataChart renderer seams
+
+Continue this behavior-preserving split with the remaining renderer-owned seams: text overlays, drawings/annotations, ChartGPU option construction, and export composition. For each seam, first preserve its existing `DataChart` characterization coverage, add direct module coverage for its extracted behavior, run the full gates, then commit before moving to the next seam.
 
 ## Target Architecture
 

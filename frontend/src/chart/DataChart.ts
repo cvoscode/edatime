@@ -58,11 +58,6 @@ interface DrawItem {
     endY: number;
 }
 
-/**
- * Tracked window-level event listeners attached by the legend overlay.
- * Stored so destroy()/deepDispose() can remove them — without tracking, every
- * re-init of the chart would leak three listeners on `window`.
- */
 import {
     analyzeColorValues, baseSeriesName,
     buildColorizedSeries, categoryColorFor, colorForScaleValue,
@@ -80,7 +75,8 @@ import {
     initCtrlPan,
 } from './chartInteractions.js';
 import { ChartOverlays } from './chartOverlays.js';
-import { buildLegendEntries, clampLegendPosition, isShiftOnlyGesture, LegendWindowListenerScope, type LegendDragState, type LegendPosition } from './legendInteraction.js';
+import { buildLegendEntries } from './legendInteraction.js';
+import { LegendOverlayController } from './legendOverlayController.js';
 import { computeZoomPercentRange } from './zoomRangePolicy.js';
 import { computeDisplayYRange } from './displayYRangePolicy.js';
 import {
@@ -149,10 +145,7 @@ export class DataChart {
     _lastAppliedTheme: ResolvedTheme | null = null;
     _themeUnsub: (() => void) | null = null;
     _currentGrid: GridLayout = { ...DEFAULT_CHART_GRID };
-    _legendEl: HTMLElement | null = null;
-    _legendPosition: LegendPosition | null = null;
-    _legendDragState: LegendDragState | null = null;
-    _legendWindowListeners = new LegendWindowListenerScope();
+    _legendOverlay: LegendOverlayController | null = null;
 
     constructor(
         containerId: string,
@@ -181,11 +174,8 @@ export class DataChart {
         this._themeUnsub?.();
         this._themeUnsub = null;
         this._overlays = null;
-        this._legendEl?.remove();
-        this._legendEl = null;
-        this._legendPosition = null;
-        this._legendDragState = null;
-        this._removeLegendWindowListeners();
+        this._legendOverlay?.destroy();
+        this._legendOverlay = null;
         this.chartInstance = null;
     }
 
@@ -213,16 +203,12 @@ export class DataChart {
         this._selectionBox?.remove();
         this._selectionBox = null;
 
+        this._legendOverlay?.destroy();
+        this._legendOverlay = null;
         this._container = null;
         this._titleEl = null;
         this._xLabelEl = null;
         this._yLabelEl = null;
-        this._legendEl?.remove();
-        this._legendEl = null;
-        this._legendPosition = null;
-        this._legendDragState = null;
-        this._removeLegendWindowListeners();
-
         // Release ChartGPU instance (guards against device-lost scenarios).
         try {
             this.chartInstance?.dispose?.();
@@ -286,7 +272,7 @@ export class DataChart {
 
     resize(): void {
         this.chartInstance?.resize?.();
-        if (this._legendEl && this._legendPosition) this._applyLegendPosition(this._legendPosition);
+        this._legendOverlay?.reflow();
         this._renderDrawings();
     }
 
@@ -845,103 +831,24 @@ export class DataChart {
     }
 
     private _syncLegendOverlay(): void {
-        if (!this._container) return;
-        const entries = this._getLegendEntries();
-        if (entries.length === 0) {
-            this._legendEl?.remove();
-            this._legendEl = null;
-            this._legendDragState = null;
-            return;
+        const overlay = this._getLegendOverlay();
+        overlay?.sync(this._getLegendEntries());
+    }
+
+    private _getLegendOverlay(): LegendOverlayController | null {
+        const container = this._container;
+        if (!container) return null;
+        if (this._legendOverlay && this._legendOverlay.container !== container) {
+            this._legendOverlay.destroy();
+            this._legendOverlay = null;
         }
-
-        const legend = this._ensureLegendOverlay();
-        legend.replaceChildren();
-        legend.title = 'Legend (click to toggle, Shift+drag to move)';
-
-        const rows = document.createElement('div');
-        rows.className = 'timeseries-legend-overlay__rows';
-        for (const entry of entries) {
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.className = 'timeseries-legend-overlay__row';
-            button.dataset.seriesName = entry.name;
-            button.setAttribute('aria-pressed', entry.visible ? 'true' : 'false');
-            button.title = `${entry.visible ? 'Hide' : 'Show'} ${entry.name}`;
-
-            const swatch = document.createElement('span');
-            swatch.className = 'timeseries-legend-overlay__swatch';
-            swatch.style.backgroundColor = entry.color;
-
-            const label = document.createElement('span');
-            label.className = 'timeseries-legend-overlay__label';
-            label.textContent = entry.name;
-
-            button.append(swatch, label);
-            button.addEventListener('click', () => this._toggleLegendTrace(entry.name));
-            rows.appendChild(button);
+        if (!this._legendOverlay) {
+            this._legendOverlay = new LegendOverlayController(container, {
+                onToggleTrace: (name) => this._toggleLegendTrace(name),
+                suppressChartHover: () => this._suppressChartHover(),
+            });
         }
-        legend.appendChild(rows);
-
-        this._applyLegendPosition(this._legendPosition ?? this._getDefaultLegendPosition());
-    }
-
-    private _ensureLegendOverlay(): HTMLElement {
-        if (this._legendEl && this._legendEl.isConnected) return this._legendEl;
-        // Defensive: after destroy()/deepDispose(), the previous element may
-        // still be in the DOM briefly but should be replaced.
-        if (this._legendEl) {
-            this._removeLegendWindowListeners();
-            this._legendEl.remove();
-            this._legendEl = null;
-        }
-        if (!this._container) throw new Error('Cannot create legend overlay without chart container.');
-
-        const legend = document.createElement('div');
-        legend.className = 'timeseries-legend-overlay';
-        legend.setAttribute('role', 'group');
-        legend.setAttribute('aria-label', 'Timeseries trace legend');
-        legend.addEventListener('pointerdown', (event) => this._startLegendDrag(event));
-        legend.addEventListener('pointermove', (event) => this._moveLegendDrag(event));
-        legend.addEventListener('pointerup', (event) => this._finishLegendDrag(event));
-        legend.addEventListener('pointercancel', (event) => this._finishLegendDrag(event));
-        legend.addEventListener('pointerenter', (event) => this._syncLegendShiftHint(event));
-
-        // Track every window listener we attach so destroy()/deepDispose()
-        // can remove them — otherwise each chart re-init leaks three
-        // listeners on `window`.
-        this._addLegendWindowListener('keydown', (event) => this._syncLegendShiftHint(event));
-        this._addLegendWindowListener('keyup', (event) => this._syncLegendShiftHint(event));
-        this._addLegendWindowListener('blur', () => {
-            this._legendEl?.classList.remove('is-shift-active');
-            this._container?.classList.remove('is-shift-active');
-        });
-
-        this._container.appendChild(legend);
-        this._legendEl = legend;
-        return legend;
-    }
-
-    private _addLegendWindowListener(type: string, handler: EventListener): void {
-        // Reuse the same handler instance across re-inits so removal works
-        // even if destroy()/init() cycle fires more than once.
-        this._legendWindowListeners.add(type, handler);
-    }
-
-    private _removeLegendWindowListeners(): void {
-        this._legendWindowListeners.dispose();
-    }
-
-    private _syncLegendShiftHint(event: Event, legend?: HTMLElement | null): void {
-        const el = legend ?? this._legendEl;
-        if (!el) return;
-        const ke = event as KeyboardEvent;
-        const pe = event as PointerEvent;
-        const shiftOnly = isShiftOnlyGesture(ke) || isShiftOnlyGesture(pe);
-        el.classList.toggle('is-shift-active', shiftOnly);
-        // Mirror the hint on the chart container so other handlers
-        // (notably box-zoom) can cheaply check `is-shift-active` and
-        // bail out while the user is dragging the legend.
-        this._container?.classList.toggle('is-shift-active', shiftOnly);
+        return this._legendOverlay;
     }
 
     private _getLegendEntries(): { name: string; color: string; visible: boolean }[] {
@@ -977,76 +884,6 @@ export class DataChart {
         this._lastSeriesList = nextSeries as SeriesConfig[];
         this._syncLegendOverlay();
         this._renderDrawings();
-    }
-
-    private _getDefaultLegendPosition(): LegendPosition {
-        const legend = this._legendEl;
-        const container = this._container;
-        if (!legend || !container) return { left: 8, top: 8 };
-        return this._clampLegendPosition({
-            left: container.clientWidth - legend.offsetWidth - 10,
-            top: 12,
-        });
-    }
-
-    private _applyLegendPosition(position: LegendPosition): void {
-        if (!this._legendEl) return;
-        const next = this._clampLegendPosition(position);
-        this._legendPosition = next;
-        this._legendEl.style.left = `${next.left}px`;
-        this._legendEl.style.top = `${next.top}px`;
-    }
-
-    private _clampLegendPosition(position: LegendPosition): LegendPosition {
-        const container = this._container;
-        const legend = this._legendEl;
-        if (!container || !legend) return { left: 8, top: 8 };
-        return clampLegendPosition(position, container, legend);
-    }
-
-    private _startLegendDrag(event: PointerEvent): void {
-        if (event.button !== 0 || !this._legendEl) return;
-        if (!isShiftOnlyGesture(event)) return;
-        const target = event.target as HTMLElement | null;
-        if (target?.closest?.('.timeseries-legend-overlay__row')) return;
-        event.preventDefault();
-        this._legendDragState = {
-            pointerId: event.pointerId,
-            startClientX: event.clientX,
-            startClientY: event.clientY,
-            startLeft: this._legendPosition?.left ?? this._legendEl.offsetLeft,
-            startTop: this._legendPosition?.top ?? this._legendEl.offsetTop,
-        };
-        this._legendEl.classList.add('is-dragging');
-        // Suppress chart hover (crosshair + tooltip) for the duration of
-        // the drag so the legend overlay can receive the pointermove
-        // uninterrupted. Without this, the chart re-engages its tooltip
-        // whenever the legend sits over a series line and the drag stalls.
-        this._suppressChartHover();
-        try { this._legendEl.setPointerCapture(event.pointerId); } catch { /* ignored */ }
-    }
-
-    private _moveLegendDrag(event: PointerEvent): void {
-        const drag = this._legendDragState;
-        if (!drag || drag.pointerId !== event.pointerId) return;
-        // Defeat any chart-internal pointer handler that re-engages hover
-        // while the pointer is over the legend overlay.
-        this._suppressChartHover();
-        this._applyLegendPosition({
-            left: drag.startLeft + event.clientX - drag.startClientX,
-            top: drag.startTop + event.clientY - drag.startClientY,
-        });
-    }
-
-    private _finishLegendDrag(event: PointerEvent): void {
-        const drag = this._legendDragState;
-        if (!drag || drag.pointerId !== event.pointerId) return;
-        this._legendDragState = null;
-        this._legendEl?.classList.remove('is-dragging');
-        try { this._legendEl?.releasePointerCapture(event.pointerId); } catch { /* ignored */ }
-        // Leave hover cleared: the pointer is still over the legend, and the
-        // next natural pointermove into the chart grid will re-establish it.
-        this._suppressChartHover();
     }
 
     private _suppressChartHover(): void {
