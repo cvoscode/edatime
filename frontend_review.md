@@ -208,6 +208,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Extracted `spectrogramSummary` for structured result metrics and its accessible result description, leaving the runtime to provide current result, resolved controls, scale state, and peak formatting.
 - Extracted `spectrogramChartController` for ECharts initialization, readiness waits, resize observation, selection-box zoom, reset, and disposal. The runtime now treats it as a chart adapter instead of owning ECharts DOM lifecycle details.
 - Consolidated clip-toggle enablement, field visibility, explanatory hints, and method-label policy into `spectrogramClipControls`, removing duplicate init and visibility behavior.
+- Moved custom window/hop-input visibility and enabled-state policy into `spectrogramControls`; runtime control wiring now only applies the tested state to its owned DOM inputs.
 - Next, review the smaller remaining page-control orchestration seam against the target architecture before deciding whether another extraction improves ownership.
 
 ### Completed: global continuous color-scale ownership

@@ -15,3 +15,12 @@ export function resolveSpectrogramHopSize(selection: string | null | undefined, 
     const normalized = Number.isFinite(ratio) && ratio > 0 && ratio < 1 ? ratio : 0.5;
     return Math.max(1, Math.min(windowSize, Math.round(windowSize * normalized)));
 }
+
+/** DOM state for a custom numeric field associated with a preset dropdown. */
+export function resolveSpectrogramCustomInputState(selection: string | null | undefined): {
+    hidden: boolean;
+    disabled: boolean;
+} {
+    const enabled = selection === 'custom';
+    return { hidden: !enabled, disabled: !enabled };
+}

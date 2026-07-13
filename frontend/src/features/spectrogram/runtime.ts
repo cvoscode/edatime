@@ -36,7 +36,11 @@ import {
     getVisibleSpectrogramPoints,
     type SpectrogramGridModel,
 } from './spectrogramGridModel.js';
-import { resolveSpectrogramHopSize, resolveSpectrogramWindowSize } from './spectrogramControls.js';
+import {
+    resolveSpectrogramCustomInputState,
+    resolveSpectrogramHopSize,
+    resolveSpectrogramWindowSize,
+} from './spectrogramControls.js';
 import { buildSpectrogramChartOptions } from './spectrogramChartOptions.js';
 import { createSpectrogramColorbar } from './spectrogramColorbar.js';
 import { buildSpectrogramRequest } from './spectrogramRequest.js';
@@ -87,14 +91,10 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
         const hopCustomInput = getSpectrogramHopCustomInput();
 
         if (winCustomInput) {
-            const custom = winMode === 'custom';
-            winCustomInput.hidden = !custom;
-            winCustomInput.disabled = !custom;
+            Object.assign(winCustomInput, resolveSpectrogramCustomInputState(winMode));
         }
         if (hopCustomInput) {
-            const custom = hopMode === 'custom';
-            hopCustomInput.hidden = !custom;
-            hopCustomInput.disabled = !custom;
+            Object.assign(hopCustomInput, resolveSpectrogramCustomInputState(hopMode));
         }
     };
 
