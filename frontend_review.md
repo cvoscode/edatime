@@ -223,6 +223,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Moved Home `[data-home-nav]` card wiring from `app/shell` into `features/home/navigation` and exposed it through the Home public index.
 - Shell core now consumes that public Home surface; the shell characterization test was consolidated around the complete Home mock surface, preventing duplicate mocks from masking supported feature exports.
 
+### Completed: guided-workflow storage compatibility retirement
+
+- Removed the legacy unscoped `visitedPages` storage migration. Workflow progress is now recorded and read only under the active dataset fingerprint, eliminating cross-dataset progress leakage and an obsolete persistence shape.
+- Added direct coverage for both the dataset-scoped compact workflow and ignored retired unscoped state, so future storage changes cannot silently restore the compatibility path.
+
 ### Completed: DataChart decomposition
 
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.

@@ -197,7 +197,41 @@ describe('initGuidedWorkflow', () => {
         expect((window as any).__edatime?.guidedWorkflow).toBeUndefined();
     });
 
-    it('omits the automatic completed-count summary in compact mode', async () => {
+    it('uses dataset-scoped workflow history when rendering compact mode', async () => {
+        vi.resetModules();
+
+        const metadata = {
+            total_rows: 69_680,
+            time_column: 'date',
+            time_range: { min: 1, max: 2 },
+            numeric_columns: ['HUFL', 'HULL', 'OT'],
+        };
+
+        document.body.innerHTML = `
+            <nav class="sidebar">
+                <button class="nav-item" data-page="home" type="button">Home</button>
+                <button class="nav-item active" data-page="scatter" type="button">Scatter</button>
+            </nav>
+            <button id="workflow-toggle-btn" type="button"></button>
+            <section id="workflow-panel"></section>
+            <select id="scatter-x-col"><option value="HUFL" selected>HUFL</option></select>
+            <select id="scatter-y-col"><option value="OT" selected>OT</option></select>
+        `;
+        window.localStorage.setItem('edatime-guided-workflow', JSON.stringify({
+            enabled: true,
+            visitedPagesByDataset: {
+                '1:69680:date:1:2:HUFL|HULL|OT': ['home', 'timeseries', 'correlations'],
+            },
+        }));
+
+        const { initGuidedWorkflow } = await import('./guidedWorkflow.js');
+        initGuidedWorkflow(workflowDeps(metadata, ['HUFL', 'HULL', 'OT']));
+
+        expect(document.getElementById('workflow-panel')?.textContent).not.toContain('completed');
+        expect(document.getElementById('workflow-panel')?.classList.contains('workflow-panel--compact-shell')).toBe(true);
+    });
+
+    it('does not apply retired unscoped visit history to the current dataset', async () => {
         vi.resetModules();
 
         const metadata = {
@@ -225,7 +259,6 @@ describe('initGuidedWorkflow', () => {
         const { initGuidedWorkflow } = await import('./guidedWorkflow.js');
         initGuidedWorkflow(workflowDeps(metadata, ['HUFL', 'HULL', 'OT']));
 
-        expect(document.getElementById('workflow-panel')?.textContent).not.toContain('completed');
-        expect(document.getElementById('workflow-panel')?.classList.contains('workflow-panel--compact-shell')).toBe(true);
+        expect(document.getElementById('workflow-panel')?.classList.contains('workflow-panel--compact-shell')).toBe(false);
     });
 });

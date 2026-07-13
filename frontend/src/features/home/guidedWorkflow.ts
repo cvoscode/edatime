@@ -39,8 +39,7 @@ export interface WorkflowSuggestion {
 
 interface WorkflowPrefs {
     enabled: boolean;
-    visitedPages: string[];
-    visitedPagesByDataset?: Record<string, string[]>;
+    visitedPagesByDataset: Record<string, string[]>;
 }
 
 export interface GuidedWorkflowDeps {
@@ -104,43 +103,32 @@ function currentDatasetKey(): string {
 
 function getVisitedPagesForCurrentDataset(prefs: WorkflowPrefs): string[] {
     const datasetKey = currentDatasetKey();
-    if (datasetKey === 'no-dataset') return sanitizeVisitedPages(prefs.visitedPages);
-    return sanitizeVisitedPages(prefs.visitedPagesByDataset?.[datasetKey]);
+    if (datasetKey === 'no-dataset') return [];
+    return sanitizeVisitedPages(prefs.visitedPagesByDataset[datasetKey]);
 }
 
 function setVisitedPagesForCurrentDataset(prefs: WorkflowPrefs, pages: string[]): void {
-    const nextPages = sanitizeVisitedPages(pages);
-    prefs.visitedPages = nextPages;
-
     const datasetKey = currentDatasetKey();
     if (datasetKey === 'no-dataset') return;
 
     prefs.visitedPagesByDataset = {
-        ...(prefs.visitedPagesByDataset || {}),
-        [datasetKey]: nextPages,
+        ...prefs.visitedPagesByDataset,
+        [datasetKey]: sanitizeVisitedPages(pages),
     };
 }
 
 function readPrefs(): WorkflowPrefs {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return { enabled: true, visitedPages: [] };
+        if (!raw) return { enabled: true, visitedPagesByDataset: {} };
         const parsed = JSON.parse(raw) as Partial<WorkflowPrefs>;
         const visitedPagesByDataset = sanitizeVisitedPagesByDataset(parsed.visitedPagesByDataset);
-        const legacyVisitedPages = sanitizeVisitedPages(parsed.visitedPages);
-        const datasetKey = currentDatasetKey();
-        if (legacyVisitedPages.length > 0 && datasetKey !== 'no-dataset' && !visitedPagesByDataset[datasetKey]?.length) {
-            visitedPagesByDataset[datasetKey] = legacyVisitedPages;
-        }
         return {
             enabled: parsed.enabled !== false,
-            visitedPages: datasetKey === 'no-dataset'
-                ? legacyVisitedPages
-                : sanitizeVisitedPages(visitedPagesByDataset[datasetKey]),
             visitedPagesByDataset,
         };
     } catch {
-        return { enabled: true, visitedPages: [] };
+        return { enabled: true, visitedPagesByDataset: {} };
     }
 }
 
