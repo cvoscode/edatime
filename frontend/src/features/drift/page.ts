@@ -376,36 +376,14 @@ export async function initDriftPage(metadata: any): Promise<void> {
     // detailOption and timelineOption live in timelineView.ts / detailView.ts / viewModels.ts
 
     function statusSummary(failedColumns: string[] = []): void {
-        const cols = Array.from(getResponsesByColumn().values());
-        if (cols.length === 0) {
+        const responsesByColumn = getResponsesByColumn();
+        if (responsesByColumn.size === 0) {
             toast('No drift response returned.', 'warning', {});
             return;
         }
-        let windowsTotal = 0;
-        let flaggedTotal = 0;
-        let refSamples = 0;
-        let computeMs = 0;
-        let psiWarning = false;
-        let binWarning = false;
-
-        cols.forEach((resp) => {
-            windowsTotal += resp.windows.length;
-            flaggedTotal += resp.windows.filter((w) => w.drift_level !== 'green').length;
-            refSamples += resp.reference.count;
-            computeMs += resp.metadata?.computation_time_ms ?? 0;
-            if (resp.metadata?.psi_sample_ratio_warning) psiWarning = true;
-            if (resp.metadata?.bin_count_warning) binWarning = true;
-        });
-
-        const avgWindows = windowsTotal / cols.length;
-        const avgRef = refSamples / cols.length;
-        const failedInfo = failedColumns.length > 0 ? ` | failed: ${failedColumns.join(', ')}` : '';
-        const warnings: string[] = [];
-        if (psiWarning) warnings.push('PSI may be inflated (reference \u226710\u00d7 window size)');
-        if (binWarning) warnings.push('histogram bins fell back to equal-width');
-        const warnInfo = warnings.length > 0 ? ` \u26a0 ${warnings.join('; ')}` : '';
+        const summary = buildStatusSummary(responsesByColumn, failedColumns);
         toast(
-            `Drift: ${cols.length} column(s) | ~${avgWindows.toFixed(0)} windows/column | ${flaggedTotal} flagged | ref avg ${avgRef.toFixed(0)} samples | ${computeMs.toFixed(0)}ms${failedInfo}${warnInfo}`,
+            `Drift: ${summary.text}`,
             'info',
             {},
         );

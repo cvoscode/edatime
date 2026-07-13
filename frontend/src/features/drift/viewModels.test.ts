@@ -6,6 +6,7 @@ import {
     buildTimelineOption,
     buildWindowListHtml,
     filterResponseForEvaluation,
+    statusSummary,
     timelineTooltipFormatter,
     type DriftResponse,
 } from './viewModels.js';
@@ -152,6 +153,24 @@ describe('drift view models', () => {
         expect(summary.totalColumns).toBe(2);
         expect(summary.latestSeverity).toBe('red');
         expect(summary.worstSeverity).toBe('red');
+    });
+
+    it('builds the shared compute status with failed columns and quality warnings', () => {
+        const warned = {
+            ...response,
+            metadata: {
+                ...response.metadata!,
+                psi_sample_ratio_warning: true,
+                bin_count_warning: true,
+            },
+        };
+        const summary = statusSummary(new Map([['value', warned]]), ['other']);
+
+        expect(summary.windowsTotal).toBe(2);
+        expect(summary.flaggedTotal).toBe(2);
+        expect(summary.text).toContain('failed: other');
+        expect(summary.text).toContain('PSI may be inflated');
+        expect(summary.text).toContain('histogram bins fell back to equal-width');
     });
 
     it('softens the latest severity when almost every column is already flagged', () => {
