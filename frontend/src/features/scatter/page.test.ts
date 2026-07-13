@@ -203,6 +203,10 @@ function buildDom(): void {
             <div id="scatter-density-controls"></div>
             <div id="scatter-color-controls"></div>
             <div class="scatter-export-group"></div>
+            <button id="scatter-export-png-btn" type="button">Export PNG</button>
+            <button id="scatter-export-svg-btn" type="button">Export SVG</button>
+            <button id="scatter-export-html-btn" type="button">Export HTML</button>
+            <button id="scatter-export-csv-btn" type="button">Export CSV</button>
             <div class="scatter-stats-bar"></div>
             <div data-scatter-view-panel="plot"></div>
             <div data-scatter-view-panel="matrix" hidden></div>
@@ -332,6 +336,27 @@ describe('initScatterPage view toggles', () => {
         expect(document.getElementById('scatter-view-matrix-btn')?.getAttribute('aria-pressed')).toBe('true');
         expect((document.querySelector('[data-scatter-view-panel="plot"]') as HTMLElement).hidden).toBe(true);
         expect((document.querySelector('[data-scatter-view-panel="matrix"]') as HTMLElement).hidden).toBe(false);
+    });
+
+    it('binds exports when lazy initialization follows the first page-change event', async () => {
+        const { initScatterPage } = await import('./page.js');
+        const { exportScatterPNG } = await import('./rendering.js');
+
+        await initScatterPage({
+            total_rows: 2,
+            columns: [
+                { name: 'HUFL', dtype: 'Float64' },
+                { name: 'HULL', dtype: 'Float64' },
+            ],
+            numeric_columns: ['HUFL', 'HULL'],
+            time_column: 'ts',
+            time_range: { min: 0, max: 1_000 },
+            column_profiles: [],
+        } as any);
+
+        (document.getElementById('scatter-export-png-btn') as HTMLButtonElement).click();
+
+        expect(exportScatterPNG).toHaveBeenCalledWith('edatime_scatter.png');
     });
 
     it('resets the plot view when switching back from matrix so the chart is not blank', async () => {

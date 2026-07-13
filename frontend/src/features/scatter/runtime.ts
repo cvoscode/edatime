@@ -28,6 +28,7 @@ import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 /** Module-level runtime handle for the scatter page lifecycle. */
 let scatterRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
+let disposeScatterRuntime: (() => void) | null = null;
 
 let scatterEmptyStateController: ReturnType<typeof createEmptyStateController> | null = null;
 let workspace: Pick<WorkspaceStore, 'getSnapshot'> | null = null;
@@ -219,10 +220,13 @@ export function syncScatterFilterBadge(): void {
 }
 
 /**
- * Bootstraps the scatter page runtime — must be called BEFORE the first
- * edatime:page-change 'scatter' event so event listeners are registered first.
+ * Bootstraps and mounts the scatter page runtime. The lazy page initializer
+ * also binds exports directly because its first page-change can precede
+ * module evaluation.
  */
-export function initScatterPageRuntime(): void {
+export function initScatterPageRuntime(): ReturnType<typeof createAnalysisPageRuntime> {
+    if (scatterRuntime) return scatterRuntime;
+
     scatterRuntime = createAnalysisPageRuntime({
         page: 'scatter',
         emptyStateRootId: 'scatter-empty-state',
@@ -245,6 +249,26 @@ export function initScatterPageRuntime(): void {
             syncScatterEmptyState();
         },
     });
+
+    disposeScatterRuntime = scatterRuntime.mount();
+    return scatterRuntime;
+}
+
+/**
+ * Tear down the Scatter page lifecycle and its page-owned UI resources.
+ *
+ * The application normally keeps a lazy-loaded page alive for the lifetime of
+ * its root. This explicit boundary is still essential for remounting an app
+ * in tests or an embedding host: it removes the page-change listener and
+ * avoids retaining controls from the previous document.
+ */
+export function disposeScatterPageRuntime(): void {
+    disposeScatterRuntime?.();
+    disposeScatterRuntime = null;
+    scatterRuntime = null;
+    scatterEmptyStateController?.dispose();
+    scatterEmptyStateController = null;
+    workspace = null;
 }
 
 /** Returns the active scatter runtime handle. */

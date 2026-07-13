@@ -439,6 +439,9 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Extracted chart realization into `chartLifecycle`, which owns signature-based container replacement, WebGPU/ECharts fallback selection, chart reuse, selection-zoom attachment, throttled performance updates, and post-update resize. The page pipeline supplies only option construction and presentation callbacks.
 - Removed the retired `viewController` duplicate. `page.ts` is the sole Scatter Plot/Matrix controller because it owns the complete filter-snapshot, matrix-to-plot reset, warning, render, and panel-navigation contract.
 - Scatter now has one controller, explicit request/response policies, independently owned chart/gesture lifecycles, and no remaining implicit global bridges or stale controller duplicate.
+- Mounted the Scatter analysis runtime when the lazy feature loads and made initialization idempotent. The runtime now owns a real page-change listener/disposer rather than being an inert configuration object.
+- Bound Scatter exports at the feature initialization boundary as well as through the runtime lifecycle. This covers the lazy-load ordering where the first Scatter page-change event precedes module evaluation; direct coverage proves the PNG export is live on first visit.
+- Added explicit runtime disposal for remounting/embedding hosts, releasing the page lifecycle, empty-state actions, and workspace reference. Direct lifecycle coverage verifies one mount only and listener removal on disposal.
 
 ## Target Architecture
 

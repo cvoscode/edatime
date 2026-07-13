@@ -392,6 +392,12 @@ export async function initScatterPage(
     metadata: DatasetMetadata,
     deps: { workspace?: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters'> } = {},
 ): Promise<void> {
+    // The descriptor is lazy-loaded while Scatter is already becoming
+    // visible, so its first page-change event may have happened before this
+    // module was evaluated. Bind exports directly at the feature boundary;
+    // the runtime method is idempotent and the lifecycle path remains a
+    // defensive fallback for subsequent mounts.
+    initScatterPageRuntime().bindExports();
     matrixRenderSession.dispose();
     matrixRenderSession = createMatrixRenderSession();
     workspace = deps.workspace ?? null;

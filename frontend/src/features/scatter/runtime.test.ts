@@ -1,15 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { chartState } from '../../store/chartState.js';
 import { datasetState } from '../../store/datasetState.js';
 import { scatterState } from '../../store/scatterState.js';
 import { configureScatterRuntime } from './runtime.js';
 import {
+    disposeScatterPageRuntime,
     getScatterEmptyStateController,
     syncScatterEmptyState,
     syncScatterFilterBadge,
     getGpuUnavailable,
     setGpuUnavailable,
     getScatterRuntime,
+    initScatterPageRuntime,
 } from './runtime.js';
 
 // ---------------------------------------------------------------------------
@@ -19,7 +21,7 @@ import {
 const emptyStateUpdateMock = vi.fn();
 
 vi.mock('../../ui/emptyState.js', () => ({
-    createEmptyStateController: vi.fn(() => ({ update: emptyStateUpdateMock })),
+    createEmptyStateController: vi.fn(() => ({ update: emptyStateUpdateMock, dispose: vi.fn() })),
     isRangeOutsideDataset: vi.fn(() => false),
 }));
 
@@ -242,9 +244,38 @@ describe('getScatterRuntime', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         buildDom();
+        disposeScatterPageRuntime();
+    });
+
+    afterEach(() => {
+        disposeScatterPageRuntime();
     });
 
     it('returns null before initScatterPageRuntime is called', () => {
         expect(getScatterRuntime()).toBe(null);
+    });
+
+    it('mounts one page lifecycle and disposes it cleanly', () => {
+        const addListener = vi.spyOn(window, 'addEventListener');
+        const removeListener = vi.spyOn(window, 'removeEventListener');
+
+        const first = initScatterPageRuntime();
+        const second = initScatterPageRuntime();
+
+        expect(second).toBe(first);
+        expect(addListener).toHaveBeenCalledWith(
+            'edatime:page-change',
+            expect.any(Function),
+            undefined,
+        );
+
+        disposeScatterPageRuntime();
+
+        expect(getScatterRuntime()).toBe(null);
+        expect(removeListener).toHaveBeenCalledWith(
+            'edatime:page-change',
+            expect.any(Function),
+            undefined,
+        );
     });
 });
