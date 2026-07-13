@@ -2,7 +2,7 @@
  * scatterState — scatter analytics page state.
  *
  * Extracted from the inline `scatter` slice of AppStateType and the now-orphaned
- * frontend/src/scatter/state.ts. Import from here; do not duplicate.
+ * frontend/src/features/scatter/state.ts. Import from here; do not duplicate.
  */
 
 import type { ChartGPUInstance, SeriesConfig } from '../../libs/chartgpu/dist/index.js';
@@ -122,7 +122,7 @@ export interface ScatterState {
      * `buildScatterQueryContext` reads when a scatter fetch runs; the
      * inactive view keeps its last snapshot so the user can switch
      * between them without losing prior work. See
-     * `frontend/src/scatter/scatterPage.ts setScatterView` for the
+     * `frontend/src/features/scatter/page.ts setScatterView` for the
      * snapshot/restore logic.
      */
     plotFilters: Record<string, { from: number; to: number }>;

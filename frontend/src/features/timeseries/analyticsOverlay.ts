@@ -35,7 +35,7 @@ export type { RollingBandData } from '../../types/analytics.js';
 
 /**
  * Compute rolling mean ± 1σ / 2σ bands for selected columns.
- * Moved from pages/timeseriesPage.ts so it can be reused in analytics listeners.
+ * Lives with the Timeseries feature so it can be reused by its analytics listeners.
  */
 export function computeFrontendRollingBands(
     data: { ts?: Float64Array | number[]; series: Record<string, { x: Float64Array | number[]; y: Float64Array | number[] }> } | null,

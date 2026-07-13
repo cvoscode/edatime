@@ -752,6 +752,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Migrated every production API route-family client to the route map. Arrow-decoded series and matrix cache models deliberately remain feature/client projections rather than being misrepresented as JSON DTOs.
 - Re-exported retired type-hub DTO names only as compatibility type aliases, so existing feature consumers keep their behavior while new transport work has one canonical source. The architecture gate rejects production `/api/v1` literals outside the route contract.
 
+### Completed: final retired-source-tree deletion
+
+- Deleted the empty retired `legacy/`, `bootstrap/`, `pages/`, and former top-level feature/component directories; `store/compat*` has no surviving file or directory.
+- Replaced migration-era architecture-check exceptions with a single enforced absence/import invariant, so a retired tree or compatibility module cannot be recreated unnoticed.
+- Removed stale source-path commentary that still described moved Scatter, Timeseries, and Causal implementation owners.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.

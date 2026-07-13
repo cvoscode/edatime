@@ -55,6 +55,10 @@ describe('frontend build contract', () => {
         expect(filtering).not.toContain('appStateCompat');
         expect(session).not.toContain('appStateCompat');
         expect(architectureCheck).not.toContain('appStateCompat');
+        expect(architectureCheck).toContain('retired source tree must remain deleted');
+        expect(architectureCheck).toContain('retired store/compat* surface must remain deleted');
+        expect(architectureCheck).not.toContain('app/bootstrap/datasetBootstrap.ts');
+        expect(architectureCheck).not.toContain('isPageImplementationPath');
         expect(architectureCheck).toContain('focused store slices instead of store/index.js');
     });
 

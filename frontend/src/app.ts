@@ -3,7 +3,7 @@
  *
  * All domain logic lives in focused modules:
  *   store/          — centralized sub-states (chart, analytics, ui, dataset, scatter)
- *   app/            — bootstrap helpers (WebGPU guard, adaptive gesture, keyboard shortcuts, page modules)
+ *   app/            — composition, lifecycle, lazy feature registry, and page modules
  *   debug.ts        — DEBUG flag, dbg(), dbgGroup()
  *   features/upload/panel.ts — upload panel (drag-drop, preview, partial load)
  *   features/upload/profile.ts — virtualised column-profile grid
@@ -12,7 +12,7 @@
  *   charts/fallback.ts — Canvas 2D fallback chart
  *   chart/DataChart.ts — DataChart (ChartGPU WebGPU adapter)
  *   services/api/   — Arrow IPC fetch + aggregate fetch
- *   scatter/scatterPage.ts — full scatter page with plot/matrix views
+ *   features/scatter/ — full Scatter feature with plot/matrix views
  */
 
 import { DEBUG, dbg, dbgGroup } from './debug.js';
@@ -24,10 +24,8 @@ import {
     createAnalyticsOverlayController,
     sanitizeSelectedColumns,
 } from './features/timeseries/index.js';
-// `initScatterPage` lives behind the scatter feature entrypoint and is
-// dynamically imported on first navigation. Keeping the import out of
-// app.ts ensures scatter's heavy chunks (echarts, chartgpu, apache-arrow)
-// never enter the initial app bundle.
+// Scatter is dynamically imported on first navigation through the feature
+// registry, keeping its heavy chunks out of the initial application bundle.
 import { initAppShell } from './app/shell.js';
 import { showPage } from './app/navigation/showPage.js';
 import { createAppRuntime } from './app/runtime.js';

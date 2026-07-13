@@ -1,5 +1,5 @@
 /**
- * causal/causalPage — orchestration layer.
+ * Causal feature orchestration layer.
  * Delegates chart lifecycle to graphView, edit UI to editPanel,
  * column chips to chipPanel, status/progress to statusView,
  * export to export.ts, workflow to workflow.ts, and runtime to runtime.ts.
