@@ -35,14 +35,14 @@ describe('frontend build contract', () => {
     it('keeps heavy shell wiring behind deferred subsystem loaders', () => {
         const deferredSubsystems = readRepoFile('frontend/src/app/shell/deferredSubsystems.ts');
         const appTs = readRepoFile('frontend/src/app.ts');
-        const commands = readRepoFile('frontend/src/bootstrap/commands.ts');
+        const commands = readRepoFile('frontend/src/app/shell/commands.ts');
         const ensureTimeseriesReady = readRepoFile('frontend/src/features/timeseries/ensureReady.ts');
-        const analyticsOverlay = readRepoFile('frontend/src/bootstrap/analyticsOverlay.ts');
+        const analyticsOverlay = readRepoFile('frontend/src/features/timeseries/analyticsOverlay.ts');
         const filtering = readRepoFile('frontend/src/services/timeseries/filtering.ts');
         const session = readRepoFile('frontend/src/utils/session.ts');
         const architectureCheck = readRepoFile('scripts/check-frontend-architecture.mjs');
 
-        expect(deferredSubsystems).toMatch(/import\(['"][^'"]*analyticsOverlay\.js['"]\)/);
+        expect(deferredSubsystems).toMatch(/import\(['"][^'"]*features\/timeseries\/index\.js['"]\)/);
         expect(deferredSubsystems).toMatch(/import\(['"][^'"]*toolbar\.js['"]\)/);
         expect(deferredSubsystems).toMatch(/import\(['"][^'"]*commands\.js['"]\)/);
         expect(deferredSubsystems).toMatch(/import\(['"][^'"]*annotations\.js['"]\)/);

@@ -106,7 +106,7 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
     });
 
     registerSubsystem('analytics-listeners', async (deps) => {
-        const { initAnalyticsListeners } = await import('../../bootstrap/analyticsOverlay.js');
+        const { initAnalyticsListeners } = await import('../../features/timeseries/index.js');
         deps.registerCleanup(initAnalyticsListeners(deps.fetchAndRenderAnalytics, deps.workspace));
     });
 
@@ -170,7 +170,7 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
     });
 
     registerSubsystem('app-commands', async (deps) => {
-        const { registerAppCommands } = await import('../../bootstrap/commands.js');
+        const { registerAppCommands } = await import('./commands.js');
         const commandDeps: CommandDeps = {
             showPage: deps.showPage,
             zoomOut: deps.zoomOut,

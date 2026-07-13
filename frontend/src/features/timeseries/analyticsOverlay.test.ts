@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fetchAnomalyRegions, initAnalyticsListeners } from './analyticsOverlay.js';
-import { analyticsState } from '../store/analyticsState.js';
-import { chartState, setViewport } from '../store/chartState.js';
-import { createWorkspaceStore } from '../workspace/workspaceStore.js';
-import { emitFeatureEvent } from '../platform/featureEvents.js';
+import { analyticsState } from '../../store/analyticsState.js';
+import { chartState, setViewport } from '../../store/chartState.js';
+import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
+import { emitFeatureEvent } from '../../platform/featureEvents.js';
 
 describe('fetchAnomalyRegions', () => {
     afterEach(() => {

@@ -559,6 +559,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Added direct restoration characterization coverage before the move: a compatible saved session is applied to the supplied workspace, rebuilds controls/current data, and refreshes the ready chart while respecting hash navigation.
 - Updated application composition, Timeseries readiness, and their integration-test seams to consume the platform owner; no compatibility re-export remains.
 
+### Completed: root bootstrap ownership retirement
+
+- Moved analytics-overlay computation, typed analytics subscriptions, request cancellation, and chart overlay coordination into the Timeseries feature, which owns the data and filter intent they derive from. Application and shell composition consume only its public index exports.
+- Moved the command-palette registry into the deferred shell that initializes it and retained direct action characterization coverage there.
+- Deleted the root `bootstrap/` legacy keyboard-shortcut implementation and its isolated test harness: neither had a production consumer after global and Timeseries shortcut controllers became the supported owners. The root implementation directory is now empty.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.

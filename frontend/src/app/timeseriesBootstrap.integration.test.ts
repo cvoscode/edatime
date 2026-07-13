@@ -67,7 +67,7 @@ vi.mock('../features/scatter/index.js', () => ({
     initScatterPage: vi.fn(),
 }));
 
-vi.mock('../bootstrap/analyticsOverlay.js', () => ({
+vi.mock('../features/timeseries/analyticsOverlay.js', () => ({
     initAnalyticsListeners: vi.fn(),
     fetchAndRenderAnalytics: vi.fn().mockResolvedValue(undefined),
 }));
@@ -92,7 +92,7 @@ vi.mock('../app/runtime.js', () => ({
     createAppRuntime: vi.fn(() => ({ registerCleanup: registerRuntimeCleanupMock })),
 }));
 
-vi.mock('../bootstrap/commands.js', () => ({
+vi.mock('./shell/commands.js', () => ({
     APP_COMMAND_DEFINITIONS: [],
 }));
 
@@ -135,6 +135,8 @@ vi.mock('../utils/pageBootstrap.js', () => ({
 
 vi.mock('../features/timeseries/index.js', () => ({
     createTimeseriesModule: createTimeseriesModuleMock,
+    fetchAndRenderAnalytics: vi.fn().mockResolvedValue(undefined),
+    sanitizeSelectedColumns: sanitizeSelectedColumnsMock,
 }));
 
 vi.mock('../ui/toolbar.js', () => ({

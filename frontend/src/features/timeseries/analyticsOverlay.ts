@@ -2,8 +2,8 @@
  * analyticsOverlay — rolling-band computation, anomaly region fetching,
  * and overlay render coordination.
  *
- * Extracted from app.ts to keep the orchestrator slim.
- * Consumed by timeseriesPage.ts (render) and app.ts (init + callers).
+ * Owned by the Timeseries feature because it derives overlays from its data,
+ * filter intent, and chart render lifecycle.
  *
  * Public API:
  *   AnalyticsOverlayController — start(), stop(), fetchAndRender(), isRunning
@@ -11,26 +11,26 @@
  *   setAnomalyOverlayCallback     — for ChartGPU wiring
  */
 
-import { applyFilterIntentToData, type TimeseriesFilterIntent } from '../services/timeseries/filtering.js';
-import type { ApiRequestOptions } from '../services/api/http.js';
+import { applyFilterIntentToData, type TimeseriesFilterIntent } from '../../services/timeseries/filtering.js';
+import type { ApiRequestOptions } from '../../services/api/http.js';
 import {
     analyticsState,
     setAnomalyRegions,
     setAnomalySummaryStats,
     setRollingBands,
-} from '../store/analyticsState.js';
-import { chartState } from '../store/chartState.js';
-import { runtimeState } from '../store/runtimeState.js';
-import type { AdaptiveLineFilter } from '../types/store.js';
-import type { AnomalyResponse } from '../types/api.js';
-import type { RollingBandData } from '../types/analytics.js';
-import type { WorkspaceStore } from '../workspace/workspaceStore.js';
-import { getSeriesColor } from '../utils/seriesColors.js';
-import { onFeatureEvent } from '../platform/featureEvents.js';
+} from '../../store/analyticsState.js';
+import { chartState } from '../../store/chartState.js';
+import { runtimeState } from '../../store/runtimeState.js';
+import type { AdaptiveLineFilter } from '../../types/store.js';
+import type { AnomalyResponse } from '../../types/api.js';
+import type { RollingBandData } from '../../types/analytics.js';
+import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
+import { getSeriesColor } from '../../utils/seriesColors.js';
+import { onFeatureEvent } from '../../platform/featureEvents.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type { RollingBandData } from '../types/analytics.js';
+export type { RollingBandData } from '../../types/analytics.js';
 
 // ── Rolling band computation ──────────────────────────────────────────────────
 

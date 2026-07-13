@@ -1,10 +1,10 @@
 /**
  * Command palette definitions.
  *
- * Extracted from bootstrap/appShell.ts to reduce its scope.
+ * Loaded by the deferred application shell.
  */
 
-import type { PaletteCommand } from '../utils/palette.js';
+import type { PaletteCommand } from '../../utils/palette.js';
 
 export type CommandDeps = {
     showPage: (pageName: string) => void;
@@ -32,12 +32,12 @@ function triggerAdaptiveFilterClear(): void {
 }
 
 async function exportSession(): Promise<void> {
-    const { exportSessionToFile } = await import('../utils/session.js');
+    const { exportSessionToFile } = await import('../../utils/session.js');
     exportSessionToFile();
 }
 
 async function importSession(): Promise<void> {
-    const { importSessionFromFile } = await import('../utils/session.js');
+    const { importSessionFromFile } = await import('../../utils/session.js');
     importSessionFromFile();
 }
 
@@ -77,7 +77,7 @@ export const APP_COMMAND_DEFINITIONS: ReadonlyArray<CommandDefinition> = [
         category: 'Analysis',
         action: async (deps) => {
             await deps.ensureTimeseriesShell?.();
-            const { toggleProvenance } = await import('../utils/provenance.js');
+            const { toggleProvenance } = await import('../../utils/provenance.js');
             toggleProvenance();
         },
     },
@@ -105,7 +105,7 @@ export const APP_COMMAND_DEFINITIONS: ReadonlyArray<CommandDefinition> = [
         category: 'Analysis',
         action: async (deps) => {
             await deps.ensureTimeseriesShell?.();
-            const { enableGuidedWorkflow } = await import('../features/home/index.js');
+            const { enableGuidedWorkflow } = await import('../../features/home/index.js');
             enableGuidedWorkflow();
         },
     },
@@ -115,7 +115,7 @@ export const APP_COMMAND_DEFINITIONS: ReadonlyArray<CommandDefinition> = [
         category: 'Analysis',
         action: async (deps) => {
             await deps.ensureTimeseriesShell?.();
-            const { disableGuidedWorkflow } = await import('../features/home/index.js');
+            const { disableGuidedWorkflow } = await import('../../features/home/index.js');
             disableGuidedWorkflow();
         },
     },
@@ -125,7 +125,7 @@ export const APP_COMMAND_DEFINITIONS: ReadonlyArray<CommandDefinition> = [
         category: 'Analysis',
         action: async (deps) => {
             await deps.ensureTimeseriesShell?.();
-            const { goToNextGuidedStep } = await import('../features/home/index.js');
+            const { goToNextGuidedStep } = await import('../../features/home/index.js');
             goToNextGuidedStep();
         },
     },
@@ -142,6 +142,6 @@ export function buildPaletteCommands(deps: CommandDeps): PaletteCommand[] {
 }
 
 export async function registerAppCommands(deps: CommandDeps): Promise<void> {
-    const { registerCommands } = await import('../utils/palette.js');
+    const { registerCommands } = await import('../../utils/palette.js');
     registerCommands(buildPaletteCommands(deps));
 }

@@ -32,11 +32,10 @@ vi.mock('../ui/dataMutationModals.js', () => ({
     initOutlierModal: vi.fn(),
     initTransformModal: vi.fn(),
 }));
-vi.mock('../bootstrap/commands.js', () => ({
+vi.mock('./shell/commands.js', () => ({
     APP_COMMAND_DEFINITIONS: [],
     registerAppCommands: vi.fn(),
 }));
-vi.mock('../bootstrap/shortcuts.js', () => ({ initKeyboardShortcuts: vi.fn() }));
 
 beforeEach(() => {
     vi.clearAllMocks();

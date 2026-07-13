@@ -7,7 +7,7 @@ import {
 import { sanitizeSelectedColumns } from './columnSelection.js';
 import { createEmptyStateController } from '../../ui/emptyState.js';
 import { announceChartLoading, announceDataUpdate } from '../../utils/a11y.js';
-import { computeFrontendRollingBands } from '../../bootstrap/analyticsOverlay.js';
+import { computeFrontendRollingBands } from './analyticsOverlay.js';
 import { createRequestTask } from '../../platform/requestTask.js';
 import { emitFeatureEvent } from '../../platform/featureEvents.js';
 import type { ViewSnapshot } from '../../types/chart.js';
@@ -71,7 +71,7 @@ function getTimeseriesEmptyStateController() {
     return timeseriesEmptyStateController;
 }
 
-// computeFrontendRollingBands is now imported from ../bootstrap/analyticsOverlay.ts
+// computeFrontendRollingBands is feature-local analytics-overlay policy.
 
 function isColumnMismatchError(error: unknown): boolean {
     const message = error instanceof Error ? error.message : String(error ?? '');

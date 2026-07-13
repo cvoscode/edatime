@@ -62,7 +62,7 @@ vi.mock('../../ui/annotationPanel.js', () => ({
     setAnnotationOverlayCallback: setAnnotationOverlayCallbackMock,
 }));
 
-vi.mock('../../bootstrap/analyticsOverlay.js', () => ({
+vi.mock('./analyticsOverlay.js', () => ({
     setAnomalyOverlayCallback: setAnomalyOverlayCallbackMock,
 }));
 

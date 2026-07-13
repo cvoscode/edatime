@@ -28,9 +28,8 @@ vi.mock('../../utils/palette.js', () => ({
     initCommandPalette: mocks.initCommandPalette,
     openPalette: mocks.openPalette,
 }));
-vi.mock('../../bootstrap/commands.js', () => ({ registerAppCommands: mocks.registerAppCommands }));
+vi.mock('./commands.js', () => ({ registerAppCommands: mocks.registerAppCommands }));
 vi.mock('../../ui/analyticsDrawer.js', () => ({ initAnalyticsDrawer: mocks.initAnalyticsDrawer }));
-vi.mock('../../bootstrap/analyticsOverlay.js', () => ({ initAnalyticsListeners: mocks.initAnalyticsListeners }));
 vi.mock('../../chart/annotations.js', () => ({ initAnnotations: mocks.initAnnotations }));
 vi.mock('../../ui/annotationPanel.js', () => ({ initAnnotationPanel: mocks.initAnnotationPanel }));
 vi.mock('../../features/home/index.js', () => ({
@@ -47,6 +46,7 @@ vi.mock('../../ui/toolbar.js', () => ({
     initAnalysisControls: mocks.initAnalysisControls,
 }));
 vi.mock('../../features/timeseries/index.js', () => ({
+    initAnalyticsListeners: mocks.initAnalyticsListeners,
     initTimeseriesHelp: mocks.initTimeseriesHelp,
 }));
 
