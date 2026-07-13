@@ -151,17 +151,22 @@ function escapeAttr(str: string): string {
 
 /* ── Init ──────────────────────────────────────────── */
 
-export function initAnnotationPanel(): void {
+let disposeAnnotationPanel: (() => void) | null = null;
+
+export function initAnnotationPanel(): () => void {
+    if (disposeAnnotationPanel) return disposeAnnotationPanel;
+    const abortController = new AbortController();
+    const listenerOptions = { signal: abortController.signal };
     // Toolbar buttons
-    document.getElementById('open-notes-panel-btn')?.addEventListener('click', openAnnotationsModal);
+    document.getElementById('open-notes-panel-btn')?.addEventListener('click', openAnnotationsModal, listenerOptions);
 
     // Annotations list modal
-    document.getElementById('annotations-modal-close')?.addEventListener('click', closeAnnotationsModal);
+    document.getElementById('annotations-modal-close')?.addEventListener('click', closeAnnotationsModal, listenerOptions);
     document.getElementById('annotations-modal')?.addEventListener('click', (e) => {
         if ((e.target as HTMLElement).id === 'annotations-modal') closeAnnotationsModal();
-    });
-    document.getElementById('annotations-modal-add-note-btn')?.addEventListener('click', openAddNoteModal);
-    document.getElementById('annotations-modal-bookmark-btn')?.addEventListener('click', addBookmarkAtCurrentView);
+    }, listenerOptions);
+    document.getElementById('annotations-modal-add-note-btn')?.addEventListener('click', openAddNoteModal, listenerOptions);
+    document.getElementById('annotations-modal-bookmark-btn')?.addEventListener('click', addBookmarkAtCurrentView, listenerOptions);
     document.getElementById('annotations-export-btn')?.addEventListener('click', () => {
         const json = exportAnnotations();
         const blob = new Blob([json], { type: 'application/json' });
@@ -171,7 +176,7 @@ export function initAnnotationPanel(): void {
         a.download = `edatime-annotations-${Date.now()}.json`;
         a.click();
         URL.revokeObjectURL(url);
-    });
+    }, listenerOptions);
     document.getElementById('annotations-clear-btn')?.addEventListener('click', () => {
         if (confirm('Clear all annotations? This cannot be undone.')) {
             clearAllAnnotations();
@@ -179,15 +184,15 @@ export function initAnnotationPanel(): void {
             refreshOverlay();
             toast('All annotations cleared.', 'success');
         }
-    });
+    }, listenerOptions);
 
     // Add Note modal
-    document.getElementById('add-note-modal-close')?.addEventListener('click', closeAddNoteModal);
-    document.getElementById('add-note-cancel-btn')?.addEventListener('click', closeAddNoteModal);
-    document.getElementById('add-note-save-btn')?.addEventListener('click', saveNote);
+    document.getElementById('add-note-modal-close')?.addEventListener('click', closeAddNoteModal, listenerOptions);
+    document.getElementById('add-note-cancel-btn')?.addEventListener('click', closeAddNoteModal, listenerOptions);
+    document.getElementById('add-note-save-btn')?.addEventListener('click', saveNote, listenerOptions);
     document.getElementById('add-note-modal')?.addEventListener('click', (e) => {
         if ((e.target as HTMLElement).id === 'add-note-modal') closeAddNoteModal();
-    });
+    }, listenerOptions);
 
     // Keyboard shortcut: Ctrl+Shift+N = add note
     document.addEventListener('keydown', (e) => {
@@ -195,5 +200,14 @@ export function initAnnotationPanel(): void {
             e.preventDefault();
             openAddNoteModal();
         }
-    });
+    }, listenerOptions);
+
+    const dispose = () => {
+        abortController.abort();
+        closeAnnotationsModal();
+        closeAddNoteModal();
+        if (disposeAnnotationPanel === dispose) disposeAnnotationPanel = null;
+    };
+    disposeAnnotationPanel = dispose;
+    return dispose;
 }

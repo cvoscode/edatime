@@ -110,11 +110,11 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
         deps.registerCleanup(initAnalyticsListeners(deps.fetchAndRenderAnalytics, deps.workspace));
     });
 
-    registerSubsystem('annotation-subsystems', async () => {
+    registerSubsystem('annotation-subsystems', async (deps) => {
         const { initAnnotations } = await import('../../chart/annotations.js');
         const { initAnnotationPanel } = await import('../../ui/annotationPanel.js');
         initAnnotations();
-        initAnnotationPanel();
+        deps.registerCleanup(initAnnotationPanel());
     });
 
     registerSubsystem('guided-workflow', async (deps) => {

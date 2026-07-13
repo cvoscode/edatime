@@ -533,6 +533,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Settings initialization now returns an owned disposer for its form, shortcut, and modal listeners. Deferred shell composition registers that disposer, so a remounted shell cannot accumulate Settings handlers.
 - The shared modal controller now closes an active dialog and releases its close/backdrop/keyboard bindings on disposal. Direct regression coverage proves a disposed Settings panel no longer opens from its keyboard shortcut.
 
+### Completed: annotation panel lifecycle ownership
+
+- The lazily loaded annotation panel now owns an abort-scoped, idempotent binding for its toolbar, modal, and keyboard handlers. Deferred shell composition registers the returned disposer and closes both annotation dialogs on teardown.
+- Added direct lifecycle coverage proving a disposed annotation panel no longer responds to the add-note keyboard shortcut.
+
 ### Completed: adaptive filter WorkspaceStore ownership
 
 - Adaptive gesture refresh now compares canonical adaptive-line state from WorkspaceStore. Gesture application, chip removal, clear controls, and filter-modal changes all flow through the same state publication instead of coordinating with DOM events.
