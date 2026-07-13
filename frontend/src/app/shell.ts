@@ -36,6 +36,7 @@ export interface AppShellDeps {
     exportChartPng: () => void;
     renderCurrentData: () => void;
     updateAnalysisYRange: (min: number, max: number, sourceKind?: string) => void;
+    requestAnnotationOverlayRender: () => void;
     buildTimeseriesColumns: () => void;
     buildTimeseriesRanges: () => void;
     zoomOut: () => void;
@@ -68,6 +69,7 @@ export function initAppShell(deps: AppShellDeps): AppShell {
         zoomOut: deps.zoomOut,
         resetZoom: deps.resetZoom,
         updateAnalysisYRange: deps.updateAnalysisYRange,
+        requestAnnotationOverlayRender: deps.requestAnnotationOverlayRender,
         registerCleanup: deps.registerCleanup,
         workspace: deps.workspace,
     };

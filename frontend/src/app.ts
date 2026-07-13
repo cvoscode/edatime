@@ -171,6 +171,7 @@ export function createApp(): AppRoot {
             exportChartPng: () => chartState.chart?.exportPNG?.(),
             renderCurrentData: () => timeseriesModule.renderCurrentData(),
             updateAnalysisYRange,
+            requestAnnotationOverlayRender: () => chartState.chart?.requestOverlayRender?.(),
             buildTimeseriesColumns: () => timeseriesModule.buildColumnToggles(),
             buildTimeseriesRanges: () => timeseriesModule.buildRangeControls(),
             zoomOut: () => timeseriesModule.zoomOut(),

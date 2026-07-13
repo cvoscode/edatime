@@ -15,6 +15,7 @@ function buildDom(): void {
 
 describe('annotation panel lifecycle', () => {
     afterEach(() => {
+        vi.unstubAllGlobals();
         vi.resetModules();
         document.body.innerHTML = '';
     });
@@ -30,5 +31,18 @@ describe('annotation panel lifecycle', () => {
         }));
 
         expect(document.getElementById('add-note-modal')?.hidden).toBe(true);
+    });
+
+    it('uses the owning shell redraw action instead of a module-global callback', async () => {
+        buildDom();
+        vi.stubGlobal('confirm', vi.fn(() => true));
+        const requestOverlayRender = vi.fn();
+        const { initAnnotationPanel } = await import('./annotationPanel.js');
+        const dispose = initAnnotationPanel({ requestOverlayRender });
+
+        document.getElementById('annotations-clear-btn')!.click();
+
+        expect(requestOverlayRender).toHaveBeenCalledTimes(1);
+        dispose();
     });
 });

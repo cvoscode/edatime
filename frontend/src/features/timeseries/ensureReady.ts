@@ -13,7 +13,6 @@ import { chartState, setChartInstance, setInitialView } from '../../store/chartS
 import { datasetState } from '../../store/datasetState.js';
 import { setAnalysisBound } from '../../store/runtimeState.js';
 import { bindAnalysisChartEvents, getCurrentView } from '../../ui/toolbar.js';
-import { setAnnotationOverlayCallback } from '../../ui/annotationPanel.js';
 import { initAdaptiveFilterGesture } from './adaptiveGesture.js';
 import { restoreSessionAfterChartReady } from '../../platform/sessionLifecycle.js';
 import { dbg, dbgGroup } from '../../debug.js';
@@ -105,7 +104,6 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                     });
                     deps.refreshZoomControlsState();
 
-                    setAnnotationOverlayCallback(() => chartState.chart?.requestOverlayRender?.());
                     deps.setAnomalyOverlayRenderCallback?.(() => chartState.chart?.requestOverlayRender?.());
 
                     const chart = chartState.chart as ChartInstance | null;

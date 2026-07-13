@@ -70,6 +70,7 @@ function createDeps(): DeferredShellDeps {
         zoomOut: vi.fn(),
         resetZoom: vi.fn(),
         updateAnalysisYRange: vi.fn(),
+        requestAnnotationOverlayRender: vi.fn(),
         registerCleanup: vi.fn(),
         workspace: { getSnapshot: vi.fn(), setFilters: vi.fn(), setViewport: vi.fn(), subscribe: vi.fn(() => vi.fn()) },
     };

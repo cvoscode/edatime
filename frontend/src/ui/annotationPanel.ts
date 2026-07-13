@@ -19,23 +19,16 @@ import { chartState } from '../store/chartState.js';
 import { datasetState } from '../store/datasetState.js';
 import { toast } from '../utils/toast.js';
 
-// Called by DataChart to request an overlay re-render when annotations change
-let _requestOverlayRender: (() => void) | null = null;
-
-export function setAnnotationOverlayCallback(cb: () => void): void {
-    _requestOverlayRender = cb;
-}
-
-function refreshOverlay(): void {
-    _requestOverlayRender?.();
+export interface AnnotationPanelDeps {
+    requestOverlayRender?: () => void;
 }
 
 /* ── Annotations list modal ─────────────────────────── */
 
-function openAnnotationsModal(): void {
+function openAnnotationsModal(requestOverlayRender: () => void): void {
     const modal = document.getElementById('annotations-modal');
     if (!modal) return;
-    renderAnnotationsList();
+    renderAnnotationsList(requestOverlayRender);
     modal.hidden = false;
 }
 
@@ -44,7 +37,7 @@ function closeAnnotationsModal(): void {
     if (modal) modal.hidden = true;
 }
 
-function renderAnnotationsList(): void {
+function renderAnnotationsList(requestOverlayRender: () => void): void {
     const container = document.getElementById('annotations-list');
     if (!container) return;
     const anns = getAnnotations();
@@ -79,8 +72,8 @@ function renderAnnotationsList(): void {
             const id = btn.dataset.annId;
             if (id && confirm('Delete this annotation?')) {
                 deleteAnnotation(id);
-                renderAnnotationsList();
-                refreshOverlay();
+                renderAnnotationsList(requestOverlayRender);
+                requestOverlayRender();
             }
         });
     });
@@ -103,7 +96,7 @@ function closeAddNoteModal(): void {
     if (modal) modal.hidden = true;
 }
 
-function saveNote(): void {
+function saveNote(requestOverlayRender: () => void): void {
     const title = (document.getElementById('note-title-input') as HTMLInputElement).value.trim();
     if (!title) {
         toast('Please enter a title for the note.', 'error');
@@ -126,17 +119,17 @@ function saveNote(): void {
     );
     toast(`Note "${title}" saved.`, 'success');
     closeAddNoteModal();
-    refreshOverlay();
+    requestOverlayRender();
 }
 
 /* ── Bookmark ──────────────────────────────────────── */
 
-function addBookmarkAtCurrentView(): void {
+function addBookmarkAtCurrentView(requestOverlayRender: () => void): void {
     const time = chartState.currentStart ?? Date.now();
     const title = `Bookmark ${new Date(time).toLocaleTimeString()}`;
     createBookmark(title, time, datasetState.datasetRevision);
     toast(`Bookmark added at ${new Date(time).toLocaleString()}`, 'success');
-    refreshOverlay();
+    requestOverlayRender();
 }
 
 /* ── Helpers ─────────────────────────────────────────── */
@@ -151,14 +144,12 @@ function escapeAttr(str: string): string {
 
 /* ── Init ──────────────────────────────────────────── */
 
-let disposeAnnotationPanel: (() => void) | null = null;
-
-export function initAnnotationPanel(): () => void {
-    if (disposeAnnotationPanel) return disposeAnnotationPanel;
+export function initAnnotationPanel(deps: AnnotationPanelDeps = {}): () => void {
+    const requestOverlayRender = deps.requestOverlayRender ?? (() => {});
     const abortController = new AbortController();
     const listenerOptions = { signal: abortController.signal };
     // Toolbar buttons
-    document.getElementById('open-notes-panel-btn')?.addEventListener('click', openAnnotationsModal, listenerOptions);
+    document.getElementById('open-notes-panel-btn')?.addEventListener('click', () => openAnnotationsModal(requestOverlayRender), listenerOptions);
 
     // Annotations list modal
     document.getElementById('annotations-modal-close')?.addEventListener('click', closeAnnotationsModal, listenerOptions);
@@ -166,7 +157,7 @@ export function initAnnotationPanel(): () => void {
         if ((e.target as HTMLElement).id === 'annotations-modal') closeAnnotationsModal();
     }, listenerOptions);
     document.getElementById('annotations-modal-add-note-btn')?.addEventListener('click', openAddNoteModal, listenerOptions);
-    document.getElementById('annotations-modal-bookmark-btn')?.addEventListener('click', addBookmarkAtCurrentView, listenerOptions);
+    document.getElementById('annotations-modal-bookmark-btn')?.addEventListener('click', () => addBookmarkAtCurrentView(requestOverlayRender), listenerOptions);
     document.getElementById('annotations-export-btn')?.addEventListener('click', () => {
         const json = exportAnnotations();
         const blob = new Blob([json], { type: 'application/json' });
@@ -180,8 +171,8 @@ export function initAnnotationPanel(): () => void {
     document.getElementById('annotations-clear-btn')?.addEventListener('click', () => {
         if (confirm('Clear all annotations? This cannot be undone.')) {
             clearAllAnnotations();
-            renderAnnotationsList();
-            refreshOverlay();
+            renderAnnotationsList(requestOverlayRender);
+            requestOverlayRender();
             toast('All annotations cleared.', 'success');
         }
     }, listenerOptions);
@@ -189,7 +180,7 @@ export function initAnnotationPanel(): () => void {
     // Add Note modal
     document.getElementById('add-note-modal-close')?.addEventListener('click', closeAddNoteModal, listenerOptions);
     document.getElementById('add-note-cancel-btn')?.addEventListener('click', closeAddNoteModal, listenerOptions);
-    document.getElementById('add-note-save-btn')?.addEventListener('click', saveNote, listenerOptions);
+    document.getElementById('add-note-save-btn')?.addEventListener('click', () => saveNote(requestOverlayRender), listenerOptions);
     document.getElementById('add-note-modal')?.addEventListener('click', (e) => {
         if ((e.target as HTMLElement).id === 'add-note-modal') closeAddNoteModal();
     }, listenerOptions);
@@ -202,12 +193,9 @@ export function initAnnotationPanel(): () => void {
         }
     }, listenerOptions);
 
-    const dispose = () => {
+    return () => {
         abortController.abort();
         closeAnnotationsModal();
         closeAddNoteModal();
-        if (disposeAnnotationPanel === dispose) disposeAnnotationPanel = null;
     };
-    disposeAnnotationPanel = dispose;
-    return dispose;
 }

@@ -661,6 +661,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Command-palette, settings, and Alt-navigation bindings remain idempotent for one shell but no longer suppress an independently mounted shell.
 - Direct two-controller and shell-composition regressions cover active binding survival and runtime-owned disposal.
 
+### Completed: annotation overlay action ownership
+
+- Removed the annotation panel's module-global chart redraw callback. Annotation UI now receives an explicit redraw action from the shell that owns its deferred subsystem.
+- Chart readiness no longer writes a global annotation bridge; the callback remains safe before chart creation because the root action resolves the active chart at invocation time.
+- Direct panel coverage proves annotation clearing calls the injected shell action, alongside the existing listener-disposal regression.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.

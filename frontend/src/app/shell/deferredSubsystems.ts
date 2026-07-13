@@ -27,6 +27,7 @@ export interface DeferredShellDeps {
     zoomOut: () => void;
     resetZoom: () => void;
     updateAnalysisYRange: (min: number, max: number, sourceKind?: string) => void;
+    requestAnnotationOverlayRender: () => void;
     registerCleanup: (cleanup: () => void) => void;
     workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'setViewport' | 'subscribe'>;
 }
@@ -114,7 +115,7 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
         const { initAnnotations } = await import('../../chart/annotations.js');
         const { initAnnotationPanel } = await import('../../ui/annotationPanel.js');
         initAnnotations();
-        deps.registerCleanup(initAnnotationPanel());
+        deps.registerCleanup(initAnnotationPanel({ requestOverlayRender: deps.requestAnnotationOverlayRender }));
     });
 
     registerSubsystem('guided-workflow', async (deps) => {
