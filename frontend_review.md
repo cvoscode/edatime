@@ -214,6 +214,7 @@ Continue this behavior-preserving split with the remaining renderer-owned seams:
 - Extracted investigation overview, segment, quality, and relationship panel projection into `investigationPanels`, with direct empty-state and detailed presentation coverage.
 - The page now assigns the four precomputed panel fragments rather than mixing response formatting with chart/request lifecycle behavior.
 - Removed the legacy `/api/v1/drift/stats` fallback and its response-shaping implementation. Drift now uses the versioned investigation contract exclusively, and a page regression proves a failed investigation does not make compatibility requests.
+- Extracted canonical investigation-request construction and threshold normalization into `requestPayload`. The page supplies current control values while the module owns defaults, ISO conversion, optional segmentation, and analysis flags under direct tests.
 - Next, split the remaining request-payload and timeline-summary presentation seams only where the resulting boundary reduces page-controller ownership.
 
 ## Target Architecture

@@ -72,6 +72,7 @@ import {
     normalizeLatestWindowCount,
 } from './evaluationPolicy.js';
 import { buildDriftInvestigationPanelHtml } from './investigationPanels.js';
+import { buildDriftInvestigationRequest } from './requestPayload.js';
 
 // Re-export for test isolation
 export { _setEchartsModule };
@@ -283,11 +284,6 @@ export async function initDriftPage(metadata: any): Promise<void> {
         if (relationshipsPanelEl) relationshipsPanelEl.hidden = nextTab !== 'relationships';
     }
 
-    function readThresholdValue(input: HTMLInputElement | null, fallback: number): number {
-        const value = Number(input?.value ?? '');
-        return Number.isFinite(value) ? value : fallback;
-    }
-
     function getEvaluationMode(): DriftEvaluationMode {
         return normalizeDriftEvaluationMode(getDropdownValue('drift-evaluation-mode'));
     }
@@ -451,23 +447,18 @@ export async function initDriftPage(metadata: any): Promise<void> {
 
         try {
             await driftComputeTask.run(async (signal) => {
-                const basePayload: Record<string, unknown> = {
+                const basePayload = buildDriftInvestigationRequest({
                     columns,
-                    window: getDropdownValue('drift-window-select') || 'daily',
-                    referenceStart: new Date(refStart).toISOString(),
-                    referenceEnd: new Date(refEnd).toISOString(),
-                    comparisonStart: new Date(refEnd).toISOString(),
-                    ksPvalueThreshold: readThresholdValue(ksThresholdInput, 0.05),
-                    esPvalueThreshold: readThresholdValue(esThresholdInput, 0.05),
-                    psiMinorThreshold: readThresholdValue(psiMinorThresholdInput, 0.1),
-                    psiMajorThreshold: readThresholdValue(psiMajorThresholdInput, 0.2),
-                    wassersteinStdMultiplier: readThresholdValue(wassersteinStdMultiplierInput, 0.1),
-                    includeQuality: true,
-                    includeChangePoints: true,
-                    includeCorrelations: true,
-                };
-                const segmentBy = getDropdownValue('drift-segment-by');
-                if (segmentBy) basePayload.segmentBy = segmentBy;
+                    window: getDropdownValue('drift-window-select'),
+                    referenceStart: refStart,
+                    referenceEnd: refEnd,
+                    segmentBy: getDropdownValue('drift-segment-by'),
+                    ksPvalueThreshold: ksThresholdInput?.value,
+                    esPvalueThreshold: esThresholdInput?.value,
+                    psiMinorThreshold: psiMinorThresholdInput?.value,
+                    psiMajorThreshold: psiMajorThresholdInput?.value,
+                    wassersteinStdMultiplier: wassersteinStdMultiplierInput?.value,
+                });
 
                 const investigation = await fetchDriftInvestigation<DriftInvestigationResponse>(basePayload, signal);
                 const results = new Map<string, DriftResponse>(Object.entries(investigation.columns || {}));
