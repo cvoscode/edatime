@@ -26,22 +26,12 @@ import { toast } from '../../utils/toast.js';
 import { getSetting } from '../../utils/settings.js';
 import { paletteForColorScale } from '../../utils/colorScales.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
-import { findDominantFrequencyBand } from './spectrogramAnalysis.js';
-import {
-    type SpectrogramMode,
-} from './spectrogramPointFilter.js';
-import {
-    buildSpectrogramGridModel,
-    getSpectrogramDisplayBounds,
-    getVisibleSpectrogramPoints,
-    type SpectrogramGridModel,
-} from './spectrogramGridModel.js';
 import {
     resolveSpectrogramCustomInputState,
     resolveSpectrogramHopSize,
     resolveSpectrogramWindowSize,
 } from './spectrogramControls.js';
-import { buildSpectrogramChartOptions } from './spectrogramChartOptions.js';
+import { createSpectrogramRenderModel } from './spectrogramRenderModel.js';
 import { createSpectrogramColorbar } from './spectrogramColorbar.js';
 import { buildSpectrogramRequest } from './spectrogramRequest.js';
 import { buildSpectrogramSummaryLabel, renderSpectrogramSummary } from './spectrogramSummary.js';
@@ -162,22 +152,8 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             });
             spectrogramChartController = chartController;
 
-            // ── Chart rendering ───────────────────────────────────────────────
-            //
-            // The spectrogram grid can hold hundreds of thousands of cells
-            // (timeAxis.length × freqAxis.length). On every redraw the naive
-            // implementation rebuilt the full `points` array and re-ran
-            // Math.log10 over each cell, which dominated the frame budget
-            // for the log-scale toggle and any subsequent repaint.
-            //
-            // We now cache both display modes and reuse stable visible
-            // buffers during colorbar drags. That removes the biggest
-            // avoidable redraw costs:
-            // - rebuilding every point tuple on log toggles
-            // - allocating a fresh filtered series array on each drag
-            let cachedGrid: SpectrogramGridModel | null = null;
-
             let currentScaleBounds: { min: number; max: number } | null = null;
+            const renderModel = createSpectrogramRenderModel();
             const colorbar = createSpectrogramColorbar({
                 root: document.getElementById('spectrogram-colorbar'),
                 signal: listenerAbort.signal,
@@ -214,32 +190,23 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             const renderSpectrogramChart = async () => {
                 if (!spectrogramResult) return;
                 const chart = await chartController.ensure();
-                const logScale = (logCheck?.checked ?? true) && spectrogramAppliedScaleMode === 'none';
                 syncClipEnabled();
                 syncClipParamLabel();
                 const timeAxis = spectrogramResult.times_ms;
                 const freqAxis = spectrogramResult.frequencies;
-                const mode: SpectrogramMode = logScale ? 'log' : 'linear';
-
-                if (!cachedGrid || cachedGrid.result !== spectrogramResult) {
-                    cachedGrid = buildSpectrogramGridModel(spectrogramResult);
-                }
-
-                currentScaleBounds = getSpectrogramDisplayBounds(cachedGrid, mode);
                 const scaleLabel = activeScaleLabel();
-                const points = getVisibleSpectrogramPoints(cachedGrid, mode, colorbar.getRange(), currentScaleBounds);
-
-                const { option, formatFrequency } = buildSpectrogramChartOptions({
+                const rendered = renderModel.build({
                     result: spectrogramResult,
-                    points,
-                    bounds: currentScaleBounds,
-                    logScale,
+                    logRequested: logCheck?.checked ?? true,
+                    allowLogScale: spectrogramAppliedScaleMode === 'none',
                     scaleLabel,
                     palette: paletteForColorScale(getSetting('colorScale')),
+                    range: colorbar.getRange(),
                 });
-                chart.setOption(option);
+                currentScaleBounds = rendered.bounds;
+                chart.setOption(rendered.option);
 
-                const dominantBand = findDominantFrequencyBand(spectrogramResult);
+                const { dominantBand, formatFrequency, logScale } = rendered;
                 if (summaryEl) {
                     summaryEl.setAttribute('aria-label', buildSpectrogramSummaryLabel({
                         result: spectrogramResult,
