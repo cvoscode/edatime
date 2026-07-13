@@ -49,4 +49,35 @@ describe('page registry', () => {
         await registry.ensurePageModuleLoaded('scatter');
         expect(init).toHaveBeenCalledTimes(1);
     });
+
+    it('disposes mounted page resources before making descriptors loadable again', async () => {
+        const dispose = vi.fn();
+        const registry = createPageRegistry();
+        registry.register('scatter', {
+            requiresMetadata: false,
+            init: async () => dispose,
+        });
+
+        await registry.ensurePageModuleLoaded('scatter');
+        registry.clearLoadedPageModules();
+
+        expect(dispose).toHaveBeenCalledTimes(1);
+    });
+
+    it('disposes a stale initialization that completes after a dataset reset', async () => {
+        let releaseInit!: (dispose: () => void) => void;
+        const dispose = vi.fn();
+        const registry = createPageRegistry();
+        registry.register('scatter', {
+            requiresMetadata: false,
+            init: () => new Promise((resolve) => { releaseInit = resolve; }),
+        });
+
+        const pending = registry.ensurePageModuleLoaded('scatter');
+        registry.clearLoadedPageModules();
+        releaseInit(dispose);
+        await pending;
+
+        expect(dispose).toHaveBeenCalledTimes(1);
+    });
 });

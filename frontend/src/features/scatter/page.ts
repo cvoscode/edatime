@@ -27,6 +27,7 @@ import {
     applyScatterStateFromCache,
     normalizeAnalyticsView,
     ensureOptions,
+    disposeScatterChart,
     type ScatterControls,
 } from './state.js';
 import {
@@ -56,11 +57,13 @@ import { createRequestTask } from '../../platform/requestTask.js';
 import { createToolbarOverflow, type ToolbarOverflowController } from '../../ui/toolbarOverflow.js';
 import {
     initScatterPageRuntime,
+    disposeScatterPageRuntime,
     configureScatterRuntime,
     syncScatterEmptyState,
     syncScatterFilterBadge,
     getGpuUnavailable,
 } from './runtime.js';
+import { disposeScatterControls } from './controls.js';
 import {
     renderSuggestions,
     refreshCorrelationsAndSuggestions as refreshCorrelationsPanel,
@@ -97,6 +100,28 @@ export function handleErr(err: unknown): void {
 
 // Re-export for the control binding.
 export { syncScatterFilterBadge };
+
+/** Release the current Scatter page mount before its dataset session is replaced. */
+export function disposeScatterPage(): void {
+    disposeBoundControls?.();
+    disposeBoundControls = null;
+    disposeScatterControls();
+    toolbarOverflow?.dispose();
+    toolbarOverflow = null;
+    matrixRenderSession.dispose();
+    matrixRenderSession = createMatrixRenderSession();
+    scatterTask.cancel();
+    disposeScatterChart(true);
+    scatterState.initialized = false;
+    scatterState.pageInitialized = false;
+    scatterState.loading = false;
+    scatterState.metadata = null;
+    scatterState.matrixCache.clear();
+    scatterState.matrixBatchCache.clear();
+    configureScatterRuntime(null);
+    workspace = null;
+    disposeScatterPageRuntime();
+}
 
 /* ── Sidebar / view management ────────────────────────── */
 
@@ -370,7 +395,9 @@ function bindControls(): Promise<void> {
     return import('./controls.js').then(({ bindScatterControls }) => {
         disposeBoundControls?.();
         disposeBoundControls = bindScatterControls({
-            initScatterPage: (metadata) => initScatterPage(metadata, { workspace: workspace ?? undefined }),
+            initScatterPage: async (metadata) => {
+                await initScatterPage(metadata, { workspace: workspace ?? undefined });
+            },
             renderScatter,
             refreshCorrelationsAndSuggestions,
             refreshActiveScatterView,
@@ -391,7 +418,7 @@ function bindControls(): Promise<void> {
 export async function initScatterPage(
     metadata: DatasetMetadata,
     deps: { workspace?: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters'> } = {},
-): Promise<void> {
+): Promise<() => void> {
     // The descriptor is lazy-loaded while Scatter is already becoming
     // visible, so its first page-change event may have happened before this
     // module was evaluated. Bind exports directly at the feature boundary;
@@ -405,7 +432,7 @@ export async function initScatterPage(
     const page = getEl('page-scatter');
     const xSelect = getEl('scatter-x-col');
     const ySelect = getEl('scatter-y-col');
-    if (!page || !xSelect || !ySelect) return;
+    if (!page || !xSelect || !ySelect) return disposeScatterPage;
 
     const numeric: string[] = ((metadata as any)?.numeric_columns || []).filter((c: any) => c);
     const hadRestoredPair = !!(getDropdownValue('scatter-x-col') && getDropdownValue('scatter-y-col'));
@@ -460,14 +487,14 @@ export async function initScatterPage(
         initScatterHelp();
         scatterState.initialized = true;
     }
-    if (scatterState.pageInitialized) return;
+    if (scatterState.pageInitialized) return disposeScatterPage;
 
     const isVisible = !page.hidden;
-    if (!isVisible) return;
+    if (!isVisible) return disposeScatterPage;
 
     // No usable columns: skip the fetch path entirely. Subsequent metadata
     // refreshes will rerun initScatterPage and pick up the work then.
-    if (numeric.length === 0) return;
+    if (numeric.length === 0) return disposeScatterPage;
 
     try {
         await refreshCorrelationsAndSuggestions({
@@ -478,6 +505,7 @@ export async function initScatterPage(
     } catch (err: any) {
         handleErr(err);
     }
+    return disposeScatterPage;
 }
 
 /** Bootstrap call — must happen BEFORE the first edatime:page-change 'scatter' event

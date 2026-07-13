@@ -70,6 +70,11 @@ export function __resetFftPageForTests(): void {
     resetFftPageState();
 }
 
+/** Release the current FFT feature instance and its page-owned resources. */
+export function disposeFftPage(): void {
+    resetFftPageState();
+}
+
 function fftColumns(): string[] {
     return getNumericColumns(workspace?.getSnapshot().dataset.metadata ?? datasetState.metadata);
 }
@@ -347,7 +352,7 @@ function renderChips(): void {
     bar.hidden = columns.length === 0;
 }
 
-export async function initFftPage(deps: FftPageDeps): Promise<void> {
+export async function initFftPage(deps: FftPageDeps): Promise<() => void> {
     workspace = deps.workspace ?? null;
     resetFftPageState();
 
@@ -588,4 +593,5 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
     });
 
     fftPageCleanup = fftRuntime.mount();
+    return disposeFftPage;
 }

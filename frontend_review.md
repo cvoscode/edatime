@@ -400,12 +400,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Forwarded explicit activation through the page and analysis runtime layers, then invoked it from the Spectrogram entrypoint immediately after mounting. The lazy feature can therefore initialize when its chunk arrives after navigation has already made the page visible.
 - The Spectrogram entrypoint now disposes its previous runtime before reinitializing. Direct coverage verifies first-visit control wiring, repeated page initialization with one compute listener, local activation semantics, and lifecycle cleanup.
 
-### Remaining: dataset-session feature disposal
+### Completed: dataset-session feature disposal
 
-- `PageRegistry.clearLoadedPageModules()` currently clears only its loaded-name set. It cannot dispose resources belonging to an already initialized lazy feature, so the old instance remains live until that same feature happens to be initialized again. This is incompatible with the target architecture's dataset-session disposal boundary.
-- Characterize a dataset replacement after FFT, Heatmap, Spectrogram, Causal, Drift, and Scatter have mounted: verify their page-change listeners, requests, observers, charts, and feature-local DOM handlers are released before the next dataset can activate a page.
-- Change the registry descriptor contract from `init(): Promise<void>` to a feature mount result carrying `dispose(): void`. Track the disposer per loaded descriptor, dispose every active descriptor before clearing loaded state, and make pending initialization ignore/clean itself when its dataset session becomes stale.
-- Migrate feature entrypoints one at a time behind their existing characterization tests. Keep page-local reinitialization idempotent, but make the registry the single owner of cross-dataset teardown; do not add another global cleanup list or rely on a future page visit to retire old resources.
+- `PageRegistry` now records the disposer returned by each lazy descriptor and calls every active disposer before a dataset reset makes descriptors loadable again. Its dataset-session token prevents a pending initialization from publishing after a reset and immediately retires any stale initializer that finishes late.
+- FFT, Heatmap, Spectrogram, Causal, Drift, and Scatter now return their feature-level cleanup handle through the descriptor contract. Causal re-establishes its runtime on a later mount, while Scatter retires controls, chart, matrix work, requests, runtime, and workspace references before reinitialization.
+- Direct registry tests cover mounted-resource disposal and the pending-initialization race; descriptor coverage proves feature cleanup reaches the registry, and Scatter coverage proves a disposed page becomes ready for the next dataset session.
 
 ### Completed: Causal edit-panel decomposition
 

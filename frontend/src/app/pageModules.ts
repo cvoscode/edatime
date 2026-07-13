@@ -35,7 +35,9 @@ export interface PageDescriptor {
     name: string;
     requiresMetadata: boolean;
     cssModules?: readonly StyleModuleName[];
-    load(deps: PageDescriptorInitDeps): Promise<{ init: () => void | Promise<void> }>;
+    load(deps: PageDescriptorInitDeps): Promise<{
+        init: () => void | (() => void) | Promise<void | (() => void)>;
+    }>;
 }
 
 /**
@@ -121,7 +123,7 @@ export async function loadPageDescriptors(registry: PageRegistry, deps: PageDesc
                     }
                 }
                 const entry = await descriptor.load(deps);
-                await entry.init();
+                return entry.init();
             },
         });
     }

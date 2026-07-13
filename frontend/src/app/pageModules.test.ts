@@ -132,4 +132,17 @@ describe('page module descriptors', () => {
         });
     });
 
+    it('forwards a feature cleanup handle to the registry descriptor', async () => {
+        const dispose = vi.fn();
+        mocks.initSpectrogramPage.mockResolvedValueOnce(dispose);
+        const deps = createDeps();
+        const register = vi.fn();
+        await loadPageDescriptors({ register } as unknown as PageRegistry, deps);
+        const spectrogram = register.mock.calls.find(([name]) => name === 'spectrogram')?.[1];
+
+        const result = await spectrogram!.init();
+
+        expect(result).toBe(dispose);
+    });
+
 });

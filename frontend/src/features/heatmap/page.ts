@@ -59,6 +59,15 @@ let heatmapToolbarOverflow: ToolbarOverflowController | null = null;
  *  whenever clustering is toggled or a new dataset loads. */
 let userColumnOrder: string[] | null = null;
 
+/** Release the current Heatmap feature instance and invalidate its loading work. */
+export function disposeHeatmapPage(): void {
+    matrixLoadSequence += 1;
+    heatmapPageCleanup?.();
+    heatmapPageCleanup = null;
+    matrixData = null;
+    userColumnOrder = null;
+}
+
 function readHeatmapFitPref(): boolean {
     try {
         return window.localStorage.getItem(HEATMAP_FIT_STORAGE_KEY) !== '0';
@@ -119,9 +128,8 @@ function syncMetricGuide(): void {
     infoIcon.setAttribute('data-info-tip', getCorrelationModeGuide(metric));
 }
 
-export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
-    heatmapPageCleanup?.();
-    heatmapPageCleanup = null;
+export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void> {
+    disposeHeatmapPage();
     async function loadMatrix(nextMetric: CorrelationMetric = metric): Promise<void> {
         const loadSequence = ++matrixLoadSequence;
         const container = document.getElementById('heatmap-container');
@@ -609,4 +617,5 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
         disposeRuntime();
         heatmapRuntime = null;
     };
+    return disposeHeatmapPage;
 }

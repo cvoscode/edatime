@@ -4,7 +4,10 @@
  * column chips to chipPanel, status/progress to statusView,
  * export to export.ts, workflow to workflow.ts, and runtime to runtime.ts.
  */
-import './runtime.js'; // bootstraps page lifecycle before first edatime:page-change event
+import {
+    disposeCausalPageRuntime,
+    initCausalPageRuntime,
+} from './runtime.js';
 
 export type { CausalDeps } from './selectionState.js';
 export type { MetadataColumn, CausalMetadata } from './selectionState.js';
@@ -33,6 +36,15 @@ import { bindInfoPopovers } from '../../ui/infoPopovers.js';
 let _chartEl: HTMLDivElement | null = null;
 let _causalPageListeners: AbortController | null = null;
 
+/** Release Causal controls, graph work, and the feature lifecycle as one page mount. */
+export function disposeCausalPage(): void {
+    _causalPageListeners?.abort();
+    _causalPageListeners = null;
+    _chartEl = null;
+    setChartEl(null);
+    disposeCausalPageRuntime();
+}
+
 function seedSelectedColumnsFromDataset(deps: CausalDeps): void {
     if (_selectedColumns.size > 0) return;
     const numericSet = new Set(workspaceNumericColumns(deps));
@@ -43,7 +55,8 @@ function seedSelectedColumnsFromDataset(deps: CausalDeps): void {
     }
 }
 
-export function initCausalPage(deps: CausalDeps): void {
+export function initCausalPage(deps: CausalDeps): () => void {
+    initCausalPageRuntime();
     _causalPageListeners?.abort();
     const listenerController = new AbortController();
     _causalPageListeners = listenerController;
@@ -62,7 +75,7 @@ export function initCausalPage(deps: CausalDeps): void {
 
     _chartEl = document.getElementById('causal-chart') as HTMLDivElement | null;
     setChartEl(_chartEl);
-    if (!_chartEl || !columnsBar) return;
+    if (!_chartEl || !columnsBar) return disposeCausalPage;
 
     bindEditPanelEvents();
     initCausalComparison();
@@ -128,4 +141,6 @@ export function initCausalPage(deps: CausalDeps): void {
             syncCausalEmptyState(_selectedColumns.size);
         }
     }, listenerOptions);
+
+    return disposeCausalPage;
 }

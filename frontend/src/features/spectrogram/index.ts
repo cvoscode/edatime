@@ -1,2 +1,2 @@
 /** Public Spectrogram feature surface for application composition. */
-export { initSpectrogramPage } from './page.js';
+export { disposeSpectrogramPage, initSpectrogramPage } from './page.js';

@@ -13,8 +13,15 @@ interface SpectrogramPageDeps {
 let spectrogramRuntime: ReturnType<typeof createSpectrogramChartRuntime> | null = null;
 let spectrogramPageCleanup: (() => void) | null = null;
 
-export async function initSpectrogramPage(deps: SpectrogramPageDeps): Promise<void> {
+export function disposeSpectrogramPage(): void {
     spectrogramPageCleanup?.();
+    spectrogramPageCleanup = null;
+    spectrogramRuntime = null;
+    __resetSpectrogramChartRuntimeForTests();
+}
+
+export async function initSpectrogramPage(deps: SpectrogramPageDeps): Promise<() => void> {
+    disposeSpectrogramPage();
     spectrogramRuntime = createSpectrogramChartRuntime(deps);
     spectrogramPageCleanup = spectrogramRuntime.mount();
     // This feature can be loaded after the router has already displayed its
@@ -24,11 +31,9 @@ export async function initSpectrogramPage(deps: SpectrogramPageDeps): Promise<vo
     // Page-level "?" help button. Idempotent so safe to call on every
     // page init.
     initSpectrogramHelp();
+    return disposeSpectrogramPage;
 }
 
 export function __resetSpectrogramPageForTests(): void {
-    spectrogramPageCleanup?.();
-    spectrogramPageCleanup = null;
-    spectrogramRuntime = null;
-    __resetSpectrogramChartRuntimeForTests();
+    disposeSpectrogramPage();
 }

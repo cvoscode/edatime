@@ -1,6 +1,6 @@
 export interface PageDefinition {
     requiresMetadata: boolean;
-    init: () => Promise<void>;
+    init: () => Promise<void | (() => void)>;
 }
 
 /**
@@ -23,7 +23,9 @@ export function createPageRegistry(): PageRegistry {
     const instanceLoaded = new Set<string>();
     const instancePages = new Map<string, PageDefinition>();
     const pendingInitializations = new Map<string, Promise<void>>();
+    const pageDisposers = new Map<string, () => void>();
     let instanceMetadataReady = false;
+    let datasetSession = 0;
     let instanceReleaseMetadata: (() => void) | null = null;
     const instanceMetadataPromise = new Promise<void>((resolve) => { instanceReleaseMetadata = resolve; });
 
@@ -39,9 +41,16 @@ export function createPageRegistry(): PageRegistry {
             if (pending) return pending;
 
             const initialization = (async () => {
+                const sessionAtStart = datasetSession;
                 if (page.requiresMetadata && !instanceMetadataReady) await instanceMetadataPromise;
+                if (sessionAtStart !== datasetSession) return;
                 try {
-                    await page.init();
+                    const dispose = await page.init();
+                    if (sessionAtStart !== datasetSession) {
+                        dispose?.();
+                        return;
+                    }
+                    if (dispose) pageDisposers.set(name, dispose);
                 } catch (error) {
                     // A failed page remains retryable on the next navigation.
                     console.error(`[EdaTime] Failed to initialize page "${name}":`, error);
@@ -62,6 +71,9 @@ export function createPageRegistry(): PageRegistry {
             return instanceMetadataReady;
         },
         clearLoadedPageModules() {
+            datasetSession += 1;
+            for (const dispose of pageDisposers.values()) dispose();
+            pageDisposers.clear();
             instanceLoaded.clear();
         },
     };

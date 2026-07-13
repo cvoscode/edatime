@@ -82,9 +82,14 @@ export { _setEchartsModule };
 let driftRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
 let driftPageCleanup: (() => void) | null = null;
 
-export async function initDriftPage(metadata: any): Promise<void> {
+/** Release the current Drift feature instance and its page-owned resources. */
+export function disposeDriftPage(): void {
     driftPageCleanup?.();
     driftPageCleanup = null;
+}
+
+export async function initDriftPage(metadata: any): Promise<() => void> {
+    disposeDriftPage();
     const pageAbortController = new AbortController();
     // ── Column picker (custom checkbox dropdown) ──────────────────────────────
     const colPickerBtn = document.getElementById('drift-col-picker-btn') as HTMLButtonElement | null;
@@ -457,7 +462,10 @@ export async function initDriftPage(metadata: any): Promise<void> {
         URL.revokeObjectURL(url);
     }
 
-    if (!timelineEl || !detailEl || !computeBtn || !detailColumnSelect) return;
+    if (!timelineEl || !detailEl || !computeBtn || !detailColumnSelect) {
+        pageAbortController.abort();
+        return disposeDriftPage;
+    }
 
     // Aliases for closures that need narrowed non-null references
     const computeBtnEl = computeBtn as HTMLButtonElement;
@@ -592,4 +600,5 @@ export async function initDriftPage(metadata: any): Promise<void> {
     // Page-level "?" help button. Idempotent so safe to call on every
     // page init.
     initDriftHelp();
+    return disposeDriftPage;
 }

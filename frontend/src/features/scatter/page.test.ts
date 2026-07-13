@@ -121,7 +121,7 @@ vi.mock('../../services/api/index.js', () => ({
 }));
 
 vi.mock('../../ui/emptyState.js', () => ({
-    createEmptyStateController: () => ({ update: emptyStateUpdateMock }),
+    createEmptyStateController: () => ({ update: emptyStateUpdateMock, dispose: vi.fn() }),
     isRangeOutsideDataset: () => false,
 }));
 
@@ -309,6 +309,28 @@ describe('initScatterPage view toggles', () => {
         }
         windowListeners.length = 0;
         vi.restoreAllMocks();
+    });
+
+    it('returns a disposer that releases the page instance for the next dataset session', async () => {
+        const { initScatterPage } = await import('./page.js');
+        const dispose = await initScatterPage({
+            total_rows: 2,
+            columns: [
+                { name: 'HUFL', dtype: 'Float64' },
+                { name: 'HULL', dtype: 'Float64' },
+            ],
+            numeric_columns: ['HUFL', 'HULL'],
+            time_column: 'ts',
+            time_range: { min: 0, max: 1_000 },
+            column_profiles: [],
+        } as any);
+
+        expect(freshScatterState.initialized).toBe(true);
+        dispose();
+
+        expect(freshScatterState.initialized).toBe(false);
+        expect(freshScatterState.pageInitialized).toBe(false);
+        expect(freshScatterState.metadata).toBeNull();
     });
 
     it('switches into matrix mode when the matrix toggle is clicked', async () => {
