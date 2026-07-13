@@ -36,7 +36,6 @@ function renderSimpleList<T>(items: T[], renderItem: (item: T) => string, emptyT
 
 export function buildDriftInvestigationPanelHtml(
     investigation: DriftInvestigationResponse | null,
-    usingLegacyFallback: boolean,
 ): DriftInvestigationPanelHtml {
     if (!investigation) {
         return { overview: '', segments: '', quality: '', relationships: '' };
@@ -44,12 +43,6 @@ export function buildDriftInvestigationPanelHtml(
 
     const overview = `
         <div class="drift-summary-strip">
-            ${usingLegacyFallback ? `
-            <div class="drift-summary-card">
-                <span class="drift-summary-label">Legacy fallback</span>
-                <strong class="drift-summary-value">Using /api/drift/stats compatibility mode</strong>
-            </div>
-            ` : ''}
             <div class="drift-summary-card">
                 <span class="drift-summary-label">Investigation score</span>
                 <strong class="drift-summary-value">${investigation.overview.driftScore}</strong>

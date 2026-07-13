@@ -24,10 +24,9 @@ const investigation = {
 } as DriftInvestigationResponse;
 
 describe('drift investigation panels', () => {
-    it('renders overview data and legacy context from an investigation response', () => {
-        const panels = buildDriftInvestigationPanelHtml(investigation, true);
+    it('renders overview data and empty panel states from an investigation response', () => {
+        const panels = buildDriftInvestigationPanelHtml(investigation);
 
-        expect(panels.overview).toContain('Using /api/drift/stats compatibility mode');
         expect(panels.overview).toContain('temperature');
         expect(panels.overview).toContain('drift-red');
         expect(panels.segments).toContain('No segment breakdown returned.');
@@ -36,7 +35,7 @@ describe('drift investigation panels', () => {
     });
 
     it('clears every panel when no investigation is available', () => {
-        expect(buildDriftInvestigationPanelHtml(null, false)).toEqual({
+        expect(buildDriftInvestigationPanelHtml(null)).toEqual({
             overview: '',
             segments: '',
             quality: '',

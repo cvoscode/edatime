@@ -6,7 +6,7 @@
  */
 
 import { DEBUG } from '../../debug.js';
-import { fetchDriftInvestigation, fetchDriftStats } from '../../services/api/index.js';
+import { fetchDriftInvestigation } from '../../services/api/index.js';
 import { bindDriftControls, getSelectedColumns } from './controls.js';
 import { toast } from '../../utils/toast.js';
 import { createAnalysisPageRuntime } from '../../platform/analysisRuntime.js';
@@ -133,7 +133,6 @@ export async function initDriftPage(metadata: any): Promise<void> {
     let rawResponsesByColumn = new Map<string, DriftResponse>();
     let currentInvestigation: DriftInvestigationResponse | null = null;
     let activeTab = 'overview';
-    let usingLegacyFallback = false;
 
     getECharts().catch(() => { /* non-critical; will retry on first ensureCharts() call */ });
 
@@ -302,7 +301,7 @@ export async function initDriftPage(metadata: any): Promise<void> {
     }
 
     function renderInvestigationPanels(): void {
-        const panels = buildDriftInvestigationPanelHtml(currentInvestigation, usingLegacyFallback);
+        const panels = buildDriftInvestigationPanelHtml(currentInvestigation);
         if (overviewPanelEl) overviewPanelEl.innerHTML = panels.overview;
         if (segmentsPanelEl) segmentsPanelEl.innerHTML = panels.segments;
         if (qualityPanelEl) qualityPanelEl.innerHTML = panels.quality;
@@ -409,95 +408,11 @@ export async function initDriftPage(metadata: any): Promise<void> {
         if (psiWarning) warnings.push('PSI may be inflated (reference \u226710\u00d7 window size)');
         if (binWarning) warnings.push('histogram bins fell back to equal-width');
         const warnInfo = warnings.length > 0 ? ` \u26a0 ${warnings.join('; ')}` : '';
-        const legacyInfo = usingLegacyFallback ? ' | legacy fallback' : '';
         toast(
-            `Drift: ${cols.length} column(s) | ~${avgWindows.toFixed(0)} windows/column | ${flaggedTotal} flagged | ref avg ${avgRef.toFixed(0)} samples | ${computeMs.toFixed(0)}ms${legacyInfo}${failedInfo}${warnInfo}`,
+            `Drift: ${cols.length} column(s) | ~${avgWindows.toFixed(0)} windows/column | ${flaggedTotal} flagged | ref avg ${avgRef.toFixed(0)} samples | ${computeMs.toFixed(0)}ms${failedInfo}${warnInfo}`,
             'info',
             {},
         );
-    }
-
-    function isLegacyCompatibleError(error: unknown): boolean {
-        const status = (error as Error & { status?: number })?.status;
-        return status === 404 || status === 405;
-    }
-
-    function toLegacyInvestigation(results: Map<string, DriftResponse>): DriftInvestigationResponse {
-        const summaries = Array.from(results.values()).map((response) => {
-            const summary = buildColumnSummary(response);
-            const firstFlaggedWindow = response.windows.find((window) => window.drift_level !== 'green') ?? null;
-            return { response, summary, firstFlaggedWindow };
-        });
-        const globalSummary = buildGlobalSummary(results);
-        const firstChangePoint = summaries
-            .filter((entry) => entry.firstFlaggedWindow)
-            .sort((left, right) => (left.firstFlaggedWindow?.start_ms ?? Number.MAX_SAFE_INTEGER) - (right.firstFlaggedWindow?.start_ms ?? Number.MAX_SAFE_INTEGER))[0]
-            ?.firstFlaggedWindow ?? null;
-        const driftScore = Math.max(...summaries.map((entry) => entry.summary.flaggedWindows * 10), 0);
-
-        return {
-            overview: {
-                driftScore,
-                worstLevel: globalSummary.worstSeverity,
-                columnsFlagged: globalSummary.columnsFlagged,
-                totalColumns: globalSummary.totalColumns,
-                windowsFlagged: summaries.reduce((sum, entry) => sum + entry.summary.flaggedWindows, 0),
-                firstChangePoint: firstChangePoint ? new Date(firstChangePoint.start_ms).toISOString() : null,
-            },
-            columns: Object.fromEntries(results.entries()),
-            rankings: {
-                features: summaries
-                    .map(({ summary, firstFlaggedWindow }) => ({
-                        column: summary.column,
-                        driftScore: summary.flaggedWindows * 10,
-                        latestLevel: summary.currentLevel,
-                        flaggedWindows: summary.flaggedWindows,
-                        firstChangePoint: firstFlaggedWindow ? new Date(firstFlaggedWindow.start_ms).toISOString() : null,
-                    }))
-                    .sort((left, right) => right.driftScore - left.driftScore),
-                segments: [],
-                changePoints: summaries
-                    .flatMap(({ response }) => response.windows
-                        .filter((window) => window.drift_level !== 'green')
-                        .map((window) => ({
-                            column: response.column,
-                            label: window.label,
-                            isoTime: new Date(window.start_ms).toISOString(),
-                            driftScore: window.drift_level === 'red' ? 100 : 50,
-                            triggerReasons: window.trigger_reasons ?? [],
-                        })))
-                    .sort((left, right) => left.isoTime.localeCompare(right.isoTime)),
-                qualityIssues: [],
-                relationships: [],
-            },
-            quality: { byColumn: {} },
-            relationships: { mode: 'legacy', pairs: [] },
-        };
-    }
-
-    async function fetchLegacyInvestigation(
-        basePayload: Record<string, unknown>,
-        columns: string[],
-        signal: AbortSignal,
-    ): Promise<DriftInvestigationResponse> {
-        const window = String(basePayload.window || 'daily');
-        const referenceStart = String(basePayload.referenceStart || '');
-        const referenceEnd = String(basePayload.referenceEnd || '');
-        const sharedPayload = {
-            window,
-            referenceStart,
-            referenceEnd,
-            ksPvalueThreshold: basePayload.ksPvalueThreshold,
-            esPvalueThreshold: basePayload.esPvalueThreshold,
-            psiMinorThreshold: basePayload.psiMinorThreshold,
-            psiMajorThreshold: basePayload.psiMajorThreshold,
-            wassersteinStdMultiplier: basePayload.wassersteinStdMultiplier,
-        };
-        const responses = await Promise.all(columns.map(async (column) => {
-            const response = await fetchDriftStats<DriftResponse>({ column, ...sharedPayload }, signal);
-            return [column, response] as const;
-        }));
-        return toLegacyInvestigation(new Map<string, DriftResponse>(responses));
     }
 
     // Module-level request task for drift compute — cancel-before-new semantics
@@ -554,15 +469,7 @@ export async function initDriftPage(metadata: any): Promise<void> {
                 const segmentBy = getDropdownValue('drift-segment-by');
                 if (segmentBy) basePayload.segmentBy = segmentBy;
 
-                let investigation: DriftInvestigationResponse;
-                try {
-                    investigation = await fetchDriftInvestigation<DriftInvestigationResponse>(basePayload, signal);
-                    usingLegacyFallback = false;
-                } catch (error) {
-                    if (!isLegacyCompatibleError(error)) throw error;
-                    usingLegacyFallback = true;
-                    investigation = await fetchLegacyInvestigation(basePayload, columns, signal);
-                }
+                const investigation = await fetchDriftInvestigation<DriftInvestigationResponse>(basePayload, signal);
                 const results = new Map<string, DriftResponse>(Object.entries(investigation.columns || {}));
                 if (results.size === 0) throw new Error('No drift responses received.');
                 if (DEBUG && investigation.overview) console.debug('drift investigation overview', investigation.overview);
