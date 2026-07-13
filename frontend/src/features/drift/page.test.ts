@@ -232,7 +232,6 @@ describe('drift page accessibility and debug metadata', () => {
                   <div id="drift-col-picker-list"></div>
                 </div>
               </div>
-              <select id="drift-col-select" multiple style="display:none;"></select>
               <select id="drift-window-select"><option value="daily" selected>Daily</option></select>
               <select id="drift-plot-type"><option value="box" selected>Box</option></select>
               <select id="drift-ref-preset"><option value="50" selected>50</option></select>

@@ -99,9 +99,6 @@ export async function initDriftPage(metadata: any): Promise<() => void> {
     const colSelectAllBtn = document.getElementById('drift-cols-all') as HTMLButtonElement | null;
     const colSelectSingleBtn = document.getElementById('drift-cols-single') as HTMLButtonElement | null;
     const colSelectNoneBtn = document.getElementById('drift-cols-none') as HTMLButtonElement | null;
-    // Hidden backing <select> kept for compatibility; updated in sync with checkboxes.
-    const colSelect = document.getElementById('drift-col-select') as HTMLSelectElement | null;
-
     const windowSelect = document.getElementById('drift-window-select') as HTMLElement | null;
     const plotTypeSelect = document.getElementById('drift-plot-type') as HTMLElement | null;
     const refPresetSelect = document.getElementById('drift-ref-preset') as HTMLElement | null;
@@ -518,7 +515,6 @@ export async function initDriftPage(metadata: any): Promise<() => void> {
             colSelectAllBtn,
             colSelectSingleBtn,
             colSelectNoneBtn,
-            colSelect,
             windowSelect,
             plotTypeSelect,
             refPresetSelect,

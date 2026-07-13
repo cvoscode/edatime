@@ -42,7 +42,6 @@ export interface DriftControlOptions {
     colSelectAllBtn: HTMLButtonElement | null;
     colSelectSingleBtn: HTMLButtonElement | null;
     colSelectNoneBtn: HTMLButtonElement | null;
-    colSelect: HTMLSelectElement | null;
     windowSelect: HTMLElement | null;
     plotTypeSelect: HTMLElement | null;
     refPresetSelect: HTMLElement | null;
@@ -69,7 +68,6 @@ export interface DriftControlOptions {
 let selectedCols = new Set<string>();
 let numericCols: string[] = [];
 let pickerLabelEl: HTMLElement | null = null;
-let hiddenColSelectEl: HTMLSelectElement | null = null;
 let selectionChangeCallback: (() => void) | null = null;
 
 export function getSelectedColumns(): string[] {
@@ -80,7 +78,6 @@ export function resetDriftControlsState(): void {
     selectedCols = new Set<string>();
     numericCols = [];
     pickerLabelEl = null;
-    hiddenColSelectEl = null;
     selectionChangeCallback = null;
 }
 
@@ -89,18 +86,6 @@ function syncPickerLabel(allCols: string[] = numericCols): void {
     const total = allCols.length;
     const selected = selectedCols.size;
     pickerLabelEl.textContent = total === 0 ? 'No numeric columns' : `${selected} of ${total} selected`;
-}
-
-function syncHiddenSelect(allCols: string[]): void {
-    if (!hiddenColSelectEl) return;
-    hiddenColSelectEl.innerHTML = '';
-    allCols.forEach((col) => {
-        const opt = document.createElement('option');
-        opt.value = col;
-        opt.textContent = col;
-        opt.selected = selectedCols.has(col);
-        hiddenColSelectEl?.appendChild(opt);
-    });
 }
 
 function renderColumnChips(colPickerList: HTMLElement | null, allCols: string[]): void {
@@ -119,7 +104,6 @@ function renderColumnChips(colPickerList: HTMLElement | null, allCols: string[])
                     selectedCols.delete(col);
                     if (selectedCols.size === 0 && allCols.length > 0) selectedCols.add(allCols[0]!);
                 }
-                syncHiddenSelect(allCols);
                 renderColumnChips(colPickerList, allCols);
                 selectionChangeCallback?.();
             },
@@ -159,7 +143,6 @@ function repopulateColumnSelect(
     if (selectedCols.size === 0 && allCols.length > 0) selectedCols.add(allCols[0]!);
 
     renderColumnChips(colPickerList, allCols);
-    syncHiddenSelect(allCols);
 }
 
 // ── Main bind function ───────────────────────────────────────────────────────
@@ -175,7 +158,6 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
         colSelectAllBtn,
         colSelectSingleBtn,
         colSelectNoneBtn,
-        colSelect,
         windowSelect,
         plotTypeSelect,
         refPresetSelect,
@@ -201,7 +183,6 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
 
     selectedCols = new Set(numericCols.length > 0 ? [numericCols[0]!] : []);
     pickerLabelEl = colPickerLabel;
-    hiddenColSelectEl = colSelect;
     selectionChangeCallback = cb.onSelectionChange;
 
     // ── Picker event listeners ──────────────────────────────────────────────
@@ -300,7 +281,6 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
     colSelectAllBtn?.addEventListener('click', () => {
         numericCols.forEach((c) => selectedCols.add(c));
         renderColumnChips(colPickerList, numericCols);
-        syncHiddenSelect(numericCols);
         selectionChangeCallback?.();
         closePicker(colPickerPanel, colPickerBtn);
     }, listenerOptions);
@@ -310,7 +290,6 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
         if (keep) {
             selectedCols = new Set([keep]);
             renderColumnChips(colPickerList, numericCols);
-            syncHiddenSelect(numericCols);
             selectionChangeCallback?.();
         }
         closePicker(colPickerPanel, colPickerBtn);
@@ -319,7 +298,6 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
     colSelectNoneBtn?.addEventListener('click', () => {
         selectedCols = new Set(numericCols.length > 0 ? [numericCols[0]!] : []);
         renderColumnChips(colPickerList, numericCols);
-        syncHiddenSelect(numericCols);
         selectionChangeCallback?.();
     }, listenerOptions);
 

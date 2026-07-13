@@ -438,6 +438,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Added abort-scoped Drift control and page listeners plus mounted-runtime/resize-observer disposal before re-initialization. A page regression proves a second initialization does not duplicate a Compute request.
 - Extended Drift page teardown to clear the controls module's retained picker DOM references and selection callback after listener disposal, so a future page root cannot be updated by a stale control owner.
 - Added explicit Timeline and Detail ECharts disposal to Drift teardown, releasing their instances and prior DOM roots alongside the existing resize observer and control scopes.
+- Removed the retired hidden `drift-col-select` compatibility mirror. The checkbox picker now owns selected-column state directly, eliminating duplicate DOM state and synchronization writes.
 
 ### Completed: Heatmap page decomposition
 
