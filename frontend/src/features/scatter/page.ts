@@ -8,11 +8,8 @@
  *   viewController.ts   — active view management
  */
 
-import { createChart } from '../../../libs/chartgpu/dist/index.js';
-import { defaultGpuPowerPreference } from '../../utils/platform.js';
 import { toast, dismissAllToasts } from '../../utils/toast.js';
 import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
-import { EchartsScatterChart } from '../../chart/EchartsScatterChart.js';
 import { fetchScatterPoints } from '../../services/api/index.js';
 import { getScatterViewSnapshot, scatterState, setScatterViewSnapshot } from '../../store/scatterState.js';
 import { setAdaptiveLineFilters, setColumnRanges, uiState } from '../../store/uiState.js';
@@ -29,8 +26,6 @@ import {
     buildScatterOverviewContext,
     buildRenderSignature,
     applyScatterStateFromCache,
-    disposeScatterChart,
-    resetScatterContainer,
     normalizeAnalyticsView,
     ensureOptions,
     type ScatterControls,
@@ -52,7 +47,6 @@ import {
     exportScatterParquet,
     setCorrelationOverlayText,
 } from './rendering.js';
-import { initSelectionZoom } from './selectionZoom.js';
 import {
     renderScatterMatrixView,
     selectMatrixPair,
@@ -67,9 +61,7 @@ import {
     configureScatterRuntime,
     syncScatterEmptyState,
     syncScatterFilterBadge,
-    isGPUAvailable,
     getGpuUnavailable,
-    setGpuUnavailable,
 } from './runtime.js';
 import {
     renderSuggestions,
@@ -79,6 +71,7 @@ import {
 import { computeInteractiveScatterLimit } from './renderLimit.js';
 import { setScatterRenderScheduler } from './renderScheduler.js';
 import { applyScatterPointsResponse } from './responsePolicy.js';
+import { renderScatterChart } from './chartLifecycle.js';
 
 import type { DatasetMetadata } from '../../types.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
@@ -326,43 +319,13 @@ async function renderScatter(): Promise<void> {
         applyScatterStateFromCache(!preserveView);
         const renderSignature = buildRenderSignature(ctl);
 
-        if (scatterState.chart && scatterState.lastRenderSignature !== renderSignature) {
-            disposeScatterChart();
-            container = resetScatterContainer() || getEl('scatter-chart');
-        }
-
-        const nextOption = buildOption(scatterState.points, container);
-
-        if (!scatterState.chart) {
-            const gpuAvailable = await isGPUAvailable();
-            if (!gpuAvailable) {
-                setGpuUnavailable(true);
-                const fallbackChart = new EchartsScatterChart('scatter-chart');
-                await fallbackChart.init();
-                scatterState.chart = fallbackChart as any;
-            } else {
-                setGpuUnavailable(false);
-                const chartOptions: Record<string, unknown> = { ...nextOption };
-                const powerPreference = defaultGpuPowerPreference();
-                if (powerPreference) chartOptions.powerPreference = powerPreference;
-                scatterState.chart = await createChart(container!, chartOptions as any);
-            }
-            const chart = scatterState.chart;
-            if (!chart) return;
-            scatterState.lastRenderSignature = renderSignature;
-            chart.setOption(nextOption);
-            initSelectionZoom(container!);
-            chart.onPerformanceUpdate?.(() => {
-                const now = performance.now();
-                if (now - scatterState.lastUpdateMs < 100) return;
-                scatterState.lastUpdateMs = now;
-                updateBinnedReadout();
-            });
-        } else {
-            scatterState.chart.setOption(nextOption);
-            scatterState.lastRenderSignature = renderSignature;
-            requestAnimationFrame(() => scatterState.chart?.resize?.());
-        }
+        container = await renderScatterChart({
+            container: container!,
+            renderSignature,
+            buildOption: (activeContainer) => buildOption(scatterState.points, activeContainer),
+            onPerformanceUpdate: updateBinnedReadout,
+        });
+        if (!container || !scatterState.chart) return;
 
         updateColorbarUI();
         updateBinnedReadout();
