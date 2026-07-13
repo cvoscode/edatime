@@ -222,7 +222,6 @@ describe('app -> timeseries bootstrap wiring', () => {
             ensureSessionPersistenceStarted: expect.any(Function),
             setNumericCols: setNumericColsMock,
             setAdaptiveFilterColumn: setAdaptiveFilterColumnMock,
-            setViewport: setViewportMock,
         }));
 
         await deps.fetchMetadata();

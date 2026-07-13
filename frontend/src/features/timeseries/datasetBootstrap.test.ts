@@ -94,7 +94,6 @@ function createDeps(overrides: Partial<DatasetBootstrapDeps> = {}): DatasetBoots
         setAdaptiveFilterColumn: vi.fn(),
         timeseriesFeatureInit: vi.fn(),
         ensureSessionPersistenceStarted: vi.fn(),
-        setViewport: vi.fn(),
         updateAnalysisZoom: vi.fn(),
         emitWorkflowRefresh: vi.fn(),
         ...overrides,

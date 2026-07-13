@@ -53,7 +53,7 @@ import { createExportFeature } from './features/export/index.js';
 import type { DatasetMetadata, DataObject, AnomalyResponse } from './types/api.js';
 import type { ChartInstance, ViewSnapshot } from './types/chart.js';
 
-import { chartState, initChartStatePrefs, setChartInstance, setViewport } from './store/chartState.js';
+import { chartState, initChartStatePrefs, setChartInstance } from './store/chartState.js';
 import { datasetState, setDatasetRevision, setMetadata, setNumericCols } from './store/datasetState.js';
 import { setAdaptiveFilterColumn } from './store/uiState.js';
 
@@ -142,7 +142,6 @@ export function createApp(): AppRoot {
             ensureSessionPersistenceStarted,
             setNumericCols,
             setAdaptiveFilterColumn,
-            setViewport,
             updateAnalysisYRange,
             updateAnalysisZoom,
             getCurrentView,

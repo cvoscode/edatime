@@ -35,7 +35,6 @@ export interface DatasetBootstrapDeps {
     setAdaptiveFilterColumn: (col: string | null) => void;
     timeseriesFeatureInit?: () => void;
     ensureSessionPersistenceStarted?: () => void;
-    setViewport: (start: number, end: number) => void;
     updateAnalysisZoom: (start: number, end: number, sourceKind: string) => void;
 }
 

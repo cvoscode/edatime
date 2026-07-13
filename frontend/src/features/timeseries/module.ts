@@ -45,7 +45,6 @@ export interface TimeseriesModuleDeps {
     ensureSessionPersistenceStarted: () => void;
     setNumericCols: (cols: string[]) => void;
     setAdaptiveFilterColumn: (col: string | null) => void;
-    setViewport: (start: number, end: number) => void;
     updateAnalysisYRange: (min: number, max: number, sourceKind?: string) => void;
     updateAnalysisZoom: (start: number, end: number, sourceKind?: string) => void;
     getCurrentView: () => ViewSnapshot;
@@ -173,7 +172,6 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         if (!timeRange) return;
         const start = Number(timeRange.min);
         const end = Number(timeRange.max);
-        deps.setViewport(start, end);
         deps.workspace.setViewport({ xMin: start, xMax: end, yMin: null, yMax: null });
         deps.updateAnalysisZoom(start, end, 'initial');
     };
@@ -201,7 +199,6 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         },
         timeseriesFeatureInit: () => feature.init(),
         ensureSessionPersistenceStarted: deps.ensureSessionPersistenceStarted,
-        setViewport: deps.setViewport,
         updateAnalysisZoom: deps.updateAnalysisZoom,
         emitWorkflowRefresh: () => emitFeatureEvent('workflow:refresh', undefined),
         setAdaptiveFilterColumn: deps.setAdaptiveFilterColumn,

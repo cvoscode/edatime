@@ -730,6 +730,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Quick-range application now validates the requested range, publishes the resolved `ViewSnapshot` directly to `WorkspaceStore`, and applies that exact range to the chart adapter and analysis status. It no longer writes then re-reads the global chart-range mirror.
 - Toolbar fallback actions now compose `zoomOut` and `resetZoom` with their workspace dependency explicitly, so even the default UI path preserves the same canonical publication contract as injected shell actions.
 
+### Completed: dataset-bootstrap viewport contract retirement
+
+- Removed the unused global range-setter callback from dataset bootstrap, Timeseries module composition, and app wiring. Dataset initialization now establishes its range through `WorkspaceStore` alone before chart bootstrap realizes it.
+- Module, bootstrap, and app-composition tests now assert the reduced dependency contract, preventing a second viewport owner from being reintroduced through metadata initialization.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.

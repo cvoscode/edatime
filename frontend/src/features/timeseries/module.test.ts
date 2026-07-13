@@ -177,7 +177,6 @@ describe('createTimeseriesModule', () => {
             ensureSessionPersistenceStarted: deps.ensureSessionPersistenceStarted,
             setNumericCols: deps.setNumericCols,
             setAdaptiveFilterColumn: deps.setAdaptiveFilterColumn,
-            setViewport: deps.setViewport,
         }));
     });
 
