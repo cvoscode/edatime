@@ -7,12 +7,12 @@ describe('settings correlation mode', () => {
         localStorage.clear();
     });
 
-    it('migrates legacy pearson and spearman defaults to raw modes', () => {
+    it('rejects retired correlation aliases in favor of the canonical default', () => {
         localStorage.setItem('edatime-settings', JSON.stringify({
             defaultCorrelationMetric: 'spearman',
         }));
 
-        expect(loadSettings().defaultCorrelationMetric).toBe('spearman_raw');
+        expect(loadSettings().defaultCorrelationMetric).toBe('pearson_raw');
 
         localStorage.setItem('edatime-settings', JSON.stringify({
             defaultCorrelationMetric: 'pearson',

@@ -50,8 +50,6 @@ export function isCorrelationMetric(value: string): value is CorrelationMetric {
 }
 
 export function normalizeCorrelationMetric(value: unknown): CorrelationMetric {
-    if (value === 'pearson') return 'pearson_raw';
-    if (value === 'spearman') return 'spearman_raw';
     if (typeof value === 'string' && isCorrelationMetric(value)) return value;
     return 'pearson_raw';
 }
