@@ -571,6 +571,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Moved Timeseries viewport, export, and adaptive-filter shortcuts into the Timeseries feature and exposed the supported initializer through its public index.
 - Preserved direct idempotence and lifecycle-disposal characterization coverage while removing the remaining `app/bootstrap/` shortcut owners.
 
+### Completed: shell-owned global shortcut composition
+
+- `initAppShell` now initializes global navigation, command-palette, and settings shortcuts with its own deferred actions and the app runtime cleanup registrar.
+- `app.ts` no longer directly mounts a shell controller or retains its return value; it composes the shell and remains focused on application/runtime assembly.
+- A shell-level regression verifies the exact shortcut dependency contract, before and after the ownership move.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.

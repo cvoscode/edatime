@@ -80,10 +80,6 @@ vi.mock('../app/navigation/showPage.js', () => ({
     showPage: vi.fn(),
 }));
 
-vi.mock('../app/shell/globalShortcuts.js', () => ({
-    initGlobalShortcuts: vi.fn(),
-}));
-
 vi.mock('../app/runtime.js', () => ({
     createAppRuntime: vi.fn(() => ({ registerCleanup: registerRuntimeCleanupMock })),
 }));

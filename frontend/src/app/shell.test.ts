@@ -36,6 +36,7 @@ vi.mock('./shell/commands.js', () => ({
     APP_COMMAND_DEFINITIONS: [],
     registerAppCommands: vi.fn(),
 }));
+vi.mock('./shell/globalShortcuts.js', () => ({ initGlobalShortcuts: vi.fn() }));
 
 beforeEach(() => {
     vi.clearAllMocks();
@@ -74,6 +75,25 @@ describe('shell bootstrap', () => {
         expect(normalizeFormControlAccessibility).toHaveBeenCalledTimes(1);
         expect(initThemeToggle).toHaveBeenCalledTimes(1);
         expect(wireHomeNavigationCards).toHaveBeenCalledWith(deps.showPage);
+    });
+
+    it('owns global shortcut initialization and registers it with the app runtime lifecycle', async () => {
+        const { initAppShell } = await import('./shell.js');
+        const { initGlobalShortcuts } = await import('./shell/globalShortcuts.js');
+        const deps = {
+            showPage: vi.fn(),
+            ensurePageModuleLoaded: vi.fn(),
+            registerCleanup: vi.fn(),
+        };
+
+        initAppShell(deps as any);
+
+        expect(initGlobalShortcuts).toHaveBeenCalledWith(expect.objectContaining({
+            showPage: deps.showPage,
+            registerCleanup: deps.registerCleanup,
+            openCommands: expect.any(Function),
+            openSettings: expect.any(Function),
+        }));
     });
 
     it('keeps navigation dependencies explicit instead of publishing them on window', async () => {

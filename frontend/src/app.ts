@@ -31,7 +31,6 @@ import {
 // never enter the initial app bundle.
 import { initAppShell } from './app/shell.js';
 import { showPage } from './app/navigation/showPage.js';
-import { initGlobalShortcuts } from './app/shell/globalShortcuts.js';
 import { createAppRuntime } from './app/runtime.js';
 import { createWorkspaceStore } from './workspace/workspaceStore.js';
 import { markAppReady, resetAppReady } from './app/bootState.js';
@@ -157,7 +156,7 @@ async function init(): Promise<void> {
     // Mount registers page lifecycle (page-change listener, etc.)
     timeseriesModule.mount();
 
-    const shell = initAppShell({
+    initAppShell({
         ensurePageModuleLoaded: pageRegistry.ensurePageModuleLoaded,
         ensureDatasetReady: () => timeseriesModule.ensureDatasetReady(),
         showPage,
@@ -186,13 +185,6 @@ async function init(): Promise<void> {
         chipColor: (col, idx) => getAnalyticsChipColor(col, idx),
         setLoading: setComputeLoading,
         workspace,
-    });
-
-    initGlobalShortcuts({
-        showPage,
-        openCommands: shell.openCommands,
-        openSettings: shell.openSettings,
-        registerCleanup: runtime.registerCleanup,
     });
 
     initTimeseriesShortcuts({

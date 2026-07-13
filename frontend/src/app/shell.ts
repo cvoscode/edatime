@@ -18,6 +18,7 @@
 
 import { initShellCore } from './shell/core.js';
 import { createDeferredSubsystemRegistry, type DeferredShellDeps } from './shell/deferredSubsystems.js';
+import { initGlobalShortcuts } from './shell/globalShortcuts.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 interface RefreshDatasetOptions {
@@ -97,6 +98,13 @@ export function initAppShell(deps: AppShellDeps): AppShell {
             ensureSubsystem,
             openSettings: async () => deferredSubsystems.openSettings(deferred),
         },
+    });
+
+    initGlobalShortcuts({
+        showPage: deps.showPage,
+        openCommands: () => deferredSubsystems.openCommands(deferred),
+        openSettings: () => deferredSubsystems.openSettings(deferred),
+        registerCleanup: deps.registerCleanup,
     });
 
     return {
