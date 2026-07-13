@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTimeseriesDataRequest } from './timeseriesRequest.js';
+import { buildTimeseriesDataRequest, getTimeseriesLookaroundMs } from './timeseriesRequest.js';
 
 describe('timeseries data request', () => {
     it('serializes a valid request and enforces the lookaround floor', () => {
@@ -12,5 +12,9 @@ describe('timeseries data request', () => {
     it('rejects an invalid or empty request', () => {
         expect(buildTimeseriesDataRequest({ start: 2, end: 1, columns: ['OT'], colorColumn: null }, 0)).toBeNull();
         expect(buildTimeseriesDataRequest({ start: 1, end: 2, columns: [], colorColumn: null }, 0)).toBeNull();
+    });
+
+    it('uses the shared lookaround policy for large time ranges', () => {
+        expect(getTimeseriesLookaroundMs(0, 100_000)).toBe(125_000);
     });
 });

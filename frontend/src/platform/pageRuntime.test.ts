@@ -272,6 +272,21 @@ describe('createPageRuntime', () => {
         un2();
     });
 
+    it('can mount again after its cleanup releases the lifecycle', () => {
+        const init = vi.fn();
+        const runtime = createPageRuntime({ page: 'test', init });
+
+        const firstCleanup = runtime.mount();
+        dispatchPageChange('test');
+        firstCleanup();
+
+        const secondCleanup = runtime.mount();
+        dispatchPageChange('test');
+
+        expect(init).toHaveBeenCalledTimes(2);
+        secondCleanup();
+    });
+
     it('statusElId is accepted alongside loadingElId without conflict', () => {
         document.body.innerHTML = `
             <div id="test-status"></div>

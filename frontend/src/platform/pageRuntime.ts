@@ -61,8 +61,11 @@ export function createPageRuntime(options: PageRuntimeOptions): PageRuntime {
             });
 
             return () => {
+                if (!mounted) return;
                 unregister();
                 if (typeof cleanup === 'function') cleanup();
+                cleanup = undefined;
+                mounted = false;
             };
         },
 

@@ -25,8 +25,9 @@ import {
     setPendingYMode,
 } from '../../store/runtimeState.js';
 import { uiState } from '../../store/uiState.js';
-import { buildTimeseriesDataRequest } from './timeseriesRequest.js';
+import { buildTimeseriesDataRequest, getTimeseriesLookaroundMs } from './timeseriesRequest.js';
 import { canReuseBufferedFetch } from './bufferedFetchPolicy.js';
+import { resolveFetchedWindow } from './fetchedWindow.js';
 
 const EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} } as any;
 const CONSECUTIVE_ZOOM_OUT_RESET_COUNT = 5;
@@ -434,16 +435,12 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             }
 
             setLastFetchedData(data);
-            if (Array.isArray(data?.ts) || data?.ts instanceof Float64Array) {
-                const tsCount = data.ts.length;
-                const lookaroundMs = Math.max(60_000, Math.round((currentEnd - currentStart) * 1.25));
-                const fetchedStart = tsCount > 0 ? Number(data.ts[0]) : currentStart - lookaroundMs;
-                const fetchedEnd = tsCount > 0 ? Number(data.ts[tsCount - 1]) : currentEnd + lookaroundMs;
-                setFetchedWindow({ start: fetchedStart, end: fetchedEnd });
-            } else {
-                const lookaroundMs = Math.max(60_000, Math.round((currentEnd - currentStart) * 1.25));
-                setFetchedWindow({ start: currentStart - lookaroundMs, end: currentEnd + lookaroundMs });
-            }
+            setFetchedWindow(resolveFetchedWindow({
+                data,
+                requestedStart: currentStart,
+                requestedEnd: currentEnd,
+                lookaroundMs: getTimeseriesLookaroundMs(currentStart, currentEnd),
+            }));
             // Issue 7.2: Update last successful fetch parameters for no-op short-circuit
             lastFetchedParams = requestIntent.key;
 

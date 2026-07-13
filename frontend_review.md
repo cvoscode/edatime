@@ -207,6 +207,8 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Next, review `features/timeseries/controller` against the now-decomposed `DataChart` boundary and extract the largest deterministic request or state policy that is still embedded in page orchestration.
 - Extracted Timeseries API request construction into `timeseriesRequest`, directly covering valid range/selection gating, ISO bounds, chart width, color-column serialization, and the minimum lookaround contract before the controller issues the request.
 - Extracted raw buffered-response reuse eligibility into `bufferedFetchPolicy`. Normal fetch reuse and zoom-out restoration now share the same selection-key, raw-data, and fetched-window coverage contract under direct tests.
+- Extracted fetched-window resolution into `fetchedWindow` and made the request builder the single owner of the lookaround calculation. Buffered reuse now receives a validated response window for ordered data and a deterministic padded fallback for empty or malformed timestamp responses.
+- Fixed the shared page-runtime unmount/remount contract: cleanup now releases the mounted state and is idempotent, so feature lifecycles can safely register again after a real unmount.
 
 ### Completed: Spectrogram runtime decomposition
 
