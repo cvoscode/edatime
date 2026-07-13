@@ -176,8 +176,13 @@ export async function handleComputeClick(
 /** Module-level controller for the latest causal compute run. */
 let causalComputeController: AbortController | null = null;
 
-/** Test-only: reset the causal compute controller between test runs. */
-export function __resetCausalComputeControllerForTests(): void {
+/** Cancel the active Causal compute request when its feature lifetime ends. */
+export function disposeCausalCompute(): void {
     if (causalComputeController) causalComputeController.abort();
     causalComputeController = null;
+}
+
+/** Test-only alias for resetting the Causal compute request state. */
+export function __resetCausalComputeControllerForTests(): void {
+    disposeCausalCompute();
 }

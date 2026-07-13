@@ -14,6 +14,7 @@ import {
     syncCausalEmptyState,
 } from './statusView.js';
 import { disposeCausalGraph } from './graphView.js';
+import { disposeCausalCompute } from './workflow.js';
 import { _selectedColumns } from './selectionState.js';
 
 /** Module-level runtime handle for the causal page lifecycle. */
@@ -61,6 +62,7 @@ export function disposeCausalPageRuntime(): void {
     causalRuntime = null;
     _syncCausalEmptyState = () => { };
     disposeCausalStatusLifecycle();
+    disposeCausalCompute();
     disposeCausalGraph();
 }
 

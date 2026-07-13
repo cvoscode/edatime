@@ -403,6 +403,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Mounted the Causal analysis runtime and made it idempotent, so page-change behavior is no longer configured but inactive after the lazy feature loads.
 - Replaced the status view's import-time page-change listener with an explicit Causal lifecycle resource. Runtime disposal now releases both the analysis and toast-status listeners (and dismisses any active status toast); direct coverage verifies the paired mount/dispose contract.
 - Added a real Causal graph-adapter teardown: ECharts, its resize observer, delayed initialization state, and transient node-editor DOM are released together. Generation-scoped refresh scheduling makes queued retries and late dynamic imports inert after disposal or a replaced chart root; direct regressions cover both chart teardown and stale retry cancellation.
+- Chained active Causal discovery cancellation into feature-runtime disposal. A page teardown now aborts its latest compute request before releasing status and graph resources, so a detached run cannot complete against a replacement root.
 
 ### Completed: global continuous color-scale ownership
 
