@@ -8,6 +8,7 @@
  */
 
 import { fetchCausalGraph } from '../../services/api/index.js';
+import { emitFeatureEvent } from '../../platform/featureEvents.js';
 import { notifyCausalGraphUpdated } from './causalComparison.js';
 import {
     _selectedColumns,
@@ -150,7 +151,7 @@ export async function handleComputeClick(
         setCurrentTauMax(resp.tau_max);
         syncCausalGraphActionState(resp.links.length > 0 && cols.length >= 2);
         notifyCausalGraphUpdated(cols, resp.links);
-        window.dispatchEvent(new CustomEvent('edatime:workflow-refresh'));
+        emitFeatureEvent('workflow:refresh', undefined);
         for (const col of cols) ensureNodeMetadata(col, meta, deps);
         await initChart();
         renderEChartsGraph();

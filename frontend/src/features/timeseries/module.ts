@@ -12,6 +12,7 @@ import { createTimeseriesBootstrap } from './ensureReady.js';
 import { setDatasetRevision, setMetadata } from '../../store/datasetState.js';
 import { clearScatterViewSnapshots } from '../../store/scatterState.js';
 import { getNumericColumns, getDefaultTimeseriesColumns } from '../../platform/analyticsColumns.js';
+import { emitFeatureEvent } from '../../platform/featureEvents.js';
 import type { DataObject, DatasetMetadata } from '../../types/api.js';
 import type { ViewSnapshot } from '../../types/chart.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
@@ -161,7 +162,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         datasetUi.setProfileMode('dataset');
         feature.rebuildColumns();
         feature.buildRangeControls();
-        window.dispatchEvent(new CustomEvent('edatime:workflow-refresh'));
+        emitFeatureEvent('workflow:refresh', undefined);
 
         const timeRange = metadata.time_range;
         if (!timeRange) return;
@@ -198,7 +199,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         ensureSessionPersistenceStarted: deps.ensureSessionPersistenceStarted,
         setViewport: deps.setViewport,
         updateAnalysisZoom: deps.updateAnalysisZoom,
-        emitWorkflowRefresh: () => { window.dispatchEvent(new CustomEvent('edatime:workflow-refresh')); },
+        emitWorkflowRefresh: () => emitFeatureEvent('workflow:refresh', undefined),
         emitChartRangeChange: (sourceKind?: string) => pageController.emitChartRangeChange(sourceKind),
         setAdaptiveFilterColumn: deps.setAdaptiveFilterColumn,
     });

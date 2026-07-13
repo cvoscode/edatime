@@ -475,6 +475,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 
 - Removed the database-load fallback that broadcast `edatime:dataset-changed` on `window`. Application composition already provides the typed dataset-refresh callback, so the global mutation bridge is no longer retained as a compatibility path.
 
+### Completed: typed workflow-refresh feature events
+
+- Added `platform/featureEvents` as the explicit, typed in-process boundary for narrowly scoped feature coordination. Its subscription contract returns an owned cleanup handle, so listeners do not rely on hidden global `window` state.
+- Migrated all Timeseries and Causal workflow-refresh producers plus Home's guided-workflow consumer from the `edatime:workflow-refresh` custom DOM event. The workflow refresh is now a declared `workflow:refresh` platform event with direct subscribe/unsubscribe characterization coverage.
+- This is the first migration slice. Browser-facing router and session events, along with broader cross-feature event families, remain separate until each has a similarly explicit owner and payload contract.
+
 ### Completed: Drift page decomposition
 
 - Extracted evaluation-mode normalization, latest-window validation, and response-map filtering into `evaluationPolicy` with direct behavior coverage.

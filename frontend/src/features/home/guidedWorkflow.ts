@@ -1,5 +1,6 @@
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import { getCurrentCausalGraph } from '../causal/index.js';
+import { onFeatureEvent } from '../../platform/featureEvents.js';
 import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
 import { toast } from '../../utils/toast.js';
 
@@ -446,7 +447,7 @@ function bindStaticEvents(): () => void {
         scheduleGuidedWorkflowRender();
     }) as EventListener);
     listen(window, 'edatime:session-restored', (() => scheduleGuidedWorkflowRender()) as EventListener);
-    listen(window, 'edatime:workflow-refresh', (() => scheduleGuidedWorkflowRender()) as EventListener);
+    cleanups.push(onFeatureEvent('workflow:refresh', () => scheduleGuidedWorkflowRender()));
     return () => cleanups.splice(0).reverse().forEach((cleanup) => cleanup());
 }
 
