@@ -369,7 +369,7 @@ export async function renderMatrixFftPanel(intent?: ScatterIntent): Promise<void
         const startIso = new Date(context.start).toISOString();
         const endIso = new Date(context.end).toISOString();
         const signal = getMatrixRenderSignal();
-        const resp = await fetchFft(startIso, endIso, columns.join(','), 4096, signal);
+        const resp = await fetchFft(startIso, endIso, columns.join(','), 4096, { signal });
 
         chartsContainer.innerHTML = '';
         for (const result of resp.results || []) {

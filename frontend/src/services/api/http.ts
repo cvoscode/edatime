@@ -21,9 +21,7 @@ export {
 /**
  * Options accepted by the API request helpers.
  *
- * Backwards-compatible with the previous signature that accepted a bare
- * `AbortSignal`: callers can pass either an `AbortSignal` directly or an
- * `ApiRequestOptions` object.
+ * Request options shared by API route families.
  */
 export interface ApiRequestOptions {
     /** Optional abort signal to cancel the underlying fetch. */
@@ -35,14 +33,6 @@ export interface ApiRequestOptions {
      * pass `{ datasetScoped: false }`.
      */
     datasetScoped?: boolean;
-}
-
-function normalizeOptions(
-    signalOrOptions: AbortSignal | ApiRequestOptions | undefined,
-): ApiRequestOptions {
-    if (!signalOrOptions) return {};
-    if (signalOrOptions instanceof AbortSignal) return { signal: signalOrOptions };
-    return signalOrOptions;
 }
 
 // ── Arrow helpers (shared between timeseries and scatter) ──────────────────
@@ -208,9 +198,8 @@ export async function readApiError(response: Response, label: string): Promise<E
 function getJson<T>(
     url: string,
     label: string,
-    signalOrOptions?: AbortSignal | ApiRequestOptions,
+    options: ApiRequestOptions = {},
 ): Promise<T> {
-    const options = normalizeOptions(signalOrOptions);
     dbg(`GET (${label})`, url);
     const scope = options.datasetScoped === false ? null : captureDatasetRequestScope();
     const dedupeKey = options.datasetScoped === false
@@ -234,9 +223,8 @@ function getJson<T>(
 function getBlob(
     url: string,
     label: string,
-    signalOrOptions?: AbortSignal | ApiRequestOptions,
+    options: ApiRequestOptions = {},
 ): Promise<Blob> {
-    const options = normalizeOptions(signalOrOptions);
     dbg(`GET (${label})`, url);
     const scope = options.datasetScoped === false ? null : captureDatasetRequestScope();
     const dedupeKey = options.datasetScoped === false
@@ -261,9 +249,8 @@ function postJson<T>(
     url: string,
     body: unknown,
     label: string,
-    signalOrOptions?: AbortSignal | ApiRequestOptions,
+    options: ApiRequestOptions = {},
 ): Promise<T> {
-    const options = normalizeOptions(signalOrOptions);
     dbg(`POST (${label})`, { url, body });
     const scope = options.datasetScoped === false ? null : captureDatasetRequestScope();
     const dedupeKey = options.datasetScoped === false
@@ -290,9 +277,8 @@ function postBlob(
     url: string,
     body: unknown,
     label: string,
-    signalOrOptions?: AbortSignal | ApiRequestOptions,
+    options: ApiRequestOptions = {},
 ): Promise<Blob> {
-    const options = normalizeOptions(signalOrOptions);
     dbg(`POST (${label})`, { url, body });
     const scope = options.datasetScoped === false ? null : captureDatasetRequestScope();
     const dedupeKey = options.datasetScoped === false

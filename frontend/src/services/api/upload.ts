@@ -40,9 +40,9 @@ export async function fetchDatabaseStatus(): Promise<unknown> {
 // ── Drift ──────────────────────────────────────────────────────────────────
 
 export async function fetchDriftStats<T>(payload: unknown, signal?: AbortSignal): Promise<T> {
-    return postJson<T>('/api/v1/drift/stats', payload, 'Drift stats', signal);
+    return postJson<T>('/api/v1/drift/stats', payload, 'Drift stats', signal ? { signal } : undefined);
 }
 
 export async function fetchDriftInvestigation<T>(payload: unknown, signal?: AbortSignal): Promise<T> {
-    return postJson<T>('/api/v1/drift/investigate', payload, 'Drift investigation', signal);
+    return postJson<T>('/api/v1/drift/investigate', payload, 'Drift investigation', signal ? { signal } : undefined);
 }

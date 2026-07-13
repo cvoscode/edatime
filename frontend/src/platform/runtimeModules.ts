@@ -9,6 +9,7 @@
 import { registerChartType } from '../charts/registry.js';
 import { FallbackChart } from '../charts/fallback.js';
 import type { ChartInstance, ViewSnapshot } from '../types.js';
+import type { ApiRequestOptions } from '../services/api/http.js';
 
 export interface DataModules {
     fetchMetadata: (signal?: AbortSignal) => Promise<import('../types.js').DatasetMetadata>;
@@ -21,7 +22,7 @@ export interface DataModules {
         lookaroundMs?: number,
         signal?: AbortSignal,
     ) => Promise<import('../types.js').DataObject>;
-    fetchAnomalies: (start: string, end: string, columns: string, method?: string, threshold?: number, signal?: AbortSignal) => Promise<import('../types.js').AnomalyResponse>;
+    fetchAnomalies: (start: string, end: string, columns: string, method?: string, threshold?: number, options?: ApiRequestOptions) => Promise<import('../types.js').AnomalyResponse>;
     postTransform: (expression: string, outputName: string) => Promise<import('../types.js').TransformResponse>;
 }
 

@@ -39,6 +39,7 @@ import { loadPageDescriptors } from './app/pageModules.js';
 import {
     ensureChartModules as ensureChartBootstrapModules,
     ensureDataModules as ensureBootstrapDataModules,
+    type DataModules,
 } from './platform/runtimeModules.js';
 import { getHashPage } from './utils/router.js';
 import { pageNeedsDatasetBootstrap } from './utils/pageBootstrap.js';
@@ -75,7 +76,7 @@ let fetchData: ((
     lookaroundMs?: number,
     signal?: AbortSignal,
 ) => Promise<DataObject>) | null = null;
-let fetchAnomalies: ((start: string, end: string, columns: string, method?: string, threshold?: number, signal?: AbortSignal) => Promise<AnomalyResponse>) | null = null;
+let fetchAnomalies: DataModules['fetchAnomalies'] | null = null;
 let postTransform: ((expression: string, outputName: string) => Promise<TransformResponse>) | null = null;
 let DataChartCtor: (new (containerId: string, onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null, onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null, onZoomOutCb: (() => void) | null) => ChartInstance) | null = null;
 let _sessionPersistenceStarted = false;

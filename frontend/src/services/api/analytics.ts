@@ -24,11 +24,11 @@ export async function fetchRollingBands(
     end: string,
     columns: string,
     window = 50,
-    signalOrOptions?: AbortSignal | ApiRequestOptions,
+    options?: ApiRequestOptions,
 ): Promise<RollingResponse> {
     const params = new URLSearchParams({ start, end, columns, window: String(window) });
     const url = `/api/v1/analytics/rolling?${params.toString()}`;
-    return getJson<RollingResponse>(url, 'Rolling bands', signalOrOptions);
+    return getJson<RollingResponse>(url, 'Rolling bands', options);
 }
 
 // ── Anomalies ───────────────────────────────────────────────────────────────
@@ -61,12 +61,12 @@ export async function fetchAnomalies(
     columns: string,
     method = 'zscore',
     threshold?: number,
-    signalOrOptions?: AbortSignal | ApiRequestOptions,
+    options?: ApiRequestOptions,
 ): Promise<AnomalyResponse> {
     const params = new URLSearchParams({ start, end, columns, method });
     if (threshold !== undefined) params.set('threshold', String(threshold));
     const url = `/api/v1/analytics/anomalies?${params.toString()}`;
-    return getJson<AnomalyResponse>(url, 'Anomaly detection', signalOrOptions);
+    return getJson<AnomalyResponse>(url, 'Anomaly detection', options);
 }
 
 // ── FFT ────────────────────────────────────────────────────────────────────
@@ -101,11 +101,11 @@ export async function fetchFft(
     end: string,
     columns: string,
     maxPoints = 8192,
-    signalOrOptions?: AbortSignal | ApiRequestOptions,
+    options?: ApiRequestOptions,
 ): Promise<FftResponse> {
     const params = new URLSearchParams({ start, end, columns, max_points: String(maxPoints) });
     const url = `/api/v1/analytics/fft?${params.toString()}`;
-    return getJson<FftResponse>(url, 'FFT', signalOrOptions);
+    return getJson<FftResponse>(url, 'FFT', options);
 }
 
 // ── Spectrogram (STFT) ─────────────────────────────────────────────────────
@@ -138,7 +138,7 @@ export async function fetchSpectrogram(
     windowSize = 96,
     hopSize?: number,
     maxPoints = 32768,
-    signalOrOptions?: AbortSignal | ApiRequestOptions,
+    options?: ApiRequestOptions,
     scaleOptions?: SpectrogramScaleOptions,
 ): Promise<SpectrogramResponse> {
     const params = new URLSearchParams({
@@ -153,7 +153,7 @@ export async function fetchSpectrogram(
         params.set('clip_param', String(scaleOptions.clipParam));
     }
     const url = `/api/v1/analytics/spectrogram?${params.toString()}`;
-    return getJson<SpectrogramResponse>(url, 'Spectrogram', signalOrOptions);
+    return getJson<SpectrogramResponse>(url, 'Spectrogram', options);
 }
 
 // ── Causal Graph (Tigramite) ────────────────────────────────────────────────
@@ -182,7 +182,7 @@ export async function fetchCausalGraph(
     alpha = 0.05,
     method = 'pcmci',
     maxPoints = 5000,
-    signalOrOptions?: AbortSignal | ApiRequestOptions,
+    options?: ApiRequestOptions,
     pcAlpha = 0.2,
     test = 'par_corr',
     maxCondsDim?: number,
@@ -200,7 +200,7 @@ export async function fetchCausalGraph(
         fdr_method: fdrMethod,
     };
     if (maxCondsDim != null) body.max_conds_dim = maxCondsDim;
-    return postJson<CausalGraphResponse>(url, body, 'Causal graph', signalOrOptions);
+    return postJson<CausalGraphResponse>(url, body, 'Causal graph', options);
 }
 
 // ── Transform ────────────────────────────────────────────────────────────────
@@ -275,11 +275,11 @@ export interface SpectralFilterResponse {
 
 export async function fetchSpectralFilter(
     params: URLSearchParams,
-    signalOrOptions?: AbortSignal | ApiRequestOptions,
+    options?: ApiRequestOptions,
 ): Promise<SpectralFilterResponse> {
     return getJson<SpectralFilterResponse>(
         `/api/v1/analytics/spectral-filter?${params.toString()}`,
         'Spectral filter',
-        signalOrOptions,
+        options,
     );
 }

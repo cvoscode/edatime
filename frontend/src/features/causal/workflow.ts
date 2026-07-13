@@ -138,7 +138,7 @@ export async function handleComputeClick(
             const pct = Math.min(90, (usesPcStage ? 12 : 18) + ticks * 2);
             setProgress(pct, methodLabel + ': ' + (usesPcStage && ticks < 14 ? 'parent selection' : 'conditional tests'));
         }, 320);
-        const resp = await fetchCausalGraph(numericSelected, tauMax, alpha, method, 5000, signal,
+        const resp = await fetchCausalGraph(numericSelected, tauMax, alpha, method, 5000, { signal },
             parseFloat((document.getElementById('causal-pc-alpha') as HTMLInputElement | null)?.value || '0.2'),
             test, usesPcStage ? maxCondsDim : undefined, fdrMethod);
         setProgress(100, methodLabel + ': complete');

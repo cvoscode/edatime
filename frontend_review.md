@@ -194,6 +194,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 
 - Removed the unused `getJsonForApi`/`getBlobForApi`/`postJsonForApi`/`postBlobForApi` compatibility aliases from `services/api/http`. The API public barrel now re-exports the canonical helper names directly, with existing HTTP and route-contract coverage retained.
 
+### Completed: analytics/export request-options contract
+
+- Removed the mixed bare-`AbortSignal`/options overload from shared HTTP helpers and the Analytics/Export route families. Those calls now use one explicit `ApiRequestOptions` object, preserving cancellation and dataset-scope semantics without runtime argument normalization.
+- Updated the active FFT, Causal, analytics-overlay, runtime-loader, and Drift-wrapper seams to pass `{ signal }` at the correct boundary. Direct API regression coverage keeps request routes, cancellation, dedupe, and structured errors verified.
+
 ### Completed: DataChart decomposition
 
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.

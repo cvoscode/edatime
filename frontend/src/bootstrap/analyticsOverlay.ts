@@ -12,6 +12,7 @@
  */
 
 import { applyFilterIntentToData, type TimeseriesFilterIntent } from '../services/timeseries/filtering.js';
+import type { ApiRequestOptions } from '../services/api/http.js';
 import {
     analyticsState,
     setAnomalyRegions,
@@ -137,7 +138,7 @@ function getFilterIntent(
  * Returns early if currentStart / currentEnd are not finite.
  */
 export async function fetchAnomalyRegions(
-    fetchAnomalies: ((start: string, end: string, columns: string, method?: string, threshold?: number, signal?: AbortSignal) => Promise<AnomalyResponse>) | null,
+    fetchAnomalies: ((start: string, end: string, columns: string, method?: string, threshold?: number, options?: ApiRequestOptions) => Promise<AnomalyResponse>) | null,
     signal?: AbortSignal,
 ): Promise<void> {
     if (!Number.isFinite(chartState.currentStart) || !Number.isFinite(chartState.currentEnd)) return;
@@ -158,7 +159,7 @@ export async function fetchAnomalyRegions(
                 cols,
                 analyticsState.anomalyMethod,
                 analyticsState.anomalyThreshold,
-                controllerSignal,
+                { signal: controllerSignal },
             );
             setAnomalyRegions(resp?.regions ?? null);
             setAnomalySummaryStats(resp?.summary_stats ?? null);
@@ -241,7 +242,7 @@ export function initAnalyticsListeners(
  * Dynamic import keeps services/api out of the main module load path.
  */
 export async function fetchAndRenderAnalytics(
-    fetchAnomalies: ((start: string, end: string, columns: string, method?: string, threshold?: number, signal?: AbortSignal) => Promise<AnomalyResponse>) | null,
+    fetchAnomalies: ((start: string, end: string, columns: string, method?: string, threshold?: number, options?: ApiRequestOptions) => Promise<AnomalyResponse>) | null,
 ): Promise<void> {
     await fetchAnomalyRegions(fetchAnomalies ?? null);
 }
