@@ -559,6 +559,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Home, Upload, Timeseries, and Settings return and register their help disposers with their shell/page owners, preventing lazy-shell remounts from retaining old help bindings.
 - Spectrogram composes its help disposer with its chart-runtime disposer, so page reinitialization releases both the chart lifecycle and its feature-local help trigger.
 - FFT ties its help disposer to the existing control abort scope, keeping reinitialization from retaining an old help trigger alongside stale control listeners.
+- Heatmap, Drift, and Causal now tie their help disposers to their existing page control/listener abort scopes, so their feature teardown releases help alongside chart, request, and control resources.
 - Scatter releases its help binding through `disposeScatterPage` together with controls, toolbar overflow, matrix work, chart resources, and workspace references.
 
 ### Completed: adaptive filter WorkspaceStore ownership

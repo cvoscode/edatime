@@ -105,6 +105,6 @@ export const DRIFT_HELP: PageHelpContent = {
     ],
 };
 
-export function initDriftHelp(): void {
-    initPageHelp('drift', DRIFT_HELP);
+export function initDriftHelp(): () => void {
+    return initPageHelp('drift', DRIFT_HELP);
 }

@@ -92,6 +92,6 @@ export const CAUSAL_HELP: PageHelpContent = {
     ],
 };
 
-export function initCausalHelp(): void {
-    initPageHelp('causal', CAUSAL_HELP);
+export function initCausalHelp(): () => void {
+    return initPageHelp('causal', CAUSAL_HELP);
 }

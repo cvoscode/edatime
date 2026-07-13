@@ -531,9 +531,8 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
             setDropdownValue('heatmap-metric', metric);
             syncMetricGuide();
             bindInfoPopovers();
-            // Page-level "?" help button. The helper is idempotent so
-            // calling it on every init is safe.
-            initHeatmapHelp();
+            // Release page-level help with the controls that own it.
+            controlAbort.signal.addEventListener('abort', initHeatmapHelp(), { once: true });
 
             // Sync initial control state with module-level defaults.
             if (clusterToggle) clusterToggle.checked = heatmapClusterEnabled;

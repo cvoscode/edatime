@@ -82,8 +82,8 @@ export const HEATMAP_HELP: PageHelpContent = {
     ],
 };
 
-export function initHeatmapHelp(): void {
+export function initHeatmapHelp(): () => void {
     // The DOM id is `heatmap-help-btn` because the page section is
     // #page-heatmap, but the displayed page name is "Correlations".
-    initPageHelp('heatmap', HEATMAP_HELP);
+    return initPageHelp('heatmap', HEATMAP_HELP);
 }

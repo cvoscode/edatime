@@ -593,8 +593,7 @@ export async function initDriftPage(metadata: any): Promise<() => void> {
         driftRuntime = null;
         setSyncDriftEmptyState(() => {});
     };
-    // Page-level "?" help button. Idempotent so safe to call on every
-    // page init.
-    initDriftHelp();
+    // Release page-level help with the page's controls and requests.
+    pageAbortController.signal.addEventListener('abort', initDriftHelp(), { once: true });
     return disposeDriftPage;
 }

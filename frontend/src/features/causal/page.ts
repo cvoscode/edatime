@@ -85,9 +85,8 @@ export function initCausalPage(deps: CausalDeps): () => void {
     renderColumnChips(deps, columnsBar, openEditPanel);
     syncCausalEmptyState(_selectedColumns.size);
     bindInfoPopovers();
-    // Page-level "?" help button. Idempotent so safe to call on every
-    // page init.
-    initCausalHelp();
+    // Release page-level help with the page's controls and subscriptions.
+    listenerController.signal.addEventListener('abort', initCausalHelp(), { once: true });
     applyMethodControlState(getDropdownValue('causal-method-select') || 'pcmci');
     syncCausalGraphActionState(_currentLinks.length > 0 && _currentColumns.length >= 2);
     scheduleCausalChartRefresh();
