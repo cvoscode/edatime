@@ -111,11 +111,7 @@ export interface DbLoadParams {
     timeColumn: string | null;
     dbLoadBtn: HTMLButtonElement;
     dbStatus: HTMLElement;
-    /**
-     * Optional dataset refresh hook invoked after a successful `/api/database/load`.
-     * Replaces the previous `edatime:dataset-changed` window event so consumers
-     * only need to pass a single, typed callback.
-     */
+    /** Typed dataset refresh hook invoked after a successful `/api/database/load`. */
     refreshDatasetAfterMutation?: () => Promise<void>;
 }
 
@@ -145,12 +141,8 @@ export async function handleDatabaseLoad(params: DbLoadParams): Promise<void> {
                 dbStatus.className = 'upload-status success';
             }
             toast(`${formatCount(loadedRows)} rows loaded from ${table}.`, 'success', {});
-            // Trigger a full metadata reload so the chart page refreshes.
-            if (refreshDatasetAfterMutation) {
-                await refreshDatasetAfterMutation();
-            } else {
-                window.dispatchEvent(new CustomEvent('edatime:dataset-changed', { detail: { source: 'database', table } }));
-            }
+            // Application composition supplies this typed refresh boundary.
+            await refreshDatasetAfterMutation?.();
         }
     } catch (e: unknown) {
         if (dbStatus) { dbStatus.textContent = 'Error: ' + (e instanceof Error ? e.message : String(e)); dbStatus.className = 'upload-status error'; }

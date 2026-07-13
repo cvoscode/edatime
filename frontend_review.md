@@ -471,6 +471,10 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 
 - Removed the stale `appStateCompat` allowlist from the architecture checker. The compatibility module and every production import were already gone, so the check now enforces focused store state directly rather than documenting a retired escape hatch.
 
+### Completed: database mutation bridge removal
+
+- Removed the database-load fallback that broadcast `edatime:dataset-changed` on `window`. Application composition already provides the typed dataset-refresh callback, so the global mutation bridge is no longer retained as a compatibility path.
+
 ### Completed: Drift page decomposition
 
 - Extracted evaluation-mode normalization, latest-window validation, and response-map filtering into `evaluationPolicy` with direct behavior coverage.
