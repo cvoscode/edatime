@@ -240,7 +240,7 @@ describe('createDatasetBootstrap', () => {
         expect(deps.refreshVisibleData).toHaveBeenCalledTimes(1);
     });
 
-    it('broadcasts a dataset-changed event with the previous and next revision after mutation refresh', async () => {
+    it('does not publish global metadata or dataset-mutation events', async () => {
         const createDatasetBootstrap = await importCreateDatasetBootstrap();
         const deps = createDeps({
             fetchMetadata: vi.fn()
@@ -248,18 +248,19 @@ describe('createDatasetBootstrap', () => {
                 .mockResolvedValueOnce({ ...baseMetadata, revision: 43 }),
         });
         const bootstrap = createDatasetBootstrap(deps);
-        const listener = vi.fn();
-        window.addEventListener('edatime:dataset-changed', listener as EventListener);
+        const metadataListener = vi.fn();
+        const mutationListener = vi.fn();
+        window.addEventListener('edatime:metadata-ready', metadataListener);
+        window.addEventListener('edatime:dataset-changed', mutationListener);
 
         await bootstrap.ensureDatasetReady();
         isMetadataReadyMock.mockReturnValue(true);
         await bootstrap.refreshAfterMutation();
 
-        expect(listener).toHaveBeenCalledTimes(1);
-        expect((listener.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({
-            previousRevision: 42,
-            nextRevision: 43,
-        });
+        window.removeEventListener('edatime:metadata-ready', metadataListener);
+        window.removeEventListener('edatime:dataset-changed', mutationListener);
+        expect(metadataListener).not.toHaveBeenCalled();
+        expect(mutationListener).not.toHaveBeenCalled();
     });
 
     it('starts a fresh metadata bootstrap when a dataset mutation happens during initial bootstrap', async () => {

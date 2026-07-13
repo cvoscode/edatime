@@ -501,6 +501,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Characterized the Guided Workflow refresh that follows a restored session, then migrated its sole producer and consumer from `edatime:session-restored` to the typed `session:restored` platform event.
 - Deferred shell composition now registers the Analytics listener's returned disposer with the application cleanup scope. Long-lived typed subscriptions are therefore released with the shell rather than only when the source module happens to be discarded.
 
+### Completed: retired dataset mutation bridge removal
+
+- Removed the unowned `edatime:metadata-ready` and `edatime:dataset-changed` broadcasts from Timeseries dataset bootstrap and post-mutation refresh. Metadata publication, workspace dataset commits, UI rebuilding, and visible-data refresh are already explicit composition steps.
+- Replaced the old broadcast characterization with a regression that proves neither global event is published during initial metadata bootstrap or a dataset mutation refresh.
+
 ### Completed: Drift page decomposition
 
 - Extracted evaluation-mode normalization, latest-window validation, and response-map filtering into `evaluationPolicy` with direct behavior coverage.

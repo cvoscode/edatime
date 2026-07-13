@@ -103,7 +103,6 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
             deps.storeFetchedMetadata(metadata);
             lastDatasetRevision = revision;
             deps.markMetadataReady();
-            window.dispatchEvent(new Event('edatime:metadata-ready'));
             if (DEBUG) dbgGroup('metadata', () => dbg(metadata));
 
             if (!metadata.time_range) {
@@ -138,7 +137,6 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
         deps.clearLoadedPageModules();
         deps.clearPersistedFilters();
         deps.workspace.setFilters({ columnRanges: {}, adaptiveLines: [] });
-        const previousRevision = lastDatasetRevision;
         const workspaceSession = deps.workspace.beginDatasetSession();
         const metadata = await deps.fetchMetadata();
         const nextRevision = Number.isFinite(Number(metadata?.revision)) ? Number(metadata.revision) : 0;
@@ -146,15 +144,6 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
         deps.storeFetchedMetadata(metadata);
         lastDatasetRevision = nextRevision;
         deps.markMetadataReady();
-        // Mirror the initial-bootstrap event so subscribers (e.g. the scatter
-        // page) can re-read metadata after a dataset mutation such as upload.
-        window.dispatchEvent(new Event('edatime:metadata-ready'));
-        window.dispatchEvent(new CustomEvent('edatime:dataset-changed', {
-            detail: {
-                previousRevision,
-                nextRevision,
-            },
-        }));
         syncDatasetSelection(metadata, options?.selectedColumn);
         await deps.initializeDatasetUi(metadata);
         deps.rebuildTimeseriesColumns();
