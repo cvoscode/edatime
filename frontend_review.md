@@ -619,6 +619,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Disposal resets readiness and prevents startup from marking a disposed root ready or continuing into initial dataset bootstrap after deferred page descriptors finish loading.
 - Bootstrap characterization coverage proves the public API delegates to the owned runtime exactly once.
 
+### Completed: explicit root startup surface
+
+- Added `startApp()` as the single-flight startup owner. The HTML entry still starts the application automatically, while embedding hosts and tests can await the same lifecycle promise without creating duplicate shell or Timeseries mounts.
+- A disposed singleton deliberately cannot restart. This makes teardown deterministic now and establishes the stable entry contract for the future factory-based multi-root runtime.
+- Bootstrap regressions verify repeated explicit starts reuse the initial lifecycle and a post-disposal start cannot remount application resources.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.

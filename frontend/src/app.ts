@@ -66,6 +66,7 @@ runtime.registerCleanup(() => workspace.dispose());
 runtime.registerCleanup(pageRegistry.dispose);
 let timeseriesModule!: ReturnType<typeof createTimeseriesModule>;
 let appDisposed = false;
+let appStart: Promise<void> | null = null;
 
 /**
  * Releases the application composition root and every resource registered
@@ -77,6 +78,23 @@ export function disposeApp(): void {
     appDisposed = true;
     runtime.dispose();
     resetAppReady();
+}
+
+/**
+ * Starts this entrypoint's application root once and exposes its completion
+ * to embedding hosts and tests. A disposed singleton is intentionally not
+ * restartable; a future multi-root factory will create a new composition
+ * root instead.
+ */
+export function startApp(): Promise<void> {
+    if (appDisposed) return Promise.resolve();
+    if (appStart) return appStart;
+
+    resetAppReady();
+    appStart = init().finally(() => {
+        if (!appDisposed) markAppReady();
+    });
+    return appStart;
 }
 
 /* ── Lazy-loaded modules ──────────────────────────────── */
@@ -209,7 +227,4 @@ async function init(): Promise<void> {
     }
 }
 
-resetAppReady();
-void init().finally(() => {
-    if (!appDisposed) markAppReady();
-});
+void startApp();

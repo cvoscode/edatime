@@ -267,6 +267,16 @@ describe('app -> timeseries bootstrap wiring', () => {
         expect((window as any).__edatime?.ensureDatasetReady).toBeUndefined();
     });
 
+    it('deduplicates explicit startup behind the entrypoint lifecycle', async () => {
+        const { startApp } = await import('../app.js');
+
+        await startApp();
+        await startApp();
+
+        expect(createTimeseriesModuleMock).toHaveBeenCalledTimes(1);
+        expect(initAppShellMock).toHaveBeenCalledTimes(1);
+    });
+
     it('registers page-registry teardown with the app runtime', async () => {
         await import('../app.js');
 
@@ -274,12 +284,14 @@ describe('app -> timeseries bootstrap wiring', () => {
     });
 
     it('exposes root application disposal through the owned runtime', async () => {
-        const { disposeApp } = await import('../app.js');
+        const { disposeApp, startApp } = await import('../app.js');
 
         disposeApp();
         disposeApp();
+        await startApp();
 
         expect(disposeRuntimeMock).toHaveBeenCalledTimes(1);
+        expect(createTimeseriesModuleMock).toHaveBeenCalledTimes(1);
     });
 
     it('defers data transport loading until a dataset-backed operation requests it', async () => {
