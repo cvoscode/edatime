@@ -422,6 +422,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Removed the retired Drift runtime request-task and export wrappers. The runtime is now limited to its live ECharts cache and empty-state bridge, with its tests narrowed to those actual responsibilities.
 - Added abort-scoped Drift control and page listeners plus mounted-runtime/resize-observer disposal before re-initialization. A page regression proves a second initialization does not duplicate a Compute request.
 - Extended Drift page teardown to clear the controls module's retained picker DOM references and selection callback after listener disposal, so a future page root cannot be updated by a stale control owner.
+- Added explicit Timeline and Detail ECharts disposal to Drift teardown, releasing their instances and prior DOM roots alongside the existing resize observer and control scopes.
 
 ### Completed: Heatmap page decomposition
 

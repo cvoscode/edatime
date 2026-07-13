@@ -47,6 +47,7 @@ import {
     renderTimelineFull,
     getTimelineChart,
     resizeTimelineChart,
+    disposeTimelineChart,
 } from './timelineView.js';
 import {
     initDetailChart,
@@ -56,6 +57,7 @@ import {
     resizeDetailChart,
     renderWindowList as renderWindowListFromDetail,
     updateDetailStats as updateDetailStatsFromDetail,
+    disposeDetailChart,
 } from './detailView.js';
 import {
     getDropdownValue,
@@ -580,6 +582,8 @@ export async function initDriftPage(metadata: any): Promise<void> {
         pageAbortController.abort();
         disposeControls();
         resetDriftControlsState();
+        disposeTimelineChart();
+        disposeDetailChart();
         resizeObserver?.disconnect();
         disposeRuntime();
         driftRuntime = null;

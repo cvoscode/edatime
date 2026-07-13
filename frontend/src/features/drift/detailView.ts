@@ -62,6 +62,7 @@ export function resizeDetailChart(): void {
 export function disposeDetailChart(): void {
     _detailChart?.dispose();
     _detailChart = null;
+    _detailEl = null;
 }
 
 // ── Context builder ──────────────────────────────────────────────────────────

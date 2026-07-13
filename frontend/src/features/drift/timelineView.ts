@@ -64,6 +64,13 @@ export function resizeTimelineChart(): void {
     _timelineChart?.resize();
 }
 
+/** Dispose the timeline chart and release its former DOM root. */
+export function disposeTimelineChart(): void {
+    _timelineChart?.dispose();
+    _timelineChart = null;
+    _timelineEl = null;
+}
+
 // ── Context builder ──────────────────────────────────────────────────────────
 
 /** Build the context object for buildTimelineOption. */
