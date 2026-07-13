@@ -211,6 +211,8 @@ Continue this behavior-preserving split with the remaining renderer-owned seams:
 
 - Extracted evaluation-mode normalization, latest-window validation, and response-map filtering into `evaluationPolicy` with direct behavior coverage.
 - `page.ts` now owns DOM reads and rendering orchestration only; the selectable evaluation policy is independently testable and reusable by exports or future views.
+- Extracted investigation overview, segment, quality, and relationship panel projection into `investigationPanels`, with direct empty-state and fallback presentation coverage.
+- The page now assigns the four precomputed panel fragments rather than mixing response formatting with chart/request lifecycle behavior.
 - Next, split the remaining request/fallback and investigation-panel presentation seams only where the resulting boundary reduces page-controller ownership.
 
 ## Target Architecture

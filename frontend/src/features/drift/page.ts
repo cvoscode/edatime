@@ -21,12 +21,8 @@ import {
     statusSummary as buildStatusSummary,
 } from './viewModels.js';
 import type {
-    DriftChangePointRank,
     DriftEvaluationMode,
-    DriftFeatureRank,
     DriftInvestigationResponse,
-    DriftQualityIssueRank,
-    DriftRelationshipRank,
     DriftResponse,
 } from './viewModels.js';
 import { exportEChartsPNG } from '../../utils/chartExport.js';
@@ -75,6 +71,7 @@ import {
     normalizeDriftEvaluationMode,
     normalizeLatestWindowCount,
 } from './evaluationPolicy.js';
+import { buildDriftInvestigationPanelHtml } from './investigationPanels.js';
 
 // Re-export for test isolation
 export { _setEchartsModule };
@@ -304,95 +301,12 @@ export async function initDriftPage(metadata: any): Promise<void> {
         return filterDriftResponsesForEvaluation(results, getEvaluationMode(), getLatestWindowCount());
     }
 
-    function renderFeatureRankCards(ranks: DriftFeatureRank[]): string {
-        return ranks.slice(0, 5).map((rank) => `
-            <article class="drift-column-card">
-                <div class="drift-column-card__header">
-                    <strong>${rank.column}</strong>
-                    <span class="drift-column-card__level drift-${rank.latestLevel}">${rank.latestLevel.toUpperCase()}</span>
-                </div>
-                <div class="drift-column-card__body">
-                    <div>Score: ${rank.driftScore}</div>
-                    <div>Flagged windows: ${rank.flaggedWindows}</div>
-                    <div>First change: ${rank.firstChangePoint || 'None'}</div>
-                </div>
-            </article>
-        `).join('');
-    }
-
-    function renderSimpleList<T>(items: T[], renderItem: (item: T) => string, emptyText: string): string {
-        if (items.length === 0) return `<div class="drift-column-card"><div class="drift-column-card__body">${emptyText}</div></div>`;
-        return items.slice(0, 5).map(renderItem).join('');
-    }
-
     function renderInvestigationPanels(): void {
-        if (!currentInvestigation) {
-            if (overviewPanelEl) overviewPanelEl.innerHTML = '';
-            if (segmentsPanelEl) segmentsPanelEl.innerHTML = '';
-            if (qualityPanelEl) qualityPanelEl.innerHTML = '';
-            if (relationshipsPanelEl) relationshipsPanelEl.innerHTML = '';
-            return;
-        }
-        if (overviewPanelEl) {
-            overviewPanelEl.innerHTML = `
-                <div class="drift-summary-strip">
-                    ${usingLegacyFallback ? `
-                    <div class="drift-summary-card">
-                        <span class="drift-summary-label">Legacy fallback</span>
-                        <strong class="drift-summary-value">Using /api/drift/stats compatibility mode</strong>
-                    </div>
-                    ` : ''}
-                    <div class="drift-summary-card">
-                        <span class="drift-summary-label">Investigation score</span>
-                        <strong class="drift-summary-value">${currentInvestigation.overview.driftScore}</strong>
-                    </div>
-                    <div class="drift-summary-card">
-                        <span class="drift-summary-label">Worst level</span>
-                        <strong class="drift-summary-value drift-${currentInvestigation.overview.worstLevel}">${currentInvestigation.overview.worstLevel.toUpperCase()}</strong>
-                    </div>
-                    <div class="drift-summary-card">
-                        <span class="drift-summary-label">First change point</span>
-                        <strong class="drift-summary-value">${currentInvestigation.overview.firstChangePoint || 'None'}</strong>
-                    </div>
-                </div>
-                <div class="drift-column-summary">
-                    ${renderFeatureRankCards(currentInvestigation.rankings.features)}
-                    ${renderSimpleList<DriftChangePointRank>(currentInvestigation.rankings.changePoints, (item) => `
-                        <article class="drift-column-card">
-                            <div class="drift-column-card__header"><strong>${item.column}</strong><span>${item.label}</span></div>
-                            <div class="drift-column-card__body"><div>Change point: ${item.isoTime}</div><div>Reasons: ${item.triggerReasons.join(', ') || 'none'}</div></div>
-                        </article>
-                    `, 'No change points detected.')}
-                </div>
-            `;
-        }
-        if (segmentsPanelEl) {
-            const groups = currentInvestigation.segments?.groups ?? [];
-            segmentsPanelEl.innerHTML = renderSimpleList(groups, (group) => `
-                <article class="drift-column-card">
-                    <div class="drift-column-card__header"><strong>${group.value}</strong><span>${group.sampleCount} rows</span></div>
-                    <div class="drift-column-card__body"><div>Score: ${group.overview.driftScore}</div><div>Flagged columns: ${group.overview.columnsFlagged}</div></div>
-                </article>
-            `, 'No segment breakdown returned.');
-        }
-        if (qualityPanelEl) {
-            const issues = currentInvestigation.rankings.qualityIssues;
-            qualityPanelEl.innerHTML = renderSimpleList<DriftQualityIssueRank>(issues, (issue) => `
-                <article class="drift-column-card">
-                    <div class="drift-column-card__header"><strong>${issue.column}</strong><span>${issue.driftScore}</span></div>
-                    <div class="drift-column-card__body"><div>${issue.label}</div><div>Issue key: ${issue.issue}</div></div>
-                </article>
-            `, 'No quality issues detected.');
-        }
-        if (relationshipsPanelEl) {
-            const pairs = currentInvestigation.relationships?.pairs ?? currentInvestigation.rankings.relationships;
-            relationshipsPanelEl.innerHTML = renderSimpleList<DriftRelationshipRank>(pairs, (pair) => `
-                <article class="drift-column-card">
-                    <div class="drift-column-card__header"><strong>${pair.leftColumn} ↔ ${pair.rightColumn}</strong><span>${pair.delta.toFixed(3)}</span></div>
-                    <div class="drift-column-card__body"><div>Reference: ${pair.reference.toFixed(3)}</div><div>Comparison: ${pair.comparison.toFixed(3)}</div></div>
-                </article>
-            `, 'No relationship drift detected.');
-        }
+        const panels = buildDriftInvestigationPanelHtml(currentInvestigation, usingLegacyFallback);
+        if (overviewPanelEl) overviewPanelEl.innerHTML = panels.overview;
+        if (segmentsPanelEl) segmentsPanelEl.innerHTML = panels.segments;
+        if (qualityPanelEl) qualityPanelEl.innerHTML = panels.quality;
+        if (relationshipsPanelEl) relationshipsPanelEl.innerHTML = panels.relationships;
     }
 
     function renderSummaryPanels(): void {
