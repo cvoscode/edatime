@@ -7,17 +7,22 @@ import { buildRangeControls } from './rangeControls.js';
 import { ColumnFilterModal } from '../../ui/composites/ColumnFilterModal.js';
 import { getDropdownValue, setDropdownOptions } from '../../ui/primitives/Dropdown.js';
 import type { FilterWorkspace } from './selectionIntent.js';
-import { OPEN_COLUMN_FILTER_EVENT } from './filterModalEvents.js';
 
 export interface FilterModalControllerDeps {
     renderCurrentData: () => void;
     updateAnalysisYRange: (min: number, max: number, source: string) => void;
     workspace: FilterWorkspace;
+    openColumnFilter: (column: string | null) => void;
 }
 
-const activeModalBindings = new WeakMap<HTMLElement, () => void>();
+export interface ColumnFilterModalController {
+    open(column: string | null): void;
+    dispose(): void;
+}
 
-export function initFilterModalController(deps: FilterModalControllerDeps): () => void {
+const activeModalBindings = new WeakMap<HTMLElement, ColumnFilterModalController>();
+
+export function initFilterModalController(deps: FilterModalControllerDeps): ColumnFilterModalController {
     const modal = document.getElementById('column-filter-modal') as HTMLElement | null;
     const closeBtn = document.getElementById('column-filter-close-btn');
     const cancelBtn = document.getElementById('column-filter-cancel-btn');
@@ -39,7 +44,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): () =
         !modal || !closeBtn || !cancelBtn || !applyBtn || !clearBtn ||
         !colSelect || !minInput || !maxInput || !minRangeInput || !maxRangeInput ||
         !rangeFill || !rangeMinValue || !rangeMaxValue || !hint
-    ) return () => {};
+    ) return { open: () => {}, dispose: () => {} };
 
     const existingBinding = activeModalBindings.get(modal);
     if (existingBinding) return existingBinding;
@@ -258,7 +263,10 @@ export function initFilterModalController(deps: FilterModalControllerDeps): () =
         setHint(`Available range: ${formatAnalysisNumber(full.min)} → ${formatAnalysisNumber(full.max)}`);
     }
 
+    let disposed = false;
+
     function openModalForCol(col: string | null) {
+        if (disposed) return;
         populateColumns(col || getDropdownValue('column-filter-col') || deps.workspace.getSnapshot().selection.columns[0] || null);
         refreshInputsForCol(getDropdownValue('column-filter-col'));
         modalEl.hidden = false;
@@ -269,11 +277,6 @@ export function initFilterModalController(deps: FilterModalControllerDeps): () =
         modalEl.hidden = true;
         setHint('');
     }
-
-    listen(document, OPEN_COLUMN_FILTER_EVENT, ((event: Event) => {
-        const column = (event as CustomEvent<{ column?: string | null }>).detail?.column ?? null;
-        openModalForCol(column);
-    }) as EventListener);
 
     for (const btn of openBtns) {
         listen(btn, 'click', () => openModalForCol(null));
@@ -310,7 +313,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): () =
             }
             if (fromNum > toNum) { [fromNum, toNum] = [toNum, fromNum]; }
             setColumnRange(col, { from: fromNum, to: toNum });
-            buildRangeControls(deps.workspace);
+            buildRangeControls(deps.workspace, deps.openColumnFilter);
             deps.renderCurrentData();
             chartState.chart?.fitYToData?.();
             const yr = chartState.chart?.getYRange?.();
@@ -331,7 +334,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): () =
         const full = getFullBoundsForCol(col);
         if (!col || !full) return;
         setColumnRange(col, { from: full.min, to: full.max });
-        buildRangeControls(deps.workspace);
+        buildRangeControls(deps.workspace, deps.openColumnFilter);
         deps.renderCurrentData();
         chartState.chart?.fitYToData?.();
         const yr = chartState.chart?.getYRange?.();
@@ -340,14 +343,15 @@ export function initFilterModalController(deps: FilterModalControllerDeps): () =
     });
 
     modalEl.dataset.bound = '1';
-    let disposed = false;
     const dispose = () => {
         if (disposed) return;
         disposed = true;
         abortController.abort();
+        modalEl.hidden = true;
         modalEl.removeAttribute('data-bound');
         activeModalBindings.delete(modalEl);
     };
-    activeModalBindings.set(modalEl, dispose);
-    return dispose;
+    const controller = { open: openModalForCol, dispose };
+    activeModalBindings.set(modalEl, controller);
+    return controller;
 }

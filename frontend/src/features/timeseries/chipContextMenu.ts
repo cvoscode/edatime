@@ -5,9 +5,10 @@
  * reusable without being tied to chip-list composition itself.
  */
 
-import { requestColumnFilterOpen } from './filterModalEvents.js';
-
-export function bindChipContextMenu(container: HTMLElement): void {
+export function bindChipContextMenu(
+    container: HTMLElement,
+    openColumnFilter: (column: string | null) => void = () => {},
+): void {
     if (container.dataset.ctxBound) return;
     container.dataset.ctxBound = '1';
     let lastContextTs = 0;
@@ -30,6 +31,6 @@ export function bindChipContextMenu(container: HTMLElement): void {
 
         lastContextTs = 0;
         lastContextCol = '';
-        requestColumnFilterOpen(col);
+        openColumnFilter(col);
     });
 }

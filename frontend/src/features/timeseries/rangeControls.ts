@@ -16,13 +16,15 @@ import {
 import { chartState } from '../../store/chartState.js';
 import { RangeControls, RangeControlItem } from '../../ui/composites/RangeControls.js';
 import type { FilterWorkspace } from './selectionIntent.js';
-import { requestColumnFilterOpen } from './filterModalEvents.js';
 
 /**
  * Render clickable range chips for selected columns and active adaptive filters.
  * Called whenever the selected column set or adaptive filter state changes.
  */
-export function buildRangeControls(workspace: FilterWorkspace): void {
+export function buildRangeControls(
+    workspace: FilterWorkspace,
+    openColumnFilter: (column: string | null) => void = () => {},
+): void {
     const container = document.getElementById('column-range-controls');
     if (!container) return;
     container.innerHTML = '';
@@ -53,7 +55,7 @@ export function buildRangeControls(workspace: FilterWorkspace): void {
             range: `${formatAnalysisNumber(range.from)} → ${formatAnalysisNumber(range.to)}`,
             className: 'range-chip range-chip--clickable',
             ariaLabel: `Filter ${col}`,
-            onActivate: () => { requestColumnFilterOpen(colCopy); },
+            onActivate: () => { openColumnFilter(colCopy); },
         });
     }
 

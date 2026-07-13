@@ -6,15 +6,21 @@ import {
 import { datasetState, setMetadata } from '../../store/datasetState.js';
 import { setLastFetchedData } from '../../store/runtimeState.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
-import { requestColumnFilterOpen as openFilterForColumn } from './filterModalEvents.js';
 
 let workspace = createWorkspaceStore();
+let openFilterForColumn: (column: string | null) => void = () => {};
 
 function initFilterModalController(
-    deps: Omit<Parameters<typeof createFilterModalController>[0], 'workspace'>
+    deps: Omit<Parameters<typeof createFilterModalController>[0], 'workspace' | 'openColumnFilter'>
         & Partial<Pick<Parameters<typeof createFilterModalController>[0], 'workspace'>>,
 ) {
-    return createFilterModalController({ ...deps, workspace: deps.workspace ?? workspace });
+    const controller = createFilterModalController({
+        ...deps,
+        workspace: deps.workspace ?? workspace,
+        openColumnFilter: vi.fn(),
+    });
+    openFilterForColumn = controller.open;
+    return controller;
 }
 
 function setWorkspaceRanges(columnRanges: Record<string, { from: number; to: number }>): void {
@@ -64,6 +70,7 @@ describe('initFilterModalController', () => {
         } as any);
         datasetState.numericCols = ['HUFL', 'HULL'];
         workspace = createWorkspaceStore();
+        openFilterForColumn = () => {};
         workspace.setSelection(['HUFL', 'HULL']);
         setWorkspaceRanges({});
 
@@ -97,15 +104,17 @@ describe('initFilterModalController', () => {
             expect((window as any).__edatime?.openFilterForCol).toBeUndefined();
         });
 
-        it('releases its global opener when disposed', () => {
-            const dispose = initFilterModalController({
+        it('releases its feature opener when disposed', () => {
+            const controller = initFilterModalController({
                 renderCurrentData: vi.fn(),
                 updateAnalysisYRange: vi.fn(),
             });
 
-            expect(openFilterForColumn('HUFL')).toBe(true);
-            dispose();
-            expect(openFilterForColumn('HUFL')).toBe(false);
+            openFilterForColumn('HUFL');
+            expect(document.getElementById('column-filter-modal')!.hidden).toBe(false);
+            controller.dispose();
+            openFilterForColumn('HUFL');
+            expect(document.getElementById('column-filter-modal')!.hidden).toBe(true);
         });
 
         it('populates column select with available columns', () => {

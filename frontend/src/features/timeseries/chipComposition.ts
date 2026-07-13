@@ -16,7 +16,6 @@ import { chartState } from '../../store/chartState.js';
 import { datasetState } from '../../store/datasetState.js';
 import { ensureAdaptiveTargetStillValid } from './columnSelection.js';
 import { getTimeseriesSelection, setTimeseriesSelection, type SelectionWorkspace } from './selectionIntent.js';
-import { requestColumnFilterOpen } from './filterModalEvents.js';
 
 export interface ChipCompositionOptions {
     workspace: SelectionWorkspace;
@@ -24,6 +23,7 @@ export interface ChipCompositionOptions {
     renderCurrentDataFn: (() => void) | null;
     buildRangeControlsFn: () => void;
     fetchAndRender: () => void;
+    openColumnFilter?: (column: string | null) => void;
 }
 
 export interface ChipListItem {
@@ -40,6 +40,7 @@ export interface ChipListItem {
 
 export function composeChipListItems(options: ChipCompositionOptions): ChipListItem[] {
     const { filterText, buildRangeControlsFn, fetchAndRender, renderCurrentDataFn, workspace } = options;
+    const openColumnFilter = options.openColumnFilter ?? (() => {});
     const selection = getTimeseriesSelection(workspace);
 
     const visibleCols = datasetState.numericCols.filter((col) => {
@@ -82,7 +83,7 @@ export function composeChipListItems(options: ChipCompositionOptions): ChipListI
                 renderCurrentDataFn?.();
             },
             onMenuClick: () => {
-                requestColumnFilterOpen(col);
+                openColumnFilter(col);
             },
             menuLabel: `Filter range for ${col}`,
         };

@@ -532,6 +532,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Adaptive gesture refresh now compares canonical adaptive-line state from WorkspaceStore. Gesture application, chip removal, clear controls, and filter-modal changes all flow through the same state publication instead of coordinating with DOM events.
 - Removed the final `edatime:column-filters-change` and `edatime:adaptive-filters-change` producers, consumers, and the obsolete UI event helper. The gesture lifecycle unsubscribes with its page binding.
 
+### Completed: Timeseries column-filter action ownership
+
+- Replaced the feature-local `edatime:timeseries-open-column-filter` DOM event with an explicit `openColumnFilter` action composed by Timeseries controls. Chip menus, range chips, and the page shortcut now invoke the mounted modal owner directly.
+- Moved the double-right-click shortcut out of deferred shell setup and into the Timeseries control lifecycle. Both the modal and shortcut return owned disposers, so a disposed Timeseries feature cannot reopen or retain the modal through a stale browser listener.
+
 ### Completed: Drift page decomposition
 
 - Extracted evaluation-mode normalization, latest-window validation, and response-map filtering into `evaluationPolicy` with direct behavior coverage.

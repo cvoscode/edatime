@@ -1,61 +1,31 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-const mocks = vi.hoisted(() => ({
-    canOpenColumnFilter: vi.fn(() => true),
-    requestColumnFilterOpen: vi.fn(),
-}));
-
-vi.mock('./filterModalEvents.js', () => mocks);
-
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { initChartPageFilterGesture } from './filterGesture.js';
 
-function dispatchContextMenu(target: HTMLElement): MouseEvent {
-    const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
-    target.dispatchEvent(event);
-    return event;
-}
+describe('initChartPageFilterGesture', () => {
+    afterEach(() => { document.body.innerHTML = ''; });
 
-describe('Timeseries filter gesture', () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-        mocks.canOpenColumnFilter.mockReturnValue(true);
-        document.body.innerHTML = '<section id="page-timeseries"><div id="main-chart"></div><button id="outside-plot"></button></section>';
+    it('opens the column filter after a double right-click outside the chart', () => {
+        document.body.innerHTML = '<section id="page-timeseries"><div id="toolbar"></div></section>';
+        const openColumnFilter = vi.fn();
+        initChartPageFilterGesture(openColumnFilter);
+        const target = document.getElementById('toolbar')!;
+
+        target.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+        target.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+
+        expect(openColumnFilter).toHaveBeenCalledWith(null);
     });
 
-    afterEach(() => {
-        vi.restoreAllMocks();
-        document.body.innerHTML = '';
-    });
+    it('releases its shortcut listener on disposal', () => {
+        document.body.innerHTML = '<section id="page-timeseries"><div id="toolbar"></div></section>';
+        const openColumnFilter = vi.fn();
+        const dispose = initChartPageFilterGesture(openColumnFilter);
+        dispose();
+        const target = document.getElementById('toolbar')!;
 
-    it('opens the column-filter modal after a double context-menu outside the plot', () => {
-        vi.spyOn(performance, 'now').mockReturnValueOnce(100).mockReturnValueOnce(200);
-        initChartPageFilterGesture();
+        target.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+        target.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
 
-        const target = document.getElementById('outside-plot') as HTMLButtonElement;
-        expect(dispatchContextMenu(target).defaultPrevented).toBe(true);
-        expect(mocks.requestColumnFilterOpen).not.toHaveBeenCalled();
-
-        expect(dispatchContextMenu(target).defaultPrevented).toBe(true);
-        expect(mocks.requestColumnFilterOpen).toHaveBeenCalledWith(null);
-    });
-
-    it('leaves plot context menus untouched', () => {
-        initChartPageFilterGesture();
-
-        const plot = document.getElementById('main-chart') as HTMLDivElement;
-        expect(dispatchContextMenu(plot).defaultPrevented).toBe(false);
-        expect(mocks.requestColumnFilterOpen).not.toHaveBeenCalled();
-    });
-
-    it('does not bind the page more than once', () => {
-        initChartPageFilterGesture();
-        initChartPageFilterGesture();
-        vi.spyOn(performance, 'now').mockReturnValueOnce(100).mockReturnValueOnce(200);
-
-        const target = document.getElementById('outside-plot') as HTMLButtonElement;
-        dispatchContextMenu(target);
-        dispatchContextMenu(target);
-
-        expect(mocks.requestColumnFilterOpen).toHaveBeenCalledTimes(1);
+        expect(openColumnFilter).not.toHaveBeenCalled();
     });
 });

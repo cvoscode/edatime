@@ -17,7 +17,6 @@ const mocks = vi.hoisted(() => ({
     initTransformModal: vi.fn(),
     initProvenance: vi.fn(),
     initAnalysisControls: vi.fn(),
-    initChartPageFilterGesture: vi.fn(),
     initTimeseriesHelp: vi.fn(),
 }));
 
@@ -48,7 +47,6 @@ vi.mock('../../ui/toolbar.js', () => ({
     initAnalysisControls: mocks.initAnalysisControls,
 }));
 vi.mock('../../features/timeseries/index.js', () => ({
-    initChartPageFilterGesture: mocks.initChartPageFilterGesture,
     initTimeseriesHelp: mocks.initTimeseriesHelp,
 }));
 
@@ -95,7 +93,6 @@ describe('deferred shell subsystems', () => {
         mocks.initTransformModal.mockClear();
         mocks.initProvenance.mockClear();
         mocks.initAnalysisControls.mockClear();
-        mocks.initChartPageFilterGesture.mockClear();
         mocks.initTimeseriesHelp.mockClear();
     });
 
@@ -171,7 +168,6 @@ describe('deferred shell subsystems', () => {
             deps.resetZoom,
             deps.workspace,
         );
-        expect(mocks.initChartPageFilterGesture).toHaveBeenCalledTimes(1);
         expect(mocks.initTimeseriesHelp).toHaveBeenCalledTimes(1);
     });
 

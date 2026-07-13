@@ -1,6 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const filterEventMocks = vi.hoisted(() => ({ requestColumnFilterOpen: vi.fn() }));
-vi.mock('./filterModalEvents.js', () => filterEventMocks);
 
 import { buildRangeControls } from './rangeControls.js';
 import {
@@ -32,7 +30,6 @@ describe('buildRangeControls', () => {
 
     beforeEach(() => {
         vi.restoreAllMocks();
-        filterEventMocks.requestColumnFilterOpen.mockReset();
         buildDom();
 
         setMetadata({
@@ -55,14 +52,14 @@ describe('buildRangeControls', () => {
         setPendingAdaptivePoint(null);
         workspace = createWorkspaceStore();
         workspace.setSelection(['HUFL', 'HULL']);
-        openFilterForColumn = filterEventMocks.requestColumnFilterOpen;
+        openFilterForColumn = vi.fn();
     });
 
     it('emits static adaptive target chip when adaptiveFilterColumn is set and column is selected', () => {
         setAdaptiveFilterColumn('HUFL');
         workspace.setSelection(['HUFL', 'HULL']);
 
-        buildRangeControls(workspace);
+        buildRangeControls(workspace, openFilterForColumn);
 
         const container = document.getElementById('column-range-controls')!;
         const chips = container.querySelectorAll<HTMLElement>('.range-chip');
@@ -75,7 +72,7 @@ describe('buildRangeControls', () => {
 
     it('emits no adaptive target chip when adaptiveFilterColumn is not set', () => {
         setAdaptiveFilterColumn(null);
-        buildRangeControls(workspace);
+        buildRangeControls(workspace, openFilterForColumn);
         const container = document.getElementById('column-range-controls')!;
         const targetChip = Array.from(
             container.querySelectorAll<HTMLElement>('.range-chip'),
@@ -85,7 +82,7 @@ describe('buildRangeControls', () => {
 
     it('emits per-column range chips for each selected column with a stored range', () => {
         setActiveFilters(workspace, { HUFL: { from: 0.1, to: 0.9 }, HULL: { from: 0.2, to: 0.8 } });
-        buildRangeControls(workspace);
+        buildRangeControls(workspace, openFilterForColumn);
         const container = document.getElementById('column-range-controls')!;
         const chips = container.querySelectorAll<HTMLElement>('.range-chip');
         const huflChip = Array.from(chips).find(
@@ -102,7 +99,7 @@ describe('buildRangeControls', () => {
 
     it('clickable range chip invokes the filter modal opener with the column name', () => {
         setActiveFilters(workspace, { HUFL: { from: 0.1, to: 0.9 } });
-        buildRangeControls(workspace);
+        buildRangeControls(workspace, openFilterForColumn);
         const container = document.getElementById('column-range-controls')!;
         const huflChip = Array.from(
             container.querySelectorAll<HTMLElement>('.range-chip'),
@@ -172,7 +169,7 @@ describe('buildRangeControls', () => {
 
     it('keyboard Enter on clickable chip triggers the filter modal opener', () => {
         setActiveFilters(workspace, { HUFL: { from: 0.1, to: 0.9 } });
-        buildRangeControls(workspace);
+        buildRangeControls(workspace, openFilterForColumn);
         const container = document.getElementById('column-range-controls')!;
         const huflChip = Array.from(
             container.querySelectorAll<HTMLElement>('.range-chip'),
@@ -183,7 +180,7 @@ describe('buildRangeControls', () => {
 
     it('keyboard Space on clickable chip triggers the filter modal opener', () => {
         setActiveFilters(workspace, { HUFL: { from: 0.1, to: 0.9 } });
-        buildRangeControls(workspace);
+        buildRangeControls(workspace, openFilterForColumn);
         const container = document.getElementById('column-range-controls')!;
         const huflChip = Array.from(
             container.querySelectorAll<HTMLElement>('.range-chip'),

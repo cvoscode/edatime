@@ -43,6 +43,7 @@ function selectionWorkspace() {
 describe('createTimeseriesControls', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        initColumnFilterModalMock.mockReturnValue({ open: vi.fn(), dispose: vi.fn() });
     });
 
     it('returns init, rebuildColumns, and buildRangeControls', () => {
@@ -78,6 +79,7 @@ describe('createTimeseriesControls', () => {
             expect.any(Function),
             renderCurrentData,
             expect.any(Object),
+            expect.any(Function),
         );
     });
 
@@ -98,6 +100,7 @@ describe('createTimeseriesControls', () => {
             deps.renderCurrentData,
             deps.updateAnalysisYRange,
             deps.workspace,
+            expect.any(Function),
         );
         expect(initDatasetSearchInputsMock).toHaveBeenCalledTimes(1);
         expect(initTimeseriesActionsMock).toHaveBeenCalledTimes(1);

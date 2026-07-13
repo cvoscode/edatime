@@ -32,6 +32,7 @@ export function buildColumnToggles(
     buildRangeControlsFn: () => void,
     renderCurrentDataFn: (() => void) | null = null,
     workspace: SelectionWorkspace,
+    openColumnFilter: (column: string | null) => void = () => {},
 ): void {
     const container = document.getElementById('column-toggles');
     if (!container || (container as any)?.dataset?.rebuilding) return;
@@ -41,7 +42,7 @@ export function buildColumnToggles(
     container.innerHTML = '';
     const finish = () => { container.dataset.rebuilding = ''; };
 
-    bindChipContextMenu(container);
+    bindChipContextMenu(container, openColumnFilter);
     renderColorByControl({
         workspace,
         onColorColumnChange: fetchAndRender,
@@ -53,6 +54,7 @@ export function buildColumnToggles(
         buildRangeControlsFn,
         fetchAndRender,
         renderCurrentDataFn,
+        openColumnFilter,
     });
 
     if (items.length === 0) {
@@ -88,7 +90,7 @@ export function buildColumnToggles(
     bindChipCtrlClick(
         container,
         () => {
-            buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn, workspace);
+            buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn, workspace, openColumnFilter);
             buildRangeControlsFn();
         },
         buildRangeControlsFn,
@@ -108,10 +110,12 @@ export function initColumnFilterModal(
     renderCurrentData: () => void,
     updateAnalysisYRange: (min: number, max: number, source: string) => void,
     workspace: FilterWorkspace,
-): () => void {
+    openColumnFilter: (column: string | null) => void,
+) {
     return initFilterModalController({
         renderCurrentData,
         updateAnalysisYRange,
         workspace,
+        openColumnFilter,
     });
 }

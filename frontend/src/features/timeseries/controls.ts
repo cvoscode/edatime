@@ -11,6 +11,7 @@ import {
     initColumnFilterModal,
 } from './columnsController.js';
 import { initDatasetSearchInputs, initTimeseriesActions, initTimeseriesExportButtons } from './actions.js';
+import { initChartPageFilterGesture } from './filterGesture.js';
 import type { TimeseriesWorkspace } from './selectionIntent.js';
 
 export interface TimeseriesFeatureDeps {
@@ -35,10 +36,12 @@ export function createTimeseriesControls(deps: TimeseriesFeatureDeps) {
     let initialized = false;
     let cleanupActions: Array<() => void> = [];
     let toolbarOverflow: { refresh(): void; dispose(): void } | null = null;
+    let modalController: ReturnType<typeof initColumnFilterModal> | null = null;
+    const openColumnFilter = (column: string | null) => modalController?.open(column);
 
-    const buildWorkspaceRangeControls = () => buildRangeControls(deps.workspace);
+    const buildWorkspaceRangeControls = () => buildRangeControls(deps.workspace, openColumnFilter);
     const rebuildColumns = () => {
-        buildColumnToggles(deps.fetchAndRender, buildWorkspaceRangeControls, deps.renderCurrentData, deps.workspace);
+        buildColumnToggles(deps.fetchAndRender, buildWorkspaceRangeControls, deps.renderCurrentData, deps.workspace, openColumnFilter);
     };
 
     const dispose = () => {
@@ -47,6 +50,7 @@ export function createTimeseriesControls(deps: TimeseriesFeatureDeps) {
         const actions = cleanupActions;
         cleanupActions = [];
         for (const cleanup of actions) cleanup();
+        modalController = null;
         toolbarOverflow?.dispose();
         toolbarOverflow = null;
     };
@@ -59,8 +63,14 @@ export function createTimeseriesControls(deps: TimeseriesFeatureDeps) {
         init(): () => void {
             if (initialized) return dispose;
             initialized = true;
-            const disposeFilterModal = initColumnFilterModal(deps.renderCurrentData, deps.updateAnalysisYRange, deps.workspace);
-            if (typeof disposeFilterModal === 'function') registerCleanup(disposeFilterModal);
+            modalController = initColumnFilterModal(
+                deps.renderCurrentData,
+                deps.updateAnalysisYRange,
+                deps.workspace,
+                openColumnFilter,
+            );
+            registerCleanup(() => modalController?.dispose());
+            registerCleanup(initChartPageFilterGesture(openColumnFilter));
             initDatasetSearchInputs({
                 rebuildColumnToggles: rebuildColumns,
                 renderColumnProfilesGrid: deps.renderColumnProfilesGrid ?? (() => { }),
