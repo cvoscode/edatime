@@ -655,6 +655,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Shortcut setup remains idempotent within one feature lifetime, while a later root is no longer suppressed because another root already mounted its Timeseries feature.
 - Direct two-controller coverage proves disposing one shortcut owner leaves the other owner active.
 
+### Completed: shell global-shortcut lifecycle isolation
+
+- Replaced the shell module's process-global shortcut marker with a controller created for each `initAppShell()` instance and registered through that shell's runtime cleanup.
+- Command-palette, settings, and Alt-navigation bindings remain idempotent for one shell but no longer suppress an independently mounted shell.
+- Direct two-controller and shell-composition regressions cover active binding survival and runtime-owned disposal.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.

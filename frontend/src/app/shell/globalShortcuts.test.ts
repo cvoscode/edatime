@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { initGlobalShortcuts } from './globalShortcuts.js';
+import { createGlobalShortcuts } from './globalShortcuts.js';
 
 let cleanup: (() => void) | undefined;
 
@@ -9,7 +9,6 @@ function createDeps() {
         showPage: vi.fn(),
         openCommands: vi.fn().mockResolvedValue(undefined),
         openSettings: vi.fn().mockResolvedValue(undefined),
-        registerCleanup: vi.fn((callback: () => void) => { cleanup = callback; }),
     };
 }
 
@@ -21,7 +20,7 @@ afterEach(() => {
 describe('shell global shortcuts', () => {
     it('opens deferred commands and settings through injected shell actions', async () => {
         const deps = createDeps();
-        initGlobalShortcuts(deps);
+        cleanup = createGlobalShortcuts().mount(deps);
 
         window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
         window.dispatchEvent(new KeyboardEvent('keydown', { key: ',', ctrlKey: true, bubbles: true }));
@@ -33,11 +32,24 @@ describe('shell global shortcuts', () => {
 
     it('removes its listener when the owning runtime disposes', () => {
         const first = createDeps();
-        initGlobalShortcuts(first);
+        cleanup = createGlobalShortcuts().mount(first);
         cleanup?.();
 
         const second = createDeps();
-        initGlobalShortcuts(second);
+        cleanup = createGlobalShortcuts().mount(second);
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: '1', altKey: true, bubbles: true }));
+
+        expect(first.showPage).not.toHaveBeenCalled();
+        expect(second.showPage).toHaveBeenCalledWith('upload');
+    });
+
+    it('does not let one shell instance suppress another shortcut controller', () => {
+        const first = createDeps();
+        const second = createDeps();
+        const firstCleanup = createGlobalShortcuts().mount(first);
+        cleanup = createGlobalShortcuts().mount(second);
+
+        firstCleanup();
         window.dispatchEvent(new KeyboardEvent('keydown', { key: '1', altKey: true, bubbles: true }));
 
         expect(first.showPage).not.toHaveBeenCalled();

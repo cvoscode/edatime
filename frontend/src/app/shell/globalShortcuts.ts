@@ -9,7 +9,6 @@ export interface GlobalShortcutsDeps {
     showPage: (page: string) => void;
     openCommands: () => Promise<void>;
     openSettings: () => Promise<void>;
-    registerCleanup: (cleanup: () => void) => void;
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -18,8 +17,6 @@ function isTypingTarget(target: EventTarget | null): boolean {
     const tag = String((target as HTMLElement).tagName || '').toLowerCase();
     return tag === 'input' || tag === 'textarea' || tag === 'select';
 }
-
-let shortcutsBound = false;
 
 const ALT_NAVIGATION: Record<string, string> = {
     '1': 'upload',
@@ -33,44 +30,54 @@ const ALT_NAVIGATION: Record<string, string> = {
     '0': 'drift',
 };
 
-export function initGlobalShortcuts(
-    deps: GlobalShortcutsDeps,
-): void {
-    if (shortcutsBound) return;
-    shortcutsBound = true;
+export interface GlobalShortcutsController {
+    mount(deps: GlobalShortcutsDeps): () => void;
+}
 
-    const handler = (event: KeyboardEvent) => {
-        if (event.defaultPrevented || isTypingTarget(event.target)) return;
+/** Creates the global-shortcut owner for one application shell instance. */
+export function createGlobalShortcuts(): GlobalShortcutsController {
+    let disposeBinding: (() => void) | null = null;
 
-        const key = String(event.key || '').toLowerCase();
-        if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey) {
-            if (key === 'k') {
-                event.preventDefault();
-                void deps.openCommands();
-                return;
-            }
+    return {
+        mount(deps) {
+            if (disposeBinding) return disposeBinding;
 
-            if (key === ',') {
-                event.preventDefault();
-                void deps.openSettings();
-                return;
-            }
+            const handler = (event: KeyboardEvent) => {
+                if (event.defaultPrevented || isTypingTarget(event.target)) return;
 
-            return;
-        }
+                const key = String(event.key || '').toLowerCase();
+                if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey) {
+                    if (key === 'k') {
+                        event.preventDefault();
+                        void deps.openCommands();
+                        return;
+                    }
 
-        if (event.altKey && !event.ctrlKey && !event.metaKey) {
-            const page = ALT_NAVIGATION[key];
-            if (page) {
-                event.preventDefault();
-                deps.showPage(page);
-            }
-        }
+                    if (key === ',') {
+                        event.preventDefault();
+                        void deps.openSettings();
+                        return;
+                    }
+
+                    return;
+                }
+
+                if (event.altKey && !event.ctrlKey && !event.metaKey) {
+                    const page = ALT_NAVIGATION[key];
+                    if (page) {
+                        event.preventDefault();
+                        deps.showPage(page);
+                    }
+                }
+            };
+
+            window.addEventListener('keydown', handler);
+            disposeBinding = () => {
+                if (!disposeBinding) return;
+                window.removeEventListener('keydown', handler);
+                disposeBinding = null;
+            };
+            return disposeBinding;
+        },
     };
-
-    window.addEventListener('keydown', handler);
-    deps.registerCleanup(() => {
-        window.removeEventListener('keydown', handler);
-        shortcutsBound = false;
-    });
 }

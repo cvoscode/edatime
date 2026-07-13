@@ -36,7 +36,9 @@ vi.mock('./shell/commands.js', () => ({
     APP_COMMAND_DEFINITIONS: [],
     registerAppCommands: vi.fn(),
 }));
-vi.mock('./shell/globalShortcuts.js', () => ({ initGlobalShortcuts: vi.fn() }));
+vi.mock('./shell/globalShortcuts.js', () => ({
+    createGlobalShortcuts: vi.fn(() => ({ mount: vi.fn(() => vi.fn()) })),
+}));
 
 beforeEach(() => {
     vi.clearAllMocks();
@@ -79,7 +81,7 @@ describe('shell bootstrap', () => {
 
     it('owns global shortcut initialization and registers it with the app runtime lifecycle', async () => {
         const { initAppShell } = await import('./shell.js');
-        const { initGlobalShortcuts } = await import('./shell/globalShortcuts.js');
+        const { createGlobalShortcuts } = await import('./shell/globalShortcuts.js');
         const deps = {
             showPage: vi.fn(),
             ensurePageModuleLoaded: vi.fn(),
@@ -88,9 +90,9 @@ describe('shell bootstrap', () => {
 
         initAppShell(deps as any);
 
-        expect(initGlobalShortcuts).toHaveBeenCalledWith(expect.objectContaining({
+        const shortcuts = vi.mocked(createGlobalShortcuts).mock.results[0]?.value;
+        expect(shortcuts.mount).toHaveBeenCalledWith(expect.objectContaining({
             showPage: deps.showPage,
-            registerCleanup: deps.registerCleanup,
             openCommands: expect.any(Function),
             openSettings: expect.any(Function),
         }));
