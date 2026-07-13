@@ -438,6 +438,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - The palette utility now owns the named settings choices, active-palette state, validation, per-column overrides, and effective-color resolution. `uiState` retains only the override data; it no longer duplicates color normalization or resolution policy.
 - Removed the mutable `CHART_PALETTES` / `SERIES_COLORS` split. Settings applies one typed palette at startup and on Apply, and direct regressions prove settings, ChartGPU, and Scatter observe the same selection.
 
+### Completed: Scatter palette compatibility removal
+
+- Removed the unreachable `features/scatter/colorPalettes.ts` duplicate. It had no production or test consumer and implemented a second, incompatible categorical-palette and label-normalization policy.
+- `features/scatter/helpers.ts` remains the sole Scatter color-policy owner; direct coverage retains its active global palette, normalized-category, and low-cardinality behavior.
+
 ### Completed: Drift page decomposition
 
 - Extracted evaluation-mode normalization, latest-window validation, and response-map filtering into `evaluationPolicy` with direct behavior coverage.

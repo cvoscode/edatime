@@ -17,6 +17,7 @@ import {
     HISTOGRAM_BINS,
     LOW_CARDINALITY_LIMIT,
     getDistributionGroupColors,
+    buildCategoricalColorGroups,
     normalizeScatterSuggestionThreshold,
     buildHistogramForDomain,
     drawMiniDensityCanvas,
@@ -62,6 +63,14 @@ describe('scatter constants', () => {
         expect(getDistributionGroupColors().slice(0, getSeriesPalette('forest').length)).toEqual(getSeriesPalette('forest'));
 
         setActiveSeriesPalette('default');
+    });
+
+    it('keeps the canonical categorical palette bounded and label-normalized', () => {
+        const groups = buildCategoricalColorGroups(['alpha', 'alpha', 2, null]);
+
+        expect(groups?.categories).toEqual(['alpha', '2', 'Missing']);
+        expect(groups?.colorByLabel.get('alpha')).toBe(getDistributionGroupColors()[0]);
+        expect(buildCategoricalColorGroups(Array.from({ length: LOW_CARDINALITY_LIMIT + 1 }, (_, index) => String(index)))).toBeNull();
     });
 });
 
