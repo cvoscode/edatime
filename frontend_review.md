@@ -210,6 +210,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Extracted fetched-window resolution into `fetchedWindow` and made the request builder the single owner of the lookaround calculation. Buffered reuse now receives a validated response window for ordered data and a deterministic padded fallback for empty or malformed timestamp responses.
 - Extracted `timeseriesRenderModel` for viewport clipping, selected-series filtering, empty-state decisions, and spectral-preview projection. It returns immutable chart input and recognizes the case where filters remove every selected-series point, leaving the controller to apply the tested model to the chart and overlays.
 - Made the Timeseries feature entrypoint own idempotent initialization and its cleanup registry. Dataset bootstrap and page activation can now converge on the same initializer without duplicate global actions; page-runtime disposal releases those actions and the empty-state upload navigation binding before reinitialization.
+- Extracted bounded zoom-restore history and consecutive zoom-out reset decisions into `zoomHistoryPolicy`, preserving snapshot isolation and raw-buffer restoration while making the controller responsible only for applying its selected chart/workspace transition.
 - Fixed the shared page-runtime unmount/remount contract: cleanup now releases the mounted state and is idempotent, so feature lifecycles can safely register again after a real unmount.
 
 ### Completed: Spectrogram runtime decomposition

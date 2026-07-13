@@ -27,15 +27,13 @@ import { buildTimeseriesDataRequest, getTimeseriesLookaroundMs } from './timeser
 import { canReuseBufferedFetch } from './bufferedFetchPolicy.js';
 import { resolveFetchedWindow } from './fetchedWindow.js';
 import { buildTimeseriesRenderModel } from './timeseriesRenderModel.js';
+import {
+    appendZoomRestoreState,
+    resolveZoomOutDecision,
+    type ZoomRestoreState,
+} from './zoomHistoryPolicy.js';
 
 const EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} } as any;
-const CONSECUTIVE_ZOOM_OUT_RESET_COUNT = 5;
-type ZoomRestoreState = {
-    view: ViewSnapshot;
-    data: any | null;
-    fetchedWindow: { start: number; end: number } | null;
-    fetchKey: string | null;
-};
 
 interface TimeseriesControllerDeps {
     fetchData: (
@@ -450,31 +448,33 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
 
     function zoomOut(): void {
         if (runtimeState.fetchDebounceId) clearTimeout(runtimeState.fetchDebounceId);
-        consecutiveZoomOuts += 1;
-        if (consecutiveZoomOuts >= CONSECUTIVE_ZOOM_OUT_RESET_COUNT && chartState.initialView) {
+        const decision = resolveZoomOutDecision({
+            history: zoomRestoreHistory,
+            consecutiveZoomOuts,
+            initialView: chartState.initialView,
+        });
+        consecutiveZoomOuts = decision.consecutiveZoomOuts;
+        if (decision.kind === 'reset') {
             resetZoom();
             return;
         }
-
-        const restoreState = zoomRestoreHistory[zoomRestoreHistory.length - 1] ?? null;
-        if (!restoreState) return;
-
-        zoomRestoreHistory = zoomRestoreHistory.slice(0, -1);
+        zoomRestoreHistory = decision.history;
         syncZoomHistoryStore();
+        if (decision.kind === 'none') return;
 
-        applyView(restoreState.view, 'zoom-out');
+        applyView(decision.restoreState.view, 'zoom-out');
 
         const canReuseRawBufferedState = canReuseBufferedFetch({
-            expectedKey: restoreState.fetchKey,
+            expectedKey: decision.restoreState.fetchKey,
             actualKey: currentFetchKey(),
-            data: restoreState.data,
-            fetchedWindow: restoreState.fetchedWindow,
-            requestedView: { start: restoreState.view.xMin, end: restoreState.view.xMax },
+            data: decision.restoreState.data as any,
+            fetchedWindow: decision.restoreState.fetchedWindow,
+            requestedView: { start: decision.restoreState.view.xMin, end: decision.restoreState.view.xMax },
         });
         if (canReuseRawBufferedState) {
-            setLastFetchedData(restoreState.data);
-            setFetchedWindow(restoreState.fetchedWindow);
-            lastFetchedParams = restoreState.fetchKey;
+            setLastFetchedData(decision.restoreState.data as any);
+            setFetchedWindow(decision.restoreState.fetchedWindow);
+            lastFetchedParams = decision.restoreState.fetchKey;
             renderCurrentData();
             return;
         }
@@ -507,15 +507,12 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
 
         const snap = lastKnownView ?? snapshotCurrentViewport();
         if (snap) {
-            zoomRestoreHistory = [
-                ...zoomRestoreHistory,
-                {
-                    view: { ...snap },
-                    data: runtimeState.lastFetchedData,
-                    fetchedWindow: runtimeState.fetchedWindow ? { ...runtimeState.fetchedWindow } : null,
-                    fetchKey: currentFetchKey(),
-                },
-            ].slice(-5);
+            zoomRestoreHistory = appendZoomRestoreState(zoomRestoreHistory, {
+                view: snap,
+                data: runtimeState.lastFetchedData,
+                fetchedWindow: runtimeState.fetchedWindow,
+                fetchKey: currentFetchKey(),
+            });
             syncZoomHistoryStore();
         }
 
