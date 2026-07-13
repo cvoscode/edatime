@@ -15,10 +15,10 @@ import {
     DEFAULT_SPECTRAL_SCALE,
     type SpectralScaleOptions,
 } from '../../utils/spectralScaling.js';
-import { formatCyclesPerDay, formatFrequencyInUnit, frequencyToPeriod, pickFrequencyUnit, useCyclesPerDayFrequencyAxis } from '../../utils/spectralPresets.js';
 import { createAnalysisPageRuntime } from '../../platform/analysisRuntime.js';
 import { initFftHelp } from './help.js';
 import { buildFftFilterCutoffState, buildFftScaleOptions } from './fftControls.js';
+import { buildFftSpectralInfo } from './fftSpectralInfo.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 interface FftPageDeps {
@@ -40,25 +40,10 @@ let fftPageCleanup: (() => void) | null = null;
 let fftInitialSelectionSeeded = false;
 let workspace: Pick<WorkspaceStore, 'getSnapshot'> | null = null;
 
-function formatReciprocalInterval(hz: number): string {
-    if (!Number.isFinite(hz) || hz <= 0) return '—';
-    const seconds = 1 / hz;
-    if (seconds < 60) return `1 / ${seconds.toFixed(1)} sec`;
-    if (seconds < 3600) return `1 / ${(seconds / 60).toFixed(1)} min`;
-    if (seconds < 86_400) return `1 / ${(seconds / 3600).toFixed(1)} hr`;
-    return `1 / ${(seconds / 86_400).toFixed(1)} day`;
-}
-
 function setFieldHidden(fieldOrControl: HTMLElement | null, hidden: boolean): void {
     if (!fieldOrControl) return;
     const field = fieldOrControl.closest('label, .toolbar-field') as HTMLElement | null;
     (field ?? fieldOrControl).hidden = hidden;
-}
-
-function formatPeakFrequency(hz: number, referenceHz: number): string {
-    return useCyclesPerDayFrequencyAxis(referenceHz)
-        ? formatCyclesPerDay(hz, 2)
-        : formatFrequencyInUnit(hz, pickFrequencyUnit(referenceHz), 2);
 }
 
 function resetFftPageState(): void {
@@ -181,23 +166,17 @@ function syncFftSpectralInfo(): void {
     const nyquistEl = document.getElementById('fft-spectral-info-nyquist');
     const peaksEl = document.getElementById('fft-spectral-info-peaks');
     if (!wrap || !rateEl || !nyquistEl || !peaksEl) return;
-    const firstWithMeta = fftTraces.find(
-        (trace) => Number.isFinite(trace.sample_rate_hz) && Number.isFinite(trace.nyquist_hz),
-    );
-    if (!firstWithMeta) {
+    const info = buildFftSpectralInfo(fftTraces);
+    if (!info.visible) {
         wrap.hidden = true;
         return;
     }
     wrap.hidden = false;
-    const fs = Number(firstWithMeta.sample_rate_hz);
-    const nyquist = Number(firstWithMeta.nyquist_hz);
-    const unit = pickFrequencyUnit(Number.isFinite(nyquist) && nyquist > 0 ? nyquist : fs);
-    rateEl.textContent = Number.isFinite(fs) ? formatReciprocalInterval(fs) : '—';
-    nyquistEl.textContent = Number.isFinite(nyquist) ? formatReciprocalInterval(nyquist) : '—';
-    rateEl.title = Number.isFinite(fs) ? formatFrequencyInUnit(fs, unit) : '';
-    nyquistEl.title = Number.isFinite(nyquist) ? formatFrequencyInUnit(nyquist, unit) : '';
-    const peaks = Array.isArray(firstWithMeta.dominant_peaks) ? firstWithMeta.dominant_peaks : [];
-    if (peaks.length === 0) {
+    rateEl.textContent = info.sampleRate.text;
+    nyquistEl.textContent = info.nyquist.text;
+    rateEl.title = info.sampleRate.title;
+    nyquistEl.title = info.nyquist.title;
+    if (info.peaks.length === 0) {
         peaksEl.textContent = '—';
         peaksEl.removeAttribute('title');
         return;
@@ -205,17 +184,11 @@ function syncFftSpectralInfo(): void {
     const fragment = document.createDocumentFragment();
     peaksEl.replaceChildren();
     peaksEl.classList.add('fft-spectral-info__peak-table');
-    peaks.slice(0, 3).forEach((peak, index) => {
+    info.peaks.forEach((peak) => {
         const row = document.createElement('span');
         row.className = 'fft-spectral-info__peak-row';
 
-        const frequencyHz = Number(peak?.frequency_hz);
-        const cells = [
-            `#${index + 1}`,
-            formatPeakFrequency(frequencyHz, nyquist),
-            frequencyToPeriod(frequencyHz),
-            Number.isFinite(Number(peak?.power)) ? Number(peak.power).toExponential(2) : '—',
-        ];
+        const cells = [peak.rank, peak.frequency, peak.period, peak.power];
         cells.forEach((cellText, cellIndex) => {
             const cell = document.createElement('span');
             cell.className = `fft-spectral-info__peak-cell fft-spectral-info__peak-cell--${cellIndex}`;
@@ -225,9 +198,8 @@ function syncFftSpectralInfo(): void {
         fragment.appendChild(row);
     });
     peaksEl.appendChild(fragment);
-    peaksEl.title = peaks
-        .slice(0, 5)
-        .map((peak, index) => `${index + 1}. ${formatPeakFrequency(Number(peak.frequency_hz), nyquist)} · ${frequencyToPeriod(Number(peak.frequency_hz))} · power ${Number(peak.power).toExponential(2)} (r=${peak.rank ?? index + 1})`)
+    peaksEl.title = info.peaks
+        .map((peak) => peak.title)
         .join('\n');
 }
 
