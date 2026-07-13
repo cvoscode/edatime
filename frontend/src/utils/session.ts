@@ -27,7 +27,7 @@ import { emitFeatureEvent } from '../platform/featureEvents.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 const STORAGE_KEY = 'edatime-session';
-type SessionWorkspace = Pick<WorkspaceStore, 'getSnapshot' | 'setSelection' | 'setFilters' | 'setViewport'>;
+type SessionWorkspace = Pick<WorkspaceStore, 'getSnapshot' | 'setSelection' | 'setFilters' | 'setViewport' | 'subscribe'>;
 let configuredWorkspace: SessionWorkspace | null = null;
 
 export function configureSessionWorkspace(workspace: SessionWorkspace | null): void {
@@ -339,15 +339,28 @@ export function importSessionFromFile(): void {
 // ─── Auto-save on navigation / filter changes ───────────────────────────────
 
 let _autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+let _disposeAutoSave: (() => void) | null = null;
 
-export function initAutoSave(): void {
+export function initAutoSave(): () => void {
+    _disposeAutoSave?.();
     const debouncedSave = () => {
         if (_autoSaveTimer) clearTimeout(_autoSaveTimer);
         _autoSaveTimer = setTimeout(autoSaveSession, 2000);
     };
 
     window.addEventListener('edatime:page-change', debouncedSave);
-    window.addEventListener('edatime:column-filters-change', debouncedSave);
-    window.addEventListener('edatime:adaptive-filters-change', debouncedSave);
     window.addEventListener('beforeunload', autoSaveSession);
+    const unsubscribeWorkspace = configuredWorkspace?.subscribe(debouncedSave) ?? (() => {});
+    const dispose = () => {
+        window.removeEventListener('edatime:page-change', debouncedSave);
+        window.removeEventListener('beforeunload', autoSaveSession);
+        unsubscribeWorkspace();
+        if (_autoSaveTimer) {
+            clearTimeout(_autoSaveTimer);
+            _autoSaveTimer = null;
+        }
+        if (_disposeAutoSave === dispose) _disposeAutoSave = null;
+    };
+    _disposeAutoSave = dispose;
+    return dispose;
 }

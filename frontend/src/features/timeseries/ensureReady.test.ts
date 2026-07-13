@@ -145,7 +145,7 @@ describe('createTimeseriesBootstrap', () => {
             renderCurrentData: vi.fn(),
             fetchAndRender: vi.fn().mockResolvedValue(undefined),
             refreshZoomControlsState: vi.fn(),
-            workspace: { getSnapshot: vi.fn(), setSelection: vi.fn(), setFilters: vi.fn(), setViewport: vi.fn() },
+            workspace: { getSnapshot: vi.fn(), setSelection: vi.fn(), setFilters: vi.fn(), setViewport: vi.fn(), subscribe: vi.fn(() => vi.fn()) },
         });
 
         await bootstrap.ensureReady();
@@ -194,7 +194,7 @@ describe('createTimeseriesBootstrap', () => {
             renderCurrentData: vi.fn(),
             fetchAndRender: vi.fn().mockResolvedValue(undefined),
             refreshZoomControlsState: vi.fn(),
-            workspace: { getSnapshot: vi.fn(), setSelection: vi.fn(), setFilters: vi.fn(), setViewport: vi.fn() },
+            workspace: { getSnapshot: vi.fn(), setSelection: vi.fn(), setFilters: vi.fn(), setViewport: vi.fn(), subscribe: vi.fn(() => vi.fn()) },
         });
 
         await bootstrap.ensureReady();
@@ -223,7 +223,7 @@ describe('createTimeseriesBootstrap', () => {
         const buildRangeControls = vi.fn();
         const renderCurrentData = vi.fn();
         const onYRange = vi.fn();
-        const workspace = { getSnapshot: vi.fn(), setSelection: vi.fn(), setFilters: vi.fn(), setViewport: vi.fn() };
+        const workspace = { getSnapshot: vi.fn(), setSelection: vi.fn(), setFilters: vi.fn(), setViewport: vi.fn(), subscribe: vi.fn(() => vi.fn()) };
 
         const { createTimeseriesBootstrap } = await import('./ensureReady.js');
 

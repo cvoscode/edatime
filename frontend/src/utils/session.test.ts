@@ -1,8 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { chartState } from '../store/chartState.js';
 import { datasetState } from '../store/datasetState.js';
 import { uiState } from '../store/uiState.js';
-import { applySession, captureSession, type SessionSnapshot } from './session.js';
+import { applySession, captureSession, configureSessionWorkspace, initAutoSave, type SessionSnapshot } from './session.js';
 import { createWorkspaceStore } from '../workspace/workspaceStore.js';
 
 vi.mock('./toast.js', () => ({
@@ -38,12 +38,18 @@ function buildSnapshot(partial: Partial<SessionSnapshot> = {}): SessionSnapshot 
 
 describe('session restore safeguards', () => {
     beforeEach(() => {
+        window.localStorage.clear();
         document.body.innerHTML = '<div class="sidebar"><button class="nav-item" data-page="upload" type="button">upload</button></div>';
         window.location.hash = '';
         chartState.currentStart = null;
         chartState.currentEnd = null;
         datasetState.datasetRevision = 0;
         datasetState.metadata = null;
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+        configureSessionWorkspace(null);
     });
 
     it('clears stale filters when dataset revisions mismatch', () => {
@@ -144,5 +150,18 @@ describe('session restore safeguards', () => {
             },
             viewport: { xMin: 25, xMax: 75, yMin: null, yMax: null },
         });
+    });
+
+    it('autosaves after canonical WorkspaceStore changes', async () => {
+        vi.useFakeTimers();
+        const workspace = createWorkspaceStore();
+        configureSessionWorkspace(workspace);
+        const dispose = initAutoSave();
+
+        workspace.setFilters({ columnRanges: { value: { from: 1, to: 2 } }, adaptiveLines: [] });
+        await vi.advanceTimersByTimeAsync(2_000);
+
+        expect(window.localStorage.getItem('edatime-session')).toContain('"columnRanges"');
+        dispose();
     });
 });

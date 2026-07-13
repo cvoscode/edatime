@@ -29,7 +29,7 @@ export interface TimeseriesModuleDeps {
         options?: ApiRequestOptions,
     ) => Promise<DataObject>;
     fetchMetadata: () => Promise<DatasetMetadata>;
-    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'beginDatasetSession' | 'commitDataset' | 'setSelection' | 'setFilters' | 'setViewport'>;
+    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'beginDatasetSession' | 'commitDataset' | 'setSelection' | 'setFilters' | 'setViewport' | 'subscribe'>;
     ensurePrimaryChartCtor: () => Promise<new (
         containerId: string,
         onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null,

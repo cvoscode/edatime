@@ -40,7 +40,7 @@ export interface TimeseriesBootstrapDeps {
     renderCurrentData: () => void;
     fetchAndRender: () => Promise<void>;
     refreshZoomControlsState: () => void;
-    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setSelection' | 'setFilters' | 'setViewport'>;
+    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setSelection' | 'setFilters' | 'setViewport' | 'subscribe'>;
 }
 
 export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {

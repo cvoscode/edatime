@@ -522,6 +522,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Provenance now refreshes from the canonical WorkspaceStore subscription instead of column/adaptive-filter DOM notifications. The open panel therefore reflects every filter or viewport update from its actual state owner.
 - Deferred shell composition owns the returned provenance disposer, releasing its workspace, keyboard, and page listeners with the app shell.
 
+### Completed: session autosave WorkspaceStore ownership
+
+- Session autosave now debounces canonical WorkspaceStore publications instead of listening for column/adaptive-filter DOM notifications. Selection, filters, viewport, and dataset changes therefore use the same persistence path.
+- Reinitialization retires the prior autosave listeners and timer; the bootstrap returns the disposer and requires the subscribe-capable WorkspaceStore contract through Timeseries readiness.
+
 ### Completed: Drift page decomposition
 
 - Extracted evaluation-mode normalization, latest-window validation, and response-map filtering into `evaluationPolicy` with direct behavior coverage.

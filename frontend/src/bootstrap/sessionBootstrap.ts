@@ -14,7 +14,7 @@ interface RestoreSessionDeps {
     buildRangeControls: () => void;
     renderCurrentData: () => void;
     fetchAndRender: () => Promise<void>;
-    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setSelection' | 'setFilters' | 'setViewport'>;
+    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setSelection' | 'setFilters' | 'setViewport' | 'subscribe'>;
 }
 
 export async function restoreSessionAfterChartReady(deps: RestoreSessionDeps): Promise<void> {
@@ -33,7 +33,7 @@ export async function restoreSessionAfterChartReady(deps: RestoreSessionDeps): P
     await deps.fetchAndRender();
 }
 
-export function startSessionPersistence(workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setSelection' | 'setFilters' | 'setViewport'>): void {
+export function startSessionPersistence(workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setSelection' | 'setFilters' | 'setViewport' | 'subscribe'>): () => void {
     configureSessionWorkspace(workspace);
-    initAutoSave();
+    return initAutoSave();
 }

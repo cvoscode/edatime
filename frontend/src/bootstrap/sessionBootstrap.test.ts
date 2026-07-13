@@ -29,6 +29,7 @@ describe('startSessionPersistence', () => {
             setSelection: vi.fn(),
             setFilters: vi.fn(),
             setViewport: vi.fn(),
+            subscribe: vi.fn(() => vi.fn()),
         };
 
         startSessionPersistence(workspace);
