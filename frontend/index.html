@@ -863,22 +863,6 @@
                   <span class="fft-export-icons__label">CSV</span>
                 </button>
               </div>
-              <details class="toolbar-disclosure toolbar-disclosure--end" hidden>
-                <summary class="toolbar-disclosure__summary">
-                  <span class="toolbar-label">Format</span>
-                  <span class="toolbar-disclosure__value">Image + CSV</span>
-                </summary>
-                <div class="toolbar-disclosure__menu">
-                  <button id="fft-export-png-btn-fallback" class="btn btn-ghost btn-sm" type="button"
-                    disabled>PNG</button>
-                  <button id="fft-export-svg-btn-fallback" class="btn btn-ghost btn-sm" type="button"
-                    disabled>SVG</button>
-                  <button id="fft-export-html-btn-fallback" class="btn btn-ghost btn-sm" type="button"
-                    disabled>HTML</button>
-                  <button id="fft-export-csv-btn-fallback" class="btn btn-ghost btn-sm" type="button"
-                    disabled>CSV</button>
-                </div>
-              </details>
             </div>
           </div>
         </div>
@@ -2335,55 +2319,6 @@
               <button class="btn btn-ghost btn-sm" id="outlier-open-btn" type="button"
                 title="Remove outliers from dataset">Outliers…</button>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Analytics Modal (for backward compat — scatter page) -->
-      <div id="analytics-modal" class="modal-backdrop" hidden>
-        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="analytics-title-modal">
-          <div class="modal-header">
-            <div class="modal-title" id="analytics-title-modal">Analytics</div>
-            <button class="modal-close" id="analytics-close-btn-modal" type="button" aria-label="Close">&times;</button>
-          </div>
-          <div class="modal-body">
-            <label class="toolbar-field toolbar-field--toggle" for="rolling-enabled-modal">
-              <span class="toolbar-field__label">Rolling bands</span>
-              <span class="toolbar-field__control scatter-link-toggle" title="Show rolling mean ± σ bands">
-                <input id="rolling-enabled-modal" type="checkbox"
-                  aria-label="Show rolling mean ± σ bands in analytics modal">
-                <span>Show mean ± σ bands</span>
-              </span>
-            </label>
-            <label class="toolbar-field" for="rolling-window-modal">
-              <span class="toolbar-field__label" title="Rolling window size (number of points)">Window size</span>
-              <input id="rolling-window-modal" type="number" class="modal-input" value="50" min="3" max="5000" step="1"
-                aria-label="Rolling window size (number of points)">
-            </label>
-            <label class="toolbar-field toolbar-field--toggle" for="anomaly-enabled-modal">
-              <span class="toolbar-field__label">Anomalies</span>
-              <span class="toolbar-field__control scatter-link-toggle" title="Show anomaly detection regions">
-                <input id="anomaly-enabled-modal" type="checkbox"
-                  aria-label="Enable anomaly detection regions in analytics modal">
-                <span>Enable regions</span>
-              </span>
-            </label>
-            <label class="toolbar-field" for="anomaly-method-modal">
-              <span class="toolbar-field__label">Method</span>
-              <select id="anomaly-method-modal" class="modal-select" title="Anomaly detection method">
-                <option value="zscore">Z-score</option>
-                <option value="iqr">IQR</option>
-              </select>
-            </label>
-            <label class="toolbar-field" for="anomaly-threshold-modal">
-              <span class="toolbar-field__label">Threshold</span>
-              <input id="anomaly-threshold-modal" type="number" class="modal-input" value="3" min="0.5" max="10"
-                step="0.1" title="Anomaly threshold">
-            </label>
-          </div>
-          <div class="modal-actions">
-            <div></div>
-            <button class="btn btn-primary btn-sm" id="analytics-done-btn-modal" type="button">Done</button>
           </div>
         </div>
       </div>

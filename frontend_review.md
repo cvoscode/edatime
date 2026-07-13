@@ -406,6 +406,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - FFT, Heatmap, Spectrogram, Causal, Drift, and Scatter now return their feature-level cleanup handle through the descriptor contract. Causal re-establishes its runtime on a later mount, while Scatter retires controls, chart, matrix work, requests, runtime, and workspace references before reinitialization.
 - Direct registry tests cover mounted-resource disposal and the pending-initialization race; descriptor coverage proves feature cleanup reaches the registry, and Scatter coverage proves a disposed page becomes ready for the next dataset session.
 
+### Completed: retired compatibility markup removal
+
+- Removed the hidden duplicate FFT export controls; the visible export action group is now the sole markup and binding target for every FFT format.
+- Removed the unowned Analytics compatibility modal and all of its duplicate rolling/anomaly form controls. Static ownership tests prove neither retired markup surface can return.
+
 ### Completed: Causal edit-panel decomposition
 
 - Extracted pair-edge draft validation and normalized connection mutation into `editPolicy`, leaving modal status and DOM reads in `editPanel`.
