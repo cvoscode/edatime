@@ -8,9 +8,6 @@ import {
     getEl,
     escapeHtml,
     paletteForScale,
-    sampleGradient,
-    normalizeCategoryLabel,
-    buildCategoricalColorGroups,
     formatValueForColumn,
     isTemporalColumn,
     buildHistogramForDomain,
@@ -48,67 +45,18 @@ import {
     drawDensityMarginalX,
     drawDensityMarginalY,
 } from './renderingDensity.js';
+import { buildNormalScatterSeries as buildSeriesByPolicy } from './seriesPolicy.js';
 
 /* ── Series builders ──────────────────────────────────── */
 
 export function buildNormalScatterSeries(points: [number, number][], controls: ScatterControls): any[] {
-    const colorColumn = controls.selectedColorColumn;
-    const values = scatterState.colorValues;
-    const categoricalGroups = colorColumn ? buildCategoricalColorGroups(scatterState.colorLabels) : null;
-
-    if (categoricalGroups) {
-        return categoricalGroups.categories.map((label) => {
-            const data: [number, number][] = [];
-            for (let i = 0; i < points.length; i++) {
-                if (normalizeCategoryLabel(scatterState.colorLabels?.[i]) !== label) continue;
-                data.push(points[i]);
-            }
-            return { type: 'scatter', name: label, data, symbolSize: 3, color: categoricalGroups.colorByLabel.get(label) || getChartPalette().scatterPoint, sampling: 'none' };
-        }).filter((s: any) => s.data.length > 0);
-    }
-
-    if (!colorColumn || !Array.isArray(values) || values.length === 0) {
-        return [{ type: 'scatter', name: `${controls.x || 'x'} vs ${controls.y || 'y'}`, data: points, symbolSize: 3, color: getChartPalette().scatterPoint, sampling: 'none' }];
-    }
-
-    // Derive min/max only from finite values so the scale is stable even when
-    // the array contains NaN/Infinity (which are now filtered out here).
-    const min = Number.isFinite(scatterState.colorMin) ? scatterState.colorMin : null;
-    const max = Number.isFinite(scatterState.colorMax) ? scatterState.colorMax : null;
-    if (min === null || max === null || !(max > min)) {
-        return [{ type: 'scatter', name: `${controls.x || 'x'} vs ${controls.y || 'y'}`, data: points, symbolSize: 3, color: getChartPalette().scatterPoint, sampling: 'none' }];
-    }
-
-    // Use valueCount based on the original allColorValues array length
-    // so that idx < valueCount guards against out-of-bounds access.
-    const valueCount = Math.min(points.length, scatterState.allColorValues?.length ?? points.length);
-    const bins = 64;
-    const span = max - min;
-    const grouped: [number, number][][] = Array.from({ length: bins }, () => []);
-    for (let idx = 0; idx < points.length; idx++) {
-        const rawV = idx < valueCount ? Number(scatterState.allColorValues?.[idx]) : Number.NaN;
-        if (!Number.isFinite(rawV)) continue;
-        const v = rawV;
-        let b = Math.floor(((v - min) / span) * bins);
-        if (b < 0) b = 0;
-        if (b >= bins) b = bins - 1;
-        grouped[b].push(points[idx]);
-    }
-
-    const gradient = paletteForScale(controls.colorScale);
-    const series: any[] = [];
-    for (let b = 0; b < bins; b++) {
-        if (!grouped[b] || grouped[b].length === 0) continue;
-        series.push({
-            type: 'scatter',
-            name: `${colorColumn}`,
-            data: grouped[b],
-            symbolSize: 3,
-            color: sampleGradient(gradient, (b + 0.5) / bins),
-            sampling: 'none',
-        });
-    }
-    return series;
+    return buildSeriesByPolicy(points, controls, {
+        colorValues: scatterState.colorValues,
+        allColorValues: scatterState.allColorValues,
+        colorLabels: scatterState.colorLabels,
+        colorMin: scatterState.colorMin,
+        colorMax: scatterState.colorMax,
+    }, getChartPalette().scatterPoint);
 }
 
 export function scatterTooltipFormatterFactory(controls: ScatterControls) {
