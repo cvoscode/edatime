@@ -3,7 +3,7 @@
 import { createPageRuntime } from '../../platform/pageRuntime.js';
 
 export interface TimeseriesLifecycleDeps {
-    initFeature: () => void;
+    initFeature: () => void | (() => void);
     ensureReady: () => Promise<void>;
 }
 

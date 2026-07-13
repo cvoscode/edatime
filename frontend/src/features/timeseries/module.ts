@@ -137,7 +137,6 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         updateAnalysisYRange: deps.updateAnalysisYRange,
         updateAnalysisZoom: deps.updateAnalysisZoom,
         emitChartRangeChange: (sourceKind) => pageController.emitChartRangeChange(sourceKind),
-        registerCleanup: () => {}, // owned by runtime via createPageLifecycle
         chartExportPng: deps.chartExportPng,
         chartExportSvg: deps.chartExportSvg,
         exportFilteredCsv: deps.exportFilteredCsv,

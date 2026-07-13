@@ -21,7 +21,6 @@ export interface TimeseriesFeatureDeps {
     renderColumnProfilesGrid?: (force?: boolean) => void;
     updateAnalysisZoom: (start: number, end: number, sourceKind?: string) => void;
     emitChartRangeChange: (sourceKind?: string) => void;
-    registerCleanup: (cleanup: () => void) => void;
     chartExportPng?: () => void;
     chartExportSvg?: () => void;
     exportFilteredCsv?: () => void;
@@ -34,23 +33,45 @@ export interface TimeseriesFeatureDeps {
  * controls and actions through a single unified surface.
  */
 export function createTimeseriesEntrypoint(deps: TimeseriesFeatureDeps) {
+    let initialized = false;
+    let cleanupActions: Array<() => void> = [];
+
     const buildWorkspaceRangeControls = () => buildRangeControls(deps.workspace);
     const rebuildColumns = () => {
         buildColumnToggles(deps.fetchAndRender, buildWorkspaceRangeControls, deps.renderCurrentData, deps.workspace);
     };
 
+    const dispose = () => {
+        if (!initialized) return;
+        initialized = false;
+        const actions = cleanupActions;
+        cleanupActions = [];
+        for (const cleanup of actions) cleanup();
+    };
+
+    const registerCleanup = (cleanup: () => void) => {
+        cleanupActions.push(cleanup);
+    };
+
     return {
-        init() {
+        init(): () => void {
+            if (initialized) return dispose;
+            initialized = true;
             initColumnFilterModal(deps.renderCurrentData, deps.updateAnalysisYRange, deps.workspace);
             initDatasetSearchInputs({
                 rebuildColumnToggles: rebuildColumns,
                 renderColumnProfilesGrid: deps.renderColumnProfilesGrid ?? (() => { }),
             });
             initTimeseriesActions({
-                ...deps,
                 rebuildColumnToggles: rebuildColumns,
                 buildRangeControls: buildWorkspaceRangeControls,
                 renderColumnProfilesGrid: deps.renderColumnProfilesGrid ?? (() => { }),
+                workspace: deps.workspace,
+                fetchAndRender: deps.fetchAndRender,
+                renderCurrentData: deps.renderCurrentData,
+                updateAnalysisZoom: deps.updateAnalysisZoom,
+                emitChartRangeChange: deps.emitChartRangeChange,
+                registerCleanup,
             });
             if (deps.chartExportPng && deps.chartExportSvg && deps.exportFilteredCsv
                 && deps.exportFilteredJson && deps.exportFilteredParquet) {
@@ -84,6 +105,15 @@ export function createTimeseriesEntrypoint(deps: TimeseriesFeatureDeps) {
                         .catch(() => { /* module missing — non-fatal */ });
                 } catch { /* noop */ }
             }
+            const uploadButton = document.getElementById('timeseries-empty-upload-btn');
+            if (uploadButton) {
+                const onUpload = () => {
+                    window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'upload' } }));
+                };
+                uploadButton.addEventListener('click', onUpload);
+                registerCleanup(() => uploadButton.removeEventListener('click', onUpload));
+            }
+            return dispose;
         },
         rebuildColumns,
         buildRangeControls: buildWorkspaceRangeControls,

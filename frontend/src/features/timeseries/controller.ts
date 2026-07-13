@@ -226,13 +226,6 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         emitChartRangeChange(sourceKind);
     }
 
-    const uploadButton = document.getElementById('timeseries-empty-upload-btn');
-    if (uploadButton) {
-        uploadButton.addEventListener('click', () => {
-            window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'upload' } }));
-        });
-    }
-
     const task = createRequestTask({
         setLoading: (loading: boolean) => {
             const loadingEl = document.getElementById('main-chart-loading');

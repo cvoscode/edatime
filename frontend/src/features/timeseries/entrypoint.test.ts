@@ -53,7 +53,6 @@ describe('createTimeseriesEntrypoint', () => {
             updateAnalysisYRange: vi.fn(),
             updateAnalysisZoom: vi.fn(),
             emitChartRangeChange: vi.fn(),
-            registerCleanup: vi.fn(),
         });
 
         expect(feature.init).toBeTypeOf('function');
@@ -71,7 +70,6 @@ describe('createTimeseriesEntrypoint', () => {
             updateAnalysisYRange: vi.fn(),
             updateAnalysisZoom: vi.fn(),
             emitChartRangeChange: vi.fn(),
-            registerCleanup: vi.fn(),
         });
 
         feature.rebuildColumns();
@@ -94,7 +92,6 @@ describe('createTimeseriesEntrypoint', () => {
             renderColumnProfilesGrid: vi.fn(),
             updateAnalysisZoom: vi.fn(),
             emitChartRangeChange: vi.fn(),
-            registerCleanup: vi.fn(),
         };
         const feature = createTimeseriesEntrypoint(deps);
 
@@ -113,11 +110,55 @@ describe('createTimeseriesEntrypoint', () => {
             buildRangeControls: expect.any(Function),
             updateAnalysisZoom: deps.updateAnalysisZoom,
             emitChartRangeChange: deps.emitChartRangeChange,
-            registerCleanup: deps.registerCleanup,
+            registerCleanup: expect.any(Function),
             rebuildColumnToggles: expect.any(Function),
             renderColumnProfilesGrid: deps.renderColumnProfilesGrid,
             workspace: deps.workspace,
         }));
+    });
+
+    it('initializes controls once and disposes registered actions', () => {
+        const actionCleanup = vi.fn();
+        initTimeseriesActionsMock.mockImplementation((deps) => deps.registerCleanup(actionCleanup));
+        const feature = createTimeseriesEntrypoint({
+            workspace: selectionWorkspace(),
+            fetchAndRender: vi.fn(),
+            renderCurrentData: vi.fn(),
+            updateAnalysisYRange: vi.fn(),
+            updateAnalysisZoom: vi.fn(),
+            emitChartRangeChange: vi.fn(),
+        });
+
+        const dispose = feature.init();
+        feature.init();
+
+        expect(initTimeseriesActionsMock).toHaveBeenCalledTimes(1);
+        dispose?.();
+        expect(actionCleanup).toHaveBeenCalledTimes(1);
+    });
+
+    it('owns the empty-state upload action for its lifecycle', () => {
+        document.body.innerHTML = '<button id="timeseries-empty-upload-btn"></button>';
+        initTimeseriesActionsMock.mockImplementation(() => {});
+        const feature = createTimeseriesEntrypoint({
+            workspace: selectionWorkspace(),
+            fetchAndRender: vi.fn(),
+            renderCurrentData: vi.fn(),
+            updateAnalysisYRange: vi.fn(),
+            updateAnalysisZoom: vi.fn(),
+            emitChartRangeChange: vi.fn(),
+        });
+        const onPageChange = vi.fn();
+        window.addEventListener('edatime:page-change', onPageChange);
+
+        const dispose = feature.init();
+        document.getElementById('timeseries-empty-upload-btn')!.click();
+        dispose?.();
+        document.getElementById('timeseries-empty-upload-btn')!.click();
+
+        expect(onPageChange).toHaveBeenCalledTimes(1);
+        expect(onPageChange.mock.calls[0]?.[0]).toMatchObject({ detail: { page: 'upload' } });
+        window.removeEventListener('edatime:page-change', onPageChange);
     });
 
     it('wires the export buttons when all five handlers are provided', () => {
@@ -128,7 +169,6 @@ describe('createTimeseriesEntrypoint', () => {
             updateAnalysisYRange: vi.fn(),
             updateAnalysisZoom: vi.fn(),
             emitChartRangeChange: vi.fn(),
-            registerCleanup: vi.fn(),
             chartExportPng: vi.fn(),
             chartExportSvg: vi.fn(),
             exportFilteredCsv: vi.fn(),
@@ -156,7 +196,6 @@ describe('createTimeseriesEntrypoint', () => {
             updateAnalysisYRange: vi.fn(),
             updateAnalysisZoom: vi.fn(),
             emitChartRangeChange: vi.fn(),
-            registerCleanup: vi.fn(),
             chartExportPng: vi.fn(),
             // missing the rest
         });
