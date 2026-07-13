@@ -450,6 +450,10 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Retired the equally inert Causal defaults (`defaultCausalMethod` and `defaultTauMax`): the Causal feature owns its active controls and never read the settings values. The remaining settings tabs now contain only live application behavior.
 - Retired `analyticsDrawerOpen` as well. The drawer is explicitly normalized closed at startup and never restored, so it now has transient controller-owned state rather than a dead persisted preference.
 
+### Completed: API blob transport ownership
+
+- Moved sample-dataset downloads onto the shared API blob helper. The endpoint now gets the same no-store, structured-error, and transport-policy behavior as every other API route while remaining explicitly outside dataset-scope invalidation.
+
 ### Completed: Drift page decomposition
 
 - Extracted evaluation-mode normalization, latest-window validation, and response-map filtering into `evaluationPolicy` with direct behavior coverage.

@@ -78,6 +78,7 @@ describe('contract: every endpoint targets /api/v1', () => {
             const urls = spy.calls.map((c) => c.url);
             expect(urls[0]).toBe('/api/v1/metadata');
             expect(urls[1]).toBe('/api/v1/sample/ETTm2.csv');
+            expect(spy.calls[1]?.init?.cache).toBe('no-store');
         } finally {
             spy.restore();
         }

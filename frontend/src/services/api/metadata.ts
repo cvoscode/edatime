@@ -1,5 +1,5 @@
 import type { DatasetMetadata } from '../../types/api.js';
-import { getJson, assertDatasetMetadata, type ApiRequestOptions } from './http.js';
+import { getBlob, getJson, assertDatasetMetadata, type ApiRequestOptions } from './http.js';
 
 export async function fetchMetadata(options?: ApiRequestOptions): Promise<DatasetMetadata> {
     const data = await getJson<unknown>('/api/v1/metadata', 'Metadata', options);
@@ -7,9 +7,10 @@ export async function fetchMetadata(options?: ApiRequestOptions): Promise<Datase
     return data;
 }
 
-export async function fetchSampleDataset(filename: string): Promise<Blob> {
+export function fetchSampleDataset(filename: string, options?: ApiRequestOptions): Promise<Blob> {
     const safeName = encodeURIComponent(filename);
-    const res = await globalThis.fetch(`/api/v1/sample/${safeName}`);
-    if (!res.ok) throw new Error(`Sample dataset fetch failed (${res.status})`);
-    return res.blob();
+    return getBlob(`/api/v1/sample/${safeName}`, 'Sample dataset', {
+        ...options,
+        datasetScoped: false,
+    });
 }
