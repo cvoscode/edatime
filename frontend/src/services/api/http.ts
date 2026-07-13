@@ -302,11 +302,36 @@ function postBlob(
     });
 }
 
+function deleteJson<T>(
+    url: string,
+    label: string,
+    options: ApiRequestOptions = {},
+): Promise<T> {
+    dbg(`DELETE (${label})`, url);
+    const scope = options.datasetScoped === false ? null : captureDatasetRequestScope();
+    const dedupeKey = options.datasetScoped === false
+        ? `DELETE:unscoped:${url}`
+        : `DELETE:${scope}:${url}`;
+    return dedupe(dedupeKey, async () => {
+        const res = await globalThis.fetch(url, {
+            method: 'DELETE',
+            cache: 'no-store',
+            ...(options.signal ? { signal: options.signal } : {}),
+        });
+        if (scope !== null) assertDatasetRequestScopeActive(scope);
+        if (!res.ok) throw await readApiError(res, label);
+        const data = await res.json() as T;
+        if (scope !== null) assertDatasetRequestScopeActive(scope);
+        return data;
+    });
+}
+
 export {
     getJson,
     getBlob,
     postJson,
     postBlob,
+    deleteJson,
 };
 
 // Also export dbg and DEBUG for route-family modules

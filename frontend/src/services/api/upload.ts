@@ -1,4 +1,4 @@
-import { getJson, postJson } from './http.js';
+import { deleteJson, getJson, postJson } from './http.js';
 import type { ApiRequestOptions } from './http.js';
 
 // ── Upload ─────────────────────────────────────────────────────────────────
@@ -30,8 +30,8 @@ export async function loadDatabaseTable(body: unknown): Promise<unknown> {
     return postJson<unknown>('/api/v1/database/load', body, 'Database load');
 }
 
-export async function deleteDatabaseConnection(): Promise<Response> {
-    return globalThis.fetch('/api/v1/database/connect', { method: 'DELETE' });
+export function deleteDatabaseConnection(): Promise<unknown> {
+    return deleteJson<unknown>('/api/v1/database/connect', 'Database disconnect', { datasetScoped: false });
 }
 
 export async function fetchDatabaseStatus(): Promise<unknown> {

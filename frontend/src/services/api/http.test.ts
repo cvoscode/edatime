@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     __resetApiRequestStateForTests,
     getJson,
+    deleteJson,
     invalidateDatasetRequestScope,
     postJson,
     readApiError,
@@ -101,6 +102,19 @@ describe('api http request options', () => {
         first.catch(() => { });
         second.catch(() => { });
         third.catch(() => { });
+    });
+
+    it('uses an unscoped no-store DELETE request for non-dataset routes', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ status: 'ok' }));
+        vi.stubGlobal('fetch', fetchMock);
+
+        await expect(deleteJson('/api/v1/database/connect', 'Database disconnect', { datasetScoped: false }))
+            .resolves.toEqual({ status: 'ok' });
+
+        expect(fetchMock).toHaveBeenCalledWith('/api/v1/database/connect', {
+            method: 'DELETE',
+            cache: 'no-store',
+        });
     });
 
     it('rejects a stale in-flight POST response after dataset scope invalidation', async () => {

@@ -453,6 +453,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 ### Completed: API blob transport ownership
 
 - Moved sample-dataset downloads onto the shared API blob helper. The endpoint now gets the same no-store, structured-error, and transport-policy behavior as every other API route while remaining explicitly outside dataset-scope invalidation.
+- Added the canonical DELETE JSON helper and moved database disconnect onto it, so the last simple JSON route no longer bypasses no-store policy or structured API errors.
 
 ### Completed: Drift page decomposition
 
