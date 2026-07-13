@@ -49,7 +49,7 @@ import {
     refreshZoomControlsState, getCurrentView,
     setComputeLoading,
 } from './ui/toolbar.js';
-import { configureExportFeature, exportFilteredData, exportFilteredParquet } from './features/export/index.js';
+import { createExportFeature } from './features/export/index.js';
 import type { DatasetMetadata, DataObject, AnomalyResponse, TransformResponse } from './types/api.js';
 import type { ChartInstance, ViewSnapshot } from './types/chart.js';
 
@@ -62,6 +62,7 @@ const _appCleanups: Array<() => void> = [];
 const runtime = createAppRuntime();
 const pageRegistry = createPageRegistry();
 const workspace = createWorkspaceStore();
+const exportFeature = createExportFeature({ workspace, getData: () => runtimeState.lastFetchedData });
 runtime.registerCleanup(() => workspace.dispose());
 let timeseriesModule!: ReturnType<typeof createTimeseriesModule>;
 
@@ -119,8 +120,6 @@ async function init(): Promise<void> {
     initChartStatePrefs();
     // Load data transport first; chart rendering stays behind timeseries readiness.
     await ensureDataModules();
-    configureExportFeature({ workspace, getData: () => runtimeState.lastFetchedData });
-
     timeseriesModule = createTimeseriesModule({
         fetchData: (start, end, width, columns, colorColumn, lookaroundMs, options) => fetchData!(start, end, width, columns, colorColumn, lookaroundMs, options),
         fetchMetadata: () => fetchMetadata!(),
@@ -141,9 +140,9 @@ async function init(): Promise<void> {
         refreshZoomControlsState,
         chartExportPng: () => chartState.chart?.exportPNG?.(),
         chartExportSvg: () => chartState.chart?.exportSVG?.(),
-        exportFilteredCsv: () => exportFilteredData('csv'),
-        exportFilteredJson: () => exportFilteredData('json'),
-        exportFilteredParquet: () => exportFilteredParquet(),
+        exportFilteredCsv: exportFeature.exportFilteredCsv,
+        exportFilteredJson: exportFeature.exportFilteredJson,
+        exportFilteredParquet: exportFeature.exportFilteredParquet,
     });
 
     // Mount registers page lifecycle (page-change listener, etc.)
@@ -155,8 +154,8 @@ async function init(): Promise<void> {
         showPage,
         fetchAndRender: () => timeseriesModule.fetchAndRender(),
         fetchAndRenderAnalytics,
-        exportFilteredCsv: () => exportFilteredData('csv'),
-        exportFilteredJson: () => exportFilteredData('json'),
+        exportFilteredCsv: exportFeature.exportFilteredCsv,
+        exportFilteredJson: exportFeature.exportFilteredJson,
         exportChartPng: () => chartState.chart?.exportPNG?.(),
         renderCurrentData: () => timeseriesModule.renderCurrentData(),
         updateAnalysisYRange,
@@ -192,8 +191,8 @@ async function init(): Promise<void> {
         zoomOut: () => timeseriesModule.zoomOut(),
         resetZoom: () => timeseriesModule.resetZoom(),
         chartExportPng: () => chartState.chart?.exportPNG?.(),
-        exportFilteredCsv: () => exportFilteredData('csv'),
-        exportFilteredJson: () => exportFilteredData('json'),
+        exportFilteredCsv: exportFeature.exportFilteredCsv,
+        exportFilteredJson: exportFeature.exportFilteredJson,
         registerCleanup: runtime.registerCleanup,
     });
 
