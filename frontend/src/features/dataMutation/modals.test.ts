@@ -30,7 +30,6 @@ vi.mock('../../ui/primitives/Dropdown.js', () => ({
     getDropdownValue: (id: string) => (id === 'outlier-method' ? 'zscore' : ''),
 }));
 
-import { setSelectedCols } from '../../store/uiState.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 import { initOutlierModal } from './modals.js';
 
@@ -45,7 +44,6 @@ describe('dataMutationModals', () => {
             <div id="outlier-error"></div>
             <div id="outlier-result"></div>
         `;
-        setSelectedCols([]);
         removeOutliersMock.mockReset();
         removeOutliersMock.mockResolvedValue({ rows_removed: 1, rows_before: 10, rows_after: 9 });
         openMock.mockClear();
@@ -55,7 +53,6 @@ describe('dataMutationModals', () => {
     it('builds the outlier-removal payload from canonical workspace selection', async () => {
         const workspace = createWorkspaceStore();
         workspace.setSelection(['a', 'b']);
-        setSelectedCols(['retired-ui-state-series']);
         const refreshDataset = vi.fn().mockResolvedValue(undefined);
         initOutlierModal({ refreshDataset, workspace });
 

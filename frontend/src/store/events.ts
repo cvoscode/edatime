@@ -48,7 +48,6 @@ export type StoreEventMap = {
     'ui:profileGridHeaderBound': StoreChange<boolean>;
     'ui:profileGridSort': StoreChange<unknown>;
     'ui:selectedColorColumn': StoreChange<string | null>;
-    'ui:selectedCols': StoreChange<string[]>;
     'ui:seriesColors': StoreChange<Record<string, string>>;
 };
 

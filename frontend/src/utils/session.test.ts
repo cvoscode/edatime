@@ -47,7 +47,6 @@ describe('session restore safeguards', () => {
         uiState.adaptiveLineFilters = [];
         datasetState.datasetRevision = 0;
         datasetState.metadata = null;
-        uiState.selectedCols = ['value'];
     });
 
     it('clears stale filters when dataset revisions mismatch', () => {
@@ -102,7 +101,8 @@ describe('session restore safeguards', () => {
             numeric_columns: ['HUFL', 'HULL'],
             revision: 0,
         } as any;
-        uiState.selectedCols = ['HUFL', 'HULL'];
+        const workspace = createWorkspaceStore();
+        workspace.setSelection(['HUFL', 'HULL']);
 
         const snap = buildSnapshot({
             selectedCols: ['temperature', 'humidity'],
@@ -110,9 +110,9 @@ describe('session restore safeguards', () => {
             datasetRevision: 0,
         });
 
-        applySession(snap, { announceAdjustments: false });
+        applySession(snap, { workspace, announceAdjustments: false });
 
-        expect(uiState.selectedCols).toEqual(['HUFL', 'HULL']);
+        expect(workspace.getSnapshot().selection.columns).toEqual(['HUFL', 'HULL']);
         expect(uiState.selectedColorColumn).toBeNull();
     });
 

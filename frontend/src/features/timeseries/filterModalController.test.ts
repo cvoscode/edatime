@@ -5,7 +5,7 @@ import {
 } from '../../store/chartState.js';
 import { datasetState, setMetadata } from '../../store/datasetState.js';
 import { setLastFetchedData } from '../../store/runtimeState.js';
-import { setColumnRanges, setSelectedCols, uiState } from '../../store/uiState.js';
+import { setColumnRanges, uiState } from '../../store/uiState.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 import { __resetFilterModalOpenerForTests, openFilterForColumn } from './filterModalService.js';
 
@@ -62,7 +62,6 @@ describe('initFilterModalController', () => {
         datasetState.numericCols = ['HUFL', 'HULL'];
         workspace = createWorkspaceStore();
         workspace.setSelection(['HUFL', 'HULL']);
-        setSelectedCols(['retired-ui-state-series']);
         setColumnRanges({});
 
         // Provide lastFetchedData so getFullBoundsForCol works in tests

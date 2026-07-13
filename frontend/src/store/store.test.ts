@@ -6,14 +6,12 @@ import { scatterState } from './scatterState.js';
 import {
     setColumnRange,
     setPreviewSelectedColumns,
-    setSelectedCols,
     uiState,
 } from './uiState.js';
 
 describe('store contract', () => {
     beforeEach(() => {
         clearSubscribers();
-        setSelectedCols([]);
         setColumnRange('value', { from: 0, to: 1 });
         uiState.columnRanges = {};
         setPreviewSelectedColumns([]);
@@ -24,32 +22,11 @@ describe('store contract', () => {
         datasetState.numericCols = [];
     });
 
-    it('subscribes, emits, and unsubscribes typed store events', () => {
-        const handler = vi.fn();
-        const unsubscribe = subscribe('ui:selectedCols', handler);
-
-        setSelectedCols(['temperature']);
-
-        expect(handler).toHaveBeenCalledWith({
-            next: ['temperature'],
-            previous: [],
-        });
-
-        unsubscribe();
-        setSelectedCols(['pressure']);
-
-        expect(handler).toHaveBeenCalledTimes(1);
-    });
-
     it('uses immutable updates for array and object setters', () => {
-        const previousSelected = uiState.selectedCols;
         const previousRanges = uiState.columnRanges;
 
-        setSelectedCols(['value']);
         setColumnRange('value', { from: 2, to: 5 });
 
-        expect(uiState.selectedCols).toEqual(['value']);
-        expect(uiState.selectedCols).not.toBe(previousSelected);
         expect(uiState.columnRanges).toEqual({ value: { from: 2, to: 5 } });
         expect(uiState.columnRanges).not.toBe(previousRanges);
     });

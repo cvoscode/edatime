@@ -22,43 +22,24 @@ import {
     setAdaptiveLineFilters,
     setColumnRanges,
     setSelectedColorColumn,
-    setSelectedCols,
     uiState,
 } from '../../store/uiState.js';
-import { createWorkspaceStore, makeWorkspaceSnapshot } from '../../workspace/workspaceStore.js';
+import { createWorkspaceStore, type WorkspaceStore } from '../../workspace/workspaceStore.js';
+
+let defaultWorkspace: WorkspaceStore;
+
+function setWorkspaceSelection(columns: string[]): void {
+    defaultWorkspace.setSelection(columns, defaultWorkspace.getSnapshot().selection.colorColumn);
+}
 
 function createTimeseriesPageController(deps: Record<string, any>) {
-    const workspace = deps.workspace ?? {
-        getSnapshot: () => makeWorkspaceSnapshot({
-            selection: {
-                columns: uiState.selectedCols,
-                colorColumn: uiState.selectedColorColumn,
-            },
-            filters: {
-                columnRanges: uiState.columnRanges,
-                adaptiveLines: uiState.adaptiveLineFilters,
-            },
-            viewport: Number.isFinite(chartState.currentStart) && Number.isFinite(chartState.currentEnd)
-                ? { xMin: chartState.currentStart!, xMax: chartState.currentEnd!, yMin: null, yMax: null }
-                : null,
-        }),
-        setSelection: (columns: string[], colorColumn: string | null = null) => {
-            setSelectedCols(columns);
-            setSelectedColorColumn(colorColumn);
-        },
-        setFilters: (filters: { columnRanges: Record<string, any>; adaptiveLines: any[] }) => {
-            setColumnRanges(filters.columnRanges);
-            setAdaptiveLineFilters(filters.adaptiveLines);
-        },
-        setViewport: (viewport: { xMin: number; xMax: number } | null) => {
-            setViewport(viewport?.xMin ?? null, viewport?.xMax ?? null);
-        },
-    };
+    const workspace = deps.workspace ?? defaultWorkspace;
     return createWorkspaceController({ ...deps, workspace } as any);
 }
 
 describe('createTimeseriesPageController', () => {
     beforeEach(() => {
+        defaultWorkspace = createWorkspaceStore();
         document.body.innerHTML = '';
         setChartInstance(null);
         setViewport(0, 100);
@@ -72,7 +53,7 @@ describe('createTimeseriesPageController', () => {
         setFetchedWindow(null);
         setColumnRanges({});
         setAdaptiveLineFilters([]);
-        setSelectedCols([]);
+        setWorkspaceSelection([]);
         setSelectedColorColumn(null);
     });
 
@@ -128,7 +109,7 @@ describe('createTimeseriesPageController', () => {
 
     it('builds series requests from workspace selection and viewport intent', async () => {
         document.body.innerHTML = '<div id="main-chart-loading" hidden></div><div id="main-chart"></div>';
-        setSelectedCols(['legacy']);
+        setWorkspaceSelection(['legacy']);
         setSelectedColorColumn('legacy-color');
         setViewport(0, 100);
         const fetchData = vi.fn().mockResolvedValue({ ts: [], values: {}, series: {}, colorByColumn: {} });
@@ -172,7 +153,7 @@ describe('createTimeseriesPageController', () => {
             series: {},
             colorByColumn: {},
         } as any);
-        setSelectedCols(['legacy']);
+        setWorkspaceSelection(['legacy']);
         const controller = createTimeseriesPageController({
             fetchData: vi.fn(),
             buildRangeControls: vi.fn(),
@@ -216,7 +197,7 @@ describe('createTimeseriesPageController', () => {
             time_range: { min: 0, max: 4_000 },
             column_profiles: [],
         } as any);
-        setSelectedCols(['value']);
+        setWorkspaceSelection(['value']);
         setViewport(1_000, 3_000);
 
         const chart = {
@@ -308,7 +289,7 @@ describe('createTimeseriesPageController', () => {
             time_range: { min: 0, max: 100 },
             column_profiles: [],
         } as any);
-        setSelectedCols(['temperature']);
+        setWorkspaceSelection(['temperature']);
 
         const chart = {
             setXRange: vi.fn(),
@@ -344,7 +325,7 @@ describe('createTimeseriesPageController', () => {
                 time_range: { min: 0, max: 100 },
                 column_profiles: [],
             } as any);
-            setSelectedCols(['value']);
+            setWorkspaceSelection(['value']);
             return true;
         });
 
@@ -386,8 +367,9 @@ describe('createTimeseriesPageController', () => {
             time_range: { min: 0, max: 1000 },
             column_profiles: [],
         } as any);
-        setSelectedCols(['value']);
+        setWorkspaceSelection(['value']);
         setSelectedColorColumn('value');
+        defaultWorkspace.setSelection(['value'], 'value');
         setViewport(100, 900);
 
         const chart = {
@@ -450,7 +432,7 @@ describe('createTimeseriesPageController', () => {
             time_range: { min: 0, max: 1000 },
             column_profiles: [],
         } as any);
-        setSelectedCols(['value']);
+        setWorkspaceSelection(['value']);
         setSelectedColorColumn(null);
         setViewport(0, 1000);
 
@@ -501,7 +483,7 @@ describe('createTimeseriesPageController', () => {
             time_range: { min: 0, max: 4_000 },
             column_profiles: [],
         } as any);
-        setSelectedCols(['HUFL', 'OT']);
+        setWorkspaceSelection(['HUFL', 'OT']);
         setSelectedColorColumn(null);
         setViewport(0, 4_000);
 
@@ -561,7 +543,7 @@ describe('createTimeseriesPageController', () => {
             time_range: { min: 0, max: 4_000 },
             column_profiles: [],
         } as any);
-        setSelectedCols(['value']);
+        setWorkspaceSelection(['value']);
         setSelectedColorColumn(null);
         setViewport(1_000, 3_000);
 
@@ -618,7 +600,7 @@ describe('createTimeseriesPageController', () => {
             time_range: { min: 0, max: 4_000 },
             column_profiles: [],
         } as any);
-        setSelectedCols(['value']);
+        setWorkspaceSelection(['value']);
         setSelectedColorColumn(null);
         setViewport(0, 4_000);
 
@@ -698,7 +680,7 @@ describe('createTimeseriesPageController', () => {
                 time_range: { min: 0, max: 4_000 },
                 column_profiles: [],
             } as any);
-            setSelectedCols(['value']);
+            setWorkspaceSelection(['value']);
             setSelectedColorColumn(null);
             setViewport(0, 4_000);
             setRefetchOnZoom(true);
@@ -767,7 +749,7 @@ describe('createTimeseriesPageController', () => {
             time_range: { min: 0, max: 4_000 },
             column_profiles: [],
         } as any);
-        setSelectedCols(['value']);
+        setWorkspaceSelection(['value']);
         setSelectedColorColumn(null);
         setViewport(0, 4_000);
 
@@ -847,7 +829,7 @@ describe('createTimeseriesPageController', () => {
                 time_range: { min: 0, max: 4_000 },
                 column_profiles: [],
             } as any);
-            setSelectedCols(['value']);
+            setWorkspaceSelection(['value']);
             setSelectedColorColumn(null);
             setViewport(0, 4_000);
 

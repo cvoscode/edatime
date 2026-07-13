@@ -256,7 +256,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 ### Completed: selected-series consumer migration
 
 - Moved Timeseries request/render intent, adaptive selection writes, session capture/restore, and FFT filter fallback to `WorkspaceStore`.
-- No production reader now consumes `uiState.selectedCols`; the remaining store field and test fixtures are an isolated final deletion step.
+- Removed the retired `uiState.selectedCols` field, setter, and event. `WorkspaceStore` is now the sole owner of selected series across production code and characterization fixtures.
 
 ### Completed: DataChart decomposition
 

@@ -9,7 +9,6 @@ const {
     fetchMetadataMock,
     sanitizeSelectedColumnsMock,
     startSessionPersistenceMock,
-    setSelectedColsMock,
     setNumericColsMock,
     setAdaptiveFilterColumnMock,
     setViewportMock,
@@ -29,7 +28,6 @@ const {
     }),
     sanitizeSelectedColumnsMock: vi.fn(),
     startSessionPersistenceMock: vi.fn(),
-    setSelectedColsMock: vi.fn(),
     setNumericColsMock: vi.fn(),
     setAdaptiveFilterColumnMock: vi.fn(),
     setViewportMock: vi.fn(),
@@ -171,8 +169,7 @@ vi.mock('../store/runtimeState.js', () => ({
 
 vi.mock('../store/uiState.js', () => ({
     setAdaptiveFilterColumn: setAdaptiveFilterColumnMock,
-    setSelectedCols: setSelectedColsMock,
-    uiState: { selectedCols: [] },
+    uiState: {},
 }));
 
 describe('app -> timeseries bootstrap wiring', () => {

@@ -4,7 +4,6 @@ import {
     setAdaptiveLineFilters,
     setColumnRanges,
     setSelectedColorColumn,
-    setSelectedCols,
 } from '../store/uiState.js';
 import { setAnomalyEnabled, setAnomalyMethod, setAnomalyThreshold, setRollingEnabled, setRollingWindow } from '../store/analyticsState.js';
 import { setMetadata } from '../store/datasetState.js';
@@ -18,7 +17,6 @@ describe('provenance', () => {
         __resetProvenanceForTests();
         setMetadata(null);
         setViewport(null, null);
-        setSelectedCols([]);
         setSelectedColorColumn(null);
         setColumnRanges({});
         setAdaptiveLineFilters([]);
@@ -42,7 +40,6 @@ describe('provenance', () => {
             columnRanges: { value: { from: 1, to: 9 } },
             adaptiveLines: [{ id: 'a', column: 'value', x1: 0, y1: 1, x2: 10, y2: 2, keepAbove: true }],
         });
-        setSelectedCols(['retired-ui-state-series']);
         setSelectedColorColumn('retired-ui-state-color');
         setColumnRanges({ 'retired-ui-state-series': { from: 1, to: 9 } });
         setAdaptiveLineFilters([{ id: 'legacy', column: 'retired-ui-state-series', x1: 0, y1: 1, x2: 10, y2: 2, keepAbove: true }]);

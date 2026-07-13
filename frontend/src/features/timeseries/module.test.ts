@@ -107,8 +107,6 @@ const defaultDeps = () => ({
     sanitizeSelectedColumns: vi.fn(),
     clearLoadedPageModules: vi.fn(),
     ensureSessionPersistenceStarted: vi.fn(),
-    getSelectedCols: vi.fn(() => ['col1']),
-    setSelectedCols: vi.fn(),
     setNumericCols: vi.fn(),
     setAdaptiveFilterColumn: vi.fn(),
     setViewport: vi.fn(),
@@ -194,7 +192,6 @@ describe('createTimeseriesModule', () => {
             numeric_columns: ['value'],
             columns: [{ name: 'value', dtype: 'float64' }],
         });
-        deps.getSelectedCols.mockReturnValue(['value']);
         deps.workspace.getSnapshot.mockReturnValue({
             dataset: { metadata: null, revision: 0 },
             selection: { columns: ['value'], colorColumn: 'stale-bucket' },

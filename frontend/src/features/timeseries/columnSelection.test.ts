@@ -58,7 +58,7 @@ describe('columnSelection', () => {
         it('handles empty selectedCols gracefully', () => {
             workspace.setSelection([]);
             expect(() => sanitizeSelectedColumns(workspace)).not.toThrow();
-            expect([...uiState.selectedCols]).toEqual([]);
+            expect(workspace.getSnapshot().selection.columns).toEqual([]);
         });
 
         it('handles null/undefined column names gracefully', () => {

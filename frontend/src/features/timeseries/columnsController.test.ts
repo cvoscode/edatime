@@ -4,7 +4,7 @@ import {
     datasetState,
     setMetadata,
 } from '../../store/datasetState.js';
-import { setAdaptiveFilterColumn, setFilterText, setSelectedColorColumn, setSelectedCols, setSeriesColors } from '../../store/uiState.js';
+import { setAdaptiveFilterColumn, setFilterText, setSelectedColorColumn, setSeriesColors } from '../../store/uiState.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 
 function buildDom(): void {
@@ -40,7 +40,6 @@ describe('buildColumnToggles', () => {
             column_profiles: [],
         } as any);
         datasetState.numericCols = ['HUFL', 'HULL', 'LUFL', 'LULL', 'MUFL', 'MULL', 'OT'];
-        setSelectedCols(['HUFL', 'HULL', 'OT']);
         setAdaptiveFilterColumn('HUFL');
         setSelectedColorColumn(null);
         setSeriesColors({});
@@ -109,7 +108,6 @@ describe('buildColumnToggles', () => {
         expect(container.getAttribute('aria-label')).toBe('3 of 7 active. Click chips to add more.');
 
         // Adding a chip updates the summary annotation on the next rebuild.
-        setSelectedCols(['HUFL', 'HULL', 'OT', 'MUFL']);
         workspace.setSelection(['HUFL', 'HULL', 'OT', 'MUFL']);
         buildColumnToggles(fetchAndRender, buildRangeControls, null, workspace);
         const rebuilt = document.getElementById('column-toggles') as HTMLElement;

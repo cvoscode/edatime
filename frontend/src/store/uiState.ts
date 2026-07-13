@@ -15,7 +15,6 @@ export type ProfileFilterCategory = 'all' | 'numeric' | 'datetime';
 
 export interface UiState {
     filterText: string;
-    selectedCols: string[];
     adaptiveFilterColumn: string | null;
     columnRanges: Record<string, ColumnRange>;
     adaptiveLineFilters: AdaptiveLineFilter[];
@@ -36,7 +35,6 @@ export interface UiState {
 
 export const uiState: UiState = {
     filterText: '',
-    selectedCols: [],
     adaptiveFilterColumn: null,
     columnRanges: {},
     adaptiveLineFilters: [],
@@ -75,14 +73,6 @@ export function setSeriesColor(column: string, value: string): string | null {
     if (!name || !normalized) return null;
     setSeriesColors({ ...uiState.seriesColors, [name]: normalized });
     return normalized;
-}
-
-/* ── Column selection mutations ──────────────────────────── */
-
-export function setSelectedCols(cols: string[]): void {
-    const previous = uiState.selectedCols;
-    uiState.selectedCols = [...cols];
-    emitStoreEvent('ui:selectedCols', { previous, next: uiState.selectedCols });
 }
 
 export function setAdaptiveFilterColumn(col: string | null): void {
