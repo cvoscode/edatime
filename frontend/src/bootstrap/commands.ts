@@ -105,7 +105,7 @@ export const APP_COMMAND_DEFINITIONS: ReadonlyArray<CommandDefinition> = [
         category: 'Analysis',
         action: async (deps) => {
             await deps.ensureTimeseriesShell?.();
-            const { enableGuidedWorkflow } = await import('../ui/guidedWorkflow.js');
+            const { enableGuidedWorkflow } = await import('../features/home/index.js');
             enableGuidedWorkflow();
         },
     },
@@ -115,7 +115,7 @@ export const APP_COMMAND_DEFINITIONS: ReadonlyArray<CommandDefinition> = [
         category: 'Analysis',
         action: async (deps) => {
             await deps.ensureTimeseriesShell?.();
-            const { disableGuidedWorkflow } = await import('../ui/guidedWorkflow.js');
+            const { disableGuidedWorkflow } = await import('../features/home/index.js');
             disableGuidedWorkflow();
         },
     },
@@ -125,7 +125,7 @@ export const APP_COMMAND_DEFINITIONS: ReadonlyArray<CommandDefinition> = [
         category: 'Analysis',
         action: async (deps) => {
             await deps.ensureTimeseriesShell?.();
-            const { goToNextGuidedStep } = await import('../ui/guidedWorkflow.js');
+            const { goToNextGuidedStep } = await import('../features/home/index.js');
             goToNextGuidedStep();
         },
     },

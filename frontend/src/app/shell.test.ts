@@ -22,7 +22,7 @@ vi.mock('../utils/settings.js', () => ({ initSettings: vi.fn(), getSetting: vi.f
 vi.mock('../ui/settingsPanel.js', () => ({ initSettingsPanel: vi.fn() }));
 vi.mock('../chart/annotations.js', () => ({ initAnnotations: vi.fn() }));
 vi.mock('../ui/annotationPanel.js', () => ({ initAnnotationPanel: vi.fn() }));
-vi.mock('../ui/guidedWorkflow.js', () => ({ initGuidedWorkflow: vi.fn() }));
+vi.mock('../features/home/index.js', () => ({ initGuidedWorkflow: vi.fn() }));
 vi.mock('../ui/analyticsDrawer.js', () => ({ initAnalyticsDrawer: vi.fn() }));
 vi.mock('../ui/dataMutationModals.js', () => ({
     initOutlierModal: vi.fn(),

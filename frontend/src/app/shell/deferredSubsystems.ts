@@ -117,7 +117,7 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
     });
 
     registerSubsystem('guided-workflow', async (deps) => {
-        const { initGuidedWorkflow } = await import('../../ui/guidedWorkflow.js');
+        const { initGuidedWorkflow } = await import('../../features/home/index.js');
         initGuidedWorkflow({ workspace: deps.workspace, registerCleanup: deps.registerCleanup });
     });
 

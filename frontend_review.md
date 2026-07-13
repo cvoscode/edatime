@@ -218,6 +218,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 ### In progress: feature-specific workflow ownership
 
 - The next boundary audit identified `ui/guidedWorkflow.ts` as a feature-specific, causal-aware workflow controller incorrectly located in the reusable UI layer. Move it under Home or shell feature ownership, update deferred-shell and command imports to use that public surface, and add an architecture rule ensuring reusable UI does not import feature controllers.
+- Moved the guided-workflow controller and its characterization tests into `features/home/`, exposed its supported actions through the Home public index, and updated deferred shell plus command-palette loading to consume that surface. The reusable UI layer no longer imports the Causal feature to compute workflow progress.
 
 ### Completed: Spectrogram runtime decomposition
 

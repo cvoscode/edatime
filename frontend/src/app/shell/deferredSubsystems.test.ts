@@ -31,7 +31,7 @@ vi.mock('../../ui/analyticsDrawer.js', () => ({ initAnalyticsDrawer: mocks.initA
 vi.mock('../../bootstrap/analyticsOverlay.js', () => ({ initAnalyticsListeners: mocks.initAnalyticsListeners }));
 vi.mock('../../chart/annotations.js', () => ({ initAnnotations: mocks.initAnnotations }));
 vi.mock('../../ui/annotationPanel.js', () => ({ initAnnotationPanel: mocks.initAnnotationPanel }));
-vi.mock('../../ui/guidedWorkflow.js', () => ({ initGuidedWorkflow: mocks.initGuidedWorkflow }));
+vi.mock('../../features/home/index.js', () => ({ initGuidedWorkflow: mocks.initGuidedWorkflow }));
 vi.mock('../../ui/dataMutationModals.js', () => ({
     initOutlierModal: mocks.initOutlierModal,
     initTransformModal: mocks.initTransformModal,

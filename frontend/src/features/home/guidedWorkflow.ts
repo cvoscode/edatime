@@ -1,7 +1,7 @@
-import type { WorkspaceStore } from '../workspace/workspaceStore.js';
-import { getCurrentCausalGraph } from '../features/causal/index.js';
-import { getDropdownValue } from './primitives/Dropdown.js';
-import { toast } from '../utils/toast.js';
+import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
+import { getCurrentCausalGraph } from '../causal/index.js';
+import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
+import { toast } from '../../utils/toast.js';
 
 export type WorkflowStepId = 'upload' | 'timeseries' | 'correlations' | 'scatter' | 'causal';
 

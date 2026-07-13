@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildWorkflowSuggestion, computeWorkflowProgress, type WorkflowSnapshot } from './guidedWorkflow';
-import { makeWorkspaceSnapshot } from '../workspace/workspaceStore.js';
+import { makeWorkspaceSnapshot } from '../../workspace/workspaceStore.js';
 
 function workflowDeps(metadata: unknown = null, columns: string[] = []) {
     return {

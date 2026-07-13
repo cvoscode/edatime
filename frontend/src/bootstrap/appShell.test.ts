@@ -37,7 +37,7 @@ vi.mock('../ui/settingsPanel.js', () => ({
 }));
 vi.mock('../chart/annotations.js', () => ({ initAnnotations: vi.fn() }));
 vi.mock('../ui/annotationPanel.js', () => ({ initAnnotationPanel: vi.fn() }));
-vi.mock('../ui/guidedWorkflow.js', () => ({
+vi.mock('../features/home/index.js', () => ({
     disableGuidedWorkflow: mocks.disableGuidedWorkflow,
     enableGuidedWorkflow: mocks.enableGuidedWorkflow,
     goToNextGuidedStep: mocks.goToNextGuidedStep,
