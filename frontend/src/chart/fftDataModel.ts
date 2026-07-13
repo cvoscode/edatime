@@ -15,12 +15,21 @@ export interface FftTrace {
 
 export interface FftDataModel {
     fullXMax: number;
-    series: any[];
+    series: FftSeriesModel[];
     yMin: number;
     yMax: number;
     sampleRateHz: number;
     nyquistHz: number;
     dominantPeaks: FrequencyPeak[];
+}
+
+export interface FftSeriesModel {
+    type: 'line';
+    name: string;
+    color: string;
+    data: Array<[number, number]>;
+    _raw: number[];
+    _preLog: number[];
 }
 
 export function buildFftDataModel(

@@ -14,14 +14,13 @@ import {
 } from './chartInteractions.js';
 import { formatFftTooltip } from './fftTooltipPresentation.js';
 import { FftInteractionResources } from './fftInteractionResources.js';
+import { renderFftOverlay } from './fftOverlayPresentation.js';
 import { FftOverlayResources } from './fftOverlayResources.js';
 import {
     type FrequencyPeak,
     type FrequencyUnit,
     formatFrequencyInUnit,
-    formatFrequency,
     frequencyUnitScale,
-    frequencyToPeriod,
     checkAliasingWarning,
     pickFrequencyUnit,
     formatCyclesPerDay,
@@ -32,7 +31,7 @@ import {
     DEFAULT_SPECTRAL_SCALE,
     type SpectralScaleOptions,
 } from '../utils/spectralScaling.js';
-import { buildFftDataModel, type FftTrace } from './fftDataModel.js';
+import { buildFftDataModel, type FftDataModel, type FftTrace } from './fftDataModel.js';
 
 const FFT_GRID: GridLayout = { left: 112, right: 32, top: 52, bottom: 52 };
 
@@ -53,6 +52,7 @@ export class FftChart {
     private _scaleOptions: SpectralScaleOptions = { ...DEFAULT_SPECTRAL_SCALE };
     private _annotations: number[] = [];  // freqHz values
     private _traces: FftTrace[] = [];
+    private _overlayModel: FftDataModel | null = null;
     private _showPeakLabels = true;
     private _sampleRateHz = 0;
     private _nyquistHz = 0;
@@ -149,6 +149,7 @@ export class FftChart {
         if (scaleOptions) this._scaleOptions = scaleOptions;
 
         const model = buildFftDataModel(traces, mode, logScale, this._scaleOptions);
+        this._overlayModel = model;
         this._fullXMax = model.fullXMax;
         if (this._sampleRateHz === 0) this._sampleRateHz = model.sampleRateHz;
         if (this._nyquistHz === 0) this._nyquistHz = model.nyquistHz;
@@ -289,6 +290,7 @@ export class FftChart {
 
     clear(): void {
         this._traces = [];
+        this._overlayModel = null;
         this._annotations = [];
         this._xMin = 0;
         this._xMax = 0;
@@ -327,47 +329,19 @@ export class FftChart {
     private _renderOverlay(): void {
         const canvas = this._overlayResources.canvas;
         if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        const w = canvas.width;
         const xMin = this._getXMin();
         const xMax = this._getXMax();
-        if (xMax <= xMin) return;
-        const unit = this._xUnit();
-        const plotL = FFT_GRID.left;
-        const plotT = FFT_GRID.top;
-        const plotW = w - FFT_GRID.left - FFT_GRID.right;
-        const plotH = canvas.height - FFT_GRID.top - FFT_GRID.bottom;
-        if (plotW <= 0 || plotH <= 0) return;
-
-        // Draw peak labels if enabled
-        if (this._showPeakLabels && this._dominantPeaks.length > 0) {
-            this._renderPeakLabels(ctx, xMin, xMax, plotL, plotT, plotW, plotH);
-        }
-
-        if (this._annotations.length === 0) return;
-
-        ctx.save();
-        ctx.font = '11px Inter, system-ui, sans-serif';
-        for (const freqHz of this._annotations) {
-            if (freqHz < xMin || freqHz > xMax) continue;
-            const ax = plotL + ((freqHz - xMin) / (xMax - xMin)) * plotW;
-            ctx.strokeStyle = 'rgba(255,220,80,0.85)';
-            ctx.lineWidth = 1;
-            ctx.setLineDash([4, 3]);
-            ctx.beginPath();
-            ctx.moveTo(ax, plotT);
-            ctx.lineTo(ax, plotT + plotH);
-            ctx.stroke();
-            ctx.setLineDash([]);
-            const label = formatFrequencyInUnit(freqHz, unit);
-            ctx.fillStyle = 'rgba(255,220,80,0.95)';
-            ctx.textAlign = ax > w / 2 ? 'right' : 'left';
-            ctx.fillText(label, ax + (ax > w / 2 ? -5 : 5), plotT + 14);
-        }
-        ctx.restore();
+        renderFftOverlay(canvas, FFT_GRID, {
+            xMin,
+            xMax,
+            unit: this._xUnit(),
+            annotations: this._annotations,
+            showPeakLabels: this._showPeakLabels,
+            dominantPeaks: this._dominantPeaks,
+            primaryTracePoints: this._overlayModel?.series[0]?.data ?? [],
+            yMin: this._overlayModel?.yMin ?? 0,
+            yMax: this._overlayModel?.yMax ?? 0,
+        });
     }
 
     /* ── Box zoom + scroll + click-annotate ────────────── */
@@ -408,110 +382,4 @@ export class FftChart {
         });
     }
 
-    /** Render dominant frequency peak labels on the overlay. */
-    private _renderPeakLabels(
-        ctx: CanvasRenderingContext2D,
-        xMin: number,
-        xMax: number,
-        plotL: number,
-        plotT: number,
-        plotW: number,
-        plotH: number,
-    ): void {
-        ctx.save();
-        ctx.font = '10px Inter, system-ui, sans-serif';
-        ctx.textBaseline = 'middle';
-
-        // Collapse peaks that land in the same visual neighborhood so the
-        // left edge of the plot does not turn into an unreadable label stack.
-        const peakCandidates: Array<{ peak: FrequencyPeak; ax: number; ay: number }> = [];
-        const peaksToShow = this._dominantPeaks.slice(0, 3);
-        const rowHeight = 18;
-        const labelTop = plotT + 12;
-
-        for (const peak of peaksToShow) {
-            const freqHz = peak.frequency_hz;
-            if (freqHz < xMin || freqHz > xMax) continue;
-
-            const ax = plotL + ((freqHz - xMin) / (xMax - xMin)) * plotW;
-
-            // Find Y position based on magnitude
-            const traceData = this._traces[0];
-            if (!traceData) continue;
-            const raw = this._mode === 'psd' ? traceData.psd : traceData.magnitudes;
-            const freqIdx = traceData.frequencies.findIndex((f) => Math.abs(f - freqHz) < 1e-10);
-            if (freqIdx < 0) continue;
-
-            const yVal = this._logScale ? (raw[freqIdx] > 0 ? Math.log10(raw[freqIdx]) : -10) : raw[freqIdx];
-
-            // Calculate Y coordinate (need to get Y range from traces)
-            let yMin = Infinity, yMax = -Infinity;
-            for (const t of this._traces) {
-                const vals = this._mode === 'psd' ? t.psd : t.magnitudes;
-                for (const v of vals) {
-                    const y = this._logScale ? (v > 0 ? Math.log10(v) : -10) : v;
-                    if (y < yMin) yMin = y;
-                    if (y > yMax) yMax = y;
-                }
-            }
-            if (!Number.isFinite(yMin) || !Number.isFinite(yMax) || yMax <= yMin) continue;
-
-            const ay = plotT + plotH - ((yVal - yMin) / (yMax - yMin)) * plotH;
-            peakCandidates.push({ peak, ax, ay });
-        }
-
-        const clusteredPeaks: Array<{ peak: FrequencyPeak; ax: number; ay: number }> = [];
-        let previousCandidate: { peak: FrequencyPeak; ax: number; ay: number } | null = null;
-        for (const candidate of peakCandidates) {
-            const overlapsPrevious = previousCandidate
-                && Math.abs(previousCandidate.ax - candidate.ax) < 60
-                && Math.abs(previousCandidate.ay - candidate.ay) < 40;
-            if (!overlapsPrevious) clusteredPeaks.push(candidate);
-            previousCandidate = candidate;
-        }
-
-        let rowIndex = 0;
-        for (const { peak, ax, ay } of clusteredPeaks.slice(0, 2)) {
-            const freqHz = peak.frequency_hz;
-
-            // Draw peak marker
-            ctx.fillStyle = 'rgba(255, 100, 100, 0.9)';
-            ctx.beginPath();
-            ctx.arc(ax, ay, 4, 0, Math.PI * 2);
-            ctx.fill();
-
-            const alignRight = ax > plotL + plotW / 2;
-            const labelX = ax + (alignRight ? -12 : 12);
-            const labelY = labelTop + (rowIndex * rowHeight);
-            const periodY = labelY + 10;
-            const lineEndX = labelX + (alignRight ? -4 : 4);
-            rowIndex += 1;
-
-            // Draw a short leader so the label is clearly tied to its peak.
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.42)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(ax, ay - 6);
-            ctx.lineTo(lineEndX, labelY);
-            ctx.stroke();
-
-            // Draw label
-            const label = formatFrequency(freqHz);
-            const period = frequencyToPeriod(freqHz);
-            const plateWidth = Math.max(ctx.measureText(label).width, ctx.measureText(`(${period})`).width) + 10;
-            const plateHeight = 18;
-            const plateX = alignRight ? labelX - plateWidth : labelX;
-            const plateY = labelY - 8;
-            ctx.fillStyle = 'rgba(11, 17, 28, 0.78)';
-            ctx.fillRect(plateX, plateY, plateWidth, plateHeight);
-
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-            ctx.textAlign = alignRight ? 'right' : 'left';
-            ctx.fillText(label, labelX, labelY);
-            ctx.fillStyle = 'rgba(180, 180, 180, 0.85)';
-            ctx.fillText(`(${period})`, labelX, periodY);
-        }
-
-        ctx.restore();
-    }
 }

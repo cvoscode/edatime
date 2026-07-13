@@ -190,6 +190,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - `FftChart` retains ChartGPU option composition while consuming that deterministic model; `fftOverlayResources` owns annotation-canvas/resize-observer mounting and teardown, and `fftInteractionResources` owns the disposable box-zoom binding.
 - Extracted scaled/pre-scale/raw FFT tooltip presentation into `fftTooltipPresentation`, preserving frequency-unit and scaling context under direct behavior coverage.
 - Made repeated `FftChart.init()` release the prior chart instance, overlay observer/node, and box-zoom binding before rebuilding. Direct regression coverage prevents duplicate canvases or retained WebGPU charts on reinitialization, and independently characterizes both extracted resource owners' replacement/disposal contract.
+- Extracted annotation and dominant-peak painting into `fftOverlayPresentation`. It consumes the data model's displayed points and bounds, so peak markers share the scaled chart coordinate system instead of recomputing unscaled values in the chart adapter.
 
 ### In progress: Spectrogram runtime decomposition
 
