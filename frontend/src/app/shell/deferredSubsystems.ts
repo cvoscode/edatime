@@ -92,7 +92,7 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
         // Page-level "?" help button. The helper is idempotent so it's
         // safe to call from inside the upload-panel subsystem.
         const { initUploadHelp } = await import('../../features/upload/index.js');
-        initUploadHelp();
+        deps.registerCleanup(initUploadHelp());
     });
 
     registerSubsystem('column-profiles', async () => {
@@ -145,7 +145,7 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
         initAnalysisControls(deps.fetchAndRender, deps.zoomOut, deps.resetZoom, deps.workspace);
         // Page-level "?" help button. The helper is idempotent so it's
         // safe to call from inside the analysis-controls subsystem.
-        initTimeseriesHelp();
+        deps.registerCleanup(initTimeseriesHelp());
     });
 
     registerSubsystem('command-palette', async (deps) => {
@@ -159,14 +159,14 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
         wireSampleDatasetCards(deps.showPage, () => deps.refreshDatasetAfterMutation());
     });
 
-    registerSubsystem('page-help', async () => {
+    registerSubsystem('page-help', async (deps) => {
         // Page-level "?" help buttons. The home page is wired here; the
         // other pages opt in by adding a "<pageId>-help-btn" trigger
         // and importing initPageHelp from their own page module. The
         // `initPageHelp` helper is idempotent, so calling it from
         // multiple subsystem loaders is safe.
         const { initHomePage } = await import('../../features/home/index.js');
-        initHomePage();
+        deps.registerCleanup(initHomePage());
     });
 
     registerSubsystem('app-commands', async (deps) => {

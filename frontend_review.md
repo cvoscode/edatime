@@ -553,6 +553,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Replaced the global `edatime:page-change` production DOM bus with `platform/navigationEvents`, a typed in-process navigation boundary carrying the resolved page, requested navigation page, and analytics view.
 - Router, page lifecycle, session/provenance, Timeseries, Scatter, Causal, Drift, and Guided Workflow now subscribe through owned typed cleanup handles. Characterization suites emit the same typed payload directly; the prior DOM producer has been removed.
 
+### Completed: shell page-help lifecycle ownership
+
+- The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.
+- Home, Upload, Timeseries, and Settings return and register their help disposers with their shell/page owners, preventing lazy-shell remounts from retaining old help bindings.
+
 ### Completed: adaptive filter WorkspaceStore ownership
 
 - Adaptive gesture refresh now compares canonical adaptive-line state from WorkspaceStore. Gesture application, chip removal, clear controls, and filter-modal changes all flow through the same state publication instead of coordinating with DOM events.

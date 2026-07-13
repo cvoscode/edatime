@@ -90,6 +90,6 @@ export const UPLOAD_HELP: PageHelpContent = {
     ],
 };
 
-export function initUploadHelp(): void {
-    initPageHelp('upload', UPLOAD_HELP);
+export function initUploadHelp(): () => void {
+    return initPageHelp('upload', UPLOAD_HELP);
 }

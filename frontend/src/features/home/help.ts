@@ -73,6 +73,6 @@ export const HOME_HELP: PageHelpContent = {
     ],
 };
 
-export function initHomePage(): void {
-    initPageHelp('home', HOME_HELP);
+export function initHomePage(): () => void {
+    return initPageHelp('home', HOME_HELP);
 }

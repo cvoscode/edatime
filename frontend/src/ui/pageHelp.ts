@@ -45,12 +45,14 @@ export interface PageHelpContent {
 
 const MODAL_ID = 'page-help-modal';
 const BOUND_ATTR = 'data-page-help-bound';
+const bindings = new WeakMap<HTMLElement, () => void>();
 
-export function initPageHelp(pageId: string, content: PageHelpContent): void {
+export function initPageHelp(pageId: string, content: PageHelpContent): () => void {
     const triggerId = `${pageId}-help-btn`;
     const trigger = document.getElementById(triggerId);
-    if (!trigger) return;
-    if (trigger.getAttribute(BOUND_ATTR) === 'true') return;
+    if (!trigger) return () => {};
+    const existing = bindings.get(trigger as HTMLElement);
+    if (existing) return existing;
     trigger.setAttribute(BOUND_ATTR, 'true');
 
     // Setting a clear aria-label/title makes the trigger self-describing
@@ -59,7 +61,16 @@ export function initPageHelp(pageId: string, content: PageHelpContent): void {
     trigger.setAttribute('aria-label', baseTitle);
     trigger.setAttribute('title', `${baseTitle} (?)`);
 
-    trigger.addEventListener('click', () => openPageHelp(content, trigger));
+    const open = () => openPageHelp(content, trigger as HTMLElement);
+    trigger.addEventListener('click', open);
+    const dispose = () => {
+        trigger.removeEventListener('click', open);
+        trigger.removeAttribute(BOUND_ATTR);
+        bindings.delete(trigger as HTMLElement);
+        closePageHelp(trigger as HTMLElement);
+    };
+    bindings.set(trigger as HTMLElement, dispose);
+    return dispose;
 }
 
 function openPageHelp(content: PageHelpContent, trigger: HTMLElement): void {

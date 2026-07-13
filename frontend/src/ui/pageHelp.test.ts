@@ -163,6 +163,18 @@ describe('initPageHelp', () => {
         expect(document.getElementById('page-help-modal')).toBeNull();
     });
 
+    it('releases the trigger and open modal when disposed', async () => {
+        document.body.innerHTML = `<button id="test-help-btn" type="button">?</button>`;
+        const { initPageHelp } = await import('./pageHelp.js');
+        const dispose = initPageHelp('test', { pageName: 'Test', intro: 'Intro.', sections: [] });
+        (document.getElementById('test-help-btn') as HTMLButtonElement).click();
+        expect(document.getElementById('page-help-modal')).not.toBeNull();
+
+        dispose();
+        (document.getElementById('test-help-btn') as HTMLButtonElement).click();
+        expect(document.getElementById('page-help-modal')).toBeNull();
+    });
+
     it('restores focus to the trigger on close', async () => {
         document.body.innerHTML = `<button id="test-help-btn" type="button">?</button>`;
         const { initPageHelp } = await import('./pageHelp.js');

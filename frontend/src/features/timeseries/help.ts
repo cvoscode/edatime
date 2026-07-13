@@ -97,6 +97,6 @@ export const TIMESERIES_HELP: PageHelpContent = {
     ],
 };
 
-export function initTimeseriesHelp(): void {
-    initPageHelp('timeseries', TIMESERIES_HELP);
+export function initTimeseriesHelp(): () => void {
+    return initPageHelp('timeseries', TIMESERIES_HELP);
 }

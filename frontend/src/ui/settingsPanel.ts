@@ -213,7 +213,7 @@ export function initSettingsPanel(): () => void {
     const listenerOptions = { signal: abortController.signal };
     // Page-level "?" help button. Idempotent so safe to call on every
     // settings-panel init.
-    initSettingsHelp();
+    const disposeSettingsHelp = initSettingsHelp();
     // Apply button
     document.getElementById('settings-apply-btn')?.addEventListener('click', applySettings, listenerOptions);
 
@@ -268,6 +268,7 @@ export function initSettingsPanel(): () => void {
 
     const dispose = () => {
         abortController.abort();
+        disposeSettingsHelp();
         controller.dispose();
         if (disposeSettingsPanel === dispose) disposeSettingsPanel = null;
     };

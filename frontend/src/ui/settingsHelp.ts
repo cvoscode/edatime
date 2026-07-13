@@ -69,6 +69,6 @@ export const SETTINGS_HELP: PageHelpContent = {
     ],
 };
 
-export function initSettingsHelp(): void {
-    initPageHelp('settings', SETTINGS_HELP);
+export function initSettingsHelp(): () => void {
+    return initPageHelp('settings', SETTINGS_HELP);
 }
