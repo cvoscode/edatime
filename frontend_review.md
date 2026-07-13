@@ -149,7 +149,7 @@ Complete: FFT and Timeseries layout/lifecycle tests now live with their features
 
 Continue replacing cross-feature deep imports with small public surfaces, then extend the architecture checker once the remaining direct seams have been migrated.
 
-### In progress: DataChart decomposition
+### Completed: DataChart decomposition
 
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.
 - Added direct unit coverage for this policy while retaining the existing DataChart legend characterization tests.
@@ -182,9 +182,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Extracted legend visibility mutation into `legendVisibilityPolicy`, preserving grouped trace toggles while leaving `DataChart` responsible only for applying the resulting option and refreshing overlays.
 - Extracted deterministic Y-axis and grid presentation into `timeSeriesAxisPresentation`; it applies the existing display-range policy, numeric tick formatting, and responsive grid measurement under direct tests, while `DataChart` only applies the computed option.
 
-### Next: DataChart renderer seams
-
-Continue this behavior-preserving split with the remaining renderer-owned seams: text overlays, drawings/annotations, ChartGPU option construction, and export composition. For each seam, first preserve its existing `DataChart` characterization coverage, add direct module coverage for its extracted behavior, run the full gates, then commit before moving to the next seam.
+`DataChart` now remains as the ChartGPU adapter and orchestration layer; rendering-heavy behavior is owned by deterministic policies and dedicated lifecycle/rendering controllers.
 
 ### In progress: Spectrogram runtime decomposition
 

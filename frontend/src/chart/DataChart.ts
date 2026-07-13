@@ -534,11 +534,11 @@ export class DataChart {
         // never dip below zero (e.g. OT, temperature counts).
         //
         // When the user has set an explicit y range (via `setYRange`,
-        // box-zoom, or Ctrl-pan y motion), honour that range verbatim so
-        // the chart zooms in on y exactly the way they asked. Without
-        // this, dragging a smaller box on the chart would only zoom the
-        // x-axis and the y-axis would keep showing the full data span,
-        // defeating the whole point of a box-zoom interaction.
+        // box-zoom, or Ctrl-pan y motion), it becomes the base display
+        // range. `computeDisplayYRange` deliberately keeps its small
+        // headroom around that base range so data never touches the chart
+        // edge, while still honoring the user-selected zoom rather than
+        // reverting to the full data span.
         const displayBounds = this._computeRobustDisplayBounds();
         return buildTimeSeriesAxisPresentation({
             userMin: this._yMin, userMax: this._yMax,
