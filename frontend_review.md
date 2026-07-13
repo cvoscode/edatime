@@ -758,6 +758,17 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Replaced migration-era architecture-check exceptions with a single enforced absence/import invariant, so a retired tree or compatibility module cannot be recreated unnoticed.
 - Removed stale source-path commentary that still described moved Scatter, Timeseries, and Causal implementation owners.
 
+### Completed: executable browser verification gate
+
+- Added the repository Playwright configuration and `npm run test:e2e` entrypoint so the existing audit browser flows are discovered rather than silently skipped by the default file matcher; the command builds and owns a packaged local server unless a host supplies an explicit origin.
+- Seeded the browser suite with the representative ETTm2 dataset, updated its request assertions to `/api/v1`, and aligned its controls/landmark assertions with the current custom-dropdown and lazy-transport contracts.
+
+### Completed: final verification gate sweep
+
+- Passed the complete frontend unit/controller suite (1,205 tests), TypeScript, architecture, bundle-budget, and packaged asset-graph gates after the final source-tree and contract consolidation.
+- Passed the Rust workspace test suite and the self-contained Playwright audit suite (11 browser flows) against a newly built packaged app and seeded ETTm2 dataset.
+- The production build retains lazy Arrow, ChartGPU, and ECharts chunks; its checked budgets are 186,987 B initial JS and 132,624 B initial CSS, within the enforced repository limits.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.

@@ -18,6 +18,7 @@
     "watch:frontend": "node scripts/build-frontend.mjs --watch",
     "preview": "vite preview --config frontend/vite.config.ts",
     "test": "vitest run",
+    "test:e2e": "npm run build:prod && playwright test",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },
