@@ -6,6 +6,7 @@ const {
     initAppShellMock,
     markMetadataReadyMock,
     clearLoadedPageModulesMock,
+    disposePageRegistryMock,
     fetchMetadataMock,
     sanitizeSelectedColumnsMock,
     startSessionPersistenceMock,
@@ -22,6 +23,7 @@ const {
     })),
     markMetadataReadyMock: vi.fn(),
     clearLoadedPageModulesMock: vi.fn(),
+    disposePageRegistryMock: vi.fn(),
     fetchMetadataMock: vi.fn().mockResolvedValue({
         revision: 1,
         columns: [],
@@ -92,6 +94,7 @@ vi.mock('../app/pageRegistry.js', () => ({
     createPageRegistry: vi.fn(() => ({
         ensurePageModuleLoaded: vi.fn(),
         clearLoadedPageModules: clearLoadedPageModulesMock,
+        dispose: disposePageRegistryMock,
         markMetadataReady: markMetadataReadyMock,
         isMetadataReady: vi.fn(),
     })),
@@ -257,6 +260,12 @@ describe('app -> timeseries bootstrap wiring', () => {
         await import('../app.js');
         expect((window as any).__edatime?.ensureReady).toBeUndefined();
         expect((window as any).__edatime?.ensureDatasetReady).toBeUndefined();
+    });
+
+    it('registers page-registry teardown with the app runtime', async () => {
+        await import('../app.js');
+
+        expect(registerRuntimeCleanupMock).toHaveBeenCalledWith(disposePageRegistryMock);
     });
 
     it('defers data transport loading until a dataset-backed operation requests it', async () => {

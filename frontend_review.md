@@ -607,6 +607,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Home and Upload startup can now complete without eagerly loading the API client, while the first metadata request retains the same fetch contract.
 - Bootstrap coverage explicitly verifies no transport load at app import and exactly one load when metadata is first requested.
 
+### Completed: app-runtime page-registry teardown
+
+- Added final disposal to the lazy page registry: it invalidates pending initialization, releases every mounted page disposer, clears descriptors, and prevents post-teardown loads.
+- App composition registers that registry disposer directly with `AppRuntime`, completing the ownership edge between application shutdown and lazy feature resources.
+- Direct registry and bootstrap regressions prove mounted pages release once and runtime cleanup receives the registry disposer.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.

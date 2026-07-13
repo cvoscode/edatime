@@ -63,6 +63,7 @@ const pageRegistry = createPageRegistry();
 const workspace = createWorkspaceStore();
 const exportFeature = createExportFeature({ workspace, getData: () => runtimeState.lastFetchedData });
 runtime.registerCleanup(() => workspace.dispose());
+runtime.registerCleanup(pageRegistry.dispose);
 let timeseriesModule!: ReturnType<typeof createTimeseriesModule>;
 
 /* ── Lazy-loaded modules ──────────────────────────────── */

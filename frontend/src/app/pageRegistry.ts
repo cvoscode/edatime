@@ -17,6 +17,7 @@ export interface PageRegistry {
     markMetadataReady(): void;
     isMetadataReady(): boolean;
     clearLoadedPageModules(): void;
+    dispose(): void;
 }
 
 export function createPageRegistry(): PageRegistry {
@@ -26,14 +27,17 @@ export function createPageRegistry(): PageRegistry {
     const pageDisposers = new Map<string, () => void>();
     let instanceMetadataReady = false;
     let datasetSession = 0;
+    let disposed = false;
     let instanceReleaseMetadata: (() => void) | null = null;
     const instanceMetadataPromise = new Promise<void>((resolve) => { instanceReleaseMetadata = resolve; });
 
     return {
         register(name: string, page: PageDefinition) {
+            if (disposed) return;
             instancePages.set(name, page);
         },
         async ensurePageModuleLoaded(name: string) {
+            if (disposed) return;
             if (instanceLoaded.has(name)) return;
             const page = instancePages.get(name);
             if (!page) return;
@@ -64,6 +68,7 @@ export function createPageRegistry(): PageRegistry {
             return initialization;
         },
         markMetadataReady() {
+            if (disposed) return;
             instanceMetadataReady = true;
             instanceReleaseMetadata?.();
         },
@@ -71,10 +76,21 @@ export function createPageRegistry(): PageRegistry {
             return instanceMetadataReady;
         },
         clearLoadedPageModules() {
+            if (disposed) return;
             datasetSession += 1;
             for (const dispose of pageDisposers.values()) dispose();
             pageDisposers.clear();
             instanceLoaded.clear();
+        },
+        dispose() {
+            if (disposed) return;
+            disposed = true;
+            datasetSession += 1;
+            for (const dispose of pageDisposers.values()) dispose();
+            pageDisposers.clear();
+            instanceLoaded.clear();
+            instancePages.clear();
+            instanceReleaseMetadata?.();
         },
     };
 }

@@ -64,6 +64,20 @@ describe('page registry', () => {
         expect(dispose).toHaveBeenCalledTimes(1);
     });
 
+    it('releases mounted pages permanently when the owning app runtime is disposed', async () => {
+        const disposePage = vi.fn();
+        const init = vi.fn(async () => disposePage);
+        const registry = createPageRegistry();
+        registry.register('scatter', { requiresMetadata: false, init });
+
+        await registry.ensurePageModuleLoaded('scatter');
+        registry.dispose();
+        await registry.ensurePageModuleLoaded('scatter');
+
+        expect(disposePage).toHaveBeenCalledTimes(1);
+        expect(init).toHaveBeenCalledTimes(1);
+    });
+
     it('disposes a stale initialization that completes after a dataset reset', async () => {
         let releaseInit!: (dispose: () => void) => void;
         const dispose = vi.fn();
