@@ -10,6 +10,7 @@ import { createTimeseriesLifecycle } from './lifecycle.js';
 import { createDatasetBootstrap } from './datasetBootstrap.js';
 import { createTimeseriesBootstrap } from './ensureReady.js';
 import { createTimeseriesShortcuts } from './shortcuts.js';
+import { createTimeseriesRuntimeCache } from './runtimeCache.js';
 import { setDatasetRevision, setMetadata } from '../../store/datasetState.js';
 import { clearScatterViewSnapshots } from '../../store/scatterState.js';
 import { getNumericColumns, getDefaultTimeseriesColumns } from '../../platform/analyticsColumns.js';
@@ -59,6 +60,7 @@ export interface TimeseriesModuleDeps {
 }
 
 export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
+    const runtimeCache = createTimeseriesRuntimeCache();
     let datasetUiReady = false;
     let feature!: ReturnType<typeof createTimeseriesControls>;
     let datasetUiModulesPromise: Promise<{
@@ -89,6 +91,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
     // 1. Create the page controller (holds fetch/render/chart state)
     const pageController = createTimeseriesPageController({
         fetchData: deps.fetchData,
+        runtimeCache,
         workspace: deps.workspace,
         buildRangeControls: () => feature.buildRangeControls(),
         updateAnalysisYRange: deps.updateAnalysisYRange,

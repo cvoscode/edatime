@@ -18,7 +18,6 @@ import { chartState, setViewport, setZoomHistory } from '../../store/chartState.
 import { datasetState } from '../../store/datasetState.js';
 import {
     runtimeState,
-    setFetchDebounceId,
     setFetchedWindow,
     setLastFetchedData,
     setPendingRestoreY,
@@ -34,6 +33,7 @@ import {
     resolveZoomOutDecision,
     type ZoomRestoreState,
 } from './zoomHistoryPolicy.js';
+import { createTimeseriesRuntimeCache, type TimeseriesRuntimeCache } from './runtimeCache.js';
 
 const EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} } as any;
 
@@ -54,6 +54,7 @@ interface TimeseriesControllerDeps {
     fetchAndRenderAnalytics: () => Promise<void>;
     recoverFromColumnMismatch?: () => Promise<boolean>;
     workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setSelection' | 'setFilters' | 'setViewport'>;
+    runtimeCache?: TimeseriesRuntimeCache;
 }
 
 // computeFrontendRollingBands is feature-local analytics-overlay policy.
@@ -100,6 +101,7 @@ function computeRenderedYDebugSnapshot(intent: TimeseriesFilterIntent) {
 }
 
 export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
+    const runtimeCache = deps.runtimeCache ?? createTimeseriesRuntimeCache();
     let lastKnownView: ViewSnapshot | null = null;
     let zoomRestoreHistory: ZoomRestoreState[] = [];
     let consecutiveZoomOuts = 0;
@@ -424,7 +426,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
     }
 
     function zoomOut(): void {
-        if (runtimeState.fetchDebounceId) clearTimeout(runtimeState.fetchDebounceId);
+        runtimeCache.clearScheduledFetch();
         const decision = resolveZoomOutDecision({
             history: zoomRestoreHistory,
             consecutiveZoomOuts,
@@ -456,21 +458,21 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             return;
         }
 
-        setFetchDebounceId(setTimeout(fetchAndRender, 0));
+        runtimeCache.scheduleFetch(fetchAndRender, 0);
     }
 
     function resetZoom(): void {
-        if (runtimeState.fetchDebounceId) clearTimeout(runtimeState.fetchDebounceId);
+        runtimeCache.clearScheduledFetch();
         consecutiveZoomOuts = 0;
         zoomRestoreHistory = [];
         syncZoomHistoryStore();
         if (!chartState.initialView) return;
         applyView(chartState.initialView, 'reset');
-        setFetchDebounceId(setTimeout(fetchAndRender, 0));
+        runtimeCache.scheduleFetch(fetchAndRender, 0);
     }
 
     function onZoomRangeChange(view: ViewSnapshot, sourceKind = 'user'): void {
-        if (runtimeState.fetchDebounceId) clearTimeout(runtimeState.fetchDebounceId);
+        runtimeCache.clearScheduledFetch();
         consecutiveZoomOuts = 0;
 
         dbgGroup(`onZoomRangeChange (${sourceKind})`, () => {
@@ -496,12 +498,12 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         applyView(view, sourceKind);
         if (!runtimeState.refetchOnZoom) return;
         const delayMs = sourceKind === 'user' ? 0 : 75;
-        setFetchDebounceId(setTimeout(fetchAndRender, delayMs));
+        runtimeCache.scheduleFetch(fetchAndRender, delayMs);
     }
 
     function dispose(): void {
         task.cancel();
-        if (runtimeState.fetchDebounceId) clearTimeout(runtimeState.fetchDebounceId);
+        runtimeCache.dispose();
         emptyStateController?.dispose();
         emptyStateController = null;
     }

@@ -673,6 +673,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - The feature module delegates that capability to its controller, making the current data dependency explicit and preparing the remaining cache migration from global runtime state into feature-private state.
 - Module characterization coverage declares the capability as part of the stable Timeseries public surface.
 
+### Completed: Timeseries scheduled-fetch cache ownership
+
+- Moved Timeseries refetch timer ownership out of global runtime state into the feature-private runtime cache created per Timeseries module.
+- Zoom, reset, and dispose paths now cancel only their own scheduled work; controller disposal clears the local cache rather than a process-wide debounce handle.
+- Direct cache and controller/module characterization coverage protects replacement scheduling and disposal cancellation before the remaining fetched-data/window cache cutover.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.
