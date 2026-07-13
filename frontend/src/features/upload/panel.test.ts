@@ -200,6 +200,22 @@ describe('initUploadPanel notifications', () => {
         uiState.previewTimeColumn = null;
     });
 
+    it('disposes prior panel listeners before a replacement panel is bound', () => {
+        const firstDispose = initUploadPanel(vi.fn(), vi.fn(), {
+            buildColumnToggles: vi.fn(),
+            buildRangeControls: vi.fn(),
+        });
+        firstDispose();
+        initUploadPanel(vi.fn(), vi.fn(), {
+            buildColumnToggles: vi.fn(),
+            buildRangeControls: vi.fn(),
+        });
+
+        (document.getElementById('upload-toggle-btn') as HTMLButtonElement).click();
+
+        expect(document.getElementById('upload-panel')?.classList.contains('open')).toBe(true);
+    });
+
     it('shows a success toast after upload completes and metadata refreshes', async () => {
         const previewMetadata = makeMetadata();
         const refreshedMetadata = makeMetadata({ total_rows: 2468 });

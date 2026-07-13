@@ -53,6 +53,8 @@ export function initUploadPanel(
     renderColumnProfilesGrid: (resetScroll: boolean) => void,
     deps: UploadPanelDeps,
 ): () => void {
+    const listenerAbort = new AbortController();
+    const listenerOptions = { signal: listenerAbort.signal };
     const previewController = createUploadPreviewController();
     const toggleBtn = document.getElementById('upload-toggle-btn');
     const panel = document.getElementById('upload-panel');
@@ -81,7 +83,7 @@ export function initUploadPanel(
         !skipInput || !uploadBtn
     ) {
         console.error('Upload panel is missing required elements.');
-        return () => previewController.dispose();
+        return () => { listenerAbort.abort(); previewController.dispose(); };
     }
 
     let selectedFile: File | null = null;
@@ -116,7 +118,7 @@ export function initUploadPanel(
             panel!.classList.toggle('open');
             toggleBtn.classList.toggle('btn-primary');
             toggleBtn.classList.toggle('btn-ghost');
-        });
+        }, listenerOptions);
     } else {
         panel.classList.add('open');
     }
@@ -126,6 +128,7 @@ export function initUploadPanel(
             hydrateColumnProfiles,
             renderColumnProfilesGrid,
             onTimeColumnChanged: runPreviewWithCurrentFile,
+            signal: listenerAbort.signal,
         });
     }
 
@@ -133,13 +136,13 @@ export function initUploadPanel(
     dropZone.addEventListener('click', (e: MouseEvent) => {
         if ((e.target as HTMLElement).closest('#browse-btn')) return;
         fileInput!.click();
-    });
+    }, listenerOptions);
     dropZone.addEventListener('keydown', (e: KeyboardEvent) => {
         if (e.key !== 'Enter' && e.key !== ' ') return;
         e.preventDefault();
         fileInput!.click();
-    });
-    browseBtn.addEventListener('click', () => fileInput!.click());
+    }, listenerOptions);
+    browseBtn.addEventListener('click', () => fileInput!.click(), listenerOptions);
     fileInput.addEventListener('change', () => {
         selectedFile = fileInput!.files?.[0] || null;
         const invalidFileMsg = validateFileSize(selectedFile);
@@ -156,11 +159,11 @@ export function initUploadPanel(
         setPreviewTimeColumn(null);
         syncUploadButtonState();
         if (selectedFile) void runPreviewWithCurrentFile(selectedFile);
-    });
+    }, listenerOptions);
 
     // Drag and drop
-    dropZone.addEventListener('dragover', (e: DragEvent) => { e.preventDefault(); dropZone!.classList.add('dragover'); });
-    dropZone.addEventListener('dragleave', () => dropZone!.classList.remove('dragover'));
+    dropZone.addEventListener('dragover', (e: DragEvent) => { e.preventDefault(); dropZone!.classList.add('dragover'); }, listenerOptions);
+    dropZone.addEventListener('dragleave', () => dropZone!.classList.remove('dragover'), listenerOptions);
     dropZone.addEventListener('drop', (e: DragEvent) => {
         e.preventDefault();
         dropZone!.classList.remove('dragover');
@@ -178,12 +181,12 @@ export function initUploadPanel(
         setPreviewTimeColumn(null);
         syncUploadButtonState();
         if (selectedFile) void runPreviewWithCurrentFile(selectedFile);
-    });
+    }, listenerOptions);
 
     // Partial load toggle
     partialChk.addEventListener('change', () => {
         partialFlds!.classList.toggle('visible', partialChk!.checked);
-    });
+    }, listenerOptions);
     partialFlds.classList.toggle('visible', partialChk.checked);
 
     // Sync range ↔ number input
@@ -191,14 +194,14 @@ export function initUploadPanel(
         const v = parseInt(nRowsRange!.value, 10);
         nRowsInput!.value = String(v);
         nRowsDisp!.textContent = formatUploadRowCountLocal(v);
-    });
+    }, listenerOptions);
     nRowsInput.addEventListener('input', () => {
         const v = parseInt(nRowsInput!.value, 10);
         if (!isNaN(v)) {
             nRowsRange!.value = String(Math.min(v, parseInt(nRowsRange!.max, 10)));
             nRowsDisp!.textContent = formatUploadRowCountLocal(v);
         }
-    });
+    }, listenerOptions);
 
     const defaultRows = parseInt(nRowsRange.value, 10);
     if (!isNaN(defaultRows) && defaultRows > 0) {
@@ -214,7 +217,7 @@ export function initUploadPanel(
         void import('../../services/api/index.js').then(async ({ fetchMetadata }) => {
             try {
                 const freshMetadata = await fetchMetadata();
-                if (freshMetadata) {
+                if (!listenerAbort.signal.aborted && freshMetadata) {
                     setMetadata(freshMetadata);
                     const revision = freshMetadata?.revision;
                     setDatasetRevision(typeof revision === 'number' ? revision : 0);
@@ -227,11 +230,11 @@ export function initUploadPanel(
         });
     }
 
-    selectAllBtn?.addEventListener('click', () => setSelectionMode('all'));
-    selectNoneBtn?.addEventListener('click', () => setSelectionMode('none'));
+    selectAllBtn?.addEventListener('click', () => setSelectionMode('all'), listenerOptions);
+    selectNoneBtn?.addEventListener('click', () => setSelectionMode('none'), listenerOptions);
     selectAllCheckbox?.addEventListener('change', () => {
         setSelectionMode(selectAllCheckbox!.checked ? 'all' : 'none');
-    });
+    }, listenerOptions);
 
     function setSelectionMode(mode: 'all' | 'none') {
         const columns = Array.isArray(datasetState.columnProfiles)
@@ -268,7 +271,7 @@ export function initUploadPanel(
             hydrateColumnProfiles,
             renderColumnProfilesGrid,
         });
-    });
+    }, listenerOptions);
 
     /* ── Upload source tabs (File | Database) ───────────── */
     const fileTabBtn = document.getElementById('upload-source-file-btn');
@@ -296,8 +299,8 @@ export function initUploadPanel(
         }
     }
 
-    fileTabBtn?.addEventListener('click', () => switchUploadSource('file'));
-    dbTabBtn?.addEventListener('click', () => switchUploadSource('database'));
+    fileTabBtn?.addEventListener('click', () => switchUploadSource('file'), listenerOptions);
+    dbTabBtn?.addEventListener('click', () => switchUploadSource('database'), listenerOptions);
 
     /* ── Database connection ─────────────────────────────── */
     const dbConnectBtn = document.getElementById('db-connect-btn') as HTMLButtonElement | null;
@@ -311,7 +314,7 @@ export function initUploadPanel(
         const tableInput = document.getElementById('db-table-input') as HTMLInputElement | null;
         const table = getDropdownValue('db-table-select');
         if (tableInput && table) tableInput.value = table;
-    });
+    }, listenerOptions);
 
     /** Connect button — delegates to databaseSource handler. */
     if (dbConnectBtn) {
@@ -326,7 +329,7 @@ export function initUploadPanel(
                 dbLoadBtn,
                 dbDisconnectBtn,
             });
-        });
+        }, listenerOptions);
     }
 
     /** Load data button — delegates to databaseSource handler. */
@@ -345,7 +348,7 @@ export function initUploadPanel(
                 dbStatus: dbStatus!,
                 refreshDatasetAfterMutation: deps.refreshDatasetAfterMutation,
             });
-        });
+        }, listenerOptions);
     }
 
     /** Disconnect button — delegates to databaseSource handler. */
@@ -357,7 +360,7 @@ export function initUploadPanel(
                 dbStatus: dbStatus!,
                 dbTableSelect,
             });
-        });
+        }, listenerOptions);
     }
 
     let dbStatusLoaded = false;
@@ -368,6 +371,9 @@ export function initUploadPanel(
         await doSyncDatabaseStatus();
     }
 
-    return () => previewController.dispose();
+    return () => {
+        listenerAbort.abort();
+        previewController.dispose();
+    };
 
 }

@@ -370,6 +370,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Moved the Timeseries-only double-context-menu filter gesture into `features/timeseries/filterGesture`, exposed it through the Timeseries public index, and kept deferred shell composition as the sole caller. Direct characterization coverage now proves that plot menus remain native, only a genuine double action opens the filter modal, and repeated initialization does not duplicate the listener.
 - Tightened the architecture check so production `ui/*` modules cannot import any feature surface. The reusable UI layer now has no feature imports; feature behavior is owned by its feature or invoked by application composition.
 - Replaced the module-global Upload preview request controller with a controller created for each mounted Upload panel. The deferred shell now registers the panel's disposer with the app lifecycle; disposal aborts preview work, and stale/aborted responses cannot mutate the active dataset or upload presentation.
+- Bound every Upload panel DOM listener to the panel's abort scope and passed that scope into dynamically rebound time-column controls. A disposed panel now stops all file, partial-load, upload, source-tab, and database-control handling; late metadata hydration is ignored. Regression coverage proves replacement initialization does not double-bind the panel toggle.
 
 ### Completed: Spectrogram runtime decomposition
 
