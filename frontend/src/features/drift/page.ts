@@ -14,7 +14,6 @@ import { createRequestTask } from '../../platform/requestTask.js';
 import { initDriftHelp } from './help.js';
 import type { EChartLike } from './types.js';
 import {
-    buildColumnSummary,
     driftColor,
     statusSummary as buildStatusSummary,
 } from './viewModels.js';
@@ -72,6 +71,7 @@ import {
 import { buildDriftInvestigationPanelHtml } from './investigationPanels.js';
 import { buildDriftInvestigationRequest } from './requestPayload.js';
 import { buildDriftSummaryPanelHtml } from './summaryPanels.js';
+import { buildDriftCsv, buildDriftJsonExport } from './exportPayloads.js';
 
 // Re-export for test isolation
 export { _setEchartsModule };
@@ -426,38 +426,7 @@ export async function initDriftPage(metadata: any): Promise<void> {
 
     function exportDriftCsv(): void {
         if (getResponsesByColumn().size === 0) return;
-        const rows: string[] = [
-            'column,window,start_ms,end_ms,count,mean,std,median,ks_stat,ks_pvalue,es_stat,es_pvalue,wasserstein,psi,jensen_shannon,completeness_delta,trigger_reasons,drift_level,current_level,worst_level,flagged_windows',
-        ];
-        getResponsesByColumn().forEach((resp, column) => {
-            const summary = buildColumnSummary(resp);
-            resp.windows.forEach((w) => {
-                rows.push([
-                    column,
-                    w.label,
-                    w.start_ms,
-                    w.end_ms,
-                    w.count,
-                    isFinite(w.mean) ? w.mean.toFixed(6) : '',
-                    isFinite(w.std) ? w.std.toFixed(6) : '',
-                    isFinite(w.quantiles[2]) ? w.quantiles[2].toFixed(6) : '',
-                    w.ks_stat.toFixed(6),
-                    w.ks_pvalue.toFixed(6),
-                    isFinite(w.es_stat) ? w.es_stat.toFixed(6) : '',
-                    isFinite(w.es_pvalue) ? w.es_pvalue.toFixed(6) : '',
-                    w.wasserstein.toFixed(6),
-                    w.psi.toFixed(6),
-                    isFinite(w.jensen_shannon) ? w.jensen_shannon.toFixed(6) : '',
-                    isFinite(w.completeness_delta) ? w.completeness_delta.toFixed(6) : '',
-                    `"${(w.trigger_reasons || []).join('|')}"`,
-                    w.drift_level,
-                    summary.currentLevel,
-                    summary.worstLevel,
-                    summary.flaggedWindows,
-                ].join(','));
-            });
-        });
-        const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+        const blob = new Blob([buildDriftCsv(getResponsesByColumn())], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -468,14 +437,13 @@ export async function initDriftPage(metadata: any): Promise<void> {
 
     function exportDriftJson(): void {
         if (!currentInvestigation) return;
-        const payload = {
-            ...currentInvestigation,
-            activeColumn: getActiveDetailColumn(),
-            evaluationMode: getEvaluationMode(),
-            latestWindowCount: getLatestWindowCount(),
-            filteredColumns: Object.fromEntries(getResponsesByColumn().entries()),
-        };
-        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const blob = new Blob([buildDriftJsonExport(
+            currentInvestigation,
+            getActiveDetailColumn(),
+            getEvaluationMode(),
+            getLatestWindowCount(),
+            getResponsesByColumn(),
+        )], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
