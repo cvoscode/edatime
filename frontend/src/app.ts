@@ -55,7 +55,6 @@ import type { ChartInstance, ViewSnapshot } from './types/chart.js';
 
 import { chartState, initChartStatePrefs, setChartInstance, setViewport } from './store/chartState.js';
 import { datasetState, setDatasetRevision, setMetadata, setNumericCols } from './store/datasetState.js';
-import { runtimeState } from './store/runtimeState.js';
 import { setAdaptiveFilterColumn } from './store/uiState.js';
 
 type DataChartCtorType = new (
@@ -80,12 +79,12 @@ export function createApp(): AppRoot {
     const featureRegistry = createFeatureRegistry();
     const workspace = createWorkspaceStore();
     const analyticsOverlay = createAnalyticsOverlayController();
-    const exportFeature = createExportFeature({ workspace, getData: () => runtimeState.lastFetchedData });
+    let timeseriesModule!: ReturnType<typeof createTimeseriesModule>;
+    const exportFeature = createExportFeature({ workspace, getData: () => timeseriesModule?.getCurrentData() ?? null });
     runtime.registerCleanup(() => workspace.dispose());
     runtime.registerCleanup(featureRegistry.dispose);
     runtime.registerCleanup(analyticsOverlay.dispose);
 
-    let timeseriesModule!: ReturnType<typeof createTimeseriesModule>;
     let appDisposed = false;
     let appStart: Promise<void> | null = null;
     let dataChartCtor: DataChartCtorType | null = null;

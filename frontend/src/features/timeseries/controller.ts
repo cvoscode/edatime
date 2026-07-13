@@ -509,6 +509,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
     return {
         dispose,
         fetchAndRender,
+        getCurrentData: () => runtimeState.lastFetchedData,
         onZoomRangeChange,
         renderCurrentData,
         resetZoom,

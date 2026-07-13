@@ -63,6 +63,7 @@ vi.mock('./shortcuts.js', () => ({
 const mockPageController = () => ({
     dispose: vi.fn(),
     fetchAndRender: vi.fn().mockResolvedValue(undefined),
+    getCurrentData: vi.fn<() => unknown>(() => null),
     onZoomRangeChange: vi.fn(),
     resetZoom: vi.fn(),
     renderCurrentData: vi.fn(),
@@ -148,6 +149,7 @@ describe('createTimeseriesModule', () => {
 
         // The module should have exposed methods from both page controller and feature
         expect(mod.fetchAndRender).toBeDefined();
+        expect(mod.getCurrentData).toBeDefined();
         expect(mod.renderCurrentData).toBeDefined();
         expect(mod.buildColumnToggles).toBeDefined();
         expect(mod.buildRangeControls).toBeDefined();
@@ -177,6 +179,19 @@ describe('createTimeseriesModule', () => {
             setAdaptiveFilterColumn: deps.setAdaptiveFilterColumn,
             setViewport: deps.setViewport,
         }));
+    });
+
+    it('exposes fetched data through the Timeseries public module surface', async () => {
+        const pageController = mockPageController();
+        const data = { ts: new Float64Array([1]), values: {} };
+        pageController.getCurrentData.mockReturnValue(data);
+        mockCreateTimeseriesPageController.mockReturnValue(pageController);
+
+        const { createTimeseriesModule } = await import('./module.js');
+        const module = createTimeseriesModule(defaultDeps());
+
+        expect(module.getCurrentData()).toBe(data);
+        expect(pageController.getCurrentData).toHaveBeenCalledTimes(1);
     });
 
     it('clears workspace filters when the dataset bootstrap clears persisted filters', async () => {
@@ -250,6 +265,7 @@ describe('createTimeseriesModule', () => {
             'ensureDatasetReady',
             'ensureReady',
             'fetchAndRender',
+            'getCurrentData',
             'renderCurrentData',
             'buildColumnToggles',
             'buildRangeControls',

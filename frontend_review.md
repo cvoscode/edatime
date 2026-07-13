@@ -667,6 +667,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Chart readiness no longer writes a global annotation bridge; the callback remains safe before chart creation because the root action resolves the active chart at invocation time.
 - Direct panel coverage proves annotation clearing calls the injected shell action, alongside the existing listener-disposal regression.
 
+### Completed: Timeseries data capability boundary
+
+- Removed the app composition root's direct read of `runtimeState.lastFetchedData`. Export composition now requests current series data through the owning Timeseries module's public `getCurrentData()` capability.
+- The feature module delegates that capability to its controller, making the current data dependency explicit and preparing the remaining cache migration from global runtime state into feature-private state.
+- Module characterization coverage declares the capability as part of the stable Timeseries public surface.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.

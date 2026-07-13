@@ -252,6 +252,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         ensureDatasetReady: () => bootstrap.ensureDatasetReady(),
         ensureReady,
         fetchAndRender: () => pageController.fetchAndRender(),
+        getCurrentData: () => pageController.getCurrentData(),
         renderCurrentData: () => pageController.renderCurrentData(),
         buildColumnToggles: () => feature.rebuildColumns(),
         buildRangeControls: () => feature.buildRangeControls(),
