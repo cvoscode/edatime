@@ -24,6 +24,7 @@ import { createEmptyStateController, isRangeOutsideDataset } from '../../ui/empt
 import { isLinkedBrushEnabled, currentControls, getActiveScatterFilterColumns } from './state.js';
 import { defaultGpuPowerPreference, requestGpuAdapter } from '../../utils/platform.js';
 import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
+import { emitFeatureEvent } from '../../platform/featureEvents.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 /** Module-level runtime handle for the scatter page lifecycle. */
@@ -78,7 +79,7 @@ function syncScatterFilterBanner(): void {
 
     if (!clearButton.dataset.bound) {
         clearButton.addEventListener('click', () => {
-            window.dispatchEvent(new CustomEvent('edatime:clear-all-filters'));
+            emitFeatureEvent('filters:clear', { source: 'scatter-filter-banner' });
         });
         clearButton.dataset.bound = '1';
     }
@@ -92,9 +93,8 @@ export function getScatterEmptyStateController() {
             messageId: 'scatter-empty-message',
             resetButtonId: 'scatter-reset-range-btn',
             clearButtonId: 'scatter-clear-filters-btn',
-            resetEventName: 'edatime:request-chart-range-reset',
-            clearEventName: 'edatime:clear-all-filters',
-            eventSource: 'scatter-empty-state',
+            onReset: () => emitFeatureEvent('viewport:reset-request', { source: 'scatter-empty-state' }),
+            onClear: () => emitFeatureEvent('filters:clear', { source: 'scatter-empty-state' }),
         });
     }
     return scatterEmptyStateController;

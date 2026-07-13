@@ -474,6 +474,7 @@ describe('bindScatterControls', () => {
 
     it('clears scatter filters and re-renders when the empty-state clear action fires', async () => {
         const { bindScatterControls } = await import('./controls.js');
+        const { emitFeatureEvent } = await import('../../platform/featureEvents.js');
         const callbacks = {
             initScatterPage: vi.fn(async () => { }),
             renderScatter: vi.fn(async () => { }),
@@ -492,7 +493,7 @@ describe('bindScatterControls', () => {
         });
 
         bindScatterControls({ ...callbacks, workspace });
-        window.dispatchEvent(new CustomEvent('edatime:clear-all-filters'));
+        emitFeatureEvent('filters:clear', { source: 'test' });
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 

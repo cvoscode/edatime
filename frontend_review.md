@@ -512,6 +512,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Removed the unowned `edatime:chart-range-change` fan-out and its Timeseries callback plumbing. Chart viewport changes are already published through the WorkspaceStore, so no separate global notification is needed.
 - The subscription is tied to the Scatter controls abort scope; a regression proves a disposed binding cannot react to later workspace changes. View-switch restoration suppresses only its own synchronous workspace publication, preventing an unnecessary second Scatter request during initialization.
 
+### Completed: typed filter-clear and viewport-reset commands
+
+- Replaced the reusable empty-state component's event-name configuration with explicit reset and clear callbacks. The primitive now owns only button lifecycle; feature composition chooses the resulting action.
+- Migrated Scatter empty-state, banner, and toast clear actions plus Timeseries empty-state reset handling from global DOM events to declared `filters:clear` and `viewport:reset-request` commands. Timeseries action wiring and Scatter controls own scoped subscriptions and release them with their feature lifecycles.
+
 ### Completed: Drift page decomposition
 
 - Extracted evaluation-mode normalization, latest-window validation, and response-map filtering into `evaluationPolicy` with direct behavior coverage.

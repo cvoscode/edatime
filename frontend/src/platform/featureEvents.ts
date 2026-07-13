@@ -7,7 +7,9 @@
 export interface FeatureEventMap {
     'analytics:change': undefined;
     'causal:preselect': { columns: string[] };
+    'filters:clear': { source: string };
     'session:restored': undefined;
+    'viewport:reset-request': { source: string };
     'workflow:refresh': undefined;
 }
 

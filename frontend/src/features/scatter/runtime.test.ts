@@ -105,9 +105,8 @@ describe('getScatterEmptyStateController', () => {
             messageId: 'scatter-empty-message',
             resetButtonId: 'scatter-reset-range-btn',
             clearButtonId: 'scatter-clear-filters-btn',
-            resetEventName: 'edatime:request-chart-range-reset',
-            clearEventName: 'edatime:clear-all-filters',
-            eventSource: 'scatter-empty-state',
+            onReset: expect.any(Function),
+            onClear: expect.any(Function),
         });
     });
 

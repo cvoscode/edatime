@@ -125,7 +125,7 @@ describe('createEmptyStateController', () => {
         expect(root.getAttribute('data-empty-reason')).toBe('');
     });
 
-    it('dispatches configured empty-state actions', () => {
+    it('invokes configured empty-state actions', () => {
         document.body.innerHTML = `
             <div id="scatter-empty-state" data-empty-reason="">
                 <button id="scatter-reset-range-btn" type="button">Reset</button>
@@ -133,40 +133,37 @@ describe('createEmptyStateController', () => {
             </div>
         `;
 
-        const listener = vi.fn();
-        window.addEventListener('edatime:request-chart-range-reset', listener);
+        const onReset = vi.fn();
+        const onClear = vi.fn();
 
         createEmptyStateController({
             rootId: 'scatter-empty-state',
             resetButtonId: 'scatter-reset-range-btn',
             clearButtonId: 'scatter-clear-filters-btn',
-            resetEventName: 'edatime:request-chart-range-reset',
-            clearEventName: 'edatime:clear-all-filters',
-            eventSource: 'scatter-empty-state',
+            onReset,
+            onClear,
         });
 
         document.getElementById('scatter-reset-range-btn')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
-        expect(listener).toHaveBeenCalledTimes(1);
-        expect((listener.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({ source: 'scatter-empty-state' });
+        document.getElementById('scatter-clear-filters-btn')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
-        window.removeEventListener('edatime:request-chart-range-reset', listener);
+        expect(onReset).toHaveBeenCalledTimes(1);
+        expect(onClear).toHaveBeenCalledTimes(1);
     });
 
     it('releases configured action listeners when disposed', () => {
         document.body.innerHTML = '<button id="timeseries-reset-range-btn" type="button">Reset</button>';
-        const listener = vi.fn();
-        window.addEventListener('edatime:request-chart-range-reset', listener);
+        const onReset = vi.fn();
         const controller = createEmptyStateController({
             rootId: 'missing-empty-state',
             resetButtonId: 'timeseries-reset-range-btn',
-            resetEventName: 'edatime:request-chart-range-reset',
+            onReset,
         });
 
         controller.dispose();
         document.getElementById('timeseries-reset-range-btn')?.click();
 
-        expect(listener).not.toHaveBeenCalled();
-        window.removeEventListener('edatime:request-chart-range-reset', listener);
+        expect(onReset).not.toHaveBeenCalled();
     });
 });

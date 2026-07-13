@@ -19,6 +19,7 @@ import { chartState, setViewport } from '../../store/chartState.js';
 import { datasetState } from '../../store/datasetState.js';
 import { clearScatterViewSnapshots } from '../../store/scatterState.js';
 import { debounce } from '../../utils/function.js';
+import { onFeatureEvent } from '../../platform/featureEvents.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 export interface TimeseriesActionDeps {
@@ -146,11 +147,9 @@ export function initTimeseriesActions(deps: TimeseriesActionDeps): void {
         await deps.fetchAndRender();
     };
 
-    const onRequestResetRange = () => {
+    deps.registerCleanup(onFeatureEvent('viewport:reset-request', () => {
         void resetChartRangeToDataset('reset');
-    };
-    window.addEventListener('edatime:request-chart-range-reset', onRequestResetRange);
-    deps.registerCleanup(() => window.removeEventListener('edatime:request-chart-range-reset', onRequestResetRange));
+    }));
 
     const clearAllFilters = async (source = 'clear') => {
         const filters = deps.workspace.getSnapshot().filters;
@@ -166,6 +165,5 @@ export function initTimeseriesActions(deps: TimeseriesActionDeps): void {
     const onClearAllFilters = () => {
         void clearAllFilters('clear');
     };
-    window.addEventListener('edatime:clear-all-filters', onClearAllFilters);
-    deps.registerCleanup(() => window.removeEventListener('edatime:clear-all-filters', onClearAllFilters));
+    deps.registerCleanup(onFeatureEvent('filters:clear', onClearAllFilters));
 }

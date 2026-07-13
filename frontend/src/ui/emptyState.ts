@@ -24,20 +24,13 @@ interface EmptyStateControllerOptions {
     messageId?: string;
     resetButtonId?: string;
     clearButtonId?: string;
-    resetEventName?: string;
-    clearEventName?: string;
-    eventSource?: string;
+    onReset?: () => void;
+    onClear?: () => void;
 }
 
 export interface EmptyStateController {
     update(model: EmptyStateViewModel): void;
     dispose(): void;
-}
-
-function dispatchEmptyStateEvent(eventName: string, source?: string): void {
-    window.dispatchEvent(new CustomEvent(eventName, {
-        detail: source ? { source } : undefined,
-    }));
 }
 
 export function createEmptyStateController(options: EmptyStateControllerOptions): EmptyStateController {
@@ -49,14 +42,10 @@ export function createEmptyStateController(options: EmptyStateControllerOptions)
         clearButton: options.clearButtonId ? document.getElementById(options.clearButtonId) as HTMLButtonElement | null : null,
     };
 
-    const onReset = () => {
-        if (options.resetEventName) dispatchEmptyStateEvent(options.resetEventName, options.eventSource);
-    };
-    const onClear = () => {
-        if (options.clearEventName) dispatchEmptyStateEvent(options.clearEventName, options.eventSource);
-    };
-    if (elements.resetButton && options.resetEventName) elements.resetButton.addEventListener('click', onReset);
-    if (elements.clearButton && options.clearEventName) elements.clearButton.addEventListener('click', onClear);
+    const onReset = () => options.onReset?.();
+    const onClear = () => options.onClear?.();
+    if (elements.resetButton && options.onReset) elements.resetButton.addEventListener('click', onReset);
+    if (elements.clearButton && options.onClear) elements.clearButton.addEventListener('click', onClear);
 
     return {
         update(model: EmptyStateViewModel): void {

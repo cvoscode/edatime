@@ -65,8 +65,7 @@ function getTimeseriesEmptyStateController() {
             titleId: 'timeseries-empty-title',
             messageId: 'timeseries-empty-message',
             resetButtonId: 'timeseries-reset-range-btn',
-            resetEventName: 'edatime:request-chart-range-reset',
-            eventSource: 'timeseries-empty-state',
+            onReset: () => emitFeatureEvent('viewport:reset-request', { source: 'timeseries-empty-state' }),
         });
     }
     return timeseriesEmptyStateController;

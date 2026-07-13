@@ -74,6 +74,7 @@ import { renderScatterChart } from './chartLifecycle.js';
 
 import type { DatasetMetadata } from '../../types/api.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
+import { emitFeatureEvent } from '../../platform/featureEvents.js';
 
 let workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'subscribe'> | null = null;
 let disposeBoundControls: (() => void) | null = null;
@@ -321,7 +322,7 @@ async function renderScatter(): Promise<void> {
                     action: {
                         label: 'Clear',
                         onClick: () => {
-                            window.dispatchEvent(new CustomEvent('edatime:clear-all-filters'));
+                            emitFeatureEvent('filters:clear', { source: 'scatter-empty-toast' });
                         },
                     },
                     dedupeKey: 'scatter:matrix-empty-plot-warning',

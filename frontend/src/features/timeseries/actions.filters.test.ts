@@ -6,6 +6,7 @@ import {
     setScatterViewSnapshot,
 } from '../../store/scatterState.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
+import { emitFeatureEvent } from '../../platform/featureEvents.js';
 
 function buildDom(): void {
     document.body.innerHTML = '';
@@ -29,7 +30,7 @@ describe('initTimeseriesActions clear-all-filters', () => {
         document.body.innerHTML = '';
     });
 
-    it('clears both plot and matrix scatter filter snapshots when the global clear event fires', async () => {
+    it('clears both plot and matrix scatter filter snapshots when the typed clear command fires', async () => {
         const workspace = createWorkspaceStore();
         workspace.setFilters({
             columnRanges: { HUFL: { from: 1, to: 9 } },
@@ -50,7 +51,7 @@ describe('initTimeseriesActions clear-all-filters', () => {
         expect((window as any).__edatime.clearAllFilters).toBeUndefined();
         expect((window as any).__edatime.resetChartRangeToDataset).toBeUndefined();
 
-        window.dispatchEvent(new CustomEvent('edatime:clear-all-filters'));
+        emitFeatureEvent('filters:clear', { source: 'test' });
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 

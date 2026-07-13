@@ -23,6 +23,7 @@ import { datasetState } from '../../store/datasetState.js';
 import { scatterState } from '../../store/scatterState.js';
 import type { DatasetMetadata } from '../../types/api.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
+import { onFeatureEvent } from '../../platform/featureEvents.js';
 import { getEl, normalizeScatterSuggestionThreshold } from './helpers.js';
 import {
     currentControls,
@@ -263,7 +264,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
         });
         controller.signal.addEventListener('abort', unsubscribeWorkspace, { once: true });
     }
-    listen(window, 'edatime:clear-all-filters', async () => {
+    controller.signal.addEventListener('abort', onFeatureEvent('filters:clear', async () => {
         const filters = cb.workspace?.getSnapshot().filters;
         if (filters) {
             cb.workspace?.setFilters({ ...filters, columnRanges: {}, adaptiveLines: [] });
@@ -274,7 +275,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
         } catch (err: any) {
             cb.handleErr(err);
         }
-    });
+    }), { once: true });
 
     // The page-change fast path compares the freshly-computed query-context
     // key against `scatterState.lastQueryContextKey`, which `renderScatter`
