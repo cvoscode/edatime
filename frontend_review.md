@@ -184,6 +184,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 
 `DataChart` now remains as the ChartGPU adapter and orchestration layer; rendering-heavy behavior is owned by deterministic policies and dedicated lifecycle/rendering controllers.
 
+### In progress: FFT chart decomposition
+
+- Extracted FFT trace normalization, finite-point filtering, log/scaled display values, palette choice, display bounds, full-domain calculation, and first-trace spectral metadata into `fftDataModel`, with direct behavior coverage.
+- `FftChart` retains ChartGPU option/tooltip composition and overlay lifecycle while consuming that deterministic model.
+
 ### In progress: Spectrogram runtime decomposition
 
 - Extracted pure dominant-frequency-band detection and timestamp formatting into `spectrogramAnalysis`, with direct coverage for dominant-band and empty-axis behavior.

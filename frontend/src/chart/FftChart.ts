@@ -32,6 +32,7 @@ import {
     type SpectralScaleOptions,
 } from '../utils/spectralScaling.js';
 import { SERIES_COLORS } from '../utils/seriesColors.js';
+import { buildFftDataModel, type FftTrace } from './fftDataModel.js';
 
 const FFT_GRID: GridLayout = { left: 112, right: 32, top: 52, bottom: 52 };
 
@@ -43,17 +44,7 @@ const FFT_GRID: GridLayout = { left: 112, right: 32, top: 52, bottom: 52 };
  */
 const FFT_TRACE_COLORS = SERIES_COLORS;
 
-export interface FftTrace {
-    column: string;
-    frequencies: number[];
-    magnitudes: number[];
-    psd: number[];
-    color?: string;
-    // New spectral info
-    sample_rate_hz?: number;
-    nyquist_hz?: number;
-    dominant_peaks?: FrequencyPeak[];
-}
+export type { FftTrace } from './fftDataModel.js';
 
 export class FftChart {
     private _containerId: string;
@@ -167,23 +158,11 @@ export class FftChart {
         this._logScale = logScale;
         if (scaleOptions) this._scaleOptions = scaleOptions;
 
-        this._fullXMax = 0;
-        for (const t of traces) {
-            for (const f of t.frequencies) {
-                if (f > this._fullXMax) this._fullXMax = f;
-            }
-            // Capture spectral info from first trace
-            if (t.sample_rate_hz && this._sampleRateHz === 0) {
-                this._sampleRateHz = t.sample_rate_hz;
-            }
-            if (t.nyquist_hz && this._nyquistHz === 0) {
-                this._nyquistHz = t.nyquist_hz;
-            }
-            if (t.dominant_peaks && this._dominantPeaks.length === 0) {
-                this._dominantPeaks = t.dominant_peaks;
-            }
-        }
-        if (this._fullXMax <= 0) this._fullXMax = 1;
+        const model = buildFftDataModel(traces, mode, logScale, this._scaleOptions);
+        this._fullXMax = model.fullXMax;
+        if (this._sampleRateHz === 0) this._sampleRateHz = model.sampleRateHz;
+        if (this._nyquistHz === 0) this._nyquistHz = model.nyquistHz;
+        if (this._dominantPeaks.length === 0) this._dominantPeaks = model.dominantPeaks;
 
         // Notify external listeners about spectral info
         this.onSpectralInfoUpdate?.({
@@ -210,38 +189,8 @@ export class FftChart {
         // can still show the underlying magnitude even when the y-axis is
         // stretched. We keep `raw` for tooltip, then compute `display` for
         // the actual chart series.
-        const yDisplay: number[][] = [];
-        let yMin = Number.POSITIVE_INFINITY;
-        let yMax = Number.NEGATIVE_INFINITY;
-        const seriesList = traces.map((t, ti) => {
-            const raw = mode === 'psd' ? t.psd : t.magnitudes;
-            const preLog: number[] = new Array(raw.length);
-            for (let i = 0; i < raw.length; i += 1) {
-                const r = Number(raw[i]);
-                preLog[i] = logScale ? (r > 0 ? Math.log10(r) : -10) : r;
-            }
-            const scaled = applySpectralScale(preLog, scaleOpts);
-            const display = Array.from(scaled.displayValues);
-            yDisplay.push(display);
-            if (scaled.vmin < yMin) yMin = scaled.vmin;
-            if (scaled.vmax > yMax) yMax = scaled.vmax;
-            const points: [number, number][] = [];
-            for (let i = 0; i < t.frequencies.length; i += 1) {
-                const f = t.frequencies[i];
-                const y = display[i];
-                if (Number.isFinite(f) && Number.isFinite(y)) points.push([f, y]);
-            }
-            return {
-                type: 'line' as const,
-                name: t.column,
-                color: t.color || FFT_TRACE_COLORS[ti % FFT_TRACE_COLORS.length],
-                data: points,
-                // Stash on the series object so the tooltip can show the raw
-                // magnitude alongside the scaled display value.
-                _raw: raw as number[],
-                _preLog: preLog,
-            } as any;
-        });
+        const seriesList = model.series;
+        const { yMin, yMax } = model;
 
         const tooltipFormatter = (params: unknown): string => {
             const list = Array.isArray(params) ? params : [params as any];
