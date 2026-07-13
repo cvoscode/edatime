@@ -7,17 +7,13 @@ export function buildHeatmapStatus(columnCount: number, cellSize: number, cluste
         : `${columnCount} columns · ${cellSize}px cells`;
 }
 
-export function getUnsupportedMetricMessage(metric: CorrelationMetric): string {
-    return `${getCorrelationModeLabel(metric)} requires the updated server payload. Restart the server to use Kendall tau and first-difference correlation modes.`;
+export function getUnavailableMatrixMessage(metric: CorrelationMetric): string {
+    return `${getCorrelationModeLabel(metric)} is unavailable in the correlation response.`;
 }
 
 export function getSelectedCorrelationMatrix(
     data: CorrelationMatrixResponse,
     metric: CorrelationMetric,
 ): (number | null)[][] | null {
-    const selected = data[metric];
-    if (selected) return selected;
-    if (metric === 'pearson_raw') return data.pearson ?? null;
-    if (metric === 'spearman_raw') return data.spearman ?? null;
-    return null;
+    return data[metric] ?? null;
 }

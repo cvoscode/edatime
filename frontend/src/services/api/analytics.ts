@@ -223,8 +223,6 @@ export async function postTransform(
 
 export interface CorrelationMatrixResponse {
     columns: string[];
-    pearson?: (number | null)[][];
-    spearman?: (number | null)[][];
     pearson_raw?: (number | null)[][];
     spearman_raw?: (number | null)[][];
     kendall_raw?: (number | null)[][];

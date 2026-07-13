@@ -453,6 +453,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 
 - Extracted correlation color interpolation, fitted-domain policy, semantic cell styling, scale-label formatting, and HTML-attribute escaping into `colorScale`, with direct positive/negative/domain/accessibility coverage.
 - The renderer continues to own DOM/grid composition while consuming this deterministic presentation policy.
+- Removed the retired `pearson`/`spearman` response fallback. Heatmap now consumes only the named versioned correlation matrices emitted by the backend and presents a contract-neutral unavailable state when a requested matrix is absent.
 - Extracted matrix selection (including legacy raw-field normalization), metric compatibility guidance, and compact status construction into `matrixPolicy`, giving the renderer a single authoritative metric-data decision seam.
 - Extracted responsive grid geometry into `gridLayout`: label width, fit-to-screen versus slider-capped cell size, header orientation, and CSS templates now have direct wide/narrow layout coverage.
 - Extracted manual-order validation, clustering fallback, and render-index-to-source-index mapping into `orderingPolicy`; page-level drag-reorder coverage confirms the mutable interaction remains intact.

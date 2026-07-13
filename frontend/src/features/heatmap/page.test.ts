@@ -459,35 +459,18 @@ describe('heatmapPage with clustering', () => {
         expect(document.getElementById('heatmap-loading')?.hidden).toBe(true);
     });
 
-    it('falls back to legacy raw payloads and shows a clear message for unsupported modes', async () => {
+    it('shows an unavailable state when the selected named matrix is missing', async () => {
         const { fetchCorrelationMatrix } = await import('../../services/api/index.js');
         vi.mocked(fetchCorrelationMatrix).mockResolvedValue({
             columns: ['a1', 'a2'],
-            pearson: [
-                [1, 0.4],
-                [0.4, 1],
-            ],
-            spearman: [
-                [1, 0.5],
-                [0.5, 1],
-            ],
         } as any);
 
         const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
 
-        let cell = document.querySelector('.heatmap-cell[data-row="0"][data-col="1"]') as HTMLElement | null;
-        // C3: positive cells now carry an explicit `+` prefix.
-        expect(cell?.textContent).toBe('+0.40');
-
-        const metric = document.getElementById('heatmap-metric') as HTMLSelectElement;
-        metric.value = 'kendall_diff';
-        metric.dispatchEvent(new Event('change', { bubbles: true }));
-        await new Promise((resolve) => setTimeout(resolve, 0));
-
         expect(document.querySelectorAll('.heatmap-cell')).toHaveLength(0);
-        expect(document.getElementById('heatmap-empty-state')?.textContent).toContain('Restart the server');
+        expect(document.getElementById('heatmap-empty-state')?.textContent).toContain('unavailable in the correlation response');
     });
 
     it('fills the available shell width so cells do not squish against the left edge', async () => {

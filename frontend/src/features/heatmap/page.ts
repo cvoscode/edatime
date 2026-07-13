@@ -21,7 +21,7 @@ import {
 import {
     buildHeatmapStatus,
     getSelectedCorrelationMatrix,
-    getUnsupportedMetricMessage,
+    getUnavailableMatrixMessage,
 } from './matrixPolicy.js';
 import { buildHeatmapGridLayout } from './gridLayout.js';
 import { buildHeatmapRenderOrder } from './orderingPolicy.js';
@@ -191,12 +191,12 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
         if (!data) {
             container.innerHTML = '';
             syncHeatmapEmptyState(
-                getUnsupportedMetricMessage(metric),
+                getUnavailableMatrixMessage(metric),
                 true,
-                'legacy-correlation-payload',
-                'Unsupported metric',
+                'matrix-unavailable',
+                'Matrix unavailable',
             );
-            heatmapRuntime?.updateStatus(`${getCorrelationModeLabel(metric)} unavailable on this server`);
+            heatmapRuntime?.updateStatus(`${getCorrelationModeLabel(metric)} unavailable in the response`);
             return;
         }
 
