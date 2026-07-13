@@ -13,13 +13,30 @@ import { toast, type ToastKind } from '../../utils/toast.js';
 const PROGRESS_OVERLAY_ID = 'causal-loading';
 const PROGRESS_LABEL_ID = 'causal-progress-label';
 let dismissActiveStatusToast: (() => void) | null = null;
+let disposeStatusLifecycle: (() => void) | null = null;
 
-window.addEventListener('edatime:page-change', (event: Event) => {
-    const page = (event as CustomEvent<{ page?: string }>).detail?.page;
-    if (page === 'causal') return;
-    dismissActiveStatusToast?.();
-    dismissActiveStatusToast = null;
-});
+/** Bind the Causal status lifecycle once for the active feature instance. */
+export function initCausalStatusLifecycle(): void {
+    if (disposeStatusLifecycle) return;
+    const onPageChange = (event: Event) => {
+        const page = (event as CustomEvent<{ page?: string }>).detail?.page;
+        if (page === 'causal') return;
+        dismissActiveStatusToast?.();
+        dismissActiveStatusToast = null;
+    };
+    window.addEventListener('edatime:page-change', onPageChange);
+    disposeStatusLifecycle = () => {
+        window.removeEventListener('edatime:page-change', onPageChange);
+        dismissActiveStatusToast?.();
+        dismissActiveStatusToast = null;
+        disposeStatusLifecycle = null;
+    };
+}
+
+/** Release the page-change listener and any active status toast. */
+export function disposeCausalStatusLifecycle(): void {
+    disposeStatusLifecycle?.();
+}
 
 function progressOverlay(): HTMLElement | null {
     return document.getElementById(PROGRESS_OVERLAY_ID);

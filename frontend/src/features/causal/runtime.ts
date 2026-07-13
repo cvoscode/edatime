@@ -8,11 +8,16 @@
  */
 
 import { createAnalysisPageRuntime } from '../../platform/analysisRuntime.js';
-import { syncCausalEmptyState } from './statusView.js';
+import {
+    disposeCausalStatusLifecycle,
+    initCausalStatusLifecycle,
+    syncCausalEmptyState,
+} from './statusView.js';
 import { _selectedColumns } from './selectionState.js';
 
 /** Module-level runtime handle for the causal page lifecycle. */
 let causalRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
+let disposeCausalRuntime: (() => void) | null = null;
 
 /** Module-level wrapper to sync causal empty state from outside initCausalPage. */
 let _syncCausalEmptyState: (count: number) => void = (_count: number) => { };
@@ -25,10 +30,11 @@ export function getSyncCausalEmptyState(): (count: number) => void {
     return _syncCausalEmptyState;
 }
 
-/** Bootstrap the causal page runtime. Must happen BEFORE the first edatime:page-change
- *  'causal' event so that the runtime's event listener is registered before any
- *  page-change handlers. */
-export function initCausalPageRuntime(): void {
+/** Bootstrap and mount the Causal page runtime. */
+export function initCausalPageRuntime(): ReturnType<typeof createAnalysisPageRuntime> {
+    if (causalRuntime) return causalRuntime;
+
+    initCausalStatusLifecycle();
     _syncCausalEmptyState = syncCausalEmptyState;
 
     causalRuntime = createAnalysisPageRuntime({
@@ -42,7 +48,19 @@ export function initCausalPageRuntime(): void {
             _syncCausalEmptyState(_selectedColumns.size);
         },
     });
+
+    disposeCausalRuntime = causalRuntime.mount();
+    return causalRuntime;
 }
 
-/** Bootstrap call — must happen BEFORE the first edatime:page-change 'causal' event. */
+/** Release the Causal feature lifecycle for a remounted application root. */
+export function disposeCausalPageRuntime(): void {
+    disposeCausalRuntime?.();
+    disposeCausalRuntime = null;
+    causalRuntime = null;
+    _syncCausalEmptyState = () => { };
+    disposeCausalStatusLifecycle();
+}
+
+/** Bootstrap call for the lazy Causal feature. */
 initCausalPageRuntime();

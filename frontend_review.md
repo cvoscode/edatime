@@ -396,6 +396,8 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Extracted escaped pair-edge editor HTML, connection control selection, summary pills, and value-tone presentation into `editPresentation`. The panel now mounts the returned HTML and owns only DOM upgrade/listener wiring.
 - Made edit-panel and page-level Causal event wiring replaceable through owned abort scopes. Reinitialization now retires prior document, window, and control listeners before binding the new page instance; direct coverage verifies the edit-panel disposer removes its document handler.
 - Extracted node-editor HTML and JSON attribute serialization into `nodeEditPresentation`, keeping the final node update command in the modal adapter while directly covering escaped form output.
+- Mounted the Causal analysis runtime and made it idempotent, so page-change behavior is no longer configured but inactive after the lazy feature loads.
+- Replaced the status view's import-time page-change listener with an explicit Causal lifecycle resource. Runtime disposal now releases both the analysis and toast-status listeners (and dismisses any active status toast); direct coverage verifies the paired mount/dispose contract.
 
 ### Completed: global continuous color-scale ownership
 
