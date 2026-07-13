@@ -45,7 +45,7 @@ vi.mock('../ui/errorUI.js', () => ({
     showBootstrapError: vi.fn(),
 }));
 
-vi.mock('../ui/profile.js', () => ({
+vi.mock('../features/upload/index.js', () => ({
     hydrateColumnProfiles: vi.fn(),
     renderColumnProfilesGrid: vi.fn(),
 }));

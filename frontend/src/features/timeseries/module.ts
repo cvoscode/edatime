@@ -65,8 +65,8 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
     let datasetUiReady = false;
     let feature!: ReturnType<typeof createTimeseriesEntrypoint>;
     let datasetUiModulesPromise: Promise<{
-        hydrateColumnProfiles: typeof import('../../ui/profile.js').hydrateColumnProfiles;
-        renderColumnProfilesGrid: typeof import('../../ui/profile.js').renderColumnProfilesGrid;
+        hydrateColumnProfiles: typeof import('../upload/index.js').hydrateColumnProfiles;
+        renderColumnProfilesGrid: typeof import('../upload/index.js').renderColumnProfilesGrid;
         applyPartialTimeRangeFromMetadata: typeof import('../upload/partialLoadControls.js').applyPartialTimeRangeFromMetadata;
         setProfileMode: typeof import('../upload/preview.js').setProfileMode;
         setUploadPreviewStatus: typeof import('../upload/preview.js').setUploadPreviewStatus;
@@ -75,7 +75,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
     function ensureDatasetUiModules() {
         if (!datasetUiModulesPromise) {
             datasetUiModulesPromise = Promise.all([
-                import('../../ui/profile.js'),
+                import('../upload/index.js'),
                 import('../upload/preview.js'),
                 import('../upload/partialLoadControls.js'),
             ]).then(([profileModule, previewModule, partialLoadModule]) => ({

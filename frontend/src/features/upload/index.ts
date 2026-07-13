@@ -3,4 +3,9 @@ export * from './preview.js';
 export * from './databaseSource.js';
 export * from './partialLoadControls.js';
 export * from './fileSource.js';
+export {
+    hydrateColumnProfiles,
+    initColumnProfilesGrid,
+    renderColumnProfilesGrid,
+} from './profile.js';
 export { initUploadHelp } from './help.js';

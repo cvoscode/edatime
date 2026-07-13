@@ -1,5 +1,5 @@
 /**
- * Tests for frontend/src/ui/profile.ts
+ * Tests for frontend/src/features/upload/profile.ts
  *
  * Covers: hydrateColumnProfiles — profile hydration from metadata.
  */
@@ -11,9 +11,9 @@ import {
     renderColumnProfilesGrid,
     sortProfileRows,
 } from './profile';
-import { datasetState } from '../store/datasetState.js';
-import { uiState } from '../store/uiState.js';
-import type { DatasetMetadata } from '../types';
+import { datasetState } from '../../store/datasetState.js';
+import { uiState } from '../../store/uiState.js';
+import type { DatasetMetadata } from '../../types';
 
 function makeMeta(overrides: Partial<DatasetMetadata> = {}): DatasetMetadata {
     return {

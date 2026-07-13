@@ -8,7 +8,7 @@
  *  - uses uiState.profileGridSort { key, dir } for sort state
  */
 
-import { PROFILE_ROW_HEIGHT, PROFILE_OVERSCAN, PROFILE_COLUMNS, getDefaultProfileColumnWidths } from '../services/profile/profile.js';
+import { PROFILE_ROW_HEIGHT, PROFILE_OVERSCAN, PROFILE_COLUMNS, getDefaultProfileColumnWidths } from '../../services/profile/profile.js';
 import {
     formatCount,
     formatProfileValue,
@@ -16,8 +16,8 @@ import {
     isTemporalDtype,
     normalizeDtypeLabel,
     toFiniteNumberOrNull,
-} from '../utils/format.js';
-import { datasetState, setColumnProfiles } from '../store/datasetState.js';
+} from '../../utils/format.js';
+import { datasetState, setColumnProfiles } from '../../store/datasetState.js';
 import {
     setPreviewSelectedColumns,
     setProfileGridBound,
@@ -25,8 +25,8 @@ import {
     setProfileGridHeaderBound,
     setProfileGridSort,
     uiState,
-} from '../store/uiState.js';
-import type { DatasetMetadata, ProfileRow } from '../types.js';
+} from '../../store/uiState.js';
+import type { DatasetMetadata, ProfileRow } from '../../types.js';
 
 function createProfileRow(raw: any): ProfileRow | null {
     const name = String(raw?.name || '').trim();

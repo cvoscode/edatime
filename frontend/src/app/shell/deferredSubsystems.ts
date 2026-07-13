@@ -81,7 +81,7 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
     }
 
     registerSubsystem('upload-panel', async (deps) => {
-        const profileModule = await import('../../ui/profile.js');
+        const profileModule = await import('../../features/upload/index.js');
         const { initUploadPanel } = await import('../../ui/upload.js');
         initUploadPanel(profileModule.hydrateColumnProfiles, profileModule.renderColumnProfilesGrid, {
             buildColumnToggles: deps.buildTimeseriesColumns,
@@ -95,7 +95,7 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
     });
 
     registerSubsystem('column-profiles', async () => {
-        const { initColumnProfilesGrid } = await import('../../ui/profile.js');
+        const { initColumnProfilesGrid } = await import('../../features/upload/index.js');
         initColumnProfilesGrid();
     });
 

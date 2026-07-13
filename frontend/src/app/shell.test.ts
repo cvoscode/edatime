@@ -4,7 +4,7 @@ vi.mock('./shell/themeToggle.js', () => ({ initThemeToggle: vi.fn() }));
 vi.mock('./shell/a11yNormalization.js', () => ({ normalizeFormControlAccessibility: vi.fn() }));
 vi.mock('./shell/homeNavigation.js', () => ({ wireHomeNavigationCards: vi.fn() }));
 vi.mock('../ui/upload.js', () => ({ initUploadPanel: vi.fn() }));
-vi.mock('../ui/profile.js', () => ({ initColumnProfilesGrid: vi.fn() }));
+vi.mock('../features/upload/index.js', () => ({ initColumnProfilesGrid: vi.fn() }));
 vi.mock('../ui/toolbar.js', () => ({
     initAnalysisControls: vi.fn(),
     initChartPageFilterGesture: vi.fn(),
