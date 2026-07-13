@@ -208,6 +208,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Extracted Timeseries API request construction into `timeseriesRequest`, directly covering valid range/selection gating, ISO bounds, chart width, color-column serialization, and the minimum lookaround contract before the controller issues the request.
 - Extracted raw buffered-response reuse eligibility into `bufferedFetchPolicy`. Normal fetch reuse and zoom-out restoration now share the same selection-key, raw-data, and fetched-window coverage contract under direct tests.
 - Extracted fetched-window resolution into `fetchedWindow` and made the request builder the single owner of the lookaround calculation. Buffered reuse now receives a validated response window for ordered data and a deterministic padded fallback for empty or malformed timestamp responses.
+- Extracted `timeseriesRenderModel` for viewport clipping, selected-series filtering, empty-state decisions, and spectral-preview projection. It returns immutable chart input and recognizes the case where filters remove every selected-series point, leaving the controller to apply the tested model to the chart and overlays.
 - Fixed the shared page-runtime unmount/remount contract: cleanup now releases the mounted state and is idempotent, so feature lifecycles can safely register again after a real unmount.
 
 ### Completed: Spectrogram runtime decomposition

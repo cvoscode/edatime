@@ -2,12 +2,10 @@ import { DEBUG, dbg, dbgGroup } from '../../debug.js';
 import {
     ensureRangeStateFromData,
     applyFilterIntentToData,
-    applyColumnRangesToData,
-    clipDataToViewport,
     type TimeseriesFilterIntent,
 } from '../../services/timeseries/filtering.js';
 import { sanitizeSelectedColumns } from './columnSelection.js';
-import { createEmptyStateController, isRangeOutsideDataset } from '../../ui/emptyState.js';
+import { createEmptyStateController } from '../../ui/emptyState.js';
 import { announceChartLoading, announceDataUpdate } from '../../utils/a11y.js';
 import { computeFrontendRollingBands } from '../../bootstrap/analyticsOverlay.js';
 import { createRequestTask } from '../../platform/requestTask.js';
@@ -28,6 +26,7 @@ import { uiState } from '../../store/uiState.js';
 import { buildTimeseriesDataRequest, getTimeseriesLookaroundMs } from './timeseriesRequest.js';
 import { canReuseBufferedFetch } from './bufferedFetchPolicy.js';
 import { resolveFetchedWindow } from './fetchedWindow.js';
+import { buildTimeseriesRenderModel } from './timeseriesRenderModel.js';
 
 const EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} } as any;
 const CONSECUTIVE_ZOOM_OUT_RESET_COUNT = 5;
@@ -268,64 +267,33 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         const columnRanges = workspace?.filters.columnRanges ?? uiState.columnRanges;
         const adaptiveLineFilters = workspace?.filters.adaptiveLines ?? uiState.adaptiveLineFilters;
 
-        const hasSelection = selectedColumns.length > 0;
-        if (!hasSelection) {
-            emptyState.update({
-                visible: true,
-                reason: 'no-columns-selected',
-                title: 'Select one or more series',
-                message: 'Click a column chip above to add it to the chart. Start with 2-3 related columns for a clearer first view.',
-                showResetAction: false,
-            });
-        }
+        const model = buildTimeseriesRenderModel({
+            data: runtimeState.lastFetchedData,
+            selectedColumns,
+            viewport: { start: viewportStart, end: viewportEnd },
+            columnRanges,
+            adaptiveLineFilters,
+            datasetRange: datasetState.metadata?.time_range,
+            spectralPreview: analyticsState.spectralFilterPreview,
+        });
+        emptyState.update(model.emptyState);
 
         if (!chartState.chart) return;
-        if (!hasSelection) {
+        if (model.kind === 'no-selection') {
             setRollingBands(null);
             chartState.chart.updateDataMulti(EMPTY_TIMESERIES_DATA, []);
             rememberRenderedViewport();
             return;
         }
-        if (!runtimeState.lastFetchedData) {
-            emptyState.update({ visible: false, reason: '', title: '', message: '', showResetAction: false });
-            return;
-        }
-        const viewportData = clipDataToViewport(runtimeState.lastFetchedData, viewportStart, viewportEnd);
-        const filtered = applyColumnRangesToData(viewportData, selectedColumns, columnRanges, adaptiveLineFilters);
-        const hasPoints = !!filtered?.ts && filtered.ts.length > 0;
-        if (!hasPoints) {
-            const start = Number(chartState.currentStart);
-            const end = Number(chartState.currentEnd);
-            const rangeOutside = isRangeOutsideDataset(datasetState.metadata?.time_range, start, end);
-
-            emptyState.update({
-                visible: true,
-                reason: rangeOutside ? 'linked-range-outside-dataset' : 'no-data-after-filters',
-                title: rangeOutside ? 'Current range is outside this dataset' : 'No points match current filters',
-                message: rangeOutside
-                    ? 'Reset to dataset range to recover visible data.'
-                    : 'Try widening the time range or clearing filters.',
-                showResetAction: true,
-            });
-
+        if (model.kind === 'awaiting-data') return;
+        if (model.kind === 'empty') {
             setRollingBands(null);
             chartState.chart.updateDataMulti(EMPTY_TIMESERIES_DATA, []);
-            if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
-                chartState.chart.setXRange(start, end);
+            if (Number.isFinite(model.viewport.start) && Number.isFinite(model.viewport.end) && model.viewport.end > model.viewport.start) {
+                chartState.chart.setXRange(model.viewport.start, model.viewport.end);
             }
             rememberRenderedViewport();
             return;
-        }
-
-        emptyState.update({ visible: false, reason: '', title: '', message: '', showResetAction: false });
-
-        const preview = analyticsState.spectralFilterPreview;
-        let displayCols = [...selectedColumns];
-        if (preview && preview.ts && preview.values && preview.ts.length > 0) {
-            const previewKey = `${preview.column} [filtered]`;
-            (filtered as any).series = (filtered as any).series || {};
-            (filtered as any).series[previewKey] = { x: preview.ts, y: preview.values };
-            if (!displayCols.includes(previewKey)) displayCols = [...displayCols, previewKey];
         }
 
         // Capture the pending y-range restore *before* `updateDataMulti` —
@@ -335,7 +303,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         // us re-apply the user y range once the new data has been drawn.
         const restoreY = runtimeState.pendingRestoreY;
         const restoreMode = runtimeState.pendingYMode;
-        chartState.chart.updateDataMulti(filtered, displayCols);
+        chartState.chart.updateDataMulti(model.data, model.displayColumns);
 
         if (restoreY && restoreMode === 'restore') {
             chartState.chart.setYRange(restoreY.min, restoreY.max);
@@ -347,7 +315,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         }
 
         if (analyticsState.rollingEnabled) {
-            setRollingBands(computeFrontendRollingBands(filtered as any, selectedColumns, analyticsState.rollingWindow || 50));
+            setRollingBands(computeFrontendRollingBands(model.data as any, selectedColumns, analyticsState.rollingWindow || 50));
             chartState.chart?.requestOverlayRender?.();
         }
         rememberRenderedViewport();
