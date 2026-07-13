@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAnalyticsOverlayController, initAnalyticsListeners } from './analyticsOverlay.js';
 import { analyticsState } from '../../store/analyticsState.js';
-import { chartState, setViewport } from '../../store/chartState.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 import { emitFeatureEvent } from '../../platform/featureEvents.js';
 import type { ApiRequestOptions } from '../../services/api/http.js';
@@ -10,14 +9,13 @@ import type { AnomalyResponse } from '../../types/api.js';
 describe('fetchAnomalyRegions', () => {
     afterEach(() => {
         analyticsState.anomalyEnabled = false;
-        setViewport(null, null);
     });
 
     it('builds anomaly requests from canonical workspace selection', async () => {
         const workspace = createWorkspaceStore();
         workspace.setSelection(['workspace-series']);
         analyticsState.anomalyEnabled = true;
-        setViewport(1, 2);
+        workspace.setViewport({ xMin: 1, xMax: 2, yMin: null, yMax: null });
         const fetchAnomalies = vi.fn().mockResolvedValue({ regions: [], summary_stats: null });
 
         const overlay = createAnalyticsOverlayController();
@@ -49,7 +47,7 @@ describe('fetchAnomalyRegions', () => {
         const workspace = createWorkspaceStore();
         workspace.setSelection(['workspace-series']);
         analyticsState.anomalyEnabled = true;
-        setViewport(1, 2);
+        workspace.setViewport({ xMin: 1, xMax: 2, yMin: null, yMax: null });
         let resolveFirst!: (value: AnomalyResponse) => void;
         let firstSignal!: AbortSignal;
         const firstFetch = vi.fn<(

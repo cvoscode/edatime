@@ -121,7 +121,14 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
         const { initAnnotations } = await import('../../chart/annotations.js');
         const { initAnnotationPanel } = await import('../../ui/annotationPanel.js');
         initAnnotations();
-        deps.registerCleanup(initAnnotationPanel({ requestOverlayRender: deps.requestAnnotationOverlayRender }));
+        deps.registerCleanup(initAnnotationPanel({
+            requestOverlayRender: deps.requestAnnotationOverlayRender,
+            getViewport: () => {
+                const viewport = deps.workspace.getSnapshot().viewport;
+                if (!viewport) return null;
+                return { start: Number(viewport.xMin), end: Number(viewport.xMax) };
+            },
+        }));
     });
 
     registerSubsystem('guided-workflow', async (deps) => {

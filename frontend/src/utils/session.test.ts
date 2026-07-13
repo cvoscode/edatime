@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { chartState } from '../store/chartState.js';
 import { datasetState } from '../store/datasetState.js';
 import { uiState } from '../store/uiState.js';
 import { applySession, captureSession, configureSessionWorkspace, initAutoSave, type SessionSnapshot } from './session.js';
@@ -41,8 +40,6 @@ describe('session restore safeguards', () => {
         window.localStorage.clear();
         document.body.innerHTML = '<div class="sidebar"><button class="nav-item" data-page="upload" type="button">upload</button></div>';
         window.location.hash = '';
-        chartState.currentStart = null;
-        chartState.currentEnd = null;
         datasetState.datasetRevision = 0;
         datasetState.metadata = null;
     });
@@ -80,16 +77,17 @@ describe('session restore safeguards', () => {
     it('resets out-of-dataset ranges to metadata bounds', () => {
         const snap = buildSnapshot({ currentStart: 0, currentEnd: 100 });
 
+        const workspace = createWorkspaceStore();
         const result = applySession(snap, {
             metadataTimeRange: { min: 1_000, max: 2_000 },
             currentDatasetRevision: 1,
             announceAdjustments: false,
+            workspace,
         });
 
         expect(result.rangeAdjusted).toBe(true);
         expect(result.usedMetadataRange).toBe(true);
-        expect(chartState.currentStart).toBe(1_000);
-        expect(chartState.currentEnd).toBe(2_000);
+        expect(workspace.getSnapshot().viewport).toEqual({ xMin: 1_000, xMax: 2_000, yMin: null, yMax: null });
     });
 
     it('prefers hash-based page when requested', () => {

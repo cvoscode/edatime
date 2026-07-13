@@ -7,7 +7,6 @@
  */
 
 import { analyticsState } from '../store/analyticsState.js';
-import { chartState } from '../store/chartState.js';
 import { datasetState } from '../store/datasetState.js';
 import { formatAnalysisTime, formatAnalysisNumber } from '../utils/format.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
@@ -80,12 +79,14 @@ function renderContent(): void {
     }
 
     // Time range
-    if (Number.isFinite(chartState.currentStart) && Number.isFinite(chartState.currentEnd)) {
+    const start = Number(intent?.viewport?.xMin);
+    const end = Number(intent?.viewport?.xMax);
+    if (Number.isFinite(start) && Number.isFinite(end) && start < end) {
         sections.push(`
             <div class="provenance-section">
                 <div class="provenance-section-title">Time Range</div>
-                <div class="provenance-row"><span class="provenance-key">Start</span><span class="provenance-val">${formatAnalysisTime(chartState.currentStart!)}</span></div>
-                <div class="provenance-row"><span class="provenance-key">End</span><span class="provenance-val">${formatAnalysisTime(chartState.currentEnd!)}</span></div>
+                <div class="provenance-row"><span class="provenance-key">Start</span><span class="provenance-val">${formatAnalysisTime(start)}</span></div>
+                <div class="provenance-row"><span class="provenance-key">End</span><span class="provenance-val">${formatAnalysisTime(end)}</span></div>
             </div>
         `);
     }

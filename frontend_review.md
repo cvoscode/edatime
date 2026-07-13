@@ -691,6 +691,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Removed the final `runtimeState` field. Chart analysis callbacks are now idempotent per concrete chart instance through a `WeakSet`, so replacing a chart binds the new instance while repeated initialization cannot duplicate its handlers.
 - Timeseries bootstrap no longer resets process-wide analysis state before either ChartGPU or fallback initialization, and the runtime store/event module now has no residual consumer or public event surface.
 
+### Completed: canonical viewport consumer migration (first slice)
+
+- Anomaly requests, annotation timestamps, provenance presentation, and session viewport persistence now read or write `WorkspaceStore.viewport` directly instead of mirroring the Timeseries range through global chart state.
+- The shell injects the current workspace viewport into the annotation panel alongside its already-owned redraw action, so annotation creation has no direct chart-state dependency.
+- Session restore publishes the clamped range only to the canonical workspace before Timeseries rendering resumes; the controller remains responsible for realizing that intent on its owned chart.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.

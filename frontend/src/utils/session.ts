@@ -14,7 +14,7 @@ import {
     setRollingEnabled,
     setRollingWindow,
 } from '../store/analyticsState.js';
-import { chartState, setChartText, setViewport } from '../store/chartState.js';
+import { chartState, setChartText } from '../store/chartState.js';
 import { datasetState } from '../store/datasetState.js';
 import {
     setSeriesColors,
@@ -98,8 +98,8 @@ export function captureSession(): SessionSnapshot {
         seriesColors: { ...uiState.seriesColors },
         columnRanges: intent ? { ...intent.filters.columnRanges } : {},
         adaptiveLineFilters: intent ? intent.filters.adaptiveLines.map((f) => ({ ...f })) : [],
-        currentStart: intent?.viewport?.xMin ?? chartState.currentStart,
-        currentEnd: intent?.viewport?.xMax ?? chartState.currentEnd,
+        currentStart: intent?.viewport?.xMin ?? null,
+        currentEnd: intent?.viewport?.xMax ?? null,
         selectedColorColumn: intent?.selection.colorColumn ?? null,
         chartText: { ...chartState.chartText },
         rollingEnabled: analyticsState.rollingEnabled,
@@ -231,7 +231,6 @@ export function applySession(
             }
 
             workspace?.setViewport({ xMin: nextStart, xMax: nextEnd, yMin: null, yMax: null });
-            setViewport(nextStart, nextEnd);
         }
     }
 

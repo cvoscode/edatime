@@ -130,14 +130,17 @@ export function createAnalyticsOverlayController(): AnalyticsOverlayController {
         fetchAnomalies: ((start: string, end: string, columns: string, method?: string, threshold?: number, options?: ApiRequestOptions) => Promise<AnomalyResponse>) | null,
         workspace: Pick<WorkspaceStore, 'getSnapshot'>,
     ): Promise<void> {
-        if (!Number.isFinite(chartState.currentStart) || !Number.isFinite(chartState.currentEnd)) return;
+        const viewport = workspace.getSnapshot().viewport;
+        const start = Number(viewport?.xMin);
+        const end = Number(viewport?.xMax);
+        if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end) return;
 
         anomalyController?.abort();
         const controller = new AbortController();
         anomalyController = controller;
 
-        const startIso = new Date(chartState.currentStart!).toISOString();
-        const endIso = new Date(chartState.currentEnd!).toISOString();
+        const startIso = new Date(start).toISOString();
+        const endIso = new Date(end).toISOString();
         const cols = workspace.getSnapshot().selection.columns.join(',');
 
         try {

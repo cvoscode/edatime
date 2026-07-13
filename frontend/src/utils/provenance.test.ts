@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { setAnomalyEnabled, setAnomalyMethod, setAnomalyThreshold, setRollingEnabled, setRollingWindow } from '../store/analyticsState.js';
 import { setMetadata } from '../store/datasetState.js';
-import { setViewport } from '../store/chartState.js';
 import { createWorkspaceStore } from '../workspace/workspaceStore.js';
 import { __resetProvenanceForTests, initProvenance, toggleProvenance } from './provenance.js';
 
@@ -11,7 +10,6 @@ describe('provenance', () => {
         document.body.innerHTML = '<div class="app-content"></div>';
         __resetProvenanceForTests();
         setMetadata(null);
-        setViewport(null, null);
         setRollingEnabled(false);
         setRollingWindow(50);
         setAnomalyEnabled(false);
@@ -26,7 +24,7 @@ describe('provenance', () => {
             columns: [{ name: 'ts' }, { name: 'value' }],
             time_column: 'ts',
         } as any);
-        setViewport(10, 20);
+        workspace.setViewport({ xMin: 10, xMax: 20, yMin: null, yMax: null });
         workspace.setSelection(['value'], 'group');
         workspace.setFilters({
             columnRanges: { value: { from: 1, to: 9 } },

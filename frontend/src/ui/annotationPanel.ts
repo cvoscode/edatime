@@ -15,12 +15,12 @@ import {
     exportAnnotations,
     Annotation,
 } from '../chart/annotations.js';
-import { chartState } from '../store/chartState.js';
 import { datasetState } from '../store/datasetState.js';
 import { toast } from '../utils/toast.js';
 
 export interface AnnotationPanelDeps {
     requestOverlayRender?: () => void;
+    getViewport?: () => { start: number; end: number } | null;
 }
 
 /* ── Annotations list modal ─────────────────────────── */
@@ -96,7 +96,10 @@ function closeAddNoteModal(): void {
     if (modal) modal.hidden = true;
 }
 
-function saveNote(requestOverlayRender: () => void): void {
+function saveNote(
+    requestOverlayRender: () => void,
+    getViewport: () => { start: number; end: number } | null,
+): void {
     const title = (document.getElementById('note-title-input') as HTMLInputElement).value.trim();
     if (!title) {
         toast('Please enter a title for the note.', 'error');
@@ -105,13 +108,16 @@ function saveNote(requestOverlayRender: () => void): void {
     const content = (document.getElementById('note-content-input') as HTMLTextAreaElement).value.trim();
     const color = (document.getElementById('note-color-input') as HTMLInputElement).value;
 
-    const start = chartState.currentStart ?? Date.now() - 3600_000;
-    const end = chartState.currentEnd ?? Date.now();
+    const viewport = getViewport();
+    const end = Number(viewport?.end);
+    const start = Number(viewport?.start);
+    const resolvedEnd = Number.isFinite(end) ? end : Date.now();
+    const resolvedStart = Number.isFinite(start) ? start : resolvedEnd - 3600_000;
 
     createTimeRangeNote(
         title,
-        start,
-        end,
+        resolvedStart,
+        resolvedEnd,
         content || undefined,
         undefined,
         color,
@@ -124,11 +130,15 @@ function saveNote(requestOverlayRender: () => void): void {
 
 /* ── Bookmark ──────────────────────────────────────── */
 
-function addBookmarkAtCurrentView(requestOverlayRender: () => void): void {
-    const time = chartState.currentStart ?? Date.now();
-    const title = `Bookmark ${new Date(time).toLocaleTimeString()}`;
-    createBookmark(title, time, datasetState.datasetRevision);
-    toast(`Bookmark added at ${new Date(time).toLocaleString()}`, 'success');
+function addBookmarkAtCurrentView(
+    requestOverlayRender: () => void,
+    getViewport: () => { start: number; end: number } | null,
+): void {
+    const time = Number(getViewport()?.start);
+    const resolvedTime = Number.isFinite(time) ? time : Date.now();
+    const title = `Bookmark ${new Date(resolvedTime).toLocaleTimeString()}`;
+    createBookmark(title, resolvedTime, datasetState.datasetRevision);
+    toast(`Bookmark added at ${new Date(resolvedTime).toLocaleString()}`, 'success');
     requestOverlayRender();
 }
 
@@ -146,6 +156,7 @@ function escapeAttr(str: string): string {
 
 export function initAnnotationPanel(deps: AnnotationPanelDeps = {}): () => void {
     const requestOverlayRender = deps.requestOverlayRender ?? (() => {});
+    const getViewport = deps.getViewport ?? (() => null);
     const abortController = new AbortController();
     const listenerOptions = { signal: abortController.signal };
     // Toolbar buttons
@@ -157,7 +168,7 @@ export function initAnnotationPanel(deps: AnnotationPanelDeps = {}): () => void 
         if ((e.target as HTMLElement).id === 'annotations-modal') closeAnnotationsModal();
     }, listenerOptions);
     document.getElementById('annotations-modal-add-note-btn')?.addEventListener('click', openAddNoteModal, listenerOptions);
-    document.getElementById('annotations-modal-bookmark-btn')?.addEventListener('click', () => addBookmarkAtCurrentView(requestOverlayRender), listenerOptions);
+    document.getElementById('annotations-modal-bookmark-btn')?.addEventListener('click', () => addBookmarkAtCurrentView(requestOverlayRender, getViewport), listenerOptions);
     document.getElementById('annotations-export-btn')?.addEventListener('click', () => {
         const json = exportAnnotations();
         const blob = new Blob([json], { type: 'application/json' });
@@ -180,7 +191,7 @@ export function initAnnotationPanel(deps: AnnotationPanelDeps = {}): () => void 
     // Add Note modal
     document.getElementById('add-note-modal-close')?.addEventListener('click', closeAddNoteModal, listenerOptions);
     document.getElementById('add-note-cancel-btn')?.addEventListener('click', closeAddNoteModal, listenerOptions);
-    document.getElementById('add-note-save-btn')?.addEventListener('click', () => saveNote(requestOverlayRender), listenerOptions);
+    document.getElementById('add-note-save-btn')?.addEventListener('click', () => saveNote(requestOverlayRender, getViewport), listenerOptions);
     document.getElementById('add-note-modal')?.addEventListener('click', (e) => {
         if ((e.target as HTMLElement).id === 'add-note-modal') closeAddNoteModal();
     }, listenerOptions);
