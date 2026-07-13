@@ -459,6 +459,10 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 
 - Replaced Upload's wildcard public exports with the five composition-level APIs actually consumed outside the feature. The architecture guard now rejects wildcard feature-index exports, keeping internal upload workflows private by default.
 
+### Completed: retired chart export reference removal
+
+- Removed the unimported `utils/chartExporter.ts` reference implementation. The live, tested export path is owned by `chart/dataChartExport` and its focused chart export modules; retaining a second standalone implementation only invited drift.
+
 ### Completed: Drift page decomposition
 
 - Extracted evaluation-mode normalization, latest-window validation, and response-map filtering into `evaluationPolicy` with direct behavior coverage.
