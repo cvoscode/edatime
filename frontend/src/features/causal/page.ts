@@ -31,6 +31,7 @@ import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
 import { bindInfoPopovers } from '../../ui/infoPopovers.js';
 
 let _chartEl: HTMLDivElement | null = null;
+let _causalPageListeners: AbortController | null = null;
 
 function seedSelectedColumnsFromDataset(deps: CausalDeps): void {
     if (_selectedColumns.size > 0) return;
@@ -43,6 +44,10 @@ function seedSelectedColumnsFromDataset(deps: CausalDeps): void {
 }
 
 export function initCausalPage(deps: CausalDeps): void {
+    _causalPageListeners?.abort();
+    const listenerController = new AbortController();
+    _causalPageListeners = listenerController;
+    const listenerOptions = { signal: listenerController.signal };
     const methodSelect = document.getElementById('causal-method-select') as HTMLElement | null;
     const testSelect = document.getElementById('causal-test-select') as HTMLElement | null;
     const tauInput = document.getElementById('causal-tau-max') as HTMLInputElement | null;
@@ -79,28 +84,28 @@ export function initCausalPage(deps: CausalDeps): void {
         for (const c of cols) _selectedColumns.add(c);
         renderColumnChips(deps, columnsBar, openEditPanel);
         syncCausalEmptyState(_selectedColumns.size);
-    }) as EventListener);
+    }) as EventListener, listenerOptions);
 
-    methodSelect?.addEventListener('change', () => applyMethodControlState(getDropdownValue('causal-method-select') || 'pcmci'));
+    methodSelect?.addEventListener('change', () => applyMethodControlState(getDropdownValue('causal-method-select') || 'pcmci'), listenerOptions);
 
     addEdgeBtn?.addEventListener('click', () => {
         toggleAddEdgeMode(addEdgeBtn);
-    });
+    }, listenerOptions);
 
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape' && _addEdgeMode) {
             cancelAddEdgeMode(addEdgeBtn);
         }
-    });
+    }, listenerOptions);
 
-    exportBtn?.addEventListener('click', (event) => { event.stopPropagation(); if (exportMenu) exportMenu.hidden = !exportMenu.hidden; });
+    exportBtn?.addEventListener('click', (event) => { event.stopPropagation(); if (exportMenu) exportMenu.hidden = !exportMenu.hidden; }, listenerOptions);
     exportMenu?.addEventListener('click', (event) => {
         event.stopPropagation();
         const button = (event.target as HTMLElement).closest<HTMLButtonElement>('.causal-export-item');
         if (!button) return;
         exportMenu.hidden = true;
         handleExport(button.dataset.fmt || 'json');
-    });
+    }, listenerOptions);
 
     computeBtn?.addEventListener('click', async () => {
         await handleComputeClick(
@@ -113,7 +118,7 @@ export function initCausalPage(deps: CausalDeps): void {
             fdrSelect,
             () => syncCausalEmptyState(_selectedColumns.size),
         );
-    });
+    }, listenerOptions);
 
     window.addEventListener('edatime:page-change', (event: any) => {
         if (event?.detail?.page === 'causal' && workspaceMetadata(deps)) {
@@ -122,5 +127,5 @@ export function initCausalPage(deps: CausalDeps): void {
             scheduleCausalChartRefresh();
             syncCausalEmptyState(_selectedColumns.size);
         }
-    });
+    }, listenerOptions);
 }

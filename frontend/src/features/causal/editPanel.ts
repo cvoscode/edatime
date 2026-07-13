@@ -42,6 +42,7 @@ export type EditTarget = { kind: 'node'; col: string } | { kind: 'edge'; key: st
 let _editTarget: EditTarget | null = null;
 let _edgeEditDraft: EdgeEditDraft | null = null;
 let _draftSeq = 0;
+let _disposeEditPanelEvents: (() => void) | null = null;
 
 export function getEditTarget(): EditTarget | null {
     return _editTarget;
@@ -316,22 +317,31 @@ export function hideCtxMenu(): void {
 
 // ─── Public export for causalPage event wiring ─────────────────────────────
 
-export function bindEditPanelEvents(): void {
-    document.getElementById('causal-edit-close')?.addEventListener('click', closeEditPanel);
-    document.getElementById('causal-edit-apply')?.addEventListener('click', applyEditPanel);
+export function bindEditPanelEvents(): () => void {
+    _disposeEditPanelEvents?.();
+    const controller = new AbortController();
+    const listenerOptions = { signal: controller.signal };
+    document.getElementById('causal-edit-close')?.addEventListener('click', closeEditPanel, listenerOptions);
+    document.getElementById('causal-edit-apply')?.addEventListener('click', applyEditPanel, listenerOptions);
     document.getElementById('causal-edit-delete')?.addEventListener('click', () => {
         const t = _editTarget;
         if (t) deleteTarget(t);
-    });
+    }, listenerOptions);
     document.getElementById('causal-ctx-edit')?.addEventListener('click', (event) => {
         event.stopPropagation();
         if (_editTarget) openEditPanel(_editTarget);
         hideCtxMenu();
-    });
+    }, listenerOptions);
     document.getElementById('causal-ctx-delete')?.addEventListener('click', (event) => {
         event.stopPropagation();
         if (_editTarget) deleteTarget(_editTarget);
         hideCtxMenu();
-    });
-    document.addEventListener('click', () => { hideCtxMenu(); });
+    }, listenerOptions);
+    document.addEventListener('click', hideCtxMenu, listenerOptions);
+    const dispose = () => {
+        controller.abort();
+        if (_disposeEditPanelEvents === dispose) _disposeEditPanelEvents = null;
+    };
+    _disposeEditPanelEvents = dispose;
+    return dispose;
 }
