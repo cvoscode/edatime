@@ -230,6 +230,7 @@ Continue this behavior-preserving split with the remaining renderer-owned seams:
 - Extracted manual-order validation, clustering fallback, and render-index-to-source-index mapping into `orderingPolicy`; page-level drag-reorder coverage confirms the mutable interaction remains intact.
 - Extracted per-cell signed values, color/tone presentation, tooltip text, and interaction affordance into `cellPresentation`, with direct missing/diagonal and interactive negative-correlation coverage.
 - Added abort-scoped Heatmap control listeners and retained runtime/resize-observer cleanup across re-initialization. A lazy-visibility regression proves two initializations still issue one request for one metric change.
+- Extracted Heatmap load-error classification into `loadErrorPolicy`, making insufficient-numeric-column guidance and generic request-failure status explicit and directly tested.
 - Next, split the remaining request-payload and timeline-summary presentation seams only where the resulting boundary reduces page-controller ownership.
 
 ## Target Architecture

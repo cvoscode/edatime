@@ -26,6 +26,7 @@ import {
 import { buildHeatmapGridLayout } from './gridLayout.js';
 import { buildHeatmapRenderOrder } from './orderingPolicy.js';
 import { buildHeatmapCellPresentation } from './cellPresentation.js';
+import { classifyHeatmapLoadError } from './loadErrorPolicy.js';
 
 interface HeatmapPageDeps {
     showPage: (pageName: string) => void;
@@ -141,21 +142,14 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
             requestAnimationFrame(() => renderHeatmap());
         } catch (error: any) {
             if (loadSequence !== matrixLoadSequence) return;
-            const message = error?.message || '';
-            const isInsufficient = message.toLowerCase().includes('two')
-                || message.toLowerCase().includes('numeric')
-                || message.toLowerCase().includes('column');
+            const presentation = classifyHeatmapLoadError(error);
             syncHeatmapEmptyState(
-                isInsufficient
-                    ? 'Need at least two numeric columns to compute correlations. Upload a dataset with multiple numeric columns.'
-                    : 'Correlation heatmap is unavailable for the current dataset.',
+                presentation.message,
                 true,
-                isInsufficient ? 'no-columns-available' : 'render-failure',
-                isInsufficient
-                    ? 'Need at least two numeric columns'
-                    : 'Correlation matrix unavailable',
+                presentation.reason,
+                presentation.title,
             );
-            heatmapRuntime?.updateStatus(isInsufficient ? 'Not enough numeric columns' : `Error: ${message || 'failed'}`);
+            heatmapRuntime?.updateStatus(presentation.status);
         }
     }
 
