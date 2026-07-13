@@ -1,9 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import {
-    __resetTimeseriesShortcutsForTest,
-    initTimeseriesShortcuts,
-} from './shortcuts.js';
+import { createTimeseriesShortcuts } from './shortcuts.js';
 
 let cleanup: (() => void) | undefined;
 
@@ -15,7 +12,6 @@ function createDeps() {
         chartExportPng: vi.fn(),
         exportFilteredCsv: vi.fn(),
         exportFilteredJson: vi.fn(),
-        registerCleanup: vi.fn((callback: () => void) => { cleanup = callback; }),
     };
 }
 
@@ -32,7 +28,6 @@ afterEach(() => {
     cleanup?.();
     cleanup = undefined;
     document.body.innerHTML = '';
-    __resetTimeseriesShortcutsForTest();
     delete (window as any).__edatime;
 });
 
@@ -40,9 +35,10 @@ describe('Timeseries shortcuts', () => {
     it('binds once without publishing a window marker', async () => {
         renderPage('timeseries');
         const deps = createDeps();
+        const shortcuts = createTimeseriesShortcuts();
 
-        initTimeseriesShortcuts(deps);
-        initTimeseriesShortcuts(deps);
+        cleanup = shortcuts.mount(deps);
+        shortcuts.mount(deps);
 
         window.dispatchEvent(new KeyboardEvent('keydown', { key: 'R', shiftKey: true, bubbles: true }));
         await Promise.resolve();
@@ -55,11 +51,25 @@ describe('Timeseries shortcuts', () => {
     it('removes its listener on cleanup so a new runtime can rebind it', () => {
         renderPage('timeseries');
         const first = createDeps();
-        initTimeseriesShortcuts(first);
+        cleanup = createTimeseriesShortcuts().mount(first);
         cleanup?.();
 
         const second = createDeps();
-        initTimeseriesShortcuts(second);
+        cleanup = createTimeseriesShortcuts().mount(second);
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'P', shiftKey: true, bubbles: true }));
+
+        expect(first.chartExportPng).not.toHaveBeenCalled();
+        expect(second.chartExportPng).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not let one feature instance suppress another controller binding', () => {
+        renderPage('timeseries');
+        const first = createDeps();
+        const second = createDeps();
+        const firstCleanup = createTimeseriesShortcuts().mount(first);
+        cleanup = createTimeseriesShortcuts().mount(second);
+
+        firstCleanup();
         window.dispatchEvent(new KeyboardEvent('keydown', { key: 'P', shiftKey: true, bubbles: true }));
 
         expect(first.chartExportPng).not.toHaveBeenCalled();

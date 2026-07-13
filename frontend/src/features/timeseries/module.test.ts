@@ -13,21 +13,21 @@ const {
     mockCreateTimeseriesRuntime,
     mockCreateDatasetBootstrap,
     mockCreateTimeseriesBootstrap,
-    mockInitTimeseriesShortcuts,
+    mockCreateTimeseriesShortcuts,
 } = vi.hoisted(() => {
     const mockCreateTimeseriesPageController = vi.fn();
     const mockCreateTimeseriesControls = vi.fn();
     const mockCreateTimeseriesRuntime = vi.fn();
     const mockCreateDatasetBootstrap = vi.fn();
     const mockCreateTimeseriesBootstrap = vi.fn();
-    const mockInitTimeseriesShortcuts = vi.fn();
+    const mockCreateTimeseriesShortcuts = vi.fn();
     return {
         mockCreateTimeseriesPageController,
         mockCreateTimeseriesControls,
         mockCreateTimeseriesRuntime,
         mockCreateDatasetBootstrap,
         mockCreateTimeseriesBootstrap,
-        mockInitTimeseriesShortcuts,
+        mockCreateTimeseriesShortcuts,
     };
 });
 
@@ -56,7 +56,7 @@ vi.mock('./ensureReady.js', () => ({
 }));
 
 vi.mock('./shortcuts.js', () => ({
-    initTimeseriesShortcuts: mockInitTimeseriesShortcuts,
+    createTimeseriesShortcuts: mockCreateTimeseriesShortcuts,
 }));
 
 // ── Shared mock helpers ───────────────────────────────────────────────────────
@@ -134,6 +134,7 @@ describe('createTimeseriesModule', () => {
         mockCreateTimeseriesRuntime.mockReturnValue(mockRuntime());
         mockCreateDatasetBootstrap.mockReturnValue(mockBootstrap());
         mockCreateTimeseriesBootstrap.mockReturnValue(mockChartBootstrap());
+        mockCreateTimeseriesShortcuts.mockReturnValue({ mount: vi.fn(() => vi.fn()) });
     });
 
     // -------------------------------------------------------------------------
@@ -296,17 +297,18 @@ describe('createTimeseriesModule', () => {
         const shortcutCleanup = vi.fn();
         mockCreateTimeseriesRuntime.mockReturnValue(runtime);
         mockCreateTimeseriesPageController.mockReturnValue(pageController);
-        mockInitTimeseriesShortcuts.mockImplementation((deps) => deps.registerCleanup(shortcutCleanup));
+        const shortcuts = { mount: vi.fn(() => shortcutCleanup) };
+        mockCreateTimeseriesShortcuts.mockReturnValue(shortcuts);
 
         const { createTimeseriesModule } = await import('./module.js');
         const mod = createTimeseriesModule(defaultDeps());
         const cleanup = mod.mount();
 
-        expect(mockInitTimeseriesShortcuts).toHaveBeenCalledWith(expect.objectContaining({
+        expect(mockCreateTimeseriesShortcuts).toHaveBeenCalledTimes(1);
+        expect(shortcuts.mount).toHaveBeenCalledWith(expect.objectContaining({
             fetchAndRender: expect.any(Function),
             zoomOut: expect.any(Function),
             resetZoom: expect.any(Function),
-            registerCleanup: expect.any(Function),
         }));
         cleanup();
         expect(shortcutCleanup).toHaveBeenCalledTimes(1);

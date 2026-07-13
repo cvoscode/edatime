@@ -649,6 +649,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Chart readiness receives only the owning controller's redraw callback. One app root can no longer abort, clear, or redraw another root's anomaly request.
 - The controller ignores stale completion, clears its active request deterministically, and has direct two-controller coverage for request and callback isolation.
 
+### Completed: Timeseries shortcut lifecycle isolation
+
+- Replaced the module-global shortcut-bound marker with a shortcut controller created for each Timeseries module instance.
+- Shortcut setup remains idempotent within one feature lifetime, while a later root is no longer suppressed because another root already mounted its Timeseries feature.
+- Direct two-controller coverage proves disposing one shortcut owner leaves the other owner active.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.

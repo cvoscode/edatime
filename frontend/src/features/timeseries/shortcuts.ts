@@ -23,62 +23,66 @@ export interface TimeseriesShortcutsDeps {
     chartExportPng: () => void;
     exportFilteredCsv: () => void;
     exportFilteredJson: () => void;
-    registerCleanup: (cleanup: () => void) => void;
 }
 
-let shortcutsBound = false;
+export interface TimeseriesShortcutsController {
+    mount(deps: TimeseriesShortcutsDeps): () => void;
+}
 
-export function initTimeseriesShortcuts(deps: TimeseriesShortcutsDeps): void {
-    if (shortcutsBound) return;
-    shortcutsBound = true;
+/** Creates the keyboard-shortcut owner for one Timeseries module instance. */
+export function createTimeseriesShortcuts(): TimeseriesShortcutsController {
+    let disposeBinding: (() => void) | null = null;
 
-    const onKeydown = (event: KeyboardEvent) => {
-        if (event.defaultPrevented || isTypingTarget(event.target)) return;
-        const key = String(event.key || '').toLowerCase();
+    return {
+        mount(deps) {
+            if (disposeBinding) return disposeBinding;
 
-        // Shift-only timeseries shortcuts (no Alt/Ctrl/Meta)
-        if (!event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
+            const onKeydown = (event: KeyboardEvent) => {
+                if (event.defaultPrevented || isTypingTarget(event.target)) return;
+                const key = String(event.key || '').toLowerCase();
 
-        if (key === 'r' && currentPageName() === 'timeseries') {
-            event.preventDefault();
-            deps.resetZoom();
-            void deps.fetchAndRender();
-            return;
-        }
-        if (key === 'z' && currentPageName() === 'timeseries') {
-            event.preventDefault();
-            deps.zoomOut();
-            void deps.fetchAndRender();
-            return;
-        }
-        if (key === 'c' && currentPageName() === 'timeseries') {
-            event.preventDefault();
-            document.getElementById('adaptive-clear-btn')?.click?.();
-            return;
-        }
-        if (key === 'p') {
-            event.preventDefault();
-            deps.chartExportPng();
-            return;
-        }
-        if (key === 'e') {
-            event.preventDefault();
-            if (currentPageName() === 'scatter') {
-                document.getElementById('scatter-export-csv-btn')?.click?.();
-            } else {
-                deps.exportFilteredCsv();
-            }
-            return;
-        }
+                // Shift-only timeseries shortcuts (no Alt/Ctrl/Meta)
+                if (!event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
+
+                if (key === 'r' && currentPageName() === 'timeseries') {
+                    event.preventDefault();
+                    deps.resetZoom();
+                    void deps.fetchAndRender();
+                    return;
+                }
+                if (key === 'z' && currentPageName() === 'timeseries') {
+                    event.preventDefault();
+                    deps.zoomOut();
+                    void deps.fetchAndRender();
+                    return;
+                }
+                if (key === 'c' && currentPageName() === 'timeseries') {
+                    event.preventDefault();
+                    document.getElementById('adaptive-clear-btn')?.click?.();
+                    return;
+                }
+                if (key === 'p') {
+                    event.preventDefault();
+                    deps.chartExportPng();
+                    return;
+                }
+                if (key === 'e') {
+                    event.preventDefault();
+                    if (currentPageName() === 'scatter') {
+                        document.getElementById('scatter-export-csv-btn')?.click?.();
+                    } else {
+                        deps.exportFilteredCsv();
+                    }
+                }
+            };
+
+            window.addEventListener('keydown', onKeydown);
+            disposeBinding = () => {
+                if (!disposeBinding) return;
+                window.removeEventListener('keydown', onKeydown);
+                disposeBinding = null;
+            };
+            return disposeBinding;
+        },
     };
-
-    window.addEventListener('keydown', onKeydown);
-    deps.registerCleanup(() => {
-        window.removeEventListener('keydown', onKeydown);
-        shortcutsBound = false;
-    });
-}
-
-export function __resetTimeseriesShortcutsForTest(): void {
-    shortcutsBound = false;
 }

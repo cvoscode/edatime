@@ -140,7 +140,6 @@ vi.mock('../utils/pageBootstrap.js', () => ({
 vi.mock('../features/timeseries/index.js', () => ({
     createAnalyticsOverlayController: createAnalyticsOverlayControllerMock,
     createTimeseriesModule: createTimeseriesModuleMock,
-    initTimeseriesShortcuts: vi.fn(),
     sanitizeSelectedColumns: sanitizeSelectedColumnsMock,
 }));
 

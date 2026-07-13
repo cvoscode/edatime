@@ -9,7 +9,7 @@ import { createTimeseriesControls } from './controls.js';
 import { createTimeseriesLifecycle } from './lifecycle.js';
 import { createDatasetBootstrap } from './datasetBootstrap.js';
 import { createTimeseriesBootstrap } from './ensureReady.js';
-import { initTimeseriesShortcuts } from './shortcuts.js';
+import { createTimeseriesShortcuts } from './shortcuts.js';
 import { setDatasetRevision, setMetadata } from '../../store/datasetState.js';
 import { clearScatterViewSnapshots } from '../../store/scatterState.js';
 import { getNumericColumns, getDefaultTimeseriesColumns } from '../../platform/analyticsColumns.js';
@@ -226,6 +226,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         initFeature: () => feature.init(),
         ensureReady,
     });
+    const shortcuts = createTimeseriesShortcuts();
 
     // 5. Return the stable module surface. The public `ensureReady` matches
     // the runtime contract: the dataset is hydrated first, then the chart
@@ -234,18 +235,16 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
     return {
         mount: () => {
             const disposeRuntime = runtime.mount();
-            const shortcutCleanups: Array<() => void> = [];
-            initTimeseriesShortcuts({
+            const disposeShortcuts = shortcuts.mount({
                 fetchAndRender: () => pageController.fetchAndRender(),
                 zoomOut: () => pageController.zoomOut(),
                 resetZoom: () => pageController.resetZoom(),
                 chartExportPng: deps.chartExportPng ?? (() => {}),
                 exportFilteredCsv: deps.exportFilteredCsv ?? (() => {}),
                 exportFilteredJson: deps.exportFilteredJson ?? (() => {}),
-                registerCleanup: (cleanup) => shortcutCleanups.push(cleanup),
             });
             return () => {
-                for (const cleanup of shortcutCleanups.splice(0)) cleanup();
+                disposeShortcuts();
                 disposeRuntime();
                 pageController.dispose();
             };
