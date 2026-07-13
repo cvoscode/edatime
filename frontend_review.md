@@ -486,6 +486,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Characterized the current Analytics controls-to-overlay refresh behavior before changing it, then moved the one producer and one consumer off the `edatime:analytics-change` window event.
 - Analytics changes now use the declared `analytics:change` platform event and return an owned unsubscribe handle from the overlay listener. The focused regression preserves rolling-overlay refresh and analytics fetch triggering without a global DOM bridge.
 
+### Completed: typed Causal pair-preselection event
+
+- Characterized Scatter's Causal-pair hand-off before migration: the active Scatter X/Y pair replaces the Causal chip selection.
+- Replaced `edatime:causal-preselect` with the typed `causal:preselect` payload. The Causal page ties the subscription to its existing abort-scoped lifecycle, and regression coverage proves disposal prevents a retired page from receiving later preselection requests.
+
 ### Completed: Drift page decomposition
 
 - Extracted evaluation-mode normalization, latest-window validation, and response-map filtering into `evaluationPolicy` with direct behavior coverage.

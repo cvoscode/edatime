@@ -32,6 +32,7 @@ import { initCausalComparison } from './causalComparison.js';
 import { applyMethodControlState, toggleAddEdgeMode, cancelAddEdgeMode, handleComputeClick, syncCausalGraphActionState } from './workflow.js';
 import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
 import { bindInfoPopovers } from '../../ui/infoPopovers.js';
+import { onFeatureEvent } from '../../platform/featureEvents.js';
 
 let _chartEl: HTMLDivElement | null = null;
 let _causalPageListeners: AbortController | null = null;
@@ -90,14 +91,14 @@ export function initCausalPage(deps: CausalDeps): () => void {
     syncCausalGraphActionState(_currentLinks.length > 0 && _currentColumns.length >= 2);
     scheduleCausalChartRefresh();
 
-    window.addEventListener('edatime:causal-preselect', ((e: CustomEvent) => {
-        const cols: string[] = e.detail?.columns || [];
+    const unsubscribePreselect = onFeatureEvent('causal:preselect', ({ columns: cols }) => {
         if (cols.length === 0) return;
         _selectedColumns.clear();
         for (const c of cols) _selectedColumns.add(c);
         renderColumnChips(deps, columnsBar, openEditPanel);
         syncCausalEmptyState(_selectedColumns.size);
-    }) as EventListener, listenerOptions);
+    });
+    listenerController.signal.addEventListener('abort', unsubscribePreselect, { once: true });
 
     methodSelect?.addEventListener('change', () => applyMethodControlState(getDropdownValue('causal-method-select') || 'pcmci'), listenerOptions);
 

@@ -4,13 +4,14 @@
  * Exports:
  *   - renderSuggestions() — renders correlation suggestion buttons
  *   - refreshCorrelationsAndSuggestions() — fetches and applies correlation data
- *   - openScatterPairInCausal() — dispatches causal page preselect event
+ *   - openScatterPairInCausal() — preselects a causal page pair
  */
 
 import { fetchScatterCorrelations } from '../../services/api/index.js';
 import { scatterState } from '../../store/scatterState.js';
 import type { ScatterState } from '../../store/scatterState.js';
 import { getDropdownValue, setDropdownOptions, setDropdownValue } from '../../ui/primitives/Dropdown.js';
+import { emitFeatureEvent } from '../../platform/featureEvents.js';
 import { normalizeCorrelationMetric } from '../../utils/correlationModes.js';
 import { getSetting } from '../../utils/settings.js';
 import { getEl } from './helpers.js';
@@ -235,14 +236,12 @@ export async function refreshCorrelationsAndSuggestions(
 }
 
 /**
- * Dispatches the causal preselect event to open the causal page with the current X/Y columns.
+ * Preselects the active pair before navigating to the Causal page.
  */
 export function openScatterPairInCausal(): void {
     const xCol = getDropdownValue('scatter-x-col');
     const yCol = getDropdownValue('scatter-y-col');
     if (!xCol || !yCol) return;
-    window.dispatchEvent(new CustomEvent('edatime:causal-preselect', {
-        detail: { columns: [xCol, yCol] },
-    }));
+    emitFeatureEvent('causal:preselect', { columns: [xCol, yCol] });
     document.querySelector<HTMLElement>('.sidebar .nav-item[data-page="causal"]')?.click?.();
 }

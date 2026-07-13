@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeWorkspaceSnapshot } from '../../workspace/workspaceStore.js';
+import { emitFeatureEvent } from '../../platform/featureEvents.js';
 
 const mocks = vi.hoisted(() => ({
     toast: vi.fn(),
@@ -189,6 +190,46 @@ describe('causal page chart bootstrap', () => {
         expect(document.querySelector('[data-col="HUFL"]')?.getAttribute('aria-pressed')).toBe('false');
         expect(document.querySelector('[data-col="HULL"]')?.getAttribute('aria-pressed')).toBe('true');
         expect(document.querySelector('[data-col="OT"]')?.getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('replaces the selected chips when Scatter preselects a causal pair', async () => {
+        const { initCausalPage } = await import('./page.js');
+        const { resetSelectionState } = await import('./selectionState.js');
+        resetSelectionState();
+
+        initCausalPage(causalDeps({
+            numeric_columns: ['HUFL', 'HULL', 'OT'],
+            columns: [
+                { name: 'HUFL', dtype: 'Float64' },
+                { name: 'HULL', dtype: 'Float64' },
+                { name: 'OT', dtype: 'Float64' },
+            ],
+        }, ['HUFL']));
+
+        emitFeatureEvent('causal:preselect', { columns: ['HULL', 'OT'] });
+
+        expect(document.querySelector('[data-col="HUFL"]')?.getAttribute('aria-pressed')).toBe('false');
+        expect(document.querySelector('[data-col="HULL"]')?.getAttribute('aria-pressed')).toBe('true');
+        expect(document.querySelector('[data-col="OT"]')?.getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('unsubscribes causal-pair preselection when the page is disposed', async () => {
+        const { disposeCausalPage, initCausalPage } = await import('./page.js');
+        const { resetSelectionState } = await import('./selectionState.js');
+        resetSelectionState();
+
+        initCausalPage(causalDeps({
+            numeric_columns: ['HUFL', 'HULL'],
+            columns: [
+                { name: 'HUFL', dtype: 'Float64' },
+                { name: 'HULL', dtype: 'Float64' },
+            ],
+        }, ['HUFL']));
+        disposeCausalPage();
+        emitFeatureEvent('causal:preselect', { columns: ['HULL'] });
+
+        expect(document.querySelector('[data-col="HUFL"]')?.getAttribute('aria-pressed')).toBe('true');
+        expect(document.querySelector('[data-col="HULL"]')?.getAttribute('aria-pressed')).toBe('false');
     });
 
     it('keeps graph-only actions disabled until a causal graph exists', async () => {

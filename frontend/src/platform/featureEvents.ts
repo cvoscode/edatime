@@ -6,6 +6,7 @@
  */
 export interface FeatureEventMap {
     'analytics:change': undefined;
+    'causal:preselect': { columns: string[] };
     'workflow:refresh': undefined;
 }
 
