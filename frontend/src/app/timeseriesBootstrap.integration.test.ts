@@ -258,4 +258,17 @@ describe('app -> timeseries bootstrap wiring', () => {
         expect((window as any).__edatime?.ensureReady).toBeUndefined();
         expect((window as any).__edatime?.ensureDatasetReady).toBeUndefined();
     });
+
+    it('defers data transport loading until a dataset-backed operation requests it', async () => {
+        const runtimeModules = await import('../platform/runtimeModules.js');
+        await import('../app.js');
+
+        expect(runtimeModules.ensureDataModules).not.toHaveBeenCalled();
+
+        const deps = createTimeseriesModuleMock.mock.calls[0]?.[0];
+        await deps.fetchMetadata();
+
+        expect(runtimeModules.ensureDataModules).toHaveBeenCalledTimes(1);
+        expect(fetchMetadataMock).toHaveBeenCalledTimes(1);
+    });
 });

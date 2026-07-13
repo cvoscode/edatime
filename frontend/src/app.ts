@@ -40,7 +40,6 @@ import { loadPageDescriptors } from './app/pageModules.js';
 import {
     ensureChartModules as ensureChartBootstrapModules,
     ensureDataModules as ensureBootstrapDataModules,
-    type DataModules,
 } from './platform/runtimeModules.js';
 import { getHashPage } from './utils/router.js';
 import { pageNeedsDatasetBootstrap } from './utils/pageBootstrap.js';
@@ -68,9 +67,6 @@ let timeseriesModule!: ReturnType<typeof createTimeseriesModule>;
 
 /* ── Lazy-loaded modules ──────────────────────────────── */
 
-let fetchMetadata: DataModules['fetchMetadata'] | null = null;
-let fetchData: DataModules['fetchData'] | null = null;
-let fetchAnomalies: DataModules['fetchAnomalies'] | null = null;
 let DataChartCtor: (new (containerId: string, onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null, onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null, onZoomOutCb: (() => void) | null) => ChartInstance) | null = null;
 let _sessionPersistenceStarted = false;
 let disposeSessionPersistence: (() => void) | null = null;
@@ -82,14 +78,6 @@ type DataChartCtorType = new (
     onZoomOutCb: (() => void) | null,
 ) => ChartInstance;
 
-async function ensureDataModules(): Promise<void> {
-    if (fetchMetadata && fetchData && fetchAnomalies) return;
-    const modules = await ensureBootstrapDataModules();
-    fetchMetadata = modules.fetchMetadata;
-    fetchData = modules.fetchData;
-    fetchAnomalies = modules.fetchAnomalies;
-}
-
 async function ensurePrimaryChartCtor(): Promise<DataChartCtorType> {
     if (DataChartCtor) return DataChartCtor;
     const modules = await ensureChartBootstrapModules();
@@ -100,6 +88,7 @@ async function ensurePrimaryChartCtor(): Promise<DataChartCtorType> {
 /* ── Analytics overlay fetch ──────────────────────────── */
 
 async function fetchAndRenderAnalytics(): Promise<void> {
+    const { fetchAnomalies } = await ensureBootstrapDataModules();
     await doFetchAndRenderAnalytics(fetchAnomalies, workspace);
 }
 
@@ -122,11 +111,16 @@ async function init(): Promise<void> {
     // Hydrate persisted chart preferences (Y-range "stack from 0", etc.)
     // BEFORE the toolbar wires up so the toggle starts in the right state.
     initChartStatePrefs();
-    // Load data transport first; chart rendering stays behind timeseries readiness.
-    await ensureDataModules();
+    // Data transport and chart rendering remain behind their feature readiness paths.
     timeseriesModule = createTimeseriesModule({
-        fetchData: (start, end, width, columns, colorColumn, lookaroundMs, options) => fetchData!(start, end, width, columns, colorColumn, lookaroundMs, options),
-        fetchMetadata: () => fetchMetadata!(),
+        fetchData: async (start, end, width, columns, colorColumn, lookaroundMs, options) => {
+            const { fetchData } = await ensureBootstrapDataModules();
+            return fetchData(start, end, width, columns, colorColumn, lookaroundMs, options);
+        },
+        fetchMetadata: async () => {
+            const { fetchMetadata } = await ensureBootstrapDataModules();
+            return fetchMetadata();
+        },
         workspace,
         ensurePrimaryChartCtor,
         markMetadataReady: pageRegistry.markMetadataReady,

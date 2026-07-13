@@ -601,6 +601,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Removed the unused app cleanup accumulator, leaving `AppRuntime` as the single startup cleanup owner.
 - Timeseries bootstrap and data-mutation characterization tests prove startup and transform behavior remain independent after the ownership cleanup.
 
+### Completed: lazy dataset transport startup
+
+- Application startup no longer imports data transport before a dataset-backed feature requests it; Timeseries fetch/metadata and analytics paths resolve the cached platform transport only on demand.
+- Home and Upload startup can now complete without eagerly loading the API client, while the first metadata request retains the same fetch contract.
+- Bootstrap coverage explicitly verifies no transport load at app import and exactly one load when metadata is first requested.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.
