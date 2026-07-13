@@ -14,9 +14,6 @@ import {
 } from '../../utils/correlationModes.js';
 import { getSetting, updateSetting } from '../../utils/settings.js';
 import {
-    correlationColor,
-    correlationTextColor,
-    correlationToneClass,
     escapeHtmlAttribute as escapeAttr,
     formatScaleTick,
     getColorDomainMax,
@@ -28,6 +25,7 @@ import {
 } from './matrixPolicy.js';
 import { buildHeatmapGridLayout } from './gridLayout.js';
 import { buildHeatmapRenderOrder } from './orderingPolicy.js';
+import { buildHeatmapCellPresentation } from './cellPresentation.js';
 
 interface HeatmapPageDeps {
     showPage: (pageName: string) => void;
@@ -285,22 +283,15 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
                 const colName = renderOrder[c]!;
                 const colOriginal = orderToOriginal.get(c) ?? c;
                 const value = data[rowOriginal]?.[colOriginal] ?? null;
-                const toneClass = correlationToneClass(value);
-                // Sign prefix makes magnitude + direction readable
-                // without relying on color alone. Screen-reader users
-                // get the same prefix via the aria-label below.
-                let signedValue: string;
-                if (value === null || !Number.isFinite(value)) {
-                    signedValue = '—';
-                } else {
-                    const sign = value > 0 ? '+' : (value < 0 ? '−' : '±');
-                    signedValue = `${sign}${Math.abs(value).toFixed(2)}`;
-                }
-                const background = value !== null ? correlationColor(value, colorDomainMax) : 'transparent';
-                const textColor = correlationTextColor(value);
-                const tooltip = `${rowName} × ${colName}: ${signedValue}${rowOriginal !== colOriginal ? ' — click to explore in Scatter' : ''}`;
+                const presentation = buildHeatmapCellPresentation({
+                    value,
+                    colorDomainMax,
+                    rowName,
+                    columnName: colName,
+                    interactive: rowOriginal !== colOriginal,
+                });
                 cells.push(
-                    `<div class="heatmap-cell ${toneClass}" data-row="${rowOriginal}" data-col="${colOriginal}" data-row-name="${escapeAttr(rowName)}" data-col-name="${escapeAttr(colName)}" style="grid-column:${colGridFor(c)};grid-row:${rowGridFor(r)};background:${background};color:${textColor};cursor:${rowOriginal !== colOriginal ? 'pointer' : 'default'};" aria-label="${escapeAttr(tooltip)}" title="${escapeAttr(tooltip)}" tabindex="${rowOriginal !== colOriginal ? '0' : '-1'}">${signedValue}</div>`,
+                    `<div class="heatmap-cell ${presentation.toneClass}" data-row="${rowOriginal}" data-col="${colOriginal}" data-row-name="${escapeAttr(rowName)}" data-col-name="${escapeAttr(colName)}" style="grid-column:${colGridFor(c)};grid-row:${rowGridFor(r)};background:${presentation.background};color:${presentation.textColor};cursor:${presentation.interactive ? 'pointer' : 'default'};" aria-label="${escapeAttr(presentation.tooltip)}" title="${escapeAttr(presentation.tooltip)}" tabindex="${presentation.interactive ? '0' : '-1'}">${presentation.signedValue}</div>`,
                 );
             }
         }
