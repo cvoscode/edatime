@@ -179,6 +179,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Extracted CSS-pixel to active chart-domain conversion into `chartCoordinateMapper`, with direct plot-boundary and active-Y-range coverage; `DataChart` now supplies its current geometry and state rather than owning mapping arithmetic.
 - Extracted ChartGPU palette/theme construction and theme-refresh option composition into `chartThemeOptions`, keeping theme adaptation deterministic and independently characterized.
 - Extracted ChartGPU series visibility grouping into `seriesVisibility`, so expanded-series visibility state is read through a direct policy rather than inline chart-option traversal.
+- Extracted legend visibility mutation into `legendVisibilityPolicy`, preserving grouped trace toggles while leaving `DataChart` responsible only for applying the resulting option and refreshing overlays.
 
 ### Next: DataChart renderer seams
 

@@ -66,6 +66,7 @@ import { computeDisplayYRange } from './displayYRangePolicy.js';
 import { mapCssPointToChartData } from './chartCoordinateMapper.js';
 import { buildChartGpuTheme, getChartGpuColorPalette, withChartGpuTheme } from './chartThemeOptions.js';
 import { getVisibilityByBaseName } from './seriesVisibility.js';
+import { toggleLegendSeriesVisibility } from './legendVisibilityPolicy.js';
 import {
     DEFAULT_CHART_GRID,
     computeChartGrid,
@@ -650,12 +651,11 @@ export class DataChart {
         const options = this._lastChartOptions ?? this.chartInstance.options;
         const series = Array.isArray(options.series) ? options.series : [];
         const currentEntry = this._getLegendEntries().find((entry) => entry.name === name);
-        const nextVisible = !(currentEntry?.visible ?? true);
-        const nextSeries = series.map((item) => {
-            const rawName = typeof item?.name === 'string' ? item.name : '';
-            if (baseSeriesName(rawName) !== name) return item;
-            return { ...item, visible: nextVisible };
-        });
+        const nextSeries = toggleLegendSeriesVisibility(
+            series,
+            (rawName) => baseSeriesName(rawName) === name,
+            currentEntry?.visible ?? true,
+        );
         const nextOption = {
             ...options,
             animation: false,
