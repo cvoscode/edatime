@@ -19,6 +19,7 @@ import {
     setRefetchOnZoom,
 } from '../../store/runtimeState.js';
 import { createWorkspaceStore, type WorkspaceStore } from '../../workspace/workspaceStore.js';
+import { clearFeatureEventHandlers, onFeatureEvent } from '../../platform/featureEvents.js';
 
 let defaultWorkspace: WorkspaceStore;
 
@@ -37,6 +38,7 @@ function createTimeseriesPageController(deps: Record<string, any>) {
 
 describe('createTimeseriesPageController', () => {
     beforeEach(() => {
+        clearFeatureEventHandlers();
         defaultWorkspace = createWorkspaceStore();
         document.body.innerHTML = '';
         setChartInstance(null);
@@ -52,6 +54,40 @@ describe('createTimeseriesPageController', () => {
         defaultWorkspace.setFilters({ columnRanges: {}, adaptiveLines: [] });
         setWorkspaceSelection([]);
         setWorkspaceColorColumn(null);
+    });
+
+    it('keeps each controller empty-state reset binding isolated through disposal', () => {
+        document.body.innerHTML = `
+            <section id="timeseries-empty-state" hidden>
+                <h3 id="timeseries-empty-title"></h3>
+                <p id="timeseries-empty-message"></p>
+                <button id="timeseries-reset-range-btn" type="button"></button>
+            </section>
+        `;
+        const sharedDeps = {
+            fetchData: vi.fn(),
+            buildRangeControls: vi.fn(),
+            updateAnalysisYRange: vi.fn(),
+            updateAnalysisZoom: vi.fn(),
+            getCurrentView: vi.fn(),
+            fetchAndRenderAnalytics: vi.fn(),
+        };
+        const first = createTimeseriesPageController(sharedDeps);
+        const second = createTimeseriesPageController(sharedDeps);
+        const onReset = vi.fn();
+        const unsubscribe = onFeatureEvent('viewport:reset-request', onReset);
+
+        first.renderCurrentData();
+        second.renderCurrentData();
+        first.dispose();
+        document.getElementById('timeseries-reset-range-btn')!.click();
+
+        expect(onReset).toHaveBeenCalledTimes(1);
+
+        second.dispose();
+        document.getElementById('timeseries-reset-range-btn')!.click();
+        expect(onReset).toHaveBeenCalledTimes(1);
+        unsubscribe();
     });
 
     it('preserves x and y ranges when zooming into a boxed viewport', () => {

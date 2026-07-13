@@ -56,21 +56,6 @@ interface TimeseriesControllerDeps {
     workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setSelection' | 'setFilters' | 'setViewport'>;
 }
 
-let timeseriesEmptyStateController: ReturnType<typeof createEmptyStateController> | null = null;
-
-function getTimeseriesEmptyStateController() {
-    if (!timeseriesEmptyStateController) {
-        timeseriesEmptyStateController = createEmptyStateController({
-            rootId: 'timeseries-empty-state',
-            titleId: 'timeseries-empty-title',
-            messageId: 'timeseries-empty-message',
-            resetButtonId: 'timeseries-reset-range-btn',
-            onReset: () => emitFeatureEvent('viewport:reset-request', { source: 'timeseries-empty-state' }),
-        });
-    }
-    return timeseriesEmptyStateController;
-}
-
 // computeFrontendRollingBands is feature-local analytics-overlay policy.
 
 function isColumnMismatchError(error: unknown): boolean {
@@ -118,9 +103,23 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
     let lastKnownView: ViewSnapshot | null = null;
     let zoomRestoreHistory: ZoomRestoreState[] = [];
     let consecutiveZoomOuts = 0;
+    let emptyStateController: ReturnType<typeof createEmptyStateController> | null = null;
     // Controller-local so buffered zoom reuse cannot leak across page/controller
     // lifetimes after dataset reloads or test harness remounts.
     let lastFetchedParams: string | null = null;
+
+    function getEmptyStateController() {
+        if (!emptyStateController) {
+            emptyStateController = createEmptyStateController({
+                rootId: 'timeseries-empty-state',
+                titleId: 'timeseries-empty-title',
+                messageId: 'timeseries-empty-message',
+                resetButtonId: 'timeseries-reset-range-btn',
+                onReset: () => emitFeatureEvent('viewport:reset-request', { source: 'timeseries-empty-state' }),
+            });
+        }
+        return emptyStateController;
+    }
 
     function getRequestIntent() {
         return resolveTimeseriesRequestIntent(deps.workspace.getSnapshot(), {
@@ -210,7 +209,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
     });
 
     function renderCurrentData(): void {
-        const emptyState = getTimeseriesEmptyStateController();
+        const emptyState = getEmptyStateController();
         const workspace = deps.workspace.getSnapshot();
         const selectedColumns = [...workspace.selection.columns];
         const workspaceViewport = workspace.viewport;
@@ -503,8 +502,8 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
     function dispose(): void {
         task.cancel();
         if (runtimeState.fetchDebounceId) clearTimeout(runtimeState.fetchDebounceId);
-        timeseriesEmptyStateController?.dispose();
-        timeseriesEmptyStateController = null;
+        emptyStateController?.dispose();
+        emptyStateController = null;
     }
 
     return {

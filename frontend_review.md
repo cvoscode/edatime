@@ -637,6 +637,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - The HTML entry remains intentionally small: it creates one browser root and delegates through the stable `startApp()` / `disposeApp()` adapters. Future host integration can create and manage another root without reaching into module-level internals.
 - Characterization coverage verifies a second root starts independently, each root is single-flight, and disposing one root prevents only that root from remounting.
 
+### Completed: Timeseries empty-state lifecycle isolation
+
+- Moved the Timeseries empty-state controller from module scope into each page-controller instance. Its reset-button listener now belongs to the feature lifetime that mounted it.
+- Disposing one controller no longer removes another controller's empty-state listener, which is required for independent app-root teardown and remounting hosts.
+- A two-controller regression proves the surviving controller remains active after the first is disposed and that final disposal releases its own listener.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.
