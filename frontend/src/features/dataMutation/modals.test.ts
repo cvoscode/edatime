@@ -12,26 +12,26 @@ const {
     closeMock: vi.fn(),
 }));
 
-vi.mock('../features/dataMutation/index.js', () => ({
+vi.mock('./entrypoint.js', () => ({
     createDataMutationFeature: () => ({
         runTransform: runTransformMock,
         removeOutliers: removeOutliersMock,
     }),
 }));
 
-vi.mock('./shell/createModalController', () => ({
+vi.mock('../../ui/shell/createModalController.js', () => ({
     createModalController: () => ({
         open: openMock,
         close: closeMock,
     }),
 }));
 
-vi.mock('./primitives/Dropdown.js', () => ({
+vi.mock('../../ui/primitives/Dropdown.js', () => ({
     getDropdownValue: (id: string) => (id === 'outlier-method' ? 'zscore' : ''),
 }));
 
-import { setSelectedCols } from '../store/uiState.js';
-import { initOutlierModal } from './dataMutationModals.js';
+import { setSelectedCols } from '../../store/uiState.js';
+import { initOutlierModal } from './modals.js';
 
 describe('dataMutationModals', () => {
     beforeEach(() => {
