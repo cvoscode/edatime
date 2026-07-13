@@ -1,12 +1,12 @@
 /**
- * ensureTimeseriesReady — coordinate chart bootstrap and timeseries page init.
+ * ensureReady — coordinate chart bootstrap and Timeseries page initialization.
  *
  * Extracted from app.ts so the orchestrator stays thin.
  * The `ensureReady()` call is idempotent: safe to call multiple times.
  */
 
 import type { ChartInstance, ViewSnapshot } from '../../types.js';
-import { checkWebGPU } from '../webgpuGuard.js';
+import { checkWebGPU } from '../../chart/webgpuGuard.js';
 import { getChartType } from '../../charts/registry.js';
 import { FallbackChart } from '../../charts/fallback.js';
 import { chartState, setChartInstance, setInitialView } from '../../store/chartState.js';
@@ -15,7 +15,7 @@ import { setAnalysisBound } from '../../store/runtimeState.js';
 import { bindAnalysisChartEvents, getCurrentView } from '../../ui/toolbar.js';
 import { setAnnotationOverlayCallback } from '../../ui/annotationPanel.js';
 import { setAnomalyOverlayCallback } from '../../bootstrap/analyticsOverlay.js';
-import { initAdaptiveFilterGesture } from '../../features/timeseries/index.js';
+import { initAdaptiveFilterGesture } from './adaptiveGesture.js';
 import { restoreSessionAfterChartReady } from '../../bootstrap/sessionBootstrap.js';
 import { dbg, dbgGroup } from '../../debug.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';

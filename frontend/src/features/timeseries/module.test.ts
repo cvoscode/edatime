@@ -49,7 +49,7 @@ vi.mock('../../app/bootstrap/datasetBootstrap.js', () => ({
     createDatasetBootstrap: mockCreateDatasetBootstrap,
 }));
 
-vi.mock('../../app/bootstrap/ensureTimeseriesReady.js', () => ({
+vi.mock('./ensureReady.js', () => ({
     createTimeseriesBootstrap: mockCreateTimeseriesBootstrap,
 }));
 

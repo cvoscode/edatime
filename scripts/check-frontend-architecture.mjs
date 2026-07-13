@@ -5,7 +5,6 @@ const root = process.cwd();
 const srcRoot = join(root, 'frontend/src');
 const violations = [];
 const ALLOWED_APP_STATE_COMPAT_IMPORTS = new Set([
-  'frontend/src/app/adaptiveGesture.ts',
   'frontend/src/features/export/entrypoint.ts',
   'frontend/src/pages/timeseriesPage.ts',
   'frontend/src/scatter/viewController.ts',
@@ -221,7 +220,6 @@ for (const file of files) {
     const approvedBootstrapHelpers = [
       'frontend/src/app/bootstrap/chartBootstrap.ts',
       'frontend/src/app/bootstrap/datasetBootstrap.ts',
-      'frontend/src/app/bootstrap/ensureTimeseriesReady.ts',
     ];
     const isApproved = approvedBootstrapHelpers.some((h) => rel.endsWith(h));
     if (!isApproved) {

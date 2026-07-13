@@ -8,7 +8,7 @@ import { createTimeseriesPageController } from './controller.js';
 import { createTimeseriesEntrypoint } from './entrypoint.js';
 import { createTimeseriesLifecycle } from './lifecycle.js';
 import { createDatasetBootstrap } from '../../app/bootstrap/datasetBootstrap.js';
-import { createTimeseriesBootstrap } from '../../app/bootstrap/ensureTimeseriesReady.js';
+import { createTimeseriesBootstrap } from './ensureReady.js';
 import { setDatasetRevision, setMetadata } from '../../store/datasetState.js';
 import { clearScatterViewSnapshots } from '../../store/scatterState.js';
 import {

@@ -1,6 +1,6 @@
 /**
  * WebGPU guard — adapter availability check and fatal error rendering.
- * Consumed by app.ts at startup.
+ * Used by chart runtimes before mounting a WebGPU-backed renderer.
  */
 
 import { requestGpuAdapter, installWindowsWebGpuRequestAdapterWorkaround } from '../utils/platform.js';

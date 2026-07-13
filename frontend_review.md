@@ -170,6 +170,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Moved the Ctrl+click adaptive-line filter gesture and its characterization tests from `app/` into `features/timeseries/`. It owns Timeseries selection/filter state, chart overlays, range controls, and its trace-picker DOM, so application composition was the wrong owner.
 - Exposed the supported initializer through the Timeseries public index and updated chart bootstrap to consume that surface, preserving the existing explicit dependency contract without an application-owned feature controller.
 
+### Completed: Timeseries chart-readiness ownership
+
+- Moved the Timeseries chart bootstrap and its primary/fallback initialization characterization tests from `app/bootstrap` into `features/timeseries/ensureReady`. The controller is created only by the Timeseries module and owns that feature's chart lifecycle, interactions, session restoration, and first render.
+- Moved the WebGPU adapter guard out of application composition into `chart/webgpuGuard`, so feature readiness depends on chart infrastructure instead of `app/*`. The next Timeseries boundary audit is its still app-owned dataset bootstrap.
+
 ### Completed: DataChart decomposition
 
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.

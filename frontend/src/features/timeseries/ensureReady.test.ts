@@ -35,7 +35,7 @@ const {
     restoreSessionAfterChartReadyMock: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('../webgpuGuard.js', () => ({
+vi.mock('../../chart/webgpuGuard.js', () => ({
     checkWebGPU: checkWebGPUMock,
 }));
 
@@ -66,7 +66,7 @@ vi.mock('../../bootstrap/analyticsOverlay.js', () => ({
     setAnomalyOverlayCallback: setAnomalyOverlayCallbackMock,
 }));
 
-vi.mock('../../features/timeseries/index.js', () => ({
+vi.mock('./adaptiveGesture.js', () => ({
     initAdaptiveFilterGesture: initAdaptiveFilterGestureMock,
 }));
 
@@ -133,7 +133,7 @@ describe('createTimeseriesBootstrap', () => {
         const onZoom = vi.fn();
         const onYRange = vi.fn();
         const onZoomOut = vi.fn();
-        const { createTimeseriesBootstrap } = await import('./ensureTimeseriesReady.js');
+        const { createTimeseriesBootstrap } = await import('./ensureReady.js');
 
         const bootstrap = createTimeseriesBootstrap({
             ensurePrimaryChartCtor: vi.fn().mockResolvedValue(class { }),
@@ -182,7 +182,7 @@ describe('createTimeseriesBootstrap', () => {
         const onZoom = vi.fn();
         const onYRange = vi.fn();
         const onZoomOut = vi.fn();
-        const { createTimeseriesBootstrap } = await import('./ensureTimeseriesReady.js');
+        const { createTimeseriesBootstrap } = await import('./ensureReady.js');
 
         const bootstrap = createTimeseriesBootstrap({
             ensurePrimaryChartCtor: vi.fn().mockResolvedValue(class { }),
@@ -225,7 +225,7 @@ describe('createTimeseriesBootstrap', () => {
         const onYRange = vi.fn();
         const workspace = { getSnapshot: vi.fn(), setSelection: vi.fn(), setFilters: vi.fn(), setViewport: vi.fn() };
 
-        const { createTimeseriesBootstrap } = await import('./ensureTimeseriesReady.js');
+        const { createTimeseriesBootstrap } = await import('./ensureReady.js');
 
         const bootstrap = createTimeseriesBootstrap({
             ensurePrimaryChartCtor: vi.fn().mockResolvedValue(class { }),
