@@ -17,27 +17,10 @@
  * All scatter rendering functions are passed as callbacks.
  */
 
-// Each call to `bindScatterControls` registers a fresh page-change
-// listener. When previous tests have left listeners on `window`, a
-// dispatch fires every accumulated listener, and the first one to
-// process the dispatch consumes any `mockReturnValueOnce` queue that
-// was set up by the current test — which means the latest test's
-// listener never sees its queued mock value. To keep the latest
-// listener the one that actually drives the work, we tag every
-// invocation with a monotonically increasing index and let each
-// listener compare its own index against the global "latest" index
-// on each dispatch. Only the latest listener processes the event.
-// The index survives `vi.resetModules()` via a stable `globalThis` slot.
-type BindIndexSlot = { __scatterBindIndex?: number };
-const nextBindIndex = (): number => {
-    const slot = globalThis as BindIndexSlot;
-    slot.__scatterBindIndex = (slot.__scatterBindIndex ?? 0) + 1;
-    return slot.__scatterBindIndex;
-};
-const latestBindIndex = (): number => {
-    const slot = globalThis as BindIndexSlot;
-    return slot.__scatterBindIndex ?? 0;
-};
+// Scatter controls are a single page-level resource. Keep their disposer on
+// `globalThis` so a fresh module instance (including one created by hot reload
+// or a test reset) can retire the old DOM/window listeners before it binds.
+type ScatterControlsSlot = { __scatterControlsCleanup?: () => void };
 
 import { datasetState } from '../../store/datasetState.js';
 import { scatterState } from '../../store/scatterState.js';
@@ -98,8 +81,26 @@ function updateRangeFill(input: HTMLInputElement | null): void {
     input.style.setProperty('--range-fill', `${pct.toFixed(2)}%`);
 }
 
-/** Bind all scatter control event listeners. Call once after DOM is ready. */
-export function bindScatterControls(cb: ScatterRenderCallbacks): void {
+/** Bind all scatter control event listeners and return their disposer. */
+export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
+    const controlsSlot = globalThis as ScatterControlsSlot;
+    controlsSlot.__scatterControlsCleanup?.();
+    const controller = new AbortController();
+    const listenerOptions = { signal: controller.signal };
+    const dispose = () => {
+        controller.abort();
+        if (controlsSlot.__scatterControlsCleanup === dispose) {
+            delete controlsSlot.__scatterControlsCleanup;
+        }
+    };
+    controlsSlot.__scatterControlsCleanup = dispose;
+    const listen = (
+        target: EventTarget,
+        type: string,
+        listener: EventListenerOrEventListenerObject,
+        options?: AddEventListenerOptions,
+    ): void => target.addEventListener(type, listener, { ...options, ...listenerOptions });
+
     const xSelect = getEl('scatter-x-col') as HTMLElement | null;
     const ySelect = getEl('scatter-y-col') as HTMLElement | null;
     const binSizeInput = getEl('scatter-bin-size') as HTMLInputElement | null;
@@ -114,7 +115,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
     const suggestionThresholdValue = getEl('scatter-suggestion-threshold-value');
     const suggestionThresholdLabel = getEl('scatter-suggestions-label');
 
-    if (!xSelect || !ySelect || !binSizeInput || !binSizeValue || !normalizationSelect || !renderModeSelect) return;
+    if (!xSelect || !ySelect || !binSizeInput || !binSizeValue || !normalizationSelect || !renderModeSelect) return dispose;
 
     binSizeValue.textContent = binSizeInput.value;
     updateRangeFill(binSizeInput);
@@ -129,7 +130,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
 
     const scatterViewButtons = document.querySelectorAll<HTMLButtonElement>('[data-scatter-view]');
     scatterViewButtons.forEach((btn) => {
-        btn.addEventListener('click', () => {
+        listen(btn, 'click', () => {
             const nextView = normalizeAnalyticsView(btn.dataset.scatterView || 'plot');
             void cb.setScatterView(nextView);
         });
@@ -144,19 +145,19 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
         updateMarginalPlots();
     };
 
-    binSizeInput.addEventListener('input', () => { binSizeValue!.textContent = binSizeInput.value; updateRangeFill(binSizeInput); rerender(); });
-    normalizationSelect.addEventListener('change', rerender);
-    renderModeSelect.addEventListener('change', () => { syncModeUI(); rerender(); });
-    diagonalModeSelect?.addEventListener('change', () => {
+    listen(binSizeInput, 'input', () => { binSizeValue!.textContent = binSizeInput.value; updateRangeFill(binSizeInput); rerender(); });
+    listen(normalizationSelect, 'change', rerender);
+    listen(renderModeSelect, 'change', () => { syncModeUI(); rerender(); });
+    if (diagonalModeSelect) listen(diagonalModeSelect, 'change', () => {
         if (scatterState.activeView === 'matrix') {
             void cb.refreshActiveScatterView();
             return;
         }
         rerender();
     });
-    colorColumnSelect?.addEventListener('change', () => { void cb.renderScatter(); });
-    colorScaleSelect?.addEventListener('change', () => { rerender(); updateColorbarUI(); });
-    suggestionThresholdInput?.addEventListener('input', () => {
+    if (colorColumnSelect) listen(colorColumnSelect, 'change', () => { void cb.renderScatter(); });
+    if (colorScaleSelect) listen(colorScaleSelect, 'change', () => { rerender(); updateColorbarUI(); });
+    if (suggestionThresholdInput) listen(suggestionThresholdInput, 'input', () => {
         scatterState.suggestionThreshold = normalizeScatterSuggestionThreshold(suggestionThresholdInput.value);
         suggestionThresholdInput.value = scatterState.suggestionThreshold.toFixed(2);
         if (suggestionThresholdValue) suggestionThresholdValue.textContent = scatterState.suggestionThreshold.toFixed(2);
@@ -164,14 +165,14 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
             suggestionThresholdLabel.textContent = `Suggestions (|corr| ≥ ${scatterState.suggestionThreshold.toFixed(2)})`;
         }
     });
-    suggestionThresholdInput?.addEventListener('change', async () => {
+    if (suggestionThresholdInput) listen(suggestionThresholdInput, 'change', async () => {
         try {
             await cb.refreshCorrelationsAndSuggestions();
         } catch (err: any) {
             cb.handleErr(err);
         }
     });
-    linkBrushInput?.addEventListener('change', async () => {
+    if (linkBrushInput) listen(linkBrushInput, 'change', async () => {
         try { await cb.renderScatter(); } catch (err: any) { cb.handleErr(err); }
     });
 
@@ -180,7 +181,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
     const matrixSizeInput = getEl('scatter-matrix-cell-size') as HTMLInputElement | null;
     const matrixSizeValue = getEl('scatter-matrix-cell-size-value');
     document.querySelectorAll<HTMLButtonElement>('[data-matrix-mode]').forEach((btn) => {
-        btn.addEventListener('click', () => {
+        listen(btn, 'click', () => {
             const mode = btn.dataset.matrixMode || 'scatter';
             if (matrixModeHidden) matrixModeHidden.value = mode;
             document.querySelectorAll<HTMLButtonElement>('[data-matrix-mode]').forEach((b) => {
@@ -190,25 +191,31 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
             void cb.refreshActiveScatterView();
         });
     });
-    matrixSizeInput?.addEventListener('input', () => {
+    if (matrixSizeInput) listen(matrixSizeInput, 'input', () => {
         if (matrixSizeValue) matrixSizeValue.textContent = matrixSizeInput.value;
         updateRangeFill(matrixSizeInput);
         if (scatterState.activeView === 'matrix') void cb.refreshActiveScatterView();
     });
 
     // Export buttons
-    getEl('scatter-export-png-btn')?.addEventListener('click', () => exportScatterPNG());
-    getEl('scatter-export-svg-btn')?.addEventListener('click', () => exportScatterSVG());
-    getEl('scatter-export-html-btn')?.addEventListener('click', () => exportScatterHTML());
-    getEl('scatter-export-csv-btn')?.addEventListener('click', () => exportScatterData('csv'));
-    getEl('scatter-export-json-btn')?.addEventListener('click', () => exportScatterData('json'));
-    getEl('scatter-export-parquet-btn')?.addEventListener('click', async () => {
+    const exportPng = getEl('scatter-export-png-btn');
+    const exportSvg = getEl('scatter-export-svg-btn');
+    const exportHtml = getEl('scatter-export-html-btn');
+    const exportCsv = getEl('scatter-export-csv-btn');
+    const exportJson = getEl('scatter-export-json-btn');
+    const exportParquet = getEl('scatter-export-parquet-btn');
+    if (exportPng) listen(exportPng, 'click', () => exportScatterPNG());
+    if (exportSvg) listen(exportSvg, 'click', () => exportScatterSVG());
+    if (exportHtml) listen(exportHtml, 'click', () => exportScatterHTML());
+    if (exportCsv) listen(exportCsv, 'click', () => exportScatterData('csv'));
+    if (exportJson) listen(exportJson, 'click', () => exportScatterData('json'));
+    if (exportParquet) listen(exportParquet, 'click', async () => {
         try { await (cb.exportScatterParquet?.() ?? exportScatterParquet()); } catch (error: any) { cb.handleErr(error); }
     });
 
-    ySelect.addEventListener('change', async () => { updateCorrelationStats(); await cb.renderScatter(); });
-    xSelect.addEventListener('change', async () => { await cb.refreshCorrelationsAndSuggestions(); await cb.renderScatter(); });
-    window.addEventListener('resize', () => { scatterState.chart?.resize?.(); });
+    listen(ySelect, 'change', async () => { updateCorrelationStats(); await cb.renderScatter(); });
+    listen(xSelect, 'change', async () => { await cb.refreshCorrelationsAndSuggestions(); await cb.renderScatter(); });
+    listen(window, 'resize', () => { scatterState.chart?.resize?.(); });
 
     const handleFilterEvent = async (requireLinkedBrush: boolean) => {
         const page = getEl('page-scatter');
@@ -219,11 +226,10 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
         } catch (err: any) { cb.handleErr(err); }
     };
 
-    window.addEventListener('edatime:chart-range-change', () => handleFilterEvent(true));
-    window.addEventListener('edatime:column-filters-change', () => handleFilterEvent(false));
-    window.addEventListener('edatime:adaptive-filters-change', () => handleFilterEvent(false));
-    window.addEventListener('edatime:clear-all-filters', async () => {
-        if (bindIndex !== latestBindIndex()) return;
+    listen(window, 'edatime:chart-range-change', () => handleFilterEvent(true));
+    listen(window, 'edatime:column-filters-change', () => handleFilterEvent(false));
+    listen(window, 'edatime:adaptive-filters-change', () => handleFilterEvent(false));
+    listen(window, 'edatime:clear-all-filters', async () => {
         const filters = cb.workspace?.getSnapshot().filters;
         if (filters) {
             cb.workspace?.setFilters({ ...filters, columnRanges: {}, adaptiveLines: [] });
@@ -238,19 +244,10 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
         }
     });
 
-    // The page-change fast path compares the freshly-computed
-    // query-context key against `scatterState.lastQueryContextKey`,
-    // which `renderScatter` updates after every successful render.
-    //
-    // Only the LATEST bound listener processes the dispatch. Older
-    // listeners (left over from previous tests) skip the work so that
-    // their stale mocks cannot consume a `mockReturnValueOnce` value
-    // queued by the current test's mocks. The bind index survives
-    // `vi.resetModules()` via a stable `globalThis` slot, so the
-    // listener registered by the test that called bind LAST has the
-    // highest index and wins.
-    //
-    // The `inFlight` guard drops re-entrant dispatches fired while a
+    // The page-change fast path compares the freshly-computed query-context
+    // key against `scatterState.lastQueryContextKey`, which `renderScatter`
+    // updates after every successful render. The `inFlight` guard drops
+    // re-entrant dispatches fired while a
     // previous invocation is still awaiting. Scatter itself does not
     // dispatch `edatime:page-change` from within the handler chain, so
     // this is purely defensive: synchronous `setScatterView` calls
@@ -261,13 +258,11 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
     // when the work completes so legitimate repeat navigations
     // (heatmap → scatter → heatmap → scatter, home-correlations → scatter,
     // etc.) still run.
-    const bindIndex = nextBindIndex();
     let inFlight = false;
 
-    window.addEventListener('edatime:page-change', async (ev: any) => {
+    listen(window, 'edatime:page-change', async (ev: any) => {
         if (ev?.detail?.page !== 'scatter') return;
         if (inFlight) return;
-        if (bindIndex !== latestBindIndex()) return;
         inFlight = true;
         try {
             // The scatter page now treats itself as the authoritative owner of
@@ -329,4 +324,6 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): void {
             inFlight = false;
         }
     });
+
+    return dispose;
 }

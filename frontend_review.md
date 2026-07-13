@@ -207,7 +207,7 @@ Continue this behavior-preserving split with the remaining renderer-owned seams:
 - Added `utils/colorScales.ts` as the canonical owner of the shared Viridis, Plasma, Magma, Coolwarm, and Inferno palettes and interpolation policy.
 - Migrated Settings, Timeseries color-by rendering, and Scatter continuous palettes to consume that source. Scatter-only `blues` and `oranges` remain explicit feature extensions rather than competing copies of the shared scales.
 
-### In progress: Drift page decomposition
+### Completed: Drift page decomposition
 
 - Extracted evaluation-mode normalization, latest-window validation, and response-map filtering into `evaluationPolicy` with direct behavior coverage.
 - `page.ts` now owns DOM reads and rendering orchestration only; the selectable evaluation policy is independently testable and reusable by exports or future views.
@@ -221,7 +221,7 @@ Continue this behavior-preserving split with the remaining renderer-owned seams:
 - Removed the retired Drift runtime request-task and export wrappers. The runtime is now limited to its live ECharts cache and empty-state bridge, with its tests narrowed to those actual responsibilities.
 - Added abort-scoped Drift control and page listeners plus mounted-runtime/resize-observer disposal before re-initialization. A page regression proves a second initialization does not duplicate a Compute request.
 
-### In progress: Heatmap page decomposition
+### Completed: Heatmap page decomposition
 
 - Extracted correlation color interpolation, fitted-domain policy, semantic cell styling, scale-label formatting, and HTML-attribute escaping into `colorScale`, with direct positive/negative/domain/accessibility coverage.
 - The renderer continues to own DOM/grid composition while consuming this deterministic presentation policy.
@@ -237,7 +237,8 @@ Continue this behavior-preserving split with the remaining renderer-owned seams:
 - Extracted normal Scatter series construction into `seriesPolicy`, covering categorical grouping, finite continuous-value binning, palette sampling, and the stable fallback-series contract under direct tests.
 - Extracted Scatter tooltip HTML into `tooltipPresentation`, with direct escaping, categorical/continuous color-value, and column-type-aware formatting coverage.
 - Extracted Scatter colorbar visibility, density/continuous labels, range values, and bucketed-cardinality copy into `colorbarPresentation`, with direct mode and metadata coverage.
-- Next, split the remaining request-payload and timeline-summary presentation seams only where the resulting boundary reduces page-controller ownership.
+- Reworked Scatter control binding into one abort-scoped page resource. A new binding retires the previous DOM/window listeners and returns a disposer, replacing the old global "latest listener" filtering workaround. Direct coverage proves that only the newest binding receives events and disposal detaches it.
+- Next, review the remaining chart interaction and request/render lifecycle seams; extract only boundaries that eliminate duplicated ownership or reinitialization risk.
 
 ## Target Architecture
 

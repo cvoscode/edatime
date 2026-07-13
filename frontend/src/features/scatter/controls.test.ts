@@ -516,4 +516,37 @@ describe('bindScatterControls', () => {
         expect(callbacks.syncScatterFilterBadge).toHaveBeenCalled();
         expect(callbacks.refreshActiveScatterView).toHaveBeenCalled();
     });
+
+    it('replaces prior control listeners and disposes the active binding', async () => {
+        const { bindScatterControls } = await import('./controls.js');
+        const firstRender = vi.fn(async () => { });
+        const secondRender = vi.fn(async () => { });
+        const callbacks = {
+            initScatterPage: vi.fn(async () => { }),
+            renderScatter: firstRender,
+            refreshCorrelationsAndSuggestions: vi.fn(async () => { }),
+            refreshActiveScatterView: vi.fn(async () => { }),
+            setScatterView: vi.fn(async () => { }),
+            handleErr: vi.fn(),
+            rerenderScatterFromCache: vi.fn(async () => { }),
+            renderScatterDebounced: vi.fn(),
+            syncScatterFilterBadge: vi.fn(),
+        };
+
+        bindScatterControls(callbacks);
+        const dispose = bindScatterControls({ ...callbacks, renderScatter: secondRender });
+        const colorColumn = document.getElementById('scatter-color-column') as HTMLSelectElement;
+        colorColumn.dispatchEvent(new Event('change'));
+        await Promise.resolve();
+
+        expect(firstRender).not.toHaveBeenCalled();
+        expect(secondRender).toHaveBeenCalledTimes(1);
+        expect(dispose).toBeTypeOf('function');
+
+        dispose();
+        colorColumn.dispatchEvent(new Event('change'));
+        await Promise.resolve();
+
+        expect(secondRender).toHaveBeenCalledTimes(1);
+    });
 });
