@@ -1,21 +1,22 @@
 /**
  * Adaptive filter gesture — Ctrl+click line drawing on the main chart.
- * Exports initAdaptiveFilterGesture(container, deps) and standalone helpers.
- * Consumed by app.ts.
+ * Exports the Timeseries-only Ctrl+click interaction and its pure filter
+ * construction helper. Application bootstrap consumes this through the
+ * Timeseries public index.
  */
 
-import { SERIES_COLORS } from '../utils/seriesColors.js';
-import { applyFilterIntentToData, buildAdaptiveLineY } from '../services/timeseries/filtering.js';
+import { SERIES_COLORS } from '../../utils/seriesColors.js';
+import { applyFilterIntentToData, buildAdaptiveLineY } from '../../services/timeseries/filtering.js';
 import {
     appendAdaptiveLineFilter,
     setAdaptiveFilterColumn,
     setPendingAdaptivePoint,
     uiState,
-} from '../store/uiState.js';
-import { chartState } from '../store/chartState.js';
-import { runtimeState } from '../store/runtimeState.js';
-import type { AdaptiveLineFilter } from '../types.js';
-import type { WorkspaceStore, WorkspaceSnapshot } from '../workspace/workspaceStore.js';
+} from '../../store/uiState.js';
+import { chartState } from '../../store/chartState.js';
+import { runtimeState } from '../../store/runtimeState.js';
+import type { AdaptiveLineFilter } from '../../types.js';
+import type { WorkspaceStore, WorkspaceSnapshot } from '../../workspace/workspaceStore.js';
 
 export function buildAdaptiveFilterFromPoints(
     column: string,

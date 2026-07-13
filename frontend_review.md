@@ -165,6 +165,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Removed the obsolete `ui/yRangeControls` controller, its no-op tests, and its calls from toolbar and both primary/fallback Timeseries bootstrap paths. The matching toolbar DOM has already been absent, so the calls could never bind a user-facing control.
 - Retained the focused chart-bootstrap and layout characterization tests to prove chart initialization and the intentionally removed toolbar segment remain correct without carrying a dormant UI owner.
 
+### Completed: Timeseries adaptive-gesture ownership
+
+- Moved the Ctrl+click adaptive-line filter gesture and its characterization tests from `app/` into `features/timeseries/`. It owns Timeseries selection/filter state, chart overlays, range controls, and its trace-picker DOM, so application composition was the wrong owner.
+- Exposed the supported initializer through the Timeseries public index and updated chart bootstrap to consume that surface, preserving the existing explicit dependency contract without an application-owned feature controller.
+
 ### Completed: DataChart decomposition
 
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.

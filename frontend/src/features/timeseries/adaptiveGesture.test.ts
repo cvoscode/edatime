@@ -4,10 +4,10 @@ import {
     setColumnRanges,
     setAdaptiveLineFilters,
     setSelectedCols,
-} from '../store/uiState.js';
-import { setChartInstance } from '../store/chartState.js';
-import { setLastFetchedData } from '../store/runtimeState.js';
-import { createWorkspaceStore } from '../workspace/workspaceStore.js';
+} from '../../store/uiState.js';
+import { setChartInstance } from '../../store/chartState.js';
+import { setLastFetchedData } from '../../store/runtimeState.js';
+import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 
 describe('adaptive filter gesture', () => {
     beforeEach(() => {

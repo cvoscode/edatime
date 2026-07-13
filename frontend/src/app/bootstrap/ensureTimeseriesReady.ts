@@ -15,7 +15,7 @@ import { setAnalysisBound } from '../../store/runtimeState.js';
 import { bindAnalysisChartEvents, getCurrentView } from '../../ui/toolbar.js';
 import { setAnnotationOverlayCallback } from '../../ui/annotationPanel.js';
 import { setAnomalyOverlayCallback } from '../../bootstrap/analyticsOverlay.js';
-import { initAdaptiveFilterGesture } from '../adaptiveGesture.js';
+import { initAdaptiveFilterGesture } from '../../features/timeseries/index.js';
 import { restoreSessionAfterChartReady } from '../../bootstrap/sessionBootstrap.js';
 import { dbg, dbgGroup } from '../../debug.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';

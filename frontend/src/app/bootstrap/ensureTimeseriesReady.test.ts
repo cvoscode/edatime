@@ -66,7 +66,7 @@ vi.mock('../../bootstrap/analyticsOverlay.js', () => ({
     setAnomalyOverlayCallback: setAnomalyOverlayCallbackMock,
 }));
 
-vi.mock('../adaptiveGesture.js', () => ({
+vi.mock('../../features/timeseries/index.js', () => ({
     initAdaptiveFilterGesture: initAdaptiveFilterGestureMock,
 }));
 
