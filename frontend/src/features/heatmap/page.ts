@@ -27,6 +27,7 @@ import {
     getSelectedCorrelationMatrix,
     getUnsupportedMetricMessage,
 } from './matrixPolicy.js';
+import { buildHeatmapGridLayout } from './gridLayout.js';
 
 interface HeatmapPageDeps {
     showPage: (pageName: string) => void;
@@ -196,40 +197,16 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
 
         syncHeatmapEmptyState('', false);
         const colorDomainMax = getColorDomainMax(data, heatmapAxisFit);
-        // Make the matrix fill the available shell width: derive a cell
-        // size from the container's client width and the user's cell-size
-        // preference, instead of locking the grid to size * heatmapCellSize.
-        // The previous layout forced every correlation matrix into a fixed
-        // pixel width regardless of how many columns it had, which made
-        // wide schemas look squished.
-        const labelWidth = Math.max(84, Math.min(180, Math.round(heatmapCellSize * 2.5)));
-        const minCell = 24;
-        const maxCell = Math.max(minCell, heatmapCellSize);
-        const shellWidth = Math.max(
+        const gridLayout = buildHeatmapGridLayout({
+            columnCount: size,
+            preferredCellSize: heatmapCellSize,
+            containerWidth: Math.max(
             container.clientWidth || 0,
             container.getBoundingClientRect().width || 0,
-            480,
-        );
-        const scaleBarWidth = 56; // color scale gutter reserved on the right
-        const usableWidth = Math.max(labelWidth + minCell * size + 8, shellWidth - scaleBarWidth);
-        const fitCell = Math.floor((usableWidth - labelWidth - 2 * (size - 1)) / Math.max(1, size));
-        // When "Fit to screen" is on, bypass the slider-driven `maxCell` cap
-        // and use the cell size the container can actually accommodate. The
-        // off state keeps the previous "respect the slider" behaviour so
-        // power users can still grow cells beyond the panel width if they
-        // want to force horizontal scrolling.
-        const responsiveCell = heatmapFitToScreen
-            ? Math.max(minCell, fitCell)
-            : Math.max(minCell, Math.min(maxCell, fitCell));
-        // Match the row label to the actual cell size instead of the
-        // slider value: at narrow viewports `headerCellSize` was driving a
-        // 72-px row height regardless of what the cells rendered at, which
-        // made the matrix 7 * 72 = 504 px tall on a 420-px screen. Aligning
-        // row and cell heights keeps the matrix compact and lets the
-        // viewport chrome (toolbar + status footer) fit inside the first
-        // fold on phones.
-        const headerCellSize = responsiveCell;
-        const useVerticalHeaders = headerCellSize < 40;
+            ),
+            fitToScreen: heatmapFitToScreen,
+        });
+        const { labelWidth, responsiveCell, headerCellSize, useVerticalHeaders, colTemplate, rowTemplate } = gridLayout;
 
         // Optionally reorder columns by cluster. The data arrays stay
         // indexed by the ORIGINAL column order; we map render position
@@ -262,8 +239,6 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
         // the heatmap-header--cluster-start / heatmap-row-label--cluster-start
         // classes (a stronger text color on the first header/label of each
         // cluster) rather than physical separator rows/columns.
-        const colTemplate = [`${labelWidth}px`, ...Array.from({ length: size }, () => `${responsiveCell}px`)].join(' ');
-        const rowTemplate = colTemplate;
         // 1-based grid column/row for a render position. Column/row 1 is
         // the label gutter; renderIdx 0 sits at column 2.
         const colGridFor = (renderIdx: number): number => 2 + renderIdx;
