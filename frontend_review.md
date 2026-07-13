@@ -175,6 +175,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Moved the Timeseries chart bootstrap and its primary/fallback initialization characterization tests from `app/bootstrap` into `features/timeseries/ensureReady`. The controller is created only by the Timeseries module and owns that feature's chart lifecycle, interactions, session restoration, and first render.
 - Moved the WebGPU adapter guard out of application composition into `chart/webgpuGuard`, so feature readiness depends on chart infrastructure instead of `app/*`. The next Timeseries boundary audit is its still app-owned dataset bootstrap.
 
+### Completed: Timeseries dataset-bootstrap ownership
+
+- Moved dataset metadata bootstrap, revision/session coordination, default Timeseries selection, mutation refresh, and its direct regression suite from `app/bootstrap` into `features/timeseries/datasetBootstrap`. It has one production consumer and is intrinsically coupled to Timeseries filters, columns, chart refresh, and feature initialization.
+- Kept the shared page-routing predicate in `utils/pageBootstrap`; it remains a legitimate cross-page navigation policy rather than feature bootstrap ownership.
+
 ### Completed: DataChart decomposition
 
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.

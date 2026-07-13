@@ -116,9 +116,6 @@ function ensureSessionPersistenceStarted(): void {
 }
 
 /* ── Module creation helpers ──────────────────────────── */
-// NOTE: createDatasetBootstrap and dataset bootstrap are now owned by timeseriesModule
-// (see createDatasetBootstrap inside timeseriesModule.ts)
-
 async function init(): Promise<void> {
     upgradeSelects(document);
     upgradeFlexibleNumberInputs(document);

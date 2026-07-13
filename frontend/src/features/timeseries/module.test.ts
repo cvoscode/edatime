@@ -44,8 +44,8 @@ vi.mock('./lifecycle.js', () => ({
     createTimeseriesLifecycle: mockCreateTimeseriesRuntime,
 }));
 
-// Mock createDatasetBootstrap from ../app/bootstrap/datasetBootstrap.js
-vi.mock('../../app/bootstrap/datasetBootstrap.js', () => ({
+// Mock the Timeseries-owned dataset bootstrap.
+vi.mock('./datasetBootstrap.js', () => ({
     createDatasetBootstrap: mockCreateDatasetBootstrap,
 }));
 
