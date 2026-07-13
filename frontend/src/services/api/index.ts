@@ -4,7 +4,7 @@
 // Route-family modules own the implementation; this file only re-exports.
 // Do not add implementation here — add it to the appropriate route-family file.
 
-export { getJsonForApi as getJson, postJsonForApi as postJson } from './http.js';
+export { getJson, postJson } from './http.js';
 
 // Metadata
 export { fetchMetadata, fetchSampleDataset } from './metadata.js';

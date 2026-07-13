@@ -190,6 +190,10 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Moved Home sample-card DOM wiring, sample generation/upload workflow, and its regression suite from `app/shell` into `features/home/sampleDatasets`.
 - Exposed the supported card initializer through the Home public index and updated deferred shell composition to consume that surface. Direct deferred-shell coverage now verifies Home help and sample cards initialize together and retain their dataset-refresh callback contract.
 
+### Completed: API helper alias retirement
+
+- Removed the unused `getJsonForApi`/`getBlobForApi`/`postJsonForApi`/`postBlobForApi` compatibility aliases from `services/api/http`. The API public barrel now re-exports the canonical helper names directly, with existing HTTP and route-contract coverage retained.
+
 ### Completed: DataChart decomposition
 
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.

@@ -315,22 +315,11 @@ function postBlob(
     });
 }
 
-// Aliases for backward compatibility with files that import from http.ts
-const getJsonForApi = getJson;
-const getBlobForApi = getBlob;
-const postJsonForApi = postJson;
-const postBlobForApi = postBlob;
-
-// Re-exported under stable names so facade files (http.ts, metadata.ts, etc.) keep working
 export {
     getJson,
     getBlob,
     postJson,
     postBlob,
-    getJsonForApi,
-    getBlobForApi,
-    postJsonForApi,
-    postBlobForApi,
 };
 
 // Also export dbg and DEBUG for route-family modules
