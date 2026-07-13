@@ -229,6 +229,7 @@ Continue this behavior-preserving split with the remaining renderer-owned seams:
 - Extracted responsive grid geometry into `gridLayout`: label width, fit-to-screen versus slider-capped cell size, header orientation, and CSS templates now have direct wide/narrow layout coverage.
 - Extracted manual-order validation, clustering fallback, and render-index-to-source-index mapping into `orderingPolicy`; page-level drag-reorder coverage confirms the mutable interaction remains intact.
 - Extracted per-cell signed values, color/tone presentation, tooltip text, and interaction affordance into `cellPresentation`, with direct missing/diagonal and interactive negative-correlation coverage.
+- Added abort-scoped Heatmap control listeners and retained runtime/resize-observer cleanup across re-initialization. A lazy-visibility regression proves two initializations still issue one request for one metric change.
 - Next, split the remaining request-payload and timeline-summary presentation seams only where the resulting boundary reduces page-controller ownership.
 
 ## Target Architecture

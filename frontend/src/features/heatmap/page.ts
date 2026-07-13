@@ -50,6 +50,8 @@ let metric: CorrelationMetric = 'pearson_raw';
 let matrixLoadSequence = 0;
 let heatmapRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
 let heatmapResizeObserver: ResizeObserver | null = null;
+let heatmapPageCleanup: (() => void) | null = null;
+let heatmapControlAbort: AbortController | null = null;
 /** User's manual column/row order from drag-reorder. Persists across
  *  metric switches so users don't lose their custom sequence. Reset
  *  whenever clustering is toggled or a new dataset loads. */
@@ -116,6 +118,8 @@ function syncMetricGuide(): void {
 }
 
 export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
+    heatmapPageCleanup?.();
+    heatmapPageCleanup = null;
     async function loadMatrix(nextMetric: CorrelationMetric = metric): Promise<void> {
         const loadSequence = ++matrixLoadSequence;
         const container = document.getElementById('heatmap-container');
@@ -507,6 +511,10 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
             },
         },
         init() {
+            heatmapControlAbort?.abort();
+            const controlAbort = new AbortController();
+            heatmapControlAbort = controlAbort;
+            const listenerOptions = { signal: controlAbort.signal };
             const container = document.getElementById('heatmap-container');
             const metricSelect = document.getElementById('heatmap-metric') as HTMLElement | null;
             const sizeInput = document.getElementById('heatmap-cell-size') as HTMLInputElement | null;
@@ -547,13 +555,13 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
                 updateSetting('defaultCorrelationMetric', metric);
                 syncMetricGuide();
                 void loadMatrix(metric);
-            });
+            }, listenerOptions);
             sizeInput?.addEventListener('input', () => {
                 heatmapCellSize = Math.max(24, Math.min(72, Number(sizeInput.value || 36)));
                 if (sizeValue) sizeValue.textContent = String(heatmapCellSize);
                 updateRangeFill(sizeInput);
                 renderHeatmap();
-            });
+            }, listenerOptions);
             clusterToggle?.addEventListener('change', () => {
                 heatmapClusterEnabled = !!clusterToggle.checked;
                 // Toggling clustering clears any manual drag-reorder so
@@ -561,20 +569,20 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
                 // scratch; users can drag again afterwards.
                 userColumnOrder = null;
                 renderHeatmap();
-            });
+            }, listenerOptions);
             fitToggle?.addEventListener('click', () => {
                 heatmapFitToScreen = !heatmapFitToScreen;
                 writeHeatmapFitPref(heatmapFitToScreen);
                 fitToggle.setAttribute('aria-pressed', String(heatmapFitToScreen));
                 fitToggle.classList.toggle('is-active', heatmapFitToScreen);
                 renderHeatmap();
-            });
+            }, listenerOptions);
             axisFitToggle?.addEventListener('click', () => {
                 heatmapAxisFit = !heatmapAxisFit;
                 axisFitToggle.setAttribute('aria-pressed', String(heatmapAxisFit));
                 axisFitToggle.classList.toggle('is-active', heatmapAxisFit);
                 renderHeatmap();
-            });
+            }, listenerOptions);
             heatmapResizeObserver?.disconnect();
             if (typeof ResizeObserver !== 'undefined') {
                 heatmapResizeObserver = new ResizeObserver(() => {
@@ -594,5 +602,13 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
         },
     });
 
-    heatmapRuntime.mount();
+    const disposeRuntime = heatmapRuntime.mount();
+    heatmapPageCleanup = () => {
+        heatmapControlAbort?.abort();
+        heatmapControlAbort = null;
+        heatmapResizeObserver?.disconnect();
+        heatmapResizeObserver = null;
+        disposeRuntime();
+        heatmapRuntime = null;
+    };
 }

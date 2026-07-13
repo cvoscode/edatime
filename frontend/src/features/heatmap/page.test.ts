@@ -195,6 +195,23 @@ describe('heatmapPage with clustering', () => {
         expect(cells.length).toBe(36);
     });
 
+    it('releases prior control listeners before re-initializing the Heatmap page', async () => {
+        const { initHeatmapPage } = await import('./page.js');
+        const { fetchCorrelationMatrix } = await import('../../services/api/index.js');
+        await initHeatmapPage({ showPage: vi.fn() });
+        await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+        vi.mocked(fetchCorrelationMatrix).mockClear();
+
+        const metricSelect = document.getElementById('heatmap-metric') as HTMLSelectElement;
+        metricSelect.value = 'spearman_raw';
+        metricSelect.dispatchEvent(new Event('change', { bubbles: true }));
+
+        await vi.waitFor(() => {
+            expect(fetchCorrelationMatrix).toHaveBeenCalledTimes(1);
+        });
+    });
+
     it('renders the compact seaborn-style heatmap frame and color scale', async () => {
         const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
