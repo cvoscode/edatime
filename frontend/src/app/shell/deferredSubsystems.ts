@@ -130,7 +130,7 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
 
     registerSubsystem('provenance', async (deps) => {
         const { initProvenance } = await import('../../utils/provenance.js');
-        initProvenance(deps.workspace);
+        deps.registerCleanup(initProvenance(deps.workspace));
     });
 
     registerSubsystem('settings-panel', async () => {

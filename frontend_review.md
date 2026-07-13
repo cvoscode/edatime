@@ -517,6 +517,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Replaced the reusable empty-state component's event-name configuration with explicit reset and clear callbacks. The primitive now owns only button lifecycle; feature composition chooses the resulting action.
 - Migrated Scatter empty-state, banner, and toast clear actions plus Timeseries empty-state reset handling from global DOM events to declared `filters:clear` and `viewport:reset-request` commands. Timeseries action wiring and Scatter controls own scoped subscriptions and release them with their feature lifecycles.
 
+### Completed: provenance WorkspaceStore ownership
+
+- Provenance now refreshes from the canonical WorkspaceStore subscription instead of column/adaptive-filter DOM notifications. The open panel therefore reflects every filter or viewport update from its actual state owner.
+- Deferred shell composition owns the returned provenance disposer, releasing its workspace, keyboard, and page listeners with the app shell.
+
 ### Completed: Drift page decomposition
 
 - Extracted evaluation-mode normalization, latest-window validation, and response-map filtering into `evaluationPolicy` with direct behavior coverage.

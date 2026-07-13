@@ -50,4 +50,13 @@ describe('provenance', () => {
         expect(panel?.textContent).toContain('Rolling mean (window 25)');
         expect(panel?.textContent).toContain('Anomaly detection (mad, σ=2.5)');
     });
+
+    it('refreshes an open panel from WorkspaceStore changes', () => {
+        const workspace = createWorkspaceStore();
+        initProvenance(workspace);
+        toggleProvenance();
+        workspace.setFilters({ columnRanges: { value: { from: 1, to: 9 } }, adaptiveLines: [] });
+
+        expect(document.getElementById('provenance-panel')?.textContent).toContain('value1.00 → 9.00');
+    });
 });

@@ -14,7 +14,8 @@ import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 let _panel: HTMLElement | null = null;
 let _content: HTMLElement | null = null;
-let _workspace: Pick<WorkspaceStore, 'getSnapshot'> | null = null;
+let _workspace: Pick<WorkspaceStore, 'getSnapshot' | 'subscribe'> | null = null;
+let _disposeProvenance: (() => void) | null = null;
 
 function escapeText(s: string): string {
     const d = document.createElement('div');
@@ -167,13 +168,16 @@ export function refreshProvenance(): void {
 }
 
 export function __resetProvenanceForTests(): void {
+    _disposeProvenance?.();
+    _disposeProvenance = null;
     _panel?.remove();
     _panel = null;
     _content = null;
     _workspace = null;
 }
 
-export function initProvenance(workspace: Pick<WorkspaceStore, 'getSnapshot'>): void {
+export function initProvenance(workspace: Pick<WorkspaceStore, 'getSnapshot' | 'subscribe'>): () => void {
+    _disposeProvenance?.();
     _workspace = workspace;
     buildPanel();
 
@@ -182,15 +186,27 @@ export function initProvenance(workspace: Pick<WorkspaceStore, 'getSnapshot'>): 
     if (btn) btn.addEventListener('click', toggleProvenance);
 
     // Ctrl+I shortcut
-    window.addEventListener('keydown', (e) => {
+    const onKeyDown = (e: KeyboardEvent) => {
         if (e.ctrlKey && e.key === 'i') {
             e.preventDefault();
             toggleProvenance();
         }
-    });
+    };
+    window.addEventListener('keydown', onKeyDown);
 
-    // Refresh on relevant state changes
-    window.addEventListener('edatime:page-change', () => refreshProvenance());
-    window.addEventListener('edatime:column-filters-change', () => refreshProvenance());
-    window.addEventListener('edatime:adaptive-filters-change', () => refreshProvenance());
+    const onPageChange = () => refreshProvenance();
+    window.addEventListener('edatime:page-change', onPageChange);
+    const unsubscribeWorkspace = workspace.subscribe(() => refreshProvenance());
+    const dispose = () => {
+        btn?.removeEventListener('click', toggleProvenance);
+        window.removeEventListener('keydown', onKeyDown);
+        window.removeEventListener('edatime:page-change', onPageChange);
+        unsubscribeWorkspace();
+        if (_disposeProvenance === dispose) {
+            _disposeProvenance = null;
+            _workspace = null;
+        }
+    };
+    _disposeProvenance = dispose;
+    return dispose;
 }
