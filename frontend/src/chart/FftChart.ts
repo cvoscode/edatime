@@ -11,8 +11,9 @@ import { defaultGpuPowerPreference } from '../utils/platform.js';
 import {
     type GridLayout,
     createCanvasOverlay, ensureRelativePosition,
-    initBoxZoom, tooltipRow, tooltipWrap,
+    initBoxZoom,
 } from './chartInteractions.js';
+import { formatFftTooltip } from './fftTooltipPresentation.js';
 import {
     type FrequencyPeak,
     type FrequencyUnit,
@@ -192,34 +193,9 @@ export class FftChart {
         const seriesList = model.series;
         const { yMin, yMax } = model;
 
-        const tooltipFormatter = (params: unknown): string => {
-            const list = Array.isArray(params) ? params : [params as any];
-            if (!list.length) return '';
-            const x = Number((list[0] as any)?.value?.[0]);
-            const freqLabel = Number.isFinite(x)
-                ? (useCyclesPerDayFrequencyAxis(xMax) ? formatCyclesPerDay(x, 2) : formatFrequencyInUnit(x, unit))
-                : '';
-            const rows = list.map((p: any) => {
-                const name = String(p?.seriesName ?? '');
-                const y = Number(p?.value?.[1]);
-                const idx = p?.dataIndex;
-                const seriesObj = p?.series as any;
-                const preLog = seriesObj?._preLog as number[] | undefined;
-                const raw = seriesObj?._raw as number[] | undefined;
-                const yStr = Number.isFinite(y) ? y.toFixed(4) : '';
-                const lines = [tooltipRow(name, yStr)];
-                if (preLog && Number.isFinite(preLog[idx]) && scaleOpts.mode !== 'none') {
-                    lines.push(tooltipRow(' pre-scale', preLog[idx].toFixed(4)));
-                }
-                if (raw && Number.isFinite(Number(raw[idx]))) {
-                    lines.push(tooltipRow(' raw', Number(raw[idx]).toExponential(3)));
-                }
-                return lines.join('');
-            }).join('');
-            return freqLabel
-                ? tooltipWrap(`${freqLabel}<br>${scaleLabel}`, rows)
-                : rows;
-        };
+        const tooltipFormatter = (params: unknown): string => formatFftTooltip(params, {
+            xMax, unit, scaleMode: scaleOpts.mode, scaleLabel,
+        });
 
         const useScaledY = scaleOpts.mode !== 'none';
         const yMinOut = useScaledY && Number.isFinite(yMin) ? yMin : undefined;
