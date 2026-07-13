@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createAppRuntime } from './runtime';
-import { createPageRegistry } from './pageRegistry';
+import { createFeatureRegistry } from './featureRegistry';
 
 describe('app runtime', () => {
     it('runs registered cleanups once when disposed', () => {
@@ -22,12 +22,12 @@ describe('app runtime', () => {
     });
 });
 
-describe('page registry', () => {
+describe('feature registry', () => {
     it('waits for metadata readiness before initializing a gated page', async () => {
         const init = vi.fn(async () => {});
-        const registry = createPageRegistry();
+        const registry = createFeatureRegistry();
         registry.register('scatter', { requiresMetadata: true, init });
-        const pending = registry.ensurePageModuleLoaded('scatter');
+        const pending = registry.ensureFeatureLoaded('scatter');
         expect(init).not.toHaveBeenCalled();
         registry.markMetadataReady();
         await pending;
@@ -37,29 +37,29 @@ describe('page registry', () => {
     it('shares one pending initialization between concurrent page requests', async () => {
         let releaseInit!: () => void;
         const init = vi.fn(() => new Promise<void>((resolve) => { releaseInit = resolve; }));
-        const registry = createPageRegistry();
+        const registry = createFeatureRegistry();
         registry.register('scatter', { requiresMetadata: false, init });
 
-        const first = registry.ensurePageModuleLoaded('scatter');
-        const second = registry.ensurePageModuleLoaded('scatter');
+        const first = registry.ensureFeatureLoaded('scatter');
+        const second = registry.ensureFeatureLoaded('scatter');
         expect(init).toHaveBeenCalledTimes(1);
 
         releaseInit();
         await Promise.all([first, second]);
-        await registry.ensurePageModuleLoaded('scatter');
+        await registry.ensureFeatureLoaded('scatter');
         expect(init).toHaveBeenCalledTimes(1);
     });
 
     it('disposes mounted page resources before making descriptors loadable again', async () => {
         const dispose = vi.fn();
-        const registry = createPageRegistry();
+        const registry = createFeatureRegistry();
         registry.register('scatter', {
             requiresMetadata: false,
             init: async () => dispose,
         });
 
-        await registry.ensurePageModuleLoaded('scatter');
-        registry.clearLoadedPageModules();
+        await registry.ensureFeatureLoaded('scatter');
+        registry.clearLoadedFeatures();
 
         expect(dispose).toHaveBeenCalledTimes(1);
     });
@@ -67,12 +67,12 @@ describe('page registry', () => {
     it('releases mounted pages permanently when the owning app runtime is disposed', async () => {
         const disposePage = vi.fn();
         const init = vi.fn(async () => disposePage);
-        const registry = createPageRegistry();
+        const registry = createFeatureRegistry();
         registry.register('scatter', { requiresMetadata: false, init });
 
-        await registry.ensurePageModuleLoaded('scatter');
+        await registry.ensureFeatureLoaded('scatter');
         registry.dispose();
-        await registry.ensurePageModuleLoaded('scatter');
+        await registry.ensureFeatureLoaded('scatter');
 
         expect(disposePage).toHaveBeenCalledTimes(1);
         expect(init).toHaveBeenCalledTimes(1);
@@ -81,14 +81,14 @@ describe('page registry', () => {
     it('disposes a stale initialization that completes after a dataset reset', async () => {
         let releaseInit!: (dispose: () => void) => void;
         const dispose = vi.fn();
-        const registry = createPageRegistry();
+        const registry = createFeatureRegistry();
         registry.register('scatter', {
             requiresMetadata: false,
             init: () => new Promise((resolve) => { releaseInit = resolve; }),
         });
 
-        const pending = registry.ensurePageModuleLoaded('scatter');
-        registry.clearLoadedPageModules();
+        const pending = registry.ensureFeatureLoaded('scatter');
+        registry.clearLoadedFeatures();
         releaseInit(dispose);
         await pending;
 

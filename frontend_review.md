@@ -402,7 +402,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 
 ### Completed: dataset-session feature disposal
 
-- `PageRegistry` now records the disposer returned by each lazy descriptor and calls every active disposer before a dataset reset makes descriptors loadable again. Its dataset-session token prevents a pending initialization from publishing after a reset and immediately retires any stale initializer that finishes late.
+- `FeatureRegistry` records the disposer returned by each lazy descriptor and calls every active disposer before a dataset reset makes descriptors loadable again. Its dataset-session token prevents a pending initialization from publishing after a reset and immediately retires any stale initializer that finishes late.
 - FFT, Heatmap, Spectrogram, Causal, Drift, and Scatter now return their feature-level cleanup handle through the descriptor contract. Causal re-establishes its runtime on a later mount, while Scatter retires controls, chart, matrix work, requests, runtime, and workspace references before reinitialization.
 - Direct registry tests cover mounted-resource disposal and the pending-initialization race; descriptor coverage proves feature cleanup reaches the registry, and Scatter coverage proves a disposed page becomes ready for the next dataset session.
 
@@ -607,11 +607,17 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Home and Upload startup can now complete without eagerly loading the API client, while the first metadata request retains the same fetch contract.
 - Bootstrap coverage explicitly verifies no transport load at app import and exactly one load when metadata is first requested.
 
-### Completed: app-runtime page-registry teardown
+### Completed: app-runtime feature-registry teardown
 
-- Added final disposal to the lazy page registry: it invalidates pending initialization, releases every mounted page disposer, clears descriptors, and prevents post-teardown loads.
+- Added final disposal to the lazy feature registry: it invalidates pending initialization, releases every mounted feature disposer, clears descriptors, and prevents post-teardown loads.
 - App composition registers that registry disposer directly with `AppRuntime`, completing the ownership edge between application shutdown and lazy feature resources.
-- Direct registry and bootstrap regressions prove mounted pages release once and runtime cleanup receives the registry disposer.
+- Direct registry and bootstrap regressions prove mounted features release once and runtime cleanup receives the registry disposer.
+
+### Completed: FeatureRegistry promotion
+
+- Promoted the live lazy-module owner from `PageRegistry` to `FeatureRegistry`, removing the stale implementation rather than retaining a compatibility alias.
+- The registry now names its actual responsibilities—feature definitions, loaded features, feature disposal, and feature loading—while page navigation remains page-oriented only at its UI boundary.
+- Existing metadata gating, dataset-session invalidation, retry behavior, lazy chunk loading, and final app-runtime disposal remain under the same directly characterized owner.
 
 ### Completed: root application disposal surface
 
@@ -627,7 +633,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 
 ### Completed: explicit app-root composition factory
 
-- Replaced module-global application orchestration state with `createApp()`. Each root now owns its runtime, lazy page registry, workspace, export feature, Timeseries module, chart-constructor cache, session persistence, start promise, and disposal state.
+- Replaced module-global application orchestration state with `createApp()`. Each root now owns its runtime, lazy feature registry, workspace, export feature, Timeseries module, chart-constructor cache, session persistence, start promise, and disposal state.
 - The HTML entry remains intentionally small: it creates one browser root and delegates through the stable `startApp()` / `disposeApp()` adapters. Future host integration can create and manage another root without reaching into module-level internals.
 - Characterization coverage verifies a second root starts independently, each root is single-flight, and disposing one root prevents only that root from remounting.
 

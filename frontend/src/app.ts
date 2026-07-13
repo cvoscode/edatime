@@ -35,7 +35,7 @@ import { createWorkspaceStore } from './workspace/workspaceStore.js';
 import { markAppReady, resetAppReady } from './app/bootState.js';
 import { upgradeSelects } from './ui/primitives/Dropdown.js';
 import { upgradeFlexibleNumberInputs } from './ui/primitives/FlexibleNumberInput.js';
-import { createPageRegistry } from './app/pageRegistry.js';
+import { createFeatureRegistry } from './app/featureRegistry.js';
 import { loadPageDescriptors } from './app/pageModules.js';
 import {
     ensureChartModules as ensureChartBootstrapModules,
@@ -77,11 +77,11 @@ export interface AppRoot {
  */
 export function createApp(): AppRoot {
     const runtime = createAppRuntime();
-    const pageRegistry = createPageRegistry();
+    const featureRegistry = createFeatureRegistry();
     const workspace = createWorkspaceStore();
     const exportFeature = createExportFeature({ workspace, getData: () => runtimeState.lastFetchedData });
     runtime.registerCleanup(() => workspace.dispose());
-    runtime.registerCleanup(pageRegistry.dispose);
+    runtime.registerCleanup(featureRegistry.dispose);
 
     let timeseriesModule!: ReturnType<typeof createTimeseriesModule>;
     let appDisposed = false;
@@ -134,10 +134,10 @@ export function createApp(): AppRoot {
             },
             workspace,
             ensurePrimaryChartCtor,
-            markMetadataReady: pageRegistry.markMetadataReady,
-            isMetadataReady: pageRegistry.isMetadataReady,
+            markMetadataReady: featureRegistry.markMetadataReady,
+            isMetadataReady: featureRegistry.isMetadataReady,
             sanitizeSelectedColumns: () => sanitizeSelectedColumns(workspace),
-            clearLoadedPageModules: pageRegistry.clearLoadedPageModules,
+            clearLoadedPageModules: featureRegistry.clearLoadedFeatures,
             ensureSessionPersistenceStarted,
             setNumericCols,
             setAdaptiveFilterColumn,
@@ -158,7 +158,7 @@ export function createApp(): AppRoot {
         runtime.registerCleanup(timeseriesModule.mount());
 
         initAppShell({
-            ensurePageModuleLoaded: pageRegistry.ensurePageModuleLoaded,
+            ensurePageModuleLoaded: featureRegistry.ensureFeatureLoaded,
             ensureDatasetReady: () => timeseriesModule.ensureDatasetReady(),
             showPage,
             fetchAndRender: () => timeseriesModule.fetchAndRender(),
@@ -180,7 +180,7 @@ export function createApp(): AppRoot {
         // Register lazy-loaded page modules. Each descriptor resolves its own
         // heavy dependencies via dynamic import; app.ts only passes the small
         // runtime helpers each page needs.
-        await loadPageDescriptors(pageRegistry, {
+        await loadPageDescriptors(featureRegistry, {
             getRenderTimeseries: () => timeseriesModule.renderCurrentData(),
             showPage,
             chipColor: (col, idx) => getAnalyticsChipColor(col, idx),

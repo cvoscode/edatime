@@ -95,10 +95,10 @@ vi.mock('./shell/commands.js', () => ({
     APP_COMMAND_DEFINITIONS: [],
 }));
 
-vi.mock('../app/pageRegistry.js', () => ({
-    createPageRegistry: vi.fn(() => ({
-        ensurePageModuleLoaded: vi.fn(),
-        clearLoadedPageModules: clearLoadedPageModulesMock,
+vi.mock('../app/featureRegistry.js', () => ({
+    createFeatureRegistry: vi.fn(() => ({
+        ensureFeatureLoaded: vi.fn(),
+        clearLoadedFeatures: clearLoadedPageModulesMock,
         dispose: disposePageRegistryMock,
         markMetadataReady: markMetadataReadyMock,
         isMetadataReady: vi.fn(),

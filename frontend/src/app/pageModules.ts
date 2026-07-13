@@ -19,7 +19,7 @@
  * declared, so no descriptor pulls in the rest of the app graph.
  */
 
-import type { PageRegistry } from './pageRegistry.js';
+import type { FeatureRegistry } from './featureRegistry.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 import { ensureStyleModule, type StyleModuleName } from '../utils/pageStyles.js';
 
@@ -111,7 +111,7 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
  * Register all built-in page descriptors. The descriptors are registered
  * eagerly but their modules are not loaded until the page is navigated to.
  */
-export async function loadPageDescriptors(registry: PageRegistry, deps: PageDescriptorInitDeps): Promise<void> {
+export async function loadPageDescriptors(registry: FeatureRegistry, deps: PageDescriptorInitDeps): Promise<void> {
     for (const descriptor of PAGE_DESCRIPTORS) {
         registry.register(descriptor.name, {
             requiresMetadata: descriptor.requiresMetadata,

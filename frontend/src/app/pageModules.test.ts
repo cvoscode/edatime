@@ -19,7 +19,7 @@ vi.mock('../features/causal/index.js', () => ({ initCausalPage: mocks.initCausal
 vi.mock('../features/drift/index.js', () => ({ initDriftPage: mocks.initDriftPage }));
 
 import { loadPageDescriptors, type PageDescriptorInitDeps } from './pageModules.js';
-import type { PageRegistry } from './pageRegistry.js';
+import type { FeatureRegistry } from './featureRegistry.js';
 import { makeWorkspaceSnapshot } from '../workspace/workspaceStore.js';
 
 function createDeps(): PageDescriptorInitDeps {
@@ -35,7 +35,7 @@ function createDeps(): PageDescriptorInitDeps {
 describe('page module descriptors', () => {
     it('registers lightweight descriptors without importing page implementations', async () => {
         const register = vi.fn();
-        await loadPageDescriptors({ register } as unknown as PageRegistry, createDeps());
+        await loadPageDescriptors({ register } as unknown as FeatureRegistry, createDeps());
 
         expect(register).toHaveBeenCalledTimes(6);
         expect(register.mock.calls.map(([name]) => name)).toEqual([
@@ -52,7 +52,7 @@ describe('page module descriptors', () => {
         };
         const deps = { ...createDeps(), workspace };
         const register = vi.fn();
-        await loadPageDescriptors({ register } as unknown as PageRegistry, deps);
+        await loadPageDescriptors({ register } as unknown as FeatureRegistry, deps);
         const scatter = register.mock.calls.find(([name]) => name === 'scatter')?.[1];
 
         expect(scatter).toBeDefined();
@@ -66,7 +66,7 @@ describe('page module descriptors', () => {
     it('loads Heatmap directly from its descriptor only on initialization', async () => {
         const deps = createDeps();
         const register = vi.fn();
-        await loadPageDescriptors({ register } as unknown as PageRegistry, deps);
+        await loadPageDescriptors({ register } as unknown as FeatureRegistry, deps);
         const heatmap = register.mock.calls.find(([name]) => name === 'heatmap')?.[1];
 
         expect(mocks.initHeatmapPage).not.toHaveBeenCalled();
@@ -78,7 +78,7 @@ describe('page module descriptors', () => {
     it('loads FFT directly from its descriptor only on initialization', async () => {
         const deps = createDeps();
         const register = vi.fn();
-        await loadPageDescriptors({ register } as unknown as PageRegistry, deps);
+        await loadPageDescriptors({ register } as unknown as FeatureRegistry, deps);
         const fft = register.mock.calls.find(([name]) => name === 'fft')?.[1];
 
         expect(mocks.initFftPage).not.toHaveBeenCalled();
@@ -93,7 +93,7 @@ describe('page module descriptors', () => {
     it('loads Spectrogram directly from its descriptor only on initialization', async () => {
         const deps = createDeps();
         const register = vi.fn();
-        await loadPageDescriptors({ register } as unknown as PageRegistry, deps);
+        await loadPageDescriptors({ register } as unknown as FeatureRegistry, deps);
         const spectrogram = register.mock.calls.find(([name]) => name === 'spectrogram')?.[1];
 
         expect(mocks.initSpectrogramPage).not.toHaveBeenCalled();
@@ -108,7 +108,7 @@ describe('page module descriptors', () => {
     it('loads Drift directly from its descriptor only on initialization', async () => {
         const deps = createDeps();
         const register = vi.fn();
-        await loadPageDescriptors({ register } as unknown as PageRegistry, deps);
+        await loadPageDescriptors({ register } as unknown as FeatureRegistry, deps);
         const drift = register.mock.calls.find(([name]) => name === 'drift')?.[1];
 
         expect(mocks.initDriftPage).not.toHaveBeenCalled();
@@ -120,7 +120,7 @@ describe('page module descriptors', () => {
     it('loads Causal directly from its descriptor only on initialization', async () => {
         const deps = createDeps();
         const register = vi.fn();
-        await loadPageDescriptors({ register } as unknown as PageRegistry, deps);
+        await loadPageDescriptors({ register } as unknown as FeatureRegistry, deps);
         const causal = register.mock.calls.find(([name]) => name === 'causal')?.[1];
 
         expect(mocks.initCausalPage).not.toHaveBeenCalled();
@@ -138,7 +138,7 @@ describe('page module descriptors', () => {
         mocks.initSpectrogramPage.mockResolvedValueOnce(dispose);
         const deps = createDeps();
         const register = vi.fn();
-        await loadPageDescriptors({ register } as unknown as PageRegistry, deps);
+        await loadPageDescriptors({ register } as unknown as FeatureRegistry, deps);
         const spectrogram = register.mock.calls.find(([name]) => name === 'spectrogram')?.[1];
 
         const result = await spectrogram!.init();
