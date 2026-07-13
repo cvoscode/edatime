@@ -79,6 +79,19 @@ describe('hash router valid pages', () => {
         expect(showPage).not.toHaveBeenCalled();
     });
 
+    it('releases popstate routing when disposed', async () => {
+        const { initHashRouting } = await import('./router.js');
+        const showPage = vi.fn();
+        const dispose = initHashRouting(showPage);
+        dispose();
+
+        window.history.replaceState(null, '', '#page=timeseries');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+        await Promise.resolve();
+
+        expect(showPage).not.toHaveBeenCalled();
+    });
+
     it('canonicalizes ?page deep links to a hash route without keeping the query string', async () => {
         const { initPageNavigation } = await import('../ui/pageNavigation.js');
         const { initHashRouting } = await import('./router.js');

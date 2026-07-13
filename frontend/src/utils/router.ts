@@ -11,7 +11,7 @@ const VALID_PAGES = new Set([
 ]);
 import { onNavigationChange } from '../platform/navigationEvents.js';
 
-let _bound = false;
+let activeRouterDisposer: (() => void) | null = null;
 
 export type PageNavigator = (page: string) => void | Promise<void>;
 
@@ -63,12 +63,11 @@ function replaceHashPage(page: string): void {
  * Listens for typed navigation changes to update the hash,
  * and `popstate` to navigate on back/forward.
  */
-export function initHashRouting(navigateToPage: PageNavigator): void {
-    if (_bound) return;
-    _bound = true;
+export function initHashRouting(navigateToPage: PageNavigator): () => void {
+    if (activeRouterDisposer) return activeRouterDisposer;
 
     // On page change → update hash
-    onNavigationChange((change) => {
+    const unsubscribeNavigation = onNavigationChange((change) => {
         const page = change.navPage || change.page;
         if (page && VALID_PAGES.has(page)) {
             setHashPage(page);
@@ -76,13 +75,22 @@ export function initHashRouting(navigateToPage: PageNavigator): void {
     });
 
     // On browser back/forward → navigate to page
-    window.addEventListener('popstate', () => {
+    const onPopstate = () => {
         const page = getHashPage();
         if (page) void navigateToPage(page);
-    });
+    };
+    window.addEventListener('popstate', onPopstate);
 
     // initPageNavigation() already owns the first page show. The router's
     // responsibility on startup is only to canonicalize the URL so query-based
     // deep links become hash routes without triggering a second navigation.
     replaceHashPage(getHashPage() ?? 'home');
+
+    const dispose = () => {
+        unsubscribeNavigation();
+        window.removeEventListener('popstate', onPopstate);
+        if (activeRouterDisposer === dispose) activeRouterDisposer = null;
+    };
+    activeRouterDisposer = dispose;
+    return dispose;
 }

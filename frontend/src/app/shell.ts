@@ -90,7 +90,7 @@ export function initAppShell(deps: AppShellDeps): AppShell {
     };
 
     // Keep this layer cheap — see `shell/core.ts` for details.
-    initShellCore({
+    deps.registerCleanup(initShellCore({
         showPage: deps.showPage,
         navigation: {
             ensureDatasetReady: deps.ensureDatasetReady,
@@ -98,7 +98,7 @@ export function initAppShell(deps: AppShellDeps): AppShell {
             ensureSubsystem,
             openSettings: async () => deferredSubsystems.openSettings(deferred),
         },
-    });
+    }));
 
     initGlobalShortcuts({
         showPage: deps.showPage,

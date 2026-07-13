@@ -125,4 +125,17 @@ describe('initPageNavigation', () => {
 
         expect(document.querySelectorAll('.toast')).toHaveLength(0);
     });
+
+    it('releases navigation button listeners when disposed', async () => {
+        const { initPageNavigation } = await import('./pageNavigation.js');
+        const navigation = initPageNavigation(navigationDeps());
+        await Promise.resolve();
+        ensurePageModuleLoadedMock.mockClear();
+
+        navigation.dispose();
+        (document.querySelector('.nav-item[data-page="timeseries"]') as HTMLButtonElement).click();
+        await Promise.resolve();
+
+        expect(ensurePageModuleLoadedMock).not.toHaveBeenCalled();
+    });
 });

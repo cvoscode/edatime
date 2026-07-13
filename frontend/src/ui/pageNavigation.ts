@@ -18,13 +18,15 @@ export interface PageNavigationDeps {
 
 export interface PageNavigation {
     showPage(pageName: string): Promise<void>;
+    dispose(): void;
 }
 
 export function initPageNavigation(deps: PageNavigationDeps): PageNavigation {
+    const listenerController = new AbortController();
     const navButtons = Array.from(document.querySelectorAll('.sidebar .nav-item[data-page]')) as HTMLElement[];
     const pages = Array.from(document.querySelectorAll('.page[data-page-name]')) as HTMLElement[];
     if (navButtons.length === 0 || pages.length === 0) {
-        return { showPage: async () => {} };
+        return { showPage: async () => {}, dispose: () => {} };
     }
     const analyticsViews: Record<string, string> = {
         scatter: 'plot',
@@ -33,12 +35,14 @@ export function initPageNavigation(deps: PageNavigationDeps): PageNavigation {
 
     const layout = document.querySelector('.app-layout') as HTMLElement | null;
     const collapseBtn = document.getElementById('sidebar-collapse-btn') as HTMLElement | null;
+    let ownsCollapseBinding = false;
     if (layout && collapseBtn && !collapseBtn.dataset.bound) {
         collapseBtn.addEventListener('click', () => {
             layout.classList.toggle('sidebar-collapsed');
             requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
-        });
+        }, { signal: listenerController.signal });
         collapseBtn.dataset.bound = '1';
+        ownsCollapseBinding = true;
     }
 
     async function showPage(pageName: string) {
@@ -85,11 +89,17 @@ export function initPageNavigation(deps: PageNavigationDeps): PageNavigation {
     }
 
     for (const btn of navButtons) {
-        btn.addEventListener('click', async () => { await showPage(btn.dataset.page!); });
+        btn.addEventListener('click', async () => { await showPage(btn.dataset.page!); }, { signal: listenerController.signal });
     }
 
     void showPage(getHashPage() ?? 'home');
-    return { showPage };
+    return {
+        showPage,
+        dispose: () => {
+            listenerController.abort();
+            if (ownsCollapseBinding) delete collapseBtn?.dataset.bound;
+        },
+    };
 }
 
 /**

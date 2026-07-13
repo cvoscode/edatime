@@ -16,7 +16,7 @@ vi.mock('../ui/toolbar.js', () => ({
     initPages: vi.fn(),
 }));
 vi.mock('../ui/columns.js', () => ({ initColumnFilterModal: vi.fn(), buildRangeControls: vi.fn() }));
-vi.mock('../utils/router.js', () => ({ initHashRouting: vi.fn() }));
+vi.mock('../utils/router.js', () => ({ initHashRouting: vi.fn(() => vi.fn()) }));
 vi.mock('../utils/palette.js', () => ({
     initCommandPalette: vi.fn(),
     openPalette: vi.fn(),

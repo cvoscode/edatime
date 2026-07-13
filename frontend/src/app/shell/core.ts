@@ -27,10 +27,10 @@ export interface ShellCoreInitDeps {
  * Idempotent — safe to call more than once. Returns nothing; heavy
  * subsystems are NOT touched here; see `deferredSubsystems` for those.
  */
-export function initShellCore(deps: ShellCoreInitDeps): void {
+export function initShellCore(deps: ShellCoreInitDeps): () => void {
     normalizeFormControlAccessibility();
     const navigation = initPageNavigation(deps.navigation);
-    initHashRouting(navigation.showPage);
+    const disposeHashRouting = initHashRouting(navigation.showPage);
     initSettings();
     initThemeToggle();
     initAccessibilityShortcuts();
@@ -41,6 +41,11 @@ export function initShellCore(deps: ShellCoreInitDeps): void {
         layout.classList.add('sidebar-collapsed');
     }
     wireHomeNavigationCards(deps.showPage);
+
+    return () => {
+        disposeHashRouting();
+        navigation.dispose();
+    };
 }
 
 function initKeyboardHelpButton(): void {

@@ -583,6 +583,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Application composition registers that feature disposer with `AppRuntime`; it no longer reaches into a Timeseries-local initializer or reconstructs feature actions.
 - Direct module coverage proves mount wires the shortcut contract and cleanup releases it, preserving the existing standalone shortcut lifecycle regressions.
 
+### Completed: shell navigation lifecycle ownership
+
+- Page navigation now returns an explicit disposer that releases sidebar/collapse listeners and its binding marker; direct coverage proves disposed navigation cannot activate pages.
+- Hash routing now owns and returns cleanup for both typed-navigation and browser `popstate` subscriptions, allowing a new shell mount after teardown.
+- Shell core composes those disposers and registers one cleanup with `AppRuntime`, so shell teardown no longer retains navigation/routing listeners.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.
