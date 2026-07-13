@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { initFilterModalController } from './filterModalController.js';
+import { initFilterModalController as createFilterModalController } from './filterModalController.js';
 import {
     setChartInstance,
 } from '../../store/chartState.js';
@@ -8,6 +8,15 @@ import { setLastFetchedData } from '../../store/runtimeState.js';
 import { setColumnRanges, setSelectedCols, uiState } from '../../store/uiState.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 import { __resetFilterModalOpenerForTests, openFilterForColumn } from './filterModalService.js';
+
+let workspace = createWorkspaceStore();
+
+function initFilterModalController(
+    deps: Omit<Parameters<typeof createFilterModalController>[0], 'workspace'>
+        & Partial<Pick<Parameters<typeof createFilterModalController>[0], 'workspace'>>,
+) {
+    return createFilterModalController({ ...deps, workspace: deps.workspace ?? workspace });
+}
 
 function buildModalDOM(): void {
     document.body.innerHTML = `
@@ -51,7 +60,9 @@ describe('initFilterModalController', () => {
             ],
         } as any);
         datasetState.numericCols = ['HUFL', 'HULL'];
-        setSelectedCols(['HUFL', 'HULL']);
+        workspace = createWorkspaceStore();
+        workspace.setSelection(['HUFL', 'HULL']);
+        setSelectedCols(['retired-ui-state-series']);
         setColumnRanges({});
 
         // Provide lastFetchedData so getFullBoundsForCol works in tests
@@ -158,6 +169,7 @@ describe('initFilterModalController', () => {
 
         it('publishes edited bounds to workspace filters', () => {
             const workspace = createWorkspaceStore();
+            workspace.setSelection(['HUFL', 'HULL']);
             workspace.setFilters({ columnRanges: {}, adaptiveLines: [] });
             initFilterModalController({
                 renderCurrentData: vi.fn(),

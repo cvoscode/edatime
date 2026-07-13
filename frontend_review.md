@@ -248,6 +248,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Removed the application-level selected-column getter/setter injection from Timeseries composition. Dataset bootstrap and post-mutation recovery now read and update `WorkspaceStore` directly.
 - Updated the bootstrap characterization fixtures to model a complete workspace snapshot, proving default-series seeding, sanitation, adaptive-target selection, and upload refresh use one canonical owner.
 
+### Completed: Timeseries filter-modal workspace contract
+
+- Made the column-filter modal require its `WorkspaceStore` dependency and use it for both selectable series and active filter ranges.
+- Updated the direct modal harness to provide a canonical workspace while retaining a deliberately conflicting UI-state selection, preventing reintroduction of the fallback path.
+
 ### Completed: DataChart decomposition
 
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.
