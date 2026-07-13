@@ -10,10 +10,11 @@ import { createChart } from '../../libs/chartgpu/dist/index.js';
 import { defaultGpuPowerPreference } from '../utils/platform.js';
 import {
     type GridLayout,
-    createCanvasOverlay, ensureRelativePosition,
-    initBoxZoom,
+    ensureRelativePosition,
 } from './chartInteractions.js';
 import { formatFftTooltip } from './fftTooltipPresentation.js';
+import { FftInteractionResources } from './fftInteractionResources.js';
+import { FftOverlayResources } from './fftOverlayResources.js';
 import {
     type FrequencyPeak,
     type FrequencyUnit,
@@ -27,23 +28,13 @@ import {
     useCyclesPerDayFrequencyAxis,
 } from '../utils/spectralPresets.js';
 import {
-    applySpectralScale,
     scaleModeLabel,
     DEFAULT_SPECTRAL_SCALE,
     type SpectralScaleOptions,
 } from '../utils/spectralScaling.js';
-import { SERIES_COLORS } from '../utils/seriesColors.js';
 import { buildFftDataModel, type FftTrace } from './fftDataModel.js';
 
 const FFT_GRID: GridLayout = { left: 112, right: 32, top: 52, bottom: 52 };
-
-/**
- * Fallback palette for the FFT chart when no per-column color override is
- * supplied. Points at the shared `SERIES_COLORS` so cross-page color
- * changes (`setSeriesColor(...)`) automatically apply to FFT traces as
- * well — see `usage_issue.md` §1.3.
- */
-const FFT_TRACE_COLORS = SERIES_COLORS;
 
 export type { FftTrace } from './fftDataModel.js';
 
@@ -51,9 +42,8 @@ export class FftChart {
     private _containerId: string;
     private _container: HTMLElement | null = null;
     private _chart: any = null;
-    private _overlayCanvas: HTMLCanvasElement | null = null;
-    private _overlayObserver: ResizeObserver | null = null;
-    private _selectionBox: (HTMLElement & { dispose?: () => void }) | null = null;
+    private _overlayResources = new FftOverlayResources();
+    private _interactionResources = new FftInteractionResources();
 
     private _xMin = 0;
     private _xMax = 0;   // 0 = "use full range"
@@ -96,7 +86,7 @@ export class FftChart {
         if (powerPreference) chartOptions.powerPreference = powerPreference;
         this._chart = await createChart(container, chartOptions as any);
 
-        this._initOverlay();
+        this._overlayResources.mount(container, () => this._renderOverlay());
         this._initInteractions();
     }
 
@@ -326,28 +316,16 @@ export class FftChart {
     }
 
     destroy(): void {
-        this._selectionBox?.dispose?.();
-        this._selectionBox = null;
-        this._overlayObserver?.disconnect();
-        this._overlayObserver = null;
-        this._overlayCanvas?.remove();
-        this._overlayCanvas = null;
+        this._interactionResources.dispose();
+        this._overlayResources.dispose();
         this._chart?.dispose?.();
         this._chart = null;
     }
 
     /* ── Annotation overlay canvas ─────────────────────── */
 
-    private _initOverlay(): void {
-        const container = this._container;
-        if (!container) return;
-        const { canvas, observer } = createCanvasOverlay(container, () => this._renderOverlay());
-        this._overlayCanvas = canvas;
-        this._overlayObserver = observer;
-    }
-
     private _renderOverlay(): void {
-        const canvas = this._overlayCanvas;
+        const canvas = this._overlayResources.canvas;
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
@@ -398,7 +376,7 @@ export class FftChart {
         const container = this._container;
         if (!container) return;
 
-        this._selectionBox = initBoxZoom({
+        this._interactionResources.mount({
             container,
             grid: FFT_GRID,
             getXRange: () => ({ min: this._getXMin(), max: this._getXMax() }),
