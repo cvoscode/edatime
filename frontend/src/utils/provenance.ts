@@ -9,11 +9,12 @@
 import { analyticsState } from '../store/analyticsState.js';
 import { chartState } from '../store/chartState.js';
 import { datasetState } from '../store/datasetState.js';
-import { uiState } from '../store/uiState.js';
 import { formatAnalysisTime, formatAnalysisNumber } from '../utils/format.js';
+import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 let _panel: HTMLElement | null = null;
 let _content: HTMLElement | null = null;
+let _workspace: Pick<WorkspaceStore, 'getSnapshot'> | null = null;
 
 function escapeText(s: string): string {
     const d = document.createElement('div');
@@ -58,6 +59,7 @@ function renderContent(): void {
     if (!_content) return;
 
     const sections: string[] = [];
+    const intent = _workspace?.getSnapshot();
 
     // Dataset info
     if (datasetState.metadata) {
@@ -87,28 +89,28 @@ function renderContent(): void {
     }
 
     // Selected columns
-    if (uiState.selectedCols.length > 0) {
-        const chips = uiState.selectedCols.map((c) => `<span class="provenance-chip">${escapeText(c)}</span>`).join('');
+    if (intent?.selection.columns.length) {
+        const chips = intent.selection.columns.map((c) => `<span class="provenance-chip">${escapeText(c)}</span>`).join('');
         sections.push(`
             <div class="provenance-section">
-                <div class="provenance-section-title">Selected Series (${uiState.selectedCols.length})</div>
+                <div class="provenance-section-title">Selected Series (${intent.selection.columns.length})</div>
                 <div class="provenance-chips">${chips}</div>
             </div>
         `);
     }
 
     // Color encoding
-    if (uiState.selectedColorColumn) {
+    if (intent?.selection.colorColumn) {
         sections.push(`
             <div class="provenance-section">
                 <div class="provenance-section-title">Color Encoding</div>
-                <div class="provenance-row"><span class="provenance-key">Column</span><span class="provenance-val">${escapeText(uiState.selectedColorColumn)}</span></div>
+                <div class="provenance-row"><span class="provenance-key">Column</span><span class="provenance-val">${escapeText(intent.selection.colorColumn)}</span></div>
             </div>
         `);
     }
 
     // Numeric range filters
-    const rangeEntries = Object.entries(uiState.columnRanges);
+    const rangeEntries = Object.entries(intent?.filters.columnRanges ?? {});
     if (rangeEntries.length > 0) {
         const rows = rangeEntries.map(([col, r]) =>
             `<div class="provenance-row"><span class="provenance-key">${escapeText(col)}</span><span class="provenance-val">${formatAnalysisNumber(r.from)} → ${formatAnalysisNumber(r.to)}</span></div>`,
@@ -122,13 +124,13 @@ function renderContent(): void {
     }
 
     // Adaptive line filters
-    if (uiState.adaptiveLineFilters.length > 0) {
-        const rows = uiState.adaptiveLineFilters.map((f) =>
+    if (intent?.filters.adaptiveLines.length) {
+        const rows = intent.filters.adaptiveLines.map((f) =>
             `<div class="provenance-row"><span class="provenance-key">${escapeText(f.column)}</span><span class="provenance-val">${f.keepAbove ? 'above' : 'below'} line</span></div>`,
         ).join('');
         sections.push(`
             <div class="provenance-section">
-                <div class="provenance-section-title">Adaptive Filters (${uiState.adaptiveLineFilters.length})</div>
+                <div class="provenance-section-title">Adaptive Filters (${intent.filters.adaptiveLines.length})</div>
                 ${rows}
             </div>
         `);
@@ -168,9 +170,11 @@ export function __resetProvenanceForTests(): void {
     _panel?.remove();
     _panel = null;
     _content = null;
+    _workspace = null;
 }
 
-export function initProvenance(): void {
+export function initProvenance(workspace: Pick<WorkspaceStore, 'getSnapshot'>): void {
+    _workspace = workspace;
     buildPanel();
 
     // Toggle button in header

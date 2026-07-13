@@ -124,12 +124,12 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
     registerSubsystem('workflow-modals', async (deps) => {
         const { initOutlierModal, initTransformModal } = await import('../../features/dataMutation/index.js');
         initTransformModal({ refreshDataset: deps.refreshDatasetAfterMutation });
-        initOutlierModal({ refreshDataset: deps.refreshDatasetAfterMutation });
+        initOutlierModal({ refreshDataset: deps.refreshDatasetAfterMutation, workspace: deps.workspace });
     });
 
-    registerSubsystem('provenance', async () => {
+    registerSubsystem('provenance', async (deps) => {
         const { initProvenance } = await import('../../utils/provenance.js');
-        initProvenance();
+        initProvenance(deps.workspace);
     });
 
     registerSubsystem('settings-panel', async () => {

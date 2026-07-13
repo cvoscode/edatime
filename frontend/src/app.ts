@@ -99,7 +99,7 @@ async function ensurePrimaryChartCtor(): Promise<DataChartCtorType> {
 /* ── Analytics overlay fetch ──────────────────────────── */
 
 async function fetchAndRenderAnalytics(): Promise<void> {
-    await doFetchAndRenderAnalytics(fetchAnomalies);
+    await doFetchAndRenderAnalytics(fetchAnomalies, workspace);
 }
 
 function ensureSessionPersistenceStarted(): void {

@@ -1,7 +1,7 @@
-import { uiState } from '../../store/uiState.js';
 import { createModalController } from '../../ui/shell/createModalController.js';
 import { createDataMutationFeature } from './entrypoint.js';
 import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
+import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 const dataMutationFeature = createDataMutationFeature();
 
@@ -11,6 +11,10 @@ interface RefreshDatasetOptions {
 
 interface DataMutationModalDeps {
     refreshDataset: (options?: RefreshDatasetOptions) => Promise<void>;
+}
+
+interface OutlierModalDeps extends DataMutationModalDeps {
+    workspace: Pick<WorkspaceStore, 'getSnapshot'>;
 }
 
 export function initTransformModal(deps: DataMutationModalDeps): void {
@@ -59,7 +63,7 @@ export function initTransformModal(deps: DataMutationModalDeps): void {
     });
 }
 
-export function initOutlierModal(deps: DataMutationModalDeps): void {
+export function initOutlierModal(deps: OutlierModalDeps): void {
     const openBtn = document.getElementById('outlier-open-btn');
     const applyBtn = document.getElementById('outlier-apply-btn') as HTMLButtonElement | null;
     const methodSelect = document.getElementById('outlier-method') as HTMLElement | null;
@@ -102,7 +106,9 @@ export function initOutlierModal(deps: DataMutationModalDeps): void {
             }
 
             const result = await dataMutationFeature.removeOutliers({
-                columns: uiState.selectedCols.length > 0 ? uiState.selectedCols : null,
+                columns: deps.workspace.getSnapshot().selection.columns.length > 0
+                    ? [...deps.workspace.getSnapshot().selection.columns]
+                    : null,
                 method,
                 threshold,
                 window: windowSize > 0 ? windowSize : undefined,

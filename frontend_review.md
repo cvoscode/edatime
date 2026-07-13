@@ -232,6 +232,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 
 - Removed the redundant `initScatterToolbarOverflow` alias. Scatter composition and its direct tests use the feature-neutral `initToolbarOverflow` API, matching the existing public Scatter surface.
 
+### Completed: shared selection consumers use WorkspaceStore
+
+- Moved anomaly-request column selection, outlier-removal payloads, and provenance rendering from mutable `uiState` copies to the canonical `WorkspaceStore` snapshot.
+- Added direct disagreement regressions that intentionally give `uiState` different selection/filter values; each migrated consumer must use the workspace intent instead.
+- This is the first slice of the remaining canonical-selection migration. Timeseries rendering, session restoration, chart overlays, and the retired `uiState.selectedCols` writer remain sequenced as the next focused steps.
+
 ### Completed: DataChart decomposition
 
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.

@@ -31,6 +31,7 @@ vi.mock('../../ui/primitives/Dropdown.js', () => ({
 }));
 
 import { setSelectedCols } from '../../store/uiState.js';
+import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 import { initOutlierModal } from './modals.js';
 
 describe('dataMutationModals', () => {
@@ -51,10 +52,12 @@ describe('dataMutationModals', () => {
         closeMock.mockClear();
     });
 
-    it('builds the outlier-removal payload from uiState selected columns', async () => {
-        setSelectedCols(['a', 'b']);
+    it('builds the outlier-removal payload from canonical workspace selection', async () => {
+        const workspace = createWorkspaceStore();
+        workspace.setSelection(['a', 'b']);
+        setSelectedCols(['retired-ui-state-series']);
         const refreshDataset = vi.fn().mockResolvedValue(undefined);
-        initOutlierModal({ refreshDataset });
+        initOutlierModal({ refreshDataset, workspace });
 
         (document.getElementById('outlier-apply-btn') as HTMLButtonElement).click();
         await Promise.resolve();

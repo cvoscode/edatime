@@ -21,7 +21,6 @@ import {
 } from '../store/analyticsState.js';
 import { chartState } from '../store/chartState.js';
 import { runtimeState } from '../store/runtimeState.js';
-import { uiState } from '../store/uiState.js';
 import type { AnomalyResponse, AdaptiveLineFilter } from '../types.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 import { getSeriesColor } from '../utils/seriesColors.js';
@@ -117,20 +116,9 @@ function requestOverlayRender(): void {
 }
 
 function getFilterIntent(
-    workspace?: Pick<WorkspaceStore, 'getSnapshot'>,
+    workspace: Pick<WorkspaceStore, 'getSnapshot'>,
 ): TimeseriesFilterIntent {
-    const snapshot = workspace?.getSnapshot();
-    if (snapshot) return snapshot;
-    return {
-        selection: {
-            columns: [...uiState.selectedCols],
-            colorColumn: uiState.selectedColorColumn,
-        },
-        filters: {
-            columnRanges: { ...uiState.columnRanges },
-            adaptiveLines: uiState.adaptiveLineFilters.map((filter) => ({ ...filter })),
-        },
-    };
+    return workspace.getSnapshot();
 }
 
 /**
@@ -139,7 +127,7 @@ function getFilterIntent(
  */
 export async function fetchAnomalyRegions(
     fetchAnomalies: ((start: string, end: string, columns: string, method?: string, threshold?: number, options?: ApiRequestOptions) => Promise<AnomalyResponse>) | null,
-    signal?: AbortSignal,
+    workspace: Pick<WorkspaceStore, 'getSnapshot'>,
 ): Promise<void> {
     if (!Number.isFinite(chartState.currentStart) || !Number.isFinite(chartState.currentEnd)) return;
 
@@ -149,7 +137,7 @@ export async function fetchAnomalyRegions(
 
     const startIso = new Date(chartState.currentStart!).toISOString();
     const endIso = new Date(chartState.currentEnd!).toISOString();
-    const cols = uiState.selectedCols.join(',');
+    const cols = workspace.getSnapshot().selection.columns.join(',');
 
     try {
         if (analyticsState.anomalyEnabled && fetchAnomalies) {
@@ -181,7 +169,7 @@ export async function fetchAnomalyRegions(
 /** Compute rolling bands from lastFetchedData + column ranges; update analytics state. */
 export function computeAndSetRollingBands(
     windowSize: number,
-    workspace?: Pick<WorkspaceStore, 'getSnapshot'>,
+    workspace: Pick<WorkspaceStore, 'getSnapshot'>,
 ): void {
     if (!analyticsState.rollingEnabled) {
         setRollingBands(null);
@@ -213,7 +201,7 @@ export const isAnalyticsControllerActive = (): boolean =>
  */
 export function initAnalyticsListeners(
     fetchAndRenderAnalytics: () => Promise<void>,
-    workspace?: Pick<WorkspaceStore, 'getSnapshot'>,
+    workspace: Pick<WorkspaceStore, 'getSnapshot'>,
 ): () => void {
     const handler = () => {
         if (runtimeState.lastFetchedData) {
@@ -243,6 +231,7 @@ export function initAnalyticsListeners(
  */
 export async function fetchAndRenderAnalytics(
     fetchAnomalies: ((start: string, end: string, columns: string, method?: string, threshold?: number, options?: ApiRequestOptions) => Promise<AnomalyResponse>) | null,
+    workspace: Pick<WorkspaceStore, 'getSnapshot'>,
 ): Promise<void> {
-    await fetchAnomalyRegions(fetchAnomalies ?? null);
+    await fetchAnomalyRegions(fetchAnomalies ?? null, workspace);
 }
