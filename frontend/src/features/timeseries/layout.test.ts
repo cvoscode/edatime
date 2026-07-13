@@ -37,8 +37,7 @@ describe('timeseries layout shell', () => {
         // The Y RANGE segment (Stack from 0 / Spike clamp / Mode / Param)
         // was removed entirely from the toolbar after improvement_features.md
         // #15. The data-info-tip text on the eyebrow, the inline field labels
-        // and the y-range-hint span all disappear together. The initYRangeControls
-        // module remains as a safe no-op when its DOM nodes are absent.
+        // and the y-range-hint span all disappear together.
         expect(indexHtml).not.toContain('Stack from 0 clamps the display floor at zero.');
         expect(indexHtml).not.toContain('<span class="toolbar-field__label">Stack from 0</span>');
         expect(indexHtml).not.toContain('<span class="toolbar-field__label">Robust range</span>');

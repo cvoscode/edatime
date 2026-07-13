@@ -39,7 +39,6 @@ export {
 import { initToolbarModals } from './exportControls.js';
 import { initDrawControls } from './drawControls.js';
 import { bindInfoPopovers } from './infoPopovers.js';
-import { initYRangeControls } from './yRangeControls.js';
 import { initChartTextControls } from './chartTextControls.js';
 import { initAnalyticsControls } from './analyticsControls.js';
 import { initQuickRangeControls, refreshQuickRangeControls } from './quickRange.js';
@@ -107,7 +106,6 @@ export function initAnalysisControls(
     initToolbarModals();
     initDrawControls(fetchAndRender, workspace);
     initChartTextControls();
-    initYRangeControls();
     initAnalyticsControls();
 
     initQuickRangeControls(fetchAndRender, workspace);

@@ -160,6 +160,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Removed the unused top-level `RangeControls.onActivate` compatibility API and its item-kind routing protocol. The reusable component now has one explicit contract: each item is static unless it supplies its own key-based `onActivate` callback.
 - Simplified Timeseries range-chip composition to that contract and retained direct keyboard/static/clickable characterization coverage without test-only compatibility behavior or `as any` casts.
 
+### Completed: retired Y-range control lifecycle removal
+
+- Removed the obsolete `ui/yRangeControls` controller, its no-op tests, and its calls from toolbar and both primary/fallback Timeseries bootstrap paths. The matching toolbar DOM has already been absent, so the calls could never bind a user-facing control.
+- Retained the focused chart-bootstrap and layout characterization tests to prove chart initialization and the intentionally removed toolbar segment remain correct without carrying a dormant UI owner.
+
 ### Completed: DataChart decomposition
 
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.
