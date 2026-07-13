@@ -96,6 +96,19 @@ describe('DataChart.init', () => {
         expect(chartInstance.on).not.toHaveBeenCalledWith('zoomRangeChange', expect.any(Function));
     });
 
+    it('releases the prior ChartGPU instance before re-initializing', async () => {
+        const first = makeChartInstance();
+        const second = makeChartInstance();
+        createChartMock.mockResolvedValueOnce(first).mockResolvedValueOnce(second);
+        const chart = new DataChart('main-chart', null, null, null);
+
+        await chart.init();
+        await chart.init();
+
+        expect(first.dispose).toHaveBeenCalledOnce();
+        expect(chart.chartInstance).toBe(second);
+    });
+
     it('reapplies ChartGPU theme when the resolved theme changes after init', async () => {
         const chartInstance = makeChartInstance();
         createChartMock.mockResolvedValue(chartInstance);

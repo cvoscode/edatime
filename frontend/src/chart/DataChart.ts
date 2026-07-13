@@ -253,6 +253,26 @@ export class DataChart {
         const container = document.getElementById(this.containerId);
         if (!container) throw new Error(`Chart container not found: ${this.containerId}`);
         this._disposeInteractions();
+        this._drawingController?.detach();
+        const drawingResizeObserver = this._drawingResizeObserver;
+        drawingResizeObserver?.disconnect();
+        this._drawingResizeObserver = null;
+        const chartResizeObserver = this._chartResizeObserver;
+        chartResizeObserver?.disconnect();
+        this._chartResizeObserver = null;
+        this._overlayCanvas?.remove();
+        this._overlayCanvas = null;
+        this._overlayCtx = null;
+        this._overlays = null;
+        this._textOverlays?.destroy();
+        this._textOverlays = null;
+        this._legendOverlay?.destroy();
+        this._legendOverlay = null;
+        const themeUnsub = this._themeUnsub;
+        themeUnsub?.();
+        this._themeUnsub = null;
+        try { this.chartInstance?.dispose?.(); } catch { /* already disposed */ }
+        this.chartInstance = null;
         container.replaceChildren();
         this._container = container;
         const chartGrid = { ...this._updateCurrentGrid() };
@@ -277,7 +297,6 @@ export class DataChart {
             this.chartInstance = null;
             return;
         }
-        this._chartResizeObserver?.disconnect();
         this._chartResizeObserver = new ResizeObserver(() => this.resize());
         this._chartResizeObserver.observe(container);
         this._initDrawingOverlay();
@@ -285,7 +304,6 @@ export class DataChart {
         this._syncLegendOverlay();
         this._initMouseSelectionZoom();
         this._initCtrlPan();
-        this._themeUnsub?.();
         this._themeUnsub = onThemeChange((next: ResolvedTheme) => {
             this._onThemeChanged(next);
         });
