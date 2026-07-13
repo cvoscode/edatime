@@ -193,6 +193,10 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Extracted annotation and dominant-peak painting into `fftOverlayPresentation`. It consumes the data model's displayed points and bounds, so peak markers share the scaled chart coordinate system instead of recomputing unscaled values in the chart adapter.
 - Extracted ChartGPU axis, tooltip, scale-bound, and series-option composition into `fftChartOptions`, with direct low-frequency/scaled-axis coverage. `FftChart` now owns lifecycle and current view state only.
 
+### In progress: FFT page-controller decomposition
+
+- Extracted FFT scale-control normalization and filter cutoff enablement/visibility policy into `fftControls`, with direct behavior coverage. The page now applies its deterministic control state while retaining DOM event wiring and API actions.
+
 ### Completed: Spectrogram runtime decomposition
 
 - Extracted pure dominant-frequency-band detection and timestamp formatting into `spectrogramAnalysis`, with direct coverage for dominant-band and empty-axis behavior.

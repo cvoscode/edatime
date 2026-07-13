@@ -13,13 +13,12 @@ import { getDropdownValue, setDropdownDisabled } from '../../ui/primitives/Dropd
 import { setSeriesColor } from '../../utils/seriesColors.js';
 import {
     DEFAULT_SPECTRAL_SCALE,
-    type ClipMode,
-    type ScaleMode,
     type SpectralScaleOptions,
 } from '../../utils/spectralScaling.js';
 import { formatCyclesPerDay, formatFrequencyInUnit, frequencyToPeriod, pickFrequencyUnit, useCyclesPerDayFrequencyAxis } from '../../utils/spectralPresets.js';
 import { createAnalysisPageRuntime } from '../../platform/analysisRuntime.js';
 import { initFftHelp } from './help.js';
+import { buildFftFilterCutoffState, buildFftScaleOptions } from './fftControls.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 interface FftPageDeps {
@@ -434,14 +433,12 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
                 rerenderOrClear();
             });
 
-            const readScaleOptions = (): SpectralScaleOptions => {
-                const mode = (getDropdownValue('fft-normalize') || 'none') as ScaleMode;
-                const enabled = clipToggle?.checked ?? false;
-                const method = ((getDropdownValue('fft-clip-method') || 'percentile') as ClipMode);
-                const raw = Number.parseFloat(clipParam?.value ?? '0.5');
-                const param = Number.isFinite(raw) ? raw : 0.5;
-                return { mode, clip: enabled ? method : 'none', clipParam: param };
-            };
+            const readScaleOptions = (): SpectralScaleOptions => buildFftScaleOptions({
+                mode: getDropdownValue('fft-normalize'),
+                clipEnabled: clipToggle?.checked ?? false,
+                clipMethod: getDropdownValue('fft-clip-method'),
+                clipParam: clipParam?.value,
+            });
             normalizeSelect?.addEventListener('change', () => {
                 fftScaleOptions = readScaleOptions();
                 rerenderOrClear();
@@ -564,32 +561,22 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
                 const lowEl = document.getElementById('fft-filter-low-hz') as HTMLInputElement | null;
                 const highEl = document.getElementById('fft-filter-high-hz') as HTMLInputElement | null;
                 const bandEl = document.getElementById('fft-filter-band');
-                const lowHint = filterType === 'none'
-                    ? 'Set Filter type to Highpass or Bandpass to use the Low Hz cutoff.'
-                    : filterType === 'lowpass'
-                        ? 'Low Hz cutoff is unused for Lowpass.'
-                        : 'Lower edge of the bandpass / highpass.';
-                const highHint = filterType === 'none'
-                    ? 'Set Filter type to Lowpass or Bandpass to use the High Hz cutoff.'
-                    : filterType === 'highpass'
-                        ? 'High Hz cutoff is unused for Highpass.'
-                        : 'Upper edge of the bandpass / lowpass.';
+                const policy = buildFftFilterCutoffState(filterType);
                 if (lowEl) {
-                    lowEl.disabled = filterType === 'none' || filterType === 'lowpass';
-                    lowEl.title = lowHint;
-                    setFieldHidden(lowEl, filterType === 'none' || filterType === 'lowpass');
+                    lowEl.disabled = policy.low.disabled;
+                    lowEl.title = policy.low.hint;
+                    setFieldHidden(lowEl, policy.low.disabled);
                 }
                 if (highEl) {
-                    highEl.disabled = filterType === 'none' || filterType === 'highpass';
-                    highEl.title = highHint;
-                    setFieldHidden(highEl, filterType === 'none' || filterType === 'highpass');
+                    highEl.disabled = policy.high.disabled;
+                    highEl.title = policy.high.hint;
+                    setFieldHidden(highEl, policy.high.disabled);
                 }
                 // The wrapper is only useful when at least one cutoff is
                 // editable — keep it visible for lowpass (high only),
                 // highpass (low only), and band* (both).
                 if (bandEl) {
-                    const bandVisible = filterType !== 'none';
-                    bandEl.classList.toggle('is-hidden', !bandVisible);
+                    bandEl.classList.toggle('is-hidden', !policy.bandVisible);
                 }
             };
             filterTypeSelect?.addEventListener('change', syncFilterCutoffInputs);
