@@ -20,7 +20,7 @@ export interface DataModules {
         columns?: string,
         colorColumn?: string | null,
         lookaroundMs?: number,
-        signal?: AbortSignal,
+        options?: ApiRequestOptions,
     ) => Promise<import('../types.js').DataObject>;
     fetchAnomalies: (start: string, end: string, columns: string, method?: string, threshold?: number, options?: ApiRequestOptions) => Promise<import('../types.js').AnomalyResponse>;
     postTransform: (expression: string, outputName: string) => Promise<import('../types.js').TransformResponse>;

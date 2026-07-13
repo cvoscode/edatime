@@ -199,6 +199,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Removed the mixed bare-`AbortSignal`/options overload from shared HTTP helpers and the Analytics/Export route families. Those calls now use one explicit `ApiRequestOptions` object, preserving cancellation and dataset-scope semantics without runtime argument normalization.
 - Updated the active FFT, Causal, analytics-overlay, runtime-loader, and Drift-wrapper seams to pass `{ signal }` at the correct boundary. Direct API regression coverage keeps request routes, cancellation, dedupe, and structured errors verified.
 
+### Completed: Timeseries Arrow request-options contract
+
+- Converted `/api/v1/data` from its positional bare-`AbortSignal` argument to `ApiRequestOptions`, then carried that explicit contract through the Timeseries controller, module, lazy runtime loader, and application composition.
+- Updated the direct controller characterization to pin the final argument as `{ signal }`, retaining the request ordering, lookaround, selection, and cancellation behavior under focused coverage.
+
 ### Completed: DataChart decomposition
 
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.

@@ -8,6 +8,7 @@ import {
     dbg,
     DEBUG,
 } from './http.js';
+import type { ApiRequestOptions } from './http.js';
 
 export async function fetchData(
     start: string,
@@ -16,7 +17,7 @@ export async function fetchData(
     columns = 'value',
     colorColumn: string | null = null,
     lookaroundMs = 0,
-    signal?: AbortSignal,
+    options?: ApiRequestOptions,
 ): Promise<DataObject> {
     const requestScope = captureDatasetRequestScope();
     const requestedCols = columns
@@ -42,7 +43,7 @@ export async function fetchData(
     const url = `/api/v1/data?${params.toString()}`;
 
     dbg('GET', url);
-    const res = await globalThis.fetch(url, signal ? { signal, cache: 'no-store' } : { cache: 'no-store' });
+    const res = await globalThis.fetch(url, options?.signal ? { signal: options.signal, cache: 'no-store' } : { cache: 'no-store' });
     assertDatasetRequestScopeActive(requestScope);
 
     if (DEBUG) {

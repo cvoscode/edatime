@@ -120,7 +120,7 @@ describe('createTimeseriesPageController', () => {
         await controller.fetchAndRender();
 
         expect(fetchData).toHaveBeenCalledWith(
-            new Date(10).toISOString(), new Date(20).toISOString(), expect.any(Number), 'workspace', 'group', expect.any(Number), expect.any(AbortSignal),
+            new Date(10).toISOString(), new Date(20).toISOString(), expect.any(Number), 'workspace', 'group', expect.any(Number), { signal: expect.any(AbortSignal) },
         );
     });
 
@@ -336,7 +336,7 @@ describe('createTimeseriesPageController', () => {
         expect(chart.updateDataMulti).toHaveBeenCalled();
     });
 
-    it('pins the /api/data fetch contract: fetchData(startIso, endIso, width, cols, colorCol, lookaroundMs, signal)', async () => {
+    it('pins the /api/data fetch contract with explicit request options', async () => {
         // Guard against drift in the wire contract the page controller sends
         // to the timeseries fetch service. The service layer in
         // `frontend/src/services/api/timeseries.ts` builds the URL from these
@@ -389,7 +389,7 @@ describe('createTimeseriesPageController', () => {
         expect(fetchData).toHaveBeenCalledTimes(1);
         const call = fetchData.mock.calls[0] ?? [];
         // 7 positional args, in this exact order:
-        //   startIso, endIso, width, cols, colorCol, lookaroundMs, signal
+        //   startIso, endIso, width, cols, colorCol, lookaroundMs, options
         expect(call).toHaveLength(7);
         expect(call[0]).toBe(new Date(100).toISOString());
         expect(call[1]).toBe(new Date(900).toISOString());
@@ -402,7 +402,7 @@ describe('createTimeseriesPageController', () => {
         expect(call[3]).toBe('value'); // selectedCols joined
         expect(call[4]).toBe('value'); // color column
         expect(call[5]).toBeGreaterThan(0);
-        expect(call[6]).toBeInstanceOf(AbortSignal);
+        expect(call[6]).toEqual({ signal: expect.any(AbortSignal) });
     });
 
     it('forwards a null colorCol when no color column is selected', async () => {

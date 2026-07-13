@@ -20,6 +20,7 @@ import {
 import { getNumericColumns, getDefaultTimeseriesColumns } from '../../platform/analyticsColumns.js';
 import type { DatasetMetadata, ViewSnapshot } from '../../types.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
+import type { ApiRequestOptions } from '../../services/api/http.js';
 
 export interface TimeseriesModuleDeps {
     fetchData: (
@@ -29,7 +30,7 @@ export interface TimeseriesModuleDeps {
         columns?: string,
         colorColumn?: string | null,
         lookaroundMs?: number,
-        signal?: AbortSignal,
+        options?: ApiRequestOptions,
     ) => Promise<import('../../types.js').DataObject>;
     fetchMetadata: () => Promise<DatasetMetadata>;
     workspace: Pick<WorkspaceStore, 'getSnapshot' | 'beginDatasetSession' | 'commitDataset' | 'setSelection' | 'setFilters' | 'setViewport'>;

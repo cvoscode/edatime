@@ -11,6 +11,7 @@ import { computeFrontendRollingBands } from '../../bootstrap/analyticsOverlay.js
 import { createRequestTask } from '../../platform/requestTask.js';
 import type { ViewSnapshot } from '../../types.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
+import type { ApiRequestOptions } from '../../services/api/http.js';
 import { analyticsState, setRollingBands } from '../../store/analyticsState.js';
 import { chartState, setViewport, setZoomHistory } from '../../store/chartState.js';
 import { datasetState } from '../../store/datasetState.js';
@@ -43,7 +44,7 @@ interface TimeseriesControllerDeps {
         cols: string,
         colorCol: string | null,
         lookaroundMs: number,
-        signal: AbortSignal,
+        options: ApiRequestOptions,
     ) => Promise<any>;
     buildRangeControls: () => void;
     updateAnalysisYRange: (min: number, max: number, sourceKind?: string) => void;
@@ -373,7 +374,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
                     dbg('selectedColorColumn', requestIntent.colorColumn);
                 });
 
-                return deps.fetchData(request.startIso, request.endIso, request.width, request.columns, request.colorColumn, request.lookaroundMs, signal);
+                return deps.fetchData(request.startIso, request.endIso, request.width, request.columns, request.colorColumn, request.lookaroundMs, { signal });
             };
 
             let data: any;
