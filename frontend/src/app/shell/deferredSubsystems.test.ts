@@ -144,6 +144,8 @@ describe('deferred shell subsystems', () => {
     it('wires analytics listeners to the explicit fetch callback instead of the window bridge', async () => {
         const deps = createDeps();
         const registry = createDeferredSubsystemRegistry();
+        const disposeAnalyticsListeners = vi.fn();
+        mocks.initAnalyticsListeners.mockReturnValue(disposeAnalyticsListeners);
         (window as Window & { __edatime?: Record<string, unknown> }).__edatime = {};
 
         await registry.ensureTimeseriesShell(deps);
@@ -154,6 +156,7 @@ describe('deferred shell subsystems', () => {
         await callback?.();
 
         expect(deps.fetchAndRenderAnalytics).toHaveBeenCalledTimes(1);
+        expect(deps.registerCleanup).toHaveBeenCalledWith(disposeAnalyticsListeners);
     });
 
     it('initializes Timeseries feature controls through its public surface', async () => {

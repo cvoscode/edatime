@@ -23,6 +23,7 @@ import {
 import { toast } from './toast.js';
 import { getHashPage } from './router.js';
 import { getDropdownValue, setDropdownValue } from '../ui/primitives/Dropdown.js';
+import { emitFeatureEvent } from '../platform/featureEvents.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 const STORAGE_KEY = 'edatime-session';
@@ -325,8 +326,7 @@ export function importSessionFromFile(): void {
                 if (snap?.version !== 1) throw new Error('Invalid session file');
                 applySession(snap);
                 toast('Session restored from file', 'success');
-                // Trigger re-render by dispatching custom event
-                window.dispatchEvent(new CustomEvent('edatime:session-restored'));
+                emitFeatureEvent('session:restored', undefined);
             } catch (e: any) {
                 toast(`Failed to import session: ${e.message}`, 'error');
             }

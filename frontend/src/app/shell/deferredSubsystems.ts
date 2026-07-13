@@ -107,7 +107,7 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
 
     registerSubsystem('analytics-listeners', async (deps) => {
         const { initAnalyticsListeners } = await import('../../bootstrap/analyticsOverlay.js');
-        initAnalyticsListeners(deps.fetchAndRenderAnalytics, deps.workspace);
+        deps.registerCleanup(initAnalyticsListeners(deps.fetchAndRenderAnalytics, deps.workspace));
     });
 
     registerSubsystem('annotation-subsystems', async () => {

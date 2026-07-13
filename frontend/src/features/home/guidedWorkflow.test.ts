@@ -261,4 +261,21 @@ describe('initGuidedWorkflow', () => {
 
         expect(document.getElementById('workflow-panel')?.classList.contains('workflow-panel--compact-shell')).toBe(false);
     });
+
+    it('refreshes workflow presentation after session restoration', async () => {
+        vi.resetModules();
+        const { initGuidedWorkflow } = await import('./guidedWorkflow.js');
+        const { emitFeatureEvent } = await import('../../platform/featureEvents.js');
+        const deps = workflowDeps();
+        initGuidedWorkflow(deps);
+        const panel = document.getElementById('workflow-panel') as HTMLElement;
+        panel.textContent = 'stale workflow';
+
+        emitFeatureEvent('session:restored', undefined);
+        await vi.advanceTimersByTimeAsync(50);
+
+        expect(panel.textContent).toContain('Open Upload');
+        const cleanup = deps.registerCleanup.mock.calls[0]?.[0] as (() => void);
+        cleanup();
+    });
 });

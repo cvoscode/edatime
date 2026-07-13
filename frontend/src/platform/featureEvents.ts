@@ -7,6 +7,7 @@
 export interface FeatureEventMap {
     'analytics:change': undefined;
     'causal:preselect': { columns: string[] };
+    'session:restored': undefined;
     'workflow:refresh': undefined;
 }
 

@@ -446,7 +446,7 @@ function bindStaticEvents(): () => void {
         markVisited(nextPage);
         scheduleGuidedWorkflowRender();
     }) as EventListener);
-    listen(window, 'edatime:session-restored', (() => scheduleGuidedWorkflowRender()) as EventListener);
+    cleanups.push(onFeatureEvent('session:restored', () => scheduleGuidedWorkflowRender()));
     cleanups.push(onFeatureEvent('workflow:refresh', () => scheduleGuidedWorkflowRender()));
     return () => cleanups.splice(0).reverse().forEach((cleanup) => cleanup());
 }
