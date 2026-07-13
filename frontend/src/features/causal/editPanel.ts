@@ -36,6 +36,7 @@ import {
     type EdgeEditDraft,
 } from './editDraft.js';
 import { renderEdgeDraftHtml } from './editPresentation.js';
+import { renderNodeEditHtml } from './nodeEditPresentation.js';
 
 export type EditTarget = { kind: 'node'; col: string } | { kind: 'edge'; key: string };
 
@@ -55,18 +56,6 @@ export function setEditTarget(t: EditTarget | null): void {
 export function nextDraftId(prefix: string): string {
     _draftSeq += 1;
     return `${prefix}-${_draftSeq}`;
-}
-
-function escH(value: string): string {
-    return String(value)
-        .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-}
-
-function attrsToJson(value: Record<string, unknown> | undefined): string {
-    return JSON.stringify(value ?? {}, null, 2);
 }
 
 function parseLooseValue(raw: string): unknown {
@@ -183,20 +172,11 @@ export function openEditPanel(target: EditTarget): void {
         const label = _nodeLabels.get(col) || col;
         const color = _chipColors.get(col) || '#00a8ff';
         if (titleEl) titleEl.textContent = `Node: ${col}`;
-        bodyEl.innerHTML = `
-          <label class="causal-field-row">
-            <span>Label</span>
-            <input type="text" id="ep-node-label" class="modal-input" style="flex:1" value="${escH(label)}">
-          </label>
-          <label class="causal-field-row">
-            <span>Color</span>
-            <input type="color" id="ep-node-color" value="${escH(color)}" style="width:36px;height:28px;padding:2px;">
-          </label>
-          <label class="causal-field-stack">
-            <span>Attributes (JSON)</span>
-            <textarea id="ep-node-attrs" class="modal-input causal-field-textarea">${escH(attrsToJson(_nodeAttrs.get(col) as unknown as Record<string, unknown> | undefined))}</textarea>
-            <span class="causal-field-hint">Store any node metadata here.</span>
-          </label>`;
+        bodyEl.innerHTML = renderNodeEditHtml({
+            label,
+            color,
+            attributes: (_nodeAttrs.get(col) ?? {}) as Record<string, unknown>,
+        });
         return;
     }
 
