@@ -197,6 +197,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 
 - Extracted FFT scale-control normalization and filter cutoff enablement/visibility policy into `fftControls`, with direct behavior coverage. The page now applies its deterministic control state while retaining DOM event wiring and API actions.
 - Extracted sample-rate, Nyquist, peak formatting, period conversion, and peak-row view modeling into `fftSpectralInfo`. The page now renders the structured live-region model rather than mixing spectral interpretation with DOM construction.
+- Added an owned abort scope for FFT page controls. Reinitialization now retires old mode, scale, clip, zoom, filter, and cutoff listeners; a page regression verifies one zoom click after two initializations resets exactly once.
 
 ### Completed: Spectrogram runtime decomposition
 

@@ -37,6 +37,7 @@ let fftChartReady: Promise<void> | null = null;
 const fftTraceColors: Record<string, string> = {};
 let fftRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
 let fftPageCleanup: (() => void) | null = null;
+let fftControlAbort: AbortController | null = null;
 let fftInitialSelectionSeeded = false;
 let workspace: Pick<WorkspaceStore, 'getSnapshot'> | null = null;
 
@@ -49,6 +50,8 @@ function setFieldHidden(fieldOrControl: HTMLElement | null, hidden: boolean): vo
 function resetFftPageState(): void {
     fftPageCleanup?.();
     fftPageCleanup = null;
+    fftControlAbort?.abort();
+    fftControlAbort = null;
     fftTraces = [];
     fftMode = 'magnitude';
     fftLogScale = true;
@@ -390,6 +393,10 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
             },
         },
         init() {
+            fftControlAbort?.abort();
+            const controlAbort = new AbortController();
+            fftControlAbort = controlAbort;
+            const listenerOptions = { signal: controlAbort.signal };
             // one-time setup
             void ensureFftChartReady();
             // Page-level "?" help button. Idempotent so safe to call
@@ -399,11 +406,11 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
             modeSelect?.addEventListener('change', () => {
                 fftMode = getDropdownValue('fft-mode-select') || 'magnitude';
                 rerenderOrClear();
-            });
+            }, listenerOptions);
             logCheck?.addEventListener('change', () => {
                 fftLogScale = logCheck.checked;
                 rerenderOrClear();
-            });
+            }, listenerOptions);
 
             const readScaleOptions = (): SpectralScaleOptions => buildFftScaleOptions({
                 mode: getDropdownValue('fft-normalize'),
@@ -414,7 +421,7 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
             normalizeSelect?.addEventListener('change', () => {
                 fftScaleOptions = readScaleOptions();
                 rerenderOrClear();
-            });
+            }, listenerOptions);
             // Re-query by id every time we sync, because upgradeSelects()
             // at app startup replaces native <select> elements with custom
             // dropdown <div>s, detaching the closure-captured references.
@@ -447,8 +454,8 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
                 fftScaleOptions = readScaleOptions();
                 rerenderOrClear();
             };
-            clipToggle?.addEventListener('change', onClipToggleChange);
-            clipToggle?.addEventListener('input', onClipToggleChange);
+            clipToggle?.addEventListener('change', onClipToggleChange, listenerOptions);
+            clipToggle?.addEventListener('input', onClipToggleChange, listenerOptions);
             // The custom dropdown forwards a bubbling `change` from its
             // root (see dispatchDropdownChange in Dropdown.ts), so listen
             // on the live element rather than the detached <select>.
@@ -457,16 +464,16 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
                 syncClipParamLabel();
                 fftScaleOptions = readScaleOptions();
                 rerenderOrClear();
-            });
+            }, listenerOptions);
             const liveClipParamEl = document.getElementById('fft-clip-param');
             liveClipParamEl?.addEventListener('change', () => {
                 fftScaleOptions = readScaleOptions();
                 rerenderOrClear();
-            });
+            }, listenerOptions);
             syncClipEnabled();
             syncClipParamLabel();
 
-            zoomResetBtn?.addEventListener('click', () => fftChart?.resetView());
+            zoomResetBtn?.addEventListener('click', () => fftChart?.resetView(), listenerOptions);
 
             document.getElementById('fft-filter-apply-btn')?.addEventListener('click', async () => {
                 const filterType = getDropdownValue('fft-filter-type');
@@ -520,7 +527,7 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
                     if (statusEl) statusEl.textContent = 'Error';
                     toast(`Spectral filter failed: ${String(error)}`, 'error');
                 }
-            });
+            }, listenerOptions);
 
             const filterTypeSelect = document.getElementById('fft-filter-type') as HTMLElement | null;
             // Centralised sync helper so the initial render and every
@@ -551,7 +558,7 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
                     bandEl.classList.toggle('is-hidden', !policy.bandVisible);
                 }
             };
-            filterTypeSelect?.addEventListener('change', syncFilterCutoffInputs);
+            filterTypeSelect?.addEventListener('change', syncFilterCutoffInputs, listenerOptions);
             syncFilterCutoffInputs();
 
             rerenderOrClear();
@@ -578,6 +585,10 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
             // Deferred export binding so csv dataCheck captures the current fftTraces
             // reference rather than a stale closure from mount time.
             fftRuntime?.bindExports();
+            return () => {
+                controlAbort.abort();
+                if (fftControlAbort === controlAbort) fftControlAbort = null;
+            };
         },
         onEveryPageChange() {
             // Re-render chips on every page change (fft needs to reflect selected columns from any page)

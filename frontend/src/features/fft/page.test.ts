@@ -145,6 +145,18 @@ describe('initFftPage', () => {
         expect(emptyState.hidden).toBe(true);
     });
 
+    it('replaces control listeners when the page is initialized twice', async () => {
+        const { initFftPage } = await import('./page');
+        await initFftPage({ renderTimeseries: vi.fn() });
+        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+        await initFftPage({ renderTimeseries: vi.fn() });
+        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+
+        (document.getElementById('fft-zoom-reset-btn') as HTMLButtonElement).click();
+
+        expect(fftChartInstance.resetView).toHaveBeenCalledTimes(1);
+    });
+
     it('fetches and renders a trace when a chip is clicked', async () => {
         fetchFftMock.mockResolvedValueOnce({
             sample_count: 64,
