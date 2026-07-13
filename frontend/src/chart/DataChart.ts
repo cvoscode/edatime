@@ -65,6 +65,7 @@ import { computeZoomPercentRange } from './zoomRangePolicy.js';
 import { computeDisplayYRange } from './displayYRangePolicy.js';
 import { mapCssPointToChartData } from './chartCoordinateMapper.js';
 import { buildChartGpuTheme, getChartGpuColorPalette, withChartGpuTheme } from './chartThemeOptions.js';
+import { getVisibilityByBaseName } from './seriesVisibility.js';
 import {
     DEFAULT_CHART_GRID,
     computeChartGrid,
@@ -615,16 +616,7 @@ export class DataChart {
     }
 
     private _getVisibilityByBaseNameFromChart(): Map<string, boolean> {
-        const vis = new Map<string, boolean>();
-        const series = this.chartInstance?.options?.series;
-        if (!Array.isArray(series)) return vis;
-        for (const s of series) {
-            const name = typeof s?.name === 'string' ? s.name : '';
-            const base = baseSeriesName(name);
-            if (!base) continue;
-            vis.set(base, s.visible !== false);
-        }
-        return vis;
+        return getVisibilityByBaseName(this.chartInstance?.options?.series, baseSeriesName);
     }
 
     private _syncLegendOverlay(): void {
