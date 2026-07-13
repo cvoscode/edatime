@@ -3,7 +3,7 @@ import {
     scatterState,
 } from '../../store/scatterState.js';
 import { setMetadata } from '../../store/datasetState.js';
-import { setViewport } from '../../store/chartState.js';
+import { makeWorkspaceSnapshot } from '../../workspace/workspaceStore.js';
 import { buildOverviewContextKey, buildScatterOverviewContext, buildScatterQueryContext, getActiveScatterFilterColumns } from './state.js';
 import { setScatterActiveView, setScatterViewSnapshot } from '../../store/scatterState.js';
 
@@ -15,10 +15,13 @@ function primePlotSnapshot(columnRanges: Record<string, { from: number; to: numb
     });
 }
 
+function workspaceIntent(xMin: number, xMax: number) {
+    return makeWorkspaceSnapshot({ viewport: { xMin, xMax, yMin: null, yMax: null } });
+}
+
 describe('scatter query context builders', () => {
     beforeEach(() => {
         document.body.innerHTML = '';
-        setViewport(null, null);
         setMetadata(null);
         setScatterActiveView('plot');
         primePlotSnapshot();
@@ -26,16 +29,16 @@ describe('scatter query context builders', () => {
 
     it('returns undefined start/end for invalid linked ranges in scatter queries', () => {
         document.body.innerHTML = '<input id="scatter-link-brush" type="checkbox" checked />';
-        setViewport(100, 50);
+        const intent = workspaceIntent(100, 50);
 
-        const result = buildScatterQueryContext();
+        const result = buildScatterQueryContext({}, intent);
         expect(result.start).toBeUndefined();
         expect(result.end).toBeUndefined();
     });
 
     it('returns valid start/end when the linked brush range is valid', () => {
         document.body.innerHTML = '<input id="scatter-link-brush" type="checkbox" checked />';
-        setViewport(100, 200);
+        const intent = workspaceIntent(100, 200);
         setMetadata({
             total_rows: 3,
             columns: [],
@@ -45,14 +48,13 @@ describe('scatter query context builders', () => {
             column_profiles: [],
         } as any);
 
-        const result = buildScatterQueryContext();
+        const result = buildScatterQueryContext({}, intent);
         expect(result.start).toBe(100);
         expect(result.end).toBe(200);
     });
 
-    it('uses explicit workspace filters and viewport ahead of legacy state', () => {
+    it('uses the explicit workspace filters and viewport', () => {
         document.body.innerHTML = '<input id="scatter-link-brush" type="checkbox" checked />';
-        setViewport(1, 2);
         setMetadata({ time_column: 'timestamp', column_profiles: [], columns: [], numeric_columns: [], time_range: { min: 0, max: 100 } } as any);
 
         const result = buildScatterQueryContext(
@@ -82,7 +84,7 @@ describe('scatter query context builders', () => {
 
     it('does not include linked time ranges when the dataset has no time column', () => {
         document.body.innerHTML = '<input id="scatter-link-brush" type="checkbox" checked />';
-        setViewport(100, 200);
+        const intent = workspaceIntent(100, 200);
         setMetadata({
             total_rows: 3,
             columns: [],
@@ -92,7 +94,7 @@ describe('scatter query context builders', () => {
             column_profiles: [],
         } as any);
 
-        const result = buildScatterQueryContext();
+        const result = buildScatterQueryContext({}, intent);
         expect(result.start).toBeUndefined();
         expect(result.end).toBeUndefined();
     });

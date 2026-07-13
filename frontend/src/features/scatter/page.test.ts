@@ -607,6 +607,7 @@ describe('initScatterPage view toggles', () => {
     it('renders on scatter page-change when the linked brush range changed since the last scatter render', async () => {
         const { initScatterPage } = await import('./page.js');
         const { computeInteractiveScatterLimit } = await import('./renderLimit.js');
+        const { createWorkspaceStore } = await import('../../workspace/workspaceStore.js');
 
         const metadata = {
             total_rows: 2,
@@ -624,13 +625,14 @@ describe('initScatterPage view toggles', () => {
         Object.defineProperty(scatterChart, 'getBoundingClientRect', {
             value: () => ({ width: 600, height: 300 }),
         });
+        const workspace = createWorkspaceStore();
+        workspace.setViewport({ xMin: 0, xMax: 1_000, yMin: null, yMax: null });
 
-        await initScatterPage(metadata);
+        await initScatterPage(metadata, { workspace });
 
         expect(fetchScatterPointsMock).toHaveBeenCalledTimes(1);
 
-        freshChartState.currentStart = 100;
-        freshChartState.currentEnd = 500;
+        workspace.setViewport({ xMin: 100, xMax: 500, yMin: null, yMax: null });
 
         emitNavigationChange({ page: 'scatter', analyticsView: 'plot' });
         await Promise.resolve();

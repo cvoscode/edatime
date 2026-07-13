@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { chartState } from '../../store/chartState.js';
 import { datasetState } from '../../store/datasetState.js';
 import { scatterState } from '../../store/scatterState.js';
+import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 import { configureScatterRuntime } from './runtime.js';
 import {
     disposeScatterPageRuntime,
@@ -83,10 +83,10 @@ describe('getScatterEmptyStateController', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         buildDom();
-        chartState.currentStart = 0;
-        chartState.currentEnd = 1_000;
+        const workspace = createWorkspaceStore();
+        workspace.setViewport({ xMin: 0, xMax: 1_000, yMin: null, yMax: null });
         datasetState.metadata = null;
-        configureScatterRuntime(null);
+        configureScatterRuntime(workspace);
         scatterState.loading = false;
         scatterState.chart = null;
         scatterState.totalPoints = 0;

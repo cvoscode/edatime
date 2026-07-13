@@ -324,7 +324,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
                 x: ctl.x,
                 y: ctl.y,
                 colorColumn: ctl.selectedColorColumn || undefined,
-            });
+            }, cb.workspace?.getSnapshot());
             if (
                 scatterState.pageInitialized
                 && scatterState.activeView === nextView

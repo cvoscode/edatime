@@ -7,7 +7,6 @@
  * `./state.js`.
  */
 
-import { chartState } from '../../store/chartState.js';
 import { datasetState } from '../../store/datasetState.js';
 import { getScatterViewSnapshot, scatterState } from '../../store/scatterState.js';
 import { buildAdaptiveLineFiltersForQueryState } from '../../services/timeseries/filtering.js';
@@ -141,8 +140,8 @@ export function buildScatterQueryContext(
     const activeSnapshot = intent
         ? null
         : getScatterViewSnapshot(scatterState.activeView === 'matrix' ? 'matrix' : 'plot');
-    const start = Number(intent?.viewport?.xMin ?? chartState.currentStart);
-    const end = Number(intent?.viewport?.xMax ?? chartState.currentEnd);
+    const start = Number(intent?.viewport?.xMin);
+    const end = Number(intent?.viewport?.xMax);
     const hasTimeColumn = !!String(datasetState.metadata?.time_column || '').trim();
     const allFilters = collectColumnRangeFilters(
         intent?.filters.columnRanges as Record<string, { from: number; to: number }> | undefined

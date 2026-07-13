@@ -17,7 +17,6 @@ import {
     exportScatterData,
 } from './rendering.js';
 import { getEl } from './helpers.js';
-import { chartState } from '../../store/chartState.js';
 import { datasetState } from '../../store/datasetState.js';
 import { scatterState } from '../../store/scatterState.js';
 import { createEmptyStateController, isRangeOutsideDataset } from '../../ui/emptyState.js';
@@ -60,9 +59,7 @@ function syncScatterFilterBanner(): void {
     const adaptiveCount = intent
         ? intent.filters.adaptiveLines.length
         : 0;
-    const hasZoomRange = intent
-        ? intent.viewport?.xMin != null && intent.viewport?.xMax != null
-        : Number.isFinite(chartState.currentStart) && Number.isFinite(chartState.currentEnd);
+    const hasZoomRange = intent?.viewport?.xMin != null && intent?.viewport?.xMax != null;
     const hasFilters = hasZoomRange || columnCount > 0 || adaptiveCount > 0;
 
     banner.hidden = !hasFilters;
@@ -137,8 +134,8 @@ export function syncScatterEmptyState(message?: string): void {
     syncScatterFilterBanner();
 
     const intent = currentIntent();
-    const start = intent?.viewport?.xMin ?? chartState.currentStart;
-    const end = intent?.viewport?.xMax ?? chartState.currentEnd;
+    const start = intent?.viewport?.xMin;
+    const end = intent?.viewport?.xMax;
     const linkedRangeOutside = isLinkedBrushEnabled()
         && isRangeOutsideDataset(datasetState.metadata?.time_range, start, end);
 

@@ -703,6 +703,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Spectrogram compute and initial auto-compute follow the same workspace-owned viewport path. The retired global chart-range fallback is gone from the runtime; when no viewport exists, its only fallback is the current dataset's declared time range.
 - Characterization coverage now injects a conflicting workspace viewport and verifies the exact ISO bounds sent by both feature APIs, including Spectrogram's `131072` point budget. This guards against reintroducing global chart-state reads during later analysis-feature work.
 
+### Completed: Scatter canonical viewport ownership
+
+- Scatter query construction no longer falls back to the global Timeseries chart range. Plot requests, matrix batches, matrix FFT, and Parquet export use the supplied `WorkspaceStore` snapshot, while an absent viewport deliberately means no linked time-range constraint.
+- The Scatter runtime's filter banner and empty-state range diagnosis now read the configured workspace only. Navigation cache-key calculation receives the same snapshot, so a workspace viewport publication deterministically invalidates the rendered query without a side-channel chart-state mutation.
+- Direct regressions cover valid and invalid linked workspace ranges, runtime presentation with a workspace fixture, and a navigation-driven Scatter refetch after changing only the canonical viewport.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.
