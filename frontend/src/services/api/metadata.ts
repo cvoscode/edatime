@@ -1,8 +1,8 @@
 import type { DatasetMetadata } from '../../types.js';
-import { getJson, assertDatasetMetadata } from './http.js';
+import { getJson, assertDatasetMetadata, type ApiRequestOptions } from './http.js';
 
-export async function fetchMetadata(): Promise<DatasetMetadata> {
-    const data = await getJson<unknown>('/api/v1/metadata', 'Metadata');
+export async function fetchMetadata(options?: ApiRequestOptions): Promise<DatasetMetadata> {
+    const data = await getJson<unknown>('/api/v1/metadata', 'Metadata', options);
     assertDatasetMetadata(data);
     return data;
 }

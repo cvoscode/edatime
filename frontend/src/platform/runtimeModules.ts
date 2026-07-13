@@ -12,7 +12,7 @@ import type { ChartInstance, ViewSnapshot } from '../types.js';
 import type { ApiRequestOptions } from '../services/api/http.js';
 
 export interface DataModules {
-    fetchMetadata: (signal?: AbortSignal) => Promise<import('../types.js').DatasetMetadata>;
+    fetchMetadata: (options?: ApiRequestOptions) => Promise<import('../types.js').DatasetMetadata>;
     fetchData: (
         start: string,
         end: string,

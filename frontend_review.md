@@ -214,6 +214,10 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Converted cancellable Upload preview and Drift investigation/stats requests to `ApiRequestOptions`, removing the final bare-signal route-family signatures while retaining unscoped database connection operations as explicit non-dataset requests.
 - Updated Upload preview and Drift-page callers to pass `{ signal }`; their focused feature/API characterization tests and the full application gate preserve cancellation and response behavior.
 
+### Completed: unified API cancellation contract
+
+- Converted Metadata to the same explicit request-options shape and removed stale bare-signal cache typings in the application/runtime loader. Every cancellable route family now exposes `ApiRequestOptions`; the sole remaining `AbortSignal` type in `services/api` is the intentional field of that options object.
+
 ### Completed: DataChart decomposition
 
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.

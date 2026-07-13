@@ -66,7 +66,7 @@ let timeseriesModule!: ReturnType<typeof createTimeseriesModule>;
 
 /* ── Lazy-loaded modules ──────────────────────────────── */
 
-let fetchMetadata: ((signal?: AbortSignal) => Promise<DatasetMetadata>) | null = null;
+let fetchMetadata: DataModules['fetchMetadata'] | null = null;
 let fetchData: DataModules['fetchData'] | null = null;
 let fetchAnomalies: DataModules['fetchAnomalies'] | null = null;
 let postTransform: ((expression: string, outputName: string) => Promise<TransformResponse>) | null = null;
