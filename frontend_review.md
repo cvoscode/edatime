@@ -218,6 +218,7 @@ Continue this behavior-preserving split with the remaining renderer-owned seams:
 - Consolidated Drift compute-toast aggregation onto the existing `viewModels.statusSummary` owner. Failed-column and data-quality warning formatting now has direct regression coverage instead of a duplicate page-local calculation.
 - Extracted timeline global and per-column summary HTML into `summaryPanels`, with direct empty-state and severity/metric rendering coverage; `page.ts` now performs only DOM assignment and lifecycle composition.
 - Extracted Drift CSV and JSON serialization into `exportPayloads`, preserving evaluated-window fields and export context under direct tests while keeping browser download initiation in the page controller.
+- Removed the retired Drift runtime request-task and export wrappers. The runtime is now limited to its live ECharts cache and empty-state bridge, with its tests narrowed to those actual responsibilities.
 - Next, split the remaining request-payload and timeline-summary presentation seams only where the resulting boundary reduces page-controller ownership.
 
 ## Target Architecture
