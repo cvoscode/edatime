@@ -185,7 +185,6 @@ describe('app -> timeseries bootstrap wiring', () => {
             renderCurrentData: vi.fn(),
             buildColumnToggles: vi.fn(),
             buildRangeControls: vi.fn(),
-            emitChartRangeChange: vi.fn(),
             onZoomRangeChange: vi.fn(),
             refreshAfterMutation: vi.fn().mockResolvedValue(undefined),
         });

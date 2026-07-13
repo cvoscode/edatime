@@ -52,7 +52,6 @@ describe('createTimeseriesControls', () => {
             renderCurrentData: vi.fn(),
             updateAnalysisYRange: vi.fn(),
             updateAnalysisZoom: vi.fn(),
-            emitChartRangeChange: vi.fn(),
         });
 
         expect(feature.init).toBeTypeOf('function');
@@ -69,7 +68,6 @@ describe('createTimeseriesControls', () => {
             renderCurrentData,
             updateAnalysisYRange: vi.fn(),
             updateAnalysisZoom: vi.fn(),
-            emitChartRangeChange: vi.fn(),
         });
 
         feature.rebuildColumns();
@@ -91,7 +89,6 @@ describe('createTimeseriesControls', () => {
             updateAnalysisYRange: vi.fn(),
             renderColumnProfilesGrid: vi.fn(),
             updateAnalysisZoom: vi.fn(),
-            emitChartRangeChange: vi.fn(),
         };
         const feature = createTimeseriesControls(deps);
 
@@ -109,7 +106,6 @@ describe('createTimeseriesControls', () => {
             renderCurrentData: deps.renderCurrentData,
             buildRangeControls: expect.any(Function),
             updateAnalysisZoom: deps.updateAnalysisZoom,
-            emitChartRangeChange: deps.emitChartRangeChange,
             registerCleanup: expect.any(Function),
             rebuildColumnToggles: expect.any(Function),
             renderColumnProfilesGrid: deps.renderColumnProfilesGrid,
@@ -126,7 +122,6 @@ describe('createTimeseriesControls', () => {
             renderCurrentData: vi.fn(),
             updateAnalysisYRange: vi.fn(),
             updateAnalysisZoom: vi.fn(),
-            emitChartRangeChange: vi.fn(),
         });
 
         const dispose = feature.init();
@@ -146,7 +141,6 @@ describe('createTimeseriesControls', () => {
             renderCurrentData: vi.fn(),
             updateAnalysisYRange: vi.fn(),
             updateAnalysisZoom: vi.fn(),
-            emitChartRangeChange: vi.fn(),
         });
         const onPageChange = vi.fn();
         window.addEventListener('edatime:page-change', onPageChange);
@@ -168,7 +162,6 @@ describe('createTimeseriesControls', () => {
             renderCurrentData: vi.fn(),
             updateAnalysisYRange: vi.fn(),
             updateAnalysisZoom: vi.fn(),
-            emitChartRangeChange: vi.fn(),
             chartExportPng: vi.fn(),
             chartExportSvg: vi.fn(),
             exportFilteredCsv: vi.fn(),
@@ -195,7 +188,6 @@ describe('createTimeseriesControls', () => {
             renderCurrentData: vi.fn(),
             updateAnalysisYRange: vi.fn(),
             updateAnalysisZoom: vi.fn(),
-            emitChartRangeChange: vi.fn(),
             chartExportPng: vi.fn(),
             // missing the rest
         });

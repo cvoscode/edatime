@@ -197,7 +197,6 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         rememberAppliedViewport(workspaceViewport);
 
         deps.updateAnalysisZoom(newStart, newEnd, sourceKind);
-        emitChartRangeChange(sourceKind);
     }
 
     const task = createRequestTask({
@@ -210,13 +209,6 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
 
         },
     });
-
-    function emitChartRangeChange(sourceKind = 'data'): void {
-        if (!Number.isFinite(chartState.currentStart) || !Number.isFinite(chartState.currentEnd)) return;
-        window.dispatchEvent(new CustomEvent('edatime:chart-range-change', {
-            detail: { start: chartState.currentStart, end: chartState.currentEnd, source: sourceKind },
-        }));
-    }
 
     function renderCurrentData(): void {
         const emptyState = getTimeseriesEmptyStateController();
@@ -342,7 +334,6 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             deps.buildRangeControls();
             chartState.chart?.setXRange?.(currentStart, currentEnd);
             renderCurrentData();
-            emitChartRangeChange('data');
             return;
         }
 
@@ -415,7 +406,6 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             deps.buildRangeControls();
             chartState.chart?.setXRange?.(currentStart, currentEnd);
             renderCurrentData();
-            emitChartRangeChange('data');
 
             if (analyticsState.anomalyEnabled) {
                 deps.fetchAndRenderAnalytics().catch(() => { });
@@ -520,7 +510,6 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
 
     return {
         dispose,
-        emitChartRangeChange,
         fetchAndRender,
         onZoomRangeChange,
         renderCurrentData,

@@ -131,7 +131,6 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         renderCurrentData: () => pageController.renderCurrentData(),
         updateAnalysisYRange: deps.updateAnalysisYRange,
         updateAnalysisZoom: deps.updateAnalysisZoom,
-        emitChartRangeChange: (sourceKind) => pageController.emitChartRangeChange(sourceKind),
         chartExportPng: deps.chartExportPng,
         chartExportSvg: deps.chartExportSvg,
         exportFilteredCsv: deps.exportFilteredCsv,
@@ -171,7 +170,6 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         deps.setViewport(start, end);
         deps.workspace.setViewport({ xMin: start, xMax: end, yMin: null, yMax: null });
         deps.updateAnalysisZoom(start, end, 'initial');
-        pageController.emitChartRangeChange('initial');
     };
 
     const bootstrap = createDatasetBootstrap({
@@ -200,7 +198,6 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         setViewport: deps.setViewport,
         updateAnalysisZoom: deps.updateAnalysisZoom,
         emitWorkflowRefresh: () => emitFeatureEvent('workflow:refresh', undefined),
-        emitChartRangeChange: (sourceKind?: string) => pageController.emitChartRangeChange(sourceKind),
         setAdaptiveFilterColumn: deps.setAdaptiveFilterColumn,
     });
 
@@ -245,7 +242,6 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         renderCurrentData: () => pageController.renderCurrentData(),
         buildColumnToggles: () => feature.rebuildColumns(),
         buildRangeControls: () => feature.buildRangeControls(),
-        emitChartRangeChange: (sourceKind?: string) => pageController.emitChartRangeChange(sourceKind),
         onZoomRangeChange: (view: ViewSnapshot, sourceKind?: string) => pageController.onZoomRangeChange(view, sourceKind),
         resetZoom: () => pageController.resetZoom(),
         zoomOut: () => pageController.zoomOut(),

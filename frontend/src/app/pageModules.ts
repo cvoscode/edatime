@@ -28,7 +28,7 @@ export interface PageDescriptorInitDeps {
     showPage: (name: string) => void;
     chipColor: (col: string, idx: number) => string;
     setLoading: (btnId: string, overlayId: string, loading: boolean, label?: string) => void;
-    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters'>;
+    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'subscribe'>;
 }
 
 export interface PageDescriptor {

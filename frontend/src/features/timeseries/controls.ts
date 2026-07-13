@@ -20,7 +20,6 @@ export interface TimeseriesFeatureDeps {
     updateAnalysisYRange: (min: number, max: number, sourceKind?: string) => void;
     renderColumnProfilesGrid?: (force?: boolean) => void;
     updateAnalysisZoom: (start: number, end: number, sourceKind?: string) => void;
-    emitChartRangeChange: (sourceKind?: string) => void;
     chartExportPng?: () => void;
     chartExportSvg?: () => void;
     exportFilteredCsv?: () => void;
@@ -74,7 +73,6 @@ export function createTimeseriesControls(deps: TimeseriesFeatureDeps) {
                 fetchAndRender: deps.fetchAndRender,
                 renderCurrentData: deps.renderCurrentData,
                 updateAnalysisZoom: deps.updateAnalysisZoom,
-                emitChartRangeChange: deps.emitChartRangeChange,
                 registerCleanup,
             });
             if (deps.chartExportPng && deps.chartExportSvg && deps.exportFilteredCsv

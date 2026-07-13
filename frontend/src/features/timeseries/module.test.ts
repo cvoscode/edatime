@@ -55,7 +55,6 @@ vi.mock('./ensureReady.js', () => ({
 // ── Shared mock helpers ───────────────────────────────────────────────────────
 const mockPageController = () => ({
     dispose: vi.fn(),
-    emitChartRangeChange: vi.fn(),
     fetchAndRender: vi.fn().mockResolvedValue(undefined),
     onZoomRangeChange: vi.fn(),
     renderCurrentData: vi.fn(),
@@ -142,7 +141,6 @@ describe('createTimeseriesModule', () => {
         expect(mod.renderCurrentData).toBeDefined();
         expect(mod.buildColumnToggles).toBeDefined();
         expect(mod.buildRangeControls).toBeDefined();
-        expect(mod.emitChartRangeChange).toBeDefined();
         expect(mod.onZoomRangeChange).toBeDefined();
         expect(mod.zoomOut).toBeDefined();
         expect(mod.resetZoom).toBeDefined();
@@ -245,7 +243,6 @@ describe('createTimeseriesModule', () => {
             'renderCurrentData',
             'buildColumnToggles',
             'buildRangeControls',
-            'emitChartRangeChange',
             'onZoomRangeChange',
             'zoomOut',
             'resetZoom',

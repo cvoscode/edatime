@@ -75,10 +75,11 @@ import { renderScatterChart } from './chartLifecycle.js';
 import type { DatasetMetadata } from '../../types/api.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
-let workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters'> | null = null;
+let workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'subscribe'> | null = null;
 let disposeBoundControls: (() => void) | null = null;
 let toolbarOverflow: ToolbarOverflowController | null = null;
 let matrixRenderSession: MatrixRenderSession = createMatrixRenderSession();
+let suppressWorkspaceReaction = false;
 
 /** Request task for scatter data fetching with abort-before-new semantics. */
 const scatterTask = createRequestTask({
@@ -110,6 +111,10 @@ export function disposeScatterPage(): void {
     toolbarOverflow = null;
     matrixRenderSession.dispose();
     matrixRenderSession = createMatrixRenderSession();
+    if (_scatterDebounceTimer) {
+        clearTimeout(_scatterDebounceTimer);
+        _scatterDebounceTimer = null;
+    }
     scatterTask.cancel();
     disposeScatterChart(true);
     scatterState.initialized = false;
@@ -186,13 +191,19 @@ async function setScatterView(viewName: string, options: { render?: boolean } = 
                 keepAbove: spec.keepAbove,
             };
         });
-        const filters = workspace?.getSnapshot().filters;
-        if (filters) {
-            workspace?.setFilters({
-                ...filters,
-                columnRanges: enteringSnapshot.columnRanges,
-                adaptiveLines: storedAdaptive as any,
-            });
+        const activeWorkspace = workspace;
+        const filters = activeWorkspace?.getSnapshot().filters;
+        if (filters && activeWorkspace) {
+            suppressWorkspaceReaction = true;
+            try {
+                activeWorkspace.setFilters({
+                    ...filters,
+                    columnRanges: enteringSnapshot.columnRanges,
+                    adaptiveLines: storedAdaptive as any,
+                });
+            } finally {
+                suppressWorkspaceReaction = false;
+            }
         }
     }
 
@@ -407,6 +418,7 @@ function bindControls(): Promise<void> {
             renderScatterDebounced,
             syncScatterFilterBadge,
             refreshToolbarOverflow: () => toolbarOverflow?.refresh(),
+            shouldIgnoreWorkspaceChange: () => suppressWorkspaceReaction,
             workspace: workspace ?? undefined,
             exportScatterParquet: () => exportScatterParquet(workspace?.getSnapshot()),
         });
@@ -417,7 +429,7 @@ function bindControls(): Promise<void> {
 
 export async function initScatterPage(
     metadata: DatasetMetadata,
-    deps: { workspace?: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters'> } = {},
+    deps: { workspace?: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'subscribe'> } = {},
 ): Promise<() => void> {
     // The descriptor is lazy-loaded while Scatter is already becoming
     // visible, so its first page-change event may have happened before this

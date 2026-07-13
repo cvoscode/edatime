@@ -42,7 +42,6 @@ describe('initTimeseriesActions clear-all-filters', () => {
             renderCurrentData: vi.fn(),
             fetchAndRender: vi.fn(async () => { }),
             updateAnalysisZoom: vi.fn(),
-            emitChartRangeChange: vi.fn(),
             registerCleanup: vi.fn(),
             workspace,
         };

@@ -28,7 +28,7 @@ function createDeps(): PageDescriptorInitDeps {
         showPage: vi.fn(),
         chipColor: vi.fn(() => '#fff'),
         setLoading: vi.fn(),
-        workspace: { getSnapshot: vi.fn(() => makeWorkspaceSnapshot()), setFilters: vi.fn() },
+        workspace: { getSnapshot: vi.fn(() => makeWorkspaceSnapshot()), setFilters: vi.fn(), subscribe: vi.fn(() => vi.fn()) },
     };
 }
 
@@ -48,6 +48,7 @@ describe('page module descriptors', () => {
         const workspace = {
             getSnapshot: vi.fn(() => makeWorkspaceSnapshot({ dataset: { metadata } })),
             setFilters: vi.fn(),
+            subscribe: vi.fn(() => vi.fn()),
         };
         const deps = { ...createDeps(), workspace };
         const register = vi.fn();

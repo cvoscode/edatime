@@ -7,7 +7,7 @@
  * - Suggestion threshold, linked brush
  * - Matrix mode toggle and cell size
  * - Export buttons
- * - Page-change and filter event listeners
+ * - Page-change listener and canonical workspace filter observation
  *
  * The density colormap is no longer a per-page toolbar control — it is
  * configured globally on the settings page and consumed via the
@@ -58,7 +58,29 @@ export interface ScatterRenderCallbacks {
     syncScatterFilterBadge: () => void;
     refreshToolbarOverflow?: () => void;
     exportScatterParquet?: () => Promise<boolean>;
-    workspace?: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters'>;
+    workspace?: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'subscribe'>;
+    shouldIgnoreWorkspaceChange?: () => boolean;
+}
+
+function filterSignature(filters: ReturnType<WorkspaceStore['getSnapshot']>['filters']): string {
+    const ranges = Object.entries(filters.columnRanges)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([column, range]) => [column, range.from, range.to]);
+    const adaptiveLines = filters.adaptiveLines.map((filter) => [
+        filter.id,
+        filter.column,
+        filter.x1,
+        filter.y1,
+        filter.x2,
+        filter.y2,
+        filter.keepAbove,
+    ]);
+    return JSON.stringify([ranges, adaptiveLines]);
+}
+
+function viewportSignature(viewport: ReturnType<WorkspaceStore['getSnapshot']>['viewport']): string {
+    if (!viewport) return '';
+    return [viewport.xMin, viewport.xMax, viewport.yMin, viewport.yMax].join('|');
 }
 
 /**
@@ -221,9 +243,26 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
         } catch (err: any) { cb.handleErr(err); }
     };
 
-    listen(window, 'edatime:chart-range-change', () => handleFilterEvent(true));
-    listen(window, 'edatime:column-filters-change', () => handleFilterEvent(false));
-    listen(window, 'edatime:adaptive-filters-change', () => handleFilterEvent(false));
+    if (cb.workspace) {
+        let previousFilters = filterSignature(cb.workspace.getSnapshot().filters);
+        let previousViewport = viewportSignature(cb.workspace.getSnapshot().viewport);
+        const unsubscribeWorkspace = cb.workspace.subscribe((snapshot) => {
+            const nextFilters = filterSignature(snapshot.filters);
+            const nextViewport = viewportSignature(snapshot.viewport);
+            const filtersChanged = nextFilters !== previousFilters;
+            const viewportChanged = nextViewport !== previousViewport;
+            previousFilters = nextFilters;
+            previousViewport = nextViewport;
+            if (cb.shouldIgnoreWorkspaceChange?.()) return;
+
+            if (filtersChanged) {
+                void handleFilterEvent(false);
+            } else if (viewportChanged) {
+                void handleFilterEvent(true);
+            }
+        });
+        controller.signal.addEventListener('abort', unsubscribeWorkspace, { once: true });
+    }
     listen(window, 'edatime:clear-all-filters', async () => {
         const filters = cb.workspace?.getSnapshot().filters;
         if (filters) {

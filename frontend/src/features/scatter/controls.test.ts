@@ -501,6 +501,40 @@ describe('bindScatterControls', () => {
         expect(callbacks.refreshActiveScatterView).toHaveBeenCalled();
     });
 
+    it('reacts to canonical workspace filter changes without a window event', async () => {
+        const { bindScatterControls } = await import('./controls.js');
+        const callbacks = {
+            initScatterPage: vi.fn(async () => { }),
+            renderScatter: vi.fn(async () => { }),
+            refreshCorrelationsAndSuggestions: vi.fn(async () => { }),
+            refreshActiveScatterView: vi.fn(async () => { }),
+            setScatterView: vi.fn(async () => { }),
+            handleErr: vi.fn(),
+            rerenderScatterFromCache: vi.fn(async () => { }),
+            renderScatterDebounced: vi.fn(),
+            syncScatterFilterBadge: vi.fn(),
+        };
+        const workspace = createWorkspaceStore();
+        const dispose = bindScatterControls({ ...callbacks, workspace });
+
+        workspace.setFilters({
+            columnRanges: { HUFL: { from: 1, to: 2 } },
+            adaptiveLines: [],
+        });
+        await Promise.resolve();
+
+        expect(callbacks.syncScatterFilterBadge).toHaveBeenCalledTimes(1);
+        expect(callbacks.renderScatterDebounced).toHaveBeenCalledTimes(1);
+
+        callbacks.syncScatterFilterBadge.mockClear();
+        callbacks.renderScatterDebounced.mockClear();
+        dispose();
+        workspace.setFilters({ columnRanges: {}, adaptiveLines: [] });
+
+        expect(callbacks.syncScatterFilterBadge).not.toHaveBeenCalled();
+        expect(callbacks.renderScatterDebounced).not.toHaveBeenCalled();
+    });
+
     it('replaces prior control listeners and disposes the active binding', async () => {
         const { bindScatterControls } = await import('./controls.js');
         const firstRender = vi.fn(async () => { });

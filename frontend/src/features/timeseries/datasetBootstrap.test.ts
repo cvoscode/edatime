@@ -96,7 +96,6 @@ function createDeps(overrides: Partial<DatasetBootstrapDeps> = {}): DatasetBoots
         ensureSessionPersistenceStarted: vi.fn(),
         setViewport: vi.fn(),
         updateAnalysisZoom: vi.fn(),
-        emitChartRangeChange: vi.fn(),
         emitWorkflowRefresh: vi.fn(),
         ...overrides,
     };

@@ -506,6 +506,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Removed the unowned `edatime:metadata-ready` and `edatime:dataset-changed` broadcasts from Timeseries dataset bootstrap and post-mutation refresh. Metadata publication, workspace dataset commits, UI rebuilding, and visible-data refresh are already explicit composition steps.
 - Replaced the old broadcast characterization with a regression that proves neither global event is published during initial metadata bootstrap or a dataset mutation refresh.
 
+### Completed: Scatter canonical filter and viewport observation
+
+- Scatter controls now subscribe to the canonical WorkspaceStore and compare its immutable filter and viewport snapshots. Filter changes refresh the badge and schedule the active Scatter view; viewport changes preserve the existing linked-brush gating.
+- Removed the unowned `edatime:chart-range-change` fan-out and its Timeseries callback plumbing. Chart viewport changes are already published through the WorkspaceStore, so no separate global notification is needed.
+- The subscription is tied to the Scatter controls abort scope; a regression proves a disposed binding cannot react to later workspace changes. View-switch restoration suppresses only its own synchronous workspace publication, preventing an unnecessary second Scatter request during initialization.
+
 ### Completed: Drift page decomposition
 
 - Extracted evaluation-mode normalization, latest-window validation, and response-map filtering into `evaluationPolicy` with direct behavior coverage.

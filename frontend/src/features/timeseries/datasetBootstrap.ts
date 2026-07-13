@@ -37,7 +37,6 @@ export interface DatasetBootstrapDeps {
     ensureSessionPersistenceStarted?: () => void;
     setViewport: (start: number, end: number) => void;
     updateAnalysisZoom: (start: number, end: number, sourceKind: string) => void;
-    emitChartRangeChange: (sourceKind?: string) => void;
 }
 
 interface BootstrapResult {

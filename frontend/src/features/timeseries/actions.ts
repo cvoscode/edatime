@@ -29,7 +29,6 @@ export interface TimeseriesActionDeps {
     renderCurrentData: () => void;
     fetchAndRender: () => Promise<void>;
     updateAnalysisZoom: (start: number, end: number, sourceKind?: string) => void;
-    emitChartRangeChange: (sourceKind?: string) => void;
     registerCleanup: (cleanup: () => void) => void;
 }
 
@@ -144,7 +143,6 @@ export function initTimeseriesActions(deps: TimeseriesActionDeps): void {
         setViewport(minMs, maxMs);
         chartState.chart?.setXRange?.(minMs, maxMs);
         deps.updateAnalysisZoom(minMs, maxMs, source);
-        deps.emitChartRangeChange(source);
         await deps.fetchAndRender();
     };
 
