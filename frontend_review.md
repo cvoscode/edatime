@@ -202,7 +202,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Extracted trace-load viewport resolution and API-result-to-chart-trace projection into `fftTraceModel`, directly covering workspace-view precedence and malformed-result rejection before the page mutates its active trace list.
 - The remaining page controller is the intended interaction composition layer: it owns trace/chip state, async loading feedback, user-triggered filter actions, and calls to dedicated chart, request, control, and presentation owners.
 
-### In progress: Timeseries controller review
+### Completed: Timeseries controller review
 
 - Next, review `features/timeseries/controller` against the now-decomposed `DataChart` boundary and extract the largest deterministic request or state policy that is still embedded in page orchestration.
 - Extracted Timeseries API request construction into `timeseriesRequest`, directly covering valid range/selection gating, ISO bounds, chart width, color-column serialization, and the minimum lookaround contract before the controller issues the request.
@@ -214,6 +214,10 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Made reusable empty-state actions disposable and chained Timeseries controller disposal through its module mount handle. Unmounting now aborts a pending data request and removes reset-range listeners; page runtime also releases any empty-state controller it lazily created.
 - Extracted bounded zoom-restore history and consecutive zoom-out reset decisions into `zoomHistoryPolicy`, preserving snapshot isolation and raw-buffer restoration while making the controller responsible only for applying its selected chart/workspace transition.
 - Fixed the shared page-runtime unmount/remount contract: cleanup now releases the mounted state and is idempotent, so feature lifecycles can safely register again after a real unmount.
+
+### In progress: feature-specific workflow ownership
+
+- The next boundary audit identified `ui/guidedWorkflow.ts` as a feature-specific, causal-aware workflow controller incorrectly located in the reusable UI layer. Move it under Home or shell feature ownership, update deferred-shell and command imports to use that public surface, and add an architecture rule ensuring reusable UI does not import feature controllers.
 
 ### Completed: Spectrogram runtime decomposition
 
