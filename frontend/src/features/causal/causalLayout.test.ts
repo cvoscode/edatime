@@ -10,6 +10,6 @@ describe('causal toolbar lag contract', () => {
         expect(indexHtml).toContain('id="causal-tau-max"');
         expect(indexHtml).toContain('max="128"');
         expect(indexHtml).toContain('Maximum time lag τ to test (1–128)');
-        expect(indexHtml).toContain('id="settings-tau-max"');
+        expect(indexHtml).not.toContain('id="settings-tau-max"');
     });
 });

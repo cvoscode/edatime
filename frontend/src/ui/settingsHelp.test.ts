@@ -46,10 +46,10 @@ describe('settings help button', () => {
         // Every supported tab section should be present.
         expect(modal?.textContent).toContain('Appearance tab');
         expect(modal?.textContent).toContain('Analytics tab');
-        expect(modal?.textContent).toContain('Causal tab');
         expect(modal?.textContent).toContain('Timeseries tab');
         expect(modal?.textContent).not.toContain('Export tab');
         expect(modal?.textContent).not.toContain('Spectral tab');
+        expect(modal?.textContent).not.toContain('Causal tab');
     });
 
     it('initSettingsHelp is safe to call twice (idempotent)', async () => {

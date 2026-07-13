@@ -2337,7 +2337,6 @@
           <div class="settings-tabs">
             <button class="settings-tab-btn active" data-tab="appearance" type="button">Appearance</button>
             <button class="settings-tab-btn" data-tab="analytics" type="button">Analytics</button>
-            <button class="settings-tab-btn" data-tab="causal" type="button">Causal</button>
             <button class="settings-tab-btn" data-tab="timeseries" type="button">Timeseries</button>
           </div>
 
@@ -2407,33 +2406,6 @@
                     <option value="kendall_diff">Kendall tau · First differences</option>
                   </select>
                   <div class="settings-hint">Used for scatter suggestions, scatter readouts, and the heatmap.</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Causal Tab -->
-          <div class="settings-tab-panel" data-tab="causal" hidden>
-            <div class="settings-section">
-              <div class="settings-section-title">Causal Discovery</div>
-              <div class="settings-row">
-                <label class="settings-label" for="settings-causal-method">Default method</label>
-                <div class="settings-control">
-                  <select id="settings-causal-method" class="modal-select">
-                    <option value="pcmci">PCMCI</option>
-                    <option value="pcmciplus">PCMCI+</option>
-                    <option value="lpcmci">LPCMCI</option>
-                    <option value="fullci">Full CI</option>
-                    <option value="bivci">Bivariate CI</option>
-                  </select>
-                </div>
-              </div>
-              <div class="settings-row">
-                <label class="settings-label" for="settings-tau-max">Default tau max</label>
-                <div class="settings-control">
-                  <input id="settings-tau-max" type="number" class="modal-input" min="1" max="128" value="5"
-                    style="width:80px;">
-                  <div class="settings-hint">Maximum time lag to consider</div>
                 </div>
               </div>
             </div>

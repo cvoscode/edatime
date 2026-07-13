@@ -38,15 +38,6 @@ export const SETTINGS_HELP: PageHelpContent = {
             ],
         },
         {
-            title: 'Causal tab',
-            body:
-                'Defaults for the Causal Discovery page.',
-            bullets: [
-                'Default method — PCMCI / PCMCI+ / FullCI / BivCI / LPCMCI',
-                'Max lag (tau_max) — the largest lag the algorithm will consider',
-            ],
-        },
-        {
             title: 'Timeseries tab',
             body:
                 'Per-chart behaviour preferences.',

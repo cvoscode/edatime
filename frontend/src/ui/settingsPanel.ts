@@ -108,10 +108,6 @@ function populateSettingsForm(settings: AppSettings): void {
     // Analytics tab
     setSelectValue('settings-correlation', settings.defaultCorrelationMetric);
 
-    // Causal tab
-    setSelectValue('settings-causal-method', settings.defaultCausalMethod);
-    setInputValue('settings-tau-max', settings.defaultTauMax.toString());
-
     // Timeseries tab
     setCheckboxValue('settings-draw-auto-reset', settings.drawAutoReset);
     setSelectValue('settings-color-scale', settings.colorScale);
@@ -128,8 +124,6 @@ function collectSettingsFromForm(): AppSettings {
         layoutDensity: getSelectValue('settings-layout') as LayoutDensity || DEFAULT_SETTINGS.layoutDensity,
         defaultPalette: (getSelectValue('settings-palette') as AppSettings['defaultPalette']) || DEFAULT_SETTINGS.defaultPalette,
         defaultCorrelationMetric: getSelectValue('settings-correlation') as CorrelationMetric || DEFAULT_SETTINGS.defaultCorrelationMetric,
-        defaultCausalMethod: getSelectValue('settings-causal-method') || DEFAULT_SETTINGS.defaultCausalMethod,
-        defaultTauMax: parseInt(getInputValue('settings-tau-max'), 10) || DEFAULT_SETTINGS.defaultTauMax,
         drawAutoReset: getCheckboxValue('settings-draw-auto-reset'),
         colorScale: getSelectValue('settings-color-scale') as ColorScaleName || DEFAULT_SETTINGS.colorScale,
         sidebarCollapsed: getCheckboxValue('settings-sidebar-collapsed'),
@@ -252,8 +246,6 @@ export function initSettingsPanel(): void {
     });
 
     document.getElementById('settings-correlation')?.addEventListener('change', markUnsavedChanges);
-    document.getElementById('settings-causal-method')?.addEventListener('change', markUnsavedChanges);
-    document.getElementById('settings-tau-max')?.addEventListener('input', markUnsavedChanges);
     document.getElementById('settings-draw-auto-reset')?.addEventListener('change', markUnsavedChanges);
     document.getElementById('settings-color-scale')?.addEventListener('change', markUnsavedChanges);
     document.getElementById('settings-sidebar-collapsed')?.addEventListener('change', markUnsavedChanges);

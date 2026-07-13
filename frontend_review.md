@@ -447,6 +447,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 
 - Removed the Export and Spectral settings tabs because their three persisted values (`defaultExportFormat`, `whiteBackgroundExport`, and `defaultFftPreset`) had no runtime consumer.
 - The settings loader now reconstructs its canonical shape from supported fields instead of spreading arbitrary persisted JSON into application state, so retired settings cannot regain an owner accidentally.
+- Retired the equally inert Causal defaults (`defaultCausalMethod` and `defaultTauMax`): the Causal feature owns its active controls and never read the settings values. The remaining settings tabs now contain only live application behavior.
 
 ### Completed: Drift page decomposition
 

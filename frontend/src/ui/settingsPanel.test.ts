@@ -33,11 +33,6 @@ function buildSettingsDom(): void {
                     <option value="pearson_raw">Pearson</option>
                     <option value="spearman_raw">Spearman</option>
                 </select>
-                <select id="settings-causal-method">
-                    <option value="pcmci">PCMCI</option>
-                    <option value="fullci">Full CI</option>
-                </select>
-                <input id="settings-tau-max" type="number" value="5" />
                 <input id="settings-draw-auto-reset" type="checkbox" />
                 <select id="settings-color-scale">
                     <option value="viridis">Viridis</option>

@@ -50,10 +50,14 @@ describe('settings correlation mode', () => {
             defaultExportFormat: 'png',
             whiteBackgroundExport: true,
             defaultFftPreset: 'balanced',
+            defaultCausalMethod: 'pcmci',
+            defaultTauMax: 12,
         }));
 
         expect(loadSettings()).not.toHaveProperty('defaultExportFormat');
         expect(loadSettings()).not.toHaveProperty('whiteBackgroundExport');
         expect(loadSettings()).not.toHaveProperty('defaultFftPreset');
+        expect(loadSettings()).not.toHaveProperty('defaultCausalMethod');
+        expect(loadSettings()).not.toHaveProperty('defaultTauMax');
     });
 });

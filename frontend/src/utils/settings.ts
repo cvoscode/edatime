@@ -1,7 +1,7 @@
 /**
  * Application settings management.
  *
- * Handles user preferences for theme, layout, default palettes, export formats, etc.
+ * Handles user preferences for theme, layout, palettes, and chart behavior.
  * Settings are persisted to localStorage and survive across sessions.
  */
 
@@ -31,10 +31,6 @@ export interface AppSettings {
     // Analytics
     defaultCorrelationMetric: CorrelationMetric;
 
-    // Causal
-    defaultCausalMethod: string;
-    defaultTauMax: number;
-
     // Timeseries chart preferences
     drawAutoReset: boolean;
     colorScale: ColorScaleName;
@@ -47,8 +43,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
     layoutDensity: 'spacious',
     defaultPalette: 'default',
     defaultCorrelationMetric: 'pearson_raw',
-    defaultCausalMethod: 'pcmci',
-    defaultTauMax: 5,
     drawAutoReset: false,
     colorScale: 'viridis',
     sidebarCollapsed: false,
@@ -68,8 +62,6 @@ export function loadSettings(): AppSettings {
             layoutDensity: parsed.layoutDensity ?? DEFAULT_SETTINGS.layoutDensity,
             defaultPalette: normalizeSeriesPaletteName(parsed.defaultPalette),
             defaultCorrelationMetric: normalizeCorrelationMetric(parsed.defaultCorrelationMetric),
-            defaultCausalMethod: parsed.defaultCausalMethod ?? DEFAULT_SETTINGS.defaultCausalMethod,
-            defaultTauMax: parsed.defaultTauMax ?? DEFAULT_SETTINGS.defaultTauMax,
             drawAutoReset: parsed.drawAutoReset ?? DEFAULT_SETTINGS.drawAutoReset,
             colorScale: parsed.colorScale ?? DEFAULT_SETTINGS.colorScale,
             sidebarCollapsed: parsed.sidebarCollapsed ?? DEFAULT_SETTINGS.sidebarCollapsed,
