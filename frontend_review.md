@@ -204,6 +204,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Converted `/api/v1/data` from its positional bare-`AbortSignal` argument to `ApiRequestOptions`, then carried that explicit contract through the Timeseries controller, module, lazy runtime loader, and application composition.
 - Updated the direct controller characterization to pin the final argument as `{ signal }`, retaining the request ordering, lookaround, selection, and cancellation behavior under focused coverage.
 
+### Completed: Scatter request-options contract
+
+- Converted Scatter points and matrix requests from bare positional signals to explicit `ApiRequestOptions`, preserving Arrow decoding, request-scope validation, cache behavior, and query-context payload construction.
+- Updated the Scatter page and matrix render controllers plus their direct regressions to pin `{ signal }` as the final request argument, including active matrix-controller abort/reset behavior.
+
 ### Completed: DataChart decomposition
 
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.

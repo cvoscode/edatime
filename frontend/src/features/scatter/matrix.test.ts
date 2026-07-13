@@ -151,14 +151,16 @@ describe('buildMatrixFetchPairs', () => {
 
         await renderScatterOverview(() => { });
 
-        const activeSignal = fetchScatterMatrixMock.mock.calls[0]?.[4];
-        expect(activeSignal).toBeInstanceOf(AbortSignal);
+        const requestOptions = fetchScatterMatrixMock.mock.calls[0]?.[4];
+        expect(requestOptions).toEqual({ signal: expect.any(AbortSignal) });
+        const activeSignal = requestOptions?.signal;
         expect(activeSignal).not.toBe(idleSignal);
-        expect(activeSignal?.aborted).toBe(false);
+        expect(activeSignal).toBeDefined();
+        expect(activeSignal!.aborted).toBe(false);
 
         __resetMatrixRenderControllerForTests();
 
-        expect(activeSignal?.aborted).toBe(true);
+        expect(activeSignal!.aborted).toBe(true);
         expect(getMatrixRenderSignal()).toBe(idleSignal);
     });
 

@@ -284,7 +284,7 @@ async function renderScatter(): Promise<void> {
             xValue, yValue, computeInteractiveScatterLimit(container),
             colorColumn,
             queryContext,
-            signal,
+            { signal },
         );
         if (requestId !== scatterState.scatterRequestId) return;
 

@@ -612,7 +612,7 @@ describe('initScatterPage view toggles', () => {
             computeInteractiveScatterLimit(scatterChart, { devicePixelRatio: 1 }),
             null,
             expect.objectContaining({ start: 100, end: 500 }),
-            expect.any(AbortSignal),
+            { signal: expect.any(AbortSignal) },
         );
     });
 
@@ -682,7 +682,7 @@ describe('initScatterPage view toggles', () => {
             expect.any(Number),
             null,
             expect.any(Object),
-            expect.any(AbortSignal),
+            { signal: expect.any(AbortSignal) },
         );
     });
 

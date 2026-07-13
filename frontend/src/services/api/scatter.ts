@@ -16,6 +16,7 @@ import {
     dbg,
     readApiError,
     type ArrowColumn,
+    type ApiRequestOptions,
 } from './http.js';
 
 function normalizeScatterLineFilters(lineFilters: unknown[]): Array<{
@@ -51,7 +52,7 @@ export async function fetchScatterPoints(
     limit = 1_000_000,
     color: string | null = null,
     options: ScatterFetchOptions | null = null,
-    signal?: AbortSignal,
+    requestOptions?: ApiRequestOptions,
 ): Promise<ScatterPointsResponse> {
     const requestScope = captureDatasetRequestScope();
     const payload: Record<string, unknown> = {
@@ -82,7 +83,7 @@ export async function fetchScatterPoints(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-        signal,
+        signal: requestOptions?.signal,
     });
     assertDatasetRequestScopeActive(requestScope);
     if (!res.ok) {
@@ -217,7 +218,7 @@ export async function fetchScatterMatrix(
     color: string | null = null,
     options: ScatterFetchOptions | null = null,
     limit = 1_000_000,
-    signal?: AbortSignal,
+    requestOptions?: ApiRequestOptions,
 ): Promise<ScatterMatrixResponse> {
     const requestScope = captureDatasetRequestScope();
     const payload: Record<string, unknown> = {
@@ -250,7 +251,7 @@ export async function fetchScatterMatrix(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-        signal,
+        signal: requestOptions?.signal,
     });
     assertDatasetRequestScopeActive(requestScope);
     if (!res.ok) {

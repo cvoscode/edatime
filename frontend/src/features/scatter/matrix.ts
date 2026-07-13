@@ -113,7 +113,7 @@ async function fetchMatrixBatchData(
         colorColumn || null,
         context,
         MATRIX_POINT_LIMIT,
-        signal,
+        { signal },
     )
         .then((response) => response.cells)
         .catch((error: any) => {
