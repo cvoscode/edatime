@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-    hasFilterModalOpener: vi.fn(() => true),
-    openFilterForColumn: vi.fn(),
+    canOpenColumnFilter: vi.fn(() => true),
+    requestColumnFilterOpen: vi.fn(),
 }));
 
-vi.mock('./filterModalService.js', () => mocks);
+vi.mock('./filterModalEvents.js', () => mocks);
 
 import { initChartPageFilterGesture } from './filterGesture.js';
 
@@ -18,7 +18,7 @@ function dispatchContextMenu(target: HTMLElement): MouseEvent {
 describe('Timeseries filter gesture', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        mocks.hasFilterModalOpener.mockReturnValue(true);
+        mocks.canOpenColumnFilter.mockReturnValue(true);
         document.body.innerHTML = '<section id="page-timeseries"><div id="main-chart"></div><button id="outside-plot"></button></section>';
     });
 
@@ -33,10 +33,10 @@ describe('Timeseries filter gesture', () => {
 
         const target = document.getElementById('outside-plot') as HTMLButtonElement;
         expect(dispatchContextMenu(target).defaultPrevented).toBe(true);
-        expect(mocks.openFilterForColumn).not.toHaveBeenCalled();
+        expect(mocks.requestColumnFilterOpen).not.toHaveBeenCalled();
 
         expect(dispatchContextMenu(target).defaultPrevented).toBe(true);
-        expect(mocks.openFilterForColumn).toHaveBeenCalledWith(null);
+        expect(mocks.requestColumnFilterOpen).toHaveBeenCalledWith(null);
     });
 
     it('leaves plot context menus untouched', () => {
@@ -44,7 +44,7 @@ describe('Timeseries filter gesture', () => {
 
         const plot = document.getElementById('main-chart') as HTMLDivElement;
         expect(dispatchContextMenu(plot).defaultPrevented).toBe(false);
-        expect(mocks.openFilterForColumn).not.toHaveBeenCalled();
+        expect(mocks.requestColumnFilterOpen).not.toHaveBeenCalled();
     });
 
     it('does not bind the page more than once', () => {
@@ -56,6 +56,6 @@ describe('Timeseries filter gesture', () => {
         dispatchContextMenu(target);
         dispatchContextMenu(target);
 
-        expect(mocks.openFilterForColumn).toHaveBeenCalledTimes(1);
+        expect(mocks.requestColumnFilterOpen).toHaveBeenCalledTimes(1);
     });
 });

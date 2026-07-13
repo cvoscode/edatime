@@ -353,6 +353,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Extracted WorkspaceStore-to-fetch projection into `requestIntent`, including immutable selection capture and null/non-finite viewport fallback. The controller now composes this tested policy with request execution instead of reading request state inline.
 - Scoped dataset-bootstrap request deduplication and revision tracking to each Timeseries feature instance. A direct regression proves one mounted runtime cannot suppress metadata initialization for a later instance.
 - Scoped chip double-right-click tracking to its bound column rail, so a gesture in one Timeseries mount cannot complete an interaction in another rail; direct tests cover both opening and cross-rail isolation.
+- Replaced the mutable Timeseries filter-modal opener singleton with a feature-local DOM event contract. Chips, range controls, and the page gesture request an open only when a mounted modal is available; the modal controller owns the abort-scoped listener and disposal. No production module now stores a modal callback globally.
 
 ### Completed: feature-specific workflow ownership
 

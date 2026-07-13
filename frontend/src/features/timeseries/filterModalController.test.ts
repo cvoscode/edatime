@@ -6,7 +6,7 @@ import {
 import { datasetState, setMetadata } from '../../store/datasetState.js';
 import { setLastFetchedData } from '../../store/runtimeState.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
-import { __resetFilterModalOpenerForTests, openFilterForColumn } from './filterModalService.js';
+import { requestColumnFilterOpen as openFilterForColumn } from './filterModalEvents.js';
 
 let workspace = createWorkspaceStore();
 
@@ -45,7 +45,6 @@ function buildModalDOM(): void {
 describe('initFilterModalController', () => {
     beforeEach(() => {
         vi.restoreAllMocks();
-        __resetFilterModalOpenerForTests();
         buildModalDOM();
 
         setMetadata({

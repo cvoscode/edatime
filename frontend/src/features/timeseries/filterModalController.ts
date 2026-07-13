@@ -7,7 +7,7 @@ import { buildRangeControls } from './rangeControls.js';
 import { ColumnFilterModal } from '../../ui/composites/ColumnFilterModal.js';
 import { getDropdownValue, setDropdownOptions } from '../../ui/primitives/Dropdown.js';
 import type { FilterWorkspace } from './selectionIntent.js';
-import { registerFilterModalOpener } from './filterModalService.js';
+import { OPEN_COLUMN_FILTER_EVENT } from './filterModalEvents.js';
 
 export interface FilterModalControllerDeps {
     renderCurrentData: () => void;
@@ -274,7 +274,10 @@ export function initFilterModalController(deps: FilterModalControllerDeps): () =
         setHint('');
     }
 
-    registerFilterModalOpener(openModalForCol);
+    listen(document, OPEN_COLUMN_FILTER_EVENT, ((event: Event) => {
+        const column = (event as CustomEvent<{ column?: string | null }>).detail?.column ?? null;
+        openModalForCol(column);
+    }) as EventListener);
 
     for (const btn of openBtns) {
         listen(btn, 'click', () => openModalForCol(null));
@@ -350,7 +353,6 @@ export function initFilterModalController(deps: FilterModalControllerDeps): () =
         abortController.abort();
         modalEl.removeAttribute('data-bound');
         activeModalBindings.delete(modalEl);
-        registerFilterModalOpener(null);
     };
     activeModalBindings.set(modalEl, dispose);
     return dispose;

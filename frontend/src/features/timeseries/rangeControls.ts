@@ -16,7 +16,7 @@ import {
 import { chartState } from '../../store/chartState.js';
 import { RangeControls, RangeControlItem } from '../../ui/composites/RangeControls.js';
 import type { FilterWorkspace } from './selectionIntent.js';
-import { openFilterForColumn } from './filterModalService.js';
+import { requestColumnFilterOpen } from './filterModalEvents.js';
 
 /**
  * Render clickable range chips for selected columns and active adaptive filters.
@@ -53,7 +53,7 @@ export function buildRangeControls(workspace: FilterWorkspace): void {
             range: `${formatAnalysisNumber(range.from)} → ${formatAnalysisNumber(range.to)}`,
             className: 'range-chip range-chip--clickable',
             ariaLabel: `Filter ${col}`,
-            onActivate: () => { openFilterForColumn(colCopy); },
+            onActivate: () => { requestColumnFilterOpen(colCopy); },
         });
     }
 

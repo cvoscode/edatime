@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { bindChipContextMenu } from './chipContextMenu.js';
-import { __resetFilterModalOpenerForTests, registerFilterModalOpener } from './filterModalService.js';
+import { OPEN_COLUMN_FILTER_EVENT } from './filterModalEvents.js';
 
 function createChipRail(column: string): HTMLElement {
     const container = document.createElement('div');
-    container.innerHTML = `<label class="series-chip"><input type="checkbox" value="${column}"></label>`;
+    container.innerHTML = `<div id="column-filter-modal" data-bound="1"></div><label class="series-chip"><input type="checkbox" value="${column}"></label>`;
     document.body.appendChild(container);
     return container;
 }
@@ -18,12 +18,13 @@ function rightClick(container: HTMLElement): void {
 describe('bindChipContextMenu', () => {
     afterEach(() => {
         document.body.innerHTML = '';
-        __resetFilterModalOpenerForTests();
     });
 
     it('opens the selected column after a double right-click', () => {
         const open = vi.fn();
-        registerFilterModalOpener(open);
+        document.addEventListener(OPEN_COLUMN_FILTER_EVENT, ((event: Event) => {
+            open((event as CustomEvent<{ column: string | null }>).detail.column);
+        }) as EventListener, { once: true });
         const container = createChipRail('HUFL');
         bindChipContextMenu(container);
 
@@ -36,7 +37,9 @@ describe('bindChipContextMenu', () => {
 
     it('keeps double-click tracking local to each chip rail', () => {
         const open = vi.fn();
-        registerFilterModalOpener(open);
+        document.addEventListener(OPEN_COLUMN_FILTER_EVENT, ((event: Event) => {
+            open((event as CustomEvent<{ column: string | null }>).detail.column);
+        }) as EventListener);
         const first = createChipRail('HUFL');
         const second = createChipRail('HUFL');
         bindChipContextMenu(first);

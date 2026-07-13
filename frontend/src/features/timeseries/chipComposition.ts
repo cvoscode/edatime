@@ -17,7 +17,7 @@ import { chartState } from '../../store/chartState.js';
 import { datasetState } from '../../store/datasetState.js';
 import { ensureAdaptiveTargetStillValid } from './columnSelection.js';
 import { getTimeseriesSelection, setTimeseriesSelection, type SelectionWorkspace } from './selectionIntent.js';
-import { openFilterForColumn } from './filterModalService.js';
+import { requestColumnFilterOpen } from './filterModalEvents.js';
 
 export interface ChipCompositionOptions {
     workspace: SelectionWorkspace;
@@ -83,7 +83,7 @@ export function composeChipListItems(options: ChipCompositionOptions): ChipListI
                 renderCurrentDataFn?.();
             },
             onMenuClick: () => {
-                openFilterForColumn(col);
+                requestColumnFilterOpen(col);
             },
             menuLabel: `Filter range for ${col}`,
         };

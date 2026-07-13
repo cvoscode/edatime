@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+const filterEventMocks = vi.hoisted(() => ({ requestColumnFilterOpen: vi.fn() }));
+vi.mock('./filterModalEvents.js', () => filterEventMocks);
+
 import { buildRangeControls } from './rangeControls.js';
 import {
     datasetState,
@@ -10,7 +13,6 @@ import {
     uiState,
 } from '../../store/uiState.js';
 import { createWorkspaceStore, type WorkspaceStore } from '../../workspace/workspaceStore.js';
-import { __resetFilterModalOpenerForTests, registerFilterModalOpener } from './filterModalService.js';
 
 function buildDom(): void {
     document.body.innerHTML = '<div id="column-range-controls"></div>';
@@ -30,7 +32,7 @@ describe('buildRangeControls', () => {
 
     beforeEach(() => {
         vi.restoreAllMocks();
-        __resetFilterModalOpenerForTests();
+        filterEventMocks.requestColumnFilterOpen.mockReset();
         buildDom();
 
         setMetadata({
@@ -53,8 +55,7 @@ describe('buildRangeControls', () => {
         setPendingAdaptivePoint(null);
         workspace = createWorkspaceStore();
         workspace.setSelection(['HUFL', 'HULL']);
-        openFilterForColumn = vi.fn<(column: string | null) => void>();
-        registerFilterModalOpener(openFilterForColumn);
+        openFilterForColumn = filterEventMocks.requestColumnFilterOpen;
     });
 
     it('emits static adaptive target chip when adaptiveFilterColumn is set and column is selected', () => {
