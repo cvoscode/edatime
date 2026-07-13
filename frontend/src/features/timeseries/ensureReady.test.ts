@@ -130,7 +130,7 @@ describe('createTimeseriesBootstrap', () => {
             getCurrentData: vi.fn(() => null),
             fetchAndRender: vi.fn().mockResolvedValue(undefined),
             refreshZoomControlsState: vi.fn(),
-            workspace: { getSnapshot: vi.fn(), setSelection: vi.fn(), setFilters: vi.fn(), setViewport: vi.fn(), subscribe: vi.fn(() => vi.fn()) },
+            workspace: { getSnapshot: vi.fn(() => ({ viewport: { xMin: 10, xMax: 90, yMin: null, yMax: null } })), setSelection: vi.fn(), setFilters: vi.fn(), setViewport: vi.fn(), subscribe: vi.fn(() => vi.fn()) } as any,
         });
 
         await bootstrap.ensureReady();
@@ -141,6 +141,7 @@ describe('createTimeseriesBootstrap', () => {
             onZoomOut,
         });
         expect(appStateMock.chart).toBe(fallbackChart);
+        expect(fallbackChart.setXRange).toHaveBeenCalledWith(10, 90);
     });
 
     it('forwards a real ViewSnapshot from the line chart zoom callback to deps.onZoom', async () => {
@@ -180,7 +181,7 @@ describe('createTimeseriesBootstrap', () => {
             getCurrentData: vi.fn(() => null),
             fetchAndRender: vi.fn().mockResolvedValue(undefined),
             refreshZoomControlsState: vi.fn(),
-            workspace: { getSnapshot: vi.fn(), setSelection: vi.fn(), setFilters: vi.fn(), setViewport: vi.fn(), subscribe: vi.fn(() => vi.fn()) },
+            workspace: { getSnapshot: vi.fn(() => ({ viewport: { xMin: 100, xMax: 800, yMin: null, yMax: null } })), setSelection: vi.fn(), setFilters: vi.fn(), setViewport: vi.fn(), subscribe: vi.fn(() => vi.fn()) } as any,
         });
 
         await bootstrap.ensureReady();
@@ -210,7 +211,7 @@ describe('createTimeseriesBootstrap', () => {
         const renderCurrentData = vi.fn();
         const getCurrentData = vi.fn(() => null);
         const onYRange = vi.fn();
-        const workspace = { getSnapshot: vi.fn(), setSelection: vi.fn(), setFilters: vi.fn(), setViewport: vi.fn(), subscribe: vi.fn(() => vi.fn()) };
+        const workspace = { getSnapshot: vi.fn(() => ({ viewport: { xMin: 0, xMax: 100, yMin: null, yMax: null } })), setSelection: vi.fn(), setFilters: vi.fn(), setViewport: vi.fn(), subscribe: vi.fn(() => vi.fn()) } as any;
 
         const { createTimeseriesBootstrap } = await import('./ensureReady.js');
 

@@ -62,7 +62,8 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                 const gpuError = await checkWebGPU();
 
                 try {
-                    dbg('initial X range (ms)', { start: chartState.currentStart, end: chartState.currentEnd });
+                    const initialViewport = deps.workspace.getSnapshot().viewport;
+                    dbg('initial X range (ms)', { start: initialViewport?.xMin, end: initialViewport?.xMax });
 
                     const lineType = getChartType('line');
                     if (lineType) {
@@ -108,7 +109,11 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                     deps.setAnomalyOverlayRenderCallback?.(() => chartState.chart?.requestOverlayRender?.());
 
                     const chart = chartState.chart as ChartInstance | null;
-                    chart?.setXRange?.(chartState.currentStart!, chartState.currentEnd!);
+                    const initialStart = Number(initialViewport?.xMin);
+                    const initialEnd = Number(initialViewport?.xMax);
+                    if (Number.isFinite(initialStart) && Number.isFinite(initialEnd)) {
+                        chart?.setXRange?.(initialStart, initialEnd);
+                    }
                     chart?.setChartText?.(
                         chartState.chartText?.title || '',
                         chartState.chartText?.xLabel || '',
@@ -149,7 +154,12 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                         await chartState.chart!.init();
                         bindAnalysisChartEvents();
                         const fallbackChart = chartState.chart as ChartInstance | null;
-                        fallbackChart?.setXRange?.(chartState.currentStart!, chartState.currentEnd!);
+                        const fallbackViewport = deps.workspace.getSnapshot().viewport;
+                        const fallbackStart = Number(fallbackViewport?.xMin);
+                        const fallbackEnd = Number(fallbackViewport?.xMax);
+                        if (Number.isFinite(fallbackStart) && Number.isFinite(fallbackEnd)) {
+                            fallbackChart?.setXRange?.(fallbackStart, fallbackEnd);
+                        }
                         fallbackChart?.setChartText?.(
                             chartState.chartText?.title || '',
                             chartState.chartText?.xLabel || '',

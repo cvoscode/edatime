@@ -720,6 +720,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Removed the request-intent chart-range fallback. An absent or invalid workspace viewport stays invalid so callers reject incomplete intent instead of silently querying a stale chart mirror.
 - Controller fixtures now publish every test viewport through the workspace alongside their chart adapter setup, preserving boxed-zoom, buffered-fetch, zoom-out, and exact API-contract characterization while protecting the canonical ownership rule.
 
+### Completed: Timeseries chart-bootstrap viewport ownership
+
+- Primary ChartGPU and fallback chart initialization now set their initial X range from the composed `WorkspaceStore` viewport. Bootstrap diagnostics also report that canonical intent rather than the chart-state mirror.
+- Focused bootstrap coverage supplies explicit workspace ranges for both renderers and verifies fallback initialization applies the injected range, preserving the chart-adapter fallback contract without reintroducing a global viewport read.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.
