@@ -102,7 +102,7 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
         async load(deps) {
             const { initDriftPage } = await import('../features/drift/index.js');
             const metadata = deps.workspace.getSnapshot().dataset.metadata;
-            return { init: () => initDriftPage(metadata) };
+            return { init: () => initDriftPage(metadata, { workspace: deps.workspace }) };
         },
     },
 ];

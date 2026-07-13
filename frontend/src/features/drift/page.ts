@@ -74,6 +74,7 @@ import { buildDriftInvestigationPanelHtml } from './investigationPanels.js';
 import { buildDriftInvestigationRequest } from './requestPayload.js';
 import { buildDriftSummaryPanelHtml } from './summaryPanels.js';
 import { buildDriftCsv, buildDriftJsonExport } from './exportPayloads.js';
+import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 // Re-export for test isolation
 export { _setEchartsModule };
@@ -88,7 +89,10 @@ export function disposeDriftPage(): void {
     driftPageCleanup = null;
 }
 
-export async function initDriftPage(metadata: any): Promise<() => void> {
+export async function initDriftPage(
+    metadata: any,
+    deps: { workspace?: Pick<WorkspaceStore, 'getSnapshot'> } = {},
+): Promise<() => void> {
     disposeDriftPage();
     const pageAbortController = new AbortController();
     // ── Column picker (custom checkbox dropdown) ──────────────────────────────
@@ -507,6 +511,7 @@ export async function initDriftPage(metadata: any): Promise<() => void> {
             scheduleDriftChartRefresh,
         },
         {
+            workspace: deps.workspace,
             pageMetadata: metadata,
             colPickerBtn,
             colPickerPanel,

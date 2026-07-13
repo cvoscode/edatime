@@ -709,6 +709,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - The Scatter runtime's filter banner and empty-state range diagnosis now read the configured workspace only. Navigation cache-key calculation receives the same snapshot, so a workspace viewport publication deterministically invalidates the rendered query without a side-channel chart-state mutation.
 - Direct regressions cover valid and invalid linked workspace ranges, runtime presentation with a workspace fixture, and a navigation-driven Scatter refetch after changing only the canonical viewport.
 
+### Completed: Drift canonical viewport preset
+
+- Drift's viewport reference preset now receives `WorkspaceStore` through its lazy-page composition and reads only the canonical viewport snapshot. The global Timeseries chart range is no longer an implicit input to Drift controls.
+- Direct page coverage verifies the preset writes the workspace range into its reference inputs, and descriptor coverage verifies the lazy page injects the workspace dependency.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.

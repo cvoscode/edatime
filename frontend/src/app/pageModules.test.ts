@@ -114,7 +114,9 @@ describe('page module descriptors', () => {
         expect(mocks.initDriftPage).not.toHaveBeenCalled();
         await drift!.init();
 
-        expect(mocks.initDriftPage).toHaveBeenCalledWith(null);
+        expect(mocks.initDriftPage).toHaveBeenCalledWith(null, {
+            workspace: expect.any(Object),
+        });
     });
 
     it('loads Causal directly from its descriptor only on initialization', async () => {

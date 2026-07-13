@@ -15,10 +15,10 @@
 
 import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
 import { renderSeriesChipList } from '../../ui/seriesChipList.js';
-import { chartState } from '../../store/chartState.js';
 import { formatUtcDatetimeInputValue } from '../../utils/datetimeInput.js';
 import { getSeriesColor } from '../../utils/seriesColors.js';
 import { onNavigationChange } from '../../platform/navigationEvents.js';
+import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 export interface DriftControlCallbacks {
     getSelectedColumns: () => string[];
@@ -35,6 +35,7 @@ export interface DriftControlCallbacks {
 }
 
 export interface DriftControlOptions {
+    workspace?: Pick<WorkspaceStore, 'getSnapshot'>;
     pageMetadata: any;
     colPickerBtn: HTMLButtonElement | null;
     colPickerPanel: HTMLElement | null;
@@ -152,6 +153,7 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
     const listenerOptions = { signal: abortController.signal };
     const {
         pageMetadata,
+        workspace,
         colPickerBtn,
         colPickerPanel,
         colPickerList,
@@ -216,8 +218,9 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
     function applyReferencePreset(preset: string): void {
         if (preset === 'custom') return;
         if (preset === 'viewport') {
-            const start = Number(chartState.currentStart);
-            const end = Number(chartState.currentEnd);
+            const viewport = workspace?.getSnapshot().viewport;
+            const start = Number(viewport?.xMin);
+            const end = Number(viewport?.xMax);
             if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
                 if (refStartInput) refStartInput.value = formatUtcDatetimeInputValue(start);
                 if (refEndInput) refEndInput.value = formatUtcDatetimeInputValue(end);

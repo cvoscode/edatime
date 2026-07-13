@@ -332,6 +332,25 @@ describe('drift page accessibility and debug metadata', () => {
         expect(debugSpy).toHaveBeenCalled();
     });
 
+    it('uses the workspace viewport for the viewport reference preset', async () => {
+        const { createWorkspaceStore } = await import('../../workspace/workspaceStore.js');
+        const preset = document.getElementById('drift-ref-preset') as HTMLSelectElement;
+        preset.insertAdjacentHTML('beforeend', '<option value="viewport" selected>Viewport</option>');
+        preset.value = 'viewport';
+        const workspace = createWorkspaceStore();
+        workspace.setViewport({ xMin: 60_000, xMax: 120_000, yMin: null, yMax: null });
+
+        const { initDriftPage } = await import('./page.js');
+        await initDriftPage({
+            numeric_columns: ['value'],
+            columns: [{ name: 'value', dtype: 'Float64' }],
+            time_range: { min: 0, max: 1_000 },
+        }, { workspace });
+
+        expect((document.getElementById('drift-ref-start') as HTMLInputElement).value).toBe('1970-01-01T00:01');
+        expect((document.getElementById('drift-ref-end') as HTMLInputElement).value).toBe('1970-01-01T00:02');
+    });
+
     it('renders summary cards and trigger reasons after compute', async () => {
         const { initDriftPage } = await import('./page.js');
         await initDriftPage({
