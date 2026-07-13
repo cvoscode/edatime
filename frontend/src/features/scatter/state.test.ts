@@ -9,7 +9,7 @@ import {
 } from '../../store/uiState.js';
 import { setMetadata } from '../../store/datasetState.js';
 import { setViewport } from '../../store/chartState.js';
-import { buildOverviewContextKey, buildScatterQueryContext, getActiveScatterFilterColumns } from './state.js';
+import { buildOverviewContextKey, buildScatterOverviewContext, buildScatterQueryContext, getActiveScatterFilterColumns } from './state.js';
 import { setScatterActiveView, setScatterViewSnapshot } from '../../store/scatterState.js';
 
 /**
@@ -84,6 +84,14 @@ describe('scatter query context builders', () => {
         expect(result.end).toBe(20);
         expect(result.filters).toEqual([{ column: 'workspace', from: 3, to: 4 }]);
         expect(result.lineFilters).toEqual([expect.objectContaining({ column: 'workspace' })]);
+    });
+
+    it('keeps the overview key aligned with its request context and axis selection', () => {
+        const first = buildScatterOverviewContext({ x: 'HUFL', y: 'HULL' });
+        const second = buildScatterOverviewContext({ x: 'HUFL', y: 'OT' });
+
+        expect(first.queryContext).toEqual(buildScatterQueryContext({ x: 'HUFL', y: 'HULL' }));
+        expect(second.queryContextKey).not.toBe(first.queryContextKey);
     });
 
     it('does not include linked time ranges when the dataset has no time column', () => {

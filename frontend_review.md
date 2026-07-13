@@ -240,6 +240,7 @@ Continue this behavior-preserving split with the remaining renderer-owned seams:
 - Reworked Scatter control binding into one abort-scoped page resource. The page retains its disposer and each rebind retires the previous DOM/window listeners, replacing the old global listener-filtering workaround. Direct coverage proves that only the newest binding receives events and disposal detaches it.
 - Replaced the density-zoom `globalThis` render callback with `renderScheduler`, a typed one-way bridge from interaction policy to the page-owned fetch/render pipeline. Existing zoom and one-shot view-preservation regressions now verify the explicit contract.
 - Moved the selection-box DOM gesture wiring to `selectionZoom`; rendering retains the chart option and view-state policies, while the dedicated module owns pointer capture, box presentation, density-mode minimum-selection rules, and double-click history/reset behavior.
+- Consolidated Scatter request policy: `buildScatterOverviewContext` produces the request payload and matching overview cache key together, and `responsePolicy` owns the API-response-to-state mapping. The page and page-change handler no longer maintain duplicate versions of either contract.
 - Next, review the remaining chart interaction and request/render lifecycle seams; extract only boundaries that eliminate duplicated ownership or reinitialization risk.
 
 ## Target Architecture

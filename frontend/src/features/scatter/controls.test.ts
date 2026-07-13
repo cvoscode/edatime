@@ -7,6 +7,22 @@ const updateBinnedReadoutMock = vi.fn();
 const updateCorrelationStatsMock = vi.fn();
 const updateMarginalPlotsMock = vi.fn();
 const syncModeUIMock = vi.fn();
+const buildScatterQueryContextMock = vi.fn((..._args: unknown[]) => ({ start: undefined, end: undefined, filters: [], lineFilters: [] }));
+const buildOverviewContextKeyMock = vi.fn((context: any) => {
+    const filters = Array.isArray(context?.filters) ? context.filters : [];
+    const lineFilters = Array.isArray(context?.lineFilters) ? context.lineFilters : [];
+    const x = typeof context?.x === 'string' ? context.x : '';
+    const y = typeof context?.y === 'string' ? context.y : '';
+    const color = typeof context?.colorColumn === 'string' ? context.colorColumn : '';
+    return `key:${x}|${y}|${color}|f${filters.length}.l${lineFilters.length}`;
+});
+const buildScatterOverviewContextMock = vi.fn((columns: any) => {
+    const queryContext = buildScatterQueryContextMock(columns);
+    return {
+        queryContext,
+        queryContextKey: buildOverviewContextKeyMock({ ...queryContext, ...columns }),
+    };
+});
 
 const appStateMock = {
     scatter: {
@@ -86,20 +102,9 @@ vi.mock('./state.js', () => ({
         matrixMode: 'scatter',
         matrixCellSize: 160,
     })),
-    buildScatterQueryContext: vi.fn(() => ({ start: undefined, end: undefined, filters: [], lineFilters: [] })),
-    buildOverviewContextKey: vi.fn((context: any) => {
-        // Mirror the production JSON.stringify shape so tests can drive the
-        // fast-path toggle. The overview key now includes X, Y, and
-        // colorColumn in addition to the filter payload, so a navigation
-        // that mutates only the axes (heatmap cell click, home top-pair
-        // row click) still invalidates the cache.
-        const filters = Array.isArray(context?.filters) ? context.filters : [];
-        const lineFilters = Array.isArray(context?.lineFilters) ? context.lineFilters : [];
-        const x = typeof context?.x === 'string' ? context.x : '';
-        const y = typeof context?.y === 'string' ? context.y : '';
-        const color = typeof context?.colorColumn === 'string' ? context.colorColumn : '';
-        return `key:${x}|${y}|${color}|f${filters.length}.l${lineFilters.length}`;
-    }),
+    buildScatterQueryContext: buildScatterQueryContextMock,
+    buildOverviewContextKey: buildOverviewContextKeyMock,
+    buildScatterOverviewContext: buildScatterOverviewContextMock,
     isLinkedBrushEnabled: () => false,
     normalizeAnalyticsView: (value: string) => value || 'plot',
 }));

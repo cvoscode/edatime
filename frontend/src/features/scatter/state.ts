@@ -231,6 +231,18 @@ export function buildOverviewContextKey(context: Partial<ScatterQueryContext> & 
     });
 }
 
+/** Build the Scatter request payload and its matching overview-cache key together. */
+export function buildScatterOverviewContext(
+    columns: { x?: string; y?: string; colorColumn?: string; scopeToColumns?: boolean } = {},
+    intent?: Pick<WorkspaceSnapshot, 'filters' | 'viewport'>,
+): { queryContext: ScatterQueryContext; queryContextKey: string } {
+    const queryContext = buildScatterQueryContext(columns, intent);
+    return {
+        queryContext,
+        queryContextKey: buildOverviewContextKey({ ...queryContext, ...columns }),
+    };
+}
+
 /* ── View / zoom helpers ──────────────────────────────── */
 
 export function clampView(view: ScatterView): ScatterView {

@@ -26,8 +26,7 @@ import {
 } from './helpers.js';
 import {
     currentControls,
-    buildScatterQueryContext,
-    buildOverviewContextKey,
+    buildScatterOverviewContext,
     buildRenderSignature,
     applyScatterStateFromCache,
     disposeScatterChart,
@@ -79,6 +78,7 @@ import {
 } from './correlationsPanel.js';
 import { computeInteractiveScatterLimit } from './renderLimit.js';
 import { setScatterRenderScheduler } from './renderScheduler.js';
+import { applyScatterPointsResponse } from './responsePolicy.js';
 
 import type { DatasetMetadata } from '../../types.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
@@ -275,21 +275,10 @@ async function renderScatter(): Promise<void> {
     await scatterTask.run(async (signal) => {
         const ctl = currentControls();
         const colorColumn = ctl.selectedColorColumn || null;
-        const queryContext = buildScatterQueryContext(
+        const { queryContext, queryContextKey } = buildScatterOverviewContext(
             { x: xValue, y: yValue, colorColumn: colorColumn || undefined },
             workspace?.getSnapshot(),
         );
-        // The overview context key now also folds in x/y/colorColumn so a
-        // navigation that mutates only the axes (heatmap cell click, home
-        // top-pair row click) invalidates the scatter fast-path cache.
-        // Mirroring the same shape in `renderScatter` keeps the key written
-        // here in lockstep with what the page-change handler computes.
-        const queryContextKey = buildOverviewContextKey({
-            ...queryContext,
-            x: xValue,
-            y: yValue,
-            colorColumn: colorColumn || undefined,
-        });
 
         // Consume the one-shot preserveView flag the density-zoom path set
         // before scheduling this render. We must read it BEFORE awaiting
@@ -307,17 +296,7 @@ async function renderScatter(): Promise<void> {
         if (requestId !== scatterState.scatterRequestId) return;
 
         scatterState.lastQueryContextKey = queryContextKey;
-        const points: [number, number][] = Array.isArray(response.points) ? response.points : [];
-
-        scatterState.totalPoints = Number(response.total_points ?? points.length);
-        scatterState.allPoints = points;
-        scatterState.allColorValues = Array.isArray(response.color_values) ? response.color_values : null;
-        scatterState.allColorLabels = Array.isArray(response.color_labels) ? response.color_labels : null;
-        scatterState.colorColumn = response.color || '';
-        // Audit issue 2.2: surface the cardinality summary so the
-        // colorbar can show a "X other categories collapsed" hint
-        // when the categorical color column has a long tail.
-        scatterState.colorCardinality = response.color_cardinality ?? null;
+        applyScatterPointsResponse(scatterState, response);
         const carriedFilterCount = queryContext.filters.length + queryContext.lineFilters.length;
         if (_warnOnEmptyPlotAfterMatrix && scatterState.totalPoints === 0 && carriedFilterCount > 0) {
             toast(

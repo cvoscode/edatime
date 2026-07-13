@@ -27,8 +27,7 @@ import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import { getEl, normalizeScatterSuggestionThreshold } from './helpers.js';
 import {
     currentControls,
-    buildScatterQueryContext,
-    buildOverviewContextKey,
+    buildScatterOverviewContext,
     isLinkedBrushEnabled,
     normalizeAnalyticsView,
 } from './state.js';
@@ -282,12 +281,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
             // those fields the fast path swallowed the navigation and the
             // scatter kept showing the previous X/Y's cached points against
             // the new axis labels.
-            const queryContextKey = buildOverviewContextKey({
-                ...buildScatterQueryContext({
-                    x: ctl.x,
-                    y: ctl.y,
-                    colorColumn: ctl.selectedColorColumn || undefined,
-                }),
+            const { queryContextKey } = buildScatterOverviewContext({
                 x: ctl.x,
                 y: ctl.y,
                 colorColumn: ctl.selectedColorColumn || undefined,
