@@ -61,6 +61,7 @@ function createDeps(): DeferredShellDeps {
         ensurePageModuleLoaded: vi.fn(),
         fetchAndRender: vi.fn(),
         fetchAndRenderAnalytics: vi.fn(async () => {}),
+        getCurrentTimeseriesData: vi.fn(() => null),
         exportFilteredCsv: vi.fn(),
         exportFilteredJson: vi.fn(),
         exportChartPng: vi.fn(),
@@ -148,7 +149,11 @@ describe('deferred shell subsystems', () => {
 
         await registry.ensureTimeseriesShell(deps);
 
-        expect(mocks.initAnalyticsListeners).toHaveBeenCalledWith(expect.any(Function), deps.workspace);
+        expect(mocks.initAnalyticsListeners).toHaveBeenCalledWith(
+            expect.any(Function),
+            deps.workspace,
+            deps.getCurrentTimeseriesData,
+        );
 
         const callback = mocks.initAnalyticsListeners.mock.calls[0]?.[0] as (() => Promise<void>) | undefined;
         await callback?.();

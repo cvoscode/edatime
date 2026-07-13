@@ -52,6 +52,7 @@ describe('createTimeseriesControls', () => {
             workspace: selectionWorkspace(),
             fetchAndRender: vi.fn(),
             renderCurrentData: vi.fn(),
+            getCurrentData: vi.fn(() => null),
             updateAnalysisYRange: vi.fn(),
             updateAnalysisZoom: vi.fn(),
         });
@@ -68,6 +69,7 @@ describe('createTimeseriesControls', () => {
             workspace: selectionWorkspace(),
             fetchAndRender,
             renderCurrentData,
+            getCurrentData: vi.fn(() => null),
             updateAnalysisYRange: vi.fn(),
             updateAnalysisZoom: vi.fn(),
         });
@@ -89,6 +91,7 @@ describe('createTimeseriesControls', () => {
             workspace: selectionWorkspace(),
             fetchAndRender: vi.fn(),
             renderCurrentData: vi.fn(),
+            getCurrentData: vi.fn(() => null),
             updateAnalysisYRange: vi.fn(),
             renderColumnProfilesGrid: vi.fn(),
             updateAnalysisZoom: vi.fn(),
@@ -102,6 +105,7 @@ describe('createTimeseriesControls', () => {
             deps.updateAnalysisYRange,
             deps.workspace,
             expect.any(Function),
+            deps.getCurrentData,
         );
         expect(initDatasetSearchInputsMock).toHaveBeenCalledTimes(1);
         expect(initTimeseriesActionsMock).toHaveBeenCalledTimes(1);
@@ -124,6 +128,7 @@ describe('createTimeseriesControls', () => {
             workspace: selectionWorkspace(),
             fetchAndRender: vi.fn(),
             renderCurrentData: vi.fn(),
+            getCurrentData: vi.fn(() => null),
             updateAnalysisYRange: vi.fn(),
             updateAnalysisZoom: vi.fn(),
         });
@@ -143,6 +148,7 @@ describe('createTimeseriesControls', () => {
             workspace: selectionWorkspace(),
             fetchAndRender: vi.fn(),
             renderCurrentData: vi.fn(),
+            getCurrentData: vi.fn(() => null),
             updateAnalysisYRange: vi.fn(),
             updateAnalysisZoom: vi.fn(),
         });
@@ -164,6 +170,7 @@ describe('createTimeseriesControls', () => {
             workspace: selectionWorkspace(),
             fetchAndRender: vi.fn(),
             renderCurrentData: vi.fn(),
+            getCurrentData: vi.fn(() => null),
             updateAnalysisYRange: vi.fn(),
             updateAnalysisZoom: vi.fn(),
             chartExportPng: vi.fn(),
@@ -190,6 +197,7 @@ describe('createTimeseriesControls', () => {
             workspace: selectionWorkspace(),
             fetchAndRender: vi.fn(),
             renderCurrentData: vi.fn(),
+            getCurrentData: vi.fn(() => null),
             updateAnalysisYRange: vi.fn(),
             updateAnalysisZoom: vi.fn(),
             chartExportPng: vi.fn(),

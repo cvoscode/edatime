@@ -36,7 +36,7 @@ describe('fetchAnomalyRegions', () => {
     it('refreshes analytics when the typed analytics-change event fires', async () => {
         const workspace = createWorkspaceStore();
         const fetchAndRenderAnalytics = vi.fn().mockResolvedValue(undefined);
-        const dispose = initAnalyticsListeners(fetchAndRenderAnalytics, workspace);
+        const dispose = initAnalyticsListeners(fetchAndRenderAnalytics, workspace, () => null);
 
         emitFeatureEvent('analytics:change', undefined);
         await Promise.resolve();

@@ -14,11 +14,13 @@ import { initDatasetSearchInputs, initTimeseriesActions, initTimeseriesExportBut
 import { initChartPageFilterGesture } from './filterGesture.js';
 import { emitNavigationChange } from '../../platform/navigationEvents.js';
 import type { TimeseriesWorkspace } from './selectionIntent.js';
+import type { DataObject } from '../../types/api.js';
 
 export interface TimeseriesFeatureDeps {
     workspace: TimeseriesWorkspace;
     fetchAndRender: () => Promise<void>;
     renderCurrentData: () => void;
+    getCurrentData: () => DataObject | null;
     updateAnalysisYRange: (min: number, max: number, sourceKind?: string) => void;
     renderColumnProfilesGrid?: (force?: boolean) => void;
     updateAnalysisZoom: (start: number, end: number, sourceKind?: string) => void;
@@ -69,6 +71,7 @@ export function createTimeseriesControls(deps: TimeseriesFeatureDeps) {
                 deps.updateAnalysisYRange,
                 deps.workspace,
                 openColumnFilter,
+                deps.getCurrentData,
             );
             registerCleanup(() => modalController?.dispose());
             registerCleanup(initChartPageFilterGesture(openColumnFilter));

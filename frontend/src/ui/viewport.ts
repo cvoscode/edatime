@@ -9,7 +9,6 @@ import {
     setZoomHistory,
 } from '../store/chartState.js';
 import { subscribe } from '../store/events.js';
-import { runtimeState, setFetchDebounceId, setPendingRestoreY, setPendingYMode } from '../store/runtimeState.js';
 import { dbg, dbgGroup } from '../debug.js';
 import { updateAnalysisZoom, updateAnalysisYRange } from './analysisStatus.js';
 import type { ViewSnapshot } from '../types/chart.js';
@@ -68,49 +67,35 @@ export function getCurrentView(): ViewSnapshot {
     };
 }
 
+/**
+ * Legacy toolbar/quick-range adapter. Its state transition is intentionally
+ * self-contained: the Timeseries controller owns cached data, request
+ * scheduling, and restore policy for chart gestures.
+ */
 export function applyViewport(
     view: ViewSnapshot,
     fetchAndRender: () => void,
     sourceKind = 'api',
     workspace?: Pick<WorkspaceStore, 'setViewport'>,
 ): void {
-    dbgGroup(`applyViewport (${sourceKind})`, () => {
-        dbg('incoming view', view);
-    });
+    dbgGroup(`applyViewport (${sourceKind})`, () => dbg('incoming view', view));
     workspace?.setViewport(view);
     setViewport(view.xMin, view.xMax);
     chartState.chart?.setXRange?.(chartState.currentStart as number, chartState.currentEnd as number);
-
     updateAnalysisZoom(chartState.currentStart as number, chartState.currentEnd as number, sourceKind);
 
     if (Number.isFinite(view.yMin) && Number.isFinite(view.yMax) && view.yMax! > view.yMin!) {
-        updateAnalysisYRange(view.yMin!, view.yMax!, sourceKind);
-        setPendingYMode('restore');
-        setPendingRestoreY({ min: view.yMin!, max: view.yMax! });
-        // Persist onto the chart so an in-progress render is not overwritten
-        // by `_buildYAxisOption`'s data-fit branch (which would otherwise ignore
-        // a user y range and re-paint the chart at the full data span after a
-        // zoom-in or zoom-out transition).
         chartState.chart?.setYRange?.(view.yMin!, view.yMax!);
+        updateAnalysisYRange(view.yMin!, view.yMax!, 'restore');
     } else {
-        setPendingYMode('fit');
-        setPendingRestoreY(null);
-        // Drop any persisted user y range so a quick-range, zoom-out, or
-        // reset that does not specify a y range reverts the chart to the
-        // data-driven fit on the next render.
         chartState.chart?.resetYRange?.();
     }
 
-    if (runtimeState.fetchDebounceId) clearTimeout(runtimeState.fetchDebounceId);
-    setFetchDebounceId(setTimeout(fetchAndRender, 0));
+    queueMicrotask(fetchAndRender);
     updateZoomRangeBadge();
 }
 
 export function zoomOut(fetchAndRender: () => void): void {
-    dbgGroup('zoomOut (dblclick)', () => {
-        dbg('history depth', chartState.zoomHistory.length);
-        dbg('initialView', chartState.initialView);
-    });
     if (chartState.zoomHistory.length > 0) {
         const nextHistory = chartState.zoomHistory.slice(0, -1);
         const nextView = chartState.zoomHistory[chartState.zoomHistory.length - 1] as ViewSnapshot;
@@ -122,9 +107,6 @@ export function zoomOut(fetchAndRender: () => void): void {
 }
 
 export function resetZoom(fetchAndRender: () => void): void {
-    dbgGroup('resetZoom', () => {
-        dbg('initialView', chartState.initialView);
-    });
     if (!chartState.initialView) return;
     setZoomHistory([]);
     applyViewport(chartState.initialView as ViewSnapshot, fetchAndRender, 'reset');

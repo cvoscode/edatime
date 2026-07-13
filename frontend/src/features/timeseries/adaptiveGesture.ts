@@ -13,19 +13,20 @@ import {
     uiState,
 } from '../../store/uiState.js';
 import { chartState } from '../../store/chartState.js';
-import { runtimeState } from '../../store/runtimeState.js';
+import type { DataObject } from '../../types/api.js';
 import type { AdaptiveLineFilter } from '../../types/store.js';
 import type { WorkspaceStore, WorkspaceSnapshot } from '../../workspace/workspaceStore.js';
 
 export function buildAdaptiveFilterFromPoints(
+    data: DataObject | null,
     column: string,
     firstPoint: { x: number; y: number },
     secondPoint: { x: number; y: number },
     intent: Pick<WorkspaceSnapshot, 'selection' | 'filters'>,
 ): AdaptiveLineFilter | null {
     if (!column || !firstPoint || !secondPoint) return null;
-    if (!runtimeState.lastFetchedData) return null;
-    const filtered = applyFilterIntentToData(runtimeState.lastFetchedData, intent);
+    if (!data) return null;
+    const filtered = applyFilterIntentToData(data, intent);
     const columnData = filtered.series?.[column] || filtered.values?.[column];
     const xs = columnData?.x;
     const ys = columnData?.y;
@@ -65,6 +66,7 @@ export function initAdaptiveFilterGesture(
         buildColumnToggles: () => void;
         buildRangeControls: () => void;
         renderCurrentData: () => void;
+        getCurrentData: () => DataObject | null;
         updateAnalysisYRange: (min: number, max: number, sourceKind: string) => void;
     },
 ): () => void {
@@ -100,7 +102,7 @@ export function initAdaptiveFilterGesture(
     const applyFilterForColumn = (column: string, p1: { x: number; y: number }, p2: { x: number; y: number }) => {
         setAdaptiveFilterColumn(column);
         const snapshot = deps.workspace.getSnapshot();
-        const filter = buildAdaptiveFilterFromPoints(column, p1, p2, snapshot);
+        const filter = buildAdaptiveFilterFromPoints(deps.getCurrentData(), column, p1, p2, snapshot);
         if (!filter) return;
         const filters = snapshot.filters;
         deps.workspace.setFilters({
@@ -175,7 +177,7 @@ export function initAdaptiveFilterGesture(
         else { cancelPending(); }
     };
     const onAdaptiveChange = () => {
-        if (!runtimeState.lastFetchedData) return;
+        if (!deps.getCurrentData()) return;
         deps.buildRangeControls(); deps.renderCurrentData();
         chartState.chart?.requestOverlayRender?.(); chartState.chart?.fitYToData?.();
         const yr = chartState.chart?.getYRange?.();

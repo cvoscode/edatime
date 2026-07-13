@@ -20,6 +20,7 @@ import { initShellCore } from './shell/core.js';
 import { createDeferredSubsystemRegistry, type DeferredShellDeps } from './shell/deferredSubsystems.js';
 import { createGlobalShortcuts } from './shell/globalShortcuts.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
+import type { DataObject } from '../types/api.js';
 
 interface RefreshDatasetOptions {
     selectedColumn?: string;
@@ -31,6 +32,7 @@ export interface AppShellDeps {
     showPage: (pageName: string) => void;
     fetchAndRender: () => void;
     fetchAndRenderAnalytics: () => Promise<void>;
+    getCurrentTimeseriesData: () => DataObject | null;
     exportFilteredCsv: () => void;
     exportFilteredJson: () => void;
     exportChartPng: () => void;
@@ -60,6 +62,7 @@ export function initAppShell(deps: AppShellDeps): AppShell {
         ensurePageModuleLoaded: deps.ensurePageModuleLoaded,
         fetchAndRender: deps.fetchAndRender,
         fetchAndRenderAnalytics: deps.fetchAndRenderAnalytics,
+        getCurrentTimeseriesData: deps.getCurrentTimeseriesData,
         exportFilteredCsv: deps.exportFilteredCsv,
         exportFilteredJson: deps.exportFilteredJson,
         exportChartPng: deps.exportChartPng,

@@ -16,13 +16,6 @@ import type { ApiRequestOptions } from '../../services/api/http.js';
 import { analyticsState, setRollingBands } from '../../store/analyticsState.js';
 import { chartState, setViewport, setZoomHistory } from '../../store/chartState.js';
 import { datasetState } from '../../store/datasetState.js';
-import {
-    runtimeState,
-    setFetchedWindow,
-    setLastFetchedData,
-    setPendingRestoreY,
-    setPendingYMode,
-} from '../../store/runtimeState.js';
 import { buildTimeseriesDataRequest, getTimeseriesLookaroundMs } from './timeseriesRequest.js';
 import { canReuseBufferedFetch } from './bufferedFetchPolicy.js';
 import { resolveFetchedWindow } from './fetchedWindow.js';
@@ -64,9 +57,9 @@ function isColumnMismatchError(error: unknown): boolean {
     return message.includes('column_not_found') || message.includes('Unknown column');
 }
 
-function computeRenderedYDebugSnapshot(intent: TimeseriesFilterIntent) {
-    if (!runtimeState.lastFetchedData) return null;
-    const filtered = applyFilterIntentToData(runtimeState.lastFetchedData, intent);
+function computeRenderedYDebugSnapshot(data: unknown, intent: TimeseriesFilterIntent) {
+    if (!data) return null;
+    const filtered = applyFilterIntentToData(data as any, intent);
     let globalMin = Number.POSITIVE_INFINITY;
     let globalMax = Number.NEGATIVE_INFINITY;
     const perSeries: Array<{ name: string; points: number; yMin: number | null; yMax: number | null }> = [];
@@ -188,11 +181,11 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         chartState.chart?.setXRange?.(newStart, newEnd);
         if (Number.isFinite(view.yMin) && Number.isFinite(view.yMax) && view.yMax! > view.yMin!) {
             chartState.chart?.setYRange?.(view.yMin!, view.yMax!);
-            setPendingYMode('restore');
-            setPendingRestoreY({ min: view.yMin!, max: view.yMax! });
+            runtimeCache.pendingYMode = 'restore';
+            runtimeCache.pendingRestoreY = { min: view.yMin!, max: view.yMax! };
         } else {
-            setPendingYMode('fit');
-            setPendingRestoreY(null);
+            runtimeCache.pendingYMode = 'fit';
+            runtimeCache.pendingRestoreY = null;
         }
         rememberAppliedViewport(workspaceViewport);
 
@@ -225,7 +218,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         const adaptiveLineFilters = workspace.filters.adaptiveLines;
 
         const model = buildTimeseriesRenderModel({
-            data: runtimeState.lastFetchedData,
+            data: runtimeCache.data,
             selectedColumns,
             viewport: { start: viewportStart, end: viewportEnd },
             columnRanges,
@@ -268,8 +261,8 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         // `updateAnalysisYRange`, so by the time we look at them after the
         // render the entries are gone. Saving the snapshot locally lets
         // us re-apply the user y range once the new data has been drawn.
-        const restoreY = runtimeState.pendingRestoreY;
-        const restoreMode = runtimeState.pendingYMode;
+        const restoreY = runtimeCache.pendingRestoreY;
+        const restoreMode = runtimeCache.pendingYMode;
         chartState.chart.updateDataMulti(
             model.data,
             model.displayColumns,
@@ -279,6 +272,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
 
         if (restoreY && restoreMode === 'restore') {
             chartState.chart.setYRange(restoreY.min, restoreY.max);
+            deps.updateAnalysisYRange(restoreY.min, restoreY.max, 'restore');
         } else {
             // No pending restore (or pendingYMode === 'fit'): drop any
             // persisted user-set y range so the chart re-renders against
@@ -315,11 +309,11 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         const currentCols = intent.columns.join(',');
         const currentColorCol = intent.colorColumn;
         const lastFetchKey = intent.key;
-        const fetchedWindow = runtimeState.fetchedWindow;
+        const fetchedWindow = runtimeCache.fetchedWindow;
         if (canReuseBufferedFetch({
             expectedKey: lastFetchedParams,
             actualKey: lastFetchKey,
-            data: runtimeState.lastFetchedData,
+            data: runtimeCache.data,
             fetchedWindow,
             requestedView: { start: currentStart, end: currentEnd },
         })) {
@@ -329,7 +323,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
                 cols: currentCols,
                 colorCol: currentColorCol,
                 fetchedWindow,
-                downsampled: runtimeState.lastFetchedData?._meta?.downsampled ?? null,
+                downsampled: runtimeCache.data?._meta?.downsampled ?? null,
             });
             deps.buildRangeControls();
             chartState.chart?.setXRange?.(currentStart, currentEnd);
@@ -373,13 +367,13 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
                 data = await requestData();
             }
 
-            setLastFetchedData(data);
-            setFetchedWindow(resolveFetchedWindow({
+            runtimeCache.data = data;
+            runtimeCache.fetchedWindow = resolveFetchedWindow({
                 data,
                 requestedStart: currentStart,
                 requestedEnd: currentEnd,
                 lookaroundMs: getTimeseriesLookaroundMs(currentStart, currentEnd),
-            }));
+            });
             // Issue 7.2: Update last successful fetch parameters for no-op short-circuit
             lastFetchedParams = requestIntent.key;
 
@@ -412,7 +406,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             }
 
             if (DEBUG) {
-                const snapshot = computeRenderedYDebugSnapshot(getFilterIntent());
+                const snapshot = computeRenderedYDebugSnapshot(runtimeCache.data, getFilterIntent());
                 dbg('post-render renderedSnapshot', snapshot);
             }
 
@@ -420,8 +414,8 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             if (yr) deps.updateAnalysisYRange(yr.min, yr.max, 'data');
             if (DEBUG) dbg('post-render yRange', yr);
 
-            setPendingYMode(null);
-            setPendingRestoreY(null);
+            runtimeCache.pendingYMode = null;
+            runtimeCache.pendingRestoreY = null;
         });
     }
 
@@ -451,8 +445,8 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             requestedView: { start: decision.restoreState.view.xMin, end: decision.restoreState.view.xMax },
         });
         if (canReuseRawBufferedState) {
-            setLastFetchedData(decision.restoreState.data as any);
-            setFetchedWindow(decision.restoreState.fetchedWindow);
+            runtimeCache.data = decision.restoreState.data as any;
+            runtimeCache.fetchedWindow = decision.restoreState.fetchedWindow;
             lastFetchedParams = decision.restoreState.fetchKey;
             renderCurrentData();
             return;
@@ -488,15 +482,15 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         if (snap) {
             zoomRestoreHistory = appendZoomRestoreState(zoomRestoreHistory, {
                 view: snap,
-                data: runtimeState.lastFetchedData,
-                fetchedWindow: runtimeState.fetchedWindow,
+                data: runtimeCache.data,
+                fetchedWindow: runtimeCache.fetchedWindow,
                 fetchKey: currentFetchKey(),
             });
             syncZoomHistoryStore();
         }
 
         applyView(view, sourceKind);
-        if (!runtimeState.refetchOnZoom) return;
+        if (!runtimeCache.refetchOnZoom) return;
         const delayMs = sourceKind === 'user' ? 0 : 75;
         runtimeCache.scheduleFetch(fetchAndRender, delayMs);
     }
@@ -511,7 +505,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
     return {
         dispose,
         fetchAndRender,
-        getCurrentData: () => runtimeState.lastFetchedData,
+        getCurrentData: () => runtimeCache.data,
         onZoomRangeChange,
         renderCurrentData,
         resetZoom,

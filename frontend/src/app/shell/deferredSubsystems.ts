@@ -8,6 +8,7 @@
  */
 
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
+import type { DataObject } from '../../types/api.js';
 
 export interface RefreshDatasetOptions {
     selectedColumn?: string;
@@ -18,6 +19,7 @@ export interface DeferredShellDeps {
     ensurePageModuleLoaded: (page: string) => Promise<void>;
     fetchAndRender: () => void;
     fetchAndRenderAnalytics: () => Promise<void>;
+    getCurrentTimeseriesData: () => DataObject | null;
     exportFilteredCsv: () => void;
     exportFilteredJson: () => void;
     exportChartPng: () => void;
@@ -108,7 +110,11 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
 
     registerSubsystem('analytics-listeners', async (deps) => {
         const { initAnalyticsListeners } = await import('../../features/timeseries/index.js');
-        deps.registerCleanup(initAnalyticsListeners(deps.fetchAndRenderAnalytics, deps.workspace));
+        deps.registerCleanup(initAnalyticsListeners(
+            deps.fetchAndRenderAnalytics,
+            deps.workspace,
+            deps.getCurrentTimeseriesData,
+        ));
     });
 
     registerSubsystem('annotation-subsystems', async (deps) => {

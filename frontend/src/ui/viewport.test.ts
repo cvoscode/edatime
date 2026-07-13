@@ -12,13 +12,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
     chartStateMock,
-    runtimeStateMock,
     storeHandlers,
     setViewportMock,
     setInitialViewMock,
-    setFetchDebounceIdMock,
-    setPendingRestoreYMock,
-    setPendingYModeMock,
     setZoomHistoryMock,
 } = vi.hoisted(() => {
     const handlers: Record<string, Set<(payload: any) => void>> = {};
@@ -31,9 +27,6 @@ const {
             zoomHistory: [] as any[],
             chartText: null as any,
         },
-        runtimeStateMock: {
-            fetchDebounceId: 0 as any,
-        },
         storeHandlers: handlers,
         setViewportMock: vi.fn((start: number | null, end: number | null) => {
             chartStateMock.currentStart = start;
@@ -44,9 +37,6 @@ const {
             chartStateMock.initialView = view;
             for (const h of handlers['chart:initialView'] ?? []) h({ next: view });
         }),
-        setFetchDebounceIdMock: vi.fn(),
-        setPendingRestoreYMock: vi.fn(),
-        setPendingYModeMock: vi.fn(),
         setZoomHistoryMock: vi.fn(),
     };
 });
@@ -55,13 +45,6 @@ vi.mock('../store/chartState.js', () => ({
     chartState: chartStateMock,
     setViewport: setViewportMock,
     setZoomHistory: setZoomHistoryMock,
-}));
-
-vi.mock('../store/runtimeState.js', () => ({
-    runtimeState: runtimeStateMock,
-    setFetchDebounceId: setFetchDebounceIdMock,
-    setPendingRestoreY: setPendingRestoreYMock,
-    setPendingYMode: setPendingYModeMock,
 }));
 
 vi.mock('../store/events.js', () => ({
@@ -111,7 +94,6 @@ describe('updateZoomRangeBadge', () => {
         chartStateMock.currentEnd = 100;
         chartStateMock.initialView = null;
         chartStateMock.zoomHistory = [];
-        runtimeStateMock.fetchDebounceId = 0;
         badge = makeBadge();
     });
 

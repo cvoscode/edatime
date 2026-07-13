@@ -133,6 +133,7 @@ describe('createTimeseriesBootstrap', () => {
             buildColumnToggles: vi.fn(),
             buildRangeControls: vi.fn(),
             renderCurrentData: vi.fn(),
+            getCurrentData: vi.fn(() => null),
             fetchAndRender: vi.fn().mockResolvedValue(undefined),
             refreshZoomControlsState: vi.fn(),
             workspace: { getSnapshot: vi.fn(), setSelection: vi.fn(), setFilters: vi.fn(), setViewport: vi.fn(), subscribe: vi.fn(() => vi.fn()) },
@@ -182,6 +183,7 @@ describe('createTimeseriesBootstrap', () => {
             buildColumnToggles: vi.fn(),
             buildRangeControls: vi.fn(),
             renderCurrentData: vi.fn(),
+            getCurrentData: vi.fn(() => null),
             fetchAndRender: vi.fn().mockResolvedValue(undefined),
             refreshZoomControlsState: vi.fn(),
             workspace: { getSnapshot: vi.fn(), setSelection: vi.fn(), setFilters: vi.fn(), setViewport: vi.fn(), subscribe: vi.fn(() => vi.fn()) },
@@ -212,6 +214,7 @@ describe('createTimeseriesBootstrap', () => {
         const buildColumnToggles = vi.fn();
         const buildRangeControls = vi.fn();
         const renderCurrentData = vi.fn();
+        const getCurrentData = vi.fn(() => null);
         const onYRange = vi.fn();
         const workspace = { getSnapshot: vi.fn(), setSelection: vi.fn(), setFilters: vi.fn(), setViewport: vi.fn(), subscribe: vi.fn(() => vi.fn()) };
 
@@ -225,6 +228,7 @@ describe('createTimeseriesBootstrap', () => {
             buildColumnToggles,
             buildRangeControls,
             renderCurrentData,
+            getCurrentData,
             fetchAndRender: vi.fn().mockResolvedValue(undefined),
             refreshZoomControlsState: vi.fn(),
             workspace,
@@ -237,6 +241,7 @@ describe('createTimeseriesBootstrap', () => {
             buildColumnToggles,
             buildRangeControls,
             renderCurrentData,
+            getCurrentData,
             updateAnalysisYRange: onYRange,
         });
     });

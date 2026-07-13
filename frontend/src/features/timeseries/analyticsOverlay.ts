@@ -20,9 +20,8 @@ import {
     setRollingBands,
 } from '../../store/analyticsState.js';
 import { chartState } from '../../store/chartState.js';
-import { runtimeState } from '../../store/runtimeState.js';
 import type { AdaptiveLineFilter } from '../../types/store.js';
-import type { AnomalyResponse } from '../../types/api.js';
+import type { AnomalyResponse, DataObject } from '../../types/api.js';
 import type { RollingBandData } from '../../types/analytics.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import { getSeriesColor } from '../../utils/seriesColors.js';
@@ -194,17 +193,23 @@ export function createAnalyticsOverlayController(): AnalyticsOverlayController {
     };
 }
 
-/** Compute rolling bands from lastFetchedData + column ranges; update analytics state. */
+/** Compute rolling bands from the feature's current data and column ranges. */
 export function computeAndSetRollingBands(
     windowSize: number,
     workspace: Pick<WorkspaceStore, 'getSnapshot'>,
+    getCurrentData: () => DataObject | null,
 ): void {
     if (!analyticsState.rollingEnabled) {
         setRollingBands(null);
         return;
     }
     const intent = getFilterIntent(workspace);
-    const filtered = applyFilterIntentToData(runtimeState.lastFetchedData!, intent);
+    const data = getCurrentData();
+    if (!data) {
+        setRollingBands(null);
+        return;
+    }
+    const filtered = applyFilterIntentToData(data, intent);
     setRollingBands(computeFrontendRollingBands(filtered, [...intent.selection.columns], windowSize));
 }
 
@@ -212,7 +217,7 @@ export function computeAndSetRollingBands(
 
 /**
  * Wire typed analytics-change notifications to:
- *   1. Recompute rolling bands from current lastFetchedData
+ *   1. Recompute rolling bands from the current feature data
  *   2. Trigger chart overlay re-render
  *   3. Fetch fresh anomaly regions
  *
@@ -221,12 +226,14 @@ export function computeAndSetRollingBands(
 export function initAnalyticsListeners(
     fetchAndRenderAnalytics: () => Promise<void>,
     workspace: Pick<WorkspaceStore, 'getSnapshot'>,
+    getCurrentData: () => DataObject | null,
 ): () => void {
     const handler = () => {
-        if (runtimeState.lastFetchedData) {
+        const data = getCurrentData();
+        if (data) {
             if (analyticsState.rollingEnabled) {
                 const intent = getFilterIntent(workspace);
-                const filtered = applyFilterIntentToData(runtimeState.lastFetchedData, intent);
+                const filtered = applyFilterIntentToData(data, intent);
                 setRollingBands(computeFrontendRollingBands(
                     filtered,
                     [...intent.selection.columns],

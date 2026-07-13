@@ -27,12 +27,6 @@ export type StoreEventMap = {
     'dataset:metadata': StoreChange<unknown>;
     'dataset:numericCols': StoreChange<string[]>;
     'runtime:analysisBound': StoreChange<boolean>;
-    'runtime:fetchDebounceId': StoreChange<ReturnType<typeof setTimeout> | null>;
-    'runtime:fetchedWindow': StoreChange<unknown>;
-    'runtime:lastFetchedData': StoreChange<unknown>;
-    'runtime:pendingRestoreY': StoreChange<{ min: number; max: number } | null>;
-    'runtime:pendingYMode': StoreChange<unknown>;
-    'runtime:refetchOnZoom': StoreChange<boolean>;
     'scatter:state': StoreChange<unknown>;
     'ui:adaptiveFilterColumn': StoreChange<string | null>;
     'ui:filterText': StoreChange<string>;

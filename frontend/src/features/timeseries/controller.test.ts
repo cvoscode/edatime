@@ -9,19 +9,12 @@ import {
     setZoomHistory,
 } from '../../store/chartState.js';
 import { setMetadata } from '../../store/datasetState.js';
-import {
-    runtimeState,
-    setFetchDebounceId,
-    setFetchedWindow,
-    setLastFetchedData,
-    setPendingRestoreY,
-    setPendingYMode,
-    setRefetchOnZoom,
-} from '../../store/runtimeState.js';
 import { createWorkspaceStore, type WorkspaceStore } from '../../workspace/workspaceStore.js';
 import { clearFeatureEventHandlers, onFeatureEvent } from '../../platform/featureEvents.js';
+import { createTimeseriesRuntimeCache, type TimeseriesRuntimeCache } from './runtimeCache.js';
 
 let defaultWorkspace: WorkspaceStore;
+let defaultRuntimeCache: TimeseriesRuntimeCache;
 
 function setWorkspaceSelection(columns: string[]): void {
     defaultWorkspace.setSelection(columns, defaultWorkspace.getSnapshot().selection.colorColumn);
@@ -33,24 +26,21 @@ function setWorkspaceColorColumn(colorColumn: string | null): void {
 
 function createTimeseriesPageController(deps: Record<string, any>) {
     const workspace = deps.workspace ?? defaultWorkspace;
-    return createWorkspaceController({ ...deps, workspace } as any);
+    const runtimeCache = deps.runtimeCache ?? defaultRuntimeCache;
+    return createWorkspaceController({ ...deps, workspace, runtimeCache } as any);
 }
 
 describe('createTimeseriesPageController', () => {
     beforeEach(() => {
         clearFeatureEventHandlers();
         defaultWorkspace = createWorkspaceStore();
+        defaultRuntimeCache = createTimeseriesRuntimeCache();
+        defaultRuntimeCache.refetchOnZoom = false;
         document.body.innerHTML = '';
         setChartInstance(null);
         setViewport(0, 100);
         setZoomHistory([]);
         setInitialView(null);
-        setPendingYMode(null);
-        setPendingRestoreY(null);
-        setFetchDebounceId(null);
-        setRefetchOnZoom(false);
-        setLastFetchedData(null);
-        setFetchedWindow(null);
         defaultWorkspace.setFilters({ columnRanges: {}, adaptiveLines: [] });
         setWorkspaceSelection([]);
         setWorkspaceColorColumn(null);
@@ -118,8 +108,8 @@ describe('createTimeseriesPageController', () => {
         expect(chartState.zoomHistory).toEqual([{ xMin: 0, xMax: 100, yMin: 10, yMax: 90 }]);
         expect(chartState.currentStart).toBe(20);
         expect(chartState.currentEnd).toBe(80);
-        expect(runtimeState.pendingYMode).toBe('restore');
-        expect(runtimeState.pendingRestoreY).toEqual({ min: 30, max: 70 });
+        expect(defaultRuntimeCache.pendingYMode).toBe('restore');
+        expect(defaultRuntimeCache.pendingRestoreY).toEqual({ min: 30, max: 70 });
         expect(chart.setXRange).toHaveBeenCalledWith(20, 80);
     });
 
@@ -177,7 +167,7 @@ describe('createTimeseriesPageController', () => {
             getYRange: vi.fn(),
         };
         setChartInstance(chart as any);
-        setLastFetchedData({
+        defaultRuntimeCache.data = {
             ts: new Float64Array([10, 20]),
             values: {
                 legacy: new Float64Array([1, 2]),
@@ -185,7 +175,7 @@ describe('createTimeseriesPageController', () => {
             },
             series: {},
             colorByColumn: {},
-        } as any);
+        } as any;
         setWorkspaceSelection(['legacy']);
         const controller = createTimeseriesPageController({
             fetchData: vi.fn(),
@@ -277,7 +267,7 @@ describe('createTimeseriesPageController', () => {
     it('fetches immediately after a boxed zoom instead of waiting on a fixed debounce', () => {
         vi.useFakeTimers();
         try {
-            setRefetchOnZoom(true);
+            defaultRuntimeCache.refetchOnZoom = true;
             const chart = {
                 setXRange: vi.fn(),
                 setYRange: vi.fn(),
@@ -715,7 +705,7 @@ describe('createTimeseriesPageController', () => {
             setWorkspaceSelection(['value']);
             setWorkspaceColorColumn(null);
             setViewport(0, 4_000);
-            setRefetchOnZoom(true);
+            defaultRuntimeCache.refetchOnZoom = true;
 
             const chart = {
                 setXRange: vi.fn(),
@@ -889,13 +879,6 @@ describe('createTimeseriesPageController', () => {
             setChartInstance(chart as any);
 
             const updateAnalysisYRange = vi.fn((min: number, max: number, _sourceKind?: string) => {
-                if (runtimeState.pendingYMode === 'restore' && runtimeState.pendingRestoreY) {
-                    const savedY = runtimeState.pendingRestoreY;
-                    setPendingYMode(null);
-                    setPendingRestoreY(null);
-                    chart.setYRange(savedY.min, savedY.max);
-                    return;
-                }
                 currentY = { min, max };
             });
 

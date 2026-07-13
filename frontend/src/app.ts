@@ -165,6 +165,7 @@ export function createApp(): AppRoot {
             showPage,
             fetchAndRender: () => timeseriesModule.fetchAndRender(),
             fetchAndRenderAnalytics,
+            getCurrentTimeseriesData: () => timeseriesModule.getCurrentData(),
             exportFilteredCsv: exportFeature.exportFilteredCsv,
             exportFilteredJson: exportFeature.exportFilteredJson,
             exportChartPng: () => chartState.chart?.exportPNG?.(),

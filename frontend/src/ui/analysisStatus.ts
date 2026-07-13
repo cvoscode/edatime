@@ -5,7 +5,6 @@
 
 import { formatAnalysisTime, formatAnalysisNumber } from '../utils/format.js';
 import { chartState } from '../store/chartState.js';
-import { runtimeState, setPendingRestoreY, setPendingYMode } from '../store/runtimeState.js';
 
 function setText(id: string, text: string): void {
     const el = document.getElementById(id);
@@ -17,15 +16,6 @@ export function updateAnalysisZoom(startMs: number, endMs: number, sourceKind = 
 }
 
 export function updateAnalysisYRange(min: number, max: number, sourceKind = 'user'): void {
-    if (runtimeState.pendingYMode === 'restore' && runtimeState.pendingRestoreY) {
-        const savedY = runtimeState.pendingRestoreY;
-        setPendingYMode(null);
-        setPendingRestoreY(null);
-        chartState.chart?.setYRange(savedY.min, savedY.max);
-        setText('analysis-y', `Y: ${formatAnalysisNumber(savedY.min)} → ${formatAnalysisNumber(savedY.max)} (restore)`);
-        return;
-    }
-
     if (!Number.isFinite(min) || !Number.isFinite(max)) {
         setText('analysis-y', 'Y: —');
         return;

@@ -4,20 +4,21 @@ import {
     setChartInstance,
 } from '../../store/chartState.js';
 import { datasetState, setMetadata } from '../../store/datasetState.js';
-import { setLastFetchedData } from '../../store/runtimeState.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 
 let workspace = createWorkspaceStore();
+let currentData: any = null;
 let openFilterForColumn: (column: string | null) => void = () => {};
 
 function initFilterModalController(
-    deps: Omit<Parameters<typeof createFilterModalController>[0], 'workspace' | 'openColumnFilter'>
+    deps: Omit<Parameters<typeof createFilterModalController>[0], 'workspace' | 'openColumnFilter' | 'getCurrentData'>
         & Partial<Pick<Parameters<typeof createFilterModalController>[0], 'workspace'>>,
 ) {
     const controller = createFilterModalController({
         ...deps,
         workspace: deps.workspace ?? workspace,
         openColumnFilter: vi.fn(),
+        getCurrentData: () => currentData,
     });
     openFilterForColumn = controller.open;
     return controller;
@@ -74,14 +75,14 @@ describe('initFilterModalController', () => {
         workspace.setSelection(['HUFL', 'HULL']);
         setWorkspaceRanges({});
 
-        // Provide lastFetchedData so getFullBoundsForCol works in tests
-        setLastFetchedData({
+        // Provide feature-owned data so getFullBoundsForCol works in tests.
+        currentData = {
             timestamp: 0,
             values: {
                 HUFL: new Float64Array([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]),
                 HULL: new Float64Array([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]),
             },
-        } as any);
+        } as any;
 
         // Mock chart
         setChartInstance({
@@ -154,7 +155,7 @@ describe('initFilterModalController', () => {
 
             const minInput = document.getElementById('column-filter-min') as HTMLInputElement;
             const maxInput = document.getElementById('column-filter-max') as HTMLInputElement;
-            // Default range is the full bounds from lastFetchedData (0 to 1)
+            // Default range is the full bounds from current feature data (0 to 1)
             expect(minInput.value).toBe('0.00');
             expect(maxInput.value).toBe('1.00');
         });

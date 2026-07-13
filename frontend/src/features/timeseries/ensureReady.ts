@@ -17,6 +17,7 @@ import { initAdaptiveFilterGesture } from './adaptiveGesture.js';
 import { restoreSessionAfterChartReady } from '../../platform/sessionLifecycle.js';
 import { dbg, dbgGroup } from '../../debug.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
+import type { DataObject } from '../../types/api.js';
 export interface TimeseriesBootstrapCallbacks {
     onZoom: (view: ViewSnapshot, sourceKind: string) => void;
     onYRange: (min: number, max: number, sourceKind: string) => void;
@@ -36,6 +37,7 @@ export interface TimeseriesBootstrapDeps {
     buildColumnToggles: () => void;
     buildRangeControls: () => void;
     renderCurrentData: () => void;
+    getCurrentData: () => DataObject | null;
     fetchAndRender: () => Promise<void>;
     refreshZoomControlsState: () => void;
     setAnomalyOverlayRenderCallback?: (callback: (() => void) | null) => void;
@@ -100,6 +102,7 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                         buildColumnToggles: deps.buildColumnToggles,
                         buildRangeControls: deps.buildRangeControls,
                         renderCurrentData: deps.renderCurrentData,
+                        getCurrentData: deps.getCurrentData,
                         updateAnalysisYRange: deps.onYRange,
                     });
                     deps.refreshZoomControlsState();

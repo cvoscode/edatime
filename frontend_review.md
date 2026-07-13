@@ -679,6 +679,13 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Zoom, reset, and dispose paths now cancel only their own scheduled work; controller disposal clears the local cache rather than a process-wide debounce handle.
 - Direct cache and controller/module characterization coverage protects replacement scheduling and disposal cancellation before the remaining fetched-data/window cache cutover.
 
+### Completed: Timeseries volatile render-state ownership
+
+- Completed the cache cutover: fetched data, buffered-window metadata, pending Y-range restore policy, and zoom-refetch policy now belong to the owning Timeseries runtime cache rather than `runtimeState`.
+- Filter-modal bounds, adaptive-line gestures, rolling-band recomputation, and deferred analytics listeners receive an explicit current-data capability from the Timeseries feature. None reads the former process-wide fetched-data slot.
+- The controller applies a restored Y range and its analysis status explicitly after rendering; `analysisStatus` no longer reaches into feature render state as a hidden callback side effect.
+- Retired the obsolete runtime-store fields and events. The remaining runtime store is limited to the still-shared analysis binding flag; quick-range utilities no longer create a global debounce handle.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.

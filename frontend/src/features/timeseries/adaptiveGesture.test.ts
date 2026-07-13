@@ -1,16 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { initAdaptiveFilterGesture } from './adaptiveGesture.js';
 import { setChartInstance } from '../../store/chartState.js';
-import { setLastFetchedData } from '../../store/runtimeState.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 
 describe('adaptive filter gesture', () => {
+    let currentData: any;
     beforeEach(() => {
         document.body.innerHTML = '<div id="main-chart"></div>';
-        setLastFetchedData({
+        currentData = {
             ts: Float64Array.from([0, 10]),
             values: { value: Float64Array.from([1, 9]) },
-        } as any);
+        } as any;
         setChartInstance({
             cssPointToData: vi.fn()
                 .mockReturnValueOnce({ x: 0, y: 1 })
@@ -29,6 +29,7 @@ describe('adaptive filter gesture', () => {
             buildColumnToggles: vi.fn(),
             buildRangeControls: vi.fn(),
             renderCurrentData: vi.fn(),
+            getCurrentData: () => currentData,
             updateAnalysisYRange: vi.fn(),
         } as any);
         const chart = document.getElementById('main-chart')!;
@@ -51,6 +52,7 @@ describe('adaptive filter gesture', () => {
             buildColumnToggles: vi.fn(),
             buildRangeControls: vi.fn(),
             renderCurrentData: vi.fn(),
+            getCurrentData: () => currentData,
             updateAnalysisYRange: vi.fn(),
         } as any);
         const chart = document.getElementById('main-chart')!;
@@ -75,6 +77,7 @@ describe('adaptive filter gesture', () => {
             buildColumnToggles,
             buildRangeControls,
             renderCurrentData,
+            getCurrentData: () => currentData,
             updateAnalysisYRange,
         } as any);
         const chart = document.getElementById('main-chart')!;

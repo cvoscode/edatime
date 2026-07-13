@@ -24,6 +24,7 @@ import { initFilterModalController } from './filterModalController.js';
 import { renderColorByControl } from './colorByControl.js';
 import type { SelectionWorkspace } from './selectionIntent.js';
 import type { FilterWorkspace } from './selectionIntent.js';
+import type { DataObject } from '../../types/api.js';
 
 // ─── Column toggles (chips) ─────────────────────────────────────────────────
 
@@ -111,11 +112,13 @@ export function initColumnFilterModal(
     updateAnalysisYRange: (min: number, max: number, source: string) => void,
     workspace: FilterWorkspace,
     openColumnFilter: (column: string | null) => void,
+    getCurrentData: () => DataObject | null,
 ) {
     return initFilterModalController({
         renderCurrentData,
         updateAnalysisYRange,
         workspace,
         openColumnFilter,
+        getCurrentData,
     });
 }

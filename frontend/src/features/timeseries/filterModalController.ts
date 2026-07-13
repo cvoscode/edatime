@@ -2,7 +2,7 @@ import { formatAnalysisNumber } from '../../utils/format.js';
 import { computeBounds } from '../../services/timeseries/filtering.js';
 import { chartState } from '../../store/chartState.js';
 import { datasetState } from '../../store/datasetState.js';
-import { runtimeState } from '../../store/runtimeState.js';
+import type { DataObject } from '../../types/api.js';
 import { buildRangeControls } from './rangeControls.js';
 import { ColumnFilterModal } from '../../ui/composites/ColumnFilterModal.js';
 import { getDropdownValue, setDropdownOptions } from '../../ui/primitives/Dropdown.js';
@@ -13,6 +13,7 @@ export interface FilterModalControllerDeps {
     updateAnalysisYRange: (min: number, max: number, source: string) => void;
     workspace: FilterWorkspace;
     openColumnFilter: (column: string | null) => void;
+    getCurrentData: () => DataObject | null;
 }
 
 export interface ColumnFilterModalController {
@@ -201,8 +202,9 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
     }
 
     function getFullBoundsForCol(col: string): { min: number; max: number } | null {
-        const rawValues = runtimeState.lastFetchedData?.values?.[col];
-        const filteredSeries = (runtimeState.lastFetchedData as unknown as { series?: Record<string, { y?: Float64Array }> })?.series;
+        const currentData = deps.getCurrentData();
+        const rawValues = currentData?.values?.[col];
+        const filteredSeries = (currentData as unknown as { series?: Record<string, { y?: Float64Array }> })?.series;
         const filteredValues = filteredSeries?.[col]?.y;
         const dataBounds = computeBounds(rawValues || filteredValues || new Float64Array(0));
         if (dataBounds) return dataBounds;
@@ -239,7 +241,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
             setHint('Select a column to filter.');
             return;
         }
-        if (!runtimeState.lastFetchedData) {
+        if (!deps.getCurrentData()) {
             updateSliderConfig(null);
             applyButton.disabled = true;
             clearButton.disabled = true;
