@@ -26,6 +26,7 @@ import {
 } from '../../store/runtimeState.js';
 import { uiState } from '../../store/uiState.js';
 import { buildTimeseriesDataRequest } from './timeseriesRequest.js';
+import { canReuseBufferedFetch } from './bufferedFetchPolicy.js';
 
 const EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} } as any;
 const CONSECUTIVE_ZOOM_OUT_RESET_COUNT = 5;
@@ -374,16 +375,13 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         const currentColorCol = intent.colorColumn;
         const lastFetchKey = intent.key;
         const fetchedWindow = runtimeState.fetchedWindow;
-        const bufferedDataIsRaw = runtimeState.lastFetchedData?._meta?.downsampled === false;
-        const viewportInsideFetchedWindow = !!(
-            fetchedWindow
-            && Number.isFinite(fetchedWindow.start)
-            && Number.isFinite(fetchedWindow.end)
-            && fetchedWindow.start <= currentStart
-            && fetchedWindow.end >= currentEnd
-        );
-
-        if (lastFetchedParams === lastFetchKey && runtimeState.lastFetchedData && viewportInsideFetchedWindow && bufferedDataIsRaw) {
+        if (canReuseBufferedFetch({
+            expectedKey: lastFetchedParams,
+            actualKey: lastFetchKey,
+            data: runtimeState.lastFetchedData,
+            fetchedWindow,
+            requestedView: { start: currentStart, end: currentEnd },
+        })) {
             dbg('fetchAndRender: reusing buffered data window', {
                 startIso: new Date(currentStart).toISOString(),
                 endIso: new Date(currentEnd).toISOString(),
@@ -508,9 +506,13 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
 
         applyView(restoreState.view, 'zoom-out');
 
-        const canReuseRawBufferedState = restoreState.fetchKey === currentFetchKey()
-            && !!restoreState.data
-            && restoreState.data?._meta?.downsampled === false;
+        const canReuseRawBufferedState = canReuseBufferedFetch({
+            expectedKey: restoreState.fetchKey,
+            actualKey: currentFetchKey(),
+            data: restoreState.data,
+            fetchedWindow: restoreState.fetchedWindow,
+            requestedView: { start: restoreState.view.xMin, end: restoreState.view.xMax },
+        });
         if (canReuseRawBufferedState) {
             setLastFetchedData(restoreState.data);
             setFetchedWindow(restoreState.fetchedWindow);
