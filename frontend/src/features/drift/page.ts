@@ -7,7 +7,7 @@
 
 import { DEBUG } from '../../debug.js';
 import { fetchDriftInvestigation } from '../../services/api/index.js';
-import { bindDriftControls, getSelectedColumns } from './controls.js';
+import { bindDriftControls, getSelectedColumns, resetDriftControlsState } from './controls.js';
 import { toast } from '../../utils/toast.js';
 import { createAnalysisPageRuntime } from '../../platform/analysisRuntime.js';
 import { createRequestTask } from '../../platform/requestTask.js';
@@ -579,6 +579,7 @@ export async function initDriftPage(metadata: any): Promise<void> {
     driftPageCleanup = () => {
         pageAbortController.abort();
         disposeControls();
+        resetDriftControlsState();
         resizeObserver?.disconnect();
         disposeRuntime();
         driftRuntime = null;
