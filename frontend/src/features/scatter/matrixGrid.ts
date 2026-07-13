@@ -15,7 +15,22 @@ import {
     type ScatterControls,
 } from './state.js';
 
-let draggingMatrixColumn: string | null = null;
+interface MatrixGridInteractionState {
+    draggingColumn: string | null;
+    columns: string[];
+    onColumnReorder: ((nextColumns: string[]) => void) | null;
+}
+
+const interactionStateByGrid = new WeakMap<HTMLElement, MatrixGridInteractionState>();
+
+function getInteractionState(grid: HTMLElement): MatrixGridInteractionState {
+    let state = interactionStateByGrid.get(grid);
+    if (!state) {
+        state = { draggingColumn: null, columns: [], onColumnReorder: null };
+        interactionStateByGrid.set(grid, state);
+    }
+    return state;
+}
 
 function moveColumn(columns: string[], source: string, target: string): string[] {
     if (!source || !target || source === target) return columns.slice();
@@ -30,23 +45,17 @@ function moveColumn(columns: string[], source: string, target: string): string[]
 
 function bindReorderHandle(
     handle: HTMLElement,
-    column: string,
-    columns: string[],
-    onColumnReorder: ((nextColumns: string[]) => void) | null,
+    state: MatrixGridInteractionState,
 ): void {
-    if (!onColumnReorder) return;
-    handle.draggable = true;
-    handle.dataset.column = column;
+    handle.draggable = state.onColumnReorder !== null;
 
     const bound = (handle as unknown as { __reorderBound?: boolean }).__reorderBound;
-    if (bound) {
-        handle.dataset.column = column;
-        return;
-    }
+    if (bound) return;
     (handle as unknown as { __reorderBound?: boolean }).__reorderBound = true;
 
     handle.addEventListener('dragstart', (event: DragEvent) => {
-        draggingMatrixColumn = column;
+        const column = handle.dataset.column || '';
+        state.draggingColumn = column;
         handle.classList.add('dragging');
         if (event.dataTransfer) {
             event.dataTransfer.effectAllowed = 'move';
@@ -55,7 +64,7 @@ function bindReorderHandle(
     });
 
     handle.addEventListener('dragend', () => {
-        draggingMatrixColumn = null;
+        state.draggingColumn = null;
         handle.classList.remove('dragging');
         document.querySelectorAll('.scatter-matrix-drop-target').forEach((element) => {
             element.classList.remove('scatter-matrix-drop-target');
@@ -63,7 +72,8 @@ function bindReorderHandle(
     });
 
     handle.addEventListener('dragover', (event: DragEvent) => {
-        const source = draggingMatrixColumn || event.dataTransfer?.getData('text/plain') || '';
+        const column = handle.dataset.column || '';
+        const source = state.draggingColumn || event.dataTransfer?.getData('text/plain') || '';
         if (!source || source === column) return;
         event.preventDefault();
         handle.classList.add('scatter-matrix-drop-target');
@@ -74,11 +84,12 @@ function bindReorderHandle(
     });
 
     handle.addEventListener('drop', (event: DragEvent) => {
-        const source = draggingMatrixColumn || event.dataTransfer?.getData('text/plain') || '';
+        const column = handle.dataset.column || '';
+        const source = state.draggingColumn || event.dataTransfer?.getData('text/plain') || '';
         handle.classList.remove('scatter-matrix-drop-target');
         if (!source || source === column) return;
         event.preventDefault();
-        onColumnReorder(moveColumn(columns, source, column));
+        state.onColumnReorder?.(moveColumn(state.columns, source, column));
     });
 }
 
@@ -113,6 +124,9 @@ export function renderMatrixGrid(
         grid.className = 'scatter-matrix-grid';
         container.appendChild(grid);
     }
+    const interactionState = getInteractionState(grid);
+    interactionState.columns = columns.slice();
+    interactionState.onColumnReorder = onColumnReorder;
     grid.style.gridTemplateColumns = `60px repeat(${columns.length}, ${cellSize}px)`;
 
     let corner = grid.querySelector<HTMLElement>(':scope > .scatter-matrix-corner');
@@ -143,13 +157,14 @@ export function renderMatrixGrid(
             header.className = 'scatter-matrix-header';
             header.textContent = column;
             header.dataset.column = column;
-            bindReorderHandle(header, column, columns, onColumnReorder);
+            bindReorderHandle(header, interactionState);
             if (insertAfter.nextSibling) grid.insertBefore(header, insertAfter.nextSibling);
             else grid.appendChild(header);
             headerNodes.set(column, header);
         } else {
             header.textContent = column;
-            bindReorderHandle(header, column, columns, onColumnReorder);
+            header.dataset.column = column;
+            bindReorderHandle(header, interactionState);
             const desired = insertAfter.nextSibling;
             if (desired !== header) {
                 if (desired) grid.insertBefore(header, desired);
@@ -188,7 +203,8 @@ export function renderMatrixGrid(
             cellNodesByKey.set(rowKey, rowHeader);
         }
         rowHeader.textContent = rowColumn;
-        bindReorderHandle(rowHeader, rowColumn, columns, onColumnReorder);
+        rowHeader.dataset.column = rowColumn;
+        bindReorderHandle(rowHeader, interactionState);
         if (insertAfter.nextSibling !== rowHeader) {
             if (insertAfter.nextSibling) grid.insertBefore(rowHeader, insertAfter.nextSibling);
             else grid.appendChild(rowHeader);

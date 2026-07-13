@@ -96,6 +96,7 @@ Move complete: the Timeseries toolbar-overflow controller now lives in `features
 - Removed Scatter correlation pills' retained page callback. Rendering and correlation refresh now receive the apply action explicitly from the page controller, so freshly rendered suggestions preserve behavior without module-scoped orchestration state.
 - Removed the Scatter render-scheduler registry. The page supplies a density re-bin callback through chart lifecycle into box-zoom/view policy, preserving the current zoom for exactly that re-fetch without a retained renderer-to-page bridge.
 - Replaced Matrix's module-global abort controller with a page-owned render session. Matrix batch and FFT work share the session signal; every new render aborts the prior one, and Scatter reinitialization disposes the old session before creating the next.
+- Moved Matrix-grid drag state from module scope onto the concrete grid interaction state. Reused row/column headers now derive their source, target, current order, and callback at interaction time; direct coverage prevents stale-order reordering after a grid refresh.
 
 ### Next: remaining page-layout test ownership
 

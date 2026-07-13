@@ -135,6 +135,20 @@ describe('buildMatrixFetchPairs', () => {
         expect(container.querySelector('.scatter-matrix-cell')).toBe(firstCell);
     });
 
+    it('reorders reused headers against the latest column order', () => {
+        const onColumnReorder = vi.fn();
+        renderMatrixGrid(['A', 'B', 'C'], new Map(), () => { }, onColumnReorder);
+        renderMatrixGrid(['C', 'A', 'B'], new Map(), () => { }, onColumnReorder);
+
+        const headers = Array.from(document.querySelectorAll<HTMLElement>('.scatter-matrix-header'));
+        const source = headers.find((header) => header.dataset.column === 'B')!;
+        const target = headers.find((header) => header.dataset.column === 'C')!;
+        source.dispatchEvent(new Event('dragstart', { bubbles: true }));
+        target.dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
+
+        expect(onColumnReorder).toHaveBeenLastCalledWith(['B', 'C', 'A']);
+    });
+
     it('owns matrix cancellation inside an explicit render session', async () => {
         const session = createMatrixRenderSession();
         const idleSignal = session.currentSignal();
