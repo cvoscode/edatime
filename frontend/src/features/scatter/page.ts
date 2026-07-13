@@ -84,6 +84,7 @@ import type { DatasetMetadata } from '../../types.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 let workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters'> | null = null;
+let disposeBoundControls: (() => void) | null = null;
 
 /** Request task for scatter data fetching with abort-before-new semantics. */
 const scatterTask = createRequestTask({
@@ -423,8 +424,9 @@ async function onMatrixCellClick(x: string, y: string): Promise<void> {
 /* ── Control binding ──────────────────────────────────── */
 
 function bindControls(): Promise<void> {
-    return import('./controls.js').then(({ bindScatterControls }) =>
-        bindScatterControls({
+    return import('./controls.js').then(({ bindScatterControls }) => {
+        disposeBoundControls?.();
+        disposeBoundControls = bindScatterControls({
             initScatterPage,
             renderScatter,
             refreshCorrelationsAndSuggestions,
@@ -436,8 +438,8 @@ function bindControls(): Promise<void> {
             syncScatterFilterBadge,
             workspace: workspace ?? undefined,
             exportScatterParquet: () => exportScatterParquet(workspace?.getSnapshot()),
-        }),
-    ).then(() => {
+        });
+    }).then(() => {
         // Register the click handler for correlation pills. After a pill
         // is clicked the X and Y dropdowns are already updated, so we only
         // need to refresh the correlation list for the new X and re-render

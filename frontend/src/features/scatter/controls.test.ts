@@ -161,7 +161,9 @@ describe('bindScatterControls', () => {
         buildDom();
     });
 
-    afterEach(() => {
+    afterEach(async () => {
+        const { disposeScatterControls } = await import('./controls.js');
+        disposeScatterControls();
         vi.restoreAllMocks();
     });
 

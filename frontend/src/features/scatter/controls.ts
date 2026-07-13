@@ -17,10 +17,7 @@
  * All scatter rendering functions are passed as callbacks.
  */
 
-// Scatter controls are a single page-level resource. Keep their disposer on
-// `globalThis` so a fresh module instance (including one created by hot reload
-// or a test reset) can retire the old DOM/window listeners before it binds.
-type ScatterControlsSlot = { __scatterControlsCleanup?: () => void };
+let activeControlsCleanup: (() => void) | null = null;
 
 import { datasetState } from '../../store/datasetState.js';
 import { scatterState } from '../../store/scatterState.js';
@@ -83,17 +80,16 @@ function updateRangeFill(input: HTMLInputElement | null): void {
 
 /** Bind all scatter control event listeners and return their disposer. */
 export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
-    const controlsSlot = globalThis as ScatterControlsSlot;
-    controlsSlot.__scatterControlsCleanup?.();
+    disposeScatterControls();
     const controller = new AbortController();
     const listenerOptions = { signal: controller.signal };
     const dispose = () => {
         controller.abort();
-        if (controlsSlot.__scatterControlsCleanup === dispose) {
-            delete controlsSlot.__scatterControlsCleanup;
+        if (activeControlsCleanup === dispose) {
+            activeControlsCleanup = null;
         }
     };
-    controlsSlot.__scatterControlsCleanup = dispose;
+    activeControlsCleanup = dispose;
     const listen = (
         target: EventTarget,
         type: string,
@@ -326,4 +322,9 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
     });
 
     return dispose;
+}
+
+/** Dispose the currently bound Scatter control listeners, if any. */
+export function disposeScatterControls(): void {
+    activeControlsCleanup?.();
 }

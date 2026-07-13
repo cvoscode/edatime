@@ -312,7 +312,9 @@ describe('initScatterPage view toggles', () => {
         });
     });
 
-    afterEach(() => {
+    afterEach(async () => {
+        const { disposeScatterControls } = await import('./controls.js');
+        disposeScatterControls();
         for (const { type, listener, options } of windowListeners) {
             window.removeEventListener(type, listener, options);
         }
