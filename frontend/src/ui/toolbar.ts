@@ -97,12 +97,14 @@ export function setComputeLoading(btnId: string, overlayId: string, loading: boo
 
 export function initAnalysisControls(
     fetchAndRender: () => void,
-    zoomOutAction: () => void = () => zoomOut(fetchAndRender),
-    resetZoomAction: () => void = () => resetZoom(fetchAndRender),
+    zoomOutAction: (() => void) | undefined = undefined,
+    resetZoomAction: (() => void) | undefined = undefined,
     workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'setViewport' | 'subscribe'>,
 ): void {
+    const runZoomOut = zoomOutAction ?? (() => zoomOut(fetchAndRender, workspace));
+    const runResetZoom = resetZoomAction ?? (() => resetZoom(fetchAndRender, workspace));
     bindInfoPopovers();
-    initToolbarModals({ onZoomOut: zoomOutAction, onResetZoom: resetZoomAction });
+    initToolbarModals({ onZoomOut: runZoomOut, onResetZoom: runResetZoom });
     initDrawControls(fetchAndRender, workspace);
     initChartTextControls();
     initAnalyticsControls();

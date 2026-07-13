@@ -5,7 +5,6 @@
 
 import {
     chartState,
-    setViewport,
     setZoomHistory,
 } from '../store/chartState.js';
 import { subscribe } from '../store/events.js';
@@ -76,13 +75,16 @@ export function applyViewport(
     view: ViewSnapshot,
     fetchAndRender: () => void,
     sourceKind = 'api',
-    workspace?: Pick<WorkspaceStore, 'setViewport'>,
+    workspace: Pick<WorkspaceStore, 'setViewport'>,
 ): void {
     dbgGroup(`applyViewport (${sourceKind})`, () => dbg('incoming view', view));
-    workspace?.setViewport(view);
-    setViewport(view.xMin, view.xMax);
-    chartState.chart?.setXRange?.(chartState.currentStart as number, chartState.currentEnd as number);
-    updateAnalysisZoom(chartState.currentStart as number, chartState.currentEnd as number, sourceKind);
+    const start = Number(view.xMin);
+    const end = Number(view.xMax);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return;
+    const resolvedView = { ...view, xMin: start, xMax: end };
+    workspace.setViewport(resolvedView);
+    chartState.chart?.setXRange?.(start, end);
+    updateAnalysisZoom(start, end, sourceKind);
 
     if (Number.isFinite(view.yMin) && Number.isFinite(view.yMax) && view.yMax! > view.yMin!) {
         chartState.chart?.setYRange?.(view.yMin!, view.yMax!);
@@ -95,19 +97,19 @@ export function applyViewport(
     updateZoomRangeBadge();
 }
 
-export function zoomOut(fetchAndRender: () => void): void {
+export function zoomOut(fetchAndRender: () => void, workspace: Pick<WorkspaceStore, 'setViewport'>): void {
     if (chartState.zoomHistory.length > 0) {
         const nextHistory = chartState.zoomHistory.slice(0, -1);
         const nextView = chartState.zoomHistory[chartState.zoomHistory.length - 1] as ViewSnapshot;
         setZoomHistory(nextHistory);
-        applyViewport(nextView, fetchAndRender, 'zoom-out');
+        applyViewport(nextView, fetchAndRender, 'zoom-out', workspace);
     } else if (chartState.initialView) {
-        applyViewport(chartState.initialView as ViewSnapshot, fetchAndRender, 'zoom-out');
+        applyViewport(chartState.initialView as ViewSnapshot, fetchAndRender, 'zoom-out', workspace);
     }
 }
 
-export function resetZoom(fetchAndRender: () => void): void {
+export function resetZoom(fetchAndRender: () => void, workspace: Pick<WorkspaceStore, 'setViewport'>): void {
     if (!chartState.initialView) return;
     setZoomHistory([]);
-    applyViewport(chartState.initialView as ViewSnapshot, fetchAndRender, 'reset');
+    applyViewport(chartState.initialView as ViewSnapshot, fetchAndRender, 'reset', workspace);
 }

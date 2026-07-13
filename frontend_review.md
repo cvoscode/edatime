@@ -725,6 +725,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Primary ChartGPU and fallback chart initialization now set their initial X range from the composed `WorkspaceStore` viewport. Bootstrap diagnostics also report that canonical intent rather than the chart-state mirror.
 - Focused bootstrap coverage supplies explicit workspace ranges for both renderers and verifies fallback initialization applies the injected range, preserving the chart-adapter fallback contract without reintroducing a global viewport read.
 
+### Completed: quick-range workspace application
+
+- Quick-range application now validates the requested range, publishes the resolved `ViewSnapshot` directly to `WorkspaceStore`, and applies that exact range to the chart adapter and analysis status. It no longer writes then re-reads the global chart-range mirror.
+- Toolbar fallback actions now compose `zoomOut` and `resetZoom` with their workspace dependency explicitly, so even the default UI path preserves the same canonical publication contract as injected shell actions.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.
