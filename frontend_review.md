@@ -235,6 +235,7 @@ Continue this behavior-preserving split with the remaining renderer-owned seams:
 ### In progress: Scatter rendering decomposition
 
 - Extracted normal Scatter series construction into `seriesPolicy`, covering categorical grouping, finite continuous-value binning, palette sampling, and the stable fallback-series contract under direct tests.
+- Extracted Scatter tooltip HTML into `tooltipPresentation`, with direct escaping, categorical/continuous color-value, and column-type-aware formatting coverage.
 - Next, split the remaining request-payload and timeline-summary presentation seams only where the resulting boundary reduces page-controller ownership.
 
 ## Target Architecture

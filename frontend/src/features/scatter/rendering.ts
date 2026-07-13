@@ -6,9 +6,7 @@ import { formatTwoDecimals, formatTimestamp } from '../../formatUtils.js';
 import { refreshScatterToolbarOverflow } from './toolbarOverflow.js';
 import {
     getEl,
-    escapeHtml,
     paletteForScale,
-    formatValueForColumn,
     isTemporalColumn,
     buildHistogramForDomain,
     buildKdeCurve,
@@ -46,6 +44,7 @@ import {
     drawDensityMarginalY,
 } from './renderingDensity.js';
 import { buildNormalScatterSeries as buildSeriesByPolicy } from './seriesPolicy.js';
+import { buildScatterTooltipHtml } from './tooltipPresentation.js';
 
 /* ── Series builders ──────────────────────────────────── */
 
@@ -63,22 +62,19 @@ export function scatterTooltipFormatterFactory(controls: ScatterControls) {
     return (params: any) => {
         const p = Array.isArray(params) ? params[0] : params;
         if (!p) return '';
-        const x = Number(p?.value?.[0]);
-        const y = Number(p?.value?.[1]);
-        const xSpan = Math.max(1, scatterState.view.xMax - scatterState.view.xMin);
-        const ySpan = Math.max(1, scatterState.view.yMax - scatterState.view.yMin);
-        const parts = [
-            `<div><span style="opacity:0.85;">${escapeHtml(controls.x || 'X')}:</span> <span style="font-variant-numeric:tabular-nums;">${escapeHtml(formatValueForColumn(controls.x, x, xSpan, scatterState.columnTypes))}</span></div>`,
-            `<div><span style="opacity:0.85;">${escapeHtml(controls.y || 'Y')}:</span> <span style="font-variant-numeric:tabular-nums;">${escapeHtml(formatValueForColumn(controls.y, y, ySpan, scatterState.columnTypes))}</span></div>`,
-        ];
-        if (controls.selectedColorColumn && Array.isArray(scatterState.colorLabels)) {
-            const label = p?.seriesName || null;
-            if (label) parts.push(`<div><span style="opacity:0.85;">${escapeHtml(controls.selectedColorColumn)}:</span> <span style="font-variant-numeric:tabular-nums;">${escapeHtml(String(label))}</span></div>`);
-        } else if (controls.selectedColorColumn && Array.isArray(scatterState.colorValues)) {
-            const colorValue = Number(scatterState.colorValues[Number(p?.dataIndex)]);
-            if (Number.isFinite(colorValue)) parts.push(`<div><span style="opacity:0.85;">${escapeHtml(controls.selectedColorColumn)}:</span> <span style="font-variant-numeric:tabular-nums;">${escapeHtml(formatTwoDecimals(colorValue))}</span></div>`);
-        }
-        return parts.join('');
+        return buildScatterTooltipHtml({
+            xColumn: controls.x,
+            yColumn: controls.y,
+            colorColumn: controls.selectedColorColumn,
+            point: p.value,
+            seriesName: p.seriesName,
+            dataIndex: p.dataIndex,
+            xSpan: scatterState.view.xMax - scatterState.view.xMin,
+            ySpan: scatterState.view.yMax - scatterState.view.yMin,
+            columnTypes: scatterState.columnTypes,
+            colorLabels: scatterState.colorLabels,
+            colorValues: scatterState.colorValues,
+        });
     };
 }
 
