@@ -393,6 +393,10 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Extracted the cached grid-to-visible-points-to-ECharts projection into `spectrogramRenderModel`. It preserves reusable grid buffers while returning chart option, bounds, log-mode, axis formatter, and dominant-band presentation as one deterministic redraw result.
 - The remaining runtime is now the intended page-composition layer: it reads owned controls, binds disposable listeners, coordinates loading/error state, and delegates request, redraw, chart, colorbar, and summary work to their dedicated owners.
 
+### Remaining: lazy page activation contract
+
+- Spectrogram lifecycle characterization revealed that a lazily loaded analysis runtime must be able to perform its first activation after the router has already displayed the page, without synthesizing a global page-change event or retaining an earlier feature instance. Add an explicit `activate()` capability to the shared page-runtime/lifecycle contract, use it from the Spectrogram entrypoint after mount, and cover an isolated first-visit custom-control interaction plus repeated mount/dispose. Do not implement this as a page-local listener workaround.
+
 ### Completed: Causal edit-panel decomposition
 
 - Extracted pair-edge draft validation and normalized connection mutation into `editPolicy`, leaving modal status and DOM reads in `editPanel`.
