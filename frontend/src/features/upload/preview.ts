@@ -69,7 +69,7 @@ export async function runFilePreview(
         const timeColumn = String(uiState.previewTimeColumn || '').trim();
         if (timeColumn) formData.append('time_column', timeColumn);
 
-        const res = await previewUpload(formData, _previewController.signal);
+        const res = await previewUpload(formData, { signal: _previewController.signal });
         if (!res.ok) {
             const txt = await res.text().catch(() => 'Preview failed');
             throw new Error(txt || 'Preview failed');

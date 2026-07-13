@@ -395,7 +395,7 @@ export async function initDriftPage(metadata: any): Promise<void> {
                     wassersteinStdMultiplier: wassersteinStdMultiplierInput?.value,
                 });
 
-                const investigation = await fetchDriftInvestigation<DriftInvestigationResponse>(basePayload, signal);
+                const investigation = await fetchDriftInvestigation<DriftInvestigationResponse>(basePayload, { signal });
                 const results = new Map<string, DriftResponse>(Object.entries(investigation.columns || {}));
                 if (results.size === 0) throw new Error('No drift responses received.');
                 if (DEBUG && investigation.overview) console.debug('drift investigation overview', investigation.overview);

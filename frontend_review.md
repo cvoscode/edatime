@@ -209,6 +209,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Converted Scatter points and matrix requests from bare positional signals to explicit `ApiRequestOptions`, preserving Arrow decoding, request-scope validation, cache behavior, and query-context payload construction.
 - Updated the Scatter page and matrix render controllers plus their direct regressions to pin `{ signal }` as the final request argument, including active matrix-controller abort/reset behavior.
 
+### Completed: Upload and Drift request-options contract
+
+- Converted cancellable Upload preview and Drift investigation/stats requests to `ApiRequestOptions`, removing the final bare-signal route-family signatures while retaining unscoped database connection operations as explicit non-dataset requests.
+- Updated Upload preview and Drift-page callers to pass `{ signal }`; their focused feature/API characterization tests and the full application gate preserve cancellation and response behavior.
+
 ### Completed: DataChart decomposition
 
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.

@@ -1,9 +1,10 @@
 import { getJson, postJson } from './http.js';
+import type { ApiRequestOptions } from './http.js';
 
 // ── Upload ─────────────────────────────────────────────────────────────────
 
-export async function previewUpload(formData: FormData, signal?: AbortSignal): Promise<Response> {
-    return globalThis.fetch('/api/v1/upload/preview', { method: 'POST', body: formData, signal });
+export async function previewUpload(formData: FormData, options?: ApiRequestOptions): Promise<Response> {
+    return globalThis.fetch('/api/v1/upload/preview', { method: 'POST', body: formData, signal: options?.signal });
 }
 
 export async function uploadDataset(formData: FormData): Promise<Response> {
@@ -39,10 +40,10 @@ export async function fetchDatabaseStatus(): Promise<unknown> {
 
 // ── Drift ──────────────────────────────────────────────────────────────────
 
-export async function fetchDriftStats<T>(payload: unknown, signal?: AbortSignal): Promise<T> {
-    return postJson<T>('/api/v1/drift/stats', payload, 'Drift stats', signal ? { signal } : undefined);
+export async function fetchDriftStats<T>(payload: unknown, options?: ApiRequestOptions): Promise<T> {
+    return postJson<T>('/api/v1/drift/stats', payload, 'Drift stats', options);
 }
 
-export async function fetchDriftInvestigation<T>(payload: unknown, signal?: AbortSignal): Promise<T> {
-    return postJson<T>('/api/v1/drift/investigate', payload, 'Drift investigation', signal ? { signal } : undefined);
+export async function fetchDriftInvestigation<T>(payload: unknown, options?: ApiRequestOptions): Promise<T> {
+    return postJson<T>('/api/v1/drift/investigate', payload, 'Drift investigation', options);
 }
