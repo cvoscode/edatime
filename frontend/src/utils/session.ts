@@ -20,7 +20,6 @@ import {
     setAdaptiveLineFilters,
     setColumnRanges,
     setSelectedColorColumn,
-    setSelectedCols,
     setSeriesColors,
     uiState,
 } from '../store/uiState.js';
@@ -97,7 +96,7 @@ export function captureSession(): SessionSnapshot {
         version: 1,
         timestamp: Date.now(),
         page: currentPage(),
-        selectedCols: intent ? [...intent.selection.columns] : [...uiState.selectedCols],
+        selectedCols: [...(intent?.selection.columns ?? [])],
         seriesColors: { ...uiState.seriesColors },
         columnRanges: intent ? { ...intent.filters.columnRanges } : { ...uiState.columnRanges },
         adaptiveLineFilters: intent ? intent.filters.adaptiveLines.map((f) => ({ ...f })) : uiState.adaptiveLineFilters.map((f) => ({ ...f })),
@@ -176,15 +175,16 @@ export function applySession(
             return true;
         });
 
-    const appliedSelectedCols = nextSelectedCols.length > 0 ? nextSelectedCols : [...uiState.selectedCols];
+    const appliedSelectedCols = nextSelectedCols.length > 0
+        ? nextSelectedCols
+        : [...(workspace?.getSnapshot().selection.columns ?? [])];
     const requestedColorColumn = String(snap.selectedColorColumn ?? '').trim();
     const validColorColumn = !requestedColorColumn || validMetadataNames.size === 0 || validMetadataNames.has(requestedColorColumn);
     const appliedColorColumn = snap.selectedColorColumn !== undefined && validColorColumn
         ? snap.selectedColorColumn
-        : (snap.selectedColorColumn !== undefined ? null : uiState.selectedColorColumn);
+        : (snap.selectedColorColumn !== undefined ? null : (workspace?.getSnapshot().selection.colorColumn ?? null));
 
     workspace?.setSelection(appliedSelectedCols, appliedColorColumn);
-    setSelectedCols(appliedSelectedCols);
     if (snap.seriesColors) setSeriesColors({ ...snap.seriesColors });
 
     if (revisionMismatch) {

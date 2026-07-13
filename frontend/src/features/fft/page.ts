@@ -476,7 +476,7 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
                     return;
                 }
 
-                const column = fftTraces[0]?.column || uiState.selectedCols[0];
+                const column = fftTraces[0]?.column || workspace?.getSnapshot().selection.columns[0];
                 if (!column) {
                     toast('Select a column chip below first.', 'warning');
                     return;

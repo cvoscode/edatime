@@ -23,7 +23,6 @@ import {
     setPendingRestoreY,
     setPendingYMode,
 } from '../../store/runtimeState.js';
-import { uiState } from '../../store/uiState.js';
 import { buildTimeseriesDataRequest, getTimeseriesLookaroundMs } from './timeseriesRequest.js';
 import { canReuseBufferedFetch } from './bufferedFetchPolicy.js';
 import { resolveFetchedWindow } from './fetchedWindow.js';
@@ -52,7 +51,7 @@ interface TimeseriesControllerDeps {
     getCurrentView: () => ViewSnapshot;
     fetchAndRenderAnalytics: () => Promise<void>;
     recoverFromColumnMismatch?: () => Promise<boolean>;
-    workspace?: Pick<WorkspaceStore, 'getSnapshot' | 'setSelection' | 'setFilters' | 'setViewport'>;
+    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setSelection' | 'setFilters' | 'setViewport'>;
 }
 
 let timeseriesEmptyStateController: ReturnType<typeof createEmptyStateController> | null = null;
@@ -107,7 +106,7 @@ function computeRenderedYDebugSnapshot(intent: TimeseriesFilterIntent) {
     }
 
     return {
-        selectedCols: [...uiState.selectedCols],
+        selectedCols: [...intent.selection.columns],
         globalYMin: Number.isFinite(globalMin) ? globalMin : null,
         globalYMax: Number.isFinite(globalMax) ? globalMax : null,
         perSeries,
@@ -123,18 +122,14 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
     let lastFetchedParams: string | null = null;
 
     function getRequestIntent() {
-        const workspace = deps.workspace?.getSnapshot();
-        const viewport = workspace?.viewport;
+        const workspace = deps.workspace.getSnapshot();
+        const viewport = workspace.viewport;
         const workspaceStart = Number(viewport?.xMin);
         const workspaceEnd = Number(viewport?.xMax);
         const start = Number.isFinite(workspaceStart) ? workspaceStart : Number(chartState.currentStart);
         const end = Number.isFinite(workspaceEnd) ? workspaceEnd : Number(chartState.currentEnd);
-        const columns = workspace
-            ? [...workspace.selection.columns]
-            : [...uiState.selectedCols];
-        const colorColumn = workspace
-            ? workspace.selection.colorColumn
-            : (uiState.selectedColorColumn || null);
+        const columns = [...workspace.selection.columns];
+        const colorColumn = workspace.selection.colorColumn;
         return {
             start,
             end,
@@ -145,18 +140,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
     }
 
     function getFilterIntent(): TimeseriesFilterIntent {
-        const workspace = deps.workspace?.getSnapshot();
-        if (workspace) return workspace;
-        return {
-            selection: {
-                columns: [...uiState.selectedCols],
-                colorColumn: uiState.selectedColorColumn || null,
-            },
-            filters: {
-                columnRanges: { ...uiState.columnRanges },
-                adaptiveLines: uiState.adaptiveLineFilters.map((filter) => ({ ...filter })),
-            },
-        };
+        return deps.workspace.getSnapshot();
     }
 
     function snapshotCurrentViewport(): ViewSnapshot | null {
@@ -245,19 +229,17 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
 
     function renderCurrentData(): void {
         const emptyState = getTimeseriesEmptyStateController();
-        const workspace = deps.workspace?.getSnapshot();
-        const selectedColumns = workspace
-            ? [...workspace.selection.columns]
-            : [...uiState.selectedCols];
-        const workspaceViewport = workspace?.viewport;
+        const workspace = deps.workspace.getSnapshot();
+        const selectedColumns = [...workspace.selection.columns];
+        const workspaceViewport = workspace.viewport;
         const viewportStart = workspaceViewport?.xMin != null && Number.isFinite(Number(workspaceViewport.xMin))
             ? Number(workspaceViewport!.xMin)
             : Number(chartState.currentStart);
         const viewportEnd = workspaceViewport?.xMax != null && Number.isFinite(Number(workspaceViewport.xMax))
             ? Number(workspaceViewport!.xMax)
             : Number(chartState.currentEnd);
-        const columnRanges = workspace?.filters.columnRanges ?? uiState.columnRanges;
-        const adaptiveLineFilters = workspace?.filters.adaptiveLines ?? uiState.adaptiveLineFilters;
+        const columnRanges = workspace.filters.columnRanges;
+        const adaptiveLineFilters = workspace.filters.adaptiveLines;
 
         const model = buildTimeseriesRenderModel({
             data: runtimeState.lastFetchedData,
@@ -385,7 +367,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
                     && deps.recoverFromColumnMismatch
                     && await deps.recoverFromColumnMismatch();
                 if (!recovered) throw error;
-                if (uiState.selectedCols.length === 0) {
+                if (deps.workspace.getSnapshot().selection.columns.length === 0) {
                     deps.buildRangeControls();
                     renderCurrentData();
                     return;
@@ -418,7 +400,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
                         startIso: new Date(currentStart).toISOString(),
                         endIso: new Date(currentEnd).toISOString(),
                         width: document.getElementById('main-chart')?.clientWidth || 1200,
-                        cols: uiState.selectedCols.join(','),
+                        cols: requestIntent.columns.join(','),
                     });
                 }
             }

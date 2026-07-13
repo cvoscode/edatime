@@ -34,25 +34,25 @@ describe('columnSelection', () => {
         it('removes columns not present in metadata', () => {
             workspace.setSelection(['HUFL', 'NOTACOLUMN', 'HULL']);
             sanitizeSelectedColumns(workspace);
-            expect([...uiState.selectedCols]).toEqual(['HUFL', 'HULL']);
+            expect(workspace.getSnapshot().selection.columns).toEqual(['HUFL', 'HULL']);
         });
 
         it('removes blocked time-like column names regardless of case', () => {
             workspace.setSelection(['HUFL', 'ts', 'HULL', 'TIMESTAMP', 'time']);
             sanitizeSelectedColumns(workspace);
-            expect([...uiState.selectedCols]).toEqual(['HUFL', 'HULL']);
+            expect(workspace.getSnapshot().selection.columns).toEqual(['HUFL', 'HULL']);
         });
 
         it('removes datetime-typed columns by dtype pattern', () => {
             workspace.setSelection(['HUFL', 'ts', 'HULL']);
             sanitizeSelectedColumns(workspace);
-            expect([...uiState.selectedCols]).toEqual(['HUFL', 'HULL']);
+            expect(workspace.getSnapshot().selection.columns).toEqual(['HUFL', 'HULL']);
         });
 
         it('keeps valid numeric columns', () => {
             workspace.setSelection(['HUFL', 'HULL', 'MUFL']);
             sanitizeSelectedColumns(workspace);
-            expect([...uiState.selectedCols]).toEqual(['HUFL', 'HULL', 'MUFL']);
+            expect(workspace.getSnapshot().selection.columns).toEqual(['HUFL', 'HULL', 'MUFL']);
         });
 
         it('handles empty selectedCols gracefully', () => {

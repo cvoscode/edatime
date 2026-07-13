@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createTimeseriesPageController } from './controller.js';
+import { createTimeseriesPageController as createWorkspaceController } from './controller.js';
 import {
     chartState,
     setChartInstance,
@@ -23,8 +23,39 @@ import {
     setColumnRanges,
     setSelectedColorColumn,
     setSelectedCols,
+    uiState,
 } from '../../store/uiState.js';
-import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
+import { createWorkspaceStore, makeWorkspaceSnapshot } from '../../workspace/workspaceStore.js';
+
+function createTimeseriesPageController(deps: Record<string, any>) {
+    const workspace = deps.workspace ?? {
+        getSnapshot: () => makeWorkspaceSnapshot({
+            selection: {
+                columns: uiState.selectedCols,
+                colorColumn: uiState.selectedColorColumn,
+            },
+            filters: {
+                columnRanges: uiState.columnRanges,
+                adaptiveLines: uiState.adaptiveLineFilters,
+            },
+            viewport: Number.isFinite(chartState.currentStart) && Number.isFinite(chartState.currentEnd)
+                ? { xMin: chartState.currentStart!, xMax: chartState.currentEnd!, yMin: null, yMax: null }
+                : null,
+        }),
+        setSelection: (columns: string[], colorColumn: string | null = null) => {
+            setSelectedCols(columns);
+            setSelectedColorColumn(colorColumn);
+        },
+        setFilters: (filters: { columnRanges: Record<string, any>; adaptiveLines: any[] }) => {
+            setColumnRanges(filters.columnRanges);
+            setAdaptiveLineFilters(filters.adaptiveLines);
+        },
+        setViewport: (viewport: { xMin: number; xMax: number } | null) => {
+            setViewport(viewport?.xMin ?? null, viewport?.xMax ?? null);
+        },
+    };
+    return createWorkspaceController({ ...deps, workspace } as any);
+}
 
 describe('createTimeseriesPageController', () => {
     beforeEach(() => {

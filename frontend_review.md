@@ -253,6 +253,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Made the column-filter modal require its `WorkspaceStore` dependency and use it for both selectable series and active filter ranges.
 - Updated the direct modal harness to provide a canonical workspace while retaining a deliberately conflicting UI-state selection, preventing reintroduction of the fallback path.
 
+### Completed: selected-series consumer migration
+
+- Moved Timeseries request/render intent, adaptive selection writes, session capture/restore, and FFT filter fallback to `WorkspaceStore`.
+- No production reader now consumes `uiState.selectedCols`; the remaining store field and test fixtures are an isolated final deletion step.
+
 ### Completed: DataChart decomposition
 
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.
