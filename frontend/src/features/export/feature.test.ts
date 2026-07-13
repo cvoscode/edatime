@@ -20,7 +20,7 @@ vi.mock('../../services/api/index.js', () => ({
     exportParquet: exportParquetMock,
 }));
 
-import { createExportFeature } from './entrypoint.js';
+import { createExportFeature } from './feature.js';
 
 function makeData(): DataObject {
     return {

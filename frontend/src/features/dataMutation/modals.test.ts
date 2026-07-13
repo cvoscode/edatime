@@ -12,7 +12,7 @@ const {
     closeMock: vi.fn(),
 }));
 
-vi.mock('./entrypoint.js', () => ({
+vi.mock('./feature.js', () => ({
     createDataMutationFeature: () => ({
         runTransform: runTransformMock,
         removeOutliers: removeOutliersMock,

@@ -29,7 +29,7 @@ vi.mock('./actions.js', () => ({
     initTimeseriesExportButtons: initTimeseriesExportButtonsMock,
 }));
 
-import { createTimeseriesEntrypoint } from './entrypoint.js';
+import { createTimeseriesControls } from './controls.js';
 
 function selectionWorkspace() {
     return {
@@ -40,13 +40,13 @@ function selectionWorkspace() {
     };
 }
 
-describe('createTimeseriesEntrypoint', () => {
+describe('createTimeseriesControls', () => {
     beforeEach(() => {
         vi.clearAllMocks();
     });
 
     it('returns init, rebuildColumns, and buildRangeControls', () => {
-        const feature = createTimeseriesEntrypoint({
+        const feature = createTimeseriesControls({
             workspace: selectionWorkspace(),
             fetchAndRender: vi.fn(),
             renderCurrentData: vi.fn(),
@@ -63,7 +63,7 @@ describe('createTimeseriesEntrypoint', () => {
     it('rebuilds column toggles through one feature surface', () => {
         const fetchAndRender = vi.fn();
         const renderCurrentData = vi.fn();
-        const feature = createTimeseriesEntrypoint({
+        const feature = createTimeseriesControls({
             workspace: selectionWorkspace(),
             fetchAndRender,
             renderCurrentData,
@@ -93,7 +93,7 @@ describe('createTimeseriesEntrypoint', () => {
             updateAnalysisZoom: vi.fn(),
             emitChartRangeChange: vi.fn(),
         };
-        const feature = createTimeseriesEntrypoint(deps);
+        const feature = createTimeseriesControls(deps);
 
         feature.init();
 
@@ -120,7 +120,7 @@ describe('createTimeseriesEntrypoint', () => {
     it('initializes controls once and disposes registered actions', () => {
         const actionCleanup = vi.fn();
         initTimeseriesActionsMock.mockImplementation((deps) => deps.registerCleanup(actionCleanup));
-        const feature = createTimeseriesEntrypoint({
+        const feature = createTimeseriesControls({
             workspace: selectionWorkspace(),
             fetchAndRender: vi.fn(),
             renderCurrentData: vi.fn(),
@@ -140,7 +140,7 @@ describe('createTimeseriesEntrypoint', () => {
     it('owns the empty-state upload action for its lifecycle', () => {
         document.body.innerHTML = '<button id="timeseries-empty-upload-btn"></button>';
         initTimeseriesActionsMock.mockImplementation(() => {});
-        const feature = createTimeseriesEntrypoint({
+        const feature = createTimeseriesControls({
             workspace: selectionWorkspace(),
             fetchAndRender: vi.fn(),
             renderCurrentData: vi.fn(),
@@ -162,7 +162,7 @@ describe('createTimeseriesEntrypoint', () => {
     });
 
     it('wires the export buttons when all five handlers are provided', () => {
-        const feature = createTimeseriesEntrypoint({
+        const feature = createTimeseriesControls({
             workspace: selectionWorkspace(),
             fetchAndRender: vi.fn(),
             renderCurrentData: vi.fn(),
@@ -189,7 +189,7 @@ describe('createTimeseriesEntrypoint', () => {
     });
 
     it('skips wiring the export buttons when any handler is missing', () => {
-        const feature = createTimeseriesEntrypoint({
+        const feature = createTimeseriesControls({
             workspace: selectionWorkspace(),
             fetchAndRender: vi.fn(),
             renderCurrentData: vi.fn(),

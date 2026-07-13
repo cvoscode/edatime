@@ -1,6 +1,6 @@
 /**
  * exportControls — toolbar modal wiring and zoom control click dispatch.
- * Transport-layer calls (CSV/JSON/Parquet export) moved to features/export/entrypoint.ts.
+ * Transport-layer calls (CSV/JSON/Parquet export) live in features/export/feature.ts.
  *
  * The `#zoom-out-btn` and `#zoom-reset-btn` clicks dispatch `edatime:zoom-out`
  * and `edatime:reset-zoom` events respectively. The real `fetchAndRender`

@@ -1,5 +1,5 @@
 import { createModalController } from '../../ui/shell/createModalController.js';
-import { createDataMutationFeature } from './entrypoint.js';
+import { createDataMutationFeature } from './feature.js';
 import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 

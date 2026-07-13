@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createDataMutationFeature } from './entrypoint.js';
+import { createDataMutationFeature } from './feature.js';
 
 describe('createDataMutationFeature', () => {
     it('returns data mutation action surface', () => {

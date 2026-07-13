@@ -1,4 +1,4 @@
-import { createExportFeature, type ExportFeature, type ExportFeatureDeps } from './entrypoint.js';
+import { createExportFeature, type ExportFeature, type ExportFeatureDeps } from './feature.js';
 
 let exportFeature: ExportFeature | null = null;
 

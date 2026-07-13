@@ -1,11 +1,11 @@
 /**
  * Timeseries local composition seam.
- * Owns: page controller + feature entrypoint + page runtime + dataset bootstrap.
+ * Owns: page controller + feature controls + page runtime + dataset bootstrap.
  * Replaces the per-page trampolines currently in app.ts.
  */
 
 import { createTimeseriesPageController } from './controller.js';
-import { createTimeseriesEntrypoint } from './entrypoint.js';
+import { createTimeseriesControls } from './controls.js';
 import { createTimeseriesLifecycle } from './lifecycle.js';
 import { createDatasetBootstrap } from './datasetBootstrap.js';
 import { createTimeseriesBootstrap } from './ensureReady.js';
@@ -62,7 +62,7 @@ export interface TimeseriesModuleDeps {
 
 export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
     let datasetUiReady = false;
-    let feature!: ReturnType<typeof createTimeseriesEntrypoint>;
+    let feature!: ReturnType<typeof createTimeseriesControls>;
     let datasetUiModulesPromise: Promise<{
         hydrateColumnProfiles: typeof import('../upload/index.js').hydrateColumnProfiles;
         renderColumnProfilesGrid: typeof import('../upload/index.js').renderColumnProfilesGrid;
@@ -128,8 +128,8 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         },
     });
 
-    // 2. Create the feature entrypoint (wires column toggles, range controls, actions)
-    feature = createTimeseriesEntrypoint({
+    // 2. Create the feature controls (wires column toggles, range controls, actions)
+    feature = createTimeseriesControls({
         workspace: deps.workspace,
         fetchAndRender: () => pageController.fetchAndRender(),
         renderCurrentData: () => pageController.renderCurrentData(),

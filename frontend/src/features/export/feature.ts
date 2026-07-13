@@ -1,5 +1,5 @@
 /**
- * Export feature entrypoint.
+ * Export feature operations.
  * Owns transport-layer calls for CSV/JSON/Parquet export.
  * UI layer (ui/*) only binds DOM to injected action interfaces.
  */

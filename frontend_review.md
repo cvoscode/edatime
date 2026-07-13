@@ -258,6 +258,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Moved Timeseries request/render intent, adaptive selection writes, session capture/restore, and FFT filter fallback to `WorkspaceStore`.
 - Removed the retired `uiState.selectedCols` field, setter, and event. `WorkspaceStore` is now the sole owner of selected series across production code and characterization fixtures.
 
+### Completed: feature entrypoint-wrapper retirement
+
+- Renamed the remaining feature-owned `entrypoint.ts` implementations to role-based modules: Data Mutation and Export use `feature.ts`, while Timeseries uses `controls.ts`.
+- Updated public feature surfaces, local composition, and characterization tests. The `features/*/entrypoint.ts` wrapper convention is now fully retired.
+
 ### Completed: DataChart decomposition
 
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.

@@ -10,19 +10,19 @@ import { setSelectedColorColumn } from '../../store/uiState.js';
 // vi.hoisted ensures mocks are created before vi.mock() calls
 const {
     mockCreateTimeseriesPageController,
-    mockCreateTimeseriesEntrypoint,
+    mockCreateTimeseriesControls,
     mockCreateTimeseriesRuntime,
     mockCreateDatasetBootstrap,
     mockCreateTimeseriesBootstrap,
 } = vi.hoisted(() => {
     const mockCreateTimeseriesPageController = vi.fn();
-    const mockCreateTimeseriesEntrypoint = vi.fn();
+    const mockCreateTimeseriesControls = vi.fn();
     const mockCreateTimeseriesRuntime = vi.fn();
     const mockCreateDatasetBootstrap = vi.fn();
     const mockCreateTimeseriesBootstrap = vi.fn();
     return {
         mockCreateTimeseriesPageController,
-        mockCreateTimeseriesEntrypoint,
+        mockCreateTimeseriesControls,
         mockCreateTimeseriesRuntime,
         mockCreateDatasetBootstrap,
         mockCreateTimeseriesBootstrap,
@@ -34,9 +34,9 @@ vi.mock('./controller.js', () => ({
     createTimeseriesPageController: mockCreateTimeseriesPageController,
 }));
 
-// Mock createTimeseriesEntrypoint from ../features/timeseries/entrypoint.js
-vi.mock('./entrypoint.js', () => ({
-    createTimeseriesEntrypoint: mockCreateTimeseriesEntrypoint,
+// Mock the feature-owned Timeseries controls.
+vi.mock('./controls.js', () => ({
+    createTimeseriesControls: mockCreateTimeseriesControls,
 }));
 
 // Mock the feature-owned lifecycle module.
@@ -124,16 +124,16 @@ describe('createTimeseriesModule', () => {
         setSelectedColorColumn(null);
         // Reset all mock return values
         mockCreateTimeseriesPageController.mockReturnValue(mockPageController());
-        mockCreateTimeseriesEntrypoint.mockReturnValue(mockFeatureEntrypoint());
+        mockCreateTimeseriesControls.mockReturnValue(mockFeatureEntrypoint());
         mockCreateTimeseriesRuntime.mockReturnValue(mockRuntime());
         mockCreateDatasetBootstrap.mockReturnValue(mockBootstrap());
         mockCreateTimeseriesBootstrap.mockReturnValue(mockChartBootstrap());
     });
 
     // -------------------------------------------------------------------------
-    // Test 1: Page controller and feature entrypoint are composed together once
+    // Test 1: Page controller and feature controls are composed together once
     // -------------------------------------------------------------------------
-    it('composes page controller and feature entrypoint together once', async () => {
+    it('composes page controller and feature controls together once', async () => {
         const { createTimeseriesModule } = await import('./module.js');
 
         const deps = defaultDeps();
@@ -155,8 +155,8 @@ describe('createTimeseriesModule', () => {
             workspace: deps.workspace,
         }));
 
-        // createTimeseriesEntrypoint should be called once
-        expect(mockCreateTimeseriesEntrypoint).toHaveBeenCalledTimes(1);
+        // createTimeseriesControls should be called once
+        expect(mockCreateTimeseriesControls).toHaveBeenCalledTimes(1);
 
         // createDatasetBootstrap must receive the real bootstrap collaborators,
         // not placeholder no-op functions created inside the module.
@@ -212,7 +212,7 @@ describe('createTimeseriesModule', () => {
     // -------------------------------------------------------------------------
     it('exposes buildColumnToggles and buildRangeControls from the module surface', async () => {
         const feature = mockFeatureEntrypoint();
-        mockCreateTimeseriesEntrypoint.mockReturnValue(feature);
+        mockCreateTimeseriesControls.mockReturnValue(feature);
 
         const { createTimeseriesModule } = await import('./module.js');
 

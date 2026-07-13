@@ -1,5 +1,5 @@
 /**
- * Data mutation feature entrypoint.
+ * Data mutation feature operations.
  * Owns transport-layer calls for transform and outlier removal.
  * UI layer (ui/*) only binds DOM to injected action interfaces.
  */

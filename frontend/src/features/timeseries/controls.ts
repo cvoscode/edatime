@@ -1,5 +1,5 @@
 /**
- * Timeseries feature entrypoint.
+ * Timeseries feature controls.
  *
  * Provides a single surface that wires together column toggles, range controls,
  * filter modal, search inputs, and timeseries actions.
@@ -29,10 +29,10 @@ export interface TimeseriesFeatureDeps {
 }
 
 /**
- * Creates the timeseries feature entrypoint, wiring together all column-related
+ * Creates the Timeseries controls, wiring together all column-related
  * controls and actions through a single unified surface.
  */
-export function createTimeseriesEntrypoint(deps: TimeseriesFeatureDeps) {
+export function createTimeseriesControls(deps: TimeseriesFeatureDeps) {
     let initialized = false;
     let cleanupActions: Array<() => void> = [];
 
