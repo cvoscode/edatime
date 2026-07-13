@@ -18,7 +18,6 @@ import {
     applyViewport,
     zoomOut,
     resetZoom,
-    initChartPageFilterGesture,
     initResetZoomListener,
     initZoomOutListener,
 } from './viewport.js';
@@ -35,7 +34,6 @@ export {
     applyViewport,
     zoomOut,
     resetZoom,
-    initChartPageFilterGesture,
 } from './viewport.js';
 
 import { initToolbarModals } from './exportControls.js';

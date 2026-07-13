@@ -10,7 +10,6 @@ vi.mock('../features/upload/index.js', () => ({
 }));
 vi.mock('../ui/toolbar.js', () => ({
     initAnalysisControls: vi.fn(),
-    initChartPageFilterGesture: vi.fn(),
     initPages: vi.fn(),
 }));
 vi.mock('../ui/columns.js', () => ({ initColumnFilterModal: vi.fn(), buildRangeControls: vi.fn() }));

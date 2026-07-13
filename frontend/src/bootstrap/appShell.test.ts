@@ -16,7 +16,6 @@ vi.mock('../features/upload/index.js', () => ({ initUploadPanel: vi.fn() }));
 vi.mock('../features/upload/index.js', () => ({ initColumnProfilesGrid: vi.fn() }));
 vi.mock('../ui/toolbar.js', () => ({
     initAnalysisControls: vi.fn(),
-    initChartPageFilterGesture: vi.fn(),
     initPages: vi.fn(),
 }));
 vi.mock('../ui/columns.js', () => ({ initColumnFilterModal: vi.fn() }));

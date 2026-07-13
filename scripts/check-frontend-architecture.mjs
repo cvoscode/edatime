@@ -186,15 +186,16 @@ for (const file of files) {
     }
   }
 
-  // Rule 13: shared UI may compose a feature only through that feature's
-  // public index. UI components are reused across features, so importing an
-  // internal controller would make the feature boundary directional again.
+  // Rule 13: shared UI must not import features. UI components are reused
+  // across features, so feature behavior belongs in its owning feature or
+  // the application composition root rather than the reusable UI layer.
   if (/^frontend\/src\/ui\//.test(rel) && !isTest) {
     const importRe = /from\s+['"]([^'"]+)['"]/g;
     for (const match of text.matchAll(importRe)) {
       const src = match[1];
-      if (/^\.\.\/features\//.test(src) && !/\/index(?:\.js)?$/.test(src)) {
-        add(file, 'ui/* must consume features through their public index surface', lineOf(text, match.index ?? 0));
+      const resolved = resolveImportPath(src, rel);
+      if (resolved.startsWith('frontend/src/features/')) {
+        add(file, 'ui/* must not import from features — feature behavior belongs to its owner or app composition', lineOf(text, match.index ?? 0));
       }
     }
   }

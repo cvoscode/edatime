@@ -215,7 +215,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Extracted bounded zoom-restore history and consecutive zoom-out reset decisions into `zoomHistoryPolicy`, preserving snapshot isolation and raw-buffer restoration while making the controller responsible only for applying its selected chart/workspace transition.
 - Fixed the shared page-runtime unmount/remount contract: cleanup now releases the mounted state and is idempotent, so feature lifecycles can safely register again after a real unmount.
 
-### In progress: feature-specific workflow ownership
+### Completed: feature-specific workflow ownership
 
 - The next boundary audit identified `ui/guidedWorkflow.ts` as a feature-specific, causal-aware workflow controller incorrectly located in the reusable UI layer. Move it under Home or shell feature ownership, update deferred-shell and command imports to use that public surface, and add an architecture rule ensuring reusable UI does not import feature controllers.
 - Moved the guided-workflow controller and its characterization tests into `features/home/`, exposed its supported actions through the Home public index, and updated deferred shell plus command-palette loading to consume that surface. The reusable UI layer no longer imports the Causal feature to compute workflow progress.
@@ -223,6 +223,8 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Moved the Upload panel controller and its characterization tests into `features/upload/`, removed its former UI-layer re-export indirection, and updated deferred shell composition to load the supported Upload public surface.
 - Moved transform and outlier modal orchestration plus its tests into `features/dataMutation/`, exposed those modal initializers through the Data Mutation public index, and updated deferred-shell loading to remove the UI-to-feature dependency.
 - Moved export feature configuration and filtered CSV/JSON/Parquet actions into `features/export/runtime`, leaving `ui/exportControls` responsible only for generic toolbar modal behavior and keeping app composition on the Export public index.
+- Moved the Timeseries-only double-context-menu filter gesture into `features/timeseries/filterGesture`, exposed it through the Timeseries public index, and kept deferred shell composition as the sole caller. Direct characterization coverage now proves that plot menus remain native, only a genuine double action opens the filter modal, and repeated initialization does not duplicate the listener.
+- Tightened the architecture check so production `ui/*` modules cannot import any feature surface. The reusable UI layer now has no feature imports; feature behavior is owned by its feature or invoked by application composition.
 
 ### Completed: Spectrogram runtime decomposition
 

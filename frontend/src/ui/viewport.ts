@@ -1,7 +1,6 @@
 /**
  * viewport — zoom, view-history, and chart-gesture controls.
  * Manages zoom-out, reset-to-initial, and the zoom history stack.
- * Also handles context-menu filter gestures on the chart page.
  */
 
 import {
@@ -15,7 +14,6 @@ import { dbg, dbgGroup } from '../debug.js';
 import { updateAnalysisZoom, updateAnalysisYRange } from './analysisStatus.js';
 import type { ViewSnapshot } from '../types.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
-import { hasFilterModalOpener, openFilterForColumn } from '../features/timeseries/index.js';
 
 // Keep the zoom-range badge in sync with the store regardless of which
 // path mutates `chartState.currentStart/currentEnd` or `chartState.initialView`.
@@ -130,31 +128,6 @@ export function resetZoom(fetchAndRender: () => void): void {
     if (!chartState.initialView) return;
     setZoomHistory([]);
     applyViewport(chartState.initialView as ViewSnapshot, fetchAndRender, 'reset');
-}
-
-export function initChartPageFilterGesture(): void {
-    const pageChart = document.getElementById('page-timeseries');
-    if (!pageChart) return;
-    if (pageChart.dataset.filterCtxBound) return;
-
-    let lastContextTs = 0;
-
-    pageChart.addEventListener('contextmenu', (e: MouseEvent) => {
-        const inPlot = (e.target as HTMLElement)?.closest?.('#main-chart');
-        if (inPlot) return;
-        if (!hasFilterModalOpener()) return;
-        e.preventDefault();
-
-        const now = performance.now();
-        const isDoubleContext = (now - lastContextTs) <= 450;
-        lastContextTs = now;
-        if (!isDoubleContext) return;
-
-        lastContextTs = 0;
-        openFilterForColumn(null);
-    });
-
-    pageChart.dataset.filterCtxBound = '1';
 }
 
 export function initResetZoomListener(onResetZoom: () => void): void {

@@ -32,13 +32,15 @@ vi.mock('../../bootstrap/analyticsOverlay.js', () => ({ initAnalyticsListeners: 
 vi.mock('../../chart/annotations.js', () => ({ initAnnotations: mocks.initAnnotations }));
 vi.mock('../../ui/annotationPanel.js', () => ({ initAnnotationPanel: mocks.initAnnotationPanel }));
 vi.mock('../../features/home/index.js', () => ({ initGuidedWorkflow: mocks.initGuidedWorkflow }));
-vi.mock('../../ui/dataMutationModals.js', () => ({
+vi.mock('../../features/dataMutation/index.js', () => ({
     initOutlierModal: mocks.initOutlierModal,
     initTransformModal: mocks.initTransformModal,
 }));
 vi.mock('../../utils/provenance.js', () => ({ initProvenance: mocks.initProvenance }));
 vi.mock('../../ui/toolbar.js', () => ({
     initAnalysisControls: mocks.initAnalysisControls,
+}));
+vi.mock('../../features/timeseries/index.js', () => ({
     initChartPageFilterGesture: mocks.initChartPageFilterGesture,
 }));
 
