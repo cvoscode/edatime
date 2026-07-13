@@ -746,6 +746,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Migrated production Timeseries, Scatter, and export/filter consumers to import workspace intent types from `contracts/`, leaving `workspaceStore` focused on cloning, mutation, and lifecycle behavior.
 - This starts the planned canonical contract layer with the application's highest-value cross-feature contract while preserving the store's fixture helpers for tests.
 
+### Completed: canonical API v1 contract surface
+
+- Added `contracts/api/v1/` as the single frontend owner of versioned route identities and JSON wire DTOs for dataset metadata, Scatter/correlations, and analysis endpoints.
+- Migrated every production API route-family client to the route map. Arrow-decoded series and matrix cache models deliberately remain feature/client projections rather than being misrepresented as JSON DTOs.
+- Re-exported retired type-hub DTO names only as compatibility type aliases, so existing feature consumers keep their behavior while new transport work has one canonical source. The architecture gate rejects production `/api/v1` literals outside the route contract.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.

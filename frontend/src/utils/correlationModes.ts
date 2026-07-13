@@ -1,13 +1,8 @@
-export const CORRELATION_MODES = [
-    'pearson_raw',
-    'spearman_raw',
-    'kendall_raw',
-    'pearson_diff',
-    'spearman_diff',
-    'kendall_diff',
-] as const;
+import { CORRELATION_METRICS } from '../contracts/api/v1/scatter.js';
+import type { CorrelationMetric } from '../contracts/api/v1/scatter.js';
 
-export type CorrelationMetric = typeof CORRELATION_MODES[number];
+export const CORRELATION_MODES = CORRELATION_METRICS;
+export type { CorrelationMetric } from '../contracts/api/v1/scatter.js';
 
 const MODE_LABELS: Record<CorrelationMetric, string> = {
     pearson_raw: 'Pearson (raw)',

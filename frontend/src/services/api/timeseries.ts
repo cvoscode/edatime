@@ -1,4 +1,5 @@
 import type { DataObject } from '../../types/api.js';
+import { apiV1Routes, withApiQuery } from '../../contracts/api/v1/routes.js';
 import {
     assertDatasetRequestScopeActive,
     captureDatasetRequestScope,
@@ -40,7 +41,7 @@ export async function fetchData(
     if (Number.isFinite(lookaroundMs) && lookaroundMs > 0) params.set('lookaround_ms', String(Math.round(lookaroundMs)));
 
     const tableFromIPC = await ensureArrowParser();
-    const url = `/api/v1/data?${params.toString()}`;
+    const url = withApiQuery(apiV1Routes.data, params);
 
     dbg('GET', url);
     const res = await globalThis.fetch(url, options?.signal ? { signal: options.signal, cache: 'no-store' } : { cache: 'no-store' });

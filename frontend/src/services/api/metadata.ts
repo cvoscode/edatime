@@ -1,15 +1,15 @@
-import type { DatasetMetadata } from '../../types/api.js';
+import { apiV1Routes } from '../../contracts/api/v1/routes.js';
+import type { DatasetMetadata } from '../../contracts/api/v1/dataset.js';
 import { getBlob, getJson, assertDatasetMetadata, type ApiRequestOptions } from './http.js';
 
 export async function fetchMetadata(options?: ApiRequestOptions): Promise<DatasetMetadata> {
-    const data = await getJson<unknown>('/api/v1/metadata', 'Metadata', options);
+    const data = await getJson<unknown>(apiV1Routes.metadata, 'Metadata', options);
     assertDatasetMetadata(data);
     return data;
 }
 
 export function fetchSampleDataset(filename: string, options?: ApiRequestOptions): Promise<Blob> {
-    const safeName = encodeURIComponent(filename);
-    return getBlob(`/api/v1/sample/${safeName}`, 'Sample dataset', {
+    return getBlob(apiV1Routes.sample(filename), 'Sample dataset', {
         ...options,
         datasetScoped: false,
     });

@@ -1,63 +1,17 @@
-/** Scatter query contracts, rendering state, and matrix cache projections. */
+/** Feature-side Scatter state, with wire DTOs re-exported from contracts. */
 
-import type { CorrelationMetric } from '../utils/correlationModes.js';
-
-export interface ColorCardinality {
-    requested: number;
-    used: number;
-    bucketed: number;
-}
-
-export interface ScatterPointsResponse {
-    x: string;
-    y: string;
-    color: string | null;
-    total_points: number;
-    returned_points: number;
-    points: [number, number][];
-    color_values: number[] | null;
-    color_labels: (string | null)[] | null;
-    color_min: number | null;
-    color_max: number | null;
-    color_cardinality?: ColorCardinality | null;
-}
-
-export interface ScatterMatrixPair {
-    x: string;
-    y: string;
-}
+export type {
+    ColorCardinality,
+    ScatterPointsResponse,
+    ScatterMatrixPair,
+    CorrelationItem,
+    CorrelationSuggestion,
+    ScatterCorrelationsResponse,
+    TopPairItem,
+} from '../contracts/api/v1/scatter.js';
 
 export interface ScatterMatrixResponse {
     cells: Map<string, MatrixCellData>;
-}
-
-export interface CorrelationItem {
-    column: string;
-    count: number;
-    value: number | null;
-}
-
-export interface CorrelationSuggestion {
-    x: string;
-    y: string;
-    correlation: number;
-}
-
-export interface ScatterCorrelationsResponse {
-    mode: CorrelationMetric;
-    base_column: string;
-    threshold: number;
-    numeric_columns: string[];
-    correlations: CorrelationItem[];
-    suggestions: CorrelationSuggestion[];
-    top_pairs?: TopPairItem[];
-}
-
-export interface TopPairItem {
-    x: string;
-    y: string;
-    correlation: number;
-    count: number;
 }
 
 export interface ScatterPairStats {
@@ -83,6 +37,7 @@ export interface ScatterLineFilterSpec {
     keepAbove: boolean;
 }
 
+/** Decoded Arrow matrix cache state. This is not a wire DTO. */
 export interface MatrixCellData {
     totalPoints: number;
     points: [number, number][];

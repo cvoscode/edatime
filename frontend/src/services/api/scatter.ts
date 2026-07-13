@@ -1,11 +1,14 @@
 import type {
     ScatterFetchOptions,
-    ScatterMatrixPair,
     ScatterMatrixResponse,
-    ScatterPointsResponse,
-    ScatterCorrelationsResponse,
 } from '../../types/scatter.js';
-import type { CorrelationMetric } from '../../utils/correlationModes.js';
+import { apiV1Routes, withApiQuery } from '../../contracts/api/v1/routes.js';
+import type {
+    CorrelationMetric,
+    ScatterCorrelationsResponse,
+    ScatterMatrixPair,
+    ScatterPointsResponse,
+} from '../../contracts/api/v1/scatter.js';
 import {
     assertDatasetRequestScopeActive,
     getJson,
@@ -76,7 +79,7 @@ export async function fetchScatterPoints(
         payload.line_filters = JSON.stringify(normalizeScatterLineFilters(options!.lineFilters));
     }
 
-    const url = '/api/v1/scatter/points';
+    const url = apiV1Routes.scatter.points;
     dbg('POST (Scatter points)', { url, body: payload });
 
     const res = await globalThis.fetch(url, {
@@ -244,7 +247,7 @@ export async function fetchScatterMatrix(
         payload.line_filters = JSON.stringify(normalizeScatterLineFilters(options.lineFilters));
     }
 
-    const url = '/api/v1/scatter/matrix';
+    const url = apiV1Routes.scatter.matrix;
     dbg('POST (Scatter matrix)', { url, body: payload });
 
     const res = await globalThis.fetch(url, {
@@ -334,7 +337,7 @@ export async function fetchScatterCorrelations(
         params.set('base', String(base));
     }
     params.set('mode', mode);
-    const url = `/api/v1/scatter/correlations?${params.toString()}`;
+    const url = withApiQuery(apiV1Routes.scatter.correlations, params);
     const data = await getJson<unknown>(url, 'Scatter correlations');
     assertScatterCorrelations(data);
     return data;
