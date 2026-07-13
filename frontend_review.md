@@ -463,6 +463,10 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 
 - Removed the unimported `utils/chartExporter.ts` reference implementation. The live, tested export path is owned by `chart/dataChartExport` and its focused chart export modules; retaining a second standalone implementation only invited drift.
 
+### Completed: unused feature-contract removal
+
+- Removed the unreferenced `features/shared/featureContract.ts` abstraction. Feature activation and disposal are already owned by the live page registry and public feature indexes; a second unused contract made the target architecture less clear.
+
 ### Completed: Drift page decomposition
 
 - Extracted evaluation-mode normalization, latest-window validation, and response-map filtering into `evaluationPolicy` with direct behavior coverage.
