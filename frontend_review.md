@@ -155,6 +155,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Added deferred-shell characterization coverage for the public Timeseries composition contract: analysis controls, the filter gesture, and page help all initialize once when the Timeseries shell is requested.
 - Extended the architecture check so every production consumer outside `features/*` must import a feature through `features/<name>/index.js`. The audit now finds no remaining production deep imports into feature internals.
 
+### Completed: RangeControls compatibility retirement
+
+- Removed the unused top-level `RangeControls.onActivate` compatibility API and its item-kind routing protocol. The reusable component now has one explicit contract: each item is static unless it supplies its own key-based `onActivate` callback.
+- Simplified Timeseries range-chip composition to that contract and retained direct keyboard/static/clickable characterization coverage without test-only compatibility behavior or `as any` casts.
+
 ### Completed: DataChart decomposition
 
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.

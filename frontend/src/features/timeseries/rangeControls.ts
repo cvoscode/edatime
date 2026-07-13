@@ -39,7 +39,6 @@ export function buildRangeControls(workspace: FilterWorkspace): void {
             key: 'adaptive-target',
             name: 'Adaptive target',
             range: uiState.adaptiveFilterColumn,
-            kind: 'static',
         });
     }
 
@@ -54,7 +53,6 @@ export function buildRangeControls(workspace: FilterWorkspace): void {
             name: col,
             range: `${formatAnalysisNumber(range.from)} → ${formatAnalysisNumber(range.to)}`,
             className: 'range-chip range-chip--clickable',
-            kind: 'column-range',
             ariaLabel: `Filter ${col}`,
             onActivate: () => { openFilterForColumn(colCopy); },
         });
@@ -69,7 +67,6 @@ export function buildRangeControls(workspace: FilterWorkspace): void {
             name: `Adaptive ${filter.column}`,
             range: filter.keepAbove ? 'keep above' : 'keep below',
             className: 'range-chip range-chip--clickable',
-            kind: 'filter-removal',
             ariaLabel: `Remove adaptive filter for ${filter.column}`,
             onActivate: () => {
                 const nextAdaptiveLines = filters.adaptiveLines.filter(
@@ -91,7 +88,6 @@ export function buildRangeControls(workspace: FilterWorkspace): void {
             name: 'Adaptive filters',
             range: 'Clear all',
             className: 'range-chip range-chip--clickable',
-            kind: 'clear-all',
             ariaLabel: 'Clear adaptive filters',
             onActivate: () => {
                 workspace.setFilters({ ...filters, adaptiveLines: [] });
