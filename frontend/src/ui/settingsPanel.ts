@@ -8,7 +8,6 @@ import {
     type AppSettings,
     type ThemeMode,
     type LayoutDensity,
-    type ExportFormat,
     type CorrelationMetric,
     type ColorScaleName,
     loadSettings,
@@ -106,19 +105,12 @@ function populateSettingsForm(settings: AppSettings): void {
     setSelectValue('settings-layout', settings.layoutDensity);
     setSelectValue('settings-palette', settings.defaultPalette);
 
-    // Export tab
-    setSelectValue('settings-export-format', settings.defaultExportFormat);
-    setCheckboxValue('settings-white-bg', settings.whiteBackgroundExport);
-
     // Analytics tab
     setSelectValue('settings-correlation', settings.defaultCorrelationMetric);
 
     // Causal tab
     setSelectValue('settings-causal-method', settings.defaultCausalMethod);
     setInputValue('settings-tau-max', settings.defaultTauMax.toString());
-
-    // Spectral tab
-    setSelectValue('settings-fft-preset', settings.defaultFftPreset);
 
     // Timeseries tab
     setCheckboxValue('settings-draw-auto-reset', settings.drawAutoReset);
@@ -135,12 +127,9 @@ function collectSettingsFromForm(): AppSettings {
         theme: getSelectValue('settings-theme') as ThemeMode || DEFAULT_SETTINGS.theme,
         layoutDensity: getSelectValue('settings-layout') as LayoutDensity || DEFAULT_SETTINGS.layoutDensity,
         defaultPalette: (getSelectValue('settings-palette') as AppSettings['defaultPalette']) || DEFAULT_SETTINGS.defaultPalette,
-        defaultExportFormat: getSelectValue('settings-export-format') as ExportFormat || DEFAULT_SETTINGS.defaultExportFormat,
-        whiteBackgroundExport: getCheckboxValue('settings-white-bg'),
         defaultCorrelationMetric: getSelectValue('settings-correlation') as CorrelationMetric || DEFAULT_SETTINGS.defaultCorrelationMetric,
         defaultCausalMethod: getSelectValue('settings-causal-method') || DEFAULT_SETTINGS.defaultCausalMethod,
         defaultTauMax: parseInt(getInputValue('settings-tau-max'), 10) || DEFAULT_SETTINGS.defaultTauMax,
-        defaultFftPreset: getSelectValue('settings-fft-preset') || DEFAULT_SETTINGS.defaultFftPreset,
         drawAutoReset: getCheckboxValue('settings-draw-auto-reset'),
         colorScale: getSelectValue('settings-color-scale') as ColorScaleName || DEFAULT_SETTINGS.colorScale,
         sidebarCollapsed: getCheckboxValue('settings-sidebar-collapsed'),
@@ -262,12 +251,9 @@ export function initSettingsPanel(): void {
         markUnsavedChanges();
     });
 
-    document.getElementById('settings-export-format')?.addEventListener('change', markUnsavedChanges);
-    document.getElementById('settings-white-bg')?.addEventListener('change', markUnsavedChanges);
     document.getElementById('settings-correlation')?.addEventListener('change', markUnsavedChanges);
     document.getElementById('settings-causal-method')?.addEventListener('change', markUnsavedChanges);
     document.getElementById('settings-tau-max')?.addEventListener('input', markUnsavedChanges);
-    document.getElementById('settings-fft-preset')?.addEventListener('change', markUnsavedChanges);
     document.getElementById('settings-draw-auto-reset')?.addEventListener('change', markUnsavedChanges);
     document.getElementById('settings-color-scale')?.addEventListener('change', markUnsavedChanges);
     document.getElementById('settings-sidebar-collapsed')?.addEventListener('change', markUnsavedChanges);

@@ -443,6 +443,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Removed the unreachable `features/scatter/colorPalettes.ts` duplicate. It had no production or test consumer and implemented a second, incompatible categorical-palette and label-normalization policy.
 - `features/scatter/helpers.ts` remains the sole Scatter color-policy owner; direct coverage retains its active global palette, normalized-category, and low-cardinality behavior.
 
+### Completed: inert settings retirement
+
+- Removed the Export and Spectral settings tabs because their three persisted values (`defaultExportFormat`, `whiteBackgroundExport`, and `defaultFftPreset`) had no runtime consumer.
+- The settings loader now reconstructs its canonical shape from supported fields instead of spreading arbitrary persisted JSON into application state, so retired settings cannot regain an owner accidentally.
+
 ### Completed: Drift page decomposition
 
 - Extracted evaluation-mode normalization, latest-window validation, and response-map filtering into `evaluationPolicy` with direct behavior coverage.

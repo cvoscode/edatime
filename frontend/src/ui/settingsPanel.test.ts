@@ -29,11 +29,6 @@ function buildSettingsDom(): void {
                     <option value="ocean">Ocean</option>
                 </select>
                 <div id="settings-palette-preview"></div>
-                <select id="settings-export-format">
-                    <option value="csv">CSV</option>
-                    <option value="png">PNG</option>
-                </select>
-                <input id="settings-white-bg" type="checkbox" />
                 <select id="settings-correlation">
                     <option value="pearson_raw">Pearson</option>
                     <option value="spearman_raw">Spearman</option>
@@ -43,10 +38,6 @@ function buildSettingsDom(): void {
                     <option value="fullci">Full CI</option>
                 </select>
                 <input id="settings-tau-max" type="number" value="5" />
-                <select id="settings-fft-preset">
-                    <option value="auto">Auto</option>
-                    <option value="balanced">Balanced</option>
-                </select>
                 <input id="settings-draw-auto-reset" type="checkbox" />
                 <select id="settings-color-scale">
                     <option value="viridis">Viridis</option>

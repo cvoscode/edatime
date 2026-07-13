@@ -29,15 +29,6 @@ export const SETTINGS_HELP: PageHelpContent = {
             ],
         },
         {
-            title: 'Export tab',
-            body:
-                'Defaults for the per-page export buttons.',
-            bullets: [
-                'Default format — Image + CSV, PNG, SVG, HTML, or JSON; the format chosen by the page Export menu by default',
-                'White background — render exported PNG/SVG with a white background (suitable for slides) instead of the dark theme surface',
-            ],
-        },
-        {
             title: 'Analytics tab',
             body:
                 'Defaults for the analytics overlays and the correlation page.',
@@ -53,14 +44,6 @@ export const SETTINGS_HELP: PageHelpContent = {
             bullets: [
                 'Default method — PCMCI / PCMCI+ / FullCI / BivCI / LPCMCI',
                 'Max lag (tau_max) — the largest lag the algorithm will consider',
-            ],
-        },
-        {
-            title: 'Spectral tab',
-            body:
-                'Defaults for FFT and Spectrogram.',
-            bullets: [
-                'FFT / Spectrogram preset — quick window-size presets that match common time-series resolutions',
             ],
         },
         {

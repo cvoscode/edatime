@@ -2336,10 +2336,8 @@
 
           <div class="settings-tabs">
             <button class="settings-tab-btn active" data-tab="appearance" type="button">Appearance</button>
-            <button class="settings-tab-btn" data-tab="export" type="button">Export</button>
             <button class="settings-tab-btn" data-tab="analytics" type="button">Analytics</button>
             <button class="settings-tab-btn" data-tab="causal" type="button">Causal</button>
-            <button class="settings-tab-btn" data-tab="spectral" type="button">Spectral</button>
             <button class="settings-tab-btn" data-tab="timeseries" type="button">Timeseries</button>
           </div>
 
@@ -2393,32 +2391,6 @@
             </div>
           </div>
 
-          <!-- Export Tab -->
-          <div class="settings-tab-panel" data-tab="export" hidden>
-            <div class="settings-section">
-              <div class="settings-section-title">Export Defaults</div>
-              <div class="settings-row">
-                <label class="settings-label" for="settings-export-format">Default format</label>
-                <div class="settings-control">
-                  <select id="settings-export-format" class="modal-select">
-                    <option value="png">PNG</option>
-                    <option value="svg">SVG</option>
-                    <option value="csv">CSV</option>
-                    <option value="json">JSON</option>
-                    <option value="parquet">Parquet</option>
-                  </select>
-                </div>
-              </div>
-              <div class="settings-row">
-                <label class="settings-label" for="settings-white-bg">Presentation mode</label>
-                <div class="settings-control settings-toggle">
-                  <input id="settings-white-bg" type="checkbox" aria-label="Use white background for exports">
-                  <span>White background for exports</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
           <!-- Analytics Tab -->
           <div class="settings-tab-panel" data-tab="analytics" hidden>
             <div class="settings-section">
@@ -2462,25 +2434,6 @@
                   <input id="settings-tau-max" type="number" class="modal-input" min="1" max="128" value="5"
                     style="width:80px;">
                   <div class="settings-hint">Maximum time lag to consider</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Spectral Tab -->
-          <div class="settings-tab-panel" data-tab="spectral" hidden>
-            <div class="settings-section">
-              <div class="settings-section-title">FFT Presets</div>
-              <div class="settings-row">
-                <label class="settings-label" for="settings-fft-preset">Default preset</label>
-                <div class="settings-control">
-                  <select id="settings-fft-preset" class="modal-select">
-                    <option value="auto">Auto (detect from data)</option>
-                    <option value="slow-trends">Slow trends (large window)</option>
-                    <option value="fast-oscillations">Fast oscillations (small window)</option>
-                    <option value="balanced">Balanced</option>
-                  </select>
-                  <div class="settings-hint">Preset for spectrogram window size</div>
                 </div>
               </div>
             </div>

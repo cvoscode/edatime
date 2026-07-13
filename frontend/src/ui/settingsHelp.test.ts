@@ -43,13 +43,13 @@ describe('settings help button', () => {
         const modal = document.getElementById('page-help-modal');
         expect(modal).not.toBeNull();
         expect(modal?.textContent).toContain('Settings — Help');
-        // Every tab section should be present.
+        // Every supported tab section should be present.
         expect(modal?.textContent).toContain('Appearance tab');
-        expect(modal?.textContent).toContain('Export tab');
         expect(modal?.textContent).toContain('Analytics tab');
         expect(modal?.textContent).toContain('Causal tab');
-        expect(modal?.textContent).toContain('Spectral tab');
         expect(modal?.textContent).toContain('Timeseries tab');
+        expect(modal?.textContent).not.toContain('Export tab');
+        expect(modal?.textContent).not.toContain('Spectral tab');
     });
 
     it('initSettingsHelp is safe to call twice (idempotent)', async () => {

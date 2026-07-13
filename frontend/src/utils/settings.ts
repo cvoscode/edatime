@@ -20,7 +20,6 @@ export { COLOR_SCALES, getColorFromScale, type ColorScaleName } from './colorSca
 
 export type ThemeMode = 'dark' | 'light' | 'auto';
 export type LayoutDensity = 'compact' | 'roomy' | 'spacious';
-export type ExportFormat = 'png' | 'svg' | 'csv' | 'json' | 'parquet';
 export type { CorrelationMetric } from './correlationModes.js';
 
 export interface AppSettings {
@@ -29,19 +28,12 @@ export interface AppSettings {
     layoutDensity: LayoutDensity;
     defaultPalette: SeriesPaletteName;
 
-    // Export
-    defaultExportFormat: ExportFormat;
-    whiteBackgroundExport: boolean;
-
     // Analytics
     defaultCorrelationMetric: CorrelationMetric;
 
     // Causal
     defaultCausalMethod: string;
     defaultTauMax: number;
-
-    // Spectral (for Feature 9)
-    defaultFftPreset: string;
 
     // Timeseries chart preferences
     drawAutoReset: boolean;
@@ -54,12 +46,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
     theme: 'dark',
     layoutDensity: 'spacious',
     defaultPalette: 'default',
-    defaultExportFormat: 'csv',
-    whiteBackgroundExport: false,
     defaultCorrelationMetric: 'pearson_raw',
     defaultCausalMethod: 'pcmci',
     defaultTauMax: 5,
-    defaultFftPreset: 'auto',
     drawAutoReset: false,
     colorScale: 'viridis',
     sidebarCollapsed: false,
@@ -75,10 +64,16 @@ export function loadSettings(): AppSettings {
         if (!raw) return { ...DEFAULT_SETTINGS };
         const parsed = JSON.parse(raw) as Partial<AppSettings>;
         return {
-            ...DEFAULT_SETTINGS,
-            ...parsed,
+            theme: parsed.theme ?? DEFAULT_SETTINGS.theme,
+            layoutDensity: parsed.layoutDensity ?? DEFAULT_SETTINGS.layoutDensity,
             defaultPalette: normalizeSeriesPaletteName(parsed.defaultPalette),
             defaultCorrelationMetric: normalizeCorrelationMetric(parsed.defaultCorrelationMetric),
+            defaultCausalMethod: parsed.defaultCausalMethod ?? DEFAULT_SETTINGS.defaultCausalMethod,
+            defaultTauMax: parsed.defaultTauMax ?? DEFAULT_SETTINGS.defaultTauMax,
+            drawAutoReset: parsed.drawAutoReset ?? DEFAULT_SETTINGS.drawAutoReset,
+            colorScale: parsed.colorScale ?? DEFAULT_SETTINGS.colorScale,
+            sidebarCollapsed: parsed.sidebarCollapsed ?? DEFAULT_SETTINGS.sidebarCollapsed,
+            analyticsDrawerOpen: parsed.analyticsDrawerOpen ?? DEFAULT_SETTINGS.analyticsDrawerOpen,
         };
     } catch {
         return { ...DEFAULT_SETTINGS };

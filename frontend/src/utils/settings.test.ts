@@ -44,4 +44,16 @@ describe('settings correlation mode', () => {
         expect(settings.defaultPalette).toBe('ocean');
         expect(getActiveSeriesPalette()).toEqual(getSeriesPalette('ocean'));
     });
+
+    it('drops retired stored preferences that have no runtime owner', () => {
+        localStorage.setItem('edatime-settings', JSON.stringify({
+            defaultExportFormat: 'png',
+            whiteBackgroundExport: true,
+            defaultFftPreset: 'balanced',
+        }));
+
+        expect(loadSettings()).not.toHaveProperty('defaultExportFormat');
+        expect(loadSettings()).not.toHaveProperty('whiteBackgroundExport');
+        expect(loadSettings()).not.toHaveProperty('defaultFftPreset');
+    });
 });
