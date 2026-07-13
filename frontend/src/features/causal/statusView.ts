@@ -33,9 +33,7 @@ function progressLabel(): HTMLElement | null {
     );
 }
 
-/** Show the progress overlay and update its label. Percent is currently
- *  accepted for backward compatibility but not rendered — the spinner is
- *  indeterminate while compute is in flight. */
+/** Show the progress overlay and update its label alongside the indeterminate spinner. */
 export function setProgress(percent: number, label?: string): void {
     const overlay = progressOverlay();
     const text = progressLabel();

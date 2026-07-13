@@ -53,7 +53,7 @@ import {
 } from './matrix.js';
 import { createRequestTask } from '../../platform/requestTask.js';
 import {
-    initScatterToolbarOverflow,
+    initToolbarOverflow,
     refreshScatterToolbarOverflow,
 } from './toolbarOverflow.js';
 import {
@@ -454,7 +454,7 @@ export async function initScatterPage(
         // prevent the scatter page from rendering.
         const toolbar = getEl('page-scatter')?.querySelector<HTMLElement>('.scatter-toolbar');
         if (toolbar) {
-            try { initScatterToolbarOverflow(toolbar); } catch { /* noop */ }
+            try { initToolbarOverflow(toolbar); } catch { /* noop */ }
         }
         // Page-level "?" help button. The helper is idempotent so
         // calling it on every first init is safe.

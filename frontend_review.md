@@ -228,6 +228,10 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Removed the legacy unscoped `visitedPages` storage migration. Workflow progress is now recorded and read only under the active dataset fingerprint, eliminating cross-dataset progress leakage and an obsolete persistence shape.
 - Added direct coverage for both the dataset-scoped compact workflow and ignored retired unscoped state, so future storage changes cannot silently restore the compatibility path.
 
+### Completed: Scatter toolbar compatibility alias retirement
+
+- Removed the redundant `initScatterToolbarOverflow` alias. Scatter composition and its direct tests use the feature-neutral `initToolbarOverflow` API, matching the existing public Scatter surface.
+
 ### Completed: DataChart decomposition
 
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.

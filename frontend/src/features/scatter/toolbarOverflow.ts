@@ -169,11 +169,6 @@ export function initToolbarOverflow(toolbar: HTMLElement): boolean {
     return true;
 }
 
-/** Legacy alias preserved so existing scatter / timeseries callers
- *  continue to compile without churn. Prefer `initToolbarOverflow`
- *  for any new page (e.g. the heatmap). */
-export const initScatterToolbarOverflow = initToolbarOverflow;
-
 /** Test/teardown helper — re-runs the rebalance pass over every
  *  registered segment. Used after the density sub-group or other
  *  dynamically-toggled fields change visibility, so the wrap
@@ -189,7 +184,7 @@ export function _runScatterToolbarOverflowNowForTests(): void {
 }
 
 /** Test helper — tear down the registered segments and the
- *  ResizeObserver so subsequent `initScatterToolbarOverflow` calls
+ *  ResizeObserver so subsequent `initToolbarOverflow` calls
  *  start from a clean slate. Not used in production code. */
 export function _resetScatterToolbarOverflowForTests(): void {
     if (observer) {

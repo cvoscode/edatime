@@ -106,7 +106,7 @@ describe('scatter toolbar overflow rebalance logic', () => {
         for (const f of fields) {
             Object.defineProperty(f, 'offsetTop', { configurable: true, value: 0 });
         }
-        mod.initScatterToolbarOverflow(toolbar);
+        mod.initToolbarOverflow(toolbar);
         mod._runScatterToolbarOverflowNowForTests();
         expect(segment.hasAttribute('data-overflow')).toBe(false);
         expect(overflow.hidden).toBe(true);
@@ -120,7 +120,7 @@ describe('scatter toolbar overflow rebalance logic', () => {
         Object.defineProperty(fields[0], 'offsetTop', { configurable: true, value: 0 });
         Object.defineProperty(fields[1], 'offsetTop', { configurable: true, value: 40 });
         Object.defineProperty(fields[2], 'offsetTop', { configurable: true, value: 40 });
-        mod.initScatterToolbarOverflow(toolbar);
+        mod.initToolbarOverflow(toolbar);
         mod._runScatterToolbarOverflowNowForTests();
         expect(segment.getAttribute('data-overflow')).toBe('true');
         expect(overflow.hidden).toBe(false);
@@ -137,7 +137,7 @@ describe('scatter toolbar overflow rebalance logic', () => {
         Object.defineProperty(fields[0], 'offsetTop', { configurable: true, value: 0 });
         Object.defineProperty(fields[1], 'offsetTop', { configurable: true, value: 40 });
         Object.defineProperty(fields[2], 'offsetTop', { configurable: true, value: 40 });
-        mod.initScatterToolbarOverflow(toolbar);
+        mod.initToolbarOverflow(toolbar);
         mod._runScatterToolbarOverflowNowForTests();
         // …then widen.
         for (const f of fields) {
@@ -156,7 +156,7 @@ describe('scatter toolbar overflow rebalance logic', () => {
         Object.defineProperty(fields[0], 'offsetTop', { configurable: true, value: 0 });
         Object.defineProperty(fields[1], 'offsetTop', { configurable: true, value: 40 });
         Object.defineProperty(fields[2], 'offsetTop', { configurable: true, value: 40 });
-        mod.initScatterToolbarOverflow(toolbar);
+        mod.initToolbarOverflow(toolbar);
         mod._runScatterToolbarOverflowNowForTests();
         const summary = overflow.querySelector('.scatter-toolbar__overflow-btn')!;
         expect(summary.getAttribute('aria-label')).toBe('2 hidden options');
@@ -173,7 +173,7 @@ describe('scatter toolbar overflow rebalance logic', () => {
             });
         }
 
-        mod.initScatterToolbarOverflow(toolbar);
+        mod.initToolbarOverflow(toolbar);
         mod._runScatterToolbarOverflowNowForTests();
         expect(menu.querySelectorAll('.scatter-toolbar__field').length).toBe(2);
 
