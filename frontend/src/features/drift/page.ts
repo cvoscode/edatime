@@ -17,7 +17,6 @@ import {
     buildColumnSummary,
     buildGlobalSummary,
     driftColor,
-    filterResponseForEvaluation,
     formatValue,
     statusSummary as buildStatusSummary,
 } from './viewModels.js';
@@ -71,6 +70,11 @@ import {
     setDropdownOptions,
     setDropdownValue,
 } from '../../ui/primitives/Dropdown.js';
+import {
+    filterDriftResponsesForEvaluation,
+    normalizeDriftEvaluationMode,
+    normalizeLatestWindowCount,
+} from './evaluationPolicy.js';
 
 // Re-export for test isolation
 export { _setEchartsModule };
@@ -289,25 +293,15 @@ export async function initDriftPage(metadata: any): Promise<void> {
     }
 
     function getEvaluationMode(): DriftEvaluationMode {
-        const mode = getDropdownValue('drift-evaluation-mode');
-        if (mode === 'latest' || mode === 'latest-n') return mode;
-        return 'all';
+        return normalizeDriftEvaluationMode(getDropdownValue('drift-evaluation-mode'));
     }
 
     function getLatestWindowCount(): number {
-        const value = Number(latestNInput?.value ?? '1');
-        return Number.isFinite(value) && value > 0 ? Math.floor(value) : 1;
+        return normalizeLatestWindowCount(latestNInput?.value);
     }
 
     function getFilteredResponses(results: Map<string, DriftResponse>): Map<string, DriftResponse> {
-        const mode = getEvaluationMode();
-        const latestCount = getLatestWindowCount();
-        return new Map(
-            Array.from(results.entries()).map(([column, response]) => [
-                column,
-                filterResponseForEvaluation(response, mode, latestCount),
-            ]),
-        );
+        return filterDriftResponsesForEvaluation(results, getEvaluationMode(), getLatestWindowCount());
     }
 
     function renderFeatureRankCards(ranks: DriftFeatureRank[]): string {

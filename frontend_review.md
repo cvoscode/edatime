@@ -207,6 +207,12 @@ Continue this behavior-preserving split with the remaining renderer-owned seams:
 - Added `utils/colorScales.ts` as the canonical owner of the shared Viridis, Plasma, Magma, Coolwarm, and Inferno palettes and interpolation policy.
 - Migrated Settings, Timeseries color-by rendering, and Scatter continuous palettes to consume that source. Scatter-only `blues` and `oranges` remain explicit feature extensions rather than competing copies of the shared scales.
 
+### In progress: Drift page decomposition
+
+- Extracted evaluation-mode normalization, latest-window validation, and response-map filtering into `evaluationPolicy` with direct behavior coverage.
+- `page.ts` now owns DOM reads and rendering orchestration only; the selectable evaluation policy is independently testable and reusable by exports or future views.
+- Next, split the remaining request/fallback and investigation-panel presentation seams only where the resulting boundary reduces page-controller ownership.
+
 ## Target Architecture
 
 ```text
