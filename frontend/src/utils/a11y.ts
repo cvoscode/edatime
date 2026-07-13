@@ -354,7 +354,7 @@ export function hideWhatsNewModal(): void {
 
 /* ── Init keyboard shortcut toggle ────────────────── */
 
-export function initAccessibilityShortcuts(): void {
+export function initAccessibilityShortcuts(): () => void {
     // Ctrl+? or ? (when not in input) to show shortcuts help
     const handleKey = (e: KeyboardEvent) => {
         const target = e.target as HTMLElement;
@@ -385,4 +385,5 @@ export function initAccessibilityShortcuts(): void {
     };
 
     window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
 }

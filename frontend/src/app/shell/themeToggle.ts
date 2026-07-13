@@ -12,19 +12,23 @@ function nextTheme(current: 'light' | 'dark'): 'light' | 'dark' {
     return current === 'light' ? 'dark' : 'light';
 }
 
-/** Wire the header theme toggle button. Idempotent. */
-export function initThemeToggle(): void {
+/** Wire the header theme toggle button. */
+export function initThemeToggle(): () => void {
     const btn = document.getElementById('theme-toggle-btn');
-    if (!btn) return;
-    if (btn.dataset.edatimeThemeToggle === '1') return;
+    if (!btn || btn.dataset.edatimeThemeToggle === '1') return () => {};
     btn.dataset.edatimeThemeToggle = '1';
 
-    btn.addEventListener('click', () => {
+    const onClick = () => {
         const settings = loadSettings();
         const current = settings.theme === 'light' ? 'light' : 'dark';
         const target = nextTheme(current);
         settings.theme = target;
         saveSettings(settings);
         applyTheme(target);
-    });
+    };
+    btn.addEventListener('click', onClick);
+    return () => {
+        btn.removeEventListener('click', onClick);
+        delete btn.dataset.edatimeThemeToggle;
+    };
 }

@@ -589,6 +589,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Hash routing now owns and returns cleanup for both typed-navigation and browser `popstate` subscriptions, allowing a new shell mount after teardown.
 - Shell core composes those disposers and registers one cleanup with `AppRuntime`, so shell teardown no longer retains navigation/routing listeners.
 
+### Completed: shell-core binding lifecycle ownership
+
+- Accessibility shortcut, Home navigation-card, header theme-toggle, and keyboard-help initializers now each return an explicit disposer.
+- Shell core composes those with navigation/routing cleanup, so app-runtime teardown releases every shell listener it mounts rather than relying on persistent DOM markers.
+- Direct regressions verify the disposed global accessibility listener and Home/theme bindings cannot reactivate UI behavior.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.

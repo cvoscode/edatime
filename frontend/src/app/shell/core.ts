@@ -32,22 +32,29 @@ export function initShellCore(deps: ShellCoreInitDeps): () => void {
     const navigation = initPageNavigation(deps.navigation);
     const disposeHashRouting = initHashRouting(navigation.showPage);
     initSettings();
-    initThemeToggle();
-    initAccessibilityShortcuts();
-    initKeyboardHelpButton();
+    const disposeThemeToggle = initThemeToggle();
+    const disposeAccessibilityShortcuts = initAccessibilityShortcuts();
+    const disposeKeyboardHelpButton = initKeyboardHelpButton();
 
     const layout = document.querySelector('.app-layout') as HTMLElement | null;
     if (layout && getSetting('sidebarCollapsed')) {
         layout.classList.add('sidebar-collapsed');
     }
-    wireHomeNavigationCards(deps.showPage);
+    const disposeHomeNavigation = wireHomeNavigationCards(deps.showPage);
 
     return () => {
+        disposeHomeNavigation();
+        disposeKeyboardHelpButton();
+        disposeAccessibilityShortcuts();
+        disposeThemeToggle();
         disposeHashRouting();
         navigation.dispose();
     };
 }
 
-function initKeyboardHelpButton(): void {
-    document.getElementById('keyboard-help-btn')?.addEventListener('click', showKeyboardShortcutsHelp);
+function initKeyboardHelpButton(): () => void {
+    const button = document.getElementById('keyboard-help-btn');
+    if (!button) return () => {};
+    button.addEventListener('click', showKeyboardShortcutsHelp);
+    return () => button.removeEventListener('click', showKeyboardShortcutsHelp);
 }
