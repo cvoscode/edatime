@@ -216,6 +216,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 
 - Extracted pair-edge draft validation and normalized connection mutation into `editPolicy`, leaving modal status and DOM reads in `editPanel`.
 - Extracted draft initialization plus connection/attribute add-remove transitions into `editDraft`, with direct state-transition coverage. `editPanel` now reads current controls and re-renders its modal around that state.
+- Extracted escaped pair-edge editor HTML, connection control selection, summary pills, and value-tone presentation into `editPresentation`. The panel now mounts the returned HTML and owns only DOM upgrade/listener wiring.
 
 ### Completed: global continuous color-scale ownership
 
