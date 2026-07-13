@@ -56,6 +56,7 @@ export interface ScatterRenderCallbacks {
     rerenderScatterFromCache: (resetViewFlag?: boolean) => Promise<void>;
     renderScatterDebounced: () => void;
     syncScatterFilterBadge: () => void;
+    refreshToolbarOverflow?: () => void;
     exportScatterParquet?: () => Promise<boolean>;
     workspace?: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters'>;
 }
@@ -119,7 +120,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
     }
     if (suggestionThresholdValue) suggestionThresholdValue.textContent = scatterState.suggestionThreshold.toFixed(2);
     if (suggestionThresholdLabel) suggestionThresholdLabel.textContent = `Suggestions (|corr| ≥ ${scatterState.suggestionThreshold.toFixed(2)})`;
-    syncModeUI();
+    syncModeUI(cb.refreshToolbarOverflow);
     void cb.setScatterView(scatterState.activeView, { render: false });
 
     const scatterViewButtons = document.querySelectorAll<HTMLButtonElement>('[data-scatter-view]');
@@ -141,7 +142,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
 
     listen(binSizeInput, 'input', () => { binSizeValue!.textContent = binSizeInput.value; updateRangeFill(binSizeInput); rerender(); });
     listen(normalizationSelect, 'change', rerender);
-    listen(renderModeSelect, 'change', () => { syncModeUI(); rerender(); });
+    listen(renderModeSelect, 'change', () => { syncModeUI(cb.refreshToolbarOverflow); rerender(); });
     if (diagonalModeSelect) listen(diagonalModeSelect, 'change', () => {
         if (scatterState.activeView === 'matrix') {
             void cb.refreshActiveScatterView();

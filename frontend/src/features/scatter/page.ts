@@ -51,10 +51,7 @@ import {
     selectMatrixPair,
 } from './matrix.js';
 import { createRequestTask } from '../../platform/requestTask.js';
-import {
-    initToolbarOverflow,
-    refreshScatterToolbarOverflow,
-} from './toolbarOverflow.js';
+import { createToolbarOverflow, type ToolbarOverflowController } from '../../ui/toolbarOverflow.js';
 import {
     initScatterPageRuntime,
     configureScatterRuntime,
@@ -77,6 +74,7 @@ import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 let workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters'> | null = null;
 let disposeBoundControls: (() => void) | null = null;
+let toolbarOverflow: ToolbarOverflowController | null = null;
 
 /** Request task for scatter data fetching with abort-before-new semantics. */
 const scatterTask = createRequestTask({
@@ -187,7 +185,7 @@ async function setScatterView(viewName: string, options: { render?: boolean } = 
     scatterState.activeView = nextView;
     setSidebarAnalyticsSelection(nextView);
     syncScatterViewButtons(nextView);
-    syncModeUI();
+    syncModeUI(() => toolbarOverflow?.refresh());
 
     for (const panel of document.querySelectorAll<HTMLElement>('[data-scatter-view-panel]')) {
         panel.hidden = panel.dataset.scatterViewPanel !== nextView;
@@ -377,6 +375,7 @@ function bindControls(): Promise<void> {
             rerenderScatterFromCache,
             renderScatterDebounced,
             syncScatterFilterBadge,
+            refreshToolbarOverflow: () => toolbarOverflow?.refresh(),
             workspace: workspace ?? undefined,
             exportScatterParquet: () => exportScatterParquet(workspace?.getSnapshot()),
         });
@@ -453,7 +452,10 @@ export async function initScatterPage(
         // prevent the scatter page from rendering.
         const toolbar = getEl('page-scatter')?.querySelector<HTMLElement>('.scatter-toolbar');
         if (toolbar) {
-            try { initToolbarOverflow(toolbar); } catch { /* noop */ }
+            try {
+                toolbarOverflow?.dispose();
+                toolbarOverflow = createToolbarOverflow(toolbar);
+            } catch { /* noop */ }
         }
         // Page-level "?" help button. The helper is idempotent so
         // calling it on every first init is safe.

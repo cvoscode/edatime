@@ -5,7 +5,7 @@ import { getDropdownValue, setDropdownValue } from '../../ui/primitives/Dropdown
 import { bindInfoPopovers } from '../../ui/infoPopovers.js';
 import { initHeatmapHelp } from './help.js';
 import { createAnalysisPageRuntime } from '../../platform/analysisRuntime.js';
-import { initToolbarOverflow } from '../scatter/index.js';
+import { createToolbarOverflow, type ToolbarOverflowController } from '../../ui/toolbarOverflow.js';
 import {
     getCorrelationModeGuide,
     getCorrelationModeLabel,
@@ -53,6 +53,7 @@ let heatmapRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
 let heatmapResizeObserver: ResizeObserver | null = null;
 let heatmapPageCleanup: (() => void) | null = null;
 let heatmapControlAbort: AbortController | null = null;
+let heatmapToolbarOverflow: ToolbarOverflowController | null = null;
 /** User's manual column/row order from drag-reorder. Persists across
  *  metric switches so users don't lose their custom sequence. Reset
  *  whenever clustering is toggled or a new dataset loads. */
@@ -589,7 +590,8 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
             // candidate (`Fit color axis`), so the `… 1 hidden option`
             // pill appears between 1024–1280px on this page.
             const heatmapToolbar = document.querySelector<HTMLElement>('#page-heatmap .toolbar.scatter-toolbar');
-            if (heatmapToolbar) initToolbarOverflow(heatmapToolbar);
+            heatmapToolbarOverflow?.dispose();
+            heatmapToolbarOverflow = heatmapToolbar ? createToolbarOverflow(heatmapToolbar) : null;
         },
         onVisible() {
             void loadMatrix(metric);
@@ -602,6 +604,8 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
         heatmapControlAbort = null;
         heatmapResizeObserver?.disconnect();
         heatmapResizeObserver = null;
+        heatmapToolbarOverflow?.dispose();
+        heatmapToolbarOverflow = null;
         disposeRuntime();
         heatmapRuntime = null;
     };

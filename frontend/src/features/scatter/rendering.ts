@@ -3,7 +3,6 @@
  */
 
 import { formatTwoDecimals, formatTimestamp } from '../../formatUtils.js';
-import { refreshScatterToolbarOverflow } from './toolbarOverflow.js';
 import {
     getEl,
     paletteForScale,
@@ -504,7 +503,7 @@ export function updateCorrelationStats(): void {
 
 /* ── Sync mode UI ─────────────────────────────────────── */
 
-export function syncModeUI(): void {
+export function syncModeUI(onToolbarLayoutChange?: () => void): void {
     const ctl = currentControls();
     const view = scatterState.activeView || 'plot';
     const isPlot = view === 'plot';
@@ -536,7 +535,7 @@ export function syncModeUI(): void {
     // visibility, which changes which fields wrap inside the Refine
     // segment. Ask the overflow logic to rebalance so the popout
     // stays in sync with the new field set.
-    try { refreshScatterToolbarOverflow(); } catch { /* noop */ }
+    onToolbarLayoutChange?.();
 }
 
 export {

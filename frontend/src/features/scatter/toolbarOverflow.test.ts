@@ -35,10 +35,8 @@ describe('scatter toolbar overflow rebalance logic', () => {
     let overflow: HTMLElement;
     let menu: HTMLElement;
     let fields: HTMLElement[];
-    // Imported dynamically in beforeEach so each test gets a fresh
-    // module instance and the module-level `segments` registry is
-    // reset by the afterEach teardown helper.
-    let mod: typeof import('./toolbarOverflow.js');
+    let mod: typeof import('../../ui/toolbarOverflow.js');
+    let controller: ReturnType<typeof import('../../ui/toolbarOverflow.js').createToolbarOverflow>;
 
     beforeEach(async () => {
         // jsdom does not ship ResizeObserver; stub it so init does
@@ -89,7 +87,7 @@ describe('scatter toolbar overflow rebalance logic', () => {
         segment.appendChild(body);
         toolbar.appendChild(segment);
         document.body.appendChild(toolbar);
-        mod = await import('./toolbarOverflow.js');
+        mod = await import('../../ui/toolbarOverflow.js');
     });
 
     afterEach(() => {
@@ -99,15 +97,15 @@ describe('scatter toolbar overflow rebalance logic', () => {
             delete (globalThis as any).ResizeObserver;
         }
         if (toolbar && toolbar.parentNode) toolbar.parentNode.removeChild(toolbar);
-        mod._resetScatterToolbarOverflowForTests();
+        controller?.dispose();
     });
 
     it('hides the popout when every field fits on one row', () => {
         for (const f of fields) {
             Object.defineProperty(f, 'offsetTop', { configurable: true, value: 0 });
         }
-        mod.initToolbarOverflow(toolbar);
-        mod._runScatterToolbarOverflowNowForTests();
+        controller = mod.createToolbarOverflow(toolbar);
+        controller?.rebalanceNow();
         expect(segment.hasAttribute('data-overflow')).toBe(false);
         expect(overflow.hidden).toBe(true);
         const inlineFields = body.querySelectorAll(':scope > .scatter-toolbar__field');
@@ -120,8 +118,8 @@ describe('scatter toolbar overflow rebalance logic', () => {
         Object.defineProperty(fields[0], 'offsetTop', { configurable: true, value: 0 });
         Object.defineProperty(fields[1], 'offsetTop', { configurable: true, value: 40 });
         Object.defineProperty(fields[2], 'offsetTop', { configurable: true, value: 40 });
-        mod.initToolbarOverflow(toolbar);
-        mod._runScatterToolbarOverflowNowForTests();
+        controller = mod.createToolbarOverflow(toolbar);
+        controller?.rebalanceNow();
         expect(segment.getAttribute('data-overflow')).toBe('true');
         expect(overflow.hidden).toBe(false);
         const inlineFields = body.querySelectorAll(':scope > .scatter-toolbar__field');
@@ -137,13 +135,13 @@ describe('scatter toolbar overflow rebalance logic', () => {
         Object.defineProperty(fields[0], 'offsetTop', { configurable: true, value: 0 });
         Object.defineProperty(fields[1], 'offsetTop', { configurable: true, value: 40 });
         Object.defineProperty(fields[2], 'offsetTop', { configurable: true, value: 40 });
-        mod.initToolbarOverflow(toolbar);
-        mod._runScatterToolbarOverflowNowForTests();
+        controller = mod.createToolbarOverflow(toolbar);
+        controller?.rebalanceNow();
         // …then widen.
         for (const f of fields) {
             Object.defineProperty(f, 'offsetTop', { configurable: true, value: 0 });
         }
-        mod._runScatterToolbarOverflowNowForTests();
+        controller?.rebalanceNow();
         const inlineFields = body.querySelectorAll(':scope > .scatter-toolbar__field');
         const menuFields = menu.querySelectorAll('.scatter-toolbar__field');
         expect(inlineFields.length).toBe(3);
@@ -156,8 +154,8 @@ describe('scatter toolbar overflow rebalance logic', () => {
         Object.defineProperty(fields[0], 'offsetTop', { configurable: true, value: 0 });
         Object.defineProperty(fields[1], 'offsetTop', { configurable: true, value: 40 });
         Object.defineProperty(fields[2], 'offsetTop', { configurable: true, value: 40 });
-        mod.initToolbarOverflow(toolbar);
-        mod._runScatterToolbarOverflowNowForTests();
+        controller = mod.createToolbarOverflow(toolbar);
+        controller?.rebalanceNow();
         const summary = overflow.querySelector('.scatter-toolbar__overflow-btn')!;
         expect(summary.getAttribute('aria-label')).toBe('2 hidden options');
     });
@@ -173,11 +171,11 @@ describe('scatter toolbar overflow rebalance logic', () => {
             });
         }
 
-        mod.initToolbarOverflow(toolbar);
-        mod._runScatterToolbarOverflowNowForTests();
+        controller = mod.createToolbarOverflow(toolbar);
+        controller?.rebalanceNow();
         expect(menu.querySelectorAll('.scatter-toolbar__field').length).toBe(2);
 
-        mod._runScatterToolbarOverflowNowForTests();
+        controller?.rebalanceNow();
 
         expect(segment.getAttribute('data-overflow')).toBe('true');
         expect(body.querySelectorAll(':scope > .scatter-toolbar__field').length).toBe(1);

@@ -92,6 +92,7 @@ The next feature-directory migration should apply the same controller/runtime/he
 Move complete: the Timeseries toolbar-overflow controller now lives in `features/timeseries/`, and its lazy entrypoint import and layout characterization coverage remain intact.
 
 - Replaced its module-global segment registry, observer, and scheduled-frame state with a disposable controller created per Timeseries controls instance. Feature disposal now disconnects the observer, cancels pending layout work, and restores moved fields; direct tests prove disposal and multi-shelf isolation.
+- Promoted the common Scatter/Heatmap overflow behavior to `ui/toolbarOverflow`. Scatter now owns its controller and passes layout refresh explicitly from page/controls to rendering; Heatmap owns and disposes the same primitive with its page runtime. This removes the cross-feature Scatter dependency and both shared consumers now have explicit lifecycle ownership.
 
 ### Next: remaining page-layout test ownership
 

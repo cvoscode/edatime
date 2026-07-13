@@ -679,9 +679,9 @@ describe('heatmapPage audit follow-ups (C1–C11)', () => {
         expect(clusterRow!.style.borderTop).toBeTruthy();
     });
 
-    // C7 — Display segment is wired into initToolbarOverflow (segment exists with overflow popout).
+    // C7 — Display segment is wired into the shared toolbar-overflow controller.
     it('does not crash when the heatmap page loads without an overflow popout', async () => {
-        // Strip the toolbar so initToolbarOverflow has nothing to register;
+        // Strip the toolbar so the shared controller has nothing to register;
         // the page should still render cleanly.
         document.querySelector('.toolbar.scatter-toolbar')?.remove();
         const { initHeatmapPage } = await import('./page.js');
