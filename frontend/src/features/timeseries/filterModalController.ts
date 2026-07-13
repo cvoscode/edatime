@@ -66,10 +66,6 @@ export function initFilterModalController(deps: FilterModalControllerDeps): () =
 
     let activeBounds: { min: number; max: number } | null = null;
 
-    function emitColumnFiltersChange() {
-        window.dispatchEvent(new CustomEvent('edatime:column-filters-change'));
-    }
-
     function setColumnRange(col: string, range: { from: number; to: number }): void {
         const filters = deps.workspace.getSnapshot().filters;
         deps.workspace.setFilters({
@@ -319,7 +315,6 @@ export function initFilterModalController(deps: FilterModalControllerDeps): () =
             chartState.chart?.fitYToData?.();
             const yr = chartState.chart?.getYRange?.();
             if (yr) deps.updateAnalysisYRange(yr.min, yr.max, 'filter');
-            emitColumnFiltersChange();
             closeModal();
         },
         onCancel: closeModal,
@@ -341,7 +336,6 @@ export function initFilterModalController(deps: FilterModalControllerDeps): () =
         chartState.chart?.fitYToData?.();
         const yr = chartState.chart?.getYRange?.();
         if (yr) deps.updateAnalysisYRange(yr.min, yr.max, 'filter');
-        emitColumnFiltersChange();
         refreshInputsForCol(col);
     });
 

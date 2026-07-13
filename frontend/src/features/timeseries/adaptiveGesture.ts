@@ -61,7 +61,7 @@ export function buildAdaptiveFilterFromPoints(
 
 export function initAdaptiveFilterGesture(
     deps: {
-        workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters'>;
+        workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'subscribe'>;
         buildColumnToggles: () => void;
         buildRangeControls: () => void;
         renderCurrentData: () => void;
@@ -107,13 +107,6 @@ export function initAdaptiveFilterGesture(
             ...filters,
             adaptiveLines: [...filters.adaptiveLines, filter],
         });
-        // Apply locally: rebuild range controls + re-render chart
-        deps.buildRangeControls();
-        deps.renderCurrentData();
-        chartState.chart?.requestOverlayRender?.();
-        chartState.chart?.fitYToData?.();
-        const yr = chartState.chart?.getYRange?.();
-        if (yr) deps.updateAnalysisYRange(yr.min, yr.max, 'adaptive');
         deps.buildColumnToggles();
     };
 
@@ -189,16 +182,28 @@ export function initAdaptiveFilterGesture(
         if (yr) deps.updateAnalysisYRange(yr.min, yr.max, 'adaptive');
     };
 
+    const adaptiveLinesSignature = (snapshot: WorkspaceSnapshot): string => JSON.stringify(
+        snapshot.filters.adaptiveLines.map((filter) => [
+            filter.id, filter.column, filter.x1, filter.y1, filter.x2, filter.y2, filter.keepAbove,
+        ]),
+    );
+    let previousAdaptiveLines = adaptiveLinesSignature(deps.workspace.getSnapshot() as WorkspaceSnapshot);
+    const unsubscribeWorkspace = deps.workspace.subscribe((snapshot) => {
+        const nextAdaptiveLines = adaptiveLinesSignature(snapshot);
+        if (nextAdaptiveLines === previousAdaptiveLines) return;
+        previousAdaptiveLines = nextAdaptiveLines;
+        onAdaptiveChange();
+    });
+
     container.addEventListener('click', clickHandler, true);
     window.addEventListener('keydown', onEscape);
     window.addEventListener('keyup', onCtrlUp);
-    window.addEventListener('edatime:adaptive-filters-change', onAdaptiveChange as EventListener);
     container.dataset.adaptiveBound = '1';
 
     return () => {
         container.removeEventListener('click', clickHandler, true);
         window.removeEventListener('keydown', onEscape);
         window.removeEventListener('keyup', onCtrlUp);
-        window.removeEventListener('edatime:adaptive-filters-change', onAdaptiveChange as EventListener);
+        unsubscribeWorkspace();
     };
 }

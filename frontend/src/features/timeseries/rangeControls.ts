@@ -74,7 +74,6 @@ export function buildRangeControls(workspace: FilterWorkspace): void {
                 workspace.setFilters({ ...filters, adaptiveLines: nextAdaptiveLines });
                 setPendingAdaptivePoint(null);
                 buildRangeControls(workspace);
-                window.dispatchEvent(new CustomEvent('edatime:adaptive-filters-change'));
             },
         });
     }
@@ -92,7 +91,6 @@ export function buildRangeControls(workspace: FilterWorkspace): void {
                 setPendingAdaptivePoint(null);
                 buildRangeControls(workspace);
                 (chartState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
-                window.dispatchEvent(new CustomEvent('edatime:adaptive-filters-change'));
             },
         });
     }

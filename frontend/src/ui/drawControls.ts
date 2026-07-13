@@ -51,7 +51,6 @@ export function initDrawControls(
             workspace.setFilters({ ...filters, adaptiveLines: [] });
             setPendingAdaptivePoint(null);
             (chartState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
-            window.dispatchEvent(new CustomEvent('edatime:adaptive-filters-change'));
         });
         adaptiveClearBtn.dataset.bound = '1';
     }

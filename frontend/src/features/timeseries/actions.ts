@@ -157,8 +157,6 @@ export function initTimeseriesActions(deps: TimeseriesActionDeps): void {
         clearScatterViewSnapshots();
         deps.buildRangeControls();
         deps.renderCurrentData();
-        window.dispatchEvent(new CustomEvent('edatime:column-filters-change', { detail: { source } }));
-        window.dispatchEvent(new CustomEvent('edatime:adaptive-filters-change', { detail: { source } }));
         await deps.fetchAndRender();
     };
 

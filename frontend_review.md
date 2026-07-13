@@ -527,6 +527,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Session autosave now debounces canonical WorkspaceStore publications instead of listening for column/adaptive-filter DOM notifications. Selection, filters, viewport, and dataset changes therefore use the same persistence path.
 - Reinitialization retires the prior autosave listeners and timer; the bootstrap returns the disposer and requires the subscribe-capable WorkspaceStore contract through Timeseries readiness.
 
+### Completed: adaptive filter WorkspaceStore ownership
+
+- Adaptive gesture refresh now compares canonical adaptive-line state from WorkspaceStore. Gesture application, chip removal, clear controls, and filter-modal changes all flow through the same state publication instead of coordinating with DOM events.
+- Removed the final `edatime:column-filters-change` and `edatime:adaptive-filters-change` producers, consumers, and the obsolete UI event helper. The gesture lifecycle unsubscribes with its page binding.
+
 ### Completed: Drift page decomposition
 
 - Extracted evaluation-mode normalization, latest-window validation, and response-map filtering into `evaluationPolicy` with direct behavior coverage.
