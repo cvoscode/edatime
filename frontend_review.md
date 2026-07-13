@@ -185,6 +185,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Moved the lazy API-transport and chart-module loader from `app/bootstrap` to `platform/runtimeModules`. The loader is a neutral dependency cache and chart-type registry, not application composition or Timeseries behavior.
 - `app.ts` now imports the platform surface instead of a bootstrap helper, keeping transport and chart implementation imports out of the application layer while preserving lazy loading and the existing integration characterization.
 
+### Completed: Home sample-dataset ownership
+
+- Moved Home sample-card DOM wiring, sample generation/upload workflow, and its regression suite from `app/shell` into `features/home/sampleDatasets`.
+- Exposed the supported card initializer through the Home public index and updated deferred shell composition to consume that surface. Direct deferred-shell coverage now verifies Home help and sample cards initialize together and retain their dataset-refresh callback contract.
+
 ### Completed: DataChart decomposition
 
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.

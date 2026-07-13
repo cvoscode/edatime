@@ -155,7 +155,7 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
     });
 
     registerSubsystem('sample-datasets', async (deps) => {
-        const { wireSampleDatasetCards } = await import('./sampleDatasets.js');
+        const { wireSampleDatasetCards } = await import('../../features/home/index.js');
         wireSampleDatasetCards(deps.showPage, () => deps.refreshDatasetAfterMutation());
     });
 

@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
     initAnnotations: vi.fn(),
     initAnnotationPanel: vi.fn(),
     initGuidedWorkflow: vi.fn(),
+    initHomePage: vi.fn(),
+    wireSampleDatasetCards: vi.fn(),
     initOutlierModal: vi.fn(),
     initTransformModal: vi.fn(),
     initProvenance: vi.fn(),
@@ -32,7 +34,11 @@ vi.mock('../../ui/analyticsDrawer.js', () => ({ initAnalyticsDrawer: mocks.initA
 vi.mock('../../bootstrap/analyticsOverlay.js', () => ({ initAnalyticsListeners: mocks.initAnalyticsListeners }));
 vi.mock('../../chart/annotations.js', () => ({ initAnnotations: mocks.initAnnotations }));
 vi.mock('../../ui/annotationPanel.js', () => ({ initAnnotationPanel: mocks.initAnnotationPanel }));
-vi.mock('../../features/home/index.js', () => ({ initGuidedWorkflow: mocks.initGuidedWorkflow }));
+vi.mock('../../features/home/index.js', () => ({
+    initGuidedWorkflow: mocks.initGuidedWorkflow,
+    initHomePage: mocks.initHomePage,
+    wireSampleDatasetCards: mocks.wireSampleDatasetCards,
+}));
 vi.mock('../../features/dataMutation/index.js', () => ({
     initOutlierModal: mocks.initOutlierModal,
     initTransformModal: mocks.initTransformModal,
@@ -83,6 +89,8 @@ describe('deferred shell subsystems', () => {
         mocks.initAnnotations.mockClear();
         mocks.initAnnotationPanel.mockClear();
         mocks.initGuidedWorkflow.mockClear();
+        mocks.initHomePage.mockClear();
+        mocks.wireSampleDatasetCards.mockClear();
         mocks.initOutlierModal.mockClear();
         mocks.initTransformModal.mockClear();
         mocks.initProvenance.mockClear();
@@ -162,5 +170,21 @@ describe('deferred shell subsystems', () => {
         );
         expect(mocks.initChartPageFilterGesture).toHaveBeenCalledTimes(1);
         expect(mocks.initTimeseriesHelp).toHaveBeenCalledTimes(1);
+    });
+
+    it('initializes Home feature controls through its public surface', async () => {
+        const deps = createDeps();
+        const registry = createDeferredSubsystemRegistry();
+
+        await registry.ensureHomeSubsystems(deps);
+
+        expect(mocks.wireSampleDatasetCards).toHaveBeenCalledWith(
+            deps.showPage,
+            expect.any(Function),
+        );
+        const refresh = mocks.wireSampleDatasetCards.mock.calls[0]?.[1] as (() => Promise<void>) | undefined;
+        await refresh?.();
+        expect(deps.refreshDatasetAfterMutation).toHaveBeenCalledTimes(1);
+        expect(mocks.initHomePage).toHaveBeenCalledTimes(1);
     });
 });
