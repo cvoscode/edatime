@@ -625,6 +625,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - A disposed singleton deliberately cannot restart. This makes teardown deterministic now and establishes the stable entry contract for the future factory-based multi-root runtime.
 - Bootstrap regressions verify repeated explicit starts reuse the initial lifecycle and a post-disposal start cannot remount application resources.
 
+### Completed: explicit app-root composition factory
+
+- Replaced module-global application orchestration state with `createApp()`. Each root now owns its runtime, lazy page registry, workspace, export feature, Timeseries module, chart-constructor cache, session persistence, start promise, and disposal state.
+- The HTML entry remains intentionally small: it creates one browser root and delegates through the stable `startApp()` / `disposeApp()` adapters. Future host integration can create and manage another root without reaching into module-level internals.
+- Characterization coverage verifies a second root starts independently, each root is single-flight, and disposing one root prevents only that root from remounting.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.

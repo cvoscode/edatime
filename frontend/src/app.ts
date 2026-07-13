@@ -58,51 +58,6 @@ import { datasetState, setDatasetRevision, setMetadata, setNumericCols } from '.
 import { runtimeState } from './store/runtimeState.js';
 import { setAdaptiveFilterColumn } from './store/uiState.js';
 
-const runtime = createAppRuntime();
-const pageRegistry = createPageRegistry();
-const workspace = createWorkspaceStore();
-const exportFeature = createExportFeature({ workspace, getData: () => runtimeState.lastFetchedData });
-runtime.registerCleanup(() => workspace.dispose());
-runtime.registerCleanup(pageRegistry.dispose);
-let timeseriesModule!: ReturnType<typeof createTimeseriesModule>;
-let appDisposed = false;
-let appStart: Promise<void> | null = null;
-
-/**
- * Releases the application composition root and every resource registered
- * beneath it. Embedding hosts and future hot-reload entrypoints use this
- * instead of reaching into individual feature or shell lifecycles.
- */
-export function disposeApp(): void {
-    if (appDisposed) return;
-    appDisposed = true;
-    runtime.dispose();
-    resetAppReady();
-}
-
-/**
- * Starts this entrypoint's application root once and exposes its completion
- * to embedding hosts and tests. A disposed singleton is intentionally not
- * restartable; a future multi-root factory will create a new composition
- * root instead.
- */
-export function startApp(): Promise<void> {
-    if (appDisposed) return Promise.resolve();
-    if (appStart) return appStart;
-
-    resetAppReady();
-    appStart = init().finally(() => {
-        if (!appDisposed) markAppReady();
-    });
-    return appStart;
-}
-
-/* ── Lazy-loaded modules ──────────────────────────────── */
-
-let DataChartCtor: (new (containerId: string, onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null, onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null, onZoomOutCb: (() => void) | null) => ChartInstance) | null = null;
-let _sessionPersistenceStarted = false;
-let disposeSessionPersistence: (() => void) | null = null;
-
 type DataChartCtorType = new (
     containerId: string,
     onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null,
@@ -110,121 +65,176 @@ type DataChartCtorType = new (
     onZoomOutCb: (() => void) | null,
 ) => ChartInstance;
 
-async function ensurePrimaryChartCtor(): Promise<DataChartCtorType> {
-    if (DataChartCtor) return DataChartCtor;
-    const modules = await ensureChartBootstrapModules();
-    DataChartCtor = modules.DataChartCtor;
-    return DataChartCtor!;
+export interface AppRoot {
+    start(): Promise<void>;
+    dispose(): void;
 }
 
-/* ── Analytics overlay fetch ──────────────────────────── */
+/**
+ * Creates one application composition root. All mutable orchestration state
+ * stays in this closure, making ownership and disposal explicit instead of
+ * coupling it to the `app.ts` module instance.
+ */
+export function createApp(): AppRoot {
+    const runtime = createAppRuntime();
+    const pageRegistry = createPageRegistry();
+    const workspace = createWorkspaceStore();
+    const exportFeature = createExportFeature({ workspace, getData: () => runtimeState.lastFetchedData });
+    runtime.registerCleanup(() => workspace.dispose());
+    runtime.registerCleanup(pageRegistry.dispose);
 
-async function fetchAndRenderAnalytics(): Promise<void> {
-    const { fetchAnomalies } = await ensureBootstrapDataModules();
-    await doFetchAndRenderAnalytics(fetchAnomalies, workspace);
-}
+    let timeseriesModule!: ReturnType<typeof createTimeseriesModule>;
+    let appDisposed = false;
+    let appStart: Promise<void> | null = null;
+    let dataChartCtor: DataChartCtorType | null = null;
+    let sessionPersistenceStarted = false;
+    let disposeSessionPersistence: (() => void) | null = null;
 
-function ensureSessionPersistenceStarted(): void {
-    if (_sessionPersistenceStarted) return;
-    disposeSessionPersistence = startSessionPersistence(workspace);
-    runtime.registerCleanup(() => {
-        disposeSessionPersistence?.();
-        disposeSessionPersistence = null;
-        _sessionPersistenceStarted = false;
-    });
-    _sessionPersistenceStarted = true;
-}
-
-/* ── Module creation helpers ──────────────────────────── */
-async function init(): Promise<void> {
-    if (appDisposed) return;
-
-    upgradeSelects(document);
-    upgradeFlexibleNumberInputs(document);
-    installWindowsWebGpuRequestAdapterWorkaround();
-    // Hydrate persisted chart preferences (Y-range "stack from 0", etc.)
-    // BEFORE the toolbar wires up so the toggle starts in the right state.
-    initChartStatePrefs();
-    // Data transport and chart rendering remain behind their feature readiness paths.
-    timeseriesModule = createTimeseriesModule({
-        fetchData: async (start, end, width, columns, colorColumn, lookaroundMs, options) => {
-            const { fetchData } = await ensureBootstrapDataModules();
-            return fetchData(start, end, width, columns, colorColumn, lookaroundMs, options);
-        },
-        fetchMetadata: async () => {
-            const { fetchMetadata } = await ensureBootstrapDataModules();
-            return fetchMetadata();
-        },
-        workspace,
-        ensurePrimaryChartCtor,
-        markMetadataReady: pageRegistry.markMetadataReady,
-        isMetadataReady: pageRegistry.isMetadataReady,
-        sanitizeSelectedColumns: () => sanitizeSelectedColumns(workspace),
-        clearLoadedPageModules: pageRegistry.clearLoadedPageModules,
-        ensureSessionPersistenceStarted,
-        setNumericCols,
-        setAdaptiveFilterColumn,
-        setViewport,
-        updateAnalysisYRange,
-        updateAnalysisZoom,
-        getCurrentView,
-        fetchAndRenderAnalytics,
-        refreshZoomControlsState,
-        chartExportPng: () => chartState.chart?.exportPNG?.(),
-        chartExportSvg: () => chartState.chart?.exportSVG?.(),
-        exportFilteredCsv: exportFeature.exportFilteredCsv,
-        exportFilteredJson: exportFeature.exportFilteredJson,
-        exportFilteredParquet: exportFeature.exportFilteredParquet,
-    });
-
-    // Mount registers page lifecycle (page-change listener, etc.)
-    runtime.registerCleanup(timeseriesModule.mount());
-
-    initAppShell({
-        ensurePageModuleLoaded: pageRegistry.ensurePageModuleLoaded,
-        ensureDatasetReady: () => timeseriesModule.ensureDatasetReady(),
-        showPage,
-        fetchAndRender: () => timeseriesModule.fetchAndRender(),
-        fetchAndRenderAnalytics,
-        exportFilteredCsv: exportFeature.exportFilteredCsv,
-        exportFilteredJson: exportFeature.exportFilteredJson,
-        exportChartPng: () => chartState.chart?.exportPNG?.(),
-        renderCurrentData: () => timeseriesModule.renderCurrentData(),
-        updateAnalysisYRange,
-        buildTimeseriesColumns: () => timeseriesModule.buildColumnToggles(),
-        buildTimeseriesRanges: () => timeseriesModule.buildRangeControls(),
-        zoomOut: () => timeseriesModule.zoomOut(),
-        resetZoom: () => timeseriesModule.resetZoom(),
-        refreshDatasetAfterMutation: (opts) => timeseriesModule.refreshAfterMutation(opts),
-        registerCleanup: runtime.registerCleanup,
-        workspace,
-    });
-
-    // Register lazy-loaded page modules. Each descriptor resolves its own
-    // heavy dependencies via dynamic import; app.ts only passes the small
-    // runtime helpers each page needs.
-    await loadPageDescriptors(pageRegistry, {
-        getRenderTimeseries: () => timeseriesModule.renderCurrentData(),
-        showPage,
-        chipColor: (col, idx) => getAnalyticsChipColor(col, idx),
-        setLoading: setComputeLoading,
-        workspace,
-    });
-
-    // The root may be disposed while deferred page descriptors are loading.
-    // Do not continue into dataset startup after its lifetime has ended.
-    if (appDisposed) return;
-
-    try {
-        const initialPage = getHashPage();
-        if (pageNeedsDatasetBootstrap(initialPage)) {
-            await timeseriesModule.ensureDatasetReady();
-        }
-    } catch (e: unknown) {
-        const message = e instanceof Error ? e.message : String(e);
-        console.error('Initial bootstrap failed:', e);
-        showBootstrapError({ message });
+    async function ensurePrimaryChartCtor(): Promise<DataChartCtorType> {
+        if (dataChartCtor) return dataChartCtor;
+        const modules = await ensureChartBootstrapModules();
+        dataChartCtor = modules.DataChartCtor;
+        return dataChartCtor!;
     }
+
+    async function fetchAndRenderAnalytics(): Promise<void> {
+        const { fetchAnomalies } = await ensureBootstrapDataModules();
+        await doFetchAndRenderAnalytics(fetchAnomalies, workspace);
+    }
+
+    function ensureSessionPersistenceStarted(): void {
+        if (sessionPersistenceStarted) return;
+        disposeSessionPersistence = startSessionPersistence(workspace);
+        runtime.registerCleanup(() => {
+            disposeSessionPersistence?.();
+            disposeSessionPersistence = null;
+            sessionPersistenceStarted = false;
+        });
+        sessionPersistenceStarted = true;
+    }
+
+    async function init(): Promise<void> {
+        if (appDisposed) return;
+
+        upgradeSelects(document);
+        upgradeFlexibleNumberInputs(document);
+        installWindowsWebGpuRequestAdapterWorkaround();
+        // Hydrate persisted chart preferences (Y-range "stack from 0", etc.)
+        // BEFORE the toolbar wires up so the toggle starts in the right state.
+        initChartStatePrefs();
+        // Data transport and chart rendering remain behind their feature readiness paths.
+        timeseriesModule = createTimeseriesModule({
+            fetchData: async (start, end, width, columns, colorColumn, lookaroundMs, options) => {
+                const { fetchData } = await ensureBootstrapDataModules();
+                return fetchData(start, end, width, columns, colorColumn, lookaroundMs, options);
+            },
+            fetchMetadata: async () => {
+                const { fetchMetadata } = await ensureBootstrapDataModules();
+                return fetchMetadata();
+            },
+            workspace,
+            ensurePrimaryChartCtor,
+            markMetadataReady: pageRegistry.markMetadataReady,
+            isMetadataReady: pageRegistry.isMetadataReady,
+            sanitizeSelectedColumns: () => sanitizeSelectedColumns(workspace),
+            clearLoadedPageModules: pageRegistry.clearLoadedPageModules,
+            ensureSessionPersistenceStarted,
+            setNumericCols,
+            setAdaptiveFilterColumn,
+            setViewport,
+            updateAnalysisYRange,
+            updateAnalysisZoom,
+            getCurrentView,
+            fetchAndRenderAnalytics,
+            refreshZoomControlsState,
+            chartExportPng: () => chartState.chart?.exportPNG?.(),
+            chartExportSvg: () => chartState.chart?.exportSVG?.(),
+            exportFilteredCsv: exportFeature.exportFilteredCsv,
+            exportFilteredJson: exportFeature.exportFilteredJson,
+            exportFilteredParquet: exportFeature.exportFilteredParquet,
+        });
+
+        // Mount registers page lifecycle (page-change listener, etc.)
+        runtime.registerCleanup(timeseriesModule.mount());
+
+        initAppShell({
+            ensurePageModuleLoaded: pageRegistry.ensurePageModuleLoaded,
+            ensureDatasetReady: () => timeseriesModule.ensureDatasetReady(),
+            showPage,
+            fetchAndRender: () => timeseriesModule.fetchAndRender(),
+            fetchAndRenderAnalytics,
+            exportFilteredCsv: exportFeature.exportFilteredCsv,
+            exportFilteredJson: exportFeature.exportFilteredJson,
+            exportChartPng: () => chartState.chart?.exportPNG?.(),
+            renderCurrentData: () => timeseriesModule.renderCurrentData(),
+            updateAnalysisYRange,
+            buildTimeseriesColumns: () => timeseriesModule.buildColumnToggles(),
+            buildTimeseriesRanges: () => timeseriesModule.buildRangeControls(),
+            zoomOut: () => timeseriesModule.zoomOut(),
+            resetZoom: () => timeseriesModule.resetZoom(),
+            refreshDatasetAfterMutation: (opts) => timeseriesModule.refreshAfterMutation(opts),
+            registerCleanup: runtime.registerCleanup,
+            workspace,
+        });
+
+        // Register lazy-loaded page modules. Each descriptor resolves its own
+        // heavy dependencies via dynamic import; app.ts only passes the small
+        // runtime helpers each page needs.
+        await loadPageDescriptors(pageRegistry, {
+            getRenderTimeseries: () => timeseriesModule.renderCurrentData(),
+            showPage,
+            chipColor: (col, idx) => getAnalyticsChipColor(col, idx),
+            setLoading: setComputeLoading,
+            workspace,
+        });
+
+        // The root may be disposed while deferred page descriptors are loading.
+        // Do not continue into dataset startup after its lifetime has ended.
+        if (appDisposed) return;
+
+        try {
+            const initialPage = getHashPage();
+            if (pageNeedsDatasetBootstrap(initialPage)) {
+                await timeseriesModule.ensureDatasetReady();
+            }
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : String(e);
+            console.error('Initial bootstrap failed:', e);
+            showBootstrapError({ message });
+        }
+    }
+
+    function dispose(): void {
+        if (appDisposed) return;
+        appDisposed = true;
+        runtime.dispose();
+        resetAppReady();
+    }
+
+    function start(): Promise<void> {
+        if (appDisposed) return Promise.resolve();
+        if (appStart) return appStart;
+
+        resetAppReady();
+        appStart = init().finally(() => {
+            if (!appDisposed) markAppReady();
+        });
+        return appStart;
+    }
+
+    return { start, dispose };
+}
+
+const browserApp = createApp();
+
+/** Starts the application root used by the HTML entrypoint. */
+export function startApp(): Promise<void> {
+    return browserApp.start();
+}
+
+/** Releases the application root used by the HTML entrypoint. */
+export function disposeApp(): void {
+    browserApp.dispose();
 }
 
 void startApp();

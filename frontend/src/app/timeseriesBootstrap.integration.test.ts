@@ -277,6 +277,23 @@ describe('app -> timeseries bootstrap wiring', () => {
         expect(initAppShellMock).toHaveBeenCalledTimes(1);
     });
 
+    it('creates independently disposable app roots without duplicating one root start', async () => {
+        const { createApp, startApp } = await import('../app.js');
+        await startApp();
+
+        const embeddedApp = createApp();
+        await Promise.all([embeddedApp.start(), embeddedApp.start()]);
+
+        expect(createTimeseriesModuleMock).toHaveBeenCalledTimes(2);
+        expect(initAppShellMock).toHaveBeenCalledTimes(2);
+
+        embeddedApp.dispose();
+        await embeddedApp.start();
+
+        expect(createTimeseriesModuleMock).toHaveBeenCalledTimes(2);
+        expect(initAppShellMock).toHaveBeenCalledTimes(2);
+    });
+
     it('registers page-registry teardown with the app runtime', async () => {
         await import('../app.js');
 
