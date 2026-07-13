@@ -184,7 +184,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 
 `DataChart` now remains as the ChartGPU adapter and orchestration layer; rendering-heavy behavior is owned by deterministic policies and dedicated lifecycle/rendering controllers.
 
-### In progress: FFT chart decomposition
+### Completed: FFT chart decomposition
 
 - Extracted FFT trace normalization, finite-point filtering, log/scaled display values, palette choice, display bounds, full-domain calculation, and first-trace spectral metadata into `fftDataModel`, with direct behavior coverage.
 - `FftChart` retains ChartGPU option composition while consuming that deterministic model; `fftOverlayResources` owns annotation-canvas/resize-observer mounting and teardown, and `fftInteractionResources` owns the disposable box-zoom binding.
