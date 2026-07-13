@@ -45,16 +45,18 @@ interface BootstrapResult {
     refreshAfterMutation(options?: { selectedColumn?: string }): Promise<void>;
 }
 
-// Module-level deduplication promise shared across all callers
-let _datasetReadyPromise: Promise<void> | null = null;
-let _lastDatasetRevision: number | null = null;
-
 /**
  * Creates the dataset bootstrap owner.
  * Call `result.ensureDatasetReady()` to run the bootstrap sequence.
  * Call `result.refreshAfterMutation()` to refresh after a data mutation (e.g. upload).
  */
 export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapResult {
+    // Bootstrap ownership is feature-instance scoped. This deduplicates
+    // concurrent callers for one mounted application without coupling a
+    // later mount or an isolated test/runtime to a retired instance.
+    let datasetReadyPromise: Promise<void> | null = null;
+    let lastDatasetRevision: number | null = null;
+
     function syncDatasetSelection(metadata: DatasetMetadata, selectedColumn?: string): void {
         deps.setNumericCols(deps.getNumericColumns(metadata));
 
@@ -86,7 +88,7 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
     // ── Bootstrap sequence ───────────────────────────────────────────────
     async function ensureDatasetReady(): Promise<void> {
         if (deps.isMetadataReady()) return;
-        if (_datasetReadyPromise) return _datasetReadyPromise;
+        if (datasetReadyPromise) return datasetReadyPromise;
 
         let pending: Promise<void>;
         pending = (async () => {
@@ -99,7 +101,7 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
             const revision = Number.isFinite(Number(metadata?.revision)) ? Number(metadata.revision) : 0;
             if (!deps.workspace.commitDataset(workspaceSession, metadata, revision)) return;
             deps.storeFetchedMetadata(metadata);
-            _lastDatasetRevision = revision;
+            lastDatasetRevision = revision;
             deps.markMetadataReady();
             window.dispatchEvent(new Event('edatime:metadata-ready'));
             if (DEBUG) dbgGroup('metadata', () => dbg(metadata));
@@ -112,20 +114,20 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
 
             await deps.initializeDatasetUi(metadata);
         })().catch((error) => {
-            if (_datasetReadyPromise === pending) {
-                _datasetReadyPromise = null;
+            if (datasetReadyPromise === pending) {
+                datasetReadyPromise = null;
             }
             throw error;
         });
-        _datasetReadyPromise = pending;
+        datasetReadyPromise = pending;
 
-        return _datasetReadyPromise;
+        return datasetReadyPromise;
     }
 
     // ── Refresh after mutation ─────────────────────────────────────────────
     async function refreshAfterMutation(options?: { selectedColumn?: string }): Promise<void> {
         invalidateDatasetRequestScope();
-        _datasetReadyPromise = null;
+        datasetReadyPromise = null;
 
         if (!deps.isMetadataReady()) {
             // If metadata isn't ready yet, run full bootstrap instead
@@ -136,13 +138,13 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
         deps.clearLoadedPageModules();
         deps.clearPersistedFilters();
         deps.workspace.setFilters({ columnRanges: {}, adaptiveLines: [] });
-        const previousRevision = _lastDatasetRevision;
+        const previousRevision = lastDatasetRevision;
         const workspaceSession = deps.workspace.beginDatasetSession();
         const metadata = await deps.fetchMetadata();
         const nextRevision = Number.isFinite(Number(metadata?.revision)) ? Number(metadata.revision) : 0;
         if (!deps.workspace.commitDataset(workspaceSession, metadata, nextRevision)) return;
         deps.storeFetchedMetadata(metadata);
-        _lastDatasetRevision = nextRevision;
+        lastDatasetRevision = nextRevision;
         deps.markMetadataReady();
         // Mirror the initial-bootstrap event so subscribers (e.g. the scatter
         // page) can re-read metadata after a dataset mutation such as upload.

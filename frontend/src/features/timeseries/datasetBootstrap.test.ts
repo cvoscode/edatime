@@ -137,6 +137,20 @@ describe('createDatasetBootstrap', () => {
         expect(deps.workspace.setSelection).toHaveBeenCalledWith(['value']);
     });
 
+    it('keeps bootstrap deduplication local to each feature instance', async () => {
+        const createDatasetBootstrap = await importCreateDatasetBootstrap();
+        const firstDeps = createDeps();
+        const secondDeps = createDeps();
+        const first = createDatasetBootstrap(firstDeps);
+        const second = createDatasetBootstrap(secondDeps);
+
+        await first.ensureDatasetReady();
+        await second.ensureDatasetReady();
+
+        expect(firstDeps.fetchMetadata).toHaveBeenCalledTimes(1);
+        expect(secondDeps.fetchMetadata).toHaveBeenCalledTimes(1);
+    });
+
     it('seeds the workspace before sanitation so default series survive a fresh dataset bootstrap', async () => {
         let workspaceSelection: string[] = [];
         const setSelection = vi.fn((columns: readonly string[]) => {

@@ -348,6 +348,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Extracted bounded zoom-restore history and consecutive zoom-out reset decisions into `zoomHistoryPolicy`, preserving snapshot isolation and raw-buffer restoration while making the controller responsible only for applying its selected chart/workspace transition.
 - Fixed the shared page-runtime unmount/remount contract: cleanup now releases the mounted state and is idempotent, so feature lifecycles can safely register again after a real unmount.
 - Extracted WorkspaceStore-to-fetch projection into `requestIntent`, including immutable selection capture and null/non-finite viewport fallback. The controller now composes this tested policy with request execution instead of reading request state inline.
+- Scoped dataset-bootstrap request deduplication and revision tracking to each Timeseries feature instance. A direct regression proves one mounted runtime cannot suppress metadata initialization for a later instance.
 
 ### Completed: feature-specific workflow ownership
 
