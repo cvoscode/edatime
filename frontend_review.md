@@ -91,6 +91,8 @@ The next feature-directory migration should apply the same controller/runtime/he
 
 Move complete: the Timeseries toolbar-overflow controller now lives in `features/timeseries/`, and its lazy entrypoint import and layout characterization coverage remain intact.
 
+- Replaced its module-global segment registry, observer, and scheduled-frame state with a disposable controller created per Timeseries controls instance. Feature disposal now disconnects the observer, cancels pending layout work, and restores moved fields; direct tests prove disposal and multi-shelf isolation.
+
 ### Next: remaining page-layout test ownership
 
 Complete: FFT and Timeseries layout/lifecycle tests now live with their features, while the intentionally cross-feature spectral-toolbar layout contract lives with shared UI. The retired `pages/` directory has no remaining source or test owner.

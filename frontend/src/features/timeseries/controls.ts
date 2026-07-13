@@ -35,6 +35,7 @@ export interface TimeseriesFeatureDeps {
 export function createTimeseriesControls(deps: TimeseriesFeatureDeps) {
     let initialized = false;
     let cleanupActions: Array<() => void> = [];
+    let toolbarOverflow: { refresh(): void; dispose(): void } | null = null;
 
     const buildWorkspaceRangeControls = () => buildRangeControls(deps.workspace);
     const rebuildColumns = () => {
@@ -47,6 +48,8 @@ export function createTimeseriesControls(deps: TimeseriesFeatureDeps) {
         const actions = cleanupActions;
         cleanupActions = [];
         for (const cleanup of actions) cleanup();
+        toolbarOverflow?.dispose();
+        toolbarOverflow = null;
     };
 
     const registerCleanup = (cleanup: () => void) => {
@@ -96,12 +99,14 @@ export function createTimeseriesControls(deps: TimeseriesFeatureDeps) {
                     // and to avoid a static dependency cycle with
                     // the timeseries page module.
                     void import('./toolbarOverflow.js')
-                        .then(({ initTimeseriesToolbarOverflow, refreshTimeseriesToolbarOverflow }) => {
-                            try { initTimeseriesToolbarOverflow(shelf); } catch { /* noop */ }
+                        .then(({ createTimeseriesToolbarOverflow }) => {
+                            if (!initialized) return;
+                            toolbarOverflow?.dispose();
+                            toolbarOverflow = createTimeseriesToolbarOverflow(shelf);
                             // One extra refresh after a frame so the
                             // initial popout state is correct even if
                             // the ResizeObserver hasn't fired yet.
-                            requestAnimationFrame(() => { try { refreshTimeseriesToolbarOverflow(); } catch { /* noop */ } });
+                            requestAnimationFrame(() => toolbarOverflow?.refresh());
                         })
                         .catch(() => { /* module missing — non-fatal */ });
                 } catch { /* noop */ }
