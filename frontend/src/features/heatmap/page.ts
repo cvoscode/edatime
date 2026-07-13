@@ -14,6 +14,14 @@ import {
     type CorrelationMetric,
 } from '../../utils/correlationModes.js';
 import { getSetting, updateSetting } from '../../utils/settings.js';
+import {
+    correlationColor,
+    correlationTextColor,
+    correlationToneClass,
+    escapeHtmlAttribute as escapeAttr,
+    formatScaleTick,
+    getColorDomainMax,
+} from './colorScale.js';
 
 interface HeatmapPageDeps {
     showPage: (pageName: string) => void;
@@ -95,61 +103,6 @@ function setHeatmapLoading(loading: boolean, label?: string): void {
         const labelEl = document.getElementById('heatmap-loading-label');
         if (labelEl) labelEl.textContent = label;
     }
-}
-
-function correlationColor(value: number, maxAbs = 1): string {
-    const domain = Math.max(1e-6, maxAbs);
-    const clamped = Math.max(-1, Math.min(1, value / domain));
-    if (clamped >= 0) {
-        const t = clamped;
-        const r = Math.round(245 - t * (245 - 190));
-        const g = Math.round(245 - t * (245 - 18));
-        const b = Math.round(245 - t * (245 - 46));
-        return `rgb(${r},${g},${b})`;
-    }
-    const t = -clamped;
-    const r = Math.round(245 - t * (245 - 35));
-    const g = Math.round(245 - t * (245 - 112));
-    const b = Math.round(245 - t * (245 - 180));
-    return `rgb(${r},${g},${b})`;
-}
-
-function getColorDomainMax(data: (number | null)[][]): number {
-    if (!heatmapAxisFit) return 1;
-    let maxAbs = 0;
-    for (let row = 0; row < data.length; row++) {
-        for (let col = 0; col < data[row]!.length; col++) {
-            if (row === col) continue;
-            const value = data[row]![col];
-            if (value == null || !Number.isFinite(value)) continue;
-            maxAbs = Math.max(maxAbs, Math.abs(value));
-        }
-    }
-    return maxAbs > 0 ? maxAbs : 1;
-}
-
-function formatScaleTick(value: number): string {
-    return Math.abs(value) >= 1 ? value.toFixed(1) : value.toFixed(2);
-}
-
-function correlationToneClass(value: number | null): string {
-    if (value === null || !Number.isFinite(value)) return 'heatmap-cell--missing';
-    if (value > 0.08) return 'heatmap-cell--positive';
-    if (value < -0.08) return 'heatmap-cell--negative';
-    return 'heatmap-cell--neutral';
-}
-
-function correlationTextColor(value: number | null): string {
-    if (value === null || !Number.isFinite(value)) return 'var(--text-dim)';
-    return Math.abs(value) >= 0.5 ? '#fff' : '#b8cef8';
-}
-
-function escapeAttr(value: string): string {
-    return value
-        .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
 }
 
 function buildHeatmapStatus(clusterCount: number | null): string {
@@ -260,7 +213,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
         }
 
         syncHeatmapEmptyState('', false);
-        const colorDomainMax = getColorDomainMax(data);
+        const colorDomainMax = getColorDomainMax(data, heatmapAxisFit);
         // Make the matrix fill the available shell width: derive a cell
         // size from the container's client width and the user's cell-size
         // preference, instead of locking the grid to size * heatmapCellSize.

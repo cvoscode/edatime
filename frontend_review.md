@@ -220,6 +220,11 @@ Continue this behavior-preserving split with the remaining renderer-owned seams:
 - Extracted Drift CSV and JSON serialization into `exportPayloads`, preserving evaluated-window fields and export context under direct tests while keeping browser download initiation in the page controller.
 - Removed the retired Drift runtime request-task and export wrappers. The runtime is now limited to its live ECharts cache and empty-state bridge, with its tests narrowed to those actual responsibilities.
 - Added abort-scoped Drift control and page listeners plus mounted-runtime/resize-observer disposal before re-initialization. A page regression proves a second initialization does not duplicate a Compute request.
+
+### In progress: Heatmap page decomposition
+
+- Extracted correlation color interpolation, fitted-domain policy, semantic cell styling, scale-label formatting, and HTML-attribute escaping into `colorScale`, with direct positive/negative/domain/accessibility coverage.
+- The renderer continues to own DOM/grid composition while consuming this deterministic presentation policy.
 - Next, split the remaining request-payload and timeline-summary presentation seams only where the resulting boundary reduces page-controller ownership.
 
 ## Target Architecture
