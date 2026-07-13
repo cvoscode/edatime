@@ -45,6 +45,7 @@ import {
 } from './renderingDensity.js';
 import { buildNormalScatterSeries as buildSeriesByPolicy } from './seriesPolicy.js';
 import { buildScatterTooltipHtml } from './tooltipPresentation.js';
+import { buildScatterColorbarPresentation } from './colorbarPresentation.js';
 
 /* ── Series builders ──────────────────────────────────── */
 
@@ -110,45 +111,32 @@ function renderColorbarCanvas(): void {
 }
 
 export function updateColorbarUI(): void {
-    if (scatterState.activeView !== 'plot') { setColorbarVisible(false); return; }
     const ctl = currentControls();
-    const isDensity = ctl.renderMode === 'density';
-    const hasContinuousColor = !!ctl.selectedColorColumn
-        && Array.isArray(scatterState.colorValues) && scatterState.colorValues.length > 0
-        && Number.isFinite(scatterState.colorMin) && Number.isFinite(scatterState.colorMax)
-        && scatterState.colorMax! > scatterState.colorMin!;
-    if (!isDensity && !hasContinuousColor) { setColorbarVisible(false); return; }
-    const show = isDensity || hasContinuousColor;
-    setColorbarVisible(show);
-    if (!show) return;
+    const presentation = buildScatterColorbarPresentation({
+        activeView: scatterState.activeView,
+        renderMode: ctl.renderMode,
+        colormap: ctl.colormap,
+        colorScale: ctl.colorScale,
+        selectedColorColumn: ctl.selectedColorColumn,
+        colorValues: scatterState.colorValues,
+        colorMin: scatterState.colorMin,
+        colorMax: scatterState.colorMax,
+        cardinality: scatterState.colorCardinality,
+    });
+    setColorbarVisible(presentation.visible);
+    if (!presentation.visible) return;
 
     const nameEl = getEl('scatter-colorbar-name');
     const minEl = getEl('scatter-colorbar-min');
     const maxEl = getEl('scatter-colorbar-max');
     const cardEl = getEl('scatter-colorbar-cardinality');
 
-    if (isDensity) {
-        if (nameEl) nameEl.textContent = `Density (${ctl.colormap})`;
-        if (minEl) minEl.textContent = 'Low';
-        if (maxEl) maxEl.textContent = 'High';
-        if (cardEl) cardEl.hidden = true;
-    } else {
-        if (nameEl) nameEl.textContent = `${ctl.selectedColorColumn} (${ctl.colorScale})`;
-        if (minEl) minEl.textContent = formatTwoDecimals(scatterState.colorMin!);
-        if (maxEl) maxEl.textContent = formatTwoDecimals(scatterState.colorMax!);
-        // Audit issue 2.2: when the backend collapsed categorical
-        // labels into a single "Other" bucket, surface the count
-        // under the colorbar so the user knows the legend is
-        // truncated. Hidden when no bucketing happened.
-        const cardinality = scatterState.colorCardinality;
-        if (cardEl) {
-            if (cardinality && cardinality.bucketed > 0) {
-                cardEl.textContent = `${cardinality.used} shown · ${cardinality.bucketed} other`;
-                cardEl.hidden = false;
-            } else {
-                cardEl.hidden = true;
-            }
-        }
+    if (nameEl) nameEl.textContent = presentation.name;
+    if (minEl) minEl.textContent = presentation.minLabel;
+    if (maxEl) maxEl.textContent = presentation.maxLabel;
+    if (cardEl) {
+        cardEl.hidden = presentation.cardinalityLabel === null;
+        if (presentation.cardinalityLabel) cardEl.textContent = presentation.cardinalityLabel;
     }
     requestAnimationFrame(renderColorbarCanvas);
 }
