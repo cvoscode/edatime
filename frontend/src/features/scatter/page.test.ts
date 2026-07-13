@@ -12,10 +12,6 @@ const freshChartState = vi.hoisted(() => ({
     currentStart: 0 as number | null,
     currentEnd: 1_000 as number | null,
 }));
-const freshUiState = vi.hoisted(() => ({
-    columnRanges: {} as Record<string, { from: number; to: number }>,
-    adaptiveLineFilters: [] as any[],
-}));
 const freshDatasetState = vi.hoisted(() => ({
     metadata: null as any,
 }));
@@ -70,20 +66,6 @@ vi.mock('../../store/chartState.js', async (importOriginal) => {
     return {
         ...actual,
         chartState: freshChartState,
-    };
-});
-
-vi.mock('../../store/uiState.js', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('../../store/uiState.js')>();
-    return {
-        ...actual,
-        uiState: freshUiState,
-        setColumnRanges: (ranges: Record<string, { from: number; to: number }>) => {
-            freshUiState.columnRanges = { ...ranges };
-        },
-        setAdaptiveLineFilters: (filters: any[]) => {
-            freshUiState.adaptiveLineFilters = [...filters];
-        },
     };
 });
 
@@ -245,8 +227,6 @@ describe('initScatterPage view toggles', () => {
         requestGpuAdapterMock.mockResolvedValue({ name: 'mock-adapter' });
         freshChartState.currentStart = 0;
         freshChartState.currentEnd = 1_000;
-        freshUiState.columnRanges = {};
-        freshUiState.adaptiveLineFilters = [];
         freshDatasetState.metadata = null;
         scatterViewSnapshots.plot = { columnRanges: {}, lineFilters: [] };
         scatterViewSnapshots.matrix = { columnRanges: {}, lineFilters: [] };
@@ -406,17 +386,19 @@ describe('initScatterPage view toggles', () => {
             });
 
         const { initScatterPage, setScatterView } = await import('./page.js');
-        const { setColumnRanges } = await import('../../store/uiState.js');
         const { setScatterViewSnapshot } = await import('../../store/scatterState.js');
+        const { createWorkspaceStore } = await import('../../workspace/workspaceStore.js');
 
-        // Stage a filter globally and seed the plot-view snapshot so
-        // the matrix swap re-installs it on the way back. The snapshot
-        // is the only thing the round-trip matrix → plot needs to
-        // carry the filter through the view switch.
-        setColumnRanges({ HUFL: { from: 0, to: 1 } } as any);
+        // The plot-view snapshot preserves its saved filter state across a
+        // matrix round trip. The production page fills it from WorkspaceStore.
         setScatterViewSnapshot('plot', {
             columnRanges: { HUFL: { from: 0, to: 1 } },
             lineFilters: [],
+        });
+        const workspace = createWorkspaceStore();
+        workspace.setFilters({
+            columnRanges: { HUFL: { from: 0, to: 1 } },
+            adaptiveLines: [],
         });
 
         await initScatterPage({
@@ -429,7 +411,7 @@ describe('initScatterPage view toggles', () => {
             time_column: 'ts',
             time_range: { min: 0, max: 1_000 },
             column_profiles: [],
-        } as any);
+        } as any, { workspace });
 
         await setScatterView('matrix');
         await setScatterView('plot');

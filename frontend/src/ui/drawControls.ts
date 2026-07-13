@@ -4,7 +4,7 @@
  */
 
 import { chartState } from '../store/chartState.js';
-import { setAdaptiveLineFilters, setPendingAdaptivePoint } from '../store/uiState.js';
+import { setPendingAdaptivePoint } from '../store/uiState.js';
 import { getDropdownValue } from './primitives/Dropdown.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
@@ -49,7 +49,6 @@ export function initDrawControls(
         adaptiveClearBtn.addEventListener('click', () => {
             const filters = workspace.getSnapshot().filters;
             workspace.setFilters({ ...filters, adaptiveLines: [] });
-            setAdaptiveLineFilters([]);
             setPendingAdaptivePoint(null);
             (chartState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
             window.dispatchEvent(new CustomEvent('edatime:adaptive-filters-change'));

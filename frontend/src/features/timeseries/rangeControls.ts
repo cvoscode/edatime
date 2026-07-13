@@ -10,7 +10,6 @@
  */
 import { formatAnalysisNumber } from '../../utils/format.js';
 import {
-    setAdaptiveLineFilters,
     setPendingAdaptivePoint,
     uiState,
 } from '../../store/uiState.js';
@@ -73,7 +72,6 @@ export function buildRangeControls(workspace: FilterWorkspace): void {
                         (item) => (item as unknown as { id?: string }).id !== filterIdCopy,
                 );
                 workspace.setFilters({ ...filters, adaptiveLines: nextAdaptiveLines });
-                setAdaptiveLineFilters(nextAdaptiveLines);
                 setPendingAdaptivePoint(null);
                 buildRangeControls(workspace);
                 window.dispatchEvent(new CustomEvent('edatime:adaptive-filters-change'));
@@ -91,7 +89,6 @@ export function buildRangeControls(workspace: FilterWorkspace): void {
             ariaLabel: 'Clear adaptive filters',
             onActivate: () => {
                 workspace.setFilters({ ...filters, adaptiveLines: [] });
-                setAdaptiveLineFilters([]);
                 setPendingAdaptivePoint(null);
                 buildRangeControls(workspace);
                 (chartState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();

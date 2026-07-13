@@ -17,8 +17,6 @@ import {
 import { chartState, setChartText, setViewport } from '../store/chartState.js';
 import { datasetState } from '../store/datasetState.js';
 import {
-    setAdaptiveLineFilters,
-    setColumnRanges,
     setSeriesColors,
     uiState,
 } from '../store/uiState.js';
@@ -97,8 +95,8 @@ export function captureSession(): SessionSnapshot {
         page: currentPage(),
         selectedCols: [...(intent?.selection.columns ?? [])],
         seriesColors: { ...uiState.seriesColors },
-        columnRanges: intent ? { ...intent.filters.columnRanges } : { ...uiState.columnRanges },
-        adaptiveLineFilters: intent ? intent.filters.adaptiveLines.map((f) => ({ ...f })) : uiState.adaptiveLineFilters.map((f) => ({ ...f })),
+        columnRanges: intent ? { ...intent.filters.columnRanges } : {},
+        adaptiveLineFilters: intent ? intent.filters.adaptiveLines.map((f) => ({ ...f })) : [],
         currentStart: intent?.viewport?.xMin ?? chartState.currentStart,
         currentEnd: intent?.viewport?.xMax ?? chartState.currentEnd,
         selectedColorColumn: intent?.selection.colorColumn ?? null,
@@ -191,16 +189,14 @@ export function applySession(
         const staleLines = Array.isArray(snap.adaptiveLineFilters) ? snap.adaptiveLineFilters.length : 0;
         result.droppedFilterCount = staleRanges + staleLines;
         workspace?.setFilters({ columnRanges: {}, adaptiveLines: [] });
-        setColumnRanges({});
-        setAdaptiveLineFilters([]);
     } else {
         const restoredAdaptiveLines = Array.isArray(snap.adaptiveLineFilters)
             ? snap.adaptiveLineFilters.map((f: any) => ({ ...f, id: f.id ?? `restored-${Date.now()}` }))
-            : [...uiState.adaptiveLineFilters];
-        const restoredRanges = snap.columnRanges ? { ...snap.columnRanges } : { ...uiState.columnRanges };
+            : [...(workspace?.getSnapshot().filters.adaptiveLines ?? [])];
+        const restoredRanges = snap.columnRanges
+            ? { ...snap.columnRanges }
+            : { ...(workspace?.getSnapshot().filters.columnRanges ?? {}) };
         workspace?.setFilters({ columnRanges: restoredRanges, adaptiveLines: restoredAdaptiveLines });
-        if (snap.columnRanges) setColumnRanges(restoredRanges);
-        if (Array.isArray(snap.adaptiveLineFilters)) setAdaptiveLineFilters(restoredAdaptiveLines);
     }
 
     if (!revisionMismatch) {

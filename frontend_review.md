@@ -275,6 +275,13 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - The chart adapter now receives color intent explicitly with each data update, keeping it independent of application state. The Color-by control is rebuilt with the Timeseries column rail and publishes its selection directly to the workspace.
 - Removed the retired UI-state field, setter, and store event; Scatter keeps its independent local color control because it is a separate query intent.
 
+### Completed: canonical filter-intent ownership
+
+- Moved numeric column ranges and adaptive line filters out of `uiState` into `WorkspaceStore.filters`; they now have one immutable shared-query owner across Timeseries rendering, filtering, session persistence, and Scatter requests.
+- Kept only Timeseries-local gesture presentation in `uiState`: the currently targeted trace and the pending pointer line. `DataChart` receives the committed adaptive filters explicitly with each data update, so chart overlays no longer read application query state.
+- Scatter Plot and Matrix retain independent saved filter snapshots, but page switches now serialize and restore the canonical workspace filters rather than synchronizing a second global mirror. The cold-start control path preserves its configured workspace.
+- Removed the retired UI filter fields, mutation helpers, and store events; updated characterization fixtures to assert workspace and view-snapshot contracts directly. Full validation passed with 1,134 frontend tests plus TypeScript, architecture, bundle, packaged-asset, Rust, and diff checks.
+
 ### Completed: DataChart decomposition
 
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.

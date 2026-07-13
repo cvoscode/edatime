@@ -18,11 +18,6 @@ import {
     setPendingYMode,
     setRefetchOnZoom,
 } from '../../store/runtimeState.js';
-import {
-    setAdaptiveLineFilters,
-    setColumnRanges,
-    uiState,
-} from '../../store/uiState.js';
 import { createWorkspaceStore, type WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 let defaultWorkspace: WorkspaceStore;
@@ -54,8 +49,7 @@ describe('createTimeseriesPageController', () => {
         setRefetchOnZoom(false);
         setLastFetchedData(null);
         setFetchedWindow(null);
-        setColumnRanges({});
-        setAdaptiveLineFilters([]);
+        defaultWorkspace.setFilters({ columnRanges: {}, adaptiveLines: [] });
         setWorkspaceSelection([]);
         setWorkspaceColorColumn(null);
     });
@@ -182,7 +176,7 @@ describe('createTimeseriesPageController', () => {
             series: expect.objectContaining({
                 workspace: expect.objectContaining({ y: Float64Array.from([3]) }),
             }),
-        }), ['workspace'], 'workspace-color');
+        }), ['workspace'], 'workspace-color', []);
         expect((window as any).__edatime?.debugYSnapshot).toBeUndefined();
     });
 

@@ -21,7 +21,6 @@ let activeControlsCleanup: (() => void) | null = null;
 
 import { datasetState } from '../../store/datasetState.js';
 import { scatterState } from '../../store/scatterState.js';
-import { setAdaptiveLineFilters, setColumnRanges, uiState } from '../../store/uiState.js';
 import type { DatasetMetadata } from '../../types/api.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import { getEl, normalizeScatterSuggestionThreshold } from './helpers.js';
@@ -229,8 +228,6 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
         if (filters) {
             cb.workspace?.setFilters({ ...filters, columnRanges: {}, adaptiveLines: [] });
         }
-        setColumnRanges({});
-        setAdaptiveLineFilters([]);
         try {
             cb.syncScatterFilterBadge();
             await cb.refreshActiveScatterView();
@@ -303,7 +300,12 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
                     .catch((err: any) => { cb.handleErr(err); });
             } else {
                 try {
-                    if (isLinkedBrushEnabled() || Object.keys(uiState.columnRanges || {}).length > 0 || (uiState.adaptiveLineFilters || []).length > 0) {
+                    const activeFilters = cb.workspace?.getSnapshot().filters;
+                    if (
+                        isLinkedBrushEnabled()
+                        || Object.keys(activeFilters?.columnRanges ?? {}).length > 0
+                        || (activeFilters?.adaptiveLines.length ?? 0) > 0
+                    ) {
                         await cb.renderScatter();
                     } else {
                         await cb.rerenderScatterFromCache(true);

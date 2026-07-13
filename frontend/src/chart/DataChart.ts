@@ -9,6 +9,7 @@ import { downloadUrl, downloadBlob } from '../utils/dom.js';
 import { defaultGpuPowerPreference } from '../utils/platform.js';
 import { datasetState } from '../store/datasetState.js';
 import { uiState } from '../store/uiState.js';
+import type { AdaptiveLineFilter } from '../types/store.js';
 import type {
     ChartTextOverlays,
     FilteredDataObject,
@@ -105,6 +106,7 @@ export class DataChart {
     _lastDataYMin: number | null = null;
     _lastDataYMax: number | null = null;
     _activeColumns: readonly string[] = [];
+    _adaptiveLineFilters: readonly AdaptiveLineFilter[] = [];
     _lastSeriesList: SeriesConfig[] | null = null;
     _lastXDomainMin: number | null = null;
     _lastXDomainMax: number | null = null;
@@ -438,8 +440,14 @@ export class DataChart {
 
     /* ── Data update ────────────────────────────────────── */
 
-    updateDataMulti(dataObj: FilteredDataObject, columns: string[], colorColumn: string | null = null): void {
+    updateDataMulti(
+        dataObj: FilteredDataObject,
+        columns: string[],
+        colorColumn: string | null = null,
+        adaptiveLines: readonly AdaptiveLineFilter[] = [],
+    ): void {
         this._activeColumns = [...columns];
+        this._adaptiveLineFilters = adaptiveLines.map((filter) => ({ ...filter }));
         this._overlays?.setSelectedColumns(this._activeColumns);
         if (!this.chartInstance) return;
         const model = buildTimeSeriesDataModel({
@@ -728,6 +736,7 @@ export class DataChart {
             getOverlayCanvas: () => this._overlayCanvas,
             getGrid: () => this._currentGrid,
             getYRange: () => this.getYRange(),
+            getAdaptiveLineFilters: () => this._adaptiveLineFilters,
             getPendingAdaptivePoint: () => uiState.pendingAdaptivePoint,
         });
         this._overlays.setSelectedColumns(this._activeColumns);

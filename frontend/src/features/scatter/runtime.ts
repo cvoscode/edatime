@@ -20,7 +20,6 @@ import { getEl } from './helpers.js';
 import { chartState } from '../../store/chartState.js';
 import { datasetState } from '../../store/datasetState.js';
 import { scatterState } from '../../store/scatterState.js';
-import { uiState } from '../../store/uiState.js';
 import { createEmptyStateController, isRangeOutsideDataset } from '../../ui/emptyState.js';
 import { isLinkedBrushEnabled, currentControls, getActiveScatterFilterColumns } from './state.js';
 import { defaultGpuPowerPreference, requestGpuAdapter } from '../../utils/platform.js';
@@ -58,7 +57,7 @@ function syncScatterFilterBanner(): void {
     const columnCount = activeColumns.length;
     const adaptiveCount = intent
         ? intent.filters.adaptiveLines.length
-        : (Array.isArray(uiState.adaptiveLineFilters) ? uiState.adaptiveLineFilters.length : 0);
+        : 0;
     const hasZoomRange = intent
         ? intent.viewport?.xMin != null && intent.viewport?.xMax != null
         : Number.isFinite(chartState.currentStart) && Number.isFinite(chartState.currentEnd);
@@ -164,7 +163,7 @@ export function syncScatterEmptyState(message?: string): void {
     const scopedFilterCount = new Set(activeColumns).size;
     const adaptiveFilterCount = intent
         ? intent.filters.adaptiveLines.length
-        : (Array.isArray(uiState.adaptiveLineFilters) ? uiState.adaptiveLineFilters.length : 0);
+        : 0;
 
     const text = message
         || (_gpuUnavailable && !scatterState.chart

@@ -5,7 +5,6 @@ import {
 } from '../../store/chartState.js';
 import { datasetState, setMetadata } from '../../store/datasetState.js';
 import { setLastFetchedData } from '../../store/runtimeState.js';
-import { setColumnRanges, uiState } from '../../store/uiState.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 import { __resetFilterModalOpenerForTests, openFilterForColumn } from './filterModalService.js';
 
@@ -16,6 +15,11 @@ function initFilterModalController(
         & Partial<Pick<Parameters<typeof createFilterModalController>[0], 'workspace'>>,
 ) {
     return createFilterModalController({ ...deps, workspace: deps.workspace ?? workspace });
+}
+
+function setWorkspaceRanges(columnRanges: Record<string, { from: number; to: number }>): void {
+    const filters = workspace.getSnapshot().filters;
+    workspace.setFilters({ ...filters, columnRanges });
 }
 
 function buildModalDOM(): void {
@@ -62,7 +66,7 @@ describe('initFilterModalController', () => {
         datasetState.numericCols = ['HUFL', 'HULL'];
         workspace = createWorkspaceStore();
         workspace.setSelection(['HUFL', 'HULL']);
-        setColumnRanges({});
+        setWorkspaceRanges({});
 
         // Provide lastFetchedData so getFullBoundsForCol works in tests
         setLastFetchedData({
@@ -119,7 +123,7 @@ describe('initFilterModalController', () => {
         });
 
         it('syncs min/max text inputs from stored columnRanges', () => {
-            setColumnRanges({ HUFL: { from: 0.2, to: 0.8 } });
+            setWorkspaceRanges({ HUFL: { from: 0.2, to: 0.8 } });
             const renderCurrentData = vi.fn();
             const updateAnalysisYRange = vi.fn();
             initFilterModalController({ renderCurrentData, updateAnalysisYRange });
@@ -133,7 +137,7 @@ describe('initFilterModalController', () => {
         });
 
         it('defaults to full bounds when no stored range exists', () => {
-            setColumnRanges({});
+            setWorkspaceRanges({});
             const renderCurrentData = vi.fn();
             const updateAnalysisYRange = vi.fn();
             initFilterModalController({ renderCurrentData, updateAnalysisYRange });
@@ -149,7 +153,7 @@ describe('initFilterModalController', () => {
     });
 
     describe('apply button', () => {
-        it('writes edited bounds to uiState.columnRanges', () => {
+        it('writes edited bounds to workspace filters', () => {
             const renderCurrentData = vi.fn();
             const updateAnalysisYRange = vi.fn();
             initFilterModalController({ renderCurrentData, updateAnalysisYRange });
@@ -163,7 +167,7 @@ describe('initFilterModalController', () => {
             const applyBtn = document.getElementById('column-filter-apply-btn') as HTMLButtonElement;
             applyBtn.click();
 
-            expect(uiState.columnRanges['HUFL']).toEqual({ from: 0.3, to: 0.7 });
+            expect(workspace.getSnapshot().filters.columnRanges.HUFL).toEqual({ from: 0.3, to: 0.7 });
         });
 
         it('publishes edited bounds to workspace filters', () => {
@@ -224,7 +228,7 @@ describe('initFilterModalController', () => {
 
     describe('clear button', () => {
         it('resets column range to full bounds from profile', () => {
-            setColumnRanges({ HUFL: { from: 0.2, to: 0.8 } });
+            setWorkspaceRanges({ HUFL: { from: 0.2, to: 0.8 } });
             const renderCurrentData = vi.fn();
             const updateAnalysisYRange = vi.fn();
             initFilterModalController({ renderCurrentData, updateAnalysisYRange });
@@ -233,11 +237,11 @@ describe('initFilterModalController', () => {
             const clearBtn = document.getElementById('column-filter-clear-btn') as HTMLButtonElement;
             clearBtn.click();
 
-            expect(uiState.columnRanges['HUFL']).toEqual({ from: 0.0, to: 1.0 });
+            expect(workspace.getSnapshot().filters.columnRanges.HUFL).toEqual({ from: 0.0, to: 1.0 });
         });
 
         it('calls renderCurrentData after clear', () => {
-            setColumnRanges({ HUFL: { from: 0.2, to: 0.8 } });
+            setWorkspaceRanges({ HUFL: { from: 0.2, to: 0.8 } });
             const renderCurrentData = vi.fn();
             const updateAnalysisYRange = vi.fn();
             initFilterModalController({ renderCurrentData, updateAnalysisYRange });
@@ -252,7 +256,7 @@ describe('initFilterModalController', () => {
 
     describe('cancel button', () => {
         it('closes modal without state change', () => {
-            setColumnRanges({ HUFL: { from: 0.2, to: 0.8 } });
+            setWorkspaceRanges({ HUFL: { from: 0.2, to: 0.8 } });
             const renderCurrentData = vi.fn();
             const updateAnalysisYRange = vi.fn();
             initFilterModalController({ renderCurrentData, updateAnalysisYRange });
@@ -266,7 +270,7 @@ describe('initFilterModalController', () => {
             const modal = document.getElementById('column-filter-modal')!;
             expect(modal.hidden).toBe(true);
             // Original stored range unchanged
-            expect(uiState.columnRanges['HUFL']).toEqual({ from: 0.2, to: 0.8 });
+            expect(workspace.getSnapshot().filters.columnRanges.HUFL).toEqual({ from: 0.2, to: 0.8 });
         });
     });
 

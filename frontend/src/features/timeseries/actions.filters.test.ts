@@ -5,7 +5,6 @@ import {
     getScatterViewSnapshot,
     setScatterViewSnapshot,
 } from '../../store/scatterState.js';
-import { setAdaptiveLineFilters, setColumnRanges } from '../../store/uiState.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 
 function buildDom(): void {
@@ -16,21 +15,6 @@ function buildDom(): void {
 describe('initTimeseriesActions clear-all-filters', () => {
     beforeEach(() => {
         buildDom();
-        setColumnRanges({
-            HUFL: { from: 1, to: 9 },
-            HULL: { from: 2, to: 8 },
-        });
-        setAdaptiveLineFilters([
-            {
-                id: 'line-1',
-                column: 'HUFL',
-                x1: 1,
-                y1: 2,
-                x2: 3,
-                y2: 4,
-                keepAbove: true,
-            },
-        ]);
         setScatterViewSnapshot('plot', {
             columnRanges: { HUFL: { from: 1, to: 9 } },
             lineFilters: [{ column: 'HUFL', x1: 1, y1: 2, x2: 3, y2: 4, keepAbove: true }],

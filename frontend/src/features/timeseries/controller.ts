@@ -255,14 +255,24 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         if (!chartState.chart) return;
         if (model.kind === 'no-selection') {
             setRollingBands(null);
-            chartState.chart.updateDataMulti(EMPTY_TIMESERIES_DATA, [], workspace.selection.colorColumn);
+            chartState.chart.updateDataMulti(
+                EMPTY_TIMESERIES_DATA,
+                [],
+                workspace.selection.colorColumn,
+                workspace.filters.adaptiveLines,
+            );
             rememberRenderedViewport();
             return;
         }
         if (model.kind === 'awaiting-data') return;
         if (model.kind === 'empty') {
             setRollingBands(null);
-            chartState.chart.updateDataMulti(EMPTY_TIMESERIES_DATA, [], workspace.selection.colorColumn);
+            chartState.chart.updateDataMulti(
+                EMPTY_TIMESERIES_DATA,
+                [],
+                workspace.selection.colorColumn,
+                workspace.filters.adaptiveLines,
+            );
             if (Number.isFinite(model.viewport.start) && Number.isFinite(model.viewport.end) && model.viewport.end > model.viewport.start) {
                 chartState.chart.setXRange(model.viewport.start, model.viewport.end);
             }
@@ -277,7 +287,12 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         // us re-apply the user y range once the new data has been drawn.
         const restoreY = runtimeState.pendingRestoreY;
         const restoreMode = runtimeState.pendingYMode;
-        chartState.chart.updateDataMulti(model.data, model.displayColumns, workspace.selection.colorColumn);
+        chartState.chart.updateDataMulti(
+            model.data,
+            model.displayColumns,
+            workspace.selection.colorColumn,
+            workspace.filters.adaptiveLines,
+        );
 
         if (restoreY && restoreMode === 'restore') {
             chartState.chart.setYRange(restoreY.min, restoreY.max);

@@ -2,27 +2,16 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
     scatterState,
 } from '../../store/scatterState.js';
-import {
-    setAdaptiveLineFilters,
-    setColumnRanges,
-    uiState,
-} from '../../store/uiState.js';
 import { setMetadata } from '../../store/datasetState.js';
 import { setViewport } from '../../store/chartState.js';
 import { buildOverviewContextKey, buildScatterOverviewContext, buildScatterQueryContext, getActiveScatterFilterColumns } from './state.js';
 import { setScatterActiveView, setScatterViewSnapshot } from '../../store/scatterState.js';
 
-/**
- * Mirror the in-app behaviour: tests that stage `uiState.columnRanges`
- * should also push them into the active view's filter snapshot so the
- * scatter query context picks them up. The page controller keeps the two
- * in sync via event listeners; here we just call the setter directly
- * because we want a deterministic test fixture.
- */
-function primePlotSnapshot(): void {
+/** Seeds the plot-owned saved filter snapshot used without workspace intent. */
+function primePlotSnapshot(columnRanges: Record<string, { from: number; to: number }> = {}, lineFilters: any[] = []): void {
     setScatterViewSnapshot('plot', {
-        columnRanges: uiState.columnRanges as Record<string, { from: number; to: number }>,
-        lineFilters: [],
+        columnRanges,
+        lineFilters,
     });
 }
 
@@ -30,8 +19,6 @@ describe('scatter query context builders', () => {
     beforeEach(() => {
         document.body.innerHTML = '';
         setViewport(null, null);
-        setColumnRanges({});
-        setAdaptiveLineFilters([]);
         setMetadata(null);
         setScatterActiveView('plot');
         primePlotSnapshot();
@@ -66,7 +53,6 @@ describe('scatter query context builders', () => {
     it('uses explicit workspace filters and viewport ahead of legacy state', () => {
         document.body.innerHTML = '<input id="scatter-link-brush" type="checkbox" checked />';
         setViewport(1, 2);
-        setColumnRanges({ legacy: { from: 1, to: 2 } } as any);
         setMetadata({ time_column: 'timestamp', column_profiles: [], columns: [], numeric_columns: [], time_range: { min: 0, max: 100 } } as any);
 
         const result = buildScatterQueryContext(
@@ -112,12 +98,11 @@ describe('scatter query context builders', () => {
     });
 
     it('scopes column-range filters to active scatter columns', () => {
-        setColumnRanges({
+        primePlotSnapshot({
             x: { from: 1, to: 9 },
             y: { from: 2, to: 8 },
             unrelated: { from: 5, to: 6 },
-        } as any);
-        primePlotSnapshot();
+        });
 
         const result = buildScatterQueryContext({ x: 'x', y: 'y', colorColumn: '' });
         expect(result.filters).toEqual([
@@ -127,7 +112,6 @@ describe('scatter query context builders', () => {
     });
 
     it('reads adaptive line filters from the active scatter view snapshot when no workspace intent is passed', () => {
-        setAdaptiveLineFilters([{ id: 'legacy', column: 'legacy', x1: 0, y1: 0, x2: 1, y2: 1, keepAbove: true }] as any);
         setScatterViewSnapshot('plot', {
             columnRanges: {},
             lineFilters: [{ column: 'snapshot', x1: 0, y1: 0, x2: 2, y2: 2, keepAbove: true }],
@@ -139,20 +123,17 @@ describe('scatter query context builders', () => {
     });
 
     it('reports only active scoped filter columns for badge summaries', () => {
-        setColumnRanges({
+        primePlotSnapshot({
             x: { from: 1, to: 9 },
             color_bucket: { from: 0, to: 1 },
             ignored: { from: 5, to: 6 },
-        } as any);
-        primePlotSnapshot();
+        });
 
         const cols = getActiveScatterFilterColumns({ x: 'x', y: 'y', colorColumn: 'color_bucket' });
         expect(cols.sort()).toEqual(['color_bucket', 'x']);
     });
 
     it('reads badge filters from explicit workspace intent', () => {
-        setColumnRanges({ legacy: { from: 1, to: 2 } } as any);
-
         const cols = getActiveScatterFilterColumns(
             { x: 'workspace', y: 'other', colorColumn: '' },
             { filters: { columnRanges: { workspace: { from: 3, to: 4 } }, adaptiveLines: [] } } as any,
@@ -173,11 +154,10 @@ describe('scatter query context builders', () => {
                 { name: 'y', dtype: 'float64', min: 2, max: 8, count: 3, non_null_count: 3, null_count: 0, mean: 5, median: 5, std: 2, unique: 3, top: null, freq: null, histogram: null },
             ],
         } as any);
-        setColumnRanges({
+        primePlotSnapshot({
             x: { from: 1, to: 9 },
             y: { from: 3, to: 8 },
-        } as any);
-        primePlotSnapshot();
+        });
 
         const result = buildScatterQueryContext({ x: 'x', y: 'y', colorColumn: '' });
         expect(result.filters).toEqual([

@@ -3,17 +3,12 @@ import { chartState, setChartInstance } from './chartState.js';
 import { datasetState } from './datasetState.js';
 import { clearSubscribers, subscribe } from './events.js';
 import { scatterState } from './scatterState.js';
-import {
-    setColumnRange,
-    setPreviewSelectedColumns,
-    uiState,
-} from './uiState.js';
+import { setPreviewSelectedColumns } from './uiState.js';
+import { createWorkspaceStore } from '../workspace/workspaceStore.js';
 
 describe('store contract', () => {
     beforeEach(() => {
         clearSubscribers();
-        setColumnRange('value', { from: 0, to: 1 });
-        uiState.columnRanges = {};
         setPreviewSelectedColumns([]);
         setChartInstance(null);
         scatterState.activeView = 'plot';
@@ -22,13 +17,14 @@ describe('store contract', () => {
         datasetState.numericCols = [];
     });
 
-    it('uses immutable updates for array and object setters', () => {
-        const previousRanges = uiState.columnRanges;
+    it('keeps workspace filter snapshots immutable', () => {
+        const workspace = createWorkspaceStore();
+        const previousFilters = workspace.getSnapshot().filters;
 
-        setColumnRange('value', { from: 2, to: 5 });
+        workspace.setFilters({ columnRanges: { value: { from: 2, to: 5 } }, adaptiveLines: [] });
 
-        expect(uiState.columnRanges).toEqual({ value: { from: 2, to: 5 } });
-        expect(uiState.columnRanges).not.toBe(previousRanges);
+        expect(workspace.getSnapshot().filters.columnRanges).toEqual({ value: { from: 2, to: 5 } });
+        expect(workspace.getSnapshot().filters).not.toBe(previousFilters);
     });
 
     it('disposes the previous chart instance when replacing it', () => {

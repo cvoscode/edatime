@@ -6,8 +6,6 @@ import {
 } from '../../store/datasetState.js';
 import {
     setAdaptiveFilterColumn,
-    setAdaptiveLineFilters,
-    setColumnRanges,
     setPendingAdaptivePoint,
     uiState,
 } from '../../store/uiState.js';
@@ -24,8 +22,6 @@ function setActiveFilters(
     adaptiveLines: any[] = [],
 ): void {
     workspace.setFilters({ columnRanges, adaptiveLines });
-    setColumnRanges(columnRanges);
-    setAdaptiveLineFilters(adaptiveLines);
 }
 
 describe('buildRangeControls', () => {
@@ -133,7 +129,7 @@ describe('buildRangeControls', () => {
             container.querySelectorAll<HTMLElement>('.range-chip'),
         ).find((c) => c.querySelector('.name')?.textContent?.includes('Adaptive HUFL'))!;
         removalChip.dispatchEvent(new MouseEvent('click'));
-        expect(uiState.adaptiveLineFilters).toEqual([]);
+        expect(workspace.getSnapshot().filters.adaptiveLines).toEqual([]);
     });
 
     it('publishes adaptive filter removal to workspace intent', () => {
@@ -141,7 +137,6 @@ describe('buildRangeControls', () => {
         const filter = { id: 'f1', column: 'HUFL', keepAbove: true } as any;
         workspace.setSelection(['HUFL', 'HULL']);
         workspace.setFilters({ columnRanges: {}, adaptiveLines: [filter] });
-        setAdaptiveLineFilters([filter]);
 
         buildRangeControls(workspace);
         const removalChip = Array.from(document.querySelectorAll<HTMLElement>('.range-chip'))
@@ -170,7 +165,7 @@ describe('buildRangeControls', () => {
             container.querySelectorAll<HTMLElement>('.range-chip'),
         ).find((c) => c.querySelector('.range')?.textContent === 'Clear all')!;
         clearChip.dispatchEvent(new MouseEvent('click'));
-        expect(uiState.adaptiveLineFilters).toEqual([]);
+        expect(workspace.getSnapshot().filters.adaptiveLines).toEqual([]);
         expect(uiState.pendingAdaptivePoint).toBeNull();
     });
 

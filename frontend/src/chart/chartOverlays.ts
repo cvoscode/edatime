@@ -5,11 +5,11 @@
  */
 
 import { analyticsState } from '../store/analyticsState.js';
-import { uiState } from '../store/uiState.js';
 import { buildAdaptiveLineY } from '../services/timeseries/filtering.js';
 import { getChartPalette } from '../utils/theme.js';
 import { getSeriesColor } from '../utils/seriesColors.js';
 import { getAnnotationsForPage } from './annotations.js';
+import type { AdaptiveLineFilter } from '../types/store.js';
 
 interface ChartOverlayOptions {
     getXMin: () => number | null;
@@ -18,6 +18,7 @@ interface ChartOverlayOptions {
     getOverlayCanvas: () => HTMLCanvasElement | null;
     getGrid: () => { left: number; right: number; top: number; bottom: number };
     getYRange: () => { min: number; max: number } | null;
+    getAdaptiveLineFilters: () => readonly AdaptiveLineFilter[];
     getPendingAdaptivePoint: () => { column: string; x: number; y: number; x2?: number; y2?: number } | null;
 }
 
@@ -210,7 +211,7 @@ export class ChartOverlays {
     }
 
     private _renderAdaptiveFilterLinesToCtx(ctx: CanvasRenderingContext2D, scale: { x: number; y: number }): void {
-        const filters = Array.isArray(uiState.adaptiveLineFilters) ? uiState.adaptiveLineFilters : [];
+        const filters = this._opts.getAdaptiveLineFilters();
         const pending = this._opts.getPendingAdaptivePoint();
         if (filters.length === 0 && !pending) return;
 

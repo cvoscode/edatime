@@ -3,7 +3,6 @@ import { computeBounds } from '../../services/timeseries/filtering.js';
 import { chartState } from '../../store/chartState.js';
 import { datasetState } from '../../store/datasetState.js';
 import { runtimeState } from '../../store/runtimeState.js';
-import { setColumnRanges, uiState } from '../../store/uiState.js';
 import { buildRangeControls } from './rangeControls.js';
 import { ColumnFilterModal } from '../../ui/composites/ColumnFilterModal.js';
 import { getDropdownValue, setDropdownOptions } from '../../ui/primitives/Dropdown.js';
@@ -77,7 +76,6 @@ export function initFilterModalController(deps: FilterModalControllerDeps): () =
             ...filters,
             columnRanges: { ...filters.columnRanges, [col]: range },
         });
-        setColumnRanges({ ...uiState.columnRanges, [col]: range });
     }
 
     function setHint(text: string) { hintEl.textContent = text || ''; }
@@ -256,7 +254,6 @@ export function initFilterModalController(deps: FilterModalControllerDeps): () =
             return;
         }
         const cur = deps.workspace.getSnapshot().filters.columnRanges[col]
-            ?? uiState.columnRanges[col]
             ?? { from: full.min, to: full.max };
         updateSliderConfig(full);
         syncInputsFromValues(cur.from, cur.to);

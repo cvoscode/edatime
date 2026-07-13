@@ -35,8 +35,6 @@ export type StoreEventMap = {
     'runtime:refetchOnZoom': StoreChange<boolean>;
     'scatter:state': StoreChange<unknown>;
     'ui:adaptiveFilterColumn': StoreChange<string | null>;
-    'ui:adaptiveLineFilters': StoreChange<unknown>;
-    'ui:columnRanges': StoreChange<unknown>;
     'ui:filterText': StoreChange<string>;
     'ui:pendingAdaptivePoint': StoreChange<unknown>;
     'ui:previewSelectedColumns': StoreChange<string[]>;

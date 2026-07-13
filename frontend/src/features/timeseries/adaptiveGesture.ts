@@ -8,7 +8,6 @@
 import { SERIES_COLORS } from '../../utils/seriesColors.js';
 import { applyFilterIntentToData, buildAdaptiveLineY } from '../../services/timeseries/filtering.js';
 import {
-    appendAdaptiveLineFilter,
     setAdaptiveFilterColumn,
     setPendingAdaptivePoint,
     uiState,
@@ -108,7 +107,6 @@ export function initAdaptiveFilterGesture(
             ...filters,
             adaptiveLines: [...filters.adaptiveLines, filter],
         });
-        appendAdaptiveLineFilter(filter);
         // Apply locally: rebuild range controls + re-render chart
         deps.buildRangeControls();
         deps.renderCurrentData();

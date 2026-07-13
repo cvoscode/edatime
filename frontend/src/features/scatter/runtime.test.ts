@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { chartState } from '../../store/chartState.js';
 import { datasetState } from '../../store/datasetState.js';
 import { scatterState } from '../../store/scatterState.js';
-import { uiState } from '../../store/uiState.js';
+import { configureScatterRuntime } from './runtime.js';
 import {
     getScatterEmptyStateController,
     syncScatterEmptyState,
@@ -84,7 +84,7 @@ describe('getScatterEmptyStateController', () => {
         chartState.currentStart = 0;
         chartState.currentEnd = 1_000;
         datasetState.metadata = null;
-        uiState.adaptiveLineFilters = [];
+        configureScatterRuntime(null);
         scatterState.loading = false;
         scatterState.chart = null;
         scatterState.totalPoints = 0;
@@ -152,7 +152,12 @@ describe('syncScatterFilterBadge', () => {
         const { getActiveScatterFilterColumns } = await import('./state.js');
         (getActiveScatterFilterColumns as ReturnType<typeof vi.fn>).mockReturnValue(['HUFL']);
         scatterState.totalPoints = 42;
-        uiState.adaptiveLineFilters = [{ column: 'OT' }] as any;
+        configureScatterRuntime({
+            getSnapshot: () => ({
+                filters: { columnRanges: {}, adaptiveLines: [{ column: 'OT' }] },
+                viewport: { xMin: 0, xMax: 1_000, yMin: null, yMax: null },
+            }),
+        } as any);
 
         syncScatterEmptyState();
 

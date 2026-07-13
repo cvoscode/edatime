@@ -5,7 +5,6 @@ import type {
 import type { DataObject } from '../../types/api.js';
 import type { FilteredDataObject } from '../../types/chart.js';
 import type { ScatterLineFilterSpec } from '../../types/scatter.js';
-import { setColumnRanges } from '../../store/uiState.js';
 import type { WorkspaceSnapshot, WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 export type TimeseriesFilterIntent = Pick<WorkspaceSnapshot, 'selection' | 'filters'>;
@@ -27,7 +26,6 @@ export function ensureRangeStateFromData(
     const currentRanges = intent.filters.columnRanges;
     if (next === currentRanges) return;
     workspace.setFilters({ ...intent.filters, columnRanges: next });
-    setColumnRanges(next);
 }
 
 export function computeBounds(values: ArrayLike<number>): { min: number; max: number } | null {

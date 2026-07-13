@@ -10,8 +10,6 @@
 
 import {
     type ProfileFilterCategory,
-    setAdaptiveLineFilters,
-    setColumnRanges,
     setFilterText,
     setProfileFilterCategory,
     setProfileFilterText,
@@ -159,8 +157,6 @@ export function initTimeseriesActions(deps: TimeseriesActionDeps): void {
     const clearAllFilters = async (source = 'clear') => {
         const filters = deps.workspace.getSnapshot().filters;
         deps.workspace.setFilters({ ...filters, columnRanges: {}, adaptiveLines: [] });
-        setColumnRanges({});
-        setAdaptiveLineFilters([]);
         clearScatterViewSnapshots();
         deps.buildRangeControls();
         deps.renderCurrentData();

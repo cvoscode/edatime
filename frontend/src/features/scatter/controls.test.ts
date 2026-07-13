@@ -52,27 +52,11 @@ const appStateMock = {
         points: [] as [number, number][],
         lastQueryContextKey: 'current-query',
     },
-    columnRanges: {} as Record<string, { from: number; to: number }>,
-    adaptiveLineFilters: [] as any[],
     metadata: null as any,
 };
 
-const setColumnRangesMock = vi.fn();
-const setAdaptiveLineFiltersMock = vi.fn();
-
 vi.mock('../../store/scatterState.js', () => ({
     scatterState: appStateMock.scatter,
-}));
-
-vi.mock('../../store/uiState.js', () => ({
-    uiState: {
-        get columnRanges() { return appStateMock.columnRanges; },
-        set columnRanges(value) { appStateMock.columnRanges = value as Record<string, { from: number; to: number }>; },
-        get adaptiveLineFilters() { return appStateMock.adaptiveLineFilters; },
-        set adaptiveLineFilters(value) { appStateMock.adaptiveLineFilters = value as any[]; },
-    },
-    setColumnRanges: (...args: unknown[]) => setColumnRangesMock(...args),
-    setAdaptiveLineFilters: (...args: unknown[]) => setAdaptiveLineFiltersMock(...args),
 }));
 
 vi.mock('../../store/datasetState.js', () => ({
@@ -160,8 +144,6 @@ describe('bindScatterControls', () => {
         appStateMock.scatter.activeView = 'plot';
         appStateMock.scatter.metadata = { columns: [{ name: 'HUFL' }, { name: 'HULL' }] };
         appStateMock.scatter.lastQueryContextKey = 'current-query';
-        appStateMock.columnRanges = {};
-        appStateMock.adaptiveLineFilters = [];
         appStateMock.metadata = null;
         buildDom();
     });
@@ -510,15 +492,10 @@ describe('bindScatterControls', () => {
         });
 
         bindScatterControls({ ...callbacks, workspace });
-        setColumnRangesMock.mockClear();
-        setAdaptiveLineFiltersMock.mockClear();
-
         window.dispatchEvent(new CustomEvent('edatime:clear-all-filters'));
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 
-        expect(setColumnRangesMock).toHaveBeenCalledWith({});
-        expect(setAdaptiveLineFiltersMock).toHaveBeenCalledWith([]);
         expect(workspace.getSnapshot().filters).toEqual({ columnRanges: {}, adaptiveLines: [] });
         expect(callbacks.syncScatterFilterBadge).toHaveBeenCalled();
         expect(callbacks.refreshActiveScatterView).toHaveBeenCalled();

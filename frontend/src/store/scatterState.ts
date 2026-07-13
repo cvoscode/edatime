@@ -178,11 +178,9 @@ export const scatterState: ScatterState = {
 };
 
 /**
- * Per-view scatter filter snapshots. `uiState.columnRanges` and
- * `uiState.adaptiveLineFilters` are still the canonical user-facing
- * filter state (the toolbar / range chips write to them). The scatter
- * page snapshots them here on view switches so the two views can hold
- * different filter sets without leaking into each other.
+ * Per-view scatter filter snapshots. The scatter page snapshots the active
+ * WorkspaceStore filter intent here on view switches so Plot and Matrix can
+ * hold different filter sets without leaking into each other.
  */
 export interface ScatterFilterSnapshot {
     columnRanges: Record<string, { from: number; to: number }>;

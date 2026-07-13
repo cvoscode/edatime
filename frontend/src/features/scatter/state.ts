@@ -10,7 +10,6 @@
 import { chartState } from '../../store/chartState.js';
 import { datasetState } from '../../store/datasetState.js';
 import { getScatterViewSnapshot, scatterState } from '../../store/scatterState.js';
-import { uiState } from '../../store/uiState.js';
 import { buildAdaptiveLineFiltersForQueryState } from '../../services/timeseries/filtering.js';
 import type { WorkspaceSnapshot } from '../../workspace/workspaceStore.js';
 import { getScatterPlotMetrics } from './layout.js';
@@ -106,7 +105,7 @@ function getColumnProfileBounds(column: string): { min: number; max: number } | 
     return { min, max };
 }
 
-const collectColumnRangeFilters = (columnRanges: Record<string, { from: number; to: number }> = uiState.columnRanges || {}): Array<{ column: string; from: number; to: number }> => (
+const collectColumnRangeFilters = (columnRanges: Record<string, { from: number; to: number }> = {}): Array<{ column: string; from: number; to: number }> => (
     Object.entries(columnRanges)
         .map(([column, range]) => {
             const from = Number(range?.from);
@@ -172,7 +171,13 @@ export function getActiveScatterFilterColumns(
     columns: { x?: string; y?: string; colorColumn?: string } = {},
     intent?: Pick<WorkspaceSnapshot, 'filters'>,
 ): string[] {
-    const allFilters = collectColumnRangeFilters(intent?.filters.columnRanges as Record<string, { from: number; to: number }> | undefined);
+    const activeSnapshot = intent
+        ? null
+        : getScatterViewSnapshot(scatterState.activeView === 'matrix' ? 'matrix' : 'plot');
+    const allFilters = collectColumnRangeFilters(
+        intent?.filters.columnRanges as Record<string, { from: number; to: number }> | undefined
+            ?? activeSnapshot?.columnRanges,
+    );
     const scoped = scopeFiltersToColumns(allFilters, [columns.x || '', columns.y || '', columns.colorColumn || '']);
     return scoped.map((f) => f.column);
 }

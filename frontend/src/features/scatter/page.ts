@@ -12,7 +12,6 @@ import { toast, dismissAllToasts } from '../../utils/toast.js';
 import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
 import { fetchScatterPoints } from '../../services/api/index.js';
 import { getScatterViewSnapshot, scatterState, setScatterViewSnapshot } from '../../store/scatterState.js';
-import { setAdaptiveLineFilters, setColumnRanges, uiState } from '../../store/uiState.js';
 import { initScatterHelp } from './help.js';
 import { buildAdaptiveLineFiltersForQueryState } from '../../services/timeseries/filtering.js';
 import {
@@ -143,17 +142,19 @@ async function setScatterView(viewName: string, options: { render?: boolean } = 
     const previousView = (scatterState.activeView === 'matrix' ? 'matrix' : 'plot') as 'plot' | 'matrix';
     const nextViewName: 'plot' | 'matrix' = nextView === 'matrix' ? 'matrix' : 'plot';
     if (previousView !== nextViewName) {
-        const liveLineFilters = buildAdaptiveLineFiltersForQueryState(uiState.adaptiveLineFilters || []);
+        const liveFilters = workspace?.getSnapshot().filters;
+        const liveLineFilters = buildAdaptiveLineFiltersForQueryState([
+            ...(liveFilters?.adaptiveLines ?? []),
+        ]);
         setScatterViewSnapshot(previousView, {
-            columnRanges: { ...(uiState.columnRanges || {}) },
+            columnRanges: { ...(liveFilters?.columnRanges ?? {}) },
             lineFilters: liveLineFilters,
         });
         const enteringSnapshot = getScatterViewSnapshot(nextViewName);
-        // Adaptive line filters round-trip back through the Adaptive shape,
-        // because that is what `uiState` and the controller storage expect.
+        // Adaptive line filters round-trip back through the Workspace shape.
         const storedAdaptive = (enteringSnapshot.lineFilters || []).map((spec) => {
             return {
-                target: spec.column,
+                column: spec.column,
                 x1: spec.x1,
                 y1: spec.y1,
                 x2: spec.x2,
@@ -169,8 +170,6 @@ async function setScatterView(viewName: string, options: { render?: boolean } = 
                 adaptiveLines: storedAdaptive as any,
             });
         }
-        setColumnRanges(enteringSnapshot.columnRanges as Record<string, { from: number; to: number }>);
-        setAdaptiveLineFilters(storedAdaptive as any);
     }
 
     // When the user switches back to the plot from the matrix, the cached
@@ -369,7 +368,7 @@ function bindControls(): Promise<void> {
     return import('./controls.js').then(({ bindScatterControls }) => {
         disposeBoundControls?.();
         disposeBoundControls = bindScatterControls({
-            initScatterPage,
+            initScatterPage: (metadata) => initScatterPage(metadata, { workspace: workspace ?? undefined }),
             renderScatter,
             refreshCorrelationsAndSuggestions,
             refreshActiveScatterView,

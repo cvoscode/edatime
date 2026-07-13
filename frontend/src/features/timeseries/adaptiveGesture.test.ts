@@ -1,9 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { initAdaptiveFilterGesture } from './adaptiveGesture.js';
-import {
-    setColumnRanges,
-    setAdaptiveLineFilters,
-} from '../../store/uiState.js';
 import { setChartInstance } from '../../store/chartState.js';
 import { setLastFetchedData } from '../../store/runtimeState.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
@@ -11,8 +7,6 @@ import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 describe('adaptive filter gesture', () => {
     beforeEach(() => {
         document.body.innerHTML = '<div id="main-chart"></div>';
-        setAdaptiveLineFilters([]);
-        setColumnRanges({});
         setLastFetchedData({
             ts: Float64Array.from([0, 10]),
             values: { value: Float64Array.from([1, 9]) },
@@ -47,10 +41,10 @@ describe('adaptive filter gesture', () => {
         expect(workspace.getSnapshot().filters.adaptiveLines[0]).toMatchObject({ column: 'value', x1: 0, x2: 10 });
     });
 
-    it('builds the adaptive line from workspace filter intent instead of global ui state', () => {
+    it('builds the adaptive line from workspace filter intent', () => {
         const workspace = createWorkspaceStore();
         workspace.setSelection(['value']);
-        setColumnRanges({ value: { from: 100, to: 200 } });
+        workspace.setFilters({ columnRanges: { value: { from: 0, to: 10 } }, adaptiveLines: [] });
 
         initAdaptiveFilterGesture({
             workspace,

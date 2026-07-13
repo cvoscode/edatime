@@ -4,7 +4,6 @@ import * as api from '../../services/api/index.js';
 import { setViewport } from '../../store/chartState.js';
 import { setMetadata } from '../../store/datasetState.js';
 import { scatterState } from '../../store/scatterState.js';
-import { setColumnRanges, uiState } from '../../store/uiState.js';
 import { setScatterViewSnapshot } from '../../store/scatterState.js';
 import {
     __resetMatrixRenderControllerForTests,
@@ -42,7 +41,6 @@ describe('buildMatrixFetchPairs', () => {
         scatterState.metadata = { numeric_columns: ['HUFL', 'HULL'] } as any;
         setMetadata({ time_column: '' } as any);
         setViewport(null, null);
-        setColumnRanges({});
         Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
             configurable: true,
             value: () => new MockCanvasContext2D(),
@@ -165,18 +163,16 @@ describe('buildMatrixFetchPairs', () => {
     });
 
     it('builds per-cell query contexts so column filters match each matrix pair', async () => {
-        setColumnRanges({
-            HUFL: { from: 1, to: 9 },
-            HULL: { from: 2, to: 8 },
-            OT: { from: 3, to: 7 },
-        } as any);
         scatterState.metadata = { numeric_columns: ['HUFL', 'HULL', 'OT'] } as any;
         scatterState.activeView = 'matrix';
-        // Push the staged column ranges into the matrix view's snapshot
-        // so each per-cell fetch picks them up; the production scatter
-        // page mirrors globals into the snapshot on view-entry.
+        // Matrix rendering reads the active view snapshot. The page copies the
+        // canonical workspace filters into that snapshot on view entry.
         setScatterViewSnapshot('matrix', {
-            columnRanges: uiState.columnRanges as Record<string, { from: number; to: number }>,
+            columnRanges: {
+                HUFL: { from: 1, to: 9 },
+                HULL: { from: 2, to: 8 },
+                OT: { from: 3, to: 7 },
+            },
             lineFilters: [],
         });
 

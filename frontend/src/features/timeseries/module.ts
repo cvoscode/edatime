@@ -11,10 +11,6 @@ import { createDatasetBootstrap } from './datasetBootstrap.js';
 import { createTimeseriesBootstrap } from './ensureReady.js';
 import { setDatasetRevision, setMetadata } from '../../store/datasetState.js';
 import { clearScatterViewSnapshots } from '../../store/scatterState.js';
-import {
-    setAdaptiveLineFilters,
-    setColumnRanges,
-} from '../../store/uiState.js';
 import { getNumericColumns, getDefaultTimeseriesColumns } from '../../platform/analyticsColumns.js';
 import type { DataObject, DatasetMetadata } from '../../types/api.js';
 import type { ViewSnapshot } from '../../types/chart.js';
@@ -196,8 +192,6 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         clearPersistedFilters: () => {
             const filters = deps.workspace.getSnapshot().filters;
             deps.workspace.setFilters({ ...filters, columnRanges: {}, adaptiveLines: [] });
-            setColumnRanges({});
-            setAdaptiveLineFilters([]);
             clearScatterViewSnapshots();
         },
         timeseriesFeatureInit: () => feature.init(),

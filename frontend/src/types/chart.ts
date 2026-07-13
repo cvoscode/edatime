@@ -1,6 +1,7 @@
 /** Chart renderer contracts and data projections. */
 
 import type { DataFetchMeta } from './api.js';
+import type { AdaptiveLineFilter } from './store.js';
 
 export interface SeriesData {
     x: Float64Array;
@@ -39,7 +40,12 @@ export type YMode = 'fit' | 'lock' | 'restore';
 
 export interface ChartInstance {
     init(): Promise<void>;
-    updateDataMulti(dataObj: FilteredDataObject, columns: string[], colorColumn?: string | null): void;
+    updateDataMulti(
+        dataObj: FilteredDataObject,
+        columns: string[],
+        colorColumn?: string | null,
+        adaptiveLines?: readonly AdaptiveLineFilter[],
+    ): void;
     setXRange(min: number, max: number): void;
     setYRange(min: number, max: number): void;
     resetYRange?(): void;

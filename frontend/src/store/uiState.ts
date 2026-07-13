@@ -4,7 +4,7 @@
  * Consumed by columns.ts, toolbar.ts, profile.ts, upload.ts, and page controllers.
  */
 
-import type { AdaptiveLineFilter, ColumnRange, PendingAdaptivePoint, ProfileGridSort } from '../types/store.js';
+import type { PendingAdaptivePoint, ProfileGridSort } from '../types/store.js';
 import { emitStoreEvent } from './events.js';
 
 /**
@@ -16,8 +16,6 @@ export type ProfileFilterCategory = 'all' | 'numeric' | 'datetime';
 export interface UiState {
     filterText: string;
     adaptiveFilterColumn: string | null;
-    columnRanges: Record<string, ColumnRange>;
-    adaptiveLineFilters: AdaptiveLineFilter[];
     pendingAdaptivePoint: PendingAdaptivePoint | null;
     seriesColors: Record<string, string>;
     profileFilterText: string;
@@ -35,8 +33,6 @@ export interface UiState {
 export const uiState: UiState = {
     filterText: '',
     adaptiveFilterColumn: null,
-    columnRanges: {},
-    adaptiveLineFilters: [],
     pendingAdaptivePoint: null,
     seriesColors: {},
     profileFilterText: '',
@@ -77,43 +73,6 @@ export function setAdaptiveFilterColumn(col: string | null): void {
     const previous = uiState.adaptiveFilterColumn;
     uiState.adaptiveFilterColumn = col;
     emitStoreEvent('ui:adaptiveFilterColumn', { previous, next: col });
-}
-
-export function setColumnRange(col: string, range: ColumnRange): void {
-    const previous = uiState.columnRanges;
-    uiState.columnRanges = { ...uiState.columnRanges, [col]: range };
-    emitStoreEvent('ui:columnRanges', { previous, next: uiState.columnRanges });
-}
-
-export function clearColumnRange(col: string): void {
-    const previous = uiState.columnRanges;
-    const { [col]: _, ...rest } = uiState.columnRanges;
-    uiState.columnRanges = rest;
-    emitStoreEvent('ui:columnRanges', { previous, next: uiState.columnRanges });
-}
-
-export function setColumnRanges(ranges: Record<string, ColumnRange>): void {
-    const previous = uiState.columnRanges;
-    uiState.columnRanges = { ...ranges };
-    emitStoreEvent('ui:columnRanges', { previous, next: uiState.columnRanges });
-}
-
-export function setAdaptiveLineFilters(filters: AdaptiveLineFilter[]): void {
-    const previous = uiState.adaptiveLineFilters;
-    uiState.adaptiveLineFilters = filters.map((filter) => ({ ...filter }));
-    emitStoreEvent('ui:adaptiveLineFilters', { previous, next: uiState.adaptiveLineFilters });
-}
-
-export function appendAdaptiveLineFilter(filter: AdaptiveLineFilter): void {
-    setAdaptiveLineFilters([...uiState.adaptiveLineFilters, filter]);
-}
-
-export function removeAdaptiveLineFilter(index: number): void {
-    setAdaptiveLineFilters(uiState.adaptiveLineFilters.filter((_, i) => i !== index));
-}
-
-export function clearAdaptiveLineFilters(): void {
-    setAdaptiveLineFilters([]);
 }
 
 export function setPendingAdaptivePoint(point: PendingAdaptivePoint | null): void {

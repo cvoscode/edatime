@@ -43,8 +43,6 @@ describe('session restore safeguards', () => {
         window.location.hash = '';
         chartState.currentStart = null;
         chartState.currentEnd = null;
-        uiState.columnRanges = {};
-        uiState.adaptiveLineFilters = [];
         datasetState.datasetRevision = 0;
         datasetState.metadata = null;
     });
@@ -56,12 +54,16 @@ describe('session restore safeguards', () => {
             adaptiveLineFilters: [{ column: 'value', x1: 0, y1: 0, x2: 1, y2: 1, keepAbove: true }],
         });
 
-        const result = applySession(snap, { currentDatasetRevision: 7, announceAdjustments: false });
+        const workspace = createWorkspaceStore();
+        workspace.setFilters({
+            columnRanges: { value: { from: 1, to: 2 } },
+            adaptiveLines: [{ id: 'old', column: 'value', x1: 0, y1: 0, x2: 1, y2: 1, keepAbove: true }],
+        });
+        const result = applySession(snap, { workspace, currentDatasetRevision: 7, announceAdjustments: false });
 
         expect(result.revisionMismatch).toBe(true);
         expect(result.droppedFilterCount).toBe(2);
-        expect(uiState.columnRanges).toEqual({});
-        expect(uiState.adaptiveLineFilters).toEqual([]);
+        expect(workspace.getSnapshot().filters).toEqual({ columnRanges: {}, adaptiveLines: [] });
     });
 
     it('resets out-of-dataset ranges to metadata bounds', () => {
