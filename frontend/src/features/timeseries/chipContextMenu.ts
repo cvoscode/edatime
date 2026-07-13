@@ -7,12 +7,11 @@
 
 import { openFilterForColumn } from './filterModalService.js';
 
-let _lastContextTs = 0;
-let _lastContextCol = '';
-
 export function bindChipContextMenu(container: HTMLElement): void {
     if (container.dataset.ctxBound) return;
     container.dataset.ctxBound = '1';
+    let lastContextTs = 0;
+    let lastContextCol = '';
 
     container.addEventListener('contextmenu', (e: MouseEvent) => {
         const chip = (e.target as HTMLElement)?.closest?.('.series-chip');
@@ -24,13 +23,13 @@ export function bindChipContextMenu(container: HTMLElement): void {
         e.stopPropagation();
 
         const now = performance.now();
-        const isDoubleContext = _lastContextCol === col && (now - _lastContextTs) <= 450;
-        _lastContextTs = now;
-        _lastContextCol = col;
+        const isDoubleContext = lastContextCol === col && (now - lastContextTs) <= 450;
+        lastContextTs = now;
+        lastContextCol = col;
         if (!isDoubleContext) return;
 
-        _lastContextTs = 0;
-        _lastContextCol = '';
+        lastContextTs = 0;
+        lastContextCol = '';
         openFilterForColumn(col);
     });
 }

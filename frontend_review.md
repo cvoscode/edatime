@@ -349,6 +349,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Fixed the shared page-runtime unmount/remount contract: cleanup now releases the mounted state and is idempotent, so feature lifecycles can safely register again after a real unmount.
 - Extracted WorkspaceStore-to-fetch projection into `requestIntent`, including immutable selection capture and null/non-finite viewport fallback. The controller now composes this tested policy with request execution instead of reading request state inline.
 - Scoped dataset-bootstrap request deduplication and revision tracking to each Timeseries feature instance. A direct regression proves one mounted runtime cannot suppress metadata initialization for a later instance.
+- Scoped chip double-right-click tracking to its bound column rail, so a gesture in one Timeseries mount cannot complete an interaction in another rail; direct tests cover both opening and cross-rail isolation.
 
 ### Completed: feature-specific workflow ownership
 
