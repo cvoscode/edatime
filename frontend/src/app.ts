@@ -48,7 +48,7 @@ import {
     refreshZoomControlsState, getCurrentView,
     setComputeLoading,
 } from './ui/toolbar.js';
-import { configureExportControls, exportChartFilteredData, exportChartFilteredParquet } from './ui/exportControls.js';
+import { configureExportFeature, exportFilteredData, exportFilteredParquet } from './features/export/index.js';
 import type { DatasetMetadata, DataObject, AnomalyResponse, TransformResponse, ChartInstance, ViewSnapshot } from './types.js';
 
 import { chartState, initChartStatePrefs, setChartInstance, setViewport } from './store/chartState.js';
@@ -128,7 +128,7 @@ async function init(): Promise<void> {
     initChartStatePrefs();
     // Load data transport first; chart rendering stays behind timeseries readiness.
     await ensureDataModules();
-    configureExportControls({ workspace, getData: () => runtimeState.lastFetchedData });
+    configureExportFeature({ workspace, getData: () => runtimeState.lastFetchedData });
 
     timeseriesModule = createTimeseriesModule({
         fetchData: (start, end, width, columns, colorColumn, lookaroundMs, signal) => fetchData!(start, end, width, columns, colorColumn, lookaroundMs, signal),
@@ -152,9 +152,9 @@ async function init(): Promise<void> {
         refreshZoomControlsState,
         chartExportPng: () => chartState.chart?.exportPNG?.(),
         chartExportSvg: () => chartState.chart?.exportSVG?.(),
-        exportFilteredCsv: () => exportChartFilteredData('csv'),
-        exportFilteredJson: () => exportChartFilteredData('json'),
-        exportFilteredParquet: () => exportChartFilteredParquet(),
+        exportFilteredCsv: () => exportFilteredData('csv'),
+        exportFilteredJson: () => exportFilteredData('json'),
+        exportFilteredParquet: () => exportFilteredParquet(),
     });
 
     // Mount registers page lifecycle (page-change listener, etc.)
@@ -166,8 +166,8 @@ async function init(): Promise<void> {
         showPage,
         fetchAndRender: () => timeseriesModule.fetchAndRender(),
         fetchAndRenderAnalytics,
-        exportFilteredCsv: () => exportChartFilteredData('csv'),
-        exportFilteredJson: () => exportChartFilteredData('json'),
+        exportFilteredCsv: () => exportFilteredData('csv'),
+        exportFilteredJson: () => exportFilteredData('json'),
         exportChartPng: () => chartState.chart?.exportPNG?.(),
         renderCurrentData: () => timeseriesModule.renderCurrentData(),
         updateAnalysisYRange,
@@ -203,8 +203,8 @@ async function init(): Promise<void> {
         zoomOut: () => timeseriesModule.zoomOut(),
         resetZoom: () => timeseriesModule.resetZoom(),
         chartExportPng: () => chartState.chart?.exportPNG?.(),
-        exportFilteredCsv: () => exportChartFilteredData('csv'),
-        exportFilteredJson: () => exportChartFilteredData('json'),
+        exportFilteredCsv: () => exportFilteredData('csv'),
+        exportFilteredJson: () => exportFilteredData('json'),
         registerCleanup: runtime.registerCleanup,
     });
 
