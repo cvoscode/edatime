@@ -9,7 +9,6 @@ describe('resolveTimeseriesRequestIntent', () => {
                 selection: { columns: ['HUFL', 'OT'], colorColumn: 'label' },
                 viewport: { xMin: 100, xMax: 200, yMin: null, yMax: null },
             },
-            { start: 0, end: 500 },
         )).toEqual({
             start: 100,
             end: 200,
@@ -19,16 +18,15 @@ describe('resolveTimeseriesRequestIntent', () => {
         });
     });
 
-    it('falls back independently for missing or non-finite workspace bounds', () => {
+    it('preserves invalid workspace bounds so callers can reject an incomplete intent', () => {
         expect(resolveTimeseriesRequestIntent(
             {
                 selection: { columns: ['value'], colorColumn: null },
                 viewport: { xMin: Number.NaN, xMax: null, yMin: null, yMax: null },
             },
-            { start: 10, end: 20 },
         )).toMatchObject({
-            start: 10,
-            end: 20,
+            start: Number.NaN,
+            end: Number.NaN,
             columns: ['value'],
             colorColumn: null,
             key: 'value|null',
@@ -39,7 +37,6 @@ describe('resolveTimeseriesRequestIntent', () => {
         const selection = ['value'];
         const intent = resolveTimeseriesRequestIntent(
             { selection: { columns: selection, colorColumn: null }, viewport: null },
-            { start: 0, end: 1 },
         );
 
         intent.columns.push('other');

@@ -5,7 +5,7 @@ import {
     chartState,
     setChartInstance,
     setInitialView,
-    setViewport,
+    setViewport as setChartViewport,
     setZoomHistory,
 } from '../../store/chartState.js';
 import { setMetadata } from '../../store/datasetState.js';
@@ -24,6 +24,11 @@ function setWorkspaceColorColumn(colorColumn: string | null): void {
     defaultWorkspace.setSelection(defaultWorkspace.getSnapshot().selection.columns, colorColumn);
 }
 
+function setViewport(start: number | null, end: number | null): void {
+    setChartViewport(start, end);
+    defaultWorkspace.setViewport({ xMin: start, xMax: end, yMin: null, yMax: null });
+}
+
 function createTimeseriesPageController(deps: Record<string, any>) {
     const workspace = deps.workspace ?? defaultWorkspace;
     const runtimeCache = deps.runtimeCache ?? defaultRuntimeCache;
@@ -34,6 +39,7 @@ describe('createTimeseriesPageController', () => {
     beforeEach(() => {
         clearFeatureEventHandlers();
         defaultWorkspace = createWorkspaceStore();
+        defaultWorkspace.setViewport({ xMin: 0, xMax: 100, yMin: null, yMax: null });
         defaultRuntimeCache = createTimeseriesRuntimeCache();
         defaultRuntimeCache.refetchOnZoom = false;
         document.body.innerHTML = '';

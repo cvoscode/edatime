@@ -117,10 +117,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
     }
 
     function getRequestIntent() {
-        return resolveTimeseriesRequestIntent(deps.workspace.getSnapshot(), {
-            start: chartState.currentStart,
-            end: chartState.currentEnd,
-        });
+        return resolveTimeseriesRequestIntent(deps.workspace.getSnapshot());
     }
 
     function getFilterIntent(): TimeseriesFilterIntent {
@@ -128,8 +125,9 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
     }
 
     function snapshotCurrentViewport(): ViewSnapshot | null {
-        const xMin = Number(chartState.currentStart);
-        const xMax = Number(chartState.currentEnd);
+        const viewport = deps.workspace.getSnapshot().viewport;
+        const xMin = Number(viewport?.xMin);
+        const xMax = Number(viewport?.xMax);
         if (!Number.isFinite(xMin) || !Number.isFinite(xMax) || xMax <= xMin) return null;
         const yRange = chartState.chart?.getYRange?.();
         const yMin = Number.isFinite(yRange?.min) ? yRange!.min : null;
@@ -208,12 +206,8 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         const workspace = deps.workspace.getSnapshot();
         const selectedColumns = [...workspace.selection.columns];
         const workspaceViewport = workspace.viewport;
-        const viewportStart = workspaceViewport?.xMin != null && Number.isFinite(Number(workspaceViewport.xMin))
-            ? Number(workspaceViewport!.xMin)
-            : Number(chartState.currentStart);
-        const viewportEnd = workspaceViewport?.xMax != null && Number.isFinite(Number(workspaceViewport.xMax))
-            ? Number(workspaceViewport!.xMax)
-            : Number(chartState.currentEnd);
+        const viewportStart = Number(workspaceViewport?.xMin);
+        const viewportEnd = Number(workspaceViewport?.xMax);
         const columnRanges = workspace.filters.columnRanges;
         const adaptiveLineFilters = workspace.filters.adaptiveLines;
 
@@ -470,7 +464,8 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         consecutiveZoomOuts = 0;
 
         dbgGroup(`onZoomRangeChange (${sourceKind})`, () => {
-            dbg('prev', { start: chartState.currentStart, end: chartState.currentEnd });
+            const previousViewport = deps.workspace.getSnapshot().viewport;
+            dbg('prev', { start: previousViewport?.xMin, end: previousViewport?.xMax });
             dbg('next', view);
         });
 

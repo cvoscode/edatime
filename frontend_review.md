@@ -714,6 +714,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Drift's viewport reference preset now receives `WorkspaceStore` through its lazy-page composition and reads only the canonical viewport snapshot. The global Timeseries chart range is no longer an implicit input to Drift controls.
 - Direct page coverage verifies the preset writes the workspace range into its reference inputs, and descriptor coverage verifies the lazy page injects the workspace dependency.
 
+### Completed: Timeseries request-intent canonicalization
+
+- Timeseries request construction, render clipping, zoom-history snapshots, and diagnostic range reporting now read `WorkspaceStore.viewport`; the chart instance remains only the renderer and Y-range adapter.
+- Removed the request-intent chart-range fallback. An absent or invalid workspace viewport stays invalid so callers reject incomplete intent instead of silently querying a stale chart mirror.
+- Controller fixtures now publish every test viewport through the workspace alongside their chart adapter setup, preserving boxed-zoom, buffered-fetch, zoom-out, and exact API-contract characterization while protecting the canonical ownership rule.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.
