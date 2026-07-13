@@ -12,22 +12,17 @@ import {
     type GridLayout,
     ensureRelativePosition,
 } from './chartInteractions.js';
-import { formatFftTooltip } from './fftTooltipPresentation.js';
+import { buildFftChartOptions } from './fftChartOptions.js';
 import { FftInteractionResources } from './fftInteractionResources.js';
 import { renderFftOverlay } from './fftOverlayPresentation.js';
 import { FftOverlayResources } from './fftOverlayResources.js';
 import {
     type FrequencyPeak,
     type FrequencyUnit,
-    formatFrequencyInUnit,
-    frequencyUnitScale,
     checkAliasingWarning,
     pickFrequencyUnit,
-    formatCyclesPerDay,
-    useCyclesPerDayFrequencyAxis,
 } from '../utils/spectralPresets.js';
 import {
-    scaleModeLabel,
     DEFAULT_SPECTRAL_SCALE,
     type SpectralScaleOptions,
 } from '../utils/spectralScaling.js';
@@ -104,36 +99,6 @@ export class FftChart {
         return pickFrequencyUnit(this._getXMax());
     }
 
-    private _xScale(): number {
-        return frequencyUnitScale(this._xUnit());
-    }
-
-    private _formatXAxisTick(hz: number, fractionDigits: number): string {
-        if (useCyclesPerDayFrequencyAxis(this._getXMax())) {
-            return formatCyclesPerDay(hz, fractionDigits).replace(/\s+cycles\/day$/, '');
-        }
-        return formatFrequencyInUnit(hz, this._xUnit(), fractionDigits).replace(/\s+[A-Za-zµ]+$/, '');
-    }
-
-    private _xAxisLabel(): string {
-        if (useCyclesPerDayFrequencyAxis(this._getXMax())) return 'Frequency (cycles/day)';
-        return `Frequency (${this._xUnit()})`;
-    }
-
-    private _yAxisLabel(): string {
-        const base = this._mode === 'psd' ? 'PSD' : 'Magnitude';
-        return this._logScale ? `log10(${base})` : base;
-    }
-
-    private _formatLogAxisTick(value: number): string {
-        const magnitude = 10 ** value;
-        if (!Number.isFinite(magnitude) || magnitude <= 0) return '';
-        if (magnitude >= 1000 || magnitude < 0.001) {
-            return magnitude.toExponential(1).replace('e+', 'e+');
-        }
-        return Number(magnitude.toPrecision(2)).toString();
-    }
-
     /* ── Data update ───────────────────────────────────── */
 
     updateData(
@@ -162,98 +127,14 @@ export class FftChart {
             peaks: this._dominantPeaks,
         });
 
-        const xMin = this._getXMin();
-        const xMax = this._getXMax();
-        const sc = this._xScale();
-        const unit = this._xUnit();
-        const rng = useCyclesPerDayFrequencyAxis(xMax)
-            ? (xMax - xMin) * 86_400
-            : (xMax - xMin) * sc;
-        const tickPrec = useCyclesPerDayFrequencyAxis(xMax)
-            ? (rng >= 100 ? 1 : 2)
-            : (rng >= 100 ? 0 : rng >= 10 ? 1 : rng >= 1 ? 2 : 3);
-
-        const scaleOpts = this._scaleOptions;
-        const scaleLabel = scaleModeLabel(scaleOpts.mode, scaleOpts.clip, scaleOpts.clipParam);
-
-        // Build the (pre-scale) raw y values once per trace so the tooltip
-        // can still show the underlying magnitude even when the y-axis is
-        // stretched. We keep `raw` for tooltip, then compute `display` for
-        // the actual chart series.
-        const seriesList = model.series;
-        const { yMin, yMax } = model;
-
-        const tooltipFormatter = (params: unknown): string => formatFftTooltip(params, {
-            xMax, unit, scaleMode: scaleOpts.mode, scaleLabel,
-        });
-
-        const useScaledY = scaleOpts.mode !== 'none';
-        const yMinOut = useScaledY && Number.isFinite(yMin) ? yMin : undefined;
-        const yMaxOut = useScaledY && Number.isFinite(yMax) ? yMax : undefined;
-        // Adaptive Y-axis precision: 1-2 decimals depending on range so
-        // the rotated Y-axis label never crowds the tick labels.
-        const yRange = Number.isFinite(yMax) && Number.isFinite(yMin) ? yMax - yMin : 0;
-        const yTickPrec = yRange >= 100 ? 0 : yRange >= 10 ? 1 : 2;
-
-        this._chart.setOption({
-            grid: FFT_GRID,
-            xAxis: {
-                type: 'value',
-                min: xMin,
-                max: xMax,
-                name: this._xAxisLabel(),
-                nameLocation: 'middle',
-                nameGap: 32,
-                nameTextStyle: {
-                    color: '#cfd9f1',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    padding: [8, 0, 0, 0],
-                },
-                axisLabel: {
-                    color: '#9fb1d1',
-                    fontSize: 11,
-                    hideOverlap: true,
-                    margin: 8,
-                    formatter: (v: number) => this._formatXAxisTick(v, tickPrec),
-                },
-                axisTick: {
-                    alignWithLabel: true,
-                },
-                splitLine: { show: false },
-            },
-            yAxis: {
-                type: 'value',
-                min: yMinOut,
-                max: yMaxOut,
-                name: this._logScale
-                    ? (useScaledY ? `scaled (${scaleLabel})` : `log10(${this._mode === 'psd' ? 'PSD' : 'Magnitude'})`)
-                    : (useScaledY ? `scaled (${scaleLabel})` : this._mode === 'psd' ? 'PSD' : 'Magnitude'),
-                nameLocation: 'middle',
-                nameGap: 76,
-                nameTextStyle: {
-                    color: '#cfd9f1',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    padding: [0, 0, 8, 0],
-                },
-                axisLabel: {
-                    color: '#9fb1d1',
-                    fontSize: 11,
-                    hideOverlap: true,
-                    margin: 8,
-                    formatter: this._logScale
-                        ? (v: number) => this._formatLogAxisTick(v)
-                        : (v: number) => v.toFixed(yTickPrec),
-                },
-                axisTick: {
-                    alignWithLabel: true,
-                },
-                splitLine: { show: false },
-            },
-            tooltip: { show: true, trigger: 'axis', formatter: tooltipFormatter },
-            series: seriesList,
-        });
+        this._chart.setOption(buildFftChartOptions({
+            model,
+            xMin: this._getXMin(),
+            xMax: this._getXMax(),
+            mode: this._mode,
+            logScale: this._logScale,
+            scaleOptions: this._scaleOptions,
+        }));
         this._renderOverlay();
     }
 
