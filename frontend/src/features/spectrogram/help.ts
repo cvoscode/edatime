@@ -84,6 +84,6 @@ export const SPECTROGRAM_HELP: PageHelpContent = {
     ],
 };
 
-export function initSpectrogramHelp(): void {
-    initPageHelp('spectrogram', SPECTROGRAM_HELP);
+export function initSpectrogramHelp(): () => void {
+    return initPageHelp('spectrogram', SPECTROGRAM_HELP);
 }

@@ -23,14 +23,18 @@ export function disposeSpectrogramPage(): void {
 export async function initSpectrogramPage(deps: SpectrogramPageDeps): Promise<() => void> {
     disposeSpectrogramPage();
     spectrogramRuntime = createSpectrogramChartRuntime(deps);
-    spectrogramPageCleanup = spectrogramRuntime.mount();
+    const disposeRuntime = spectrogramRuntime.mount();
     // This feature can be loaded after the router has already displayed its
     // page. Activate its local lifecycle directly instead of relying on a
     // synthetic global page-change event.
     spectrogramRuntime.activate();
     // Page-level "?" help button. Idempotent so safe to call on every
     // page init.
-    initSpectrogramHelp();
+    const disposeHelp = initSpectrogramHelp();
+    spectrogramPageCleanup = () => {
+        disposeHelp();
+        disposeRuntime();
+    };
     return disposeSpectrogramPage;
 }
 
