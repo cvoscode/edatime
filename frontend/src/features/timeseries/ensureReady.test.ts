@@ -4,7 +4,6 @@ const {
     appStateMock,
     checkWebGPUMock,
     setChartInstanceMock,
-    setAnalysisBoundMock,
     setInitialViewMock,
     bindAnalysisChartEventsMock,
     getCurrentViewMock,
@@ -23,7 +22,6 @@ const {
     setChartInstanceMock: vi.fn((chart: any) => {
         appStateMock.chart = chart;
     }),
-    setAnalysisBoundMock: vi.fn(),
     setInitialViewMock: vi.fn(),
     bindAnalysisChartEventsMock: vi.fn(),
     getCurrentViewMock: vi.fn(() => ({ xMin: 0, xMax: 100, yMin: null, yMax: null })),
@@ -43,10 +41,6 @@ vi.mock('../../store/chartState.js', () => ({
 
 vi.mock('../../store/datasetState.js', () => ({
     datasetState: appStateMock,
-}));
-
-vi.mock('../../store/runtimeState.js', () => ({
-    setAnalysisBound: setAnalysisBoundMock,
 }));
 
 vi.mock('../../ui/toolbar.js', () => ({

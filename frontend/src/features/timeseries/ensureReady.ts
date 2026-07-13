@@ -11,7 +11,6 @@ import { getChartType } from '../../charts/registry.js';
 import { FallbackChart } from '../../charts/fallback.js';
 import { chartState, setChartInstance, setInitialView } from '../../store/chartState.js';
 import { datasetState } from '../../store/datasetState.js';
-import { setAnalysisBound } from '../../store/runtimeState.js';
 import { bindAnalysisChartEvents, getCurrentView } from '../../ui/toolbar.js';
 import { initAdaptiveFilterGesture } from './adaptiveGesture.js';
 import { restoreSessionAfterChartReady } from '../../platform/sessionLifecycle.js';
@@ -95,7 +94,6 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                         new Promise((_, reject) => setTimeout(() => reject(new Error('ChartGPU init timed out')), 6000)),
                     ]);
 
-                    setAnalysisBound(false);
                     bindAnalysisChartEvents();
                     initAdaptiveFilterGesture({
                         workspace: deps.workspace,
@@ -149,7 +147,6 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                             : new FallbackChart('main-chart', deps.onZoom, deps.onYRange, deps.onZoomOut));
 
                         await chartState.chart!.init();
-                        setAnalysisBound(false);
                         bindAnalysisChartEvents();
                         const fallbackChart = chartState.chart as ChartInstance | null;
                         fallbackChart?.setXRange?.(chartState.currentStart!, chartState.currentEnd!);

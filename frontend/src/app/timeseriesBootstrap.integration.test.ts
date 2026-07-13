@@ -171,10 +171,6 @@ vi.mock('../store/datasetState.js', () => ({
     setNumericCols: setNumericColsMock,
 }));
 
-vi.mock('../store/runtimeState.js', () => ({
-    runtimeState: {},
-}));
-
 vi.mock('../store/uiState.js', () => ({
     setAdaptiveFilterColumn: setAdaptiveFilterColumnMock,
     uiState: {},

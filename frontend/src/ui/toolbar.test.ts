@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { chartState, setChartInstance } from '../store/chartState.js';
-import { setAnalysisBound } from '../store/runtimeState.js';
 import { bindAnalysisChartEvents, initAnalysisControls } from './toolbar.js';
 
 describe('toolbar', () => {
@@ -10,11 +9,10 @@ describe('toolbar', () => {
             <div id="analysis-cursor"></div>
             <div id="analysis-click"></div>
         `;
-        setAnalysisBound(false);
         setChartInstance(null);
     });
 
-    it('binds analysis chart events through chartState/runtimeState without appStateCompat', () => {
+    it('binds analysis chart events once for each concrete chart instance', () => {
         let crosshairHandler: ((payload: any) => void) | undefined;
         let clickHandler: ((payload: any) => void) | undefined;
         setChartInstance({
@@ -35,6 +33,19 @@ describe('toolbar', () => {
 
         expect(document.getElementById('analysis-cursor')?.textContent).toContain('1970');
         expect(document.getElementById('analysis-click')?.textContent).toContain('[value]');
+
+        bindAnalysisChartEvents();
+        expect((chartState.chart as any).onCrosshairMove).toHaveBeenCalledTimes(1);
+
+        const nextChart = {
+            onCrosshairMove: vi.fn(),
+            onClick: vi.fn(),
+            getXDomain: vi.fn(() => ({ min: 1000, max: 2000 })),
+        };
+        setChartInstance(nextChart as any);
+        bindAnalysisChartEvents();
+        expect(nextChart.onCrosshairMove).toHaveBeenCalledTimes(1);
+        expect(nextChart.onClick).toHaveBeenCalledTimes(1);
     });
 
     it('routes toolbar zoom commands to the composed page actions', () => {

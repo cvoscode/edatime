@@ -26,7 +26,6 @@ export type StoreEventMap = {
     'dataset:datasetRevision': StoreChange<number>;
     'dataset:metadata': StoreChange<unknown>;
     'dataset:numericCols': StoreChange<string[]>;
-    'runtime:analysisBound': StoreChange<boolean>;
     'scatter:state': StoreChange<unknown>;
     'ui:adaptiveFilterColumn': StoreChange<string | null>;
     'ui:filterText': StoreChange<string>;
