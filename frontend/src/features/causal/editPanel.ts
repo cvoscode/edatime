@@ -28,26 +28,15 @@ import { getDropdownValueFromElement, upgradeSelects } from '../../ui/primitives
 import { upgradeFlexibleNumberInputs } from '../../ui/primitives/FlexibleNumberInput.js';
 import { setStatus } from './statusView.js';
 import { validatePairEdgeDraft } from './editPolicy.js';
+import {
+    appendDraftConnection,
+    createPairEdgeDraft,
+    removeDraftAttribute,
+    removeDraftConnection,
+    type EdgeEditDraft,
+} from './editDraft.js';
 
 export type EditTarget = { kind: 'node'; col: string } | { kind: 'edge'; key: string };
-
-interface EdgeDraftAttribute {
-    draftId: string;
-    key: string;
-    value: string;
-}
-
-interface EdgeDraftConnection extends CausalLink {
-    draftId: string;
-}
-
-interface EdgeEditDraft {
-    key: string;
-    nodeA: string;
-    nodeB: string;
-    attrs: EdgeDraftAttribute[];
-    connections: EdgeDraftConnection[];
-}
 
 let _editTarget: EditTarget | null = null;
 let _edgeEditDraft: EdgeEditDraft | null = null;
@@ -76,13 +65,6 @@ function escH(value: string): string {
 
 function attrsToJson(value: Record<string, unknown> | undefined): string {
     return JSON.stringify(value ?? {}, null, 2);
-}
-
-function stringifyDraftValue(value: unknown): string {
-    if (value == null) return '';
-    if (typeof value === 'string') return value;
-    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-    try { return JSON.stringify(value); } catch { return String(value); }
 }
 
 function parseLooseValue(raw: string): unknown {
@@ -183,7 +165,7 @@ function bindEdgeDraftControls(): void {
         button.onclick = () => {
             syncEdgeDraftFromDom();
             if (!_edgeEditDraft) return;
-            _edgeEditDraft.attrs = _edgeEditDraft.attrs.filter((e) => e.draftId !== button.dataset.removeAttr);
+            removeDraftAttribute(_edgeEditDraft, button.dataset.removeAttr || '');
             renderEdgeDraftEditor();
         };
     });
@@ -192,7 +174,7 @@ function bindEdgeDraftControls(): void {
         button.onclick = () => {
             syncEdgeDraftFromDom();
             if (!_edgeEditDraft) return;
-            _edgeEditDraft.connections = _edgeEditDraft.connections.filter((e) => e.draftId !== button.dataset.removeConn);
+            removeDraftConnection(_edgeEditDraft, button.dataset.removeConn || '');
             renderEdgeDraftEditor();
         };
     });
@@ -207,13 +189,7 @@ function bindEdgeDraftControls(): void {
     bodyEl.querySelector<HTMLElement>('[data-add-conn]')?.addEventListener('click', () => {
         syncEdgeDraftFromDom();
         if (!_edgeEditDraft) return;
-        _edgeEditDraft.connections.push({
-            draftId: nextDraftId('conn'),
-            source: _edgeEditDraft.nodeA,
-            target: _edgeEditDraft.nodeB,
-            lag: (_edgeEditDraft.connections.at(-1)?.lag ?? 0) + 1,
-            type: '-->', value: 0, pvalue: 0,
-        });
+        appendDraftConnection(_edgeEditDraft, nextDraftId);
         renderEdgeDraftEditor();
     });
 }
@@ -318,13 +294,11 @@ export function openEditPanel(target: EditTarget): void {
 
     const group = getPairGroup(target.key);
     if (!group) { closeEditPanel(); return; }
-    _edgeEditDraft = {
-        key: group.key,
-        nodeA: group.nodeA,
-        nodeB: group.nodeB,
-        attrs: Object.entries((_pairAttrs.get(group.key) ?? {}) as Record<string, unknown>).map(([key, value]) => ({ draftId: nextDraftId('attr'), key, value: stringifyDraftValue(value) })),
-        connections: group.connections.map((link) => ({ draftId: nextDraftId('conn'), ...link })),
-    };
+    _edgeEditDraft = createPairEdgeDraft(
+        group,
+        (_pairAttrs.get(group.key) ?? {}) as Record<string, unknown>,
+        nextDraftId,
+    );
     if (titleEl) titleEl.textContent = `Pair Edge: ${group.nodeA} - ${group.nodeB}`;
     renderEdgeDraftEditor();
 }

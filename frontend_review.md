@@ -214,7 +214,8 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 
 ### In progress: Causal edit-panel decomposition
 
-- Next, extract edge-draft validation and mutation policy from `editPanel`, leaving the modal/context-menu layer as DOM rendering and event composition only.
+- Extracted pair-edge draft validation and normalized connection mutation into `editPolicy`, leaving modal status and DOM reads in `editPanel`.
+- Extracted draft initialization plus connection/attribute add-remove transitions into `editDraft`, with direct state-transition coverage. `editPanel` now reads current controls and re-renders its modal around that state.
 
 ### Completed: global continuous color-scale ownership
 
