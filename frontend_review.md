@@ -455,6 +455,10 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Moved sample-dataset downloads onto the shared API blob helper. The endpoint now gets the same no-store, structured-error, and transport-policy behavior as every other API route while remaining explicitly outside dataset-scope invalidation.
 - Added the canonical DELETE JSON helper and moved database disconnect onto it, so the last simple JSON route no longer bypasses no-store policy or structured API errors.
 
+### Completed: explicit Upload public surface
+
+- Replaced Upload's wildcard public exports with the five composition-level APIs actually consumed outside the feature. The architecture guard now rejects wildcard feature-index exports, keeping internal upload workflows private by default.
+
 ### Completed: Drift page decomposition
 
 - Extracted evaluation-mode normalization, latest-window validation, and response-map filtering into `evaluationPolicy` with direct behavior coverage.

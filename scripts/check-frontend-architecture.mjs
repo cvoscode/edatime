@@ -97,6 +97,13 @@ for (const file of files) {
   const isLegacyState = rel === 'frontend/src/store/index.ts';
   const staticImportRe = /(^|\n)\s*import\s+(type\s+)?[^'"\n]+from\s+['"]([^'"]+)['"]/g;
 
+  if (!isTest && /^frontend\/src\/features\/[^/]+\/index\.ts$/.test(rel)) {
+    const wildcardExport = /export\s+\*\s+from\s+['"]/g;
+    for (const match of text.matchAll(wildcardExport)) {
+      add(file, 'feature public indexes must declare explicit exports instead of wildcard re-exports', lineOf(text, match.index ?? 0));
+    }
+  }
+
   if (!isTest && !isLegacyState) {
     const directWrite = /appState\.[A-Za-z0-9_]+\s*=(?!=)/g;
     for (const match of text.matchAll(directWrite)) {
