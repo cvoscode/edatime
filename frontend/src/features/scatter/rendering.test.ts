@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { scatterState } from '../../store/scatterState.js';
 import { applyView, buildOption, updateCorrelationStats, updateMarginalPlots } from './rendering.js';
 import { buildDensitySeries, buildDensityTooltipCache, densityTooltipFormatterFactory } from './renderingDensity.js';
-import { setScatterRenderScheduler } from './renderScheduler.js';
 
 class MockCanvasContext2D {
     ops: string[] = [];
@@ -507,12 +506,10 @@ describe('density series zoom', () => {
 /* ── Density re-bin on zoom ──────────────────────────── */
 
 describe('density chart re-bin on view change', () => {
-    let schedulers: number[] = [];
-    let scheduledOpts: Array<{ preserveView?: boolean } | undefined> = [];
+    let onDensityViewRefresh: () => void;
 
     beforeEach(() => {
-        schedulers = [];
-        scheduledOpts = [];
+        onDensityViewRefresh = vi.fn();
         vi.restoreAllMocks();
         vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
             cb(0);
@@ -555,15 +552,6 @@ describe('density chart re-bin on view change', () => {
 
         bindRect(document.getElementById('scatter-chart') as HTMLElement, 1308, 648);
 
-        // Register the page-facing scheduler used by the density zoom path.
-        setScatterRenderScheduler((opts) => {
-            schedulers.push(1);
-            scheduledOpts.push(opts);
-        });
-    });
-
-    afterEach(() => {
-        setScatterRenderScheduler(null);
     });
 
     it('disposes the density chart and schedules a re-render on applyView', () => {
@@ -574,7 +562,7 @@ describe('density chart re-bin on view change', () => {
         scatterState.full = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
         scatterState.view = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
 
-        applyView({ xMin: 20, xMax: 60, yMin: 20, yMax: 50 }, true);
+        applyView({ xMin: 20, xMax: 60, yMin: 20, yMax: 50 }, true, onDensityViewRefresh);
 
         // The chart must be disposed so the next renderScatter() recreates
         // it against the new view (the ChartGPU density renderer does not
@@ -585,30 +573,22 @@ describe('density chart re-bin on view change', () => {
         // The previous view was pushed onto the zoom history.
         expect(scatterState.zoomHistory).toHaveLength(1);
         expect(scatterState.zoomHistory[0]).toEqual({ xMin: 0, xMax: 100, yMin: 0, yMax: 70 });
-        // The density-mode zoom path must signal `preserveView: true` to
-        // the scheduled renderScatter(), otherwise the default
-        // `applyScatterStateFromCache(true)` call inside renderScatter
-        // would clobber the new view back to the full extent and the
-        // user's zoom would visually disappear.
-        expect(scheduledOpts).toHaveLength(1);
-        expect(scheduledOpts[0]).toEqual({ preserveView: true, immediate: true });
+        expect(onDensityViewRefresh).toHaveBeenCalledOnce();
     });
 
-    it('looks up the registered density re-render scheduler on every zoom', () => {
-        const firstScheduler = vi.fn();
-        const secondScheduler = vi.fn();
-        setScatterRenderScheduler(firstScheduler);
+    it('uses the supplied density refresh dependency for every zoom', () => {
+        const firstRefresh = vi.fn();
+        const secondRefresh = vi.fn();
 
         scatterState.chart = { setOption: vi.fn(), resize: vi.fn() } as any;
         scatterState.full = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
         scatterState.view = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
-        applyView({ xMin: 20, xMax: 60, yMin: 20, yMax: 50 }, true);
-        expect(firstScheduler).toHaveBeenCalledWith({ preserveView: true, immediate: true });
+        applyView({ xMin: 20, xMax: 60, yMin: 20, yMax: 50 }, true, firstRefresh);
+        expect(firstRefresh).toHaveBeenCalledOnce();
 
-        setScatterRenderScheduler(secondScheduler);
         scatterState.chart = { setOption: vi.fn(), resize: vi.fn() } as any;
-        applyView({ xMin: 30, xMax: 50, yMin: 25, yMax: 45 }, true);
-        expect(secondScheduler).toHaveBeenCalledWith({ preserveView: true, immediate: true });
+        applyView({ xMin: 30, xMax: 50, yMin: 25, yMax: 45 }, true, secondRefresh);
+        expect(secondRefresh).toHaveBeenCalledOnce();
     });
 
     it('does not dispose the chart on applyView when not in density mode', () => {

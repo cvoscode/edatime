@@ -44,7 +44,6 @@ import {
 import { buildNormalScatterSeries as buildSeriesByPolicy } from './seriesPolicy.js';
 import { buildScatterTooltipHtml } from './tooltipPresentation.js';
 import { buildScatterColorbarPresentation } from './colorbarPresentation.js';
-import { scheduleScatterRender } from './renderScheduler.js';
 
 /* ── Series builders ──────────────────────────────────── */
 
@@ -414,18 +413,24 @@ export function renderCurrentOption(): void {
     updateMarginalPlots();
 }
 
-export function applyView(nextView: ScatterView, pushHistory = false): void {
+export type DensityViewRefresh = () => void;
+
+export function applyView(
+    nextView: ScatterView,
+    pushHistory = false,
+    onDensityViewRefresh?: DensityViewRefresh,
+): void {
     const current = { ...scatterState.view };
     const next = clampView(nextView);
     if (pushHistory) scatterState.zoomHistory = [...scatterState.zoomHistory, current].slice(-30);
     scatterState.view = next;
-    refreshView();
+    refreshView(onDensityViewRefresh);
 }
 
-export function resetView(clearHistory = true): void {
+export function resetView(clearHistory = true, onDensityViewRefresh?: DensityViewRefresh): void {
     if (clearHistory) scatterState.zoomHistory = [];
     scatterState.view = { ...scatterState.full };
-    refreshView();
+    refreshView(onDensityViewRefresh);
 }
 
 /**
@@ -441,7 +446,7 @@ export function resetView(clearHistory = true): void {
  *
  * In non-density modes a plain `setOption` is enough.
  */
-function refreshView(): void {
+function refreshView(onDensityViewRefresh?: DensityViewRefresh): void {
     const isDensity = currentControls().renderMode === 'density';
     if (isDensity && scatterState.chart) {
         // Force the next renderScatter() to recreate the chart so the
@@ -450,16 +455,9 @@ function refreshView(): void {
         // Recreate the container so the new chart starts from a clean DOM
         // (the old WebGL canvas is gone with the disposed chart).
         resetScatterContainer();
-        // The actual re-create + re-render is driven by renderScatter().
-        // We trigger it through the debounced entry point exported by
-        // scatterPage.ts to avoid a tight import cycle. Pass
-        // `preserveView: true` so the upcoming renderScatter() does not
-        // clobber the new view back to the full extent (the default
-        // `applyScatterStateFromCache(true)` would otherwise reset the
-        // view and the user's zoom would not stick).
-        if (!scheduleScatterRender({ preserveView: true, immediate: true })) {
-            renderCurrentOption();
-        }
+        // The chart lifecycle supplies the page-owned re-fetch callback.
+        // It preserves the current view while creating a fresh density bin.
+        onDensityViewRefresh?.();
         return;
     }
     renderCurrentOption();

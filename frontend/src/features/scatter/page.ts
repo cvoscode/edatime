@@ -64,7 +64,6 @@ import {
     refreshCorrelationsAndSuggestions as refreshCorrelationsPanel,
 } from './correlationsPanel.js';
 import { computeInteractiveScatterLimit } from './renderLimit.js';
-import { setScatterRenderScheduler } from './renderScheduler.js';
 import { applyScatterPointsResponse } from './responsePolicy.js';
 import { renderScatterChart } from './chartLifecycle.js';
 
@@ -231,18 +230,6 @@ export function renderScatterDebounced(): void {
     _scatterDebounceTimer = setTimeout(() => { _scatterDebounceTimer = null; renderScatter(); }, 32);
 }
 
-// Rendering cannot import `renderScatter` directly because this page already
-// imports view interactions from rendering. Register the page-owned scheduler
-// with the narrow bridge module instead of publishing it on `globalThis`.
-setScatterRenderScheduler((opts) => {
-    if (opts?.preserveView) _preserveViewOnNextRender = true;
-    if (opts?.immediate) {
-        void renderScatter();
-        return;
-    }
-    renderScatterDebounced();
-});
-
 async function renderScatter(): Promise<void> {
     const xSelect = getEl('scatter-x-col');
     const ySelect = getEl('scatter-y-col');
@@ -320,6 +307,10 @@ async function renderScatter(): Promise<void> {
             renderSignature,
             buildOption: (activeContainer) => buildOption(scatterState.points, activeContainer),
             onPerformanceUpdate: updateBinnedReadout,
+            onDensityViewRefresh: () => {
+                _preserveViewOnNextRender = true;
+                void renderScatter();
+            },
         });
         if (!container || !scatterState.chart) return;
 

@@ -732,9 +732,6 @@ describe('scatter render scheduling', () => {
         vi.resetModules();
         vi.clearAllMocks();
         buildDom();
-        const { setScatterRenderScheduler } = await import('./renderScheduler.js');
-        setScatterRenderScheduler(null);
-
         fetchScatterPointsMock.mockResolvedValue({
             points: [[1, 2], [2, 3]],
             total_points: 2,
@@ -762,51 +759,6 @@ describe('scatter render scheduling', () => {
     afterEach(() => {
         vi.useRealTimers();
         vi.restoreAllMocks();
-    });
-
-    it('consumes the preserveView flag exactly once across consecutive scheduleRender calls', async () => {
-        // The density-mode zoom path in rendering.ts sets
-        // `_preserveViewOnNextRender = true` before scheduling a re-render
-        // so the new view bounds are not clobbered by
-        // `applyScatterStateFromCache(true)`. The contract is "one-shot":
-        // a second scheduleRender without the flag must NOT inherit the
-        // previous preserveView. If it did, every subsequent render
-        // would freeze the zoom history and stop resetting the view to
-        // the full extent for column changes.
-        const stateModule = await import('./state.js');
-        const applySpy = vi.spyOn(stateModule, 'applyScatterStateFromCache');
-        const { scheduleScatterRender } = await import('./renderScheduler.js');
-
-        // Make sure the helpers we use exist on the module under test.
-        const scatterPage = await import('./page.js');
-        expect(typeof scatterPage.renderScatterDebounced).toBe('function');
-
-        // 1) Schedule a preserving render. resolve immediately via `immediate: true`
-        //    so we don't depend on fake timers for the first call.
-        expect(scheduleScatterRender({ preserveView: true, immediate: true })).toBe(true);
-        await Promise.resolve();
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        await Promise.resolve();
-
-        const callsAfterFirst = applySpy.mock.calls.length;
-        expect(callsAfterFirst).toBeGreaterThan(0);
-        const firstArg = applySpy.mock.calls[callsAfterFirst - 1]?.[0];
-        // `applyScatterStateFromCache(!preserveView)` → preserveView=true ⇒ arg=false
-        expect(firstArg).toBe(false);
-
-        // 2) Schedule a second render WITHOUT the flag. The flag must have been
-        //    consumed by the first call, so this one must use the default
-        //    `applyScatterStateFromCache(true)` behaviour.
-        expect(scheduleScatterRender({ immediate: true })).toBe(true);
-        await Promise.resolve();
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        await Promise.resolve();
-
-        const callsAfterSecond = applySpy.mock.calls.length;
-        expect(callsAfterSecond).toBeGreaterThan(callsAfterFirst);
-        const secondArg = applySpy.mock.calls[callsAfterSecond - 1]?.[0];
-        // preserveView=false (default) ⇒ applyScatterStateFromCache(true) ⇒ arg=true
-        expect(secondArg).toBe(true);
     });
 
     it('does not leave a stale debounce timer after setScatterView(matrix, { render: false })', async () => {

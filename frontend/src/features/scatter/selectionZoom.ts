@@ -4,10 +4,13 @@ import { dragToViewport, type DragState } from '../../chart/chartInteractions.js
 import { scatterState } from '../../store/scatterState.js';
 import { getChartPalette } from '../../utils/theme.js';
 import { SCATTER_PLOT_GRID } from './layout.js';
-import { applyView, resetView } from './rendering.js';
+import { applyView, resetView, type DensityViewRefresh } from './rendering.js';
 import { currentControls } from './state.js';
 
-export function initSelectionZoom(container: HTMLElement): void {
+export function initSelectionZoom(
+    container: HTMLElement,
+    options: { onDensityViewRefresh?: DensityViewRefresh } = {},
+): void {
     if (!container || scatterState.selectionBox) return;
     if (window.getComputedStyle(container).position === 'static') container.style.position = 'relative';
 
@@ -71,14 +74,17 @@ export function initSelectionZoom(container: HTMLElement): void {
             { min: scatterState.view.xMin, max: scatterState.view.xMax },
             { min: scatterState.view.yMin, max: scatterState.view.yMax },
         );
-        if (next) applyView(next, true);
+        if (next) applyView(next, true, options.onDensityViewRefresh);
     };
 
     container.addEventListener('pointerup', finishDrag);
     container.addEventListener('pointercancel', finishDrag);
     container.addEventListener('dblclick', (ev) => {
         if (ev.shiftKey) return;
-        if (scatterState.zoomHistory.length > 0) { applyView(scatterState.zoomHistory.pop()!, false); return; }
-        resetView(false);
+        if (scatterState.zoomHistory.length > 0) {
+            applyView(scatterState.zoomHistory.pop()!, false, options.onDensityViewRefresh);
+            return;
+        }
+        resetView(false, options.onDensityViewRefresh);
     });
 }

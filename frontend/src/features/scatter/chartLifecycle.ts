@@ -6,12 +6,14 @@ import { disposeScatterChart, resetScatterContainer } from './state.js';
 import { getEl } from './helpers.js';
 import { initSelectionZoom } from './selectionZoom.js';
 import { isGPUAvailable, setGpuUnavailable } from './runtime.js';
+import type { DensityViewRefresh } from './rendering.js';
 
 export interface ScatterChartLifecycleOptions {
     container: HTMLElement;
     renderSignature: string;
     buildOption: (container: HTMLElement | null) => unknown;
     onPerformanceUpdate: () => void;
+    onDensityViewRefresh?: DensityViewRefresh;
 }
 
 /** Create or reuse the chart instance while preserving the render-signature contract. */
@@ -41,7 +43,7 @@ export async function renderScatterChart(options: ScatterChartLifecycleOptions):
         if (!chart) return container;
         scatterState.lastRenderSignature = options.renderSignature;
         chart.setOption(nextOption as any);
-        initSelectionZoom(container);
+        initSelectionZoom(container, { onDensityViewRefresh: options.onDensityViewRefresh });
         chart.onPerformanceUpdate?.(() => {
             const now = performance.now();
             if (now - scatterState.lastUpdateMs < 100) return;
