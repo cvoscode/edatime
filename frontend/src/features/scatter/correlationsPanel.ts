@@ -26,14 +26,6 @@ import { updateCorrelationStats, updateColorbarUI } from './rendering.js';
  */
 export type SuggestionApplyHandler = (x: string, y: string) => void | Promise<void>;
 
-/**
- * Module-scoped handler that the scatter page registers on init. We hold
- * the most recently supplied callback so `renderSuggestions` can re-attach
- * it to freshly built buttons after a refresh, and `refreshCorrelationsAnd
- * Suggestions` can pass it through automatically.
- */
-let activeApplyHandler: SuggestionApplyHandler | null = null;
-
 function isFiniteNumber(value: unknown): value is number {
     return typeof value === 'number' && Number.isFinite(value);
 }
@@ -60,30 +52,21 @@ function buildCurrentPairStats(
 }
 
 /**
- * Register the apply handler for correlation pills. The scatter page calls
- * this once during init so subsequent `renderSuggestions` invocations (from
- * threshold changes, page re-entry, etc.) keep the click → re-render
- * wiring intact without forcing every caller to pass the handler.
- */
-export function setSuggestionApplyHandler(handler: SuggestionApplyHandler | null): void {
-    activeApplyHandler = handler;
-}
-
-/**
  * Renders the list of correlation suggestion buttons in the scatter panel.
  *
  * Each suggestion entry has the shape `{ x, y, correlation }` (see
  * `CorrelationSuggestion` in `types.ts`). Buttons pair a base column with a
  * suggested partner and let the user apply the pair to the X/Y dropdowns.
  *
- * The handler registered via `setSuggestionApplyHandler` is fired after a
- * pill is clicked and the dropdowns have been updated. The scatter page
+ * The supplied handler is fired after a pill is clicked and the dropdowns
+ * have been updated. The scatter page
  * uses it to re-fetch the correlation list for the new X and re-render the
  * scatter points so the chart reflects the chosen pair without requiring
  * the user to manually tweak the X or Y selects afterwards.
  */
 export function renderSuggestions(
-    suggestions: Array<{ x: string; y: string; correlation: number }>
+    suggestions: Array<{ x: string; y: string; correlation: number }>,
+    onSuggestionApply?: SuggestionApplyHandler,
 ): void {
     const box = getEl('scatter-suggestions');
     if (!box) return;
@@ -107,7 +90,7 @@ export function renderSuggestions(
             fallback.appendChild(summary);
 
             for (const pair of topPairs) {
-                const fallbackButton = buildSuggestionButton(pair.x, pair.y, pair.correlation, xValue, yValue);
+                const fallbackButton = buildSuggestionButton(pair.x, pair.y, pair.correlation, xValue, yValue, onSuggestionApply);
                 fallbackButton.classList.add('scatter-suggestion-btn-top-pair');
                 fallbackButton.setAttribute('aria-label', `Top pair ${pair.x} and ${pair.y}`);
                 fallback.insertAdjacentElement('beforeend', fallbackButton);
@@ -126,7 +109,7 @@ export function renderSuggestions(
         const x = typeof item?.x === 'string' ? item.x.trim() : '';
         const y = typeof item?.y === 'string' ? item.y.trim() : '';
         if (!x || !y) continue;
-        box.appendChild(buildSuggestionButton(x, y, item.correlation, xValue, yValue));
+        box.appendChild(buildSuggestionButton(x, y, item.correlation, xValue, yValue, onSuggestionApply));
     }
 }
 
@@ -136,6 +119,7 @@ function buildSuggestionButton(
     correlation: number,
     activeX: string,
     activeY: string,
+    onSuggestionApply?: SuggestionApplyHandler,
 ): HTMLButtonElement {
     const corr = Number.isFinite(correlation) ? correlation.toFixed(2) : '--';
     const btn = document.createElement('button');
@@ -151,10 +135,9 @@ function buildSuggestionButton(
         setDropdownValue('scatter-x-col', x);
         setDropdownValue('scatter-y-col', y);
         updateCorrelationStats();
-        renderSuggestions(scatterState.lastSuggestions);
-        const handler = activeApplyHandler;
-        if (handler) {
-            void Promise.resolve(handler(x, y)).catch((err) => {
+        renderSuggestions(scatterState.lastSuggestions, onSuggestionApply);
+        if (onSuggestionApply) {
+            void Promise.resolve(onSuggestionApply(x, y)).catch((err) => {
                 console.error('scatter: suggestion apply handler failed', err);
             });
         }
@@ -166,7 +149,7 @@ function buildSuggestionButton(
  * Fetches correlation data for the current X/Y selection and updates the UI.
  */
 export async function refreshCorrelationsAndSuggestions(
-    options: { preferTopPairOnFirstLoad?: boolean } = {},
+    options: { preferTopPairOnFirstLoad?: boolean; onSuggestionApply?: SuggestionApplyHandler } = {},
 ): Promise<void> {
     const xSelect = getEl('scatter-x-col');
     const ySelect = getEl('scatter-y-col');
@@ -246,7 +229,7 @@ export async function refreshCorrelationsAndSuggestions(
     const activeY = getDropdownValue('scatter-y-col') || selectedY || '';
     scatterState.currentPairStats = activeY ? buildCurrentPairStats(responsesByMode, activeY) : null;
 
-    renderSuggestions(activeResponse.suggestions || []);
+    renderSuggestions(activeResponse.suggestions || [], options.onSuggestionApply);
     updateCorrelationStats();
     updateColorbarUI();
 }

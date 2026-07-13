@@ -61,8 +61,7 @@ import {
 } from './runtime.js';
 import {
     renderSuggestions,
-    refreshCorrelationsAndSuggestions,
-    setSuggestionApplyHandler,
+    refreshCorrelationsAndSuggestions as refreshCorrelationsPanel,
 } from './correlationsPanel.js';
 import { computeInteractiveScatterLimit } from './renderLimit.js';
 import { setScatterRenderScheduler } from './renderScheduler.js';
@@ -327,7 +326,7 @@ async function renderScatter(): Promise<void> {
         updateColorbarUI();
         updateBinnedReadout();
         updateCorrelationStats();
-        renderSuggestions(scatterState.lastSuggestions);
+        renderSuggestions(scatterState.lastSuggestions, applySuggestionPair);
         updateMarginalPlots();
     });
 }
@@ -337,14 +336,25 @@ async function rerenderScatterFromCache(resetViewFlag = true): Promise<void> {
         applyScatterStateFromCache(resetViewFlag);
         if (scatterState.chart) renderCurrentOption();
         updateCorrelationStats();
-        renderSuggestions(scatterState.lastSuggestions);
+        renderSuggestions(scatterState.lastSuggestions, applySuggestionPair);
     }
     syncScatterEmptyState();
     await refreshActiveScatterView();
 }
 
 // Export for the control binding and matrix selection.
-export { renderScatter, rerenderScatterFromCache, refreshActiveScatterView, setScatterView, refreshCorrelationsAndSuggestions };
+export { renderScatter, rerenderScatterFromCache, refreshActiveScatterView, setScatterView };
+
+async function applySuggestionPair(): Promise<void> {
+    await refreshCorrelationsAndSuggestions();
+    await renderScatter();
+}
+
+export function refreshCorrelationsAndSuggestions(
+    options: { preferTopPairOnFirstLoad?: boolean } = {},
+): Promise<void> {
+    return refreshCorrelationsPanel({ ...options, onSuggestionApply: applySuggestionPair });
+}
 
 /* ── Matrix cell click handler ────────────────────────── */
 
@@ -378,20 +388,6 @@ function bindControls(): Promise<void> {
             refreshToolbarOverflow: () => toolbarOverflow?.refresh(),
             workspace: workspace ?? undefined,
             exportScatterParquet: () => exportScatterParquet(workspace?.getSnapshot()),
-        });
-    }).then(() => {
-        // Register the click handler for correlation pills. After a pill
-        // is clicked the X and Y dropdowns are already updated, so we only
-        // need to refresh the correlation list for the new X and re-render
-        // the scatter. This reuses the same plumbing as a manual X change
-        // and keeps the scatter chart in sync with the chosen pair.
-        setSuggestionApplyHandler(async () => {
-            try {
-                await refreshCorrelationsAndSuggestions();
-                await renderScatter();
-            } catch (err) {
-                handleErr(err);
-            }
         });
     });
 }

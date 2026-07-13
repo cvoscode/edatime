@@ -53,4 +53,14 @@ describe('renderSuggestions', () => {
         expect(container.textContent).toContain('OT');
         expect(container.querySelectorAll('button')).toHaveLength(2);
     });
+
+    it('uses the explicit apply handler after selecting a suggestion', async () => {
+        const { renderSuggestions } = await import('./correlationsPanel.js');
+        const onSuggestionApply = vi.fn();
+
+        renderSuggestions([{ x: 'OT', y: 'HUFL', correlation: 0.82 }], onSuggestionApply);
+        (document.querySelector('.scatter-suggestion-btn') as HTMLButtonElement).click();
+
+        expect(onSuggestionApply).toHaveBeenCalledWith('OT', 'HUFL');
+    });
 });
