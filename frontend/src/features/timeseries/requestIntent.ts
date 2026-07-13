@@ -1,4 +1,4 @@
-import type { WorkspaceSnapshot } from '../../workspace/workspaceStore.js';
+import type { WorkspaceSnapshot } from '../../contracts/workspace.js';
 
 export interface TimeseriesRequestIntent {
     start: number;

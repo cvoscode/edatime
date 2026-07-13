@@ -17,7 +17,7 @@ import { getNumericColumns, getDefaultTimeseriesColumns } from '../../platform/a
 import { emitFeatureEvent } from '../../platform/featureEvents.js';
 import type { DataObject, DatasetMetadata } from '../../types/api.js';
 import type { ViewSnapshot } from '../../types/chart.js';
-import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
+import type { WorkspaceStore } from '../../contracts/workspace.js';
 import type { ApiRequestOptions } from '../../services/api/http.js';
 
 export interface TimeseriesModuleDeps {

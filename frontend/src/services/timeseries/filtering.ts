@@ -5,7 +5,7 @@ import type {
 import type { DataObject } from '../../types/api.js';
 import type { FilteredDataObject } from '../../types/chart.js';
 import type { ScatterLineFilterSpec } from '../../types/scatter.js';
-import type { WorkspaceSnapshot, WorkspaceStore } from '../../workspace/workspaceStore.js';
+import type { WorkspaceSnapshot, WorkspaceStore } from '../../contracts/workspace.js';
 
 export type TimeseriesFilterIntent = Pick<WorkspaceSnapshot, 'selection' | 'filters'>;
 

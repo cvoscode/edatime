@@ -740,6 +740,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Extracted the deterministic initial-view/current-range percentage calculation from DOM and store wiring into `ui/zoomRangeBadge`. Direct tests cover valid, missing, and degenerate range behavior.
 - `ui/viewport` now only reads state and applies the pure display result, making the remaining workspace-backed zoom-controller migration a narrow subscription/ownership change instead of a mixed presentation rewrite.
 
+### Completed: canonical workspace contract foundation
+
+- Added `contracts/workspace.ts` as the canonical definition of workspace sessions, snapshots, and the store capability contract. The workspace implementation now implements that contract instead of owning the types it publishes.
+- Migrated production Timeseries, Scatter, and export/filter consumers to import workspace intent types from `contracts/`, leaving `workspaceStore` focused on cloning, mutation, and lifecycle behavior.
+- This starts the planned canonical contract layer with the application's highest-value cross-feature contract while preserving the store's fixture helpers for tests.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.

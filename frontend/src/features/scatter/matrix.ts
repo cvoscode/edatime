@@ -23,7 +23,7 @@ import {
 import { scatterState } from '../../store/scatterState.js';
 import { setDropdownValue } from '../../ui/primitives/Dropdown.js';
 import { describeDistributionMode, renderMatrixGrid } from './matrixGrid.js';
-import type { WorkspaceSnapshot } from '../../workspace/workspaceStore.js';
+import type { WorkspaceSnapshot } from '../../contracts/workspace.js';
 
 type ScatterIntent = Pick<WorkspaceSnapshot, 'filters' | 'viewport'>;
 

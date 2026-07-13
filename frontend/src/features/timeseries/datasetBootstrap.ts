@@ -5,7 +5,7 @@
  */
 
 import type { DatasetMetadata } from '../../types/api.js';
-import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
+import type { WorkspaceStore } from '../../contracts/workspace.js';
 import { DEBUG, dbg, dbgGroup } from '../../debug.js';
 import {
     assertDatasetRequestScopeActive,

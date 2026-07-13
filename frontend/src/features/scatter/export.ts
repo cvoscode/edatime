@@ -21,7 +21,7 @@ import {
 } from './state.js';
 import { scatterState } from '../../store/scatterState.js';
 import { exportScatterParquet as exportScatterParquetBlob } from '../../services/api/index.js';
-import type { WorkspaceSnapshot } from '../../workspace/workspaceStore.js';
+import type { WorkspaceSnapshot } from '../../contracts/workspace.js';
 import { scaleScatterPlotGrid } from './layout.js';
 import { getCorrelationModeBasisLabel, getCorrelationModeShortLabel, normalizeCorrelationMetric } from '../../utils/correlationModes.js';
 import { getSetting } from '../../utils/settings.js';

@@ -10,7 +10,7 @@
 import { datasetState } from '../../store/datasetState.js';
 import { getScatterViewSnapshot, scatterState } from '../../store/scatterState.js';
 import { buildAdaptiveLineFiltersForQueryState } from '../../services/timeseries/filtering.js';
-import type { WorkspaceSnapshot } from '../../workspace/workspaceStore.js';
+import type { WorkspaceSnapshot } from '../../contracts/workspace.js';
 import { getScatterPlotMetrics } from './layout.js';
 import { getDropdownValue, setDropdownOptions } from '../../ui/primitives/Dropdown.js';
 
