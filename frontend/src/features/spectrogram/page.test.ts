@@ -1,5 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { chartState } from '../../store/chartState.js';
+import { getDropdownController } from '../../ui/primitives/Dropdown.js';
+
+function disposeSpectrogramDropdowns(): void {
+    for (const id of [
+        'spectrogram-col-select',
+        'spectrogram-win-size',
+        'spectrogram-hop-size',
+        'spectrogram-normalize',
+        'spectrogram-clip-method',
+    ]) {
+        getDropdownController(id)?.destroy();
+    }
+}
 
 // Mock shared dependencies
 vi.mock('../../services/api/index.js', () => ({
@@ -55,17 +68,27 @@ vi.mock('echarts', () => ({
 
 vi.mock('../../platform/pageLifecycle.js', () => ({
     createPageLifecycle: vi.fn(({ page, init, onVisible, onEveryPageChange }) => {
-        try { init?.(); } catch (error) { console.error('init threw:', error); }
-        return () => {
-            onVisible?.();
-            window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page } }));
+        const handler = (event: Event) => {
+            if ((event as CustomEvent<{ page?: string }>).detail?.page === page) {
+                init?.();
+                onVisible?.();
+            }
             onEveryPageChange?.();
+        };
+        window.addEventListener('edatime:page-change', handler);
+        return {
+            activate: () => {
+                init?.();
+                onVisible?.();
+            },
+            dispose: () => window.removeEventListener('edatime:page-change', handler),
         };
     }),
 }));
 
 describe('spectrogramPage', () => {
     beforeEach(() => {
+        disposeSpectrogramDropdowns();
         toastMock.mockReset();
         document.body.innerHTML = `
             <div id="spectrogram-chart"></div>
@@ -115,9 +138,41 @@ describe('spectrogramPage', () => {
         `;
     });
 
-    it('initializes without throwing', async () => {
+    afterEach(async () => {
+        const { __resetSpectrogramPageForTests } = await import('./page.js');
+        __resetSpectrogramPageForTests();
+        disposeSpectrogramDropdowns();
+    });
+
+    it('activates its local lifecycle on first lazy-page initialization', async () => {
         const { initSpectrogramPage } = await import('./page.js');
         await initSpectrogramPage({ setLoading: vi.fn() });
+
+        const toggle = document.getElementById('spectrogram-clip-toggle') as HTMLInputElement;
+        const method = document.getElementById('spectrogram-clip-method') as HTMLSelectElement;
+        toggle.checked = true;
+        toggle.dispatchEvent(new Event('input', { bubbles: true }));
+
+        expect(method.disabled).toBe(false);
+    });
+
+    it('replaces the previous runtime before reinitializing the lazy page', async () => {
+        const { fetchSpectrogram } = await import('../../services/api/index.js');
+        const { initSpectrogramPage } = await import('./page.js');
+        chartState.currentStart = Number.NaN;
+        chartState.currentEnd = Number.NaN;
+
+        await initSpectrogramPage({ setLoading: vi.fn() });
+        await initSpectrogramPage({ setLoading: vi.fn() });
+        const fetchMock = vi.mocked(fetchSpectrogram);
+        fetchMock.mockClear();
+        chartState.currentStart = 0;
+        chartState.currentEnd = 1e6;
+
+        (document.getElementById('spectrogram-compute-btn') as HTMLButtonElement).click();
+        await Promise.resolve();
+
+        expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
     it('enables clip method and param when the outliers toggle is checked via input', async () => {
@@ -179,6 +234,7 @@ describe('spectrogramPage colorbar filter', () => {
     let firstEchartsInstance: any = null;
 
     beforeEach(() => {
+        disposeSpectrogramDropdowns();
         if (echartsInstances.length > 0 && !firstEchartsInstance) {
             firstEchartsInstance = echartsInstances[0];
         }
@@ -239,6 +295,7 @@ describe('spectrogramPage colorbar filter', () => {
     afterEach(async () => {
         const { __resetSpectrogramPageForTests } = await import('./page.js');
         __resetSpectrogramPageForTests();
+        disposeSpectrogramDropdowns();
     });
 
     async function mountAndCompute(): Promise<void> {
@@ -272,6 +329,7 @@ describe('spectrogramPage colorbar filter', () => {
             },
         });
         const unmount = runtime.mount();
+        runtime.activate();
         const toggle = document.getElementById('spectrogram-clip-toggle') as HTMLInputElement;
         const method = document.getElementById('spectrogram-clip-method') as HTMLSelectElement;
 

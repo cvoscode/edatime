@@ -1,4 +1,4 @@
-import { createPageLifecycle } from './pageLifecycle.js';
+import { createPageLifecycle, type PageLifecycle } from './pageLifecycle.js';
 import {
     createEmptyStateController,
     type EmptyStateController,
@@ -25,6 +25,7 @@ export interface PageRuntimeOptions {
 
 interface PageRuntime {
     mount(): () => void;
+    activate(): void;
     updateEmptyState(model: EmptyStateViewModel): void;
     updateStatus(text: string): void;
     setLoading(loading: boolean): void;
@@ -33,6 +34,7 @@ interface PageRuntime {
 export function createPageRuntime(options: PageRuntimeOptions): PageRuntime {
     let emptyStateController: EmptyStateController | null = null;
     let cleanup: (() => void) | void;
+    let lifecycle: PageLifecycle | null = null;
     let mounted = false;
 
     const getEmptyState = (): EmptyStateController => {
@@ -51,7 +53,7 @@ export function createPageRuntime(options: PageRuntimeOptions): PageRuntime {
             if (mounted) return () => { };
             mounted = true;
 
-            const unregister = createPageLifecycle({
+            lifecycle = createPageLifecycle({
                 page: options.page,
                 init: () => {
                     cleanup = options.init?.();
@@ -62,13 +64,18 @@ export function createPageRuntime(options: PageRuntimeOptions): PageRuntime {
 
             return () => {
                 if (!mounted) return;
-                unregister();
+                lifecycle?.dispose();
+                lifecycle = null;
                 if (typeof cleanup === 'function') cleanup();
                 cleanup = undefined;
                 emptyStateController?.dispose();
                 emptyStateController = null;
                 mounted = false;
             };
+        },
+
+        activate(): void {
+            lifecycle?.activate();
         },
 
         updateEmptyState(model: EmptyStateViewModel): void {

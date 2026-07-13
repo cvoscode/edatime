@@ -103,7 +103,13 @@ vi.mock('../../platform/pageLifecycle.js', () => ({
         (globalThis as any).__heatmapHandlers ||= [];
         (globalThis as any).__heatmapHandlers.push(handler);
         window.addEventListener('edatime:page-change', handler);
-        return () => window.removeEventListener('edatime:page-change', handler);
+        return {
+            activate: () => {
+                init?.();
+                onVisible?.();
+            },
+            dispose: () => window.removeEventListener('edatime:page-change', handler),
+        };
     }),
 }));
 

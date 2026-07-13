@@ -21,7 +21,7 @@ describe('createPageLifecycle', () => {
         const unregister = createPageLifecycle({ page: 'test', init });
         dispatchPageChange('test');
         expect(init).toHaveBeenCalledTimes(1);
-        unregister();
+        unregister.dispose();
     });
 
     it('does not call init again when the same page is visited a second time', () => {
@@ -32,7 +32,7 @@ describe('createPageLifecycle', () => {
         dispatchPageChange('test');
         // init should NOT be called again — it runs once only
         expect(init).toHaveBeenCalledTimes(1);
-        unregister();
+        unregister.dispose();
     });
 
     it('does NOT call init when a different page changes first', () => {
@@ -42,7 +42,7 @@ describe('createPageLifecycle', () => {
         expect(init).not.toHaveBeenCalled();
         dispatchPageChange('test'); // now it should fire
         expect(init).toHaveBeenCalledTimes(1);
-        unregister();
+        unregister.dispose();
     });
 
     it('calls onVisible when the registered page becomes visible', () => {
@@ -53,7 +53,7 @@ describe('createPageLifecycle', () => {
         dispatchPageChange('test');
         // onVisible fires on every activation of the target page
         expect(onVisible).toHaveBeenCalledTimes(2);
-        unregister();
+        unregister.dispose();
     });
 
     it('does NOT call onVisible when a different page is active', () => {
@@ -63,7 +63,7 @@ describe('createPageLifecycle', () => {
         expect(onVisible).not.toHaveBeenCalled();
         dispatchPageChange('another');
         expect(onVisible).not.toHaveBeenCalled();
-        unregister();
+        unregister.dispose();
     });
 
     it('calls onEveryPageChange on every page change regardless of page', () => {
@@ -75,7 +75,7 @@ describe('createPageLifecycle', () => {
         dispatchPageChange('test');
         // 4 page changes → onEveryPageChange called 4 times
         expect(onEveryPageChange).toHaveBeenCalledTimes(4);
-        unregister();
+        unregister.dispose();
     });
 
     it('calls onEveryPageChange even before init has fired', () => {
@@ -88,10 +88,10 @@ describe('createPageLifecycle', () => {
         dispatchPageChange('test'); // now init fires AND onEveryPageChange fires
         expect(init).toHaveBeenCalledTimes(1);
         expect(onEveryPageChange).toHaveBeenCalledTimes(2);
-        unregister();
+        unregister.dispose();
     });
 
-    it('returned cleanup function removes the listener', () => {
+    it('dispose removes the listener', () => {
         const onEveryPageChange = vi.fn();
         const init = vi.fn();
         const unregister = createPageLifecycle({ page: 'test', init, onEveryPageChange });
@@ -99,16 +99,16 @@ describe('createPageLifecycle', () => {
         expect(init).toHaveBeenCalledTimes(1);
         expect(onEveryPageChange).toHaveBeenCalledTimes(1);
 
-        unregister(); // cleanup
+        unregister.dispose();
 
         dispatchPageChange('test');
         dispatchPageChange('fft');
-        // After unregister, no new calls should happen
+        // After disposal, no new calls should happen
         expect(init).toHaveBeenCalledTimes(1);
         expect(onEveryPageChange).toHaveBeenCalledTimes(1);
     });
 
-    it('init can return a cleanup function that is called by unregister', () => {
+    it('init can return a cleanup function that is called by dispose', () => {
         const cleanup = vi.fn();
         const init = vi.fn(() => cleanup);
         const unregister = createPageLifecycle({ page: 'test', init });
@@ -116,15 +116,15 @@ describe('createPageLifecycle', () => {
         expect(init).toHaveBeenCalledTimes(1);
         expect(cleanup).not.toHaveBeenCalled();
 
-        unregister();
+        unregister.dispose();
         expect(cleanup).toHaveBeenCalledTimes(1);
     });
 
-    it('does not retain a cleanup when unregistered before first activation', () => {
+    it('does not retain a cleanup when disposed before first activation', () => {
         const init = vi.fn();
         const unregister = createPageLifecycle({ page: 'test', init });
 
-        unregister();
+        unregister.dispose();
         dispatchPageChange('test');
 
         expect(init).not.toHaveBeenCalled();
@@ -145,5 +145,19 @@ describe('createPageLifecycle', () => {
         dispatchPageChange('test');
         expect(init).toHaveBeenCalledTimes(1);
         expect(onVisible).toHaveBeenCalledTimes(1);
+    });
+
+    it('activates the target lifecycle locally without dispatching a router event', () => {
+        const init = vi.fn();
+        const onVisible = vi.fn();
+        const onEveryPageChange = vi.fn();
+        const lifecycle = createPageLifecycle({ page: 'test', init, onVisible, onEveryPageChange });
+
+        lifecycle.activate();
+
+        expect(init).toHaveBeenCalledTimes(1);
+        expect(onVisible).toHaveBeenCalledTimes(1);
+        expect(onEveryPageChange).not.toHaveBeenCalled();
+        lifecycle.dispose();
     });
 });

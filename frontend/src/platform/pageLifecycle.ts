@@ -18,7 +18,7 @@ import { createLifecycleScope } from './lifecycleScope.js';
 //   the registered page name
 //
 // Usage (fftPage style — always-react):
-//   const unregister = createPageLifecycle({
+//   const lifecycle = createPageLifecycle({
 //       page: 'fft',
 //       init() {
 //           // one-time setup
@@ -29,7 +29,7 @@ import { createLifecycleScope } from './lifecycleScope.js';
 //   });
 //
 // Usage (heatmapPage style — visible-only):
-//   const unregister = createPageLifecycle({
+//   const lifecycle = createPageLifecycle({
 //       page: 'heatmap',
 //       init() {
 //           // one-time setup
@@ -62,38 +62,39 @@ export interface PageLifecycleOptions {
 
 /**
  * Creates a page lifecycle manager.
- * Returns an unregister function — call it to clean up listeners.
+ * Returns an explicit lifecycle handle. `activate()` handles a local first
+ * visit without broadcasting a router event; `dispose()` releases listeners.
  */
-export function createPageLifecycle(options: PageLifecycleOptions): () => void {
+export interface PageLifecycle {
+    /** Activate this lifecycle without dispatching a global router event. */
+    activate(): void;
+    /** Remove lifecycle listeners and release the init cleanup, if any. */
+    dispose(): void;
+}
+
+export function createPageLifecycle(options: PageLifecycleOptions): PageLifecycle {
     let initialized = false;
     const scope = createLifecycleScope();
+
+    const activate = () => {
+        if (!initialized) {
+            initialized = true;
+            const cleanup = options.init();
+            if (typeof cleanup === 'function') scope.add(cleanup);
+        }
+        options.onVisible?.();
+    };
 
     const handler = (event: Event) => {
         const detail = (event as CustomEvent<{ page?: string }>).detail;
         const isTargetPage = detail?.page === options.page;
 
-        if (!initialized) {
-            if (isTargetPage) {
-                // First time this specific page is activated — run init and onVisible
-                initialized = true;
-                const cleanup = options.init();
-                if (typeof cleanup === 'function') scope.add(cleanup);
-                options.onVisible?.();
-            }
-            // onEveryPageChange fires on every page change, even before init
-            options.onEveryPageChange?.();
-            return;
-        }
-
-        // Already initialized
         if (isTargetPage) {
-            // Re-activation of target page
-            options.onVisible?.();
+            activate();
         }
-        // onEveryPageChange fires on every page change after init
         options.onEveryPageChange?.();
     };
 
     scope.listen(window, 'edatime:page-change', handler);
-    return () => scope.dispose();
+    return { activate, dispose: () => scope.dispose() };
 }

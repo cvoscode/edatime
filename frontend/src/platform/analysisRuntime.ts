@@ -74,6 +74,9 @@ export function createAnalysisPageRuntime(options: AnalysisPageRuntimeOptions) {
             }
             return unregister;
         },
+        activate() {
+            base.activate();
+        },
         updateEmptyState(model: import('../ui/emptyState.js').EmptyStateViewModel) {
             base.updateEmptyState(model);
         },

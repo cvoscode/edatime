@@ -36,6 +36,18 @@ describe('createPageRuntime', () => {
         expect(init).toHaveBeenCalledTimes(1);
     });
 
+    it('activate initializes the mounted page without a global page-change event', () => {
+        const init = vi.fn();
+        const onVisible = vi.fn();
+        const runtime = createPageRuntime({ page: 'target', init, onVisible });
+        runtime.mount();
+
+        runtime.activate();
+
+        expect(init).toHaveBeenCalledTimes(1);
+        expect(onVisible).toHaveBeenCalledTimes(1);
+    });
+
     // -----------------------------------------------------------------------
     // Contract item 2 — onVisible fires each time the registered page becomes
     // visible

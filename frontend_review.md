@@ -393,9 +393,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Extracted the cached grid-to-visible-points-to-ECharts projection into `spectrogramRenderModel`. It preserves reusable grid buffers while returning chart option, bounds, log-mode, axis formatter, and dominant-band presentation as one deterministic redraw result.
 - The remaining runtime is now the intended page-composition layer: it reads owned controls, binds disposable listeners, coordinates loading/error state, and delegates request, redraw, chart, colorbar, and summary work to their dedicated owners.
 
-### Remaining: lazy page activation contract
+### Completed: lazy page activation contract
 
-- Spectrogram lifecycle characterization revealed that a lazily loaded analysis runtime must be able to perform its first activation after the router has already displayed the page, without synthesizing a global page-change event or retaining an earlier feature instance. Add an explicit `activate()` capability to the shared page-runtime/lifecycle contract, use it from the Spectrogram entrypoint after mount, and cover an isolated first-visit custom-control interaction plus repeated mount/dispose. Do not implement this as a page-local listener workaround.
+- Replaced the cleanup-function lifecycle contract with explicit `activate()` and `dispose()` ownership. A local activation initializes only its target page and does not synthesize a global router event; real router events retain their existing visible-page and every-page semantics.
+- Forwarded explicit activation through the page and analysis runtime layers, then invoked it from the Spectrogram entrypoint immediately after mounting. The lazy feature can therefore initialize when its chunk arrives after navigation has already made the page visible.
+- The Spectrogram entrypoint now disposes its previous runtime before reinitializing. Direct coverage verifies first-visit control wiring, repeated page initialization with one compute listener, local activation semantics, and lifecycle cleanup.
 
 ### Completed: Causal edit-panel decomposition
 

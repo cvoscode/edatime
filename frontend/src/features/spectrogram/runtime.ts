@@ -413,5 +413,6 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
 
     return {
         mount: () => spectrogramRuntime.mount(),
+        activate: () => spectrogramRuntime.activate(),
     };
 }

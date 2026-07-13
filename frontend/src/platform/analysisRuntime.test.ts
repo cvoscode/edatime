@@ -20,6 +20,20 @@ describe('createAnalysisPageRuntime', () => {
         expect(init).toHaveBeenCalled();
     });
 
+    it('forwards explicit local activation to the mounted page runtime', () => {
+        const init = vi.fn();
+        const runtime = createAnalysisPageRuntime({
+            page: 'fft',
+            emptyStateRootId: 'fft-empty-state',
+            init,
+        });
+        runtime.mount();
+
+        runtime.activate();
+
+        expect(init).toHaveBeenCalledTimes(1);
+    });
+
     it('mount() wires exportConfig when provided', async () => {
         const bindExportButtonsModule = await import('../utils/bindExportButtons.js');
         const spy = vi.spyOn(bindExportButtonsModule, 'bindExportButtons' as keyof typeof bindExportButtonsModule);
