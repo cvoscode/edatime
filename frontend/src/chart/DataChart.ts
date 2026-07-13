@@ -7,7 +7,6 @@ import { createChart } from '../../libs/chartgpu/dist/index.js';
 import { DEBUG, dbg } from '../debug.js';
 import { downloadUrl, downloadBlob } from '../utils/dom.js';
 import { defaultGpuPowerPreference } from '../utils/platform.js';
-import { formatTwoDecimals } from '../formatUtils.js';
 import { datasetState } from '../store/datasetState.js';
 import { uiState } from '../store/uiState.js';
 import type {
@@ -44,7 +43,6 @@ interface ChartInstanceAPI {
 
 import { baseSeriesName } from './colorScale.js';
 import { getResolvedTheme, onThemeChange, type ResolvedTheme } from '../utils/theme.js';
-import { niceLinearTicks } from './ticks.js';
 import {
     type GridLayout,
     createCanvasOverlay, ensureRelativePosition,
@@ -67,10 +65,8 @@ import { mapCssPointToChartData } from './chartCoordinateMapper.js';
 import { buildChartGpuTheme, getChartGpuColorPalette, withChartGpuTheme } from './chartThemeOptions.js';
 import { getVisibilityByBaseName } from './seriesVisibility.js';
 import { toggleLegendSeriesVisibility } from './legendVisibilityPolicy.js';
-import {
-    DEFAULT_CHART_GRID,
-    computeChartGrid,
-} from './gridLayout.js';
+import { DEFAULT_CHART_GRID } from './gridLayout.js';
+import { buildTimeSeriesAxisPresentation, type TimeSeriesYAxisOption } from './timeSeriesAxisPresentation.js';
 import {
     exportDataChartHTML,
     exportDataChartPNG,
@@ -543,28 +539,23 @@ export class DataChart {
         // this, dragging a smaller box on the chart would only zoom the
         // x-axis and the y-axis would keep showing the full data span,
         // defeating the whole point of a box-zoom interaction.
-        const option: { type: 'value'; min?: number; max?: number; tickFormatter: (value: number) => string } = {
-            type: 'value',
-            tickFormatter: (value: number) => formatTwoDecimals(value),
-        };
         const displayBounds = this._computeRobustDisplayBounds();
-        const range = computeDisplayYRange({ userMin: this._yMin, userMax: this._yMax, dataMin: this._lastDataYMin, dataMax: this._lastDataYMax, robustMin: displayBounds?.min ?? null, robustMax: displayBounds?.max ?? null, stackFromZero: this._stackFromZero });
-        if (range) { option.min = range.min; option.max = range.max; }
-        return option;
+        return buildTimeSeriesAxisPresentation({
+            userMin: this._yMin, userMax: this._yMax,
+            dataMin: this._lastDataYMin, dataMax: this._lastDataYMax,
+            robustMin: displayBounds?.min ?? null, robustMax: displayBounds?.max ?? null,
+            stackFromZero: this._stackFromZero, yAxisLabel: this._yAxisLabel,
+        }).yAxis;
     }
 
     private _measureGrid(scale = 1): GridLayout {
-        const yAxis = this._buildYAxisOption();
-        const yMin = Number(yAxis.min);
-        const yMax = Number(yAxis.max);
-        const yTickLabels = Number.isFinite(yMin) && Number.isFinite(yMax) && yMax > yMin
-            ? niceLinearTicks(yMin, yMax, 6).map((value) => yAxis.tickFormatter(value))
-            : [formatTwoDecimals(0), formatTwoDecimals(1)];
-        return computeChartGrid({
-            yTickLabels,
-            yAxisLabel: this._yAxisLabel,
-            scale,
-        });
+        const displayBounds = this._computeRobustDisplayBounds();
+        return buildTimeSeriesAxisPresentation({
+            userMin: this._yMin, userMax: this._yMax,
+            dataMin: this._lastDataYMin, dataMax: this._lastDataYMax,
+            robustMin: displayBounds?.min ?? null, robustMax: displayBounds?.max ?? null,
+            stackFromZero: this._stackFromZero, yAxisLabel: this._yAxisLabel, scale,
+        }).grid;
     }
 
     private _updateCurrentGrid(scale = 1): GridLayout {

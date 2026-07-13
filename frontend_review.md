@@ -180,6 +180,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Extracted ChartGPU palette/theme construction and theme-refresh option composition into `chartThemeOptions`, keeping theme adaptation deterministic and independently characterized.
 - Extracted ChartGPU series visibility grouping into `seriesVisibility`, so expanded-series visibility state is read through a direct policy rather than inline chart-option traversal.
 - Extracted legend visibility mutation into `legendVisibilityPolicy`, preserving grouped trace toggles while leaving `DataChart` responsible only for applying the resulting option and refreshing overlays.
+- Extracted deterministic Y-axis and grid presentation into `timeSeriesAxisPresentation`; it applies the existing display-range policy, numeric tick formatting, and responsive grid measurement under direct tests, while `DataChart` only applies the computed option.
 
 ### Next: DataChart renderer seams
 
@@ -232,7 +233,7 @@ Continue this behavior-preserving split with the remaining renderer-owned seams:
 - Added abort-scoped Heatmap control listeners and retained runtime/resize-observer cleanup across re-initialization. A lazy-visibility regression proves two initializations still issue one request for one metric change.
 - Extracted Heatmap load-error classification into `loadErrorPolicy`, making insufficient-numeric-column guidance and generic request-failure status explicit and directly tested.
 
-### In progress: Scatter rendering decomposition
+### Completed: Scatter rendering decomposition
 
 - Extracted normal Scatter series construction into `seriesPolicy`, covering categorical grouping, finite continuous-value binning, palette sampling, and the stable fallback-series contract under direct tests.
 - Extracted Scatter tooltip HTML into `tooltipPresentation`, with direct escaping, categorical/continuous color-value, and column-type-aware formatting coverage.
@@ -243,7 +244,7 @@ Continue this behavior-preserving split with the remaining renderer-owned seams:
 - Consolidated Scatter request policy: `buildScatterOverviewContext` produces the request payload and matching overview cache key together, and `responsePolicy` owns the API-response-to-state mapping. The page and page-change handler no longer maintain duplicate versions of either contract.
 - Extracted chart realization into `chartLifecycle`, which owns signature-based container replacement, WebGPU/ECharts fallback selection, chart reuse, selection-zoom attachment, throttled performance updates, and post-update resize. The page pipeline supplies only option construction and presentation callbacks.
 - Removed the retired `viewController` duplicate. `page.ts` is the sole Scatter Plot/Matrix controller because it owns the complete filter-snapshot, matrix-to-plot reset, warning, render, and panel-navigation contract.
-- Next, review the remaining chart interaction and request/render lifecycle seams; extract only boundaries that eliminate duplicated ownership or reinitialization risk.
+- Scatter now has one controller, explicit request/response policies, independently owned chart/gesture lifecycles, and no remaining implicit global bridges or stale controller duplicate.
 
 ## Target Architecture
 
