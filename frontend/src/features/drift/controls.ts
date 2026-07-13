@@ -163,7 +163,9 @@ function repopulateColumnSelect(
 }
 
 // ── Main bind function ───────────────────────────────────────────────────────
-export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlOptions): void {
+export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlOptions): () => void {
+    const abortController = new AbortController();
+    const listenerOptions = { signal: abortController.signal };
     const {
         pageMetadata,
         colPickerBtn,
@@ -210,7 +212,7 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
         } else {
             openPicker(colPickerPanel, colPickerBtn);
         }
-    });
+    }, listenerOptions);
 
     document.addEventListener('click', (e) => {
         if (!colPickerPanel || colPickerPanel.hidden) return;
@@ -219,11 +221,11 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
         if (wrap && !wrap.contains(target) && !colPickerPanel.contains(target)) {
             closePicker(colPickerPanel, colPickerBtn);
         }
-    });
+    }, listenerOptions);
 
     colPickerPanel?.addEventListener('keydown', (e: KeyboardEvent) => {
         if (e.key === 'Escape') { closePicker(colPickerPanel, colPickerBtn); colPickerBtn?.focus(); }
-    });
+    }, listenerOptions);
 
     repopulateColumnSelect(colPickerList, numericCols);
 
@@ -252,18 +254,18 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
     // ── Compute button ─────────────────────────────────────────────────────
     computeBtn?.addEventListener('click', () => {
         cb.runCompute();
-    });
+    }, listenerOptions);
 
     // ── Sort select ─────────────────────────────────────────────────────────
     sortSelect?.addEventListener('change', () => {
         cb.renderWindowList();
-    });
+    }, listenerOptions);
 
     // ── Detail column select ─────────────────────────────────────────────────
     detailColumnSelect?.addEventListener('change', () => {
         const column = getDropdownValue('drift-detail-col-select') || null;
         onDetailColumnChange(column, null);
-    });
+    }, listenerOptions);
 
     // ── Plot type select (debounced) ─────────────────────────────────────────
     let plotTypeDebounce: ReturnType<typeof setTimeout> | null = null;
@@ -273,7 +275,7 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
             plotTypeDebounce = null;
             cb.renderDetail();
         }, 80);
-    });
+    }, listenerOptions);
 
     function syncEvaluationModeUi(): void {
         if (!latestNInput) return;
@@ -287,12 +289,12 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
         else latestNInput.removeAttribute('aria-describedby');
     }
     syncEvaluationModeUi();
-    evaluationModeSelect?.addEventListener('change', syncEvaluationModeUi);
+    evaluationModeSelect?.addEventListener('change', syncEvaluationModeUi, listenerOptions);
 
     // ── Reference preset select ─────────────────────────────────────────────
     refPresetSelect?.addEventListener('change', () => {
         applyReferencePreset(getDropdownValue('drift-ref-preset') || 'custom');
-    });
+    }, listenerOptions);
 
     // ── Column picker bulk actions ─────────────────────────────────────────
     colSelectAllBtn?.addEventListener('click', () => {
@@ -301,7 +303,7 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
         syncHiddenSelect(numericCols);
         selectionChangeCallback?.();
         closePicker(colPickerPanel, colPickerBtn);
-    });
+    }, listenerOptions);
 
     colSelectSingleBtn?.addEventListener('click', () => {
         const keep = [...selectedCols][0] || numericCols[0];
@@ -312,14 +314,14 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
             selectionChangeCallback?.();
         }
         closePicker(colPickerPanel, colPickerBtn);
-    });
+    }, listenerOptions);
 
     colSelectNoneBtn?.addEventListener('click', () => {
         selectedCols = new Set(numericCols.length > 0 ? [numericCols[0]!] : []);
         renderColumnChips(colPickerList, numericCols);
         syncHiddenSelect(numericCols);
         selectionChangeCallback?.();
-    });
+    }, listenerOptions);
 
     // ── Zoom reset ──────────────────────────────────────────────────────────
     zoomResetBtn?.addEventListener('click', () => {
@@ -327,13 +329,13 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
         timelineChartDispatch({ type: 'dataZoom', dataZoomIndex: 1, start: 0, end: 100 });
         detailChartDispatch({ type: 'dataZoom', dataZoomIndex: 0, start: 0, end: 100 });
         detailChartDispatch({ type: 'dataZoom', dataZoomIndex: 1, start: 0, end: 100 });
-    });
+    }, listenerOptions);
 
     // ── Export buttons ─────────────────────────────────────────────────────
-    document.getElementById('drift-export-png')?.addEventListener('click', exportTimelinePNG);
-    document.getElementById('drift-export-detail-png')?.addEventListener('click', exportDetailPNG);
-    document.getElementById('drift-export-csv')?.addEventListener('click', cb.exportDriftCsv);
-    document.getElementById('drift-export-json')?.addEventListener('click', cb.exportDriftJson);
+    document.getElementById('drift-export-png')?.addEventListener('click', exportTimelinePNG, listenerOptions);
+    document.getElementById('drift-export-detail-png')?.addEventListener('click', exportDetailPNG, listenerOptions);
+    document.getElementById('drift-export-csv')?.addEventListener('click', cb.exportDriftCsv, listenerOptions);
+    document.getElementById('drift-export-json')?.addEventListener('click', cb.exportDriftJson, listenerOptions);
 
     // ── Keyboard shortcuts ─────────────────────────────────────────────────
     const driftPage = document.getElementById('page-drift');
@@ -364,7 +366,7 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
                 exportTimelinePNG();
                 break;
         }
-    });
+    }, listenerOptions);
 
     // ── Page change listener (repopulate columns on page show) ─────────────
     window.addEventListener('edatime:page-change', (e: any) => {
@@ -377,5 +379,10 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
         repopulateColumnSelect(colPickerList, cols);
         selectionChangeCallback?.();
         cb.scheduleDriftChartRefresh();
-    });
+    }, listenerOptions);
+
+    return () => {
+        abortController.abort();
+        if (plotTypeDebounce !== null) clearTimeout(plotTypeDebounce);
+    };
 }

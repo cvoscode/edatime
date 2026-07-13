@@ -425,6 +425,25 @@ describe('drift page accessibility and debug metadata', () => {
         expect(document.getElementById('drift-overview-panel')?.hidden).toBe(true);
     });
 
+    it('releases prior page listeners before re-initializing the Drift page', async () => {
+        const { initDriftPage } = await import('./page.js');
+        const metadata = {
+            numeric_columns: ['value'],
+            columns: [{ name: 'value', dtype: 'Float64' }],
+            time_range: { min: 0, max: 1_000 },
+        };
+        await initDriftPage(metadata);
+        await initDriftPage(metadata);
+
+        (document.getElementById('drift-ref-start') as HTMLInputElement).value = '1970-01-01T00:00';
+        (document.getElementById('drift-ref-end') as HTMLInputElement).value = '1970-01-01T00:10';
+        (document.getElementById('drift-compute-btn') as HTMLButtonElement).click();
+
+        await vi.waitFor(() => {
+            expect(fetchMock).toHaveBeenCalledTimes(1);
+        });
+    });
+
     it('reports investigate failures without issuing legacy per-column requests', async () => {
         fetchMock.mockReset();
         fetchMock

@@ -219,6 +219,7 @@ Continue this behavior-preserving split with the remaining renderer-owned seams:
 - Extracted timeline global and per-column summary HTML into `summaryPanels`, with direct empty-state and severity/metric rendering coverage; `page.ts` now performs only DOM assignment and lifecycle composition.
 - Extracted Drift CSV and JSON serialization into `exportPayloads`, preserving evaluated-window fields and export context under direct tests while keeping browser download initiation in the page controller.
 - Removed the retired Drift runtime request-task and export wrappers. The runtime is now limited to its live ECharts cache and empty-state bridge, with its tests narrowed to those actual responsibilities.
+- Added abort-scoped Drift control and page listeners plus mounted-runtime/resize-observer disposal before re-initialization. A page regression proves a second initialization does not duplicate a Compute request.
 - Next, split the remaining request-payload and timeline-summary presentation seams only where the resulting boundary reduces page-controller ownership.
 
 ## Target Architecture

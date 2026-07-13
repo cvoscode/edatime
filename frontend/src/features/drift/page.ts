@@ -81,6 +81,9 @@ let driftRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
 let driftPageCleanup: (() => void) | null = null;
 
 export async function initDriftPage(metadata: any): Promise<void> {
+    driftPageCleanup?.();
+    driftPageCleanup = null;
+    const pageAbortController = new AbortController();
     // ── Column picker (custom checkbox dropdown) ──────────────────────────────
     const colPickerBtn = document.getElementById('drift-col-picker-btn') as HTMLButtonElement | null;
     const colPickerPanel = document.getElementById('drift-col-picker-panel') as HTMLElement | null;
@@ -166,7 +169,7 @@ export async function initDriftPage(metadata: any): Promise<void> {
 
     windowListEl?.addEventListener('drift:window-select', ((e: CustomEvent) => {
         onWindowSelect(e.detail.windowIdx);
-    }) as EventListener);
+    }) as EventListener, { signal: pageAbortController.signal });
 
     function ensureCharts(): void {
         if (!isDriftChartReadyForInit()) return;
@@ -482,7 +485,7 @@ export async function initDriftPage(metadata: any): Promise<void> {
     }
 
     // ── Wire controls ────────────────────────────────────────────────────────
-    bindDriftControls(
+    const disposeControls = bindDriftControls(
         {
             getSelectedColumns,
             runCompute,
@@ -537,10 +540,10 @@ export async function initDriftPage(metadata: any): Promise<void> {
         },
     );
 
-    evaluationModeSelect?.addEventListener('change', reapplyEvaluationMode);
-    latestNInput?.addEventListener('change', reapplyEvaluationMode);
+    evaluationModeSelect?.addEventListener('change', reapplyEvaluationMode, { signal: pageAbortController.signal });
+    latestNInput?.addEventListener('change', reapplyEvaluationMode, { signal: pageAbortController.signal });
     tabButtons.forEach((button) => {
-        button.addEventListener('click', () => setActiveTab(button.dataset.driftTab || 'overview'));
+        button.addEventListener('click', () => setActiveTab(button.dataset.driftTab || 'overview'), { signal: pageAbortController.signal });
     });
     updateSegmentBySelect();
     setActiveTab(activeTab);
@@ -572,7 +575,15 @@ export async function initDriftPage(metadata: any): Promise<void> {
             scheduleDriftChartRefresh();
         },
     });
-    driftPageCleanup = driftRuntime.mount();
+    const disposeRuntime = driftRuntime.mount();
+    driftPageCleanup = () => {
+        pageAbortController.abort();
+        disposeControls();
+        resizeObserver?.disconnect();
+        disposeRuntime();
+        driftRuntime = null;
+        setSyncDriftEmptyState(() => {});
+    };
     // Page-level "?" help button. Idempotent so safe to call on every
     // page init.
     initDriftHelp();
