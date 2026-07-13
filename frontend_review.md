@@ -180,6 +180,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Moved dataset metadata bootstrap, revision/session coordination, default Timeseries selection, mutation refresh, and its direct regression suite from `app/bootstrap` into `features/timeseries/datasetBootstrap`. It has one production consumer and is intrinsically coupled to Timeseries filters, columns, chart refresh, and feature initialization.
 - Kept the shared page-routing predicate in `utils/pageBootstrap`; it remains a legitimate cross-page navigation policy rather than feature bootstrap ownership.
 
+### Completed: shared runtime-module platform ownership
+
+- Moved the lazy API-transport and chart-module loader from `app/bootstrap` to `platform/runtimeModules`. The loader is a neutral dependency cache and chart-type registry, not application composition or Timeseries behavior.
+- `app.ts` now imports the platform surface instead of a bootstrap helper, keeping transport and chart implementation imports out of the application layer while preserving lazy loading and the existing integration characterization.
+
 ### Completed: DataChart decomposition
 
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.

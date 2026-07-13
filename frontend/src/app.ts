@@ -39,7 +39,7 @@ import { loadPageDescriptors } from './app/pageModules.js';
 import {
     ensureChartModules as ensureChartBootstrapModules,
     ensureDataModules as ensureBootstrapDataModules,
-} from './app/bootstrap/chartBootstrap.js';
+} from './platform/runtimeModules.js';
 import { getHashPage } from './utils/router.js';
 import { pageNeedsDatasetBootstrap } from './utils/pageBootstrap.js';
 import { startSessionPersistence } from './bootstrap/sessionBootstrap.js';

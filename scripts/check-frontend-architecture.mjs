@@ -218,7 +218,6 @@ for (const file of files) {
   // Approved bootstrap helpers legitimately use services/api for lazy loading and init coordination.
   if (/^frontend\/src\/app\//.test(rel) && !isTest) {
     const approvedBootstrapHelpers = [
-      'frontend/src/app/bootstrap/chartBootstrap.ts',
       'frontend/src/app/bootstrap/datasetBootstrap.ts',
     ];
     const isApproved = approvedBootstrapHelpers.some((h) => rel.endsWith(h));

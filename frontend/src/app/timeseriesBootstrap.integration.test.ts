@@ -109,7 +109,7 @@ vi.mock('../app/pageModules.js', () => ({
     loadPageDescriptors: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('../app/bootstrap/chartBootstrap.js', () => ({
+vi.mock('../platform/runtimeModules.js', () => ({
     ensureDataModules: vi.fn().mockResolvedValue({
         fetchMetadata: fetchMetadataMock,
         fetchData: vi.fn(),
