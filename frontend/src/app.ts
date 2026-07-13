@@ -5,7 +5,7 @@
  *   store/          — centralized sub-states (chart, analytics, ui, dataset, scatter)
  *   app/            — bootstrap helpers (WebGPU guard, adaptive gesture, keyboard shortcuts, page modules)
  *   debug.ts        — DEBUG flag, dbg(), dbgGroup()
- *   ui/upload.ts    — upload panel (drag-drop, preview, partial load)
+ *   features/upload/panel.ts — upload panel (drag-drop, preview, partial load)
  *   features/upload/profile.ts — virtualised column-profile grid
  *   ui/toolbar.ts   — analysis status, zoom/draw/export/label controls, pages
  *   charts/registry.ts — pluggable chart-type registry

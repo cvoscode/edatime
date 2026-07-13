@@ -3,7 +3,7 @@
  *
  * The Upload page has two source tabs (File and Database) and a
  * preview/profiles grid on the right. It already owns a heavy wiring
- * module (`ui/upload.ts` + `features/upload/*`), so this init is
+ * module (`features/upload/*`), so this init is
  * intentionally minimal: it only wires the page-level "?" help button.
  *
  * `initUploadHelp` is registered as the `page-help` subsystem in the

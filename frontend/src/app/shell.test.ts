@@ -3,8 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('./shell/themeToggle.js', () => ({ initThemeToggle: vi.fn() }));
 vi.mock('./shell/a11yNormalization.js', () => ({ normalizeFormControlAccessibility: vi.fn() }));
 vi.mock('./shell/homeNavigation.js', () => ({ wireHomeNavigationCards: vi.fn() }));
-vi.mock('../ui/upload.js', () => ({ initUploadPanel: vi.fn() }));
-vi.mock('../features/upload/index.js', () => ({ initColumnProfilesGrid: vi.fn() }));
+vi.mock('../features/upload/index.js', () => ({
+    initUploadPanel: vi.fn(),
+    initUploadHelp: vi.fn(),
+    initColumnProfilesGrid: vi.fn(),
+}));
 vi.mock('../ui/toolbar.js', () => ({
     initAnalysisControls: vi.fn(),
     initChartPageFilterGesture: vi.fn(),
@@ -49,7 +52,7 @@ describe('shell bootstrap', () => {
         const { initAppShell } = await import('./shell.js');
         initAppShell(deps as any);
 
-        const { initUploadPanel } = await import('../ui/upload.js');
+        const { initUploadPanel } = await import('../features/upload/index.js');
         const { initAnalyticsDrawer } = await import('../ui/analyticsDrawer.js');
         expect(initUploadPanel).not.toHaveBeenCalled();
         expect(initAnalyticsDrawer).not.toHaveBeenCalled();

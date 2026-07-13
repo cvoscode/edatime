@@ -6,7 +6,8 @@
  */
 
 // Re-export shared utilities and status setters from feature modules
-export { setUploadPreviewStatus, setProfileMode, applyPartialTimeRangeFromMetadata, formatUploadRowCountValue as formatUploadRowCount, loadedRowCountFromResponse } from '../features/upload/index.js';
+export { setUploadPreviewStatus, setProfileMode, formatUploadRowCountValue as formatUploadRowCount, loadedRowCountFromResponse } from './preview.js';
+export { applyPartialTimeRangeFromMetadata } from './partialLoadControls.js';
 
 import {
     setUploadPreviewStatus,
@@ -14,7 +15,7 @@ import {
     runFilePreview,
     applyPreviewColumnSelection,
     applyTimeRangeFromMetadata,
-} from '../features/upload/index.js';
+} from './preview.js';
 import {
     handleDatabaseConnect,
     handleDatabaseDisconnect,
@@ -22,20 +23,20 @@ import {
     refreshDbTables,
     resetDatabaseStatusLoaded,
     syncDatabaseStatus as doSyncDatabaseStatus,
-} from '../features/upload/index.js';
+} from './databaseSource.js';
 import {
     validateFileSize,
     getPartialTimeRangeInputs,
     clearPartialTimeRangeInputs,
     setPartialTimeRangeInputs,
     UI_MAX_UPLOAD_BYTES,
-} from '../features/upload/index.js';
-import { submitFileUpload } from '../features/upload/index.js';
-import { datasetState, setDatasetRevision, setMetadata } from '../store/datasetState.js';
-import { setPreviewSelectedColumns, setPreviewTimeColumn, uiState } from '../store/uiState.js';
-import { toast } from '../utils/toast.js';
-import { getDropdownValue } from './primitives/Dropdown.js';
-import type { DatasetMetadata } from '../types.js';
+} from './partialLoadControls.js';
+import { submitFileUpload } from './fileSource.js';
+import { datasetState, setDatasetRevision, setMetadata } from '../../store/datasetState.js';
+import { setPreviewSelectedColumns, setPreviewTimeColumn, uiState } from '../../store/uiState.js';
+import { toast } from '../../utils/toast.js';
+import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
+import type { DatasetMetadata } from '../../types.js';
 
 interface UploadPanelDeps {
     buildColumnToggles: () => void;
@@ -209,7 +210,7 @@ export function initUploadPanel(
 
     // If no preview is active and we have no metadata yet, fetch existing dataset state
     if (!datasetState.metadata) {
-        void import('../services/api/index.js').then(async ({ fetchMetadata }) => {
+        void import('../../services/api/index.js').then(async ({ fetchMetadata }) => {
             try {
                 const freshMetadata = await fetchMetadata();
                 if (freshMetadata) {

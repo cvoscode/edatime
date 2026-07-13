@@ -82,7 +82,7 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
 
     registerSubsystem('upload-panel', async (deps) => {
         const profileModule = await import('../../features/upload/index.js');
-        const { initUploadPanel } = await import('../../ui/upload.js');
+        const { initUploadPanel } = await import('../../features/upload/index.js');
         initUploadPanel(profileModule.hydrateColumnProfiles, profileModule.renderColumnProfilesGrid, {
             buildColumnToggles: deps.buildTimeseriesColumns,
             buildRangeControls: deps.buildTimeseriesRanges,

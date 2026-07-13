@@ -1,5 +1,5 @@
 /**
- * Tests for frontend/src/ui/upload.ts
+ * Tests for frontend/src/features/upload/panel.ts
  *
  * Covers: setUploadPreviewStatus, setProfileMode, applyPartialTimeRangeFromMetadata
  */
@@ -23,7 +23,7 @@ beforeEach(() => {
     mocks.fetchMetadata.mockResolvedValue(makeMetadata());
 });
 
-vi.mock('../services/api/index.js', () => ({
+vi.mock('../../services/api/index.js', () => ({
     connectDatabase: mocks.connectDatabase,
     deleteDatabaseConnection: mocks.deleteDatabaseConnection,
     fetchDatabaseStatus: mocks.fetchDatabaseStatus,
@@ -34,7 +34,7 @@ vi.mock('../services/api/index.js', () => ({
     uploadDataset: mocks.uploadDataset,
 }));
 
-vi.mock('../utils/toast.js', () => ({
+vi.mock('../../utils/toast.js', () => ({
     toast: mocks.toast,
 }));
 
@@ -45,10 +45,10 @@ import {
     applyPartialTimeRangeFromMetadata,
     formatUploadRowCount,
     loadedRowCountFromResponse,
-} from './upload';
-import { datasetState } from '../store/datasetState.js';
-import { uiState } from '../store/uiState.js';
-import type { DatasetMetadata } from '../types';
+} from './panel';
+import { datasetState } from '../../store/datasetState.js';
+import { uiState } from '../../store/uiState.js';
+import type { DatasetMetadata } from '../../types';
 
 function makeMetadata(overrides: Partial<DatasetMetadata> = {}): DatasetMetadata {
     return {

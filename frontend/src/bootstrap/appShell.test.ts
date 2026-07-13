@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
     goToNextGuidedStep: vi.fn(),
 }));
 
-vi.mock('../ui/upload.js', () => ({ initUploadPanel: vi.fn() }));
+vi.mock('../features/upload/index.js', () => ({ initUploadPanel: vi.fn() }));
 vi.mock('../features/upload/index.js', () => ({ initColumnProfilesGrid: vi.fn() }));
 vi.mock('../ui/toolbar.js', () => ({
     initAnalysisControls: vi.fn(),
