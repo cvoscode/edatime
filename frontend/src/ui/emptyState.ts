@@ -31,6 +31,7 @@ interface EmptyStateControllerOptions {
 
 export interface EmptyStateController {
     update(model: EmptyStateViewModel): void;
+    dispose(): void;
 }
 
 function dispatchEmptyStateEvent(eventName: string, source?: string): void {
@@ -48,17 +49,14 @@ export function createEmptyStateController(options: EmptyStateControllerOptions)
         clearButton: options.clearButtonId ? document.getElementById(options.clearButtonId) as HTMLButtonElement | null : null,
     };
 
-    if (elements.resetButton && options.resetEventName) {
-        elements.resetButton.addEventListener('click', () => {
-            dispatchEmptyStateEvent(options.resetEventName!, options.eventSource);
-        });
-    }
-
-    if (elements.clearButton && options.clearEventName) {
-        elements.clearButton.addEventListener('click', () => {
-            dispatchEmptyStateEvent(options.clearEventName!, options.eventSource);
-        });
-    }
+    const onReset = () => {
+        if (options.resetEventName) dispatchEmptyStateEvent(options.resetEventName, options.eventSource);
+    };
+    const onClear = () => {
+        if (options.clearEventName) dispatchEmptyStateEvent(options.clearEventName, options.eventSource);
+    };
+    if (elements.resetButton && options.resetEventName) elements.resetButton.addEventListener('click', onReset);
+    if (elements.clearButton && options.clearEventName) elements.clearButton.addEventListener('click', onClear);
 
     return {
         update(model: EmptyStateViewModel): void {
@@ -72,6 +70,11 @@ export function createEmptyStateController(options: EmptyStateControllerOptions)
             if ((!elements.title || !elements.message) && typeof model.fallbackText === 'string') {
                 elements.root.textContent = model.fallbackText;
             }
+        },
+
+        dispose(): void {
+            if (elements.resetButton) elements.resetButton.removeEventListener('click', onReset);
+            if (elements.clearButton) elements.clearButton.removeEventListener('click', onClear);
         },
     };
 }

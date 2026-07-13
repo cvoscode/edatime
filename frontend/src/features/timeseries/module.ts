@@ -241,7 +241,13 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
     // is mounted against it. Anything that drives the timeseries page
     // (e.g. page-change handlers) must await this exact sequence.
     return {
-        mount: () => runtime.mount(),
+        mount: () => {
+            const disposeRuntime = runtime.mount();
+            return () => {
+                disposeRuntime();
+                pageController.dispose();
+            };
+        },
         ensureDatasetReady: () => bootstrap.ensureDatasetReady(),
         ensureReady,
         fetchAndRender: () => pageController.fetchAndRender(),

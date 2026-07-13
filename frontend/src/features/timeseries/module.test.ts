@@ -55,6 +55,7 @@ vi.mock('../../app/bootstrap/ensureTimeseriesReady.js', () => ({
 
 // ── Shared mock helpers ───────────────────────────────────────────────────────
 const mockPageController = () => ({
+    dispose: vi.fn(),
     emitChartRangeChange: vi.fn(),
     fetchAndRender: vi.fn().mockResolvedValue(undefined),
     onZoomRangeChange: vi.fn(),
@@ -275,9 +276,11 @@ describe('createTimeseriesModule', () => {
     // -------------------------------------------------------------------------
     it('mount() returns a cleanup function', async () => {
         const runtime = mockRuntime();
+        const pageController = mockPageController();
         const unregisterMock = vi.fn();
         runtime.mount.mockReturnValue(unregisterMock);
         mockCreateTimeseriesRuntime.mockReturnValue(runtime);
+        mockCreateTimeseriesPageController.mockReturnValue(pageController);
 
         const { createTimeseriesModule } = await import('./module.js');
 
@@ -287,6 +290,7 @@ describe('createTimeseriesModule', () => {
         expect(typeof cleanup).toBe('function');
         cleanup();
         expect(unregisterMock).toHaveBeenCalled();
+        expect(pageController.dispose).toHaveBeenCalled();
     });
 
     it('ensureDatasetReady() returns a Promise', async () => {

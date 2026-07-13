@@ -522,7 +522,15 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         setFetchDebounceId(setTimeout(fetchAndRender, delayMs));
     }
 
+    function dispose(): void {
+        task.cancel();
+        if (runtimeState.fetchDebounceId) clearTimeout(runtimeState.fetchDebounceId);
+        timeseriesEmptyStateController?.dispose();
+        timeseriesEmptyStateController = null;
+    }
+
     return {
+        dispose,
         emitChartRangeChange,
         fetchAndRender,
         onZoomRangeChange,

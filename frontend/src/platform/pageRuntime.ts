@@ -65,6 +65,8 @@ export function createPageRuntime(options: PageRuntimeOptions): PageRuntime {
                 unregister();
                 if (typeof cleanup === 'function') cleanup();
                 cleanup = undefined;
+                emptyStateController?.dispose();
+                emptyStateController = null;
                 mounted = false;
             };
         },

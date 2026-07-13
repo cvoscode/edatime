@@ -152,4 +152,21 @@ describe('createEmptyStateController', () => {
 
         window.removeEventListener('edatime:request-chart-range-reset', listener);
     });
+
+    it('releases configured action listeners when disposed', () => {
+        document.body.innerHTML = '<button id="timeseries-reset-range-btn" type="button">Reset</button>';
+        const listener = vi.fn();
+        window.addEventListener('edatime:request-chart-range-reset', listener);
+        const controller = createEmptyStateController({
+            rootId: 'missing-empty-state',
+            resetButtonId: 'timeseries-reset-range-btn',
+            resetEventName: 'edatime:request-chart-range-reset',
+        });
+
+        controller.dispose();
+        document.getElementById('timeseries-reset-range-btn')?.click();
+
+        expect(listener).not.toHaveBeenCalled();
+        window.removeEventListener('edatime:request-chart-range-reset', listener);
+    });
 });
