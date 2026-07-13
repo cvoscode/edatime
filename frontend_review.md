@@ -225,6 +225,7 @@ Continue this behavior-preserving split with the remaining renderer-owned seams:
 
 - Extracted correlation color interpolation, fitted-domain policy, semantic cell styling, scale-label formatting, and HTML-attribute escaping into `colorScale`, with direct positive/negative/domain/accessibility coverage.
 - The renderer continues to own DOM/grid composition while consuming this deterministic presentation policy.
+- Extracted matrix selection (including legacy raw-field normalization), metric compatibility guidance, and compact status construction into `matrixPolicy`, giving the renderer a single authoritative metric-data decision seam.
 - Next, split the remaining request-payload and timeline-summary presentation seams only where the resulting boundary reduces page-controller ownership.
 
 ## Target Architecture

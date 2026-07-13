@@ -22,6 +22,11 @@ import {
     formatScaleTick,
     getColorDomainMax,
 } from './colorScale.js';
+import {
+    buildHeatmapStatus,
+    getSelectedCorrelationMatrix,
+    getUnsupportedMetricMessage,
+} from './matrixPolicy.js';
 
 interface HeatmapPageDeps {
     showPage: (pageName: string) => void;
@@ -105,29 +110,6 @@ function setHeatmapLoading(loading: boolean, label?: string): void {
     }
 }
 
-function buildHeatmapStatus(clusterCount: number | null): string {
-    if (!matrixData) return '';
-    const cols = matrixData.columns.length;
-    return clusterCount !== null
-        ? `${clusterCount} clusters · ${cols} columns · ${heatmapCellSize}px cells`
-        : `${cols} columns · ${heatmapCellSize}px cells`;
-}
-
-function getUnsupportedMetricMessage(nextMetric: CorrelationMetric): string {
-    return `${getCorrelationModeLabel(nextMetric)} requires the updated server payload. Restart the server to use Kendall tau and first-difference correlation modes.`;
-}
-
-function getSelectedMatrix(
-    data: CorrelationMatrixResponse,
-    nextMetric: CorrelationMetric,
-): (number | null)[][] | null {
-    const selected = data[nextMetric];
-    if (selected) return selected;
-    if (nextMetric === 'pearson_raw') return data.pearson ?? null;
-    if (nextMetric === 'spearman_raw') return data.spearman ?? null;
-    return null;
-}
-
 function syncMetricGuide(): void {
     const infoIcon = document.getElementById('heatmap-metric-info');
     if (!infoIcon) return;
@@ -188,7 +170,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
         }
 
         const columns = matrixData.columns;
-        const data = getSelectedMatrix(matrixData, metric);
+        const data = getSelectedCorrelationMatrix(matrixData, metric);
         const size = columns.length;
         if (size === 0) {
             container.innerHTML = '';
@@ -546,7 +528,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
             });
         }
 
-        heatmapRuntime?.updateStatus(`${getCorrelationModeLabel(metric)} · ${buildHeatmapStatus(clusterCount)}`);
+        heatmapRuntime?.updateStatus(`${getCorrelationModeLabel(metric)} · ${buildHeatmapStatus(columns.length, heatmapCellSize, clusterCount)}`);
     }
 
     heatmapRuntime = createAnalysisPageRuntime({
@@ -561,12 +543,12 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
             html: { fn: (filename) => exportElementHTML('heatmap-container', filename), filename: 'edatime_heatmap.html' },
             csv: {
                 fn: (filename) => {
-                    const data = matrixData ? getSelectedMatrix(matrixData, metric) : null;
+                    const data = matrixData ? getSelectedCorrelationMatrix(matrixData, metric) : null;
                     if (!matrixData || !data) return;
                     exportMatrixCSV(matrixData!.columns, data, filename);
                 },
                 filename: `edatime_correlation_${metric}.csv`,
-                dataCheck: () => matrixData != null && getSelectedMatrix(matrixData, metric) != null,
+                dataCheck: () => matrixData != null && getSelectedCorrelationMatrix(matrixData, metric) != null,
             },
         },
         init() {
