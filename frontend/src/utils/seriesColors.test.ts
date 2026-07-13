@@ -12,12 +12,14 @@
 
 import { describe, expect, it, beforeEach } from 'vitest';
 import {
-    SERIES_COLORS,
     SERIES_TARGET_ACCENT,
+    getActiveSeriesPalette,
     getSeriesColor,
+    getSeriesPalette,
     getTargetAccent,
     isLikelyTargetColumn,
     normalizeSeriesColor,
+    setActiveSeriesPalette,
     setSeriesColor,
 } from './seriesColors.js';
 import { setSeriesColors, uiState } from '../store/uiState.js';
@@ -26,17 +28,19 @@ describe('seriesColors', () => {
     beforeEach(() => {
         // Reset the per-column overrides so tests are independent.
         setSeriesColors({});
+        setActiveSeriesPalette('default');
     });
 
     it('exposes at least 10 distinct colors so 7-series datasets get unique hues', () => {
-        expect(SERIES_COLORS.length).toBeGreaterThanOrEqual(10);
+        const palette = getActiveSeriesPalette();
+        expect(palette.length).toBeGreaterThanOrEqual(10);
         // All entries must be 6-digit lowercase hex strings.
-        for (const color of SERIES_COLORS) {
+        for (const color of palette) {
             expect(color).toMatch(/^#[0-9a-f]{6}$/);
         }
         // All entries must be pairwise distinct so the palette actually
-        // provides `SERIES_COLORS.length` unique colors.
-        expect(new Set(SERIES_COLORS).size).toBe(SERIES_COLORS.length);
+        // provides one unique hue for each active-palette slot.
+        expect(new Set(palette).size).toBe(palette.length);
     });
 
     it('returns a unique color for each of the first 7 numeric columns', () => {
@@ -52,14 +56,15 @@ describe('seriesColors', () => {
         setSeriesColor('HUFL', '#abcdef');
         expect(getSeriesColor('HUFL', 0)).toBe('#abcdef');
         // The override does not affect other columns.
-        expect(getSeriesColor('HULL', 1)).toBe(SERIES_COLORS[1]);
+        expect(getSeriesColor('HULL', 1)).toBe(getActiveSeriesPalette()[1]);
     });
 
     it('cycles through the palette for high-indexed columns', () => {
         // With 12 colors and index 12 we should wrap back to color 0.
-        expect(getSeriesColor('a', 0)).toBe(SERIES_COLORS[0]);
-        expect(getSeriesColor('a', 12)).toBe(SERIES_COLORS[0]);
-        expect(getSeriesColor('a', 13)).toBe(SERIES_COLORS[1]);
+        const palette = getActiveSeriesPalette();
+        expect(getSeriesColor('a', 0)).toBe(palette[0]);
+        expect(getSeriesColor('a', 12)).toBe(palette[0]);
+        expect(getSeriesColor('a', 13)).toBe(palette[1]);
     });
 
     it('rejects malformed color strings via the public setter', () => {
@@ -77,7 +82,7 @@ describe('seriesColors', () => {
 
     it('exposes a stable target-accent color that is distinct from any palette entry', () => {
         expect(SERIES_TARGET_ACCENT).toMatch(/^#[0-9a-f]{6}$/);
-        expect(SERIES_COLORS).not.toContain(SERIES_TARGET_ACCENT);
+        expect(getActiveSeriesPalette()).not.toContain(SERIES_TARGET_ACCENT);
     });
 
     it('returns the target accent for known target columns and the palette for the rest', () => {
@@ -90,6 +95,15 @@ describe('seriesColors', () => {
         expect(isLikelyTargetColumn('')).toBe(false);
 
         expect(getTargetAccent('OT', 0)).toBe(SERIES_TARGET_ACCENT);
-        expect(getTargetAccent('HUFL', 1)).toBe(SERIES_COLORS[1]);
+        expect(getTargetAccent('HUFL', 1)).toBe(getActiveSeriesPalette()[1]);
+    });
+
+    it('switches every fallback resolver to the selected global palette', () => {
+        setActiveSeriesPalette('ocean');
+
+        expect(getActiveSeriesPalette()).toEqual(getSeriesPalette('ocean'));
+        expect(getSeriesColor('unconfigured', 2)).toBe(getSeriesPalette('ocean')[2]);
+        expect(setActiveSeriesPalette('unknown')).toBe('default');
+        expect(getActiveSeriesPalette()).toEqual(getSeriesPalette('default'));
     });
 });

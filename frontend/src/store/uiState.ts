@@ -45,30 +45,6 @@ export const uiState: UiState = {
     profileGridColWidths: [56, 220, 120, 140, 100, 130, 130, 260],
 };
 
-/* ── Series color helpers ───────────────────────────────── */
-
-import { SERIES_COLORS } from '../utils/seriesColors.js';
-
-function normalizeSeriesColor(value: unknown): string | null {
-    const text = String(value || '').trim();
-    return /^#[0-9a-fA-F]{6}$/.test(text) ? text.toLowerCase() : null;
-}
-
-export function getSeriesColor(column: string, fallbackIndex = 0): string {
-    const name = String(column || '').trim();
-    const custom = normalizeSeriesColor(uiState.seriesColors?.[name]);
-    if (custom) return custom;
-    return SERIES_COLORS[Math.abs(fallbackIndex) % SERIES_COLORS.length];
-}
-
-export function setSeriesColor(column: string, value: string): string | null {
-    const name = String(column || '').trim();
-    const normalized = normalizeSeriesColor(value);
-    if (!name || !normalized) return null;
-    setSeriesColors({ ...uiState.seriesColors, [name]: normalized });
-    return normalized;
-}
-
 export function setAdaptiveFilterColumn(col: string | null): void {
     const previous = uiState.adaptiveFilterColumn;
     uiState.adaptiveFilterColumn = col;

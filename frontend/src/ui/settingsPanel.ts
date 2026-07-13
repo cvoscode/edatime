@@ -15,10 +15,10 @@ import {
     saveSettings,
     applyTheme,
     applyLayoutDensity,
-    CHART_PALETTES,
+    applyDefaultPalette,
     DEFAULT_SETTINGS,
 } from '../utils/settings.js';
-import { SERIES_COLORS } from '../utils/seriesColors.js';
+import { getSeriesPalette } from '../utils/seriesColors.js';
 import { createModalController } from './shell/createModalController';
 import { getDropdownValue, setDropdownValue } from './primitives/Dropdown.js';
 import { initSettingsHelp } from './settingsHelp.js';
@@ -134,7 +134,7 @@ function collectSettingsFromForm(): AppSettings {
     return {
         theme: getSelectValue('settings-theme') as ThemeMode || DEFAULT_SETTINGS.theme,
         layoutDensity: getSelectValue('settings-layout') as LayoutDensity || DEFAULT_SETTINGS.layoutDensity,
-        defaultPalette: getSelectValue('settings-palette') || DEFAULT_SETTINGS.defaultPalette,
+        defaultPalette: (getSelectValue('settings-palette') as AppSettings['defaultPalette']) || DEFAULT_SETTINGS.defaultPalette,
         defaultExportFormat: getSelectValue('settings-export-format') as ExportFormat || DEFAULT_SETTINGS.defaultExportFormat,
         whiteBackgroundExport: getCheckboxValue('settings-white-bg'),
         defaultCorrelationMetric: getSelectValue('settings-correlation') as CorrelationMetric || DEFAULT_SETTINGS.defaultCorrelationMetric,
@@ -162,13 +162,7 @@ function applySettings(): void {
     applyTheme(settings.theme);
     applyLayoutDensity(settings.layoutDensity);
 
-    // Update global palette if changed
-    if (CHART_PALETTES[settings.defaultPalette]) {
-        const palette = CHART_PALETTES[settings.defaultPalette];
-        // Update SERIES_COLORS in-place
-        SERIES_COLORS.length = 0;
-        SERIES_COLORS.push(...palette);
-    }
+    applyDefaultPalette(settings.defaultPalette);
 
     currentSettings = { ...settings };
     skipPreviewRevertOnClose = true;
@@ -190,7 +184,7 @@ function renderPalettePreview(paletteName: string): void {
     const container = document.getElementById('settings-palette-preview');
     if (!container) return;
 
-    const colors = CHART_PALETTES[paletteName] || CHART_PALETTES.default;
+    const colors = getSeriesPalette(paletteName);
     container.innerHTML = colors
         .map((color) => `<span class="palette-swatch" style="background:${color}" title="${color}"></span>`)
         .join('');

@@ -432,6 +432,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Added `utils/colorScales.ts` as the canonical owner of the shared Viridis, Plasma, Magma, Coolwarm, and Inferno palettes and interpolation policy.
 - Migrated Settings, Timeseries color-by rendering, and Scatter continuous palettes to consume that source. Scatter-only `blues` and `oranges` remain explicit feature extensions rather than competing copies of the shared scales.
 
+### Completed: global discrete series-palette ownership
+
+- Consolidated the persisted chart-palette setting, ChartGPU theme palette, Canvas fallback, FFT renderers, Timeseries chips/gesture picker, analytics chips, and Scatter categorical groups on `utils/seriesColors.ts`.
+- The palette utility now owns the named settings choices, active-palette state, validation, per-column overrides, and effective-color resolution. `uiState` retains only the override data; it no longer duplicates color normalization or resolution policy.
+- Removed the mutable `CHART_PALETTES` / `SERIES_COLORS` split. Settings applies one typed palette at startup and on Apply, and direct regressions prove settings, ChartGPU, and Scatter observe the same selection.
+
 ### Completed: Drift page decomposition
 
 - Extracted evaluation-mode normalization, latest-window validation, and response-map filtering into `evaluationPolicy` with direct behavior coverage.

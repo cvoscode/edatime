@@ -1,6 +1,6 @@
 import type { FrequencyPeak } from '../utils/spectralPresets.js';
 import { applySpectralScale, type SpectralScaleOptions } from '../utils/spectralScaling.js';
-import { SERIES_COLORS } from '../utils/seriesColors.js';
+import { getActiveSeriesPalette } from '../utils/seriesColors.js';
 
 export interface FftTrace {
     column: string;
@@ -44,6 +44,7 @@ export function buildFftDataModel(
     let sampleRateHz = 0;
     let nyquistHz = 0;
     let dominantPeaks: FrequencyPeak[] = [];
+    const palette = getActiveSeriesPalette();
     const series = traces.map((trace, index) => {
         for (const frequency of trace.frequencies) fullXMax = Math.max(fullXMax, Number(frequency) || 0);
         if (!sampleRateHz && trace.sample_rate_hz) sampleRateHz = trace.sample_rate_hz;
@@ -63,7 +64,7 @@ export function buildFftDataModel(
             const y = Number(scaled.displayValues[pointIndex]);
             if (Number.isFinite(x) && Number.isFinite(y)) points.push([x, y]);
         }
-        return { type: 'line' as const, name: trace.column, color: trace.color || SERIES_COLORS[index % SERIES_COLORS.length], data: points, _raw: raw, _preLog: preLog };
+        return { type: 'line' as const, name: trace.column, color: trace.color || palette[index % palette.length]!, data: points, _raw: raw, _preLog: preLog };
     });
     return { fullXMax: fullXMax > 0 ? fullXMax : 1, series, yMin, yMax, sampleRateHz, nyquistHz, dominantPeaks };
 }

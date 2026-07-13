@@ -11,6 +11,11 @@ import {
     type CorrelationMetric,
 } from './correlationModes.js';
 import type { ColorScaleName } from './colorScales.js';
+import {
+    normalizeSeriesPaletteName,
+    setActiveSeriesPalette,
+    type SeriesPaletteName,
+} from './seriesColors.js';
 export { COLOR_SCALES, getColorFromScale, type ColorScaleName } from './colorScales.js';
 
 export type ThemeMode = 'dark' | 'light' | 'auto';
@@ -22,7 +27,7 @@ export interface AppSettings {
     // Appearance
     theme: ThemeMode;
     layoutDensity: LayoutDensity;
-    defaultPalette: string;  // palette name
+    defaultPalette: SeriesPaletteName;
 
     // Export
     defaultExportFormat: ExportFormat;
@@ -61,16 +66,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
     analyticsDrawerOpen: false,
 };
 
-/** Predefined color palettes for charts */
-export const CHART_PALETTES: Record<string, string[]> = {
-    default: ['#00d4ff', '#6c63ff', '#00c896', '#f5a623', '#ff4a6e', '#c77dff'],
-    ocean: ['#00b4d8', '#0077b6', '#03045e', '#90e0ef', '#48cae4', '#023e8a'],
-    sunset: ['#ff7b00', '#ff8800', '#ff9500', '#ffa200', '#ffaa00', '#ffb700'],
-    forest: ['#2d6a4f', '#40916c', '#52b788', '#74c69d', '#95d5b2', '#b7e4c7'],
-    monochrome: ['#f8f9fa', '#e9ecef', '#dee2e6', '#ced4da', '#adb5bd', '#6c757d'],
-    neon: ['#ff00ff', '#00ffff', '#ff0080', '#80ff00', '#8000ff', '#00ff80'],
-};
-
 const STORAGE_KEY = 'edatime-settings';
 
 /** Load settings from localStorage, falling back to defaults. */
@@ -82,6 +77,7 @@ export function loadSettings(): AppSettings {
         return {
             ...DEFAULT_SETTINGS,
             ...parsed,
+            defaultPalette: normalizeSeriesPaletteName(parsed.defaultPalette),
             defaultCorrelationMetric: normalizeCorrelationMetric(parsed.defaultCorrelationMetric),
         };
     } catch {
@@ -141,10 +137,16 @@ export function applyLayoutDensity(density: LayoutDensity): void {
     document.documentElement.setAttribute('data-layout', density);
 }
 
+/** Apply the global discrete series palette used by every chart renderer. */
+export function applyDefaultPalette(palette: SeriesPaletteName): void {
+    setActiveSeriesPalette(palette);
+}
+
 /** Apply all settings at once. */
 export function applyAllSettings(settings: AppSettings): void {
     applyTheme(settings.theme);
     applyLayoutDensity(settings.layoutDensity);
+    applyDefaultPalette(settings.defaultPalette);
 }
 
 /** Initialize settings from storage and apply them. */

@@ -1,9 +1,8 @@
 /**
- * Shared series-color palette used across every chart surface (timeseries,
- * FFT, scatter, spectrogram, density). The previous 6-entry palette caused
- * the OT/HUFL color collision called out in `usage_issue.md` §1.1. This
- * module also exports the small helper API the rest of the frontend uses
- * to read/write per-column overrides through `uiState`.
+ * Shared discrete series-color policy used across every chart surface.
+ * It owns the persisted palette choices, active palette, and per-column
+ * overrides; renderers must consume its resolver rather than maintain a
+ * page-local palette.
  *
  * The new palette is a curated set of 12 color-blind-safer hues taken from
  * the Wong/Okabe-Ito-style discrete palette, plus a deliberate "target"
@@ -16,31 +15,53 @@ import { uiState } from '../store/uiState.js';
 import { setSeriesColors } from '../store/uiState.js';
 
 /**
- * Default palette for series traces across pages. Indexed by zero-based
- * chip position — never by column name — so the same color can repeat if
- * the dataset has more than 12 numeric columns. All consumers should
- * reach this list via `getSeriesColor(column, fallbackIndex)` so per-column
- * overrides always win over the index-based fallback.
+ * Named palette choices exposed by Settings. Every chart renderer and chip
+ * uses the selected palette through `getActiveSeriesPalette` or
+ * `getSeriesColor`, so a setting applies consistently to primary and
+ * fallback renderers.
  */
-export const SERIES_COLORS: string[] = [
-    '#1f77b4', // blue
-    '#ff7f0e', // orange
-    '#2ca02c', // green
-    '#d62728', // red
-    '#9467bd', // purple
-    '#8c564b', // brown
-    '#e377c2', // pink
-    '#17becf', // cyan
-    '#bcbd22', // olive
-    '#393b79', // indigo
-    '#637939', // dark-green
-    '#7f7f7f', // grey
-];
+export const SERIES_PALETTES = {
+    default: [
+        '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
+        '#9467bd', '#8c564b', '#e377c2', '#17becf',
+        '#bcbd22', '#393b79', '#637939', '#7f7f7f',
+    ],
+    ocean: ['#00b4d8', '#0077b6', '#03045e', '#90e0ef', '#48cae4', '#023e8a'],
+    sunset: ['#ff7b00', '#ff8800', '#ff9500', '#ffa200', '#ffaa00', '#ffb700'],
+    forest: ['#2d6a4f', '#40916c', '#52b788', '#74c69d', '#95d5b2', '#b7e4c7'],
+    monochrome: ['#f8f9fa', '#e9ecef', '#dee2e6', '#ced4da', '#adb5bd', '#6c757d'],
+    neon: ['#ff00ff', '#00ffff', '#ff0080', '#80ff00', '#8000ff', '#00ff80'],
+} as const;
+
+export type SeriesPaletteName = keyof typeof SERIES_PALETTES;
+
+let activePaletteName: SeriesPaletteName = 'default';
+
+export function isSeriesPaletteName(value: unknown): value is SeriesPaletteName {
+    return typeof value === 'string' && value in SERIES_PALETTES;
+}
+
+export function normalizeSeriesPaletteName(value: unknown): SeriesPaletteName {
+    return isSeriesPaletteName(value) ? value : 'default';
+}
+
+export function getSeriesPalette(name: unknown): readonly string[] {
+    return SERIES_PALETTES[normalizeSeriesPaletteName(name)];
+}
+
+export function setActiveSeriesPalette(name: unknown): SeriesPaletteName {
+    activePaletteName = normalizeSeriesPaletteName(name);
+    return activePaletteName;
+}
+
+export function getActiveSeriesPalette(): readonly string[] {
+    return SERIES_PALETTES[activePaletteName];
+}
 
 /**
  * Optional semantic accent used for the ETTm2-style "target" column (OT)
  * when `getDefaultTimeseriesColumns` decides the dataset has a canonical
- * target column. Distinct from any entry in `SERIES_COLORS`.
+ * target column. Distinct from the default active palette.
  */
 export const SERIES_TARGET_ACCENT = '#ff5e5e';
 
@@ -72,13 +93,14 @@ export function normalizeSeriesColor(value: unknown): string | null {
 
 /**
  * Get the effective color for a series column.
- * Returns the custom color if set, otherwise cycles through SERIES_COLORS.
+ * Returns the custom color if set, otherwise cycles through the active palette.
  */
 export function getSeriesColor(column: string, fallbackIndex = 0): string {
     const name = String(column || '').trim();
     const custom = normalizeSeriesColor(uiState.seriesColors?.[name]);
     if (custom) return custom;
-    return SERIES_COLORS[Math.abs(fallbackIndex) % SERIES_COLORS.length];
+    const palette = getActiveSeriesPalette();
+    return palette[Math.abs(fallbackIndex) % palette.length]!;
 }
 
 /**

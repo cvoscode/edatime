@@ -2,7 +2,7 @@
  * Scatter-page shared utilities: palettes, formatting, helpers.
  */
 
-import { SERIES_COLORS } from '../../utils/seriesColors.js';
+import { getActiveSeriesPalette } from '../../utils/seriesColors.js';
 import { isTemporalDtype } from '../../utils/format.js';
 import { formatTwoDecimals, formatTimestamp } from '../../formatUtils.js';
 import { escapeHtml, downloadUrl, downloadBlob, getEl } from '../../utils/dom.js';
@@ -14,10 +14,12 @@ export const HISTOGRAM_BINS = 24;
 export const DEFAULT_SCATTER_SUGGESTION_THRESHOLD = 0.7;
 const KDE_SAMPLES = 64;
 export const LOW_CARDINALITY_LIMIT = 8;
-export const DISTRIBUTION_GROUP_COLORS = [
-    ...SERIES_COLORS,
-    '#5ad8a6', '#ff9d4d', '#7ec8ff', '#f78fb3', '#9bde6d', '#ffd166',
-];
+export function getDistributionGroupColors(): string[] {
+    return [
+        ...getActiveSeriesPalette(),
+        '#5ad8a6', '#ff9d4d', '#7ec8ff', '#f78fb3', '#9bde6d', '#ffd166',
+    ];
+}
 
 export const fmt = new Intl.NumberFormat(undefined);
 
@@ -174,7 +176,8 @@ export function normalizeColorValues(values: number[] | null): number[] | null {
 }
 
 export function getCategoryColor(index: number): string {
-    return DISTRIBUTION_GROUP_COLORS[index % DISTRIBUTION_GROUP_COLORS.length];
+    const colors = getDistributionGroupColors();
+    return colors[index % colors.length]!;
 }
 
 export interface CategoricalColorGroups {

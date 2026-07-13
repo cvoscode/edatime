@@ -5,7 +5,7 @@
  * Timeseries public index.
  */
 
-import { SERIES_COLORS } from '../../utils/seriesColors.js';
+import { getSeriesColor } from '../../utils/seriesColors.js';
 import { applyFilterIntentToData, buildAdaptiveLineY } from '../../services/timeseries/filtering.js';
 import {
     setAdaptiveFilterColumn,
@@ -134,7 +134,7 @@ export function initAdaptiveFilterGesture(
         picker.appendChild(label);
 
         cols.forEach((col, idx) => {
-            const color = uiState.seriesColors[col] ?? SERIES_COLORS[idx % SERIES_COLORS.length];
+            const color = getSeriesColor(col, idx);
             const isCurrentTarget = col === uiState.adaptiveFilterColumn;
             const btn = document.createElement('button');
             btn.className = 'adaptive-trace-picker__option' + (isCurrentTarget ? ' current' : '');

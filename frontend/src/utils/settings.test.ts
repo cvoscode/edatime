@@ -1,10 +1,16 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { DEFAULT_SETTINGS, loadSettings, saveSettings } from './settings.js';
+import { DEFAULT_SETTINGS, initSettings, loadSettings, saveSettings } from './settings.js';
+import { getActiveSeriesPalette, getSeriesPalette, setActiveSeriesPalette } from './seriesColors.js';
 
 describe('settings correlation mode', () => {
+    beforeEach(() => {
+        setActiveSeriesPalette('default');
+    });
+
     afterEach(() => {
         localStorage.clear();
+        setActiveSeriesPalette('default');
     });
 
     it('rejects retired correlation aliases in favor of the canonical default', () => {
@@ -28,5 +34,14 @@ describe('settings correlation mode', () => {
         });
 
         expect(loadSettings().defaultCorrelationMetric).toBe('kendall_diff');
+    });
+
+    it('normalizes the stored palette and applies it as the global series palette', () => {
+        localStorage.setItem('edatime-settings', JSON.stringify({ defaultPalette: 'ocean' }));
+
+        const settings = initSettings();
+
+        expect(settings.defaultPalette).toBe('ocean');
+        expect(getActiveSeriesPalette()).toEqual(getSeriesPalette('ocean'));
     });
 });

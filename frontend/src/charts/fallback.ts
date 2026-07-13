@@ -3,7 +3,7 @@
  * Mirrors the ChartAdapter interface expected by the chart registry.
  */
 
-import { SERIES_COLORS } from '../utils/seriesColors.js';
+import { getActiveSeriesPalette } from '../utils/seriesColors.js';
 import type { ChartInstance, FilteredDataObject, CrosshairData, ClickData, ViewSnapshot } from '../types/chart.js';
 
 const FALLBACK_GRID = { left: 28, right: 28, top: 28, bottom: 28 };
@@ -231,11 +231,12 @@ export class FallbackChart implements ChartInstance {
         ctx.lineTo(pad, height - pad);
         ctx.stroke();
 
+        const palette = getActiveSeriesPalette();
         for (let s = 0; s < seriesToDraw.length; s++) {
             const { xs, ys } = seriesToDraw[s];
             ctx.beginPath();
             ctx.lineWidth = 1.5;
-            ctx.strokeStyle = SERIES_COLORS[s % SERIES_COLORS.length];
+            ctx.strokeStyle = palette[s % palette.length]!;
 
             let started = false;
             for (let i = 0; i < xs.length; i++) {

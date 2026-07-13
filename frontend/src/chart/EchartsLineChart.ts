@@ -4,7 +4,7 @@ import {
     formatFrequency,
 } from '../utils/spectralPresets.js';
 import { applySpectralScale } from '../utils/spectralScaling.js';
-import { SERIES_COLORS } from '../utils/seriesColors.js';
+import { getActiveSeriesPalette } from '../utils/seriesColors.js';
 
 export interface EchartsFftTrace {
     column: string;
@@ -18,11 +18,9 @@ export interface EchartsFftTrace {
 }
 
 /**
- * ECharts fallback uses the shared `SERIES_COLORS` palette so the FFT
+ * ECharts fallback uses the active shared series palette so the FFT
  * fallback chart matches the WebGPU primary on cross-page color changes.
  */
-const TRACE_COLORS = SERIES_COLORS;
-
 export class EchartsLineChart {
     private _containerId: string;
     private _container: HTMLElement | null = null;
@@ -55,6 +53,7 @@ export class EchartsLineChart {
         if (!this._chart) return;
 
         const opts = scaleOptions || { mode: 'none' as const, clip: 'none' as const, clipParam: 0.5 };
+        const palette = getActiveSeriesPalette();
         const series = traces.map((trace, index) => {
             const values = mode === 'psd' ? trace.psd : trace.magnitudes;
             const preLog: number[] = values.map((v) => {
@@ -69,7 +68,7 @@ export class EchartsLineChart {
                 showSymbol: false,
                 smooth: false,
                 lineStyle: { width: 1.5 },
-                itemStyle: { color: trace.color || TRACE_COLORS[index % TRACE_COLORS.length] },
+                itemStyle: { color: trace.color || palette[index % palette.length]! },
                 data: trace.frequencies.map((frequency, pointIndex) => {
                     const y = display[pointIndex];
                     return [frequency, y];

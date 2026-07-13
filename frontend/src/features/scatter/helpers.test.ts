@@ -16,10 +16,12 @@ import {
     MATRIX_MAX_COLUMNS,
     HISTOGRAM_BINS,
     LOW_CARDINALITY_LIMIT,
+    getDistributionGroupColors,
     normalizeScatterSuggestionThreshold,
     buildHistogramForDomain,
     drawMiniDensityCanvas,
 } from './helpers';
+import { getSeriesPalette, setActiveSeriesPalette } from '../../utils/seriesColors.js';
 
 class DensityMockContext2D {
     ops: string[] = [];
@@ -52,6 +54,14 @@ describe('scatter constants', () => {
         expect(MATRIX_MAX_COLUMNS).toBeGreaterThan(0);
         expect(HISTOGRAM_BINS).toBeGreaterThan(0);
         expect(LOW_CARDINALITY_LIMIT).toBeGreaterThan(0);
+    });
+
+    it('starts categorical groups with the active global series palette', () => {
+        setActiveSeriesPalette('forest');
+
+        expect(getDistributionGroupColors().slice(0, getSeriesPalette('forest').length)).toEqual(getSeriesPalette('forest'));
+
+        setActiveSeriesPalette('default');
     });
 });
 

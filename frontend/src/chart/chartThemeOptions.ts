@@ -1,10 +1,8 @@
-import { CHART_PALETTES, getSetting } from '../utils/settings.js';
+import { getActiveSeriesPalette } from '../utils/seriesColors.js';
 import { getChartPalette } from '../utils/theme.js';
 
 export function getChartGpuColorPalette(): string[] {
-    const paletteName = String(getSetting('defaultPalette') ?? 'default');
-    const colors = CHART_PALETTES[paletteName] ?? CHART_PALETTES.default;
-    return Array.isArray(colors) ? [...colors] : [...CHART_PALETTES.default];
+    return [...getActiveSeriesPalette()];
 }
 
 export function buildChartGpuTheme() {

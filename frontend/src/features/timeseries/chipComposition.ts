@@ -7,12 +7,11 @@
  * so the domain-to-item transformation stays testable and isolated.
  */
 import {
-    getSeriesColor,
     setAdaptiveFilterColumn,
     setPendingAdaptivePoint,
-    setSeriesColor,
     uiState,
 } from '../../store/uiState.js';
+import { getSeriesColor, setSeriesColor } from '../../utils/seriesColors.js';
 import { chartState } from '../../store/chartState.js';
 import { datasetState } from '../../store/datasetState.js';
 import { ensureAdaptiveTargetStillValid } from './columnSelection.js';
