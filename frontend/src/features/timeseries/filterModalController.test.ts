@@ -84,6 +84,17 @@ describe('initFilterModalController', () => {
             expect((window as any).__edatime?.openFilterForCol).toBeUndefined();
         });
 
+        it('releases its global opener when disposed', () => {
+            const dispose = initFilterModalController({
+                renderCurrentData: vi.fn(),
+                updateAnalysisYRange: vi.fn(),
+            });
+
+            expect(openFilterForColumn('HUFL')).toBe(true);
+            dispose();
+            expect(openFilterForColumn('HUFL')).toBe(false);
+        });
+
         it('populates column select with available columns', () => {
             const renderCurrentData = vi.fn();
             const updateAnalysisYRange = vi.fn();

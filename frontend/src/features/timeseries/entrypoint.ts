@@ -57,7 +57,8 @@ export function createTimeseriesEntrypoint(deps: TimeseriesFeatureDeps) {
         init(): () => void {
             if (initialized) return dispose;
             initialized = true;
-            initColumnFilterModal(deps.renderCurrentData, deps.updateAnalysisYRange, deps.workspace);
+            const disposeFilterModal = initColumnFilterModal(deps.renderCurrentData, deps.updateAnalysisYRange, deps.workspace);
+            if (typeof disposeFilterModal === 'function') registerCleanup(disposeFilterModal);
             initDatasetSearchInputs({
                 rebuildColumnToggles: rebuildColumns,
                 renderColumnProfilesGrid: deps.renderColumnProfilesGrid ?? (() => { }),

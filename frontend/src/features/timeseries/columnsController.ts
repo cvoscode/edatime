@@ -103,8 +103,8 @@ export function initColumnFilterModal(
     renderCurrentData: () => void,
     updateAnalysisYRange: (min: number, max: number, source: string) => void,
     workspace: FilterWorkspace,
-): void {
-    initFilterModalController({
+): () => void {
+    return initFilterModalController({
         renderCurrentData,
         updateAnalysisYRange,
         workspace,

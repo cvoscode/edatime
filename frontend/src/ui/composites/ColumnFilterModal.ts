@@ -13,6 +13,7 @@ export interface ColumnFilterModalBind {
     maxInput: HTMLInputElement;
     minRangeInput: HTMLInputElement;
     maxRangeInput: HTMLInputElement;
+    signal?: AbortSignal;
 }
 
 export interface ColumnFilterModalProps {
@@ -53,17 +54,17 @@ function bindColumnFilterModal(b: ColumnFilterModalBind, props: ColumnFilterModa
 
     applyBtn.addEventListener('click', () => {
         props.onApply(minInput.value, maxInput.value);
-    });
-    cancelBtn.addEventListener('click', () => props.onCancel?.());
-    closeBtn.addEventListener('click', () => props.onCancel?.());
+    }, { signal: b.signal });
+    cancelBtn.addEventListener('click', () => props.onCancel?.(), { signal: b.signal });
+    closeBtn.addEventListener('click', () => props.onCancel?.(), { signal: b.signal });
     root.addEventListener('click', (event) => {
         if (event.target === root) props.onCancel?.();
-    });
+    }, { signal: b.signal });
 
     const escapeHandler = (e: KeyboardEvent) => {
         if (!root.hidden && e.key === 'Escape') props.onCancel?.();
     };
-    document.addEventListener('keydown', escapeHandler);
+    document.addEventListener('keydown', escapeHandler, { signal: b.signal });
 
     return root;
 }

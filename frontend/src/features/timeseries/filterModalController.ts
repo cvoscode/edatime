@@ -16,7 +16,9 @@ export interface FilterModalControllerDeps {
     workspace?: FilterWorkspace;
 }
 
-export function initFilterModalController(deps: FilterModalControllerDeps): void {
+const activeModalBindings = new WeakMap<HTMLElement, () => void>();
+
+export function initFilterModalController(deps: FilterModalControllerDeps): () => void {
     const modal = document.getElementById('column-filter-modal') as HTMLElement | null;
     const closeBtn = document.getElementById('column-filter-close-btn');
     const cancelBtn = document.getElementById('column-filter-cancel-btn');
@@ -38,8 +40,10 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
         !modal || !closeBtn || !cancelBtn || !applyBtn || !clearBtn ||
         !colSelect || !minInput || !maxInput || !minRangeInput || !maxRangeInput ||
         !rangeFill || !rangeMinValue || !rangeMaxValue || !hint
-    ) return;
-    if (modal.dataset.bound) return;
+    ) return () => {};
+
+    const existingBinding = activeModalBindings.get(modal);
+    if (existingBinding) return existingBinding;
 
     const modalEl = modal;
     const closeButton = closeBtn;
@@ -55,6 +59,11 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
     const rangeMinValueEl = rangeMinValue;
     const rangeMaxValueEl = rangeMaxValue;
     const hintEl = hint;
+    const abortController = new AbortController();
+    const { signal } = abortController;
+    const listen = (target: EventTarget, type: string, listener: EventListener) => {
+        target.addEventListener(type, listener, { signal });
+    };
 
     let activeBounds: { min: number; max: number } | null = null;
 
@@ -273,7 +282,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
     registerFilterModalOpener(openModalForCol);
 
     for (const btn of openBtns) {
-        btn.addEventListener('click', () => openModalForCol(null));
+        listen(btn, 'click', () => openModalForCol(null));
     }
 
     // Wire the modal event shell via the canonical ColumnFilterModal bind surface.
@@ -289,6 +298,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
             maxInput: maxTextInput,
             minRangeInput: minSliderInput,
             maxRangeInput: maxSliderInput,
+            signal,
         },
         onApply: (from: string, to: string) => {
             const col = getDropdownValue('column-filter-col');
@@ -317,13 +327,13 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
         onCancel: closeModal,
     });
 
-    columnSelect.addEventListener('change', () => refreshInputsForCol(getDropdownValue('column-filter-col')));
-    minTextInput.addEventListener('input', syncFromNumericInputs);
-    maxTextInput.addEventListener('input', syncFromNumericInputs);
-    minSliderInput.addEventListener('input', () => syncFromRangeInputs('min'));
-    maxSliderInput.addEventListener('input', () => syncFromRangeInputs('max'));
+    listen(columnSelect, 'change', () => refreshInputsForCol(getDropdownValue('column-filter-col')));
+    listen(minTextInput, 'input', syncFromNumericInputs);
+    listen(maxTextInput, 'input', syncFromNumericInputs);
+    listen(minSliderInput, 'input', () => syncFromRangeInputs('min'));
+    listen(maxSliderInput, 'input', () => syncFromRangeInputs('max'));
 
-    clearButton.addEventListener('click', () => {
+    listen(clearButton, 'click', () => {
         const col = getDropdownValue('column-filter-col');
         const full = getFullBoundsForCol(col);
         if (!col || !full) return;
@@ -338,4 +348,15 @@ export function initFilterModalController(deps: FilterModalControllerDeps): void
     });
 
     modalEl.dataset.bound = '1';
+    let disposed = false;
+    const dispose = () => {
+        if (disposed) return;
+        disposed = true;
+        abortController.abort();
+        modalEl.removeAttribute('data-bound');
+        activeModalBindings.delete(modalEl);
+        registerFilterModalOpener(null);
+    };
+    activeModalBindings.set(modalEl, dispose);
+    return dispose;
 }
