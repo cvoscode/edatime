@@ -19,6 +19,7 @@ import { createAnalysisPageRuntime } from '../../platform/analysisRuntime.js';
 import { initFftHelp } from './help.js';
 import { buildFftFilterCutoffState, buildFftScaleOptions } from './fftControls.js';
 import { buildFftSpectralInfo } from './fftSpectralInfo.js';
+import { buildFftFilterRequest } from './fftFilterRequest.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 interface FftPageDeps {
@@ -498,19 +499,17 @@ export async function initFftPage(deps: FftPageDeps): Promise<void> {
 
                 if (statusEl) statusEl.textContent = 'Computing…';
                 try {
-                    const start = chartState.currentStart;
-                    const end = chartState.currentEnd;
-                    if (start == null || end == null || !Number.isFinite(start) || !Number.isFinite(end)) {
+                    const params = buildFftFilterRequest({
+                        startMs: chartState.currentStart,
+                        endMs: chartState.currentEnd,
+                        column,
+                        filterType,
+                        lowHz,
+                        highHz,
+                    });
+                    if (!params) {
                         throw new Error('No range selected');
                     }
-                    const params = new URLSearchParams({
-                        start: new Date(start).toISOString(),
-                        end: new Date(end).toISOString(),
-                        column,
-                        filter_type: filterType,
-                        ...(lowHz !== undefined ? { low_hz: String(lowHz) } : {}),
-                        ...(highHz !== undefined ? { high_hz: String(highHz) } : {}),
-                    });
                     const data = await fetchSpectralFilter(params);
                     setSpectralFilterPreview({
                         column: data.column,
