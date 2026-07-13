@@ -697,6 +697,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - The shell injects the current workspace viewport into the annotation panel alongside its already-owned redraw action, so annotation creation has no direct chart-state dependency.
 - Session restore publishes the clamped range only to the canonical workspace before Timeseries rendering resumes; the controller remains responsible for realizing that intent on its owned chart.
 
+### Completed: analysis-page viewport consumer migration
+
+- FFT trace loading and spectral-filter requests now resolve their time range from `WorkspaceStore.viewport`, with dataset metadata supplying only the full-dataset fallback when no viewport has been published. Reinitialization assigns the injected workspace after resetting page-local state, so the feature cannot silently discard its composition dependency.
+- Spectrogram compute and initial auto-compute follow the same workspace-owned viewport path. The retired global chart-range fallback is gone from the runtime; when no viewport exists, its only fallback is the current dataset's declared time range.
+- Characterization coverage now injects a conflicting workspace viewport and verifies the exact ISO bounds sent by both feature APIs, including Spectrogram's `131072` point budget. This guards against reintroducing global chart-state reads during later analysis-feature work.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.

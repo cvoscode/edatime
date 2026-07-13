@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { emitNavigationChange } from '../../platform/navigationEvents.js';
+import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 
 const fftChartInstance = {
     init: vi.fn(async () => undefined),
@@ -109,9 +110,7 @@ describe('initFftPage', () => {
             }],
         }));
 
-        const [{ chartState }, { datasetState }] = await Promise.all([
-            import('../../store/chartState.js'), import('../../store/datasetState.js'),
-        ]);
+        const { datasetState } = await import('../../store/datasetState.js');
         datasetState.metadata = {
             total_rows: 10,
             columns: [],
@@ -120,17 +119,24 @@ describe('initFftPage', () => {
             time_range: { min: 0, max: 1000 },
             column_profiles: [],
         } as any;
-        chartState.currentStart = 0;
-        chartState.currentEnd = 1000;
+        const workspace = createWorkspaceStore();
+        workspace.setViewport({ xMin: 200, xMax: 800, yMin: null, yMax: null });
 
         const { initFftPage } = await import('./page');
-        await initFftPage({ renderTimeseries: vi.fn() });
+        await initFftPage({ renderTimeseries: vi.fn(), workspace });
         emitNavigationChange({ page: 'fft' });
 
         expect(fftChartInstance.init).toHaveBeenCalledTimes(1);
         await vi.waitFor(() => {
             expect(fetchFftMock).toHaveBeenCalledTimes(2);
         });
+        expect(fetchFftMock).toHaveBeenNthCalledWith(
+            1,
+            new Date(200).toISOString(),
+            new Date(800).toISOString(),
+            expect.any(String),
+            131072,
+        );
 
         expect(document.querySelectorAll('.fft-trace-chip')).toHaveLength(3);
         const firstChip = document.querySelector<HTMLElement>('.fft-trace-chip')!;

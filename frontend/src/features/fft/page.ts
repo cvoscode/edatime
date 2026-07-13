@@ -233,8 +233,18 @@ async function ensureFftChartReady(): Promise<void> {
     await fftChartReady;
 }
 
+function getFftViewport(): { startMs: number; endMs: number } | null {
+    const timeRange = workspace?.getSnapshot().dataset.metadata?.time_range
+        ?? datasetState.metadata?.time_range;
+    return resolveFftViewport(
+        workspace?.getSnapshot().viewport,
+        Number(timeRange?.min),
+        Number(timeRange?.max),
+    );
+}
+
 async function fetchAndAddTrace(column: string): Promise<void> {
-    const viewport = resolveFftViewport(workspace?.getSnapshot().viewport, chartState.currentStart, chartState.currentEnd);
+    const viewport = getFftViewport();
     if (!viewport) return;
     // ETTm2's 69,680-row 15-min dataset was being stride-downsampled to
     // 8192 points, which collapsed the FFT X-axis to ~17-69 nHz and made
@@ -353,8 +363,8 @@ function renderChips(): void {
 }
 
 export async function initFftPage(deps: FftPageDeps): Promise<() => void> {
-    workspace = deps.workspace ?? null;
     resetFftPageState();
+    workspace = deps.workspace ?? null;
 
     const modeSelect = document.getElementById('fft-mode-select') as HTMLElement | null;
     const logCheck = document.getElementById('fft-log-scale') as HTMLInputElement | null;
@@ -493,9 +503,10 @@ export async function initFftPage(deps: FftPageDeps): Promise<() => void> {
 
                 if (statusEl) statusEl.textContent = 'Computing…';
                 try {
+                    const viewport = getFftViewport();
                     const params = buildFftFilterRequest({
-                        startMs: chartState.currentStart,
-                        endMs: chartState.currentEnd,
+                        startMs: viewport?.startMs ?? null,
+                        endMs: viewport?.endMs ?? null,
                         column,
                         filterType,
                         lowHz,

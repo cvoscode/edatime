@@ -8,7 +8,6 @@
  * exposes the same interface as other analysis page runtimes.
  */
 import { fetchSpectrogram, type SpectrogramResult } from '../../services/api/index.js';
-import { chartState } from '../../store/chartState.js';
 import { datasetState } from '../../store/datasetState.js';
 import { exportEChartsPNG, exportEChartsSVG, exportEChartsHTML } from '../../utils/chartExport.js';
 import {
@@ -70,6 +69,16 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
     const workspaceSnapshot = () => deps.workspace?.getSnapshot();
     const workspaceMetadata = () => workspaceSnapshot()?.dataset.metadata ?? datasetState.metadata;
     const workspaceViewport = () => workspaceSnapshot()?.viewport;
+    const currentViewport = () => {
+        const viewport = workspaceViewport();
+        if (Number.isFinite(viewport?.xMin) && Number.isFinite(viewport?.xMax)) return viewport;
+        const timeRange = workspaceMetadata()?.time_range;
+        const start = Number(timeRange?.min);
+        const end = Number(timeRange?.max);
+        return Number.isFinite(start) && Number.isFinite(end) && start < end
+            ? { xMin: start, xMax: end, yMin: null, yMax: null }
+            : null;
+    };
 
     const getSpectrogramWinCustomInput = () => document.getElementById('spectrogram-win-size-custom') as HTMLInputElement | null;
     const getSpectrogramHopCustomInput = () => document.getElementById('spectrogram-hop-size-custom') as HTMLInputElement | null;
@@ -246,9 +255,9 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     syncSpectrogramEmptyState('Pick a numeric column and click Compute to generate the spectrogram.');
                     return;
                 }
-                const viewport = workspaceViewport();
-                const startMs = viewport?.xMin ?? chartState.currentStart;
-                const endMs = viewport?.xMax ?? chartState.currentEnd;
+                const viewport = currentViewport();
+                const startMs = viewport?.xMin;
+                const endMs = viewport?.xMax;
                 const winSize = getResolvedSpectrogramWindowSize();
                 const hopSize = getResolvedSpectrogramHopSize(winSize);
                 const normalize = (getDropdownValue('spectrogram-normalize') || 'zscore') as ScaleMode;
@@ -311,8 +320,8 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             const maybeAutoComputeSpectrogram = () => {
                 if (autoComputeStarted || spectrogramResult) return;
                 if (!getDropdownValue('spectrogram-col-select')) return;
-                const viewport = workspaceViewport();
-                if (!Number.isFinite(viewport?.xMin ?? chartState.currentStart) || !Number.isFinite(viewport?.xMax ?? chartState.currentEnd)) return;
+                const viewport = currentViewport();
+                if (!Number.isFinite(viewport?.xMin) || !Number.isFinite(viewport?.xMax)) return;
                 autoComputeStarted = true;
                 if (!autoComputeExplained) {
                     autoComputeExplained = true;

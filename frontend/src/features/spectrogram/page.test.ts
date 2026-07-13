@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { chartState } from '../../store/chartState.js';
 import { getDropdownController } from '../../ui/primitives/Dropdown.js';
+import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
+
+function createViewportWorkspace(xMin = 0, xMax = 1e6) {
+    const workspace = createWorkspaceStore();
+    workspace.setViewport({ xMin, xMax, yMin: null, yMax: null });
+    return workspace;
+}
 
 function disposeSpectrogramDropdowns(): void {
     for (const id of [
@@ -151,15 +157,13 @@ describe('spectrogramPage', () => {
     it('replaces the previous runtime before reinitializing the lazy page', async () => {
         const { fetchSpectrogram } = await import('../../services/api/index.js');
         const { initSpectrogramPage } = await import('./page.js');
-        chartState.currentStart = Number.NaN;
-        chartState.currentEnd = Number.NaN;
+        const workspace = createViewportWorkspace(Number.NaN, Number.NaN);
 
-        await initSpectrogramPage({ setLoading: vi.fn() });
-        await initSpectrogramPage({ setLoading: vi.fn() });
+        await initSpectrogramPage({ setLoading: vi.fn(), workspace });
+        await initSpectrogramPage({ setLoading: vi.fn(), workspace });
         const fetchMock = vi.mocked(fetchSpectrogram);
         fetchMock.mockClear();
-        chartState.currentStart = 0;
-        chartState.currentEnd = 1e6;
+        workspace.setViewport({ xMin: 0, xMax: 1e6, yMin: null, yMax: null });
 
         (document.getElementById('spectrogram-compute-btn') as HTMLButtonElement).click();
         await Promise.resolve();
@@ -291,10 +295,9 @@ describe('spectrogramPage colorbar filter', () => {
     });
 
     async function mountAndCompute(): Promise<void> {
-        chartState.currentStart = 0;
-        chartState.currentEnd = 1e6;
+        const workspace = createViewportWorkspace(200, 800);
         const { initSpectrogramPage } = await import('./page.js');
-        await initSpectrogramPage({ setLoading: vi.fn() });
+        await initSpectrogramPage({ setLoading: vi.fn(), workspace });
         for (let i = 0; i < 30; i += 1) {
             await new Promise((resolve) => setTimeout(resolve, 0));
         }
@@ -377,16 +380,25 @@ describe('spectrogramPage colorbar filter', () => {
     it('auto-computes on first load when a default column is already selected', async () => {
         const { fetchSpectrogram } = await import('../../services/api/index.js');
         const beforeCalls = vi.mocked(fetchSpectrogram).mock.calls.length;
-        chartState.currentStart = 0;
-        chartState.currentEnd = 1e6;
+        const workspace = createViewportWorkspace(200, 800);
 
         const { initSpectrogramPage } = await import('./page.js');
-        await initSpectrogramPage({ setLoading: vi.fn() });
+        await initSpectrogramPage({ setLoading: vi.fn(), workspace });
         for (let i = 0; i < 30; i += 1) {
             await new Promise((resolve) => setTimeout(resolve, 0));
         }
 
         expect(vi.mocked(fetchSpectrogram).mock.calls.length).toBe(beforeCalls + 1);
+        expect(vi.mocked(fetchSpectrogram)).toHaveBeenLastCalledWith(
+            new Date(200).toISOString(),
+            new Date(800).toISOString(),
+            'HUFL',
+            96,
+            48,
+            131072,
+            undefined,
+            expect.objectContaining({ normalize: 'zscore' }),
+        );
         expect(toastMock).toHaveBeenCalledWith(
             'Loaded HUFL automatically. Pick another column and press Compute to switch.',
             'info',
@@ -424,11 +436,10 @@ describe('spectrogramPage colorbar filter', () => {
     it('reveals custom window and hop inputs and sends absolute sample values on Compute', async () => {
         const { fetchSpectrogram } = await import('../../services/api/index.js');
         const { setDropdownValue } = await import('../../ui/primitives/Dropdown.js');
-        chartState.currentStart = 0;
-        chartState.currentEnd = 1e6;
+        const workspace = createViewportWorkspace();
 
         const { initSpectrogramPage } = await import('./page.js');
-        await initSpectrogramPage({ setLoading: vi.fn() });
+        await initSpectrogramPage({ setLoading: vi.fn(), workspace });
         for (let i = 0; i < 10; i += 1) {
             await new Promise((resolve) => setTimeout(resolve, 0));
         }
@@ -463,12 +474,11 @@ describe('spectrogramPage colorbar filter', () => {
     it('renders normalized spectrogram values even when log scale remains checked', async () => {
         const { fetchSpectrogram } = await import('../../services/api/index.js');
         const { setDropdownValue } = await import('../../ui/primitives/Dropdown.js');
-        chartState.currentStart = 0;
-        chartState.currentEnd = 1e6;
+        const workspace = createViewportWorkspace();
 
         const fetchMock = vi.mocked(fetchSpectrogram);
         const { initSpectrogramPage } = await import('./page.js');
-        await initSpectrogramPage({ setLoading: vi.fn() });
+        await initSpectrogramPage({ setLoading: vi.fn(), workspace });
         for (let i = 0; i < 20; i += 1) {
             await new Promise((resolve) => setTimeout(resolve, 0));
         }
