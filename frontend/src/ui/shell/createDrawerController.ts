@@ -33,19 +33,29 @@ export function createDrawerController(opts: {
     };
 
     // Bind toggle buttons
-    for (const id of opts.toggleButtonIds) {
-        document.getElementById(id)?.addEventListener('click', toggle);
-    }
+    const toggleButtons = opts.toggleButtonIds
+        .map((id) => document.getElementById(id))
+        .filter((button): button is HTMLElement => !!button);
+    for (const button of toggleButtons) button.addEventListener('click', toggle);
 
     // Backdrop click to close
-    drawer?.addEventListener('click', (event) => {
+    const onBackdropClick = (event: Event) => {
         if (event.target === drawer) close();
-    });
+    };
+    drawer?.addEventListener('click', onBackdropClick);
 
     // Escape key to close
-    document.addEventListener('keydown', (e) => {
+    const onKeydown = (e: KeyboardEvent) => {
         if (e.key === 'Escape' && _isOpen) close();
-    });
+    };
+    document.addEventListener('keydown', onKeydown);
 
-    return { open, close, toggle, isOpen };
+    const dispose = () => {
+        close();
+        for (const button of toggleButtons) button.removeEventListener('click', toggle);
+        drawer?.removeEventListener('click', onBackdropClick);
+        document.removeEventListener('keydown', onKeydown);
+    };
+
+    return { open, close, toggle, isOpen, dispose };
 }

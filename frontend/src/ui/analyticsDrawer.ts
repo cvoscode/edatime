@@ -5,23 +5,37 @@
 
 import { createDrawerController } from './shell/createDrawerController';
 
-const controller = createDrawerController({
-    drawerId: 'analytics-drawer',
-    toggleButtonIds: ['open-analytics-panel-btn'],
-});
+let controller: ReturnType<typeof createDrawerController> | null = null;
+let disposeAnalyticsDrawer: (() => void) | null = null;
 
-export function initAnalyticsDrawer(): void {
-    const closeButton = document.getElementById('analytics-close-btn') as HTMLButtonElement | null;
-    if (closeButton && !closeButton.dataset.bound) {
-        closeButton.addEventListener('click', controller.close);
-        closeButton.dataset.bound = '1';
+function getController() {
+    if (!controller) {
+        controller = createDrawerController({
+            drawerId: 'analytics-drawer',
+            toggleButtonIds: ['open-analytics-panel-btn'],
+        });
     }
-
-    // Always normalize runtime state before the user explicitly opens it.
-    controller.close();
+    return controller;
 }
 
-export const openDrawer = controller.open;
-export const closeDrawer = controller.close;
-export const toggleDrawer = controller.toggle;
-export { controller };
+export function initAnalyticsDrawer(): () => void {
+    if (disposeAnalyticsDrawer) return disposeAnalyticsDrawer;
+    const activeController = getController();
+    const closeButton = document.getElementById('analytics-close-btn') as HTMLButtonElement | null;
+    closeButton?.addEventListener('click', activeController.close);
+
+    // Always normalize runtime state before the user explicitly opens it.
+    activeController.close();
+    const dispose = () => {
+        closeButton?.removeEventListener('click', activeController.close);
+        activeController.dispose();
+        controller = null;
+        if (disposeAnalyticsDrawer === dispose) disposeAnalyticsDrawer = null;
+    };
+    disposeAnalyticsDrawer = dispose;
+    return dispose;
+}
+
+export const openDrawer = () => getController().open();
+export const closeDrawer = () => getController().close();
+export const toggleDrawer = () => getController().toggle();

@@ -100,9 +100,9 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
         initColumnProfilesGrid();
     });
 
-    registerSubsystem('analytics-overlay', async () => {
+    registerSubsystem('analytics-overlay', async (deps) => {
         const { initAnalyticsDrawer } = await import('../../ui/analyticsDrawer.js');
-        initAnalyticsDrawer();
+        deps.registerCleanup(initAnalyticsDrawer());
     });
 
     registerSubsystem('analytics-listeners', async (deps) => {

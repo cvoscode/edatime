@@ -538,6 +538,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - The lazily loaded annotation panel now owns an abort-scoped, idempotent binding for its toolbar, modal, and keyboard handlers. Deferred shell composition registers the returned disposer and closes both annotation dialogs on teardown.
 - Added direct lifecycle coverage proving a disposed annotation panel no longer responds to the add-note keyboard shortcut.
 
+### Completed: analytics drawer lifecycle ownership
+
+- Moved analytics-drawer controller creation from module evaluation into its deferred initializer, so DOM listeners are created only by the shell that owns them.
+- The shared drawer primitive now exposes disposal for toggle, backdrop, and Escape bindings. Deferred shell cleanup releases the drawer, and direct coverage verifies a disposed drawer no longer responds to its toggle button.
+
 ### Completed: adaptive filter WorkspaceStore ownership
 
 - Adaptive gesture refresh now compares canonical adaptive-line state from WorkspaceStore. Gesture application, chip removal, clear controls, and filter-modal changes all flow through the same state publication instead of coordinating with DOM events.

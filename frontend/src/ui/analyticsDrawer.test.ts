@@ -20,4 +20,14 @@ describe('initAnalyticsDrawer', () => {
         expect(document.body.classList.contains('drawer-open')).toBe(false);
         expect((document.getElementById('analytics-drawer') as HTMLElement).hidden).toBe(true);
     });
+
+    it('releases its toggle binding when the deferred shell disposes it', async () => {
+        const { initAnalyticsDrawer } = await import('./analyticsDrawer.js');
+        const dispose = initAnalyticsDrawer();
+        dispose();
+
+        document.getElementById('open-analytics-panel-btn')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+        expect((document.getElementById('analytics-drawer') as HTMLElement).hidden).toBe(true);
+    });
 });
