@@ -15,9 +15,7 @@ import { initDriftHelp } from './help.js';
 import type { EChartLike } from './types.js';
 import {
     buildColumnSummary,
-    buildGlobalSummary,
     driftColor,
-    formatValue,
     statusSummary as buildStatusSummary,
 } from './viewModels.js';
 import type {
@@ -73,6 +71,7 @@ import {
 } from './evaluationPolicy.js';
 import { buildDriftInvestigationPanelHtml } from './investigationPanels.js';
 import { buildDriftInvestigationRequest } from './requestPayload.js';
+import { buildDriftSummaryPanelHtml } from './summaryPanels.js';
 
 // Re-export for test isolation
 export { _setEchartsModule };
@@ -305,54 +304,9 @@ export async function initDriftPage(metadata: any): Promise<void> {
     }
 
     function renderSummaryPanels(): void {
-        if (getResponsesByColumn().size === 0) {
-            if (summaryStripEl) summaryStripEl.innerHTML = '';
-            if (columnSummaryEl) columnSummaryEl.innerHTML = '';
-            return;
-        }
-
-        const globalSummary = buildGlobalSummary(getResponsesByColumn());
-        if (summaryStripEl) {
-            summaryStripEl.innerHTML = `
-                <div class="drift-summary-card">
-                    <span class="drift-summary-label">Any drift detected?</span>
-                    <strong class="drift-summary-value">${globalSummary.anyDrift ? 'Yes' : 'No'}</strong>
-                </div>
-                <div class="drift-summary-card">
-                    <span class="drift-summary-label">Columns flagged</span>
-                    <strong class="drift-summary-value">${globalSummary.columnsFlagged}/${globalSummary.totalColumns}</strong>
-                </div>
-                <div class="drift-summary-card">
-                    <span class="drift-summary-label">Latest window severity</span>
-                    <strong class="drift-summary-value drift-${globalSummary.latestSeverity}">${globalSummary.latestSeverity.toUpperCase()}</strong>
-                </div>
-                <div class="drift-summary-card">
-                    <span class="drift-summary-label">Worst window severity</span>
-                    <strong class="drift-summary-value drift-${globalSummary.worstSeverity}">${globalSummary.worstSeverity.toUpperCase()}</strong>
-                </div>
-            `;
-        }
-
-        if (columnSummaryEl) {
-            columnSummaryEl.innerHTML = Array.from(getResponsesByColumn().values()).map((response) => {
-                const summary = buildColumnSummary(response);
-                return `
-                    <article class="drift-column-card">
-                        <div class="drift-column-card__header">
-                            <strong>${summary.column}</strong>
-                            <span class="drift-column-card__level drift-${summary.currentLevel}">${summary.currentLevel.toUpperCase()}</span>
-                        </div>
-                        <div class="drift-column-card__body">
-                            <div>Window: ${summary.latestLabel}</div>
-                            <div>Strongest reasons: ${summary.strongestReasons.join(', ') || 'none'}</div>
-                            <div>Latest PSI/Wass: ${summary.latestMetrics.psi.toFixed(3)} / ${formatValue(summary.latestMetrics.wasserstein)}</div>
-                            <div>Latest KS p / E-S p: ${summary.latestMetrics.ksPvalue.toFixed(3)} / ${summary.latestMetrics.esPvalue.toFixed(3)}</div>
-                            <div>Flagged windows: ${summary.flaggedWindows}/${summary.totalWindows}</div>
-                        </div>
-                    </article>
-                `;
-            }).join('');
-        }
+        const panels = buildDriftSummaryPanelHtml(getResponsesByColumn());
+        if (summaryStripEl) summaryStripEl.innerHTML = panels.summaryStrip;
+        if (columnSummaryEl) columnSummaryEl.innerHTML = panels.columnSummary;
         renderInvestigationPanels();
     }
 
