@@ -238,6 +238,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Added direct disagreement regressions that intentionally give `uiState` different selection/filter values; each migrated consumer must use the workspace intent instead.
 - This is the first slice of the remaining canonical-selection migration. Timeseries rendering, session restoration, chart overlays, and the retired `uiState.selectedCols` writer remain sequenced as the next focused steps.
 
+### Completed: Timeseries interaction and overlay selection ownership
+
+- Moved adaptive-filter gesture targeting and trace-picker membership to the Timeseries workspace selection, with a disagreement regression against the retired UI-state copy.
+- `DataChart` now gives its overlay renderer the exact current series list during data updates. Rolling bands, anomaly colors, adaptive-filter visibility, and pending-line visibility no longer read application-level selected-series state from chart infrastructure.
+
 ### Completed: DataChart decomposition
 
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.

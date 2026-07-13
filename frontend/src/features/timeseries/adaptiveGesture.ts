@@ -89,7 +89,7 @@ export function initAdaptiveFilterGesture(
 
     const updateOverlay = () => {
         if (!_firstPoint) { setPendingAdaptivePoint(null); return; }
-        const col = uiState.adaptiveFilterColumn ?? (uiState.selectedCols[0] ?? '');
+        const col = uiState.adaptiveFilterColumn ?? (deps.workspace.getSnapshot().selection.columns[0] ?? '');
         if (_secondPoint) {
             setPendingAdaptivePoint({ column: col, x: _firstPoint.x, y: _firstPoint.y, x2: _secondPoint.x, y2: _secondPoint.y });
         } else {
@@ -120,7 +120,7 @@ export function initAdaptiveFilterGesture(
     };
 
     const showTracePicker = (p1: { x: number; y: number }, p2: { x: number; y: number }) => {
-        const cols = uiState.selectedCols;
+        const cols = deps.workspace.getSnapshot().selection.columns;
         if (!cols?.length) return;
         if (cols.length === 1) { applyFilterForColumn(cols[0], p1, p2); return; }
 
@@ -165,7 +165,7 @@ export function initAdaptiveFilterGesture(
 
     const clickHandler = (event: MouseEvent) => {
         if (!event.ctrlKey || event.button !== 0) return;
-        const cols = uiState.selectedCols;
+        const cols = deps.workspace.getSnapshot().selection.columns;
         if (!cols?.length) return;
         const point = chartState.chart?.cssPointToData?.(event.clientX, event.clientY) ?? null;
         if (!point) return;

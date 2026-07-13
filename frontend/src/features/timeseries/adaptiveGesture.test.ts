@@ -52,6 +52,7 @@ describe('adaptive filter gesture', () => {
     it('builds the adaptive line from workspace filter intent instead of global ui state', () => {
         const workspace = createWorkspaceStore();
         workspace.setSelection(['value']);
+        setSelectedCols(['retired-ui-state-series']);
         setColumnRanges({ value: { from: 100, to: 200 } });
 
         initAdaptiveFilterGesture({

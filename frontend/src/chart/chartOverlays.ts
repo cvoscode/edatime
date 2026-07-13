@@ -64,9 +64,15 @@ function getOverlayPlotMetrics(
 
 export class ChartOverlays {
     private _opts: ChartOverlayOptions;
+    private _selectedColumns: readonly string[] = [];
 
     constructor(opts: ChartOverlayOptions) {
         this._opts = opts;
+    }
+
+    /** Keep overlay visibility aligned with the series supplied to the chart. */
+    setSelectedColumns(columns: readonly string[]): void {
+        this._selectedColumns = [...columns];
     }
 
     renderAll(ctx: CanvasRenderingContext2D, scale: { x: number; y: number }): void {
@@ -98,7 +104,7 @@ export class ChartOverlays {
         for (const band of bands) {
             const n = band.ts.length;
             if (n < 2) continue;
-            const bandColor = band.color || getSeriesColor(band.column, uiState.selectedCols.indexOf(band.column));
+            const bandColor = band.color || getSeriesColor(band.column, this._selectedColumns.indexOf(band.column));
 
             ctx.fillStyle = this._applyAlphaToColor(bandColor, 0.18) || rollingPalette.rollingBandOuter;
             ctx.beginPath();
@@ -194,7 +200,7 @@ export class ChartOverlays {
             const sx = plotLeft + ((rStart - xMin) / (xMax - xMin)) * plotWidth;
             const ex = plotLeft + ((rEnd - xMin) / (xMax - xMin)) * plotWidth;
             const w = Math.max(2, ex - sx);
-            const regionColor = getSeriesColor(region.column, uiState.selectedCols.indexOf(region.column));
+            const regionColor = getSeriesColor(region.column, this._selectedColumns.indexOf(region.column));
             ctx.fillStyle = this._applyAlphaToColor(regionColor, 0.16) || anomalyPalette.anomalyFill;
             ctx.strokeStyle = this._applyAlphaToColor(regionColor, 0.55) || anomalyPalette.anomalyStroke;
             ctx.fillRect(sx, plotTop, w, plotHeight);
@@ -224,7 +230,7 @@ export class ChartOverlays {
         const adaptivePalette = getChartPalette();
 
         for (const filter of filters) {
-            if (!uiState.selectedCols?.includes(filter.column)) continue;
+            if (!this._selectedColumns.includes(filter.column)) continue;
             const segStart = Math.max(xMin, Math.min(Number(filter.x1), Number(filter.x2)));
             const segEnd = Math.min(xMax, Math.max(Number(filter.x1), Number(filter.x2)));
             if (!Number.isFinite(segStart) || !Number.isFinite(segEnd) || !(segEnd > segStart)) continue;
@@ -250,7 +256,7 @@ export class ChartOverlays {
             ctx.fillText(label, Math.min(ex, plotRight - 140 * strokeScale), Math.min(sy, ey) - 4 * strokeScale);
         }
 
-        if (pending && uiState.selectedCols?.includes(pending.column)) {
+        if (pending && this._selectedColumns.includes(pending.column)) {
             const px = Number(pending.x);
             const py = Number(pending.y);
             const hasTwoPoints = Number.isFinite(pending.x2) && Number.isFinite(pending.y2);

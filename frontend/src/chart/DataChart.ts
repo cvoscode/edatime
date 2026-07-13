@@ -104,6 +104,7 @@ export class DataChart {
     _lastDisplayYValues: number[] = [];
     _lastDataYMin: number | null = null;
     _lastDataYMax: number | null = null;
+    _activeColumns: readonly string[] = [];
     _lastSeriesList: SeriesConfig[] | null = null;
     _lastXDomainMin: number | null = null;
     _lastXDomainMax: number | null = null;
@@ -438,6 +439,8 @@ export class DataChart {
     /* ── Data update ────────────────────────────────────── */
 
     updateDataMulti(dataObj: FilteredDataObject, columns: string[]): void {
+        this._activeColumns = [...columns];
+        this._overlays?.setSelectedColumns(this._activeColumns);
         if (!this.chartInstance) return;
         const model = buildTimeSeriesDataModel({
             data: dataObj,
@@ -727,6 +730,7 @@ export class DataChart {
             getYRange: () => this.getYRange(),
             getPendingAdaptivePoint: () => uiState.pendingAdaptivePoint,
         });
+        this._overlays.setSelectedColumns(this._activeColumns);
 
     }
 
