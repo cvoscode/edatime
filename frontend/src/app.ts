@@ -65,6 +65,19 @@ const exportFeature = createExportFeature({ workspace, getData: () => runtimeSta
 runtime.registerCleanup(() => workspace.dispose());
 runtime.registerCleanup(pageRegistry.dispose);
 let timeseriesModule!: ReturnType<typeof createTimeseriesModule>;
+let appDisposed = false;
+
+/**
+ * Releases the application composition root and every resource registered
+ * beneath it. Embedding hosts and future hot-reload entrypoints use this
+ * instead of reaching into individual feature or shell lifecycles.
+ */
+export function disposeApp(): void {
+    if (appDisposed) return;
+    appDisposed = true;
+    runtime.dispose();
+    resetAppReady();
+}
 
 /* ── Lazy-loaded modules ──────────────────────────────── */
 
@@ -106,6 +119,8 @@ function ensureSessionPersistenceStarted(): void {
 
 /* ── Module creation helpers ──────────────────────────── */
 async function init(): Promise<void> {
+    if (appDisposed) return;
+
     upgradeSelects(document);
     upgradeFlexibleNumberInputs(document);
     installWindowsWebGpuRequestAdapterWorkaround();
@@ -178,6 +193,10 @@ async function init(): Promise<void> {
         workspace,
     });
 
+    // The root may be disposed while deferred page descriptors are loading.
+    // Do not continue into dataset startup after its lifetime has ended.
+    if (appDisposed) return;
+
     try {
         const initialPage = getHashPage();
         if (pageNeedsDatasetBootstrap(initialPage)) {
@@ -192,5 +211,5 @@ async function init(): Promise<void> {
 
 resetAppReady();
 void init().finally(() => {
-    markAppReady();
+    if (!appDisposed) markAppReady();
 });

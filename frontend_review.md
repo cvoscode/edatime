@@ -613,6 +613,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - App composition registers that registry disposer directly with `AppRuntime`, completing the ownership edge between application shutdown and lazy feature resources.
 - Direct registry and bootstrap regressions prove mounted pages release once and runtime cleanup receives the registry disposer.
 
+### Completed: root application disposal surface
+
+- Exposed an idempotent `disposeApp()` composition-root API. Hosts no longer need to reach into individual shell, feature, workspace, or lazy-page lifecycles to release the application.
+- Disposal resets readiness and prevents startup from marking a disposed root ready or continuing into initial dataset bootstrap after deferred page descriptors finish loading.
+- Bootstrap characterization coverage proves the public API delegates to the owned runtime exactly once.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.

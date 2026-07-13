@@ -11,6 +11,7 @@ const {
     sanitizeSelectedColumnsMock,
     startSessionPersistenceMock,
     registerRuntimeCleanupMock,
+    disposeRuntimeMock,
     setNumericColsMock,
     setAdaptiveFilterColumnMock,
     setViewportMock,
@@ -32,6 +33,7 @@ const {
     sanitizeSelectedColumnsMock: vi.fn(),
     startSessionPersistenceMock: vi.fn(),
     registerRuntimeCleanupMock: vi.fn(),
+    disposeRuntimeMock: vi.fn(),
     setNumericColsMock: vi.fn(),
     setAdaptiveFilterColumnMock: vi.fn(),
     setViewportMock: vi.fn(),
@@ -83,7 +85,10 @@ vi.mock('../app/navigation/showPage.js', () => ({
 }));
 
 vi.mock('../app/runtime.js', () => ({
-    createAppRuntime: vi.fn(() => ({ registerCleanup: registerRuntimeCleanupMock })),
+    createAppRuntime: vi.fn(() => ({
+        registerCleanup: registerRuntimeCleanupMock,
+        dispose: disposeRuntimeMock,
+    })),
 }));
 
 vi.mock('./shell/commands.js', () => ({
@@ -266,6 +271,15 @@ describe('app -> timeseries bootstrap wiring', () => {
         await import('../app.js');
 
         expect(registerRuntimeCleanupMock).toHaveBeenCalledWith(disposePageRegistryMock);
+    });
+
+    it('exposes root application disposal through the owned runtime', async () => {
+        const { disposeApp } = await import('../app.js');
+
+        disposeApp();
+        disposeApp();
+
+        expect(disposeRuntimeMock).toHaveBeenCalledTimes(1);
     });
 
     it('defers data transport loading until a dataset-backed operation requests it', async () => {
