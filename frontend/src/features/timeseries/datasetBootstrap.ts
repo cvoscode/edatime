@@ -16,7 +16,7 @@ import {
 export interface DatasetBootstrapDeps {
     ensureChartModules: () => Promise<void>;
     fetchMetadata: () => Promise<DatasetMetadata>;
-    workspace: Pick<WorkspaceStore, 'beginDatasetSession' | 'commitDataset' | 'setSelection' | 'setFilters'>;
+    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'beginDatasetSession' | 'commitDataset' | 'setSelection' | 'setFilters'>;
     markMetadataReady: () => void;
     isMetadataReady: () => boolean;
     clearLoadedPageModules: () => void;
@@ -33,8 +33,6 @@ export interface DatasetBootstrapDeps {
     onMetadataReady?: () => void;
     emitWorkflowRefresh?: () => void;
     setAdaptiveFilterColumn: (col: string | null) => void;
-    getSelectedCols: () => string[];
-    setSelectedCols: (cols: string[]) => void;
     timeseriesFeatureInit?: () => void;
     ensureSessionPersistenceStarted?: () => void;
     setViewport: (start: number, end: number) => void;
@@ -62,14 +60,10 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
 
         const writeSelection = (columns: readonly string[]) => {
             const next = [...new Set(columns.map((column) => String(column).trim()).filter(Boolean))];
-            deps.setSelectedCols(next);
-            // Column sanitation reads workspace selection as canonical. Seed it
-            // before sanitation so a fresh dataset's default series cannot be
-            // erased by the still-empty workspace snapshot.
             deps.workspace.setSelection(next);
         };
 
-        let nextSelection = deps.getSelectedCols();
+        let nextSelection = [...deps.workspace.getSnapshot().selection.columns];
         if (!nextSelection.length) nextSelection = deps.getDefaultTimeseriesColumns(metadata);
 
         if (selectedColumn) {
@@ -81,13 +75,12 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
         writeSelection(nextSelection);
         deps.sanitizeSelectedColumns();
 
-        if (!deps.getSelectedCols().length) {
+        if (!deps.workspace.getSnapshot().selection.columns.length) {
             writeSelection(deps.getDefaultTimeseriesColumns(metadata));
             deps.sanitizeSelectedColumns();
         }
 
-        deps.setAdaptiveFilterColumn(deps.getSelectedCols()[0] || null);
-        deps.workspace.setSelection(deps.getSelectedCols());
+        deps.setAdaptiveFilterColumn(deps.workspace.getSnapshot().selection.columns[0] || null);
     }
 
     // ── Bootstrap sequence ───────────────────────────────────────────────

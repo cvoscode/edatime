@@ -243,6 +243,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Moved adaptive-filter gesture targeting and trace-picker membership to the Timeseries workspace selection, with a disagreement regression against the retired UI-state copy.
 - `DataChart` now gives its overlay renderer the exact current series list during data updates. Rolling bands, anomaly colors, adaptive-filter visibility, and pending-line visibility no longer read application-level selected-series state from chart infrastructure.
 
+### Completed: Timeseries bootstrap selection ownership
+
+- Removed the application-level selected-column getter/setter injection from Timeseries composition. Dataset bootstrap and post-mutation recovery now read and update `WorkspaceStore` directly.
+- Updated the bootstrap characterization fixtures to model a complete workspace snapshot, proving default-series seeding, sanitation, adaptive-target selection, and upload refresh use one canonical owner.
+
 ### Completed: DataChart decomposition
 
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.

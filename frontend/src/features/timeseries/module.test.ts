@@ -169,8 +169,6 @@ describe('createTimeseriesModule', () => {
             sanitizeSelectedColumns: deps.sanitizeSelectedColumns,
             clearLoadedPageModules: deps.clearLoadedPageModules,
             ensureSessionPersistenceStarted: deps.ensureSessionPersistenceStarted,
-            getSelectedCols: deps.getSelectedCols,
-            setSelectedCols: deps.setSelectedCols,
             setNumericCols: deps.setNumericCols,
             setAdaptiveFilterColumn: deps.setAdaptiveFilterColumn,
             setViewport: deps.setViewport,

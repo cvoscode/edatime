@@ -45,8 +45,6 @@ export interface TimeseriesModuleDeps {
     sanitizeSelectedColumns: () => void;
     clearLoadedPageModules: () => void;
     ensureSessionPersistenceStarted: () => void;
-    getSelectedCols: () => string[];
-    setSelectedCols: (cols: string[]) => void;
     setNumericCols: (cols: string[]) => void;
     setAdaptiveFilterColumn: (col: string | null) => void;
     setViewport: (start: number, end: number) => void;
@@ -107,12 +105,12 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
             deps.setNumericCols(numericColumns);
 
             const validNames = new Set(numericColumns);
-            const recoveredSelection = deps.getSelectedCols().filter((col) => validNames.has(col));
+            const recoveredSelection = deps.workspace.getSnapshot().selection.columns.filter((col) => validNames.has(col));
             const nextSelectedCols = recoveredSelection.length > 0
                 ? recoveredSelection
                 : getDefaultTimeseriesColumns(metadata);
 
-            deps.setSelectedCols(nextSelectedCols);
+            deps.workspace.setSelection(nextSelectedCols);
             deps.sanitizeSelectedColumns();
             deps.setAdaptiveFilterColumn(nextSelectedCols[0] || null);
 
@@ -126,7 +124,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
 
             feature.rebuildColumns();
             feature.buildRangeControls();
-            return deps.getSelectedCols().length > 0;
+            return deps.workspace.getSnapshot().selection.columns.length > 0;
         },
     });
 
@@ -189,7 +187,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         isMetadataReady: deps.isMetadataReady,
         initializeDatasetUi,
         setNumericCols: deps.setNumericCols,
-        setDefaultSelectedColumns: (cols: string[]) => deps.setSelectedCols(cols),
+        setDefaultSelectedColumns: (cols: string[]) => deps.workspace.setSelection(cols),
         sanitizeSelectedColumns: deps.sanitizeSelectedColumns,
         refreshVisibleData: async () => { await pageController.fetchAndRender(); },
         clearLoadedPageModules: deps.clearLoadedPageModules,
@@ -210,8 +208,6 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         emitWorkflowRefresh: () => { window.dispatchEvent(new CustomEvent('edatime:workflow-refresh')); },
         emitChartRangeChange: (sourceKind?: string) => pageController.emitChartRangeChange(sourceKind),
         setAdaptiveFilterColumn: deps.setAdaptiveFilterColumn,
-        getSelectedCols: deps.getSelectedCols,
-        setSelectedCols: deps.setSelectedCols,
     });
 
     const chartBootstrap = createTimeseriesBootstrap({

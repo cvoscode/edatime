@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { makeWorkspaceSnapshot } from '../../workspace/workspaceStore.js';
 
 const {
     fakeState,
@@ -66,9 +67,15 @@ function createDeps(overrides: Partial<DatasetBootstrapDeps> = {}): DatasetBoots
         ensureChartModules: vi.fn().mockResolvedValue(undefined),
         fetchMetadata: vi.fn().mockResolvedValue(baseMetadata),
         workspace: {
+            getSnapshot: vi.fn(() => makeWorkspaceSnapshot({
+                selection: { columns: fakeState.selectedCols, colorColumn: null },
+                filters: { columnRanges: {}, adaptiveLines: [] },
+            })),
             beginDatasetSession: vi.fn(() => ({ id: 1, signal: new AbortController().signal })),
             commitDataset: vi.fn(() => true),
-            setSelection: vi.fn(),
+            setSelection: vi.fn((cols: string[]) => {
+                fakeState.selectedCols = cols;
+            }),
             setFilters: vi.fn(),
         },
         markMetadataReady: vi.fn(),
@@ -85,10 +92,6 @@ function createDeps(overrides: Partial<DatasetBootstrapDeps> = {}): DatasetBoots
         rebuildTimeseriesColumns: vi.fn(),
         clearPersistedFilters: vi.fn(),
         setAdaptiveFilterColumn: vi.fn(),
-        getSelectedCols: vi.fn(() => fakeState.selectedCols),
-        setSelectedCols: vi.fn((cols: string[]) => {
-            fakeState.selectedCols = cols;
-        }),
         timeseriesFeatureInit: vi.fn(),
         ensureSessionPersistenceStarted: vi.fn(),
         setViewport: vi.fn(),
@@ -141,6 +144,10 @@ describe('createDatasetBootstrap', () => {
         });
         const deps = createDeps({
             workspace: {
+                getSnapshot: vi.fn(() => makeWorkspaceSnapshot({
+                    selection: { columns: workspaceSelection, colorColumn: null },
+                    filters: { columnRanges: {}, adaptiveLines: [] },
+                })),
                 beginDatasetSession: vi.fn(() => ({ id: 1, signal: new AbortController().signal })),
                 commitDataset: vi.fn(() => true),
                 setSelection,
@@ -148,9 +155,8 @@ describe('createDatasetBootstrap', () => {
             },
         });
         deps.sanitizeSelectedColumns = vi.fn(() => {
-            // The real sanitizer treats workspace selection as canonical and
-            // mirrors it back to the legacy rendering state.
-            deps.setSelectedCols([...workspaceSelection]);
+            // The real sanitizer reads and writes only workspace selection.
+            workspaceSelection = workspaceSelection.filter(Boolean);
         });
         const createDatasetBootstrap = await importCreateDatasetBootstrap();
         const bootstrap = createDatasetBootstrap(deps);
@@ -158,7 +164,6 @@ describe('createDatasetBootstrap', () => {
         await bootstrap.ensureDatasetReady();
 
         expect(workspaceSelection).toEqual(['value']);
-        expect(fakeState.selectedCols).toEqual(['value']);
         expect(deps.setAdaptiveFilterColumn).toHaveBeenCalledWith('value');
     });
 
@@ -196,6 +201,10 @@ describe('createDatasetBootstrap', () => {
         let workspaceSelection: string[] = [];
         const deps = createDeps({
             workspace: {
+                getSnapshot: vi.fn(() => makeWorkspaceSnapshot({
+                    selection: { columns: workspaceSelection, colorColumn: null },
+                    filters: { columnRanges: {}, adaptiveLines: [] },
+                })),
                 beginDatasetSession: vi.fn(() => ({ id: 1, signal: new AbortController().signal })),
                 commitDataset: vi.fn(() => true),
                 setSelection: vi.fn((columns: readonly string[]) => {
@@ -205,7 +214,7 @@ describe('createDatasetBootstrap', () => {
             },
         });
         deps.sanitizeSelectedColumns = vi.fn(() => {
-            deps.setSelectedCols([...workspaceSelection]);
+            workspaceSelection = workspaceSelection.filter(Boolean);
         });
         const createDatasetBootstrap = await importCreateDatasetBootstrap();
         const bootstrap = createDatasetBootstrap(deps);
@@ -214,7 +223,6 @@ describe('createDatasetBootstrap', () => {
         await bootstrap.refreshAfterMutation();
 
         expect(workspaceSelection).toEqual(['value']);
-        expect(fakeState.selectedCols).toEqual(['value']);
         expect(deps.refreshVisibleData).toHaveBeenCalledTimes(1);
     });
 
@@ -273,6 +281,7 @@ describe('createDatasetBootstrap', () => {
         const createDatasetBootstrap = await importCreateDatasetBootstrap();
         const deps = createDeps({
             workspace: {
+                getSnapshot: vi.fn(() => makeWorkspaceSnapshot()),
                 beginDatasetSession: vi.fn(() => ({ id: 1, signal: new AbortController().signal })),
                 commitDataset: vi.fn(() => false),
                 setSelection: vi.fn(),

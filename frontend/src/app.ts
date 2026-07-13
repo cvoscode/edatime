@@ -55,7 +55,7 @@ import type { DatasetMetadata, DataObject, AnomalyResponse, TransformResponse, C
 import { chartState, initChartStatePrefs, setChartInstance, setViewport } from './store/chartState.js';
 import { datasetState, setDatasetRevision, setMetadata, setNumericCols } from './store/datasetState.js';
 import { runtimeState } from './store/runtimeState.js';
-import { setAdaptiveFilterColumn, setSelectedCols, uiState } from './store/uiState.js';
+import { setAdaptiveFilterColumn } from './store/uiState.js';
 
 const _appCleanups: Array<() => void> = [];
 const runtime = createAppRuntime();
@@ -130,8 +130,6 @@ async function init(): Promise<void> {
         sanitizeSelectedColumns: () => sanitizeSelectedColumns(workspace),
         clearLoadedPageModules: pageRegistry.clearLoadedPageModules,
         ensureSessionPersistenceStarted,
-        getSelectedCols: () => uiState.selectedCols,
-        setSelectedCols,
         setNumericCols,
         setAdaptiveFilterColumn,
         setViewport,
