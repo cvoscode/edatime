@@ -18,8 +18,6 @@ import {
     applyViewport,
     zoomOut,
     resetZoom,
-    initResetZoomListener,
-    initZoomOutListener,
 } from './viewport.js';
 
 export {
@@ -103,14 +101,12 @@ export function initAnalysisControls(
     workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'setViewport' | 'subscribe'>,
 ): void {
     bindInfoPopovers();
-    initToolbarModals();
+    initToolbarModals({ onZoomOut: zoomOutAction, onResetZoom: resetZoomAction });
     initDrawControls(fetchAndRender, workspace);
     initChartTextControls();
     initAnalyticsControls();
 
     initQuickRangeControls(fetchAndRender, workspace);
 
-    initResetZoomListener(resetZoomAction);
-    initZoomOutListener(zoomOutAction);
     refreshZoomControlsState();
 }

@@ -129,22 +129,3 @@ export function resetZoom(fetchAndRender: () => void): void {
     setZoomHistory([]);
     applyViewport(chartState.initialView as ViewSnapshot, fetchAndRender, 'reset');
 }
-
-export function initResetZoomListener(onResetZoom: () => void): void {
-    window.addEventListener('edatime:reset-zoom', () => {
-        onResetZoom();
-    });
-}
-
-/**
- * Listen for the zoom-out toolbar button so `#zoom-out-btn` reuses the
- * same event-driven path as `#zoom-reset-btn`. Without this listener the
- * click was previously wired in `exportControls.ts` with an empty
- * `fetchAndRender` callback, which left the chart visually stuck at
- * the zoomed-in window after a single box zoom + click (−).
- */
-export function initZoomOutListener(onZoomOut: () => void): void {
-    window.addEventListener('edatime:zoom-out', () => {
-        onZoomOut();
-    });
-}

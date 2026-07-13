@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { chartState, setChartInstance } from '../store/chartState.js';
 import { setAnalysisBound } from '../store/runtimeState.js';
-import { bindAnalysisChartEvents } from './toolbar.js';
+import { bindAnalysisChartEvents, initAnalysisControls } from './toolbar.js';
 
 describe('toolbar', () => {
     beforeEach(() => {
@@ -35,5 +35,29 @@ describe('toolbar', () => {
 
         expect(document.getElementById('analysis-cursor')?.textContent).toContain('1970');
         expect(document.getElementById('analysis-click')?.textContent).toContain('[value]');
+    });
+
+    it('routes toolbar zoom commands to the composed page actions', () => {
+        document.body.innerHTML += `
+            <button id="zoom-out-btn" type="button">Zoom out</button>
+            <button id="zoom-reset-btn" type="button">Reset zoom</button>
+            <span id="zoom-range-badge"></span>
+        `;
+        const zoomOutAction = vi.fn();
+        const resetZoomAction = vi.fn();
+        const workspace = {
+            getSnapshot: vi.fn(),
+            setFilters: vi.fn(),
+            setViewport: vi.fn(),
+            subscribe: vi.fn(() => vi.fn()),
+        };
+        setChartInstance({ supportsZoomControls: () => true } as any);
+
+        initAnalysisControls(vi.fn(), zoomOutAction, resetZoomAction, workspace);
+        (document.getElementById('zoom-out-btn') as HTMLButtonElement).click();
+        (document.getElementById('zoom-reset-btn') as HTMLButtonElement).click();
+
+        expect(zoomOutAction).toHaveBeenCalledTimes(1);
+        expect(resetZoomAction).toHaveBeenCalledTimes(1);
     });
 });

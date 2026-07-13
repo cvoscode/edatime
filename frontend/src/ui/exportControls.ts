@@ -1,15 +1,6 @@
 /**
- * exportControls — toolbar modal wiring and zoom control click dispatch.
+ * exportControls — toolbar modal wiring and zoom control actions.
  * Transport-layer calls (CSV/JSON/Parquet export) live in features/export/feature.ts.
- *
- * The `#zoom-out-btn` and `#zoom-reset-btn` clicks dispatch `edatime:zoom-out`
- * and `edatime:reset-zoom` events respectively. The real `fetchAndRender`
- * callback is wired to those events by `initZoomOutListener` /
- * `initResetZoomListener` in `viewport.ts`. Calling `zoomOut` / `resetZoom`
- * directly here would be unsafe: this module has no access to the page
- * module's `fetchAndRender`, so doing so would silently break zoom-out
- * (the chart store would update but the chart would never refetch the
- * data for the new range, leaving the canvas empty).
  */
 
 function openToolbarModal(modalId: string): void {
@@ -30,7 +21,12 @@ interface ToolbarPanel {
     isDrawer?: boolean;
 }
 
-export function initToolbarModals(): void {
+export interface ToolbarModalActions {
+    onZoomOut: () => void;
+    onResetZoom: () => void;
+}
+
+export function initToolbarModals(actions: ToolbarModalActions): void {
     const panels: ToolbarPanel[] = [
         { openBtn: 'open-labels-panel-btn', modalId: 'chart-labels-modal', closeBtn: 'chart-labels-close-btn', doneBtn: 'chart-labels-done-btn' },
         { openBtn: 'open-export-options-btn', modalId: 'export-options-modal', closeBtn: 'export-options-close-btn', doneBtn: 'export-options-done-btn' },
@@ -72,10 +68,14 @@ export function initToolbarModals(): void {
         }
     }
 
-    document.getElementById('zoom-out-btn')?.addEventListener('click', () => {
-        window.dispatchEvent(new CustomEvent('edatime:zoom-out', { detail: { source: 'toolbar' } }));
-    });
-    document.getElementById('zoom-reset-btn')?.addEventListener('click', () => {
-        window.dispatchEvent(new CustomEvent('edatime:reset-zoom', { detail: { source: 'toolbar' } }));
-    });
+    const zoomOutButton = document.getElementById('zoom-out-btn');
+    if (zoomOutButton && !zoomOutButton.dataset.bound) {
+        zoomOutButton.addEventListener('click', actions.onZoomOut);
+        zoomOutButton.dataset.bound = '1';
+    }
+    const resetZoomButton = document.getElementById('zoom-reset-btn');
+    if (resetZoomButton && !resetZoomButton.dataset.bound) {
+        resetZoomButton.addEventListener('click', actions.onResetZoom);
+        resetZoomButton.dataset.bound = '1';
+    }
 }
