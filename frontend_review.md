@@ -193,7 +193,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Extracted annotation and dominant-peak painting into `fftOverlayPresentation`. It consumes the data model's displayed points and bounds, so peak markers share the scaled chart coordinate system instead of recomputing unscaled values in the chart adapter.
 - Extracted ChartGPU axis, tooltip, scale-bound, and series-option composition into `fftChartOptions`, with direct low-frequency/scaled-axis coverage. `FftChart` now owns lifecycle and current view state only.
 
-### In progress: Spectrogram runtime decomposition
+### Completed: Spectrogram runtime decomposition
 
 - Extracted pure dominant-frequency-band detection and timestamp formatting into `spectrogramAnalysis`, with direct coverage for dominant-band and empty-axis behavior.
 - Extracted visible-point range filtering and reusable filtered-buffer behavior into `spectrogramPointFilter`, preserving the colorbar-drag performance contract.
@@ -210,7 +210,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Consolidated clip-toggle enablement, field visibility, explanatory hints, and method-label policy into `spectrogramClipControls`, removing duplicate init and visibility behavior.
 - Moved custom window/hop-input visibility and enabled-state policy into `spectrogramControls`; runtime control wiring now only applies the tested state to its owned DOM inputs.
 - Extracted the cached grid-to-visible-points-to-ECharts projection into `spectrogramRenderModel`. It preserves reusable grid buffers while returning chart option, bounds, log-mode, axis formatter, and dominant-band presentation as one deterministic redraw result.
-- Next, review the smaller remaining page-control orchestration seam against the target architecture before deciding whether another extraction improves ownership.
+- The remaining runtime is now the intended page-composition layer: it reads owned controls, binds disposable listeners, coordinates loading/error state, and delegates request, redraw, chart, colorbar, and summary work to their dedicated owners.
+
+### In progress: Causal edit-panel decomposition
+
+- Next, extract edge-draft validation and mutation policy from `editPanel`, leaving the modal/context-menu layer as DOM rendering and event composition only.
 
 ### Completed: global continuous color-scale ownership
 

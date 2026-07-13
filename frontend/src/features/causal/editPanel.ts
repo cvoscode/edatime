@@ -27,6 +27,7 @@ import {
 import { getDropdownValueFromElement, upgradeSelects } from '../../ui/primitives/Dropdown.js';
 import { upgradeFlexibleNumberInputs } from '../../ui/primitives/FlexibleNumberInput.js';
 import { setStatus } from './statusView.js';
+import { validatePairEdgeDraft } from './editPolicy.js';
 
 export type EditTarget = { kind: 'node'; col: string } | { kind: 'edge'; key: string };
 
@@ -374,33 +375,17 @@ export function applyEditPanel(): void {
         attrs[key] = parseLooseValue(entry.value);
     }
 
-    const connections: CausalLink[] = [];
-    for (const link of _edgeEditDraft.connections) {
-        const source = String(link.source || '');
-        const target = String(link.target || '');
-        const lag = Number(link.lag);
-        const value = Number(link.value);
-        const pvalue = Number(link.pvalue);
-        if (!source || !target || source === target) {
-            setStatus('Each edge connection needs two different nodes.', 'error');
-            return;
-        }
-        if (!_currentColumns.includes(source) || !_currentColumns.includes(target)) {
-            setStatus('Edge connections must reference nodes in the current graph.', 'error');
-            return;
-        }
-        if (pairKey(source, target) !== _edgeEditDraft.key) {
-            setStatus('Edit connections only between this pair of nodes.', 'error');
-            return;
-        }
-        if (!Number.isFinite(lag) || lag < 0 || !Number.isFinite(value) || !Number.isFinite(pvalue)) {
-            setStatus('Lag, value, and p-value must be finite numeric values.', 'error');
-            return;
-        }
-        connections.push({ source, target, lag: Math.trunc(Math.max(0, lag)), type: String(link.type || '-->'), value, pvalue });
+    const validation = validatePairEdgeDraft({
+        pairKey: _edgeEditDraft.key,
+        columns: _currentColumns,
+        connections: _edgeEditDraft.connections,
+    });
+    if (!validation.ok) {
+        setStatus(validation.message, 'error');
+        return;
     }
 
-    replacePairConnections(_editTarget.key, connections);
+    replacePairConnections(_editTarget.key, validation.connections);
     clearPairAttrsKey(_editTarget.key);
     if (Object.keys(attrs).length > 0) setPairAttrsKey(_edgeEditDraft.key, attrs);
     closeEditPanel();
