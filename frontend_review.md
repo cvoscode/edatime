@@ -222,6 +222,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Moved the virtualized column-profile grid and its tests into `features/upload/`, exposed its supported hydration/rendering surface through the Upload index, and updated Upload, Timeseries, and deferred shell composition to use that feature-owned surface.
 - Moved the Upload panel controller and its characterization tests into `features/upload/`, removed its former UI-layer re-export indirection, and updated deferred shell composition to load the supported Upload public surface.
 - Moved transform and outlier modal orchestration plus its tests into `features/dataMutation/`, exposed those modal initializers through the Data Mutation public index, and updated deferred-shell loading to remove the UI-to-feature dependency.
+- Moved export feature configuration and filtered CSV/JSON/Parquet actions into `features/export/runtime`, leaving `ui/exportControls` responsible only for generic toolbar modal behavior and keeping app composition on the Export public index.
 
 ### Completed: Spectrogram runtime decomposition
 
