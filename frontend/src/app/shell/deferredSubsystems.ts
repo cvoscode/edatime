@@ -148,9 +148,9 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
         initTimeseriesHelp();
     });
 
-    registerSubsystem('command-palette', async () => {
+    registerSubsystem('command-palette', async (deps) => {
         const palette = await import('../../utils/palette.js');
-        palette.initCommandPalette();
+        deps.registerCleanup(palette.initCommandPalette());
         openPalette = palette.openPalette;
     });
 

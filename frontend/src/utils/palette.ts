@@ -22,6 +22,7 @@ let _list: HTMLElement | null = null;
 let _commands: PaletteCommand[] = [];
 let _filtered: PaletteCommand[] = [];
 let _selectedIdx = 0;
+let _disposePalette: (() => void) | null = null;
 
 function buildDOM(): void {
     if (_overlay) return;
@@ -164,15 +165,29 @@ export function openPalette(): void {
 }
 
 /** Bind Ctrl+K to open the palette. */
-export function initCommandPalette(): void {
+export function initCommandPalette(): () => void {
+    if (_disposePalette) return _disposePalette;
     buildDOM();
 
-    window.addEventListener('keydown', (e) => {
+    const onKeydown = (e: KeyboardEvent) => {
         if (e.defaultPrevented) return;
         if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
             e.preventDefault();
             if (_overlay?.hidden === false) close();
             else open();
         }
-    });
+    };
+    window.addEventListener('keydown', onKeydown);
+    const dispose = () => {
+        window.removeEventListener('keydown', onKeydown);
+        _overlay?.remove();
+        _overlay = null;
+        _input = null;
+        _list = null;
+        _filtered = [];
+        _selectedIdx = 0;
+        if (_disposePalette === dispose) _disposePalette = null;
+    };
+    _disposePalette = dispose;
+    return dispose;
 }

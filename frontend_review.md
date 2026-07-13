@@ -543,6 +543,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Moved analytics-drawer controller creation from module evaluation into its deferred initializer, so DOM listeners are created only by the shell that owns them.
 - The shared drawer primitive now exposes disposal for toggle, backdrop, and Escape bindings. Deferred shell cleanup releases the drawer, and direct coverage verifies a disposed drawer no longer responds to its toggle button.
 
+### Completed: command-palette lifecycle ownership
+
+- Command-palette initialization now returns an idempotent disposer that removes the global Ctrl/Cmd+K listener and the dynamically created overlay. Deferred shell composition owns that disposer.
+- Direct coverage proves disposal leaves no palette overlay and prevents the global shortcut from recreating one.
+
 ### Completed: adaptive filter WorkspaceStore ownership
 
 - Adaptive gesture refresh now compares canonical adaptive-line state from WorkspaceStore. Gesture application, chip removal, clear controls, and filter-modal changes all flow through the same state publication instead of coordinating with DOM events.
