@@ -269,6 +269,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Moved every consumer to its owning type domain, retained the optional WebGPU navigator augmentation with chart contracts, and removed stale duplicate overlay contracts from state owners.
 - Extended the architecture check to reject any reintroduction of the retired monolithic type import.
 
+### Completed: color-column selection ownership
+
+- Moved Timeseries color-by state from the duplicate `uiState` mirror to `WorkspaceStore.selection.colorColumn`, including session restoration, metadata recovery, chart rendering, and the visible Color-by control.
+- The chart adapter now receives color intent explicitly with each data update, keeping it independent of application state. The Color-by control is rebuilt with the Timeseries column rail and publishes its selection directly to the workspace.
+- Removed the retired UI-state field, setter, and store event; Scatter keeps its independent local color control because it is a separate query intent.
+
 ### Completed: DataChart decomposition
 
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.

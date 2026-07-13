@@ -137,7 +137,7 @@ export class FallbackChart implements ChartInstance {
     exportSVG(): void { }
     exportHTML(): void { }
 
-    updateDataMulti(dataObj: FilteredDataObject, columns: string[]): void {
+    updateDataMulti(dataObj: FilteredDataObject, columns: string[], _colorColumn: string | null = null): void {
         this.lastData = dataObj;
         this.lastColumns = columns;
         this.redraw();

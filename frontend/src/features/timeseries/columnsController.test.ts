@@ -4,13 +4,15 @@ import {
     datasetState,
     setMetadata,
 } from '../../store/datasetState.js';
-import { setAdaptiveFilterColumn, setFilterText, setSelectedColorColumn, setSeriesColors } from '../../store/uiState.js';
+import { setAdaptiveFilterColumn, setFilterText, setSeriesColors } from '../../store/uiState.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
+import { setDropdownValue } from '../../ui/primitives/Dropdown.js';
 
 function buildDom(): void {
     document.body.innerHTML = `
         <div id="header-meta"></div>
         <div id="column-toggles"></div>
+        <div id="timeseries-color-slot"></div>
     `;
 }
 
@@ -41,7 +43,6 @@ describe('buildColumnToggles', () => {
         } as any);
         datasetState.numericCols = ['HUFL', 'HULL', 'LUFL', 'LULL', 'MUFL', 'MULL', 'OT'];
         setAdaptiveFilterColumn('HUFL');
-        setSelectedColorColumn(null);
         setSeriesColors({});
         setFilterText('');
         workspace = createWorkspaceStore();
@@ -78,6 +79,19 @@ describe('buildColumnToggles', () => {
         hullChip!.click();
 
         expect(workspace.getSnapshot().selection.columns).toEqual(['HUFL', 'OT']);
+    });
+
+    it('publishes color-by changes to the workspace selection intent', () => {
+        const fetchAndRender = vi.fn();
+        buildColumnToggles(fetchAndRender, vi.fn(), null, workspace);
+
+        setDropdownValue('color-column-select', 'MUFL', { emitChange: true });
+
+        expect(workspace.getSnapshot().selection).toEqual({
+            columns: ['HUFL', 'HULL', 'OT'],
+            colorColumn: 'MUFL',
+        });
+        expect(fetchAndRender).toHaveBeenCalledOnce();
     });
 
     it('clears the rebuild guard after rendering the empty state so later rebuilds can recover', () => {

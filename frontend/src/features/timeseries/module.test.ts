@@ -4,7 +4,6 @@
 // is implemented in Task 4.
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { setSelectedColorColumn } from '../../store/uiState.js';
 
 // ── Hoisted mocks ─────────────────────────────────────────────────────────────
 // vi.hoisted ensures mocks are created before vi.mock() calls
@@ -121,7 +120,6 @@ const defaultDeps = () => ({
 describe('createTimeseriesModule', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        setSelectedColorColumn(null);
         // Reset all mock return values
         mockCreateTimeseriesPageController.mockReturnValue(mockPageController());
         mockCreateTimeseriesControls.mockReturnValue(mockFeatureEntrypoint());
@@ -198,8 +196,6 @@ describe('createTimeseriesModule', () => {
             filters: { columnRanges: {}, adaptiveLines: [] },
             viewport: null,
         } as any);
-        setSelectedColorColumn('stale-bucket');
-
         createTimeseriesModule(deps as any);
         const pageDeps = mockCreateTimeseriesPageController.mock.calls[0]?.[0];
         await pageDeps.recoverFromColumnMismatch();

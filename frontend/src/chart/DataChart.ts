@@ -438,7 +438,7 @@ export class DataChart {
 
     /* ── Data update ────────────────────────────────────── */
 
-    updateDataMulti(dataObj: FilteredDataObject, columns: string[]): void {
+    updateDataMulti(dataObj: FilteredDataObject, columns: string[], colorColumn: string | null = null): void {
         this._activeColumns = [...columns];
         this._overlays?.setSelectedColumns(this._activeColumns);
         if (!this.chartInstance) return;
@@ -446,7 +446,7 @@ export class DataChart {
             data: dataObj,
             columns,
             visibilityByName: this._getVisibilityByBaseNameFromChart(),
-            selectedColorColumn: uiState.selectedColorColumn,
+            selectedColorColumn: colorColumn,
             numericColumns: datasetState.numericCols,
             showMarkers: dataObj._meta?.downsampled === false,
         });
@@ -454,7 +454,7 @@ export class DataChart {
         this._lastDisplayYValues = model.displayYValues;
         this._lastXDomainMin = model.xDomainMin;
         this._lastXDomainMax = model.xDomainMax;
-        renderColorScaleLegend(uiState.selectedColorColumn, model.hasColorCandidates ? model.colorScaleInfo : null);
+        renderColorScaleLegend(colorColumn, model.hasColorCandidates ? model.colorScaleInfo : null);
 
         if (model.dataYMin !== null && model.dataYMax !== null) {
             this._lastDataYMin = model.dataYMin;

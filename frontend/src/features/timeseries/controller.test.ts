@@ -21,7 +21,6 @@ import {
 import {
     setAdaptiveLineFilters,
     setColumnRanges,
-    setSelectedColorColumn,
     uiState,
 } from '../../store/uiState.js';
 import { createWorkspaceStore, type WorkspaceStore } from '../../workspace/workspaceStore.js';
@@ -30,6 +29,10 @@ let defaultWorkspace: WorkspaceStore;
 
 function setWorkspaceSelection(columns: string[]): void {
     defaultWorkspace.setSelection(columns, defaultWorkspace.getSnapshot().selection.colorColumn);
+}
+
+function setWorkspaceColorColumn(colorColumn: string | null): void {
+    defaultWorkspace.setSelection(defaultWorkspace.getSnapshot().selection.columns, colorColumn);
 }
 
 function createTimeseriesPageController(deps: Record<string, any>) {
@@ -54,7 +57,7 @@ describe('createTimeseriesPageController', () => {
         setColumnRanges({});
         setAdaptiveLineFilters([]);
         setWorkspaceSelection([]);
-        setSelectedColorColumn(null);
+        setWorkspaceColorColumn(null);
     });
 
     it('preserves x and y ranges when zooming into a boxed viewport', () => {
@@ -110,7 +113,7 @@ describe('createTimeseriesPageController', () => {
     it('builds series requests from workspace selection and viewport intent', async () => {
         document.body.innerHTML = '<div id="main-chart-loading" hidden></div><div id="main-chart"></div>';
         setWorkspaceSelection(['legacy']);
-        setSelectedColorColumn('legacy-color');
+        setWorkspaceColorColumn('legacy-color');
         setViewport(0, 100);
         const fetchData = vi.fn().mockResolvedValue({ ts: [], values: {}, series: {}, colorByColumn: {} });
         const controller = createTimeseriesPageController({
@@ -163,7 +166,7 @@ describe('createTimeseriesPageController', () => {
             fetchAndRenderAnalytics: vi.fn(),
             workspace: {
                 getSnapshot: () => ({
-                    selection: { columns: ['workspace'], colorColumn: null },
+                    selection: { columns: ['workspace'], colorColumn: 'workspace-color' },
                     filters: {
                         columnRanges: { workspace: { from: 2, to: 4 } },
                         adaptiveLines: [],
@@ -179,7 +182,7 @@ describe('createTimeseriesPageController', () => {
             series: expect.objectContaining({
                 workspace: expect.objectContaining({ y: Float64Array.from([3]) }),
             }),
-        }), ['workspace']);
+        }), ['workspace'], 'workspace-color');
         expect((window as any).__edatime?.debugYSnapshot).toBeUndefined();
     });
 
@@ -368,8 +371,7 @@ describe('createTimeseriesPageController', () => {
             column_profiles: [],
         } as any);
         setWorkspaceSelection(['value']);
-        setSelectedColorColumn('value');
-        defaultWorkspace.setSelection(['value'], 'value');
+        setWorkspaceColorColumn('value');
         setViewport(100, 900);
 
         const chart = {
@@ -433,7 +435,7 @@ describe('createTimeseriesPageController', () => {
             column_profiles: [],
         } as any);
         setWorkspaceSelection(['value']);
-        setSelectedColorColumn(null);
+        setWorkspaceColorColumn(null);
         setViewport(0, 1000);
 
         const chart = {
@@ -484,7 +486,7 @@ describe('createTimeseriesPageController', () => {
             column_profiles: [],
         } as any);
         setWorkspaceSelection(['HUFL', 'OT']);
-        setSelectedColorColumn(null);
+        setWorkspaceColorColumn(null);
         setViewport(0, 4_000);
 
         const fetchedOt = new Float64Array([12.1, 12.1, 12.2, 12.2, 113.76]);
@@ -544,7 +546,7 @@ describe('createTimeseriesPageController', () => {
             column_profiles: [],
         } as any);
         setWorkspaceSelection(['value']);
-        setSelectedColorColumn(null);
+        setWorkspaceColorColumn(null);
         setViewport(1_000, 3_000);
 
         const chart = {
@@ -601,7 +603,7 @@ describe('createTimeseriesPageController', () => {
             column_profiles: [],
         } as any);
         setWorkspaceSelection(['value']);
-        setSelectedColorColumn(null);
+        setWorkspaceColorColumn(null);
         setViewport(0, 4_000);
 
         const chart = {
@@ -681,7 +683,7 @@ describe('createTimeseriesPageController', () => {
                 column_profiles: [],
             } as any);
             setWorkspaceSelection(['value']);
-            setSelectedColorColumn(null);
+            setWorkspaceColorColumn(null);
             setViewport(0, 4_000);
             setRefetchOnZoom(true);
 
@@ -750,7 +752,7 @@ describe('createTimeseriesPageController', () => {
             column_profiles: [],
         } as any);
         setWorkspaceSelection(['value']);
-        setSelectedColorColumn(null);
+        setWorkspaceColorColumn(null);
         setViewport(0, 4_000);
 
         let currentY = { min: 10, max: 50 };
@@ -830,7 +832,7 @@ describe('createTimeseriesPageController', () => {
                 column_profiles: [],
             } as any);
             setWorkspaceSelection(['value']);
-            setSelectedColorColumn(null);
+            setWorkspaceColorColumn(null);
             setViewport(0, 4_000);
 
             let dataY = { min: 0, max: 100 };

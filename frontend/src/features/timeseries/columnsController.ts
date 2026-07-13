@@ -21,6 +21,7 @@ import { buildRangeControls } from './rangeControls.js';
 import { bindChipContextMenu } from './chipContextMenu.js';
 import { composeChipListItems, bindChipCtrlClick } from './chipComposition.js';
 import { initFilterModalController } from './filterModalController.js';
+import { renderColorByControl } from './colorByControl.js';
 import type { SelectionWorkspace } from './selectionIntent.js';
 import type { FilterWorkspace } from './selectionIntent.js';
 
@@ -41,6 +42,10 @@ export function buildColumnToggles(
     const finish = () => { container.dataset.rebuilding = ''; };
 
     bindChipContextMenu(container);
+    renderColorByControl({
+        workspace,
+        onColorColumnChange: fetchAndRender,
+    });
 
     const items = composeChipListItems({
         workspace,

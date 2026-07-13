@@ -19,7 +19,6 @@ import { datasetState } from '../store/datasetState.js';
 import {
     setAdaptiveLineFilters,
     setColumnRanges,
-    setSelectedColorColumn,
     setSeriesColors,
     uiState,
 } from '../store/uiState.js';
@@ -102,7 +101,7 @@ export function captureSession(): SessionSnapshot {
         adaptiveLineFilters: intent ? intent.filters.adaptiveLines.map((f) => ({ ...f })) : uiState.adaptiveLineFilters.map((f) => ({ ...f })),
         currentStart: intent?.viewport?.xMin ?? chartState.currentStart,
         currentEnd: intent?.viewport?.xMax ?? chartState.currentEnd,
-        selectedColorColumn: intent?.selection.colorColumn ?? uiState.selectedColorColumn,
+        selectedColorColumn: intent?.selection.colorColumn ?? null,
         chartText: { ...chartState.chartText },
         rollingEnabled: analyticsState.rollingEnabled,
         rollingWindow: analyticsState.rollingWindow,
@@ -243,9 +242,6 @@ export function applySession(
         }
     }
 
-    if (snap.selectedColorColumn !== undefined) {
-        setSelectedColorColumn(appliedColorColumn);
-    }
     if (snap.chartText) setChartText({ ...snap.chartText });
     if (snap.rollingEnabled !== undefined) setRollingEnabled(snap.rollingEnabled);
     if (Number.isFinite(snap.rollingWindow)) setRollingWindow(snap.rollingWindow);

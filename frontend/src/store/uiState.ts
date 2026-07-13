@@ -20,7 +20,6 @@ export interface UiState {
     adaptiveLineFilters: AdaptiveLineFilter[];
     pendingAdaptivePoint: PendingAdaptivePoint | null;
     seriesColors: Record<string, string>;
-    selectedColorColumn: string | null;
     profileFilterText: string;
     /** Category filter for the column-profile grid. `'all'` keeps the
      *  legacy behaviour; `'numeric'` / `'datetime'` restrict the rows. */
@@ -40,7 +39,6 @@ export const uiState: UiState = {
     adaptiveLineFilters: [],
     pendingAdaptivePoint: null,
     seriesColors: {},
-    selectedColorColumn: null,
     profileFilterText: '',
     profileFilterCategory: 'all',
     previewSelectedColumns: [],
@@ -122,12 +120,6 @@ export function setPendingAdaptivePoint(point: PendingAdaptivePoint | null): voi
     const previous = uiState.pendingAdaptivePoint;
     uiState.pendingAdaptivePoint = point ? { ...point } : null;
     emitStoreEvent('ui:pendingAdaptivePoint', { previous, next: uiState.pendingAdaptivePoint });
-}
-
-export function setSelectedColorColumn(col: string | null): void {
-    const previous = uiState.selectedColorColumn;
-    uiState.selectedColorColumn = col;
-    emitStoreEvent('ui:selectedColorColumn', { previous, next: col });
 }
 
 export function setSeriesColors(colors: Record<string, string>): void {

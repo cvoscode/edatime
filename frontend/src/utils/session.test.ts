@@ -113,7 +113,7 @@ describe('session restore safeguards', () => {
         applySession(snap, { workspace, announceAdjustments: false });
 
         expect(workspace.getSnapshot().selection.columns).toEqual(['HUFL', 'HULL']);
-        expect(uiState.selectedColorColumn).toBeNull();
+        expect(workspace.getSnapshot().selection.colorColumn).toBeNull();
     });
 
     it('publishes restored analysis intent to the workspace before rendering resumes', () => {

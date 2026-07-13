@@ -39,7 +39,7 @@ export type YMode = 'fit' | 'lock' | 'restore';
 
 export interface ChartInstance {
     init(): Promise<void>;
-    updateDataMulti(dataObj: FilteredDataObject, columns: string[]): void;
+    updateDataMulti(dataObj: FilteredDataObject, columns: string[], colorColumn?: string | null): void;
     setXRange(min: number, max: number): void;
     setYRange(min: number, max: number): void;
     resetYRange?(): void;

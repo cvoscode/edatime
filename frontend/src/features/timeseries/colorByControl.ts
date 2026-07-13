@@ -6,10 +6,11 @@
  * concerns stay cleanly separated.
  */
 import { datasetState } from '../../store/datasetState.js';
-import { setSelectedColorColumn, uiState } from '../../store/uiState.js';
 import { ColorBySelect } from '../../ui/composites/ColorBySelect.js';
+import type { SelectionWorkspace } from './selectionIntent.js';
 
 export interface ColorByControlOptions {
+    workspace: SelectionWorkspace;
     /** Called when the user changes the color-by column. */
     onColorColumnChange: () => void;
     /** DOM id of the slot to append the color-by control into. */
@@ -32,9 +33,12 @@ export function renderColorByControl(options: ColorByControlOptions): void {
 
     slot.appendChild(ColorBySelect({
         columns: metadataCols,
-        value: uiState.selectedColorColumn,
+        value: options.workspace.getSnapshot().selection.colorColumn,
         onChange: (value) => {
-            setSelectedColorColumn(value || null);
+            options.workspace.setSelection(
+                options.workspace.getSnapshot().selection.columns,
+                value || null,
+            );
             onColorColumnChange();
         },
     }));

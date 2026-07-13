@@ -12,7 +12,6 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { datasetState } from '../store/datasetState.js';
-import { uiState } from '../store/uiState.js';
 import { DataChart } from './DataChart';
 import type { ViewSnapshot } from '../types/chart.js';
 
@@ -422,14 +421,10 @@ describe('updateDataMulti', () => {
     beforeEach(() => {
         document.body.innerHTML = '';
         datasetState.numericCols = ['temperature'];
-        uiState.selectedColorColumn = null;
-        uiState.seriesColors = {};
     });
 
     afterEach(() => {
         datasetState.numericCols = [];
-        uiState.selectedColorColumn = null;
-        uiState.seriesColors = {};
     });
 
     it('disables ChartGPU animation for timeseries option updates', () => {

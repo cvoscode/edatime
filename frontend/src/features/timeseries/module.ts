@@ -14,8 +14,6 @@ import { clearScatterViewSnapshots } from '../../store/scatterState.js';
 import {
     setAdaptiveLineFilters,
     setColumnRanges,
-    setSelectedColorColumn,
-    uiState,
 } from '../../store/uiState.js';
 import { getNumericColumns, getDefaultTimeseriesColumns } from '../../platform/analyticsColumns.js';
 import type { DataObject, DatasetMetadata } from '../../types/api.js';
@@ -115,12 +113,12 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
             deps.sanitizeSelectedColumns();
             deps.setAdaptiveFilterColumn(nextSelectedCols[0] || null);
 
-            if (uiState.selectedColorColumn && !validNames.has(uiState.selectedColorColumn)) {
+            const currentColorColumn = deps.workspace.getSnapshot().selection.colorColumn;
+            if (currentColorColumn && !validNames.has(currentColorColumn)) {
                 deps.workspace.setSelection(
                     nextSelectedCols,
                     null,
                 );
-                setSelectedColorColumn(null);
             }
 
             feature.rebuildColumns();
