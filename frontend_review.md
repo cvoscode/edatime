@@ -411,6 +411,10 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Removed the hidden duplicate FFT export controls; the visible export action group is now the sole markup and binding target for every FFT format.
 - Removed the unowned Analytics compatibility modal and all of its duplicate rolling/anomaly form controls. Static ownership tests prove neither retired markup surface can return.
 
+### Completed: session settings ownership
+
+- Removed the obsolete `theme` field from session snapshots. Theme remains exclusively owned by application settings, so saved analysis state cannot carry a duplicate setting that restore intentionally ignores.
+
 ### Completed: Causal edit-panel decomposition
 
 - Extracted pair-edge draft validation and normalized connection mutation into `editPolicy`, leaving modal status and DOM reads in `editPanel`.

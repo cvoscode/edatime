@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { chartState } from '../store/chartState.js';
 import { datasetState } from '../store/datasetState.js';
 import { uiState } from '../store/uiState.js';
-import { applySession, type SessionSnapshot } from './session.js';
+import { applySession, captureSession, type SessionSnapshot } from './session.js';
 import { createWorkspaceStore } from '../workspace/workspaceStore.js';
 
 vi.mock('./toast.js', () => ({
@@ -31,7 +31,6 @@ function buildSnapshot(partial: Partial<SessionSnapshot> = {}): SessionSnapshot 
         scatterY: '',
         scatterColorColumn: '',
         scatterRenderMode: 'density',
-        theme: 'dark',
         datasetRevision: 1,
         ...partial,
     };
@@ -64,6 +63,12 @@ describe('session restore safeguards', () => {
         expect(result.revisionMismatch).toBe(true);
         expect(result.droppedFilterCount).toBe(2);
         expect(workspace.getSnapshot().filters).toEqual({ columnRanges: {}, adaptiveLines: [] });
+    });
+
+    it('does not duplicate application settings in a session snapshot', () => {
+        const snapshot = captureSession();
+
+        expect(snapshot).not.toHaveProperty('theme');
     });
 
     it('resets out-of-dataset ranges to metadata bounds', () => {

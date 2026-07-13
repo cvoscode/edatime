@@ -57,7 +57,6 @@ export interface SessionSnapshot {
     scatterY: string;
     scatterColorColumn: string;
     scatterRenderMode: string;
-    theme: string;
     datasetRevision?: number;
 }
 
@@ -110,10 +109,6 @@ export function captureSession(): SessionSnapshot {
         scatterY: readSelect('scatter-y-col'),
         scatterColorColumn: readSelect('scatter-color-column'),
         scatterRenderMode: readSelect('scatter-render-mode'),
-        // Theme is owned by AppSettings; we keep a snapshot of the resolved
-        // value for diagnostic / back-compat purposes only. It is no longer
-        // applied to the document by `applySession()`.
-        theme: document.documentElement.getAttribute('data-theme') || 'dark',
         datasetRevision: Number.isFinite(Number(datasetState.datasetRevision)) ? Number(datasetState.datasetRevision) : 0,
     };
 }
@@ -253,10 +248,6 @@ export function applySession(
     setSelect('scatter-y-col', snap.scatterY);
     setSelect('scatter-color-column', snap.scatterColorColumn);
     setSelect('scatter-render-mode', snap.scatterRenderMode);
-
-    // Theme is owned by AppSettings; legacy snapshots that recorded a `theme`
-    // value are intentionally not applied here. This keeps session restore
-    // from clobbering the user's active theme preference.
 
     if (revisionMismatch && announceAdjustments) {
         toast('Session belongs to another dataset revision; stale filters were cleared.', 'warning');
