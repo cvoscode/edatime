@@ -82,6 +82,6 @@ export const FFT_HELP: PageHelpContent = {
     ],
 };
 
-export function initFftHelp(): void {
-    initPageHelp('fft', FFT_HELP);
+export function initFftHelp(): () => void {
+    return initPageHelp('fft', FFT_HELP);
 }

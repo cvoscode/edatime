@@ -396,7 +396,7 @@ export async function initFftPage(deps: FftPageDeps): Promise<() => void> {
             void ensureFftChartReady();
             // Page-level "?" help button. Idempotent so safe to call
             // on every page init.
-            initFftHelp();
+            controlAbort.signal.addEventListener('abort', initFftHelp(), { once: true });
 
             modeSelect?.addEventListener('change', () => {
                 fftMode = getDropdownValue('fft-mode-select') || 'magnitude';
