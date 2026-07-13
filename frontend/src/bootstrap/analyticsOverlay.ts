@@ -26,6 +26,7 @@ import type { AnomalyResponse } from '../types/api.js';
 import type { RollingBandData } from '../types/analytics.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 import { getSeriesColor } from '../utils/seriesColors.js';
+import { onFeatureEvent } from '../platform/featureEvents.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -185,7 +186,7 @@ export const isAnalyticsControllerActive = (): boolean =>
 // ── Combined analytics listener wiring ───────────────────────────────────────
 
 /**
- * Wire the edatime:analytics-change event to:
+ * Wire typed analytics-change notifications to:
  *   1. Recompute rolling bands from current lastFetchedData
  *   2. Trigger chart overlay re-render
  *   3. Fetch fresh anomaly regions
@@ -214,8 +215,7 @@ export function initAnalyticsListeners(
         fetchAndRenderAnalytics().catch((err: unknown) => { console.warn('Analytics fetch failed:', err); });
     };
 
-    window.addEventListener('edatime:analytics-change', handler);
-    return () => window.removeEventListener('edatime:analytics-change', handler);
+    return onFeatureEvent('analytics:change', handler);
 }
 
 /**

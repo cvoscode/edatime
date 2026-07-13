@@ -5,6 +5,7 @@
  * public browser contract and must be explicitly declared here.
  */
 export interface FeatureEventMap {
+    'analytics:change': undefined;
     'workflow:refresh': undefined;
 }
 

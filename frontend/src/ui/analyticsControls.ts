@@ -7,6 +7,7 @@ import {
     setRollingEnabled,
     setRollingWindow,
 } from '../store/analyticsState.js';
+import { emitFeatureEvent } from '../platform/featureEvents.js';
 import { getDropdownValue } from './primitives/Dropdown.js';
 
 export function initAnalyticsControls(): void {
@@ -18,7 +19,7 @@ export function initAnalyticsControls(): void {
     const anomalyThresholdInput = document.getElementById('anomaly-threshold') as HTMLInputElement | null;
     const transformOpenBtn = document.getElementById('transform-open-btn') as HTMLElement | null;
 
-    const dispatchAnalyticsChange = () => window.dispatchEvent(new CustomEvent('edatime:analytics-change'));
+    const dispatchAnalyticsChange = () => emitFeatureEvent('analytics:change', undefined);
 
     if (rollingCheck && !rollingCheck.dataset.bound) {
         rollingCheck.addEventListener('change', () => {

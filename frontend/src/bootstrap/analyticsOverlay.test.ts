@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchAnomalyRegions } from './analyticsOverlay.js';
+import { fetchAnomalyRegions, initAnalyticsListeners } from './analyticsOverlay.js';
 import { analyticsState } from '../store/analyticsState.js';
 import { chartState, setViewport } from '../store/chartState.js';
 import { createWorkspaceStore } from '../workspace/workspaceStore.js';
+import { emitFeatureEvent } from '../platform/featureEvents.js';
 
 describe('fetchAnomalyRegions', () => {
     afterEach(() => {
@@ -27,5 +28,17 @@ describe('fetchAnomalyRegions', () => {
             analyticsState.anomalyThreshold,
             { signal: expect.any(AbortSignal) },
         );
+    });
+
+    it('refreshes analytics when the typed analytics-change event fires', async () => {
+        const workspace = createWorkspaceStore();
+        const fetchAndRenderAnalytics = vi.fn().mockResolvedValue(undefined);
+        const dispose = initAnalyticsListeners(fetchAndRenderAnalytics, workspace);
+
+        emitFeatureEvent('analytics:change', undefined);
+        await Promise.resolve();
+        dispose();
+
+        expect(fetchAndRenderAnalytics).toHaveBeenCalledTimes(1);
     });
 });
