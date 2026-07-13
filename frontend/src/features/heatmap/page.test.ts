@@ -73,6 +73,8 @@ const DEFAULT_MATRIX_RESPONSE = {
     ],
 };
 
+let heatmapPageChange: ((detail: { page?: string }) => void) | null = null;
+
 // Mock shared dependencies
 vi.mock('../../services/api/index.js', () => ({
     fetchCorrelationMatrix: vi.fn(),
@@ -91,33 +93,30 @@ vi.mock('../../utils/bindExportButtons.js', () => ({
 
 vi.mock('../../platform/pageLifecycle.js', () => ({
     createPageLifecycle: vi.fn(({ page, init, onVisible, onEveryPageChange }) => {
-        // Track the handler so tests can clean it up between runs.
-        const handler = (event: Event) => {
-            const detail = (event as CustomEvent<{ page?: string }>).detail;
+        const handler = (detail: { page?: string }) => {
             if (detail?.page === page) {
                 init?.();
                 onVisible?.();
             }
             onEveryPageChange?.();
         };
-        (globalThis as any).__heatmapHandlers ||= [];
-        (globalThis as any).__heatmapHandlers.push(handler);
-        window.addEventListener('edatime:page-change', handler);
+        heatmapPageChange = handler;
         return {
             activate: () => {
                 init?.();
                 onVisible?.();
             },
-            dispose: () => window.removeEventListener('edatime:page-change', handler),
+            dispose: () => {
+                if (heatmapPageChange === handler) heatmapPageChange = null;
+            },
         };
     }),
 }));
 
 async function activateHeatmap(): Promise<void> {
-    // Mount the heatmap page and then dispatch a page-change event to
-    // simulate the user navigating to the heatmap page, which causes the
-    // real lifecycle handler to run init() + onVisible().
-    window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'heatmap' } }));
+    // Simulate the typed lifecycle callback that navigation invokes.
+    if (!heatmapPageChange) throw new Error('Heatmap lifecycle was not mounted');
+    heatmapPageChange({ page: 'heatmap' });
     // Allow the async matrix load to resolve and the rAF callback to fire.
     await new Promise((resolve) => setTimeout(resolve, 0));
 }
@@ -180,15 +179,7 @@ describe('heatmapPage with clustering', () => {
     });
 
     afterEach(() => {
-        // Remove page-change handlers registered during the test so that
-        // the next test only triggers its own lifecycle.
-        const handlers = (globalThis as any).__heatmapHandlers as Array<(e: Event) => void> | undefined;
-        if (handlers) {
-            for (const h of handlers) {
-                window.removeEventListener('edatime:page-change', h);
-            }
-            handlers.length = 0;
-        }
+        heatmapPageChange = null;
         delete (globalThis as any).ResizeObserver;
         vi.restoreAllMocks();
     });

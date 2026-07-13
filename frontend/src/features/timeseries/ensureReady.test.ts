@@ -70,7 +70,7 @@ vi.mock('./adaptiveGesture.js', () => ({
     initAdaptiveFilterGesture: initAdaptiveFilterGestureMock,
 }));
 
-vi.mock('../../bootstrap/sessionBootstrap.js', () => ({
+vi.mock('../../platform/sessionLifecycle.js', () => ({
     restoreSessionAfterChartReady: restoreSessionAfterChartReadyMock,
 }));
 

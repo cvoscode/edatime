@@ -67,21 +67,13 @@ vi.mock('echarts', () => ({
 }));
 
 vi.mock('../../platform/pageLifecycle.js', () => ({
-    createPageLifecycle: vi.fn(({ page, init, onVisible, onEveryPageChange }) => {
-        const handler = (event: Event) => {
-            if ((event as CustomEvent<{ page?: string }>).detail?.page === page) {
-                init?.();
-                onVisible?.();
-            }
-            onEveryPageChange?.();
-        };
-        window.addEventListener('edatime:page-change', handler);
+    createPageLifecycle: vi.fn(({ init, onVisible }) => {
         return {
             activate: () => {
                 init?.();
                 onVisible?.();
             },
-            dispose: () => window.removeEventListener('edatime:page-change', handler),
+            dispose: () => {},
         };
     }),
 }));

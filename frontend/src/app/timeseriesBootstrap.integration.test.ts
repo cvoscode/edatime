@@ -147,7 +147,7 @@ vi.mock('../ui/toolbar.js', () => ({
     setComputeLoading: vi.fn(),
 }));
 
-vi.mock('../bootstrap/sessionBootstrap.js', () => ({
+vi.mock('../platform/sessionLifecycle.js', () => ({
     startSessionPersistence: startSessionPersistenceMock,
 }));
 

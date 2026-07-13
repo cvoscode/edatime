@@ -553,6 +553,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Replaced the global `edatime:page-change` production DOM bus with `platform/navigationEvents`, a typed in-process navigation boundary carrying the resolved page, requested navigation page, and analytics view.
 - Router, page lifecycle, session/provenance, Timeseries, Scatter, Causal, Drift, and Guided Workflow now subscribe through owned typed cleanup handles. Characterization suites emit the same typed payload directly; the prior DOM producer has been removed.
 
+### Completed: session lifecycle platform ownership
+
+- Moved session restoration-after-chart-readiness and autosave startup from the root `bootstrap/` layer into `platform/sessionLifecycle`, where their router, storage, and workspace dependencies belong.
+- Added direct restoration characterization coverage before the move: a compatible saved session is applied to the supplied workspace, rebuilds controls/current data, and refreshes the ready chart while respecting hash navigation.
+- Updated application composition, Timeseries readiness, and their integration-test seams to consume the platform owner; no compatibility re-export remains.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.

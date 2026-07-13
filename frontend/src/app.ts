@@ -43,7 +43,7 @@ import {
 } from './platform/runtimeModules.js';
 import { getHashPage } from './utils/router.js';
 import { pageNeedsDatasetBootstrap } from './utils/pageBootstrap.js';
-import { startSessionPersistence } from './bootstrap/sessionBootstrap.js';
+import { startSessionPersistence } from './platform/sessionLifecycle.js';
 import {
     updateAnalysisZoom, updateAnalysisYRange,
     refreshZoomControlsState, getCurrentView,
