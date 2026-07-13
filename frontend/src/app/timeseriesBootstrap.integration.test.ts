@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
     createTimeseriesModuleMock,
+    createAnalyticsOverlayControllerMock,
     ensureDatasetReadyMock,
     initAppShellMock,
     markMetadataReadyMock,
@@ -17,6 +18,11 @@ const {
     setViewportMock,
 } = vi.hoisted(() => ({
     createTimeseriesModuleMock: vi.fn(),
+    createAnalyticsOverlayControllerMock: vi.fn(() => ({
+        fetchAndRender: vi.fn().mockResolvedValue(undefined),
+        setRenderCallback: vi.fn(),
+        dispose: vi.fn(),
+    })),
     ensureDatasetReadyMock: vi.fn().mockResolvedValue(undefined),
     initAppShellMock: vi.fn(() => ({
         openCommands: vi.fn().mockResolvedValue(undefined),
@@ -132,8 +138,8 @@ vi.mock('../utils/pageBootstrap.js', () => ({
 }));
 
 vi.mock('../features/timeseries/index.js', () => ({
+    createAnalyticsOverlayController: createAnalyticsOverlayControllerMock,
     createTimeseriesModule: createTimeseriesModuleMock,
-    fetchAndRenderAnalytics: vi.fn().mockResolvedValue(undefined),
     initTimeseriesShortcuts: vi.fn(),
     sanitizeSelectedColumns: sanitizeSelectedColumnsMock,
 }));

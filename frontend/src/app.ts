@@ -21,7 +21,7 @@ import { installWindowsWebGpuRequestAdapterWorkaround } from './utils/platform.j
 import { getAnalyticsChipColor } from './platform/analyticsColumns.js';
 import {
     createTimeseriesModule,
-    fetchAndRenderAnalytics as doFetchAndRenderAnalytics,
+    createAnalyticsOverlayController,
     sanitizeSelectedColumns,
 } from './features/timeseries/index.js';
 // `initScatterPage` lives behind the scatter feature entrypoint and is
@@ -79,9 +79,11 @@ export function createApp(): AppRoot {
     const runtime = createAppRuntime();
     const featureRegistry = createFeatureRegistry();
     const workspace = createWorkspaceStore();
+    const analyticsOverlay = createAnalyticsOverlayController();
     const exportFeature = createExportFeature({ workspace, getData: () => runtimeState.lastFetchedData });
     runtime.registerCleanup(() => workspace.dispose());
     runtime.registerCleanup(featureRegistry.dispose);
+    runtime.registerCleanup(analyticsOverlay.dispose);
 
     let timeseriesModule!: ReturnType<typeof createTimeseriesModule>;
     let appDisposed = false;
@@ -99,7 +101,7 @@ export function createApp(): AppRoot {
 
     async function fetchAndRenderAnalytics(): Promise<void> {
         const { fetchAnomalies } = await ensureBootstrapDataModules();
-        await doFetchAndRenderAnalytics(fetchAnomalies, workspace);
+        await analyticsOverlay.fetchAndRender(fetchAnomalies, workspace);
     }
 
     function ensureSessionPersistenceStarted(): void {
@@ -147,6 +149,7 @@ export function createApp(): AppRoot {
             getCurrentView,
             fetchAndRenderAnalytics,
             refreshZoomControlsState,
+            setAnomalyOverlayRenderCallback: analyticsOverlay.setRenderCallback,
             chartExportPng: () => chartState.chart?.exportPNG?.(),
             chartExportSvg: () => chartState.chart?.exportSVG?.(),
             exportFilteredCsv: exportFeature.exportFilteredCsv,

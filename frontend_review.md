@@ -643,6 +643,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Disposing one controller no longer removes another controller's empty-state listener, which is required for independent app-root teardown and remounting hosts.
 - A two-controller regression proves the surviving controller remains active after the first is disposed and that final disposal releases its own listener.
 
+### Completed: Timeseries analytics-overlay lifecycle isolation
+
+- Replaced module-global anomaly request and redraw callback state with an app-owned `AnalyticsOverlayController`, registered under the root runtime for final disposal.
+- Chart readiness receives only the owning controller's redraw callback. One app root can no longer abort, clear, or redraw another root's anomaly request.
+- The controller ignores stale completion, clears its active request deterministically, and has direct two-controller coverage for request and callback isolation.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.

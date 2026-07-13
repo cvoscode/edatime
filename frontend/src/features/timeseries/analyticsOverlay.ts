@@ -6,9 +6,9 @@
  * filter intent, and chart render lifecycle.
  *
  * Public API:
- *   AnalyticsOverlayController — start(), stop(), fetchAndRender(), isRunning
+ *   AnalyticsOverlayController — fetch, redraw, cancellation, and disposal
  *   computeFrontendRollingBands  — moved from timeseriesPage.ts
- *   setAnomalyOverlayCallback     — for ChartGPU wiring
+ *   createAnalyticsOverlayController — per-Timeseries/root lifecycle owner
  */
 
 import { applyFilterIntentToData, type TimeseriesFilterIntent } from '../../services/timeseries/filtering.js';
@@ -97,67 +97,101 @@ export function computeFrontendRollingBands(
 
 // ── Anomaly overlay controller ───────────────────────────────────────────────
 
-let _anomalyController: AbortController | null = null;
-let _overlayCallback: (() => void) | null = null;
-
-/** Wire ChartGPU's overlay render callback so anomaly/rolling overlays trigger a re-render. */
-export function setAnomalyOverlayCallback(cb: () => void): void {
-    _overlayCallback = cb;
-}
-
-function requestOverlayRender(): void {
-    _overlayCallback?.();
-}
-
 function getFilterIntent(
     workspace: Pick<WorkspaceStore, 'getSnapshot'>,
 ): TimeseriesFilterIntent {
     return workspace.getSnapshot();
 }
 
+export interface AnalyticsOverlayController {
+    setRenderCallback(callback: (() => void) | null): void;
+    fetchAnomalyRegions(
+        fetchAnomalies: ((start: string, end: string, columns: string, method?: string, threshold?: number, options?: ApiRequestOptions) => Promise<AnomalyResponse>) | null,
+        workspace: Pick<WorkspaceStore, 'getSnapshot'>,
+    ): Promise<void>;
+    fetchAndRender(
+        fetchAnomalies: ((start: string, end: string, columns: string, method?: string, threshold?: number, options?: ApiRequestOptions) => Promise<AnomalyResponse>) | null,
+        workspace: Pick<WorkspaceStore, 'getSnapshot'>,
+    ): Promise<void>;
+    cancel(): void;
+    isFetchActive(): boolean;
+    dispose(): void;
+}
+
 /**
- * Fetch anomaly regions from the backend and update analytics state.
- * Returns early if currentStart / currentEnd are not finite.
+ * Creates the anomaly request and redraw owner for one Timeseries feature.
+ * Keeping the abort controller and callback here prevents one app root from
+ * cancelling or redrawing another root's overlay work.
  */
-export async function fetchAnomalyRegions(
-    fetchAnomalies: ((start: string, end: string, columns: string, method?: string, threshold?: number, options?: ApiRequestOptions) => Promise<AnomalyResponse>) | null,
-    workspace: Pick<WorkspaceStore, 'getSnapshot'>,
-): Promise<void> {
-    if (!Number.isFinite(chartState.currentStart) || !Number.isFinite(chartState.currentEnd)) return;
+export function createAnalyticsOverlayController(): AnalyticsOverlayController {
+    let anomalyController: AbortController | null = null;
+    let overlayCallback: (() => void) | null = null;
 
-    if (_anomalyController) _anomalyController.abort();
-    _anomalyController = new AbortController();
-    const controllerSignal = _anomalyController.signal;
+    async function fetchAnomalyRegions(
+        fetchAnomalies: ((start: string, end: string, columns: string, method?: string, threshold?: number, options?: ApiRequestOptions) => Promise<AnomalyResponse>) | null,
+        workspace: Pick<WorkspaceStore, 'getSnapshot'>,
+    ): Promise<void> {
+        if (!Number.isFinite(chartState.currentStart) || !Number.isFinite(chartState.currentEnd)) return;
 
-    const startIso = new Date(chartState.currentStart!).toISOString();
-    const endIso = new Date(chartState.currentEnd!).toISOString();
-    const cols = workspace.getSnapshot().selection.columns.join(',');
+        anomalyController?.abort();
+        const controller = new AbortController();
+        anomalyController = controller;
 
-    try {
-        if (analyticsState.anomalyEnabled && fetchAnomalies) {
-            const resp = await fetchAnomalies(
-                startIso,
-                endIso,
-                cols,
-                analyticsState.anomalyMethod,
-                analyticsState.anomalyThreshold,
-                { signal: controllerSignal },
-            );
-            setAnomalyRegions(resp?.regions ?? null);
-            setAnomalySummaryStats(resp?.summary_stats ?? null);
-        } else {
+        const startIso = new Date(chartState.currentStart!).toISOString();
+        const endIso = new Date(chartState.currentEnd!).toISOString();
+        const cols = workspace.getSnapshot().selection.columns.join(',');
+
+        try {
+            if (analyticsState.anomalyEnabled && fetchAnomalies) {
+                const resp = await fetchAnomalies(
+                    startIso,
+                    endIso,
+                    cols,
+                    analyticsState.anomalyMethod,
+                    analyticsState.anomalyThreshold,
+                    { signal: controller.signal },
+                );
+                if (anomalyController !== controller) return;
+                setAnomalyRegions(resp?.regions ?? null);
+                setAnomalySummaryStats(resp?.summary_stats ?? null);
+            } else if (anomalyController === controller) {
+                setAnomalyRegions(null);
+                setAnomalySummaryStats(null);
+            }
+        } catch (error: unknown) {
+            if (anomalyController !== controller) return;
+            if (!(error instanceof Error) || error.name !== 'AbortError') {
+                console.warn('Anomaly fetch failed:', error);
+            }
             setAnomalyRegions(null);
             setAnomalySummaryStats(null);
+        } finally {
+            if (anomalyController === controller) {
+                anomalyController = null;
+                overlayCallback?.();
+            }
         }
-    } catch (e: unknown) {
-        if (!(e instanceof Error) || e.name !== 'AbortError') {
-            console.warn('Anomaly fetch failed:', e);
-        }
-        setAnomalyRegions(null);
-        setAnomalySummaryStats(null);
     }
 
-    requestOverlayRender();
+    return {
+        setRenderCallback(callback) {
+            overlayCallback = callback;
+        },
+        fetchAnomalyRegions,
+        fetchAndRender: fetchAnomalyRegions,
+        cancel() {
+            anomalyController?.abort();
+            anomalyController = null;
+        },
+        isFetchActive() {
+            return anomalyController !== null && !anomalyController.signal.aborted;
+        },
+        dispose() {
+            anomalyController?.abort();
+            anomalyController = null;
+            overlayCallback = null;
+        },
+    };
 }
 
 /** Compute rolling bands from lastFetchedData + column ranges; update analytics state. */
@@ -173,15 +207,6 @@ export function computeAndSetRollingBands(
     const filtered = applyFilterIntentToData(runtimeState.lastFetchedData!, intent);
     setRollingBands(computeFrontendRollingBands(filtered, [...intent.selection.columns], windowSize));
 }
-
-/** Stop any in-flight anomaly request. */
-export function cancelAnalyticsFetch(): void {
-    _anomalyController?.abort();
-}
-
-/** Whether an analytics fetch is currently in-flight. */
-export const isAnalyticsControllerActive = (): boolean =>
-    _anomalyController !== null && !_anomalyController.signal.aborted;
 
 // ── Combined analytics listener wiring ───────────────────────────────────────
 
@@ -219,12 +244,6 @@ export function initAnalyticsListeners(
 }
 
 /**
- * Standalone analytics fetch for the overlay panel.
- * Dynamic import keeps services/api out of the main module load path.
+ * The request owner is injected by the application root, which keeps this
+ * listener focused on typed-event subscription and workspace intent.
  */
-export async function fetchAndRenderAnalytics(
-    fetchAnomalies: ((start: string, end: string, columns: string, method?: string, threshold?: number, options?: ApiRequestOptions) => Promise<AnomalyResponse>) | null,
-    workspace: Pick<WorkspaceStore, 'getSnapshot'>,
-): Promise<void> {
-    await fetchAnomalyRegions(fetchAnomalies ?? null, workspace);
-}

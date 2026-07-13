@@ -9,7 +9,6 @@ const {
     bindAnalysisChartEventsMock,
     getCurrentViewMock,
     setAnnotationOverlayCallbackMock,
-    setAnomalyOverlayCallbackMock,
     initAdaptiveFilterGestureMock,
     restoreSessionAfterChartReadyMock,
 } = vi.hoisted(() => ({
@@ -30,7 +29,6 @@ const {
     bindAnalysisChartEventsMock: vi.fn(),
     getCurrentViewMock: vi.fn(() => ({ xMin: 0, xMax: 100, yMin: null, yMax: null })),
     setAnnotationOverlayCallbackMock: vi.fn(),
-    setAnomalyOverlayCallbackMock: vi.fn(),
     initAdaptiveFilterGestureMock: vi.fn(),
     restoreSessionAfterChartReadyMock: vi.fn().mockResolvedValue(undefined),
 }));
@@ -62,9 +60,6 @@ vi.mock('../../ui/annotationPanel.js', () => ({
     setAnnotationOverlayCallback: setAnnotationOverlayCallbackMock,
 }));
 
-vi.mock('./analyticsOverlay.js', () => ({
-    setAnomalyOverlayCallback: setAnomalyOverlayCallbackMock,
-}));
 
 vi.mock('./adaptiveGesture.js', () => ({
     initAdaptiveFilterGesture: initAdaptiveFilterGestureMock,

@@ -50,6 +50,7 @@ export interface TimeseriesModuleDeps {
     getCurrentView: () => ViewSnapshot;
     fetchAndRenderAnalytics: () => Promise<void>;
     refreshZoomControlsState: () => void;
+    setAnomalyOverlayRenderCallback?: (callback: (() => void) | null) => void;
     chartExportPng?: () => void;
     chartExportSvg?: () => void;
     exportFilteredCsv?: () => void;
@@ -212,6 +213,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         renderCurrentData: () => pageController.renderCurrentData(),
         fetchAndRender: () => pageController.fetchAndRender(),
         refreshZoomControlsState: deps.refreshZoomControlsState,
+        setAnomalyOverlayRenderCallback: deps.setAnomalyOverlayRenderCallback,
         workspace: deps.workspace,
     });
 

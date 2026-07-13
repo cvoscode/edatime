@@ -4,4 +4,5 @@ export { sanitizeSelectedColumns } from './columnSelection.js';
 export { initChartPageFilterGesture } from './filterGesture.js';
 export { initTimeseriesHelp } from './help.js';
 export { initAdaptiveFilterGesture } from './adaptiveGesture.js';
-export { fetchAndRenderAnalytics, initAnalyticsListeners } from './analyticsOverlay.js';
+export { createAnalyticsOverlayController, initAnalyticsListeners } from './analyticsOverlay.js';
+export type { AnalyticsOverlayController } from './analyticsOverlay.js';
