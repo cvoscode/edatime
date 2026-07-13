@@ -83,11 +83,12 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
     registerSubsystem('upload-panel', async (deps) => {
         const profileModule = await import('../../features/upload/index.js');
         const { initUploadPanel } = await import('../../features/upload/index.js');
-        initUploadPanel(profileModule.hydrateColumnProfiles, profileModule.renderColumnProfilesGrid, {
+        const disposeUploadPanel = initUploadPanel(profileModule.hydrateColumnProfiles, profileModule.renderColumnProfilesGrid, {
             buildColumnToggles: deps.buildTimeseriesColumns,
             buildRangeControls: deps.buildTimeseriesRanges,
             refreshDatasetAfterMutation: () => deps.refreshDatasetAfterMutation(),
         });
+        deps.registerCleanup(disposeUploadPanel);
         // Page-level "?" help button. The helper is idempotent so it's
         // safe to call from inside the upload-panel subsystem.
         const { initUploadHelp } = await import('../../features/upload/index.js');

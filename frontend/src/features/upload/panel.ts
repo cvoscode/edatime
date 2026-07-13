@@ -12,7 +12,7 @@ export { applyPartialTimeRangeFromMetadata } from './partialLoadControls.js';
 import {
     setUploadPreviewStatus,
     setProfileMode,
-    runFilePreview,
+    createUploadPreviewController,
     applyPreviewColumnSelection,
     applyTimeRangeFromMetadata,
 } from './preview.js';
@@ -52,7 +52,8 @@ export function initUploadPanel(
     hydrateColumnProfiles: (metadata: DatasetMetadata) => void,
     renderColumnProfilesGrid: (resetScroll: boolean) => void,
     deps: UploadPanelDeps,
-): void {
+): () => void {
+    const previewController = createUploadPreviewController();
     const toggleBtn = document.getElementById('upload-toggle-btn');
     const panel = document.getElementById('upload-panel');
     const browseBtn = document.getElementById('browse-btn');
@@ -80,7 +81,7 @@ export function initUploadPanel(
         !skipInput || !uploadBtn
     ) {
         console.error('Upload panel is missing required elements.');
-        return;
+        return () => previewController.dispose();
     }
 
     let selectedFile: File | null = null;
@@ -121,7 +122,7 @@ export function initUploadPanel(
     }
 
     async function runPreviewWithCurrentFile(file: File) {
-        await runFilePreview(file, {
+        await previewController.run(file, {
             hydrateColumnProfiles,
             renderColumnProfilesGrid,
             onTimeColumnChanged: runPreviewWithCurrentFile,
@@ -366,5 +367,7 @@ export function initUploadPanel(
         dbStatusLoaded = true;
         await doSyncDatabaseStatus();
     }
+
+    return () => previewController.dispose();
 
 }

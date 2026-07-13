@@ -35,31 +35,32 @@ export function setProfileMode(mode: 'dataset' | 'preview'): void {
 
 // ── Preview lifecycle ───────────────────────────────────────────────────────
 
-let _previewController: AbortController | null = null;
-
-export function abortPreview(): void {
-    if (_previewController) {
-        _previewController.abort();
-        _previewController = null;
-    }
-}
-
 export interface PreviewCallbacks {
     hydrateColumnProfiles: (metadata: DatasetMetadata) => void;
     renderColumnProfilesGrid: (resetScroll: boolean) => void;
     onTimeColumnChanged: (file: File) => void;
+    signal?: AbortSignal;
 }
 
-export async function runFilePreview(
-    file: File,
-    callbacks: PreviewCallbacks,
-): Promise<void> {
+export interface UploadPreviewController {
+    run(file: File, callbacks: PreviewCallbacks): Promise<void>;
+    dispose(): void;
+}
+
+/** Create an upload-preview request owner for one mounted Upload panel. */
+export function createUploadPreviewController(): UploadPreviewController {
+    let request: AbortController | null = null;
+    let disposed = false;
+
+    return {
+        async run(file: File, callbacks: PreviewCallbacks): Promise<void> {
     if (!file) {
         setUploadPreviewStatus('Select a file to preview columns');
         return;
     }
-    if (_previewController) _previewController.abort();
-    _previewController = new AbortController();
+    request?.abort();
+    const controller = new AbortController();
+    request = controller;
     setUploadPreviewStatus('Profiling file…', 'loading');
 
     try {
@@ -69,7 +70,8 @@ export async function runFilePreview(
         const timeColumn = String(uiState.previewTimeColumn || '').trim();
         if (timeColumn) formData.append('time_column', timeColumn);
 
-        const res = await previewUpload(formData, { signal: _previewController.signal });
+        const res = await previewUpload(formData, { signal: controller.signal });
+        if (disposed || controller.signal.aborted || request !== controller) return;
         if (!res.ok) {
             const txt = await res.text().catch(() => 'Preview failed');
             throw new Error(txt || 'Preview failed');
@@ -94,14 +96,23 @@ export async function runFilePreview(
         }
         setProfileMode('preview');
     } catch (e: unknown) {
-        if ((e as Error)?.name === 'AbortError') return;
+        if (disposed || controller.signal.aborted || request !== controller || (e as Error)?.name === 'AbortError') return;
         if (String((e as Error)?.message || '').includes('Specified time column not found')) {
             setPreviewTimeColumn(null);
         }
         setUploadPreviewStatus(`Preview failed: ${e instanceof Error ? e.message : String(e)}`, 'error');
         toast(`Upload preview failed: ${e instanceof Error ? e.message : String(e)}`, 'error', {});
         applyTimeRangeFromMetadata(null, false);
+    } finally {
+        if (request === controller) request = null;
     }
+        },
+        dispose(): void {
+            disposed = true;
+            request?.abort();
+            request = null;
+        },
+    };
 }
 
 // ── Column selection from preview ────────────────────────────────────────────
@@ -141,12 +152,12 @@ export function applyPreviewColumnSelection(
             setDropdownValue('time-column-select', '');
         }
 
-        timeColumnControl.onchange = () => {
+        timeColumnControl.addEventListener('change', () => {
             setPreviewTimeColumn(getDropdownValue('time-column-select') || null);
             const fileInput = document.getElementById('file-upload') as HTMLInputElement | null;
             const file = fileInput?.files?.[0] || null;
             if (file) callbacks.onTimeColumnChanged(file);
-        };
+        }, callbacks.signal ? { signal: callbacks.signal } : undefined);
     }
 }
 
