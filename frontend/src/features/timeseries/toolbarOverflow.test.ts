@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { createTimeseriesToolbarOverflow } from './toolbarOverflow.js';
+import { createToolbarOverflow } from '../../ui/toolbarOverflow.js';
 
-function createShelf(wrapped: boolean): { shelf: HTMLElement; fields: HTMLElement; menu: HTMLElement } {
+function createShelf(wrapped: boolean, fieldsClass = 'scatter-toolbar__fields'): { shelf: HTMLElement; fields: HTMLElement; menu: HTMLElement } {
     const shelf = document.createElement('div');
     const segment = document.createElement('div');
     segment.className = 'scatter-toolbar__segment';
     const fields = document.createElement('div');
-    fields.className = 'scatter-toolbar__fields';
+    fields.className = fieldsClass;
     for (const [index, label] of ['A', 'B'].entries()) {
         const field = document.createElement('label');
         field.className = 'scatter-toolbar__field';
@@ -25,12 +25,12 @@ function createShelf(wrapped: boolean): { shelf: HTMLElement; fields: HTMLElemen
     return { shelf, fields, menu: overflow.querySelector('.scatter-toolbar__overflow-menu')! as HTMLElement };
 }
 
-describe('createTimeseriesToolbarOverflow', () => {
+describe('timeseries toolbar overflow configuration', () => {
     afterEach(() => { document.body.innerHTML = ''; });
 
     it('moves wrapped fields and restores them when disposed', () => {
         const { shelf, fields, menu } = createShelf(true);
-        const controller = createTimeseriesToolbarOverflow(shelf)!;
+        const controller = createToolbarOverflow(shelf, { showCount: true })!;
 
         controller.rebalanceNow();
         expect(menu.children).toHaveLength(1);
@@ -44,13 +44,37 @@ describe('createTimeseriesToolbarOverflow', () => {
     it('keeps separate shelves isolated', () => {
         const first = createShelf(true);
         const second = createShelf(false);
-        const firstController = createTimeseriesToolbarOverflow(first.shelf)!;
-        const secondController = createTimeseriesToolbarOverflow(second.shelf)!;
+        const firstController = createToolbarOverflow(first.shelf, { showCount: true })!;
+        const secondController = createToolbarOverflow(second.shelf, { showCount: true })!;
 
         firstController.rebalanceNow();
         secondController.rebalanceNow();
 
         expect(first.menu.children).toHaveLength(1);
         expect(second.menu.children).toHaveLength(0);
+    });
+
+    it('supports the Timeseries controls container and clears its badge after unwrapping', () => {
+        const { shelf, fields, menu } = createShelf(true, 'scatter-toolbar__controls');
+        const controller = createToolbarOverflow(shelf, {
+            fieldsSelector: ':scope > .scatter-toolbar__fields, :scope > .scatter-toolbar__controls',
+            showCount: true,
+        })!;
+
+        controller.rebalanceNow();
+        const badge = shelf.querySelector<HTMLElement>('.scatter-toolbar__overflow-count');
+        expect(menu.children).toHaveLength(1);
+        expect(badge?.textContent).toBe('1');
+        expect(badge?.hidden).toBe(false);
+
+        Object.defineProperty(menu.children[0]!, 'offsetTop', {
+            configurable: true,
+            value: 0,
+        });
+        controller.rebalanceNow();
+
+        expect(menu.children).toHaveLength(0);
+        expect(badge?.hidden).toBe(true);
+        controller.dispose();
     });
 });

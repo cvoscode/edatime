@@ -98,11 +98,14 @@ export function createTimeseriesControls(deps: TimeseriesFeatureDeps) {
                     // Late-imported to keep the initial bundle small
                     // and to avoid a static dependency cycle with
                     // the timeseries page module.
-                    void import('./toolbarOverflow.js')
-                        .then(({ createTimeseriesToolbarOverflow }) => {
+                    void import('../../ui/toolbarOverflow.js')
+                        .then(({ createToolbarOverflow }) => {
                             if (!initialized) return;
                             toolbarOverflow?.dispose();
-                            toolbarOverflow = createTimeseriesToolbarOverflow(shelf);
+                            toolbarOverflow = createToolbarOverflow(shelf, {
+                                fieldsSelector: ':scope > .scatter-toolbar__fields, :scope > .scatter-toolbar__controls',
+                                showCount: true,
+                            });
                             // One extra refresh after a frame so the
                             // initial popout state is correct even if
                             // the ResizeObserver hasn't fired yet.
