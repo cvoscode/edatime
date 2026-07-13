@@ -93,6 +93,6 @@ export const SCATTER_HELP: PageHelpContent = {
     ],
 };
 
-export function initScatterHelp(): void {
-    initPageHelp('scatter', SCATTER_HELP);
+export function initScatterHelp(): () => void {
+    return initPageHelp('scatter', SCATTER_HELP);
 }

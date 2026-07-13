@@ -102,9 +102,12 @@ export function handleErr(err: unknown): void {
 
 // Re-export for the control binding.
 export { syncScatterFilterBadge };
+let disposeScatterHelp: (() => void) | null = null;
 
 /** Release the current Scatter page mount before its dataset session is replaced. */
 export function disposeScatterPage(): void {
+    disposeScatterHelp?.();
+    disposeScatterHelp = null;
     disposeBoundControls?.();
     disposeBoundControls = null;
     disposeScatterControls();
@@ -497,7 +500,7 @@ export async function initScatterPage(
         }
         // Page-level "?" help button. The helper is idempotent so
         // calling it on every first init is safe.
-        initScatterHelp();
+        disposeScatterHelp = initScatterHelp();
         scatterState.initialized = true;
     }
     if (scatterState.pageInitialized) return disposeScatterPage;
