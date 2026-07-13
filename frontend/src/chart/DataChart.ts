@@ -43,8 +43,7 @@ interface ChartInstanceAPI {
 }
 
 import { baseSeriesName } from './colorScale.js';
-import { CHART_PALETTES, getSetting } from '../utils/settings.js';
-import { getChartPalette, getResolvedTheme, onThemeChange, type ResolvedTheme } from '../utils/theme.js';
+import { getResolvedTheme, onThemeChange, type ResolvedTheme } from '../utils/theme.js';
 import { niceLinearTicks } from './ticks.js';
 import {
     type GridLayout,
@@ -65,6 +64,7 @@ import { renderChartExportCanvas } from './chartExportCanvasRenderer.js';
 import { computeZoomPercentRange } from './zoomRangePolicy.js';
 import { computeDisplayYRange } from './displayYRangePolicy.js';
 import { mapCssPointToChartData } from './chartCoordinateMapper.js';
+import { buildChartGpuTheme, getChartGpuColorPalette, withChartGpuTheme } from './chartThemeOptions.js';
 import {
     DEFAULT_CHART_GRID,
     computeChartGrid,
@@ -313,11 +313,7 @@ export class DataChart {
 
     private _onThemeChanged(theme: ResolvedTheme): void {
         if (this.chartInstance && this._lastChartOptions && theme !== this._lastAppliedTheme) {
-            const nextOption = {
-                ...this._lastChartOptions,
-                theme: this._buildChartGpuTheme(),
-                palette: this._getChartColorPalette(),
-            };
+            const nextOption = withChartGpuTheme(this._lastChartOptions as Record<string, unknown>);
             this._lastChartOptions = nextOption as ChartGPUOptions;
             this._lastAppliedTheme = theme;
             try {
@@ -611,23 +607,11 @@ export class DataChart {
     }
 
     private _getChartColorPalette(): string[] {
-        const paletteName = String(getSetting('defaultPalette') ?? 'default');
-        const colors = CHART_PALETTES[paletteName] ?? CHART_PALETTES.default;
-        return Array.isArray(colors) ? [...colors] : [...CHART_PALETTES.default];
+        return getChartGpuColorPalette();
     }
 
     private _buildChartGpuTheme() {
-        const palette = getChartPalette();
-        return {
-            backgroundColor: palette.background,
-            textColor: palette.text,
-            axisLineColor: palette.borderHi,
-            axisTickColor: palette.textDim,
-            gridLineColor: palette.border,
-            colorPalette: this._getChartColorPalette(),
-            fontFamily: 'ui-sans-serif, system-ui, sans-serif',
-            fontSize: 12,
-        };
+        return buildChartGpuTheme();
     }
 
     private _getVisibilityByBaseNameFromChart(): Map<string, boolean> {

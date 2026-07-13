@@ -177,6 +177,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Applied the same box-zoom cleanup contract to FFT and the canvas fallback chart so no chart adapter retains stale interaction listeners after lifecycle changes.
 - Made repeated `DataChart.init()` release the prior ChartGPU instance, resize observers, drawing bindings, canvases, overlays, legend/text DOM, and theme subscription before rebuilding; direct initialization coverage now guards the re-init path.
 - Extracted CSS-pixel to active chart-domain conversion into `chartCoordinateMapper`, with direct plot-boundary and active-Y-range coverage; `DataChart` now supplies its current geometry and state rather than owning mapping arithmetic.
+- Extracted ChartGPU palette/theme construction and theme-refresh option composition into `chartThemeOptions`, keeping theme adaptation deterministic and independently characterized.
 
 ### Next: DataChart renderer seams
 
