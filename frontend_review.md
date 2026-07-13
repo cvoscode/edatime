@@ -577,6 +577,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - `app.ts` no longer directly mounts a shell controller or retains its return value; it composes the shell and remains focused on application/runtime assembly.
 - A shell-level regression verifies the exact shortcut dependency contract, before and after the ownership move.
 
+### Completed: Timeseries-owned shortcut composition
+
+- `TimeseriesModule.mount()` now creates its viewport/export/adaptive-filter shortcut binding and returns one disposer that releases those listeners together with the Timeseries runtime and page controller.
+- Application composition registers that feature disposer with `AppRuntime`; it no longer reaches into a Timeseries-local initializer or reconstructs feature actions.
+- Direct module coverage proves mount wires the shortcut contract and cleanup releases it, preserving the existing standalone shortcut lifecycle regressions.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.

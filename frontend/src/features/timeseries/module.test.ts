@@ -13,18 +13,21 @@ const {
     mockCreateTimeseriesRuntime,
     mockCreateDatasetBootstrap,
     mockCreateTimeseriesBootstrap,
+    mockInitTimeseriesShortcuts,
 } = vi.hoisted(() => {
     const mockCreateTimeseriesPageController = vi.fn();
     const mockCreateTimeseriesControls = vi.fn();
     const mockCreateTimeseriesRuntime = vi.fn();
     const mockCreateDatasetBootstrap = vi.fn();
     const mockCreateTimeseriesBootstrap = vi.fn();
+    const mockInitTimeseriesShortcuts = vi.fn();
     return {
         mockCreateTimeseriesPageController,
         mockCreateTimeseriesControls,
         mockCreateTimeseriesRuntime,
         mockCreateDatasetBootstrap,
         mockCreateTimeseriesBootstrap,
+        mockInitTimeseriesShortcuts,
     };
 });
 
@@ -52,11 +55,16 @@ vi.mock('./ensureReady.js', () => ({
     createTimeseriesBootstrap: mockCreateTimeseriesBootstrap,
 }));
 
+vi.mock('./shortcuts.js', () => ({
+    initTimeseriesShortcuts: mockInitTimeseriesShortcuts,
+}));
+
 // ── Shared mock helpers ───────────────────────────────────────────────────────
 const mockPageController = () => ({
     dispose: vi.fn(),
     fetchAndRender: vi.fn().mockResolvedValue(undefined),
     onZoomRangeChange: vi.fn(),
+    resetZoom: vi.fn(),
     renderCurrentData: vi.fn(),
 });
 
@@ -280,6 +288,28 @@ describe('createTimeseriesModule', () => {
         cleanup();
         expect(unregisterMock).toHaveBeenCalled();
         expect(pageController.dispose).toHaveBeenCalled();
+    });
+
+    it('mounts Timeseries shortcuts and releases them with the feature lifecycle', async () => {
+        const runtime = mockRuntime();
+        const pageController = mockPageController();
+        const shortcutCleanup = vi.fn();
+        mockCreateTimeseriesRuntime.mockReturnValue(runtime);
+        mockCreateTimeseriesPageController.mockReturnValue(pageController);
+        mockInitTimeseriesShortcuts.mockImplementation((deps) => deps.registerCleanup(shortcutCleanup));
+
+        const { createTimeseriesModule } = await import('./module.js');
+        const mod = createTimeseriesModule(defaultDeps());
+        const cleanup = mod.mount();
+
+        expect(mockInitTimeseriesShortcuts).toHaveBeenCalledWith(expect.objectContaining({
+            fetchAndRender: expect.any(Function),
+            zoomOut: expect.any(Function),
+            resetZoom: expect.any(Function),
+            registerCleanup: expect.any(Function),
+        }));
+        cleanup();
+        expect(shortcutCleanup).toHaveBeenCalledTimes(1);
     });
 
     it('ensureDatasetReady() returns a Promise', async () => {

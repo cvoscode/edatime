@@ -22,7 +22,6 @@ import { getAnalyticsChipColor } from './platform/analyticsColumns.js';
 import {
     createTimeseriesModule,
     fetchAndRenderAnalytics as doFetchAndRenderAnalytics,
-    initTimeseriesShortcuts,
     sanitizeSelectedColumns,
 } from './features/timeseries/index.js';
 // `initScatterPage` lives behind the scatter feature entrypoint and is
@@ -154,7 +153,7 @@ async function init(): Promise<void> {
     });
 
     // Mount registers page lifecycle (page-change listener, etc.)
-    timeseriesModule.mount();
+    runtime.registerCleanup(timeseriesModule.mount());
 
     initAppShell({
         ensurePageModuleLoaded: pageRegistry.ensurePageModuleLoaded,
@@ -185,16 +184,6 @@ async function init(): Promise<void> {
         chipColor: (col, idx) => getAnalyticsChipColor(col, idx),
         setLoading: setComputeLoading,
         workspace,
-    });
-
-    initTimeseriesShortcuts({
-        fetchAndRender: () => timeseriesModule.fetchAndRender(),
-        zoomOut: () => timeseriesModule.zoomOut(),
-        resetZoom: () => timeseriesModule.resetZoom(),
-        chartExportPng: () => chartState.chart?.exportPNG?.(),
-        exportFilteredCsv: exportFeature.exportFilteredCsv,
-        exportFilteredJson: exportFeature.exportFilteredJson,
-        registerCleanup: runtime.registerCleanup,
     });
 
     try {
