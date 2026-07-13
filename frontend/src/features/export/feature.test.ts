@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { DataObject } from '../../types.js';
+import type { DataObject } from '../../types/api.js';
 import { makeWorkspaceSnapshot, type WorkspaceSnapshot } from '../../workspace/workspaceStore.js';
 
 const { downloadBlobMock, exportParquetMock } = vi.hoisted(() => ({

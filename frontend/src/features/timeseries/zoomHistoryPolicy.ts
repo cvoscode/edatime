@@ -1,4 +1,4 @@
-import type { ViewSnapshot } from '../../types.js';
+import type { ViewSnapshot } from '../../types/chart.js';
 
 const MAX_ZOOM_RESTORE_STATES = 5;
 const CONSECUTIVE_ZOOM_OUT_RESET_COUNT = 5;

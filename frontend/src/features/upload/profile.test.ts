@@ -13,7 +13,7 @@ import {
 } from './profile';
 import { datasetState } from '../../store/datasetState.js';
 import { uiState } from '../../store/uiState.js';
-import type { DatasetMetadata } from '../../types';
+import type { DatasetMetadata } from '../../types/api.js';
 
 function makeMeta(overrides: Partial<DatasetMetadata> = {}): DatasetMetadata {
     return {

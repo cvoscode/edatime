@@ -22,7 +22,7 @@ let activeControlsCleanup: (() => void) | null = null;
 import { datasetState } from '../../store/datasetState.js';
 import { scatterState } from '../../store/scatterState.js';
 import { setAdaptiveLineFilters, setColumnRanges, uiState } from '../../store/uiState.js';
-import type { DatasetMetadata } from '../../types.js';
+import type { DatasetMetadata } from '../../types/api.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import { getEl, normalizeScatterSuggestionThreshold } from './helpers.js';
 import {

@@ -73,7 +73,7 @@ import { setScatterRenderScheduler } from './renderScheduler.js';
 import { applyScatterPointsResponse } from './responsePolicy.js';
 import { renderScatterChart } from './chartLifecycle.js';
 
-import type { DatasetMetadata } from '../../types.js';
+import type { DatasetMetadata } from '../../types/api.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 let workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters'> | null = null;

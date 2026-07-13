@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ViewSnapshot } from '../../types.js';
+import type { ViewSnapshot } from '../../types/chart.js';
 import {
     appendZoomRestoreState,
     resolveZoomOutDecision,

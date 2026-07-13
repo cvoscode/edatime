@@ -6,7 +6,8 @@
  */
 
 import type { ChartGPUInstance, SeriesConfig } from '../../libs/chartgpu/dist/index.js';
-import type { DatasetMetadata, ScatterFilterSpec, ScatterLineFilterSpec, ScatterPairStats, TopPairItem } from '../types.js';
+import type { DatasetMetadata } from '../types/api.js';
+import type { ScatterFilterSpec, ScatterLineFilterSpec, ScatterPairStats, TopPairItem } from '../types/scatter.js';
 import { emitStoreEvent } from './events.js';
 
 /* ── Types (mirror of ScatterState in types.ts) ─────────── */

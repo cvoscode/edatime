@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { FallbackChart } from './fallback';
-import type { FilteredDataObject } from '../types';
+import type { FilteredDataObject } from '../types/chart.js';
 
 describe('FallbackChart', () => {
     describe('construction', () => {

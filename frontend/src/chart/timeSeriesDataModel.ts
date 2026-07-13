@@ -1,5 +1,5 @@
 import type { AnnotationConfig, SeriesConfig } from '../../libs/chartgpu/dist/index.js';
-import type { FilteredDataObject } from '../types.js';
+import type { FilteredDataObject } from '../types/chart.js';
 import { getSeriesColor } from '../utils/seriesColors.js';
 import { analyzeColorValues, buildColorizedSeries, type ColorScaleInfo } from './colorScale.js';
 

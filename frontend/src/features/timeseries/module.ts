@@ -18,7 +18,8 @@ import {
     uiState,
 } from '../../store/uiState.js';
 import { getNumericColumns, getDefaultTimeseriesColumns } from '../../platform/analyticsColumns.js';
-import type { DatasetMetadata, ViewSnapshot } from '../../types.js';
+import type { DataObject, DatasetMetadata } from '../../types/api.js';
+import type { ViewSnapshot } from '../../types/chart.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import type { ApiRequestOptions } from '../../services/api/http.js';
 
@@ -31,7 +32,7 @@ export interface TimeseriesModuleDeps {
         colorColumn?: string | null,
         lookaroundMs?: number,
         options?: ApiRequestOptions,
-    ) => Promise<import('../../types.js').DataObject>;
+    ) => Promise<DataObject>;
     fetchMetadata: () => Promise<DatasetMetadata>;
     workspace: Pick<WorkspaceStore, 'getSnapshot' | 'beginDatasetSession' | 'commitDataset' | 'setSelection' | 'setFilters' | 'setViewport'>;
     ensurePrimaryChartCtor: () => Promise<new (
@@ -39,7 +40,7 @@ export interface TimeseriesModuleDeps {
         onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null,
         onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null,
         onZoomOutCb: (() => void) | null,
-    ) => import('../../types.js').ChartInstance>;
+    ) => import('../../types/chart.js').ChartInstance>;
     markMetadataReady: () => void;
     isMetadataReady: () => boolean;
     sanitizeSelectedColumns: () => void;

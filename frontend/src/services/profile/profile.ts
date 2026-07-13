@@ -1,4 +1,4 @@
-import type { ProfileColumnDef } from '../../types.js';
+import type { ProfileColumnDef } from '../../types/store.js';
 
 export const PROFILE_ROW_HEIGHT = 38;
 export const PROFILE_OVERSCAN = 8;

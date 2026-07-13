@@ -21,22 +21,15 @@ import {
 } from '../store/analyticsState.js';
 import { chartState } from '../store/chartState.js';
 import { runtimeState } from '../store/runtimeState.js';
-import type { AnomalyResponse, AdaptiveLineFilter } from '../types.js';
+import type { AdaptiveLineFilter } from '../types/store.js';
+import type { AnomalyResponse } from '../types/api.js';
+import type { RollingBandData } from '../types/analytics.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 import { getSeriesColor } from '../utils/seriesColors.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export interface RollingBandData {
-    column: string;
-    color?: string;
-    ts: number[];
-    mean: (number | null)[];
-    upper1: (number | null)[];
-    lower1: (number | null)[];
-    upper2: (number | null)[];
-    lower2: (number | null)[];
-}
+export type { RollingBandData } from '../types/analytics.js';
 
 // ── Rolling band computation ──────────────────────────────────────────────────
 

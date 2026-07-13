@@ -3,41 +3,11 @@
  *
  * Consumed by app.ts (for overlay wiring) and timeseriesPage.ts (for render).
  */
+import type { AnomalyRegionData, SummaryStats } from '../types/api.js';
+import type { RollingBandData, SpectralFilterPreview } from '../types/analytics.js';
 
-export interface RollingBandData {
-    column: string;
-    color?: string;
-    ts: number[];
-    mean: (number | null)[];
-    upper1: (number | null)[];
-    lower1: (number | null)[];
-    upper2: (number | null)[];
-    lower2: (number | null)[];
-}
-
-export interface AnomalyRegionData {
-    column: string;
-    method: string;
-    start_ms: number;
-    end_ms: number;
-    score: number;
-}
-
-export interface SummaryStats {
-    mean: number;
-    std: number;
-    min: number;
-    max: number;
-}
-
-export interface SpectralFilterPreview {
-    column: string;
-    ts: number[];
-    values: number[];
-    filterType: string;
-    lowHz?: number;
-    highHz?: number;
-}
+export type { AnomalyRegionData, SummaryStats } from '../types/api.js';
+export type { RollingBandData, SpectralFilterPreview } from '../types/analytics.js';
 
 export interface AnalyticsState {
     rollingEnabled: boolean;

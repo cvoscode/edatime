@@ -1,4 +1,5 @@
-import type { DataObject, FetchedWindow, YMode } from '../types.js';
+import type { DataObject, FetchedWindow } from '../types/api.js';
+import type { YMode } from '../types/chart.js';
 import { emitStoreEvent } from './events.js';
 
 export interface RuntimeState {

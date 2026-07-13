@@ -8,11 +8,12 @@
 
 import { registerChartType } from '../charts/registry.js';
 import { FallbackChart } from '../charts/fallback.js';
-import type { ChartInstance, ViewSnapshot } from '../types.js';
+import type { AnomalyResponse, DataObject, DatasetMetadata, TransformResponse } from '../types/api.js';
+import type { ChartInstance, ViewSnapshot } from '../types/chart.js';
 import type { ApiRequestOptions } from '../services/api/http.js';
 
 export interface DataModules {
-    fetchMetadata: (options?: ApiRequestOptions) => Promise<import('../types.js').DatasetMetadata>;
+    fetchMetadata: (options?: ApiRequestOptions) => Promise<DatasetMetadata>;
     fetchData: (
         start: string,
         end: string,
@@ -21,9 +22,9 @@ export interface DataModules {
         colorColumn?: string | null,
         lookaroundMs?: number,
         options?: ApiRequestOptions,
-    ) => Promise<import('../types.js').DataObject>;
-    fetchAnomalies: (start: string, end: string, columns: string, method?: string, threshold?: number, options?: ApiRequestOptions) => Promise<import('../types.js').AnomalyResponse>;
-    postTransform: (expression: string, outputName: string) => Promise<import('../types.js').TransformResponse>;
+    ) => Promise<DataObject>;
+    fetchAnomalies: (start: string, end: string, columns: string, method?: string, threshold?: number, options?: ApiRequestOptions) => Promise<AnomalyResponse>;
+    postTransform: (expression: string, outputName: string) => Promise<TransformResponse>;
 }
 
 export interface ChartModules extends DataModules {

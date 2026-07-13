@@ -4,7 +4,7 @@
  * Consumed by columns.ts, toolbar.ts, profile.ts, upload.ts, and page controllers.
  */
 
-import type { AdaptiveLineFilter, ColumnRange, PendingAdaptivePoint, ProfileGridSort } from '../types.js';
+import type { AdaptiveLineFilter, ColumnRange, PendingAdaptivePoint, ProfileGridSort } from '../types/store.js';
 import { emitStoreEvent } from './events.js';
 
 /**

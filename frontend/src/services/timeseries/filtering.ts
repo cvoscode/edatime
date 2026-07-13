@@ -1,10 +1,10 @@
 import type {
     AdaptiveLineFilter,
     ColumnRange,
-    DataObject,
-    FilteredDataObject,
-    ScatterLineFilterSpec,
-} from '../../types.js';
+} from '../../types/store.js';
+import type { DataObject } from '../../types/api.js';
+import type { FilteredDataObject } from '../../types/chart.js';
+import type { ScatterLineFilterSpec } from '../../types/scatter.js';
 import { setColumnRanges } from '../../store/uiState.js';
 import type { WorkspaceSnapshot, WorkspaceStore } from '../../workspace/workspaceStore.js';
 

@@ -9,7 +9,7 @@ import { createEmptyStateController } from '../../ui/emptyState.js';
 import { announceChartLoading, announceDataUpdate } from '../../utils/a11y.js';
 import { computeFrontendRollingBands } from '../../bootstrap/analyticsOverlay.js';
 import { createRequestTask } from '../../platform/requestTask.js';
-import type { ViewSnapshot } from '../../types.js';
+import type { ViewSnapshot } from '../../types/chart.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import type { ApiRequestOptions } from '../../services/api/http.js';
 import { analyticsState, setRollingBands } from '../../store/analyticsState.js';

@@ -263,6 +263,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Renamed the remaining feature-owned `entrypoint.ts` implementations to role-based modules: Data Mutation and Export use `feature.ts`, while Timeseries uses `controls.ts`.
 - Updated public feature surfaces, local composition, and characterization tests. The `features/*/entrypoint.ts` wrapper convention is now fully retired.
 
+### Completed: domain type-module migration
+
+- Replaced the 525-line `frontend/src/types.ts` hub with canonical `types/api`, `types/chart`, `types/scatter`, `types/store`, and `types/analytics` modules.
+- Moved every consumer to its owning type domain, retained the optional WebGPU navigator augmentation with chart contracts, and removed stale duplicate overlay contracts from state owners.
+- Extended the architecture check to reject any reintroduction of the retired monolithic type import.
+
 ### Completed: DataChart decomposition
 
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.

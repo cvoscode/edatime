@@ -1,4 +1,4 @@
-import type { TimeRange } from '../types.js';
+import type { TimeRange } from '../types/api.js';
 
 export interface EmptyStateViewModel {
     visible: boolean;

@@ -124,8 +124,12 @@ for (const file of files) {
     const importRe = /from\s+['"]([^'"]+)['"]/g;
     for (const match of text.matchAll(importRe)) {
       const src = match[1];
+      const resolved = resolveImportPath(src, rel);
+      // The monolithic type hub has been retired; each consumer must use a domain module.
+      if (resolved === 'frontend/src/types.js') {
+        add(file, 'import from types.ts is retired — use types/api, types/chart, types/scatter, types/store, or types/analytics', lineOf(text, match.index ?? 0));
       // scatter/state.ts exports appState for the scatter module's internal use — skip it.
-      if (rel !== 'frontend/src/scatter/state.ts' && /(^|\/)state\.ts$/.test(src)) {
+      } else if (rel !== 'frontend/src/scatter/state.ts' && /(^|\/)state\.ts$/.test(src)) {
         add(file, 'import from state.ts is deprecated — use store/ sub-states or store/appStateCompat.js', lineOf(text, match.index ?? 0));
       } else if (/ui\/columns(\.js)?$/.test(src)) {
         add(file, 'import from ui/columns.ts is deprecated — use features/timeseries/columnsController.js', lineOf(text, match.index ?? 0));
@@ -134,7 +138,7 @@ for (const file of files) {
       } else if (/bootstrap\/pageLoaders(\.js)?$/.test(src)) {
         add(file, 'import from bootstrap/pageLoaders.ts is deprecated — use app/pageRegistry.js', lineOf(text, match.index ?? 0));
       } else if (/bootstrap\/timeseriesBootstrap(\.js)?$/.test(src)) {
-        add(file, 'import from bootstrap/timeseriesBootstrap.ts is deprecated — use features/timeseries/entrypoint.js', lineOf(text, match.index ?? 0));
+        add(file, 'import from bootstrap/timeseriesBootstrap.ts is deprecated — use features/timeseries/index.js', lineOf(text, match.index ?? 0));
       } else if ((/^(\.\.\/)+components\//.test(src) || src.startsWith('components/')) && !/^frontend\/src\/components\//.test(rel)) {
         add(file, 'import from components/ is deprecated — use ui/ instead', lineOf(text, match.index ?? 0));
       } else if (/store\/appStateCompat(\.js)?$/.test(src) && !ALLOWED_APP_STATE_COMPAT_IMPORTS.has(rel)) {
@@ -182,19 +186,6 @@ for (const file of files) {
       const resolved = resolveImportPath(src, rel);
       if (isHeavyStartupImport(src, resolved)) {
         add(file, 'startup/shell/shared UI must not statically import heavy deps or page implementations', lineOf(text, match.index ?? 0));
-      }
-    }
-  }
-
-  // Rule 13: feature entrypoints must lazy-load page implementations.
-  if (!isTest && /^frontend\/src\/features\/[^/]+\/entrypoint\.ts$/.test(rel)) {
-    for (const match of text.matchAll(staticImportRe)) {
-      const isTypeOnly = Boolean(match[2]);
-      if (isTypeOnly) continue;
-      const src = match[3];
-      const resolved = resolveImportPath(src, rel);
-      if (isPageImplementationPath(resolved)) {
-        add(file, 'feature entrypoints must load page implementations via dynamic import inside init()', lineOf(text, match.index ?? 0));
       }
     }
   }

@@ -1,4 +1,4 @@
-import type { DataObject } from '../../types.js';
+import type { DataObject } from '../../types/api.js';
 import {
     assertDatasetRequestScopeActive,
     captureDatasetRequestScope,

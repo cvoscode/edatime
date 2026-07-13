@@ -1,4 +1,4 @@
-import type { ScatterPointsResponse } from '../../types.js';
+import type { ScatterPointsResponse } from '../../types/scatter.js';
 
 export interface ScatterResponseState {
     totalPoints: number;

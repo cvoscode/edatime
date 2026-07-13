@@ -6,11 +6,10 @@ import { isRangeOutsideDataset, type EmptyStateViewModel } from '../../ui/emptyS
 import type {
     AdaptiveLineFilter,
     ColumnRange,
-    DataObject,
-    FilteredDataObject,
-    SpectralFilterPreview,
-    TimeRange,
-} from '../../types.js';
+} from '../../types/store.js';
+import type { SpectralFilterPreview } from '../../types/analytics.js';
+import type { DataObject, TimeRange } from '../../types/api.js';
+import type { FilteredDataObject } from '../../types/chart.js';
 
 const HIDDEN_EMPTY_STATE: EmptyStateViewModel = {
     visible: false,

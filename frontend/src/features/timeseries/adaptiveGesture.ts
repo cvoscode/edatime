@@ -15,7 +15,7 @@ import {
 } from '../../store/uiState.js';
 import { chartState } from '../../store/chartState.js';
 import { runtimeState } from '../../store/runtimeState.js';
-import type { AdaptiveLineFilter } from '../../types.js';
+import type { AdaptiveLineFilter } from '../../types/store.js';
 import type { WorkspaceStore, WorkspaceSnapshot } from '../../workspace/workspaceStore.js';
 
 export function buildAdaptiveFilterFromPoints(

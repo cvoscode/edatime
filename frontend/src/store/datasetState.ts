@@ -4,7 +4,8 @@
  * Consumed by services/api, app.ts, columns.ts, profile.ts, upload.ts.
  */
 
-import type { DatasetMetadata, ProfileRow } from '../types.js';
+import type { ProfileRow } from '../types/store.js';
+import type { DatasetMetadata } from '../types/api.js';
 import { emitStoreEvent } from './events.js';
 
 export interface DatasetState {

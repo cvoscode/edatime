@@ -36,7 +36,7 @@ import { datasetState, setDatasetRevision, setMetadata } from '../../store/datas
 import { setPreviewSelectedColumns, setPreviewTimeColumn, uiState } from '../../store/uiState.js';
 import { toast } from '../../utils/toast.js';
 import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
-import type { DatasetMetadata } from '../../types.js';
+import type { DatasetMetadata } from '../../types/api.js';
 
 interface UploadPanelDeps {
     buildColumnToggles: () => void;

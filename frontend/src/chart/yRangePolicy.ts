@@ -1,4 +1,4 @@
-import type { RobustDisplayRangeOptions } from '../types.js';
+import type { RobustDisplayRangeOptions } from '../types/chart.js';
 import { quantileSorted } from '../utils/spectralScaling.js';
 
 export function normalizeRobustDisplayRange(options: RobustDisplayRangeOptions): RobustDisplayRangeOptions {

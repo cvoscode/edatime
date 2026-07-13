@@ -4,7 +4,7 @@
  * Coordinates: chart modules → metadata fetch → store → mark ready → column setup → UI hydration.
  */
 
-import type { DatasetMetadata } from '../../types.js';
+import type { DatasetMetadata } from '../../types/api.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import { DEBUG, dbg, dbgGroup } from '../../debug.js';
 import {

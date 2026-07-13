@@ -5,7 +5,7 @@
  * DataChart.ts, timeseriesPage.ts.
  */
 
-import type { ChartInstance, ViewSnapshot } from '../types.js';
+import type { ChartInstance, ViewSnapshot } from '../types/chart.js';
 import { emitStoreEvent } from './events.js';
 
 /* ── State shape ──────────────────────────────────────── */

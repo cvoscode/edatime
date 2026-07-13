@@ -1,5 +1,6 @@
 import { DEBUG, dbg } from '../../debug.js';
-import type { DatasetMetadata, ScatterPointsResponse, ScatterCorrelationsResponse } from '../../types.js';
+import type { ScatterPointsResponse, ScatterCorrelationsResponse } from '../../types/scatter.js';
+import type { DatasetMetadata } from '../../types/api.js';
 import {
     assertDatasetRequestScopeActive,
     captureDatasetRequestScope,

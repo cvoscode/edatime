@@ -4,7 +4,7 @@
  */
 
 import { SERIES_COLORS } from '../utils/seriesColors.js';
-import type { ChartInstance, FilteredDataObject, CrosshairData, ClickData, ViewSnapshot } from '../types.js';
+import type { ChartInstance, FilteredDataObject, CrosshairData, ClickData, ViewSnapshot } from '../types/chart.js';
 
 const FALLBACK_GRID = { left: 28, right: 28, top: 28, bottom: 28 };
 

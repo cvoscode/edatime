@@ -26,7 +26,8 @@ import {
     setProfileGridSort,
     uiState,
 } from '../../store/uiState.js';
-import type { DatasetMetadata, ProfileRow } from '../../types.js';
+import type { ProfileRow } from '../../types/store.js';
+import type { DatasetMetadata } from '../../types/api.js';
 
 function createProfileRow(raw: any): ProfileRow | null {
     const name = String(raw?.name || '').trim();

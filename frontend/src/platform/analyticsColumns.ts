@@ -1,4 +1,4 @@
-import type { DatasetMetadata } from '../types.js';
+import type { DatasetMetadata } from '../types/api.js';
 import { SERIES_COLORS, isLikelyTargetColumn } from '../utils/seriesColors.js';
 
 /**

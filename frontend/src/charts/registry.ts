@@ -3,7 +3,7 @@
  * without modifying the core app logic.
  */
 
-import type { ChartAdapter, ChartInstance } from '../types.js';
+import type { ChartAdapter, ChartInstance } from '../types/chart.js';
 
 const _registry = new Map<string, ChartAdapter>();
 
@@ -17,5 +17,4 @@ export function registerChartType(name: string, adapter: ChartAdapter): void {
 export function getChartType(name: string): ChartAdapter | undefined {
     return _registry.get(name);
 }
-
 

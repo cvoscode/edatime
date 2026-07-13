@@ -1,4 +1,6 @@
-import type { AdaptiveLineFilter, ColumnRange, DatasetMetadata, ViewSnapshot } from '../types.js';
+import type { AdaptiveLineFilter, ColumnRange } from '../types/store.js';
+import type { DatasetMetadata } from '../types/api.js';
+import type { ViewSnapshot } from '../types/chart.js';
 
 export interface DatasetSession {
     readonly id: number;

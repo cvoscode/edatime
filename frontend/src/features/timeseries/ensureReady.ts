@@ -5,7 +5,7 @@
  * The `ensureReady()` call is idempotent: safe to call multiple times.
  */
 
-import type { ChartInstance, ViewSnapshot } from '../../types.js';
+import type { ChartInstance, ViewSnapshot } from '../../types/chart.js';
 import { checkWebGPU } from '../../chart/webgpuGuard.js';
 import { getChartType } from '../../charts/registry.js';
 import { FallbackChart } from '../../charts/fallback.js';

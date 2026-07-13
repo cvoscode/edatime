@@ -4,7 +4,7 @@ import type {
     ScatterMatrixResponse,
     ScatterPointsResponse,
     ScatterCorrelationsResponse,
-} from '../../types.js';
+} from '../../types/scatter.js';
 import type { CorrelationMetric } from '../../utils/correlationModes.js';
 import {
     assertDatasetRequestScopeActive,

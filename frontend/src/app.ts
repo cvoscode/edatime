@@ -50,7 +50,8 @@ import {
     setComputeLoading,
 } from './ui/toolbar.js';
 import { configureExportFeature, exportFilteredData, exportFilteredParquet } from './features/export/index.js';
-import type { DatasetMetadata, DataObject, AnomalyResponse, TransformResponse, ChartInstance, ViewSnapshot } from './types.js';
+import type { DatasetMetadata, DataObject, AnomalyResponse, TransformResponse } from './types/api.js';
+import type { ChartInstance, ViewSnapshot } from './types/chart.js';
 
 import { chartState, initChartStatePrefs, setChartInstance, setViewport } from './store/chartState.js';
 import { datasetState, setDatasetRevision, setMetadata, setNumericCols } from './store/datasetState.js';

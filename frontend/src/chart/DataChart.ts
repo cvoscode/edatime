@@ -11,11 +11,11 @@ import { datasetState } from '../store/datasetState.js';
 import { uiState } from '../store/uiState.js';
 import type {
     ChartTextOverlays,
-    DataObject,
     FilteredDataObject,
     RobustDisplayRangeOptions,
     ViewSnapshot,
-} from '../types.js';
+} from '../types/chart.js';
+import type { DataObject } from '../types/api.js';
 import { computeRobustDisplayBounds, normalizeRobustDisplayRange, suggestRobustDisplayRange } from './yRangePolicy.js';
 import {
     type ChartGPUOptions,

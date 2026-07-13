@@ -3,7 +3,7 @@
  * Owns DOM state and formatting for the partial-load input group.
  */
 import { formatAnalysisTime, formatToDatetimeLocal } from '../../utils/format.js';
-import type { DatasetMetadata } from '../../types.js';
+import type { DatasetMetadata } from '../../types/api.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 

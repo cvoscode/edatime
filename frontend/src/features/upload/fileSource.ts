@@ -14,7 +14,7 @@ import { setProfileMode } from './preview.js';
 import { formatCount } from '../../utils/format.js';
 import { toast } from '../../utils/toast.js';
 import { validateFileSize } from './partialLoadControls.js';
-import type { DatasetMetadata } from '../../types.js';
+import type { DatasetMetadata } from '../../types/api.js';
 
 export { loadedRowCountFromResponse } from './preview.js';
 export { formatUploadRowCountValue } from './partialLoadControls.js';

@@ -14,7 +14,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { datasetState } from '../store/datasetState.js';
 import { uiState } from '../store/uiState.js';
 import { DataChart } from './DataChart';
-import type { ViewSnapshot } from '../types.js';
+import type { ViewSnapshot } from '../types/chart.js';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 

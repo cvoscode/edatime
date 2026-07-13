@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { DataObject } from '../../types.js';
+import type { DataObject } from '../../types/api.js';
 import { buildTimeseriesRenderModel } from './timeseriesRenderModel.js';
 
 function data(values = new Float64Array([1, 2, 3])): DataObject {

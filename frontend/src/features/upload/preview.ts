@@ -13,7 +13,7 @@ import { formatCount, formatAnalysisTime, formatToDatetimeLocal } from '../../ut
 import { getPartialTimeRangeInputs } from './partialLoadControls.js';
 import { toast } from '../../utils/toast.js';
 import { getDropdownValue, setDropdownOptions, setDropdownValue } from '../../ui/primitives/Dropdown.js';
-import type { DatasetMetadata } from '../../types.js';
+import type { DatasetMetadata } from '../../types/api.js';
 
 // ── Status display ───────────────────────────────────────────────────────────
 

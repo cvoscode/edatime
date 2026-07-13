@@ -12,7 +12,7 @@ import { subscribe } from '../store/events.js';
 import { runtimeState, setFetchDebounceId, setPendingRestoreY, setPendingYMode } from '../store/runtimeState.js';
 import { dbg, dbgGroup } from '../debug.js';
 import { updateAnalysisZoom, updateAnalysisYRange } from './analysisStatus.js';
-import type { ViewSnapshot } from '../types.js';
+import type { ViewSnapshot } from '../types/chart.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 // Keep the zoom-range badge in sync with the store regardless of which

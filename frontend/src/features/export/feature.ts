@@ -8,7 +8,7 @@ import { applyColumnRangesToData, buildAdaptiveLineFiltersForQueryState } from '
 import { exportParquet } from '../../services/api/index.js';
 import { downloadBlob } from '../../utils/dom.js';
 import { escapeCsvField } from '../../utils/csv.js';
-import type { DataObject } from '../../types.js';
+import type { DataObject } from '../../types/api.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 // ── Types ────────────────────────────────────────────────────────────────────
