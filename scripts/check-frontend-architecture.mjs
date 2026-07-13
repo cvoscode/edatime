@@ -4,21 +4,6 @@ import { join, relative } from 'node:path';
 const root = process.cwd();
 const srcRoot = join(root, 'frontend/src');
 const violations = [];
-const ALLOWED_APP_STATE_COMPAT_IMPORTS = new Set([
-  'frontend/src/features/export/entrypoint.ts',
-  'frontend/src/pages/timeseriesPage.ts',
-  'frontend/src/scatter/viewController.ts',
-  'frontend/src/store/index.ts',
-  'frontend/src/ui/analysisStatus.ts',
-  'frontend/src/ui/chartTextControls.ts',
-  'frontend/src/ui/eventHelpers.ts',
-  'frontend/src/ui/metaBar.ts',
-  'frontend/src/ui/quickRange.ts',
-  'frontend/src/ui/settingsPanel.ts',
-  'frontend/src/ui/toolbar.ts',
-  'frontend/src/ui/viewport.ts',
-]);
-
 async function listTsFiles(dir) {
   const entries = await readdir(dir, { withFileTypes: true });
   const files = [];
@@ -137,7 +122,7 @@ for (const file of files) {
         add(file, 'import from types.ts is retired — use types/api, types/chart, types/scatter, types/store, or types/analytics', lineOf(text, match.index ?? 0));
       // scatter/state.ts exports appState for the scatter module's internal use — skip it.
       } else if (rel !== 'frontend/src/scatter/state.ts' && /(^|\/)state\.ts$/.test(src)) {
-        add(file, 'import from state.ts is deprecated — use store/ sub-states or store/appStateCompat.js', lineOf(text, match.index ?? 0));
+        add(file, 'import from state.ts is deprecated — use focused store sub-states', lineOf(text, match.index ?? 0));
       } else if (/ui\/columns(\.js)?$/.test(src)) {
         add(file, 'import from ui/columns.ts is deprecated — use features/timeseries/columnsController.js', lineOf(text, match.index ?? 0));
       } else if (/bootstrap\/appShell(\.js)?$/.test(src)) {
@@ -148,8 +133,6 @@ for (const file of files) {
         add(file, 'import from bootstrap/timeseriesBootstrap.ts is deprecated — use features/timeseries/index.js', lineOf(text, match.index ?? 0));
       } else if ((/^(\.\.\/)+components\//.test(src) || src.startsWith('components/')) && !/^frontend\/src\/components\//.test(rel)) {
         add(file, 'import from components/ is deprecated — use ui/ instead', lineOf(text, match.index ?? 0));
-      } else if (/store\/appStateCompat(\.js)?$/.test(src) && !ALLOWED_APP_STATE_COMPAT_IMPORTS.has(rel)) {
-        add(file, 'import from store/appStateCompat.ts requires an explicit architecture-check allowlist entry', lineOf(text, match.index ?? 0));
       } else if (!isLegacyState && /store\/index(\.js)?$/.test(src)) {
         add(file, 'production modules must import focused store slices instead of store/index.js', lineOf(text, match.index ?? 0));
       }

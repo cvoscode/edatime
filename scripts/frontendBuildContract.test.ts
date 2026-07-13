@@ -54,7 +54,7 @@ describe('frontend build contract', () => {
         expect(analyticsOverlay).not.toContain('appStateCompat');
         expect(filtering).not.toContain('appStateCompat');
         expect(session).not.toContain('appStateCompat');
-        expect(architectureCheck).toContain('ALLOWED_APP_STATE_COMPAT_IMPORTS');
+        expect(architectureCheck).not.toContain('appStateCompat');
         expect(architectureCheck).toContain('focused store slices instead of store/index.js');
     });
 

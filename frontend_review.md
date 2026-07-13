@@ -467,6 +467,10 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 
 - Removed the unreferenced `features/shared/featureContract.ts` abstraction. Feature activation and disposal are already owned by the live page registry and public feature indexes; a second unused contract made the target architecture less clear.
 
+### Completed: app-state compatibility guard removal
+
+- Removed the stale `appStateCompat` allowlist from the architecture checker. The compatibility module and every production import were already gone, so the check now enforces focused store state directly rather than documenting a retired escape hatch.
+
 ### Completed: Drift page decomposition
 
 - Extracted evaluation-mode normalization, latest-window validation, and response-map filtering into `evaluationPolicy` with direct behavior coverage.
