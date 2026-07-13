@@ -149,6 +149,12 @@ Complete: FFT and Timeseries layout/lifecycle tests now live with their features
 
 Continue replacing cross-feature deep imports with small public surfaces, then extend the architecture checker once the remaining direct seams have been migrated.
 
+### Completed: external feature public-surface guard
+
+- Added `initTimeseriesHelp` to the supported Timeseries public index and updated deferred shell composition to initialize all Timeseries controls from that one surface.
+- Added deferred-shell characterization coverage for the public Timeseries composition contract: analysis controls, the filter gesture, and page help all initialize once when the Timeseries shell is requested.
+- Extended the architecture check so every production consumer outside `features/*` must import a feature through `features/<name>/index.js`. The audit now finds no remaining production deep imports into feature internals.
+
 ### Completed: DataChart decomposition
 
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.

@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
     initProvenance: vi.fn(),
     initAnalysisControls: vi.fn(),
     initChartPageFilterGesture: vi.fn(),
+    initTimeseriesHelp: vi.fn(),
 }));
 
 vi.mock('../../ui/settingsPanel.js', () => ({
@@ -42,6 +43,7 @@ vi.mock('../../ui/toolbar.js', () => ({
 }));
 vi.mock('../../features/timeseries/index.js', () => ({
     initChartPageFilterGesture: mocks.initChartPageFilterGesture,
+    initTimeseriesHelp: mocks.initTimeseriesHelp,
 }));
 
 import {
@@ -86,6 +88,7 @@ describe('deferred shell subsystems', () => {
         mocks.initProvenance.mockClear();
         mocks.initAnalysisControls.mockClear();
         mocks.initChartPageFilterGesture.mockClear();
+        mocks.initTimeseriesHelp.mockClear();
     });
 
     it('initializes the settings panel once and opens it through the registry', async () => {
@@ -143,5 +146,21 @@ describe('deferred shell subsystems', () => {
         await callback?.();
 
         expect(deps.fetchAndRenderAnalytics).toHaveBeenCalledTimes(1);
+    });
+
+    it('initializes Timeseries feature controls through its public surface', async () => {
+        const deps = createDeps();
+        const registry = createDeferredSubsystemRegistry();
+
+        await registry.ensureTimeseriesShell(deps);
+
+        expect(mocks.initAnalysisControls).toHaveBeenCalledWith(
+            deps.fetchAndRender,
+            deps.zoomOut,
+            deps.resetZoom,
+            deps.workspace,
+        );
+        expect(mocks.initChartPageFilterGesture).toHaveBeenCalledTimes(1);
+        expect(mocks.initTimeseriesHelp).toHaveBeenCalledTimes(1);
     });
 });

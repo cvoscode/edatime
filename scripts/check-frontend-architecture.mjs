@@ -159,6 +159,20 @@ for (const file of files) {
     }
   }
 
+  // Rule 14: consumers outside a feature must use that feature's public
+  // index. This keeps feature internals private and makes composition seams
+  // explicit across app, bootstrap, chart, and other feature owners.
+  if (!isTest && !/^frontend\/src\/features\//.test(rel)) {
+    const importRe = /(?:from\s+|import\()['\"]([^'\"]+)['\"]/g;
+    for (const match of text.matchAll(importRe)) {
+      const src = match[1];
+      const resolved = resolveImportPath(src, rel);
+      if (resolved.startsWith('frontend/src/features/') && !/\/index\.js$/.test(resolved)) {
+        add(file, 'external feature consumers must import through features/<name>/index.js', lineOf(text, match.index ?? 0));
+      }
+    }
+  }
+
   // Rule 12: startup/shell/shared UI boundaries must not statically import
   // heavy vendor deps or page implementation modules.
   if (!isTest && isStartupShellOrSharedUiFile(rel)) {
