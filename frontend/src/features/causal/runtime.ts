@@ -13,6 +13,7 @@ import {
     initCausalStatusLifecycle,
     syncCausalEmptyState,
 } from './statusView.js';
+import { disposeCausalGraph } from './graphView.js';
 import { _selectedColumns } from './selectionState.js';
 
 /** Module-level runtime handle for the causal page lifecycle. */
@@ -60,6 +61,7 @@ export function disposeCausalPageRuntime(): void {
     causalRuntime = null;
     _syncCausalEmptyState = () => { };
     disposeCausalStatusLifecycle();
+    disposeCausalGraph();
 }
 
 /** Bootstrap call for the lazy Causal feature. */

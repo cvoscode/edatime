@@ -34,6 +34,7 @@ export let _chartEl: HTMLDivElement | null = null;
 let _chartEventsBound = false;
 let _chartResizeObserver: ResizeObserver | null = null;
 let _chartInitPromise: Promise<void> | null = null;
+let chartRefreshGeneration = 0;
 
 // ─── Initialization helpers ────────────────────────────────────────────────
 
@@ -43,14 +44,15 @@ export function isCausalChartReadyForInit(): boolean {
     return !!(page && !page.hidden && _chartEl && _chartEl.clientWidth > 0 && _chartEl.clientHeight > 0);
 }
 
-export async function initChart(): Promise<void> {
+export async function initChart(generation = chartRefreshGeneration): Promise<void> {
+    if (generation !== chartRefreshGeneration) return;
     if (!_chartEl || !isCausalChartReadyForInit()) return;
     if (_eChart) { _eChart.resize(); return; }
     if (_chartInitPromise) { await _chartInitPromise; return; }
 
-    _chartInitPromise = (async () => {
+    const task = (async () => {
         const echarts = await import('echarts');
-        if (!_chartEl || !isCausalChartReadyForInit()) return;
+        if (generation !== chartRefreshGeneration || !_chartEl || !isCausalChartReadyForInit()) return;
         if (!_eChart) _eChart = echarts.init(_chartEl, undefined, { renderer: 'canvas' });
         _chartResizeObserver?.disconnect();
         _chartResizeObserver = new ResizeObserver(() => {
@@ -59,29 +61,59 @@ export async function initChart(): Promise<void> {
         });
         _chartResizeObserver.observe(_chartEl);
         attachChartEvents();
-    })().finally(() => { _chartInitPromise = null; });
+    })();
+    _chartInitPromise = task;
 
-    await _chartInitPromise;
+    try {
+        await task;
+    } finally {
+        if (_chartInitPromise === task) _chartInitPromise = null;
+    }
 }
 
 export function scheduleCausalChartRefresh(attempts = 6): void {
+    const generation = ++chartRefreshGeneration;
+    scheduleChartRefresh(attempts, generation);
+}
+
+function scheduleChartRefresh(attempts: number, generation: number): void {
+    if (generation !== chartRefreshGeneration) return;
     // A deferred retry may outlive a test environment or an application root.
     // Never schedule another browser timer once the DOM has been torn down.
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
     if (!isCausalChartReadyForInit()) {
         if (attempts <= 0) return;
-        window.setTimeout(() => scheduleCausalChartRefresh(attempts - 1), 0);
+        window.setTimeout(() => scheduleChartRefresh(attempts - 1, generation), 0);
         return;
     }
-    void initChart().then(() => {
-        if (!isCausalChartReadyForInit()) return;
+    void initChart(generation).then(() => {
+        if (generation !== chartRefreshGeneration || !isCausalChartReadyForInit()) return;
         _eChart?.resize();
         if (_currentColumns.length > 0) renderEChartsGraph();
     });
 }
 
 export function setChartEl(el: HTMLDivElement | null): void {
+    if (_chartEl && _chartEl !== el) disposeCausalGraph();
     _chartEl = el;
+}
+
+/**
+ * Release every resource owned by the Causal ECharts adapter.
+ *
+ * Advancing the generation also makes queued retry timers and delayed dynamic
+ * imports harmless after the feature root has been replaced.
+ */
+export function disposeCausalGraph(): void {
+    chartRefreshGeneration += 1;
+    _chartResizeObserver?.disconnect();
+    _chartResizeObserver = null;
+    _eChart?.dispose?.();
+    _eChart = null;
+    _chartEventsBound = false;
+    _chartInitPromise = null;
+    _chartEl = null;
+    document.querySelectorAll('.causal-node-edit').forEach((input) => input.remove());
 }
 
 // ─── Event binding ──────────────────────────────────────────────────────────
