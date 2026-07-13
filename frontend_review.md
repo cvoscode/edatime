@@ -218,6 +218,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 
 - Converted Metadata to the same explicit request-options shape and removed stale bare-signal cache typings in the application/runtime loader. Every cancellable route family now exposes `ApiRequestOptions`; the sole remaining `AbortSignal` type in `services/api` is the intentional field of that options object.
 
+### Completed: Home navigation-card ownership
+
+- Moved Home `[data-home-nav]` card wiring from `app/shell` into `features/home/navigation` and exposed it through the Home public index.
+- Shell core now consumes that public Home surface; the shell characterization test was consolidated around the complete Home mock surface, preventing duplicate mocks from masking supported feature exports.
+
 ### Completed: DataChart decomposition
 
 - Began extracting the DataChart legend subsystem with a standalone interaction-policy module for clamping and Shift-only drag semantics.

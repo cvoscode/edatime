@@ -16,7 +16,7 @@ import { initThemeToggle } from './themeToggle.js';
 import { initAccessibilityShortcuts, showKeyboardShortcutsHelp } from '../../utils/a11y.js';
 import { initHashRouting } from '../../utils/router.js';
 import { initPageNavigation, type PageNavigationDeps } from '../../ui/pageNavigation.js';
-import { wireHomeNavigationCards } from './homeNavigation.js';
+import { wireHomeNavigationCards } from '../../features/home/index.js';
 
 export interface ShellCoreInitDeps {
     showPage: (pageName: string) => void;
