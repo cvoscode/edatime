@@ -5,7 +5,6 @@ import { getDropdownValue, setDropdownValue } from '../../ui/primitives/Dropdown
 import { bindInfoPopovers } from '../../ui/infoPopovers.js';
 import { initHeatmapHelp } from './help.js';
 import { createAnalysisPageRuntime } from '../../platform/analysisRuntime.js';
-import { clusterColumns, type Cluster } from '../../utils/correlationClustering.js';
 import { initToolbarOverflow } from '../scatter/index.js';
 import {
     getCorrelationModeGuide,
@@ -28,6 +27,7 @@ import {
     getUnsupportedMetricMessage,
 } from './matrixPolicy.js';
 import { buildHeatmapGridLayout } from './gridLayout.js';
+import { buildHeatmapRenderOrder } from './orderingPolicy.js';
 
 interface HeatmapPageDeps {
     showPage: (pageName: string) => void;
@@ -211,27 +211,16 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<void> {
         // Optionally reorder columns by cluster. The data arrays stay
         // indexed by the ORIGINAL column order; we map render position
         // -> original index when emitting cell data attributes.
-        const orderToOriginal = new Map<number, number>();
-        let clusters: Cluster[] = [];
-        let renderOrder: string[] = columns;
-        // Honor the user's manual drag-reorder if it still covers the
-        // current column set (datasets rarely change, but a partial
-        // upload can drop a column).
-        const savedOrder = userColumnOrder;
-        const userOrderStillValid = savedOrder !== null
-            && savedOrder.length === columns.length
-            && savedOrder.every((name) => columns.includes(name));
-        if (userOrderStillValid && savedOrder) {
-            renderOrder = savedOrder.slice();
-        } else if (heatmapClusterEnabled && size > 1) {
-            const result = clusterColumns(columns, data, HEATMAP_CLUSTER_THRESHOLD);
-            renderOrder = result.order;
-            clusters = result.clusters;
-        }
-        renderOrder.forEach((name, renderIdx) => {
-            const originalIdx = columns.indexOf(name);
-            orderToOriginal.set(renderIdx, originalIdx);
+        const initialOrder = buildHeatmapRenderOrder({
+            columns,
+            matrix: data,
+            savedOrder: userColumnOrder,
+            clusterEnabled: heatmapClusterEnabled,
+            clusterThreshold: HEATMAP_CLUSTER_THRESHOLD,
         });
+        let renderOrder = initialOrder.order;
+        const clusters = initialOrder.clusters;
+        const orderToOriginal = initialOrder.originalIndices;
 
         // Build a uniform N x N grid: 1 label column/row + size data cells.
         // The grid is identical between grouped and ungrouped views so the
