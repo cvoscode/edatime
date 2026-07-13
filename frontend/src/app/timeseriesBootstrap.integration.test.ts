@@ -106,13 +106,11 @@ vi.mock('../platform/runtimeModules.js', () => ({
         fetchMetadata: fetchMetadataMock,
         fetchData: vi.fn(),
         fetchAnomalies: vi.fn(),
-        postTransform: vi.fn(),
     }),
     ensureChartModules: vi.fn().mockResolvedValue({
         fetchMetadata: fetchMetadataMock,
         fetchData: vi.fn(),
         fetchAnomalies: vi.fn(),
-        postTransform: vi.fn(),
         DataChartCtor: class { },
     }),
 }));

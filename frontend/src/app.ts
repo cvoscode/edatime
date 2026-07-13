@@ -51,7 +51,7 @@ import {
     setComputeLoading,
 } from './ui/toolbar.js';
 import { createExportFeature } from './features/export/index.js';
-import type { DatasetMetadata, DataObject, AnomalyResponse, TransformResponse } from './types/api.js';
+import type { DatasetMetadata, DataObject, AnomalyResponse } from './types/api.js';
 import type { ChartInstance, ViewSnapshot } from './types/chart.js';
 
 import { chartState, initChartStatePrefs, setChartInstance, setViewport } from './store/chartState.js';
@@ -59,7 +59,6 @@ import { datasetState, setDatasetRevision, setMetadata, setNumericCols } from '.
 import { runtimeState } from './store/runtimeState.js';
 import { setAdaptiveFilterColumn } from './store/uiState.js';
 
-const _appCleanups: Array<() => void> = [];
 const runtime = createAppRuntime();
 const pageRegistry = createPageRegistry();
 const workspace = createWorkspaceStore();
@@ -72,7 +71,6 @@ let timeseriesModule!: ReturnType<typeof createTimeseriesModule>;
 let fetchMetadata: DataModules['fetchMetadata'] | null = null;
 let fetchData: DataModules['fetchData'] | null = null;
 let fetchAnomalies: DataModules['fetchAnomalies'] | null = null;
-let postTransform: ((expression: string, outputName: string) => Promise<TransformResponse>) | null = null;
 let DataChartCtor: (new (containerId: string, onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null, onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null, onZoomOutCb: (() => void) | null) => ChartInstance) | null = null;
 let _sessionPersistenceStarted = false;
 let disposeSessionPersistence: (() => void) | null = null;
@@ -85,12 +83,11 @@ type DataChartCtorType = new (
 ) => ChartInstance;
 
 async function ensureDataModules(): Promise<void> {
-    if (fetchMetadata && fetchData && fetchAnomalies && postTransform) return;
+    if (fetchMetadata && fetchData && fetchAnomalies) return;
     const modules = await ensureBootstrapDataModules();
     fetchMetadata = modules.fetchMetadata;
     fetchData = modules.fetchData;
     fetchAnomalies = modules.fetchAnomalies;
-    postTransform = modules.postTransform;
 }
 
 async function ensurePrimaryChartCtor(): Promise<DataChartCtorType> {

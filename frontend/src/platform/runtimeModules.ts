@@ -8,7 +8,7 @@
 
 import { registerChartType } from '../charts/registry.js';
 import { FallbackChart } from '../charts/fallback.js';
-import type { AnomalyResponse, DataObject, DatasetMetadata, TransformResponse } from '../types/api.js';
+import type { AnomalyResponse, DataObject, DatasetMetadata } from '../types/api.js';
 import type { ChartInstance, ViewSnapshot } from '../types/chart.js';
 import type { ApiRequestOptions } from '../services/api/http.js';
 
@@ -24,7 +24,6 @@ export interface DataModules {
         options?: ApiRequestOptions,
     ) => Promise<DataObject>;
     fetchAnomalies: (start: string, end: string, columns: string, method?: string, threshold?: number, options?: ApiRequestOptions) => Promise<AnomalyResponse>;
-    postTransform: (expression: string, outputName: string) => Promise<TransformResponse>;
 }
 
 export interface ChartModules extends DataModules {
@@ -57,7 +56,6 @@ export async function ensureDataModules(): Promise<DataModules> {
             fetchMetadata: dataClient.fetchMetadata,
             fetchData: dataClient.fetchData,
             fetchAnomalies: dataClient.fetchAnomalies,
-            postTransform: dataClient.postTransform,
         };
         dataModules = result;
         return result;

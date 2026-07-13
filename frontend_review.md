@@ -595,6 +595,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Shell core composes those with navigation/routing cleanup, so app-runtime teardown releases every shell listener it mounts rather than relying on persistent DOM markers.
 - Direct regressions verify the disposed global accessibility listener and Home/theme bindings cannot reactivate UI behavior.
 
+### Completed: runtime bootstrap transport slimming
+
+- Removed the unused `postTransform` transport from the shared runtime-module contract and app bootstrap cache. Data Mutation retains direct ownership of that mutation API.
+- Removed the unused app cleanup accumulator, leaving `AppRuntime` as the single startup cleanup owner.
+- Timeseries bootstrap and data-mutation characterization tests prove startup and transform behavior remain independent after the ownership cleanup.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.
