@@ -20,6 +20,7 @@ import { initFftHelp } from './help.js';
 import { buildFftFilterCutoffState, buildFftScaleOptions } from './fftControls.js';
 import { buildFftSpectralInfo } from './fftSpectralInfo.js';
 import { buildFftFilterRequest } from './fftFilterRequest.js';
+import { buildFftTrace, resolveFftViewport } from './fftTraceModel.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 interface FftPageDeps {
@@ -228,31 +229,19 @@ async function ensureFftChartReady(): Promise<void> {
 }
 
 async function fetchAndAddTrace(column: string): Promise<void> {
-    const viewport = workspace?.getSnapshot().viewport;
-    const startMs = viewport?.xMin ?? chartState.currentStart;
-    const endMs = viewport?.xMax ?? chartState.currentEnd;
-    if (startMs == null || endMs == null || !Number.isFinite(startMs) || !Number.isFinite(endMs)) return;
-    const startIso = new Date(startMs).toISOString();
-    const endIso = new Date(endMs).toISOString();
+    const viewport = resolveFftViewport(workspace?.getSnapshot().viewport, chartState.currentStart, chartState.currentEnd);
+    if (!viewport) return;
     // ETTm2's 69,680-row 15-min dataset was being stride-downsampled to
     // 8192 points, which collapsed the FFT X-axis to ~17-69 nHz and made
     // daily/weekly cycles invisible. Raise the cap to 131072 so the
     // resolution is enough to see daily/weekly cycles; the backend will
     // still stride down on bigger datasets without truncating ETTm2.
-    const response = await fetchFft(startIso, endIso, column, 131072);
+    const response = await fetchFft(new Date(viewport.startMs).toISOString(), new Date(viewport.endMs).toISOString(), column, 131072);
     if (!response?.results?.length) throw new Error('No results');
-    const result = response.results[0];
+    const trace = buildFftTrace(response.results[0], fftColorFor(column, fftColumns().indexOf(column)));
+    if (!trace) throw new Error('Malformed result');
     fftTraces = fftTraces.filter((trace) => trace.column !== column);
-    fftTraces.push({
-        column: result.column,
-        frequencies: result.frequencies,
-        magnitudes: result.magnitudes,
-        psd: result.psd,
-        color: fftColorFor(column, fftColumns().indexOf(column)),
-        sample_rate_hz: result.sample_rate_hz,
-        nyquist_hz: result.nyquist_hz,
-        dominant_peaks: result.dominant_peaks,
-    });
+    fftTraces.push(trace);
 }
 
 async function seedInitialFftSelection(): Promise<void> {

@@ -199,6 +199,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Extracted sample-rate, Nyquist, peak formatting, period conversion, and peak-row view modeling into `fftSpectralInfo`. The page now renders the structured live-region model rather than mixing spectral interpretation with DOM construction.
 - Added an owned abort scope for FFT page controls. Reinitialization now retires old mode, scale, clip, zoom, filter, and cutoff listeners; a page regression verifies one zoom click after two initializations resets exactly once.
 - Extracted spectral-filter query construction into `fftFilterRequest`, directly covering finite viewport validation, ISO bounds, column/type serialization, and optional cutoff inclusion before the page starts the API action.
+- Extracted trace-load viewport resolution and API-result-to-chart-trace projection into `fftTraceModel`, directly covering workspace-view precedence and malformed-result rejection before the page mutates its active trace list.
 
 ### Completed: Spectrogram runtime decomposition
 
