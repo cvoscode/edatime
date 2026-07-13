@@ -25,6 +25,7 @@ import {
     setPendingYMode,
 } from '../../store/runtimeState.js';
 import { uiState } from '../../store/uiState.js';
+import { buildTimeseriesDataRequest } from './timeseriesRequest.js';
 
 const EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} } as any;
 const CONSECUTIVE_ZOOM_OUT_RESET_COUNT = 5;
@@ -55,8 +56,6 @@ interface TimeseriesControllerDeps {
 }
 
 let timeseriesEmptyStateController: ReturnType<typeof createEmptyStateController> | null = null;
-
-const MIN_LOOKAROUND_MS = 60_000;
 
 function getTimeseriesEmptyStateController() {
     if (!timeseriesEmptyStateController) {
@@ -401,24 +400,22 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         }
 
         await task.run(async (signal) => {
-            const startIso = new Date(currentStart).toISOString();
-            const endIso = new Date(currentEnd).toISOString();
-            const width = document.getElementById('main-chart')?.clientWidth || 1200;
-            const lookaroundMs = Math.max(MIN_LOOKAROUND_MS, Math.round((currentEnd - currentStart) * 1.25));
-
             let requestIntent = intent;
             const requestData = async () => {
-                const cols = requestIntent.columns.join(',');
-                const colorCol = requestIntent.colorColumn;
+                const request = buildTimeseriesDataRequest(
+                    requestIntent,
+                    document.getElementById('main-chart')?.clientWidth || 1200,
+                );
+                if (!request) throw new Error('Invalid timeseries request');
 
                 announceChartLoading(requestIntent.columns);
                 dbgGroup('fetchAndRender', () => {
-                    dbg('request', { startIso, endIso, width, cols, colorCol, lookaroundMs });
+                    dbg('request', request);
                     dbg('selectedCols', requestIntent.columns);
                     dbg('selectedColorColumn', requestIntent.colorColumn);
                 });
 
-                return deps.fetchData(startIso, endIso, width, cols, colorCol, lookaroundMs, signal);
+                return deps.fetchData(request.startIso, request.endIso, request.width, request.columns, request.colorColumn, request.lookaroundMs, signal);
             };
 
             let data: any;
@@ -441,10 +438,12 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             setLastFetchedData(data);
             if (Array.isArray(data?.ts) || data?.ts instanceof Float64Array) {
                 const tsCount = data.ts.length;
+                const lookaroundMs = Math.max(60_000, Math.round((currentEnd - currentStart) * 1.25));
                 const fetchedStart = tsCount > 0 ? Number(data.ts[0]) : currentStart - lookaroundMs;
                 const fetchedEnd = tsCount > 0 ? Number(data.ts[tsCount - 1]) : currentEnd + lookaroundMs;
                 setFetchedWindow({ start: fetchedStart, end: fetchedEnd });
             } else {
+                const lookaroundMs = Math.max(60_000, Math.round((currentEnd - currentStart) * 1.25));
                 setFetchedWindow({ start: currentStart - lookaroundMs, end: currentEnd + lookaroundMs });
             }
             // Issue 7.2: Update last successful fetch parameters for no-op short-circuit
@@ -461,9 +460,9 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
                 dbg('response points', n, 'tsMin/tsMax', tsMin, tsMax);
                 if (!data?.ts || data.ts.length === 0) {
                     console.warn('[edatime] fetchAndRender: empty result for range', {
-                        startIso,
-                        endIso,
-                        width,
+                        startIso: new Date(currentStart).toISOString(),
+                        endIso: new Date(currentEnd).toISOString(),
+                        width: document.getElementById('main-chart')?.clientWidth || 1200,
                         cols: uiState.selectedCols.join(','),
                     });
                 }

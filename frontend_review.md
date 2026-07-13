@@ -193,13 +193,19 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Extracted annotation and dominant-peak painting into `fftOverlayPresentation`. It consumes the data model's displayed points and bounds, so peak markers share the scaled chart coordinate system instead of recomputing unscaled values in the chart adapter.
 - Extracted ChartGPU axis, tooltip, scale-bound, and series-option composition into `fftChartOptions`, with direct low-frequency/scaled-axis coverage. `FftChart` now owns lifecycle and current view state only.
 
-### In progress: FFT page-controller decomposition
+### Completed: FFT page-controller decomposition
 
 - Extracted FFT scale-control normalization and filter cutoff enablement/visibility policy into `fftControls`, with direct behavior coverage. The page now applies its deterministic control state while retaining DOM event wiring and API actions.
 - Extracted sample-rate, Nyquist, peak formatting, period conversion, and peak-row view modeling into `fftSpectralInfo`. The page now renders the structured live-region model rather than mixing spectral interpretation with DOM construction.
 - Added an owned abort scope for FFT page controls. Reinitialization now retires old mode, scale, clip, zoom, filter, and cutoff listeners; a page regression verifies one zoom click after two initializations resets exactly once.
 - Extracted spectral-filter query construction into `fftFilterRequest`, directly covering finite viewport validation, ISO bounds, column/type serialization, and optional cutoff inclusion before the page starts the API action.
 - Extracted trace-load viewport resolution and API-result-to-chart-trace projection into `fftTraceModel`, directly covering workspace-view precedence and malformed-result rejection before the page mutates its active trace list.
+- The remaining page controller is the intended interaction composition layer: it owns trace/chip state, async loading feedback, user-triggered filter actions, and calls to dedicated chart, request, control, and presentation owners.
+
+### In progress: Timeseries controller review
+
+- Next, review `features/timeseries/controller` against the now-decomposed `DataChart` boundary and extract the largest deterministic request or state policy that is still embedded in page orchestration.
+- Extracted Timeseries API request construction into `timeseriesRequest`, directly covering valid range/selection gating, ISO bounds, chart width, color-column serialization, and the minimum lookaround contract before the controller issues the request.
 
 ### Completed: Spectrogram runtime decomposition
 
