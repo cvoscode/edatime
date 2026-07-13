@@ -735,6 +735,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Removed the unused global range-setter callback from dataset bootstrap, Timeseries module composition, and app wiring. Dataset initialization now establishes its range through `WorkspaceStore` alone before chart bootstrap realizes it.
 - Module, bootstrap, and app-composition tests now assert the reduced dependency contract, preventing a second viewport owner from being reintroduced through metadata initialization.
 
+### Completed: zoom-range badge policy extraction
+
+- Extracted the deterministic initial-view/current-range percentage calculation from DOM and store wiring into `ui/zoomRangeBadge`. Direct tests cover valid, missing, and degenerate range behavior.
+- `ui/viewport` now only reads state and applies the pure display result, making the remaining workspace-backed zoom-controller migration a narrow subscription/ownership change instead of a mixed presentation rewrite.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.

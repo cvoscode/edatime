@@ -10,6 +10,7 @@ import {
 import { subscribe } from '../store/events.js';
 import { dbg, dbgGroup } from '../debug.js';
 import { updateAnalysisZoom, updateAnalysisYRange } from './analysisStatus.js';
+import { formatZoomRangeBadge } from './zoomRangeBadge.js';
 import type { ViewSnapshot } from '../types/chart.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
@@ -38,22 +39,11 @@ export function refreshZoomControlsState(): void {
 export function updateZoomRangeBadge(): void {
     const badge = document.getElementById('zoom-range-badge');
     if (!badge) return;
-    const init = chartState.initialView;
-    const curr = chartState.currentStart !== null && chartState.currentEnd !== null
-        ? chartState.currentEnd - chartState.currentStart
-        : null;
-    if (!init || curr === null) {
-        badge.textContent = '—';
-        return;
-    }
-    const initRange = (init.xMax ?? 0) - (init.xMin ?? 0);
-    if (!initRange || initRange <= 0) {
-        badge.textContent = '—';
-        return;
-    }
-    const ratio = curr / initRange;
-    const pct = (ratio * 100).toFixed(0);
-    badge.textContent = `Viewing ${pct}%`;
+    badge.textContent = formatZoomRangeBadge(
+        chartState.initialView,
+        chartState.currentStart,
+        chartState.currentEnd,
+    );
 }
 
 export function getCurrentView(): ViewSnapshot {
