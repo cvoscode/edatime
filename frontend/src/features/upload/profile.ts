@@ -131,13 +131,14 @@ export function hydrateColumnProfiles(metadata: DatasetMetadata): void {
 // and skip the work on cache hits.
 let cachedFilteredProfiles: ProfileRow[] | null = null;
 let cachedFilteredProfilesKey: string | null = null;
+let cachedProfilesSource: ProfileRow[] | null = null;
 function getFilteredColumnProfiles(): ProfileRow[] {
     const profiles: ProfileRow[] = datasetState.columnProfiles;
     const q = uiState.profileFilterText.trim().toLowerCase();
     const category = uiState.profileFilterCategory || 'all';
     const sort = uiState.profileGridSort || {};
     const cacheKey = `${profiles.length}|${q}|${category}|${sort.key ?? ''}|${sort.dir ?? ''}`;
-    if (cachedFilteredProfiles && cachedFilteredProfilesKey === cacheKey && cachedFilteredProfiles.length >= profiles.length) {
+    if (cachedFilteredProfiles && cachedProfilesSource === profiles && cachedFilteredProfilesKey === cacheKey) {
         return cachedFilteredProfiles;
     }
     const filtered = profiles.filter((p) => {
@@ -149,6 +150,7 @@ function getFilteredColumnProfiles(): ProfileRow[] {
     const sorted = sortProfileRows(filtered, sort.key, sort.dir);
     cachedFilteredProfiles = sorted;
     cachedFilteredProfilesKey = cacheKey;
+    cachedProfilesSource = profiles;
     return sorted;
 }
 
@@ -157,6 +159,7 @@ function getFilteredColumnProfiles(): ProfileRow[] {
 export function invalidateProfileGridViewModel(): void {
     cachedFilteredProfiles = null;
     cachedFilteredProfilesKey = null;
+    cachedProfilesSource = null;
 }
 
 // ─── Grid rendering helpers ─────────────────────────────────────────────────

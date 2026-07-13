@@ -372,6 +372,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Replaced the module-global Upload preview request controller with a controller created for each mounted Upload panel. The deferred shell now registers the panel's disposer with the app lifecycle; disposal aborts preview work, and stale/aborted responses cannot mutate the active dataset or upload presentation.
 - Bound every Upload panel DOM listener to the panel's abort scope and passed that scope into dynamically rebound time-column controls. A disposed panel now stops all file, partial-load, upload, source-tab, and database-control handling; late metadata hydration is ignored. Regression coverage proves replacement initialization does not double-bind the panel toggle.
 - Removed the global Export feature runtime. App composition now creates one export controller from its workspace and current data accessor, then injects its stable actions into the Timeseries module, shell, and shortcuts. No frontend module can reconfigure another application root's export behavior.
+- Corrected Upload profile-grid memoization to include the actual profile-array owner, not just its length and UI filter state. A same-sized replacement dataset now always renders its own profiles; direct coverage guards the stale-cache regression.
 
 ### Completed: Spectrogram runtime decomposition
 

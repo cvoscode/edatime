@@ -323,6 +323,23 @@ describe('renderColumnProfilesGrid', () => {
         expect(maxCell?.title).toBe('UTC 2016-07-02T12:34:56.000Z');
     });
 
+    it('does not reuse a cached grid model when a same-sized dataset replaces the profiles', () => {
+        datasetState.columnProfiles = [{
+            name: 'first_dataset_column', dtype: 'Float64', nonNullCount: 1, nullCount: 0,
+            min: 1, max: 1, histCounts: [],
+        }];
+        renderColumnProfilesGrid(true);
+
+        datasetState.columnProfiles = [{
+            name: 'second_dataset_column', dtype: 'Float64', nonNullCount: 1, nullCount: 0,
+            min: 2, max: 2, histCounts: [],
+        }];
+        renderColumnProfilesGrid(true);
+
+        expect(document.getElementById('profile-grid-rows')?.textContent).toContain('second_dataset_column');
+        expect(document.getElementById('profile-grid-rows')?.textContent).not.toContain('first_dataset_column');
+    });
+
     it('filters the grid to datetime columns when the datetime category is active', () => {
         uiState.profileFilterCategory = 'datetime';
         datasetState.columnProfiles = [
