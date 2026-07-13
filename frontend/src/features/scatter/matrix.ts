@@ -59,30 +59,30 @@ function buildOverviewColumns(): string[] {
 
 /* ── Data fetch ───────────────────────────────────────── */
 
-/** Module-level abort controller for the latest matrix render. */
-let matrixRenderController: AbortController | null = null;
-const idleMatrixRenderSignal = new AbortController().signal;
-
-/**
- * Returns the AbortSignal for the current matrix render, or a never-aborted
- * signal if no render is in progress. Used by the batch fetch and the FFT panel
- * so a newer render aborts any in-flight work from a superseded one.
- */
-export function getMatrixRenderSignal(): AbortSignal {
-    return matrixRenderController?.signal ?? idleMatrixRenderSignal;
+export interface MatrixRenderSession {
+    begin(): AbortSignal;
+    currentSignal(): AbortSignal;
+    dispose(): void;
 }
 
-/** Abort any in-flight matrix render and replace the controller with a fresh one. */
-function beginMatrixRender(): AbortSignal {
-    if (matrixRenderController) matrixRenderController.abort();
-    matrixRenderController = new AbortController();
-    return matrixRenderController.signal;
-}
-
-/** Test-only: reset the matrix render controller between test runs. */
-export function __resetMatrixRenderControllerForTests(): void {
-    if (matrixRenderController) matrixRenderController.abort();
-    matrixRenderController = null;
+/** Owns abort-before-new cancellation for one Scatter page instance. */
+export function createMatrixRenderSession(): MatrixRenderSession {
+    let controller: AbortController | null = null;
+    const idleSignal = new AbortController().signal;
+    return {
+        begin() {
+            controller?.abort();
+            controller = new AbortController();
+            return controller.signal;
+        },
+        currentSignal() {
+            return controller?.signal ?? idleSignal;
+        },
+        dispose() {
+            controller?.abort();
+            controller = null;
+        },
+    };
 }
 
 function buildMatrixBatchCacheKey(
@@ -102,12 +102,12 @@ async function fetchMatrixBatchData(
     pairs: [string, string][],
     context: ReturnType<typeof buildScatterQueryContext>,
     colorColumn: string,
+    signal: AbortSignal,
 ): Promise<Map<string, MatrixCellData>> {
     const cacheKey = buildMatrixBatchCacheKey(pairs, context, colorColumn);
     const cached = scatterState.matrixBatchCache.get(cacheKey);
     if (cached) return cached;
 
-    const signal = getMatrixRenderSignal();
     const request = fetchScatterMatrix(
         pairs.map(([x, y]) => ({ x, y })),
         colorColumn || null,
@@ -209,6 +209,7 @@ export function buildMatrixFetchPairs(
 export async function renderScatterOverview(
     onCellClick: (x: string, y: string) => void,
     intent?: ScatterIntent,
+    session: MatrixRenderSession = createMatrixRenderSession(),
 ): Promise<void> {
     const columns = buildOverviewColumns();
     if (columns.length < 2) { renderMatrixGrid(columns, new Map(), onCellClick, null); return; }
@@ -218,7 +219,7 @@ export async function renderScatterOverview(
     const requestId = ++scatterState.overviewRequestId;
     // Abort any in-flight matrix batch from a previous render so the new
     // render wins cleanly without piling up overlapping requests.
-    beginMatrixRender();
+    const signal = session.begin();
     const pairs = buildMatrixFetchPairs(columns, controls, scatterState.lastSuggestions);
     const matrixContext = buildScatterQueryContext({
         colorColumn: controls.selectedColorColumn,
@@ -249,7 +250,7 @@ export async function renderScatterOverview(
     };
 
     try {
-        const batchData = await fetchMatrixBatchData(pairs, matrixContext, controls.selectedColorColumn);
+        const batchData = await fetchMatrixBatchData(pairs, matrixContext, controls.selectedColorColumn, signal);
         if (requestId !== scatterState.overviewRequestId) return;
         batchData.forEach((data, key) => {
             datasets.set(key, data);
@@ -269,10 +270,11 @@ export async function renderScatterOverview(
 export async function renderScatterMatrixView(
     onCellClick: (x: string, y: string) => void,
     intent?: ScatterIntent,
+    session: MatrixRenderSession = createMatrixRenderSession(),
 ): Promise<void> {
-    await renderScatterOverview(onCellClick, intent);
+    await renderScatterOverview(onCellClick, intent, session);
     requestAnimationFrame(() => {
-        void renderMatrixFftPanel(intent);
+        void renderMatrixFftPanel(intent, session.currentSignal());
     });
 }
 
@@ -343,7 +345,7 @@ function drawMiniFftCanvas(canvas: HTMLCanvasElement, frequencies: number[], val
     ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
 }
 
-export async function renderMatrixFftPanel(intent?: ScatterIntent): Promise<void> {
+export async function renderMatrixFftPanel(intent?: ScatterIntent, signal: AbortSignal = new AbortController().signal): Promise<void> {
     const panel = getEl('scatter-matrix-fft-panel');
     const chartsContainer = getEl('scatter-matrix-fft-charts');
     if (!panel || !chartsContainer) return;
@@ -368,7 +370,6 @@ export async function renderMatrixFftPanel(intent?: ScatterIntent): Promise<void
     try {
         const startIso = new Date(context.start).toISOString();
         const endIso = new Date(context.end).toISOString();
-        const signal = getMatrixRenderSignal();
         const resp = await fetchFft(startIso, endIso, columns.join(','), 4096, { signal });
 
         chartsContainer.innerHTML = '';

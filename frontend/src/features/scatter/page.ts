@@ -49,6 +49,8 @@ import {
 import {
     renderScatterMatrixView,
     selectMatrixPair,
+    createMatrixRenderSession,
+    type MatrixRenderSession,
 } from './matrix.js';
 import { createRequestTask } from '../../platform/requestTask.js';
 import { createToolbarOverflow, type ToolbarOverflowController } from '../../ui/toolbarOverflow.js';
@@ -73,6 +75,7 @@ import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 let workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters'> | null = null;
 let disposeBoundControls: (() => void) | null = null;
 let toolbarOverflow: ToolbarOverflowController | null = null;
+let matrixRenderSession: MatrixRenderSession = createMatrixRenderSession();
 
 /** Request task for scatter data fetching with abort-before-new semantics. */
 const scatterTask = createRequestTask({
@@ -192,8 +195,8 @@ async function setScatterView(viewName: string, options: { render?: boolean } = 
     if (!shouldRender) return;
     if (nextView === 'matrix') {
         const intent = workspace?.getSnapshot();
-        if (intent) await renderScatterMatrixView(onMatrixCellClick, intent);
-        else await renderScatterMatrixView(onMatrixCellClick);
+        if (intent) await renderScatterMatrixView(onMatrixCellClick, intent, matrixRenderSession);
+        else await renderScatterMatrixView(onMatrixCellClick, undefined, matrixRenderSession);
         return;
     }
     // Re-render the plot so the reset view is reflected immediately, even
@@ -389,6 +392,8 @@ export async function initScatterPage(
     metadata: DatasetMetadata,
     deps: { workspace?: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters'> } = {},
 ): Promise<void> {
+    matrixRenderSession.dispose();
+    matrixRenderSession = createMatrixRenderSession();
     workspace = deps.workspace ?? null;
     configureScatterRuntime(workspace);
     const page = getEl('page-scatter');

@@ -156,6 +156,11 @@ vi.mock('./selectionZoom.js', () => ({
 vi.mock('./matrix.js', () => ({
     renderScatterMatrixView: (...args: unknown[]) => renderScatterMatrixViewMock(...args),
     selectMatrixPair: vi.fn(),
+    createMatrixRenderSession: () => ({
+        begin: vi.fn(() => new AbortController().signal),
+        currentSignal: vi.fn(() => new AbortController().signal),
+        dispose: vi.fn(),
+    }),
 }));
 
 function buildDom(): void {

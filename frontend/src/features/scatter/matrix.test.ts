@@ -6,9 +6,8 @@ import { setMetadata } from '../../store/datasetState.js';
 import { scatterState } from '../../store/scatterState.js';
 import { setScatterViewSnapshot } from '../../store/scatterState.js';
 import {
-    __resetMatrixRenderControllerForTests,
     buildMatrixFetchPairs,
-    getMatrixRenderSignal,
+    createMatrixRenderSession,
     renderScatterOverview,
 } from './matrix.js';
 import { renderMatrixGrid } from './matrixGrid.js';
@@ -31,7 +30,6 @@ class MockCanvasContext2D {
 describe('buildMatrixFetchPairs', () => {
     beforeEach(() => {
         vi.restoreAllMocks();
-        __resetMatrixRenderControllerForTests();
         scatterState.matrixCache = new Map();
         scatterState.matrixBatchCache = new Map();
         scatterState.matrixColumnOrder = [];
@@ -137,9 +135,14 @@ describe('buildMatrixFetchPairs', () => {
         expect(container.querySelector('.scatter-matrix-cell')).toBe(firstCell);
     });
 
-    it('reuses a stable idle signal and resets the active matrix render controller', async () => {
-        const idleSignal = getMatrixRenderSignal();
-        expect(getMatrixRenderSignal()).toBe(idleSignal);
+    it('owns matrix cancellation inside an explicit render session', async () => {
+        const session = createMatrixRenderSession();
+        const idleSignal = session.currentSignal();
+        expect(session.currentSignal()).toBe(idleSignal);
+        const supersededSignal = session.begin();
+        const currentSignal = session.begin();
+        expect(supersededSignal.aborted).toBe(true);
+        expect(currentSignal.aborted).toBe(false);
 
         const fetchScatterMatrixMock = vi.spyOn(api, 'fetchScatterMatrix').mockResolvedValue({
             cells: new Map([
@@ -147,7 +150,7 @@ describe('buildMatrixFetchPairs', () => {
             ]),
         });
 
-        await renderScatterOverview(() => { });
+        await renderScatterOverview(() => { }, undefined, session);
 
         const requestOptions = fetchScatterMatrixMock.mock.calls[0]?.[4];
         expect(requestOptions).toEqual({ signal: expect.any(AbortSignal) });
@@ -156,10 +159,10 @@ describe('buildMatrixFetchPairs', () => {
         expect(activeSignal).toBeDefined();
         expect(activeSignal!.aborted).toBe(false);
 
-        __resetMatrixRenderControllerForTests();
+        session.dispose();
 
         expect(activeSignal!.aborted).toBe(true);
-        expect(getMatrixRenderSignal()).toBe(idleSignal);
+        expect(session.currentSignal()).toBe(idleSignal);
     });
 
     it('builds per-cell query contexts so column filters match each matrix pair', async () => {
