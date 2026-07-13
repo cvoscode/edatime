@@ -736,19 +736,17 @@ describe('initScatterPage view toggles', () => {
 /**
  * Cross-cutting tests for the schedule-render / debounce machinery in
  * scatterPage.ts. These tests must NOT call initScatterPage, since that
- * path also schedules renders. They exercise the global scheduleRender
- * helper and the production setScatterView / renderScatterDebounced
+ * path also schedules renders. They exercise the explicit schedule-render
+ * bridge and the production setScatterView / renderScatterDebounced
  * directly so the assertions can observe the exact timer state.
  */
 describe('scatter render scheduling', () => {
-    let scheduleHelper: { __scatterScheduleRender?: (opts?: { preserveView?: boolean; immediate?: boolean }) => void } | undefined;
-
-    beforeEach(() => {
+    beforeEach(async () => {
         vi.resetModules();
         vi.clearAllMocks();
         buildDom();
-        scheduleHelper = globalThis as any;
-        scheduleHelper!.__scatterScheduleRender = undefined;
+        const { setScatterRenderScheduler } = await import('./renderScheduler.js');
+        setScatterRenderScheduler(null);
 
         fetchScatterPointsMock.mockResolvedValue({
             points: [[1, 2], [2, 3]],
@@ -790,15 +788,15 @@ describe('scatter render scheduling', () => {
         // the full extent for column changes.
         const stateModule = await import('./state.js');
         const applySpy = vi.spyOn(stateModule, 'applyScatterStateFromCache');
+        const { scheduleScatterRender } = await import('./renderScheduler.js');
 
         // Make sure the helpers we use exist on the module under test.
         const scatterPage = await import('./page.js');
         expect(typeof scatterPage.renderScatterDebounced).toBe('function');
-        expect(typeof (scheduleHelper as any).__scatterScheduleRender).toBe('function');
 
         // 1) Schedule a preserving render. resolve immediately via `immediate: true`
         //    so we don't depend on fake timers for the first call.
-        (scheduleHelper as any).__scatterScheduleRender!({ preserveView: true, immediate: true });
+        expect(scheduleScatterRender({ preserveView: true, immediate: true })).toBe(true);
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
         await Promise.resolve();
@@ -812,7 +810,7 @@ describe('scatter render scheduling', () => {
         // 2) Schedule a second render WITHOUT the flag. The flag must have been
         //    consumed by the first call, so this one must use the default
         //    `applyScatterStateFromCache(true)` behaviour.
-        (scheduleHelper as any).__scatterScheduleRender!({ immediate: true });
+        expect(scheduleScatterRender({ immediate: true })).toBe(true);
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
         await Promise.resolve();

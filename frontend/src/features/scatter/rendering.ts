@@ -46,6 +46,7 @@ import {
 import { buildNormalScatterSeries as buildSeriesByPolicy } from './seriesPolicy.js';
 import { buildScatterTooltipHtml } from './tooltipPresentation.js';
 import { buildScatterColorbarPresentation } from './colorbarPresentation.js';
+import { scheduleScatterRender } from './renderScheduler.js';
 
 /* ── Series builders ──────────────────────────────────── */
 
@@ -458,25 +459,12 @@ function refreshView(): void {
         // clobber the new view back to the full extent (the default
         // `applyScatterStateFromCache(true)` would otherwise reset the
         // view and the user's zoom would not stick).
-        scheduleRenderScatter({ preserveView: true, immediate: true });
+        if (!scheduleScatterRender({ preserveView: true, immediate: true })) {
+            renderCurrentOption();
+        }
         return;
     }
     renderCurrentOption();
-}
-
-// Look up the page-owned scheduler at call time. This avoids a top-level cycle
-// with scatterPage.ts and avoids keeping a stale helper after hot reloads.
-function scheduleRenderScatter(opts: { preserveView?: boolean; immediate?: boolean } = {}): void {
-    type ScheduleHelper = { __scatterScheduleRender?: (opts?: { preserveView?: boolean; immediate?: boolean }) => void };
-    const helper = globalThis as ScheduleHelper;
-    const scheduleRender = helper.__scatterScheduleRender;
-    if (scheduleRender) {
-        scheduleRender(opts);
-    } else {
-        // Fallback: no helper registered (e.g. during unit tests). Just
-        // update the option in place so axis labels still refresh.
-        renderCurrentOption();
-    }
 }
 
 export function updateBinnedReadout(): void {

@@ -78,6 +78,7 @@ import {
     setSuggestionApplyHandler,
 } from './correlationsPanel.js';
 import { computeInteractiveScatterLimit } from './renderLimit.js';
+import { setScatterRenderScheduler } from './renderScheduler.js';
 
 import type { DatasetMetadata } from '../../types.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
@@ -228,9 +229,8 @@ let _warnOnEmptyPlotAfterMatrix = false;
  * When set, the next `renderScatter()` invocation will preserve the current
  * `scatterState.view` instead of resetting it to the full extent.
  *
- * The density-mode zoom path in `rendering.ts` triggers a re-render through
- * `globalThis.__scatterScheduleRender` after `applyView` has already updated
- * the view. The default render would clobber that view back to the full
+ * The density-mode zoom path in `rendering.ts` schedules a re-render after
+ * `applyView` has already updated the view. The default render would clobber the full
  * extent via `applyScatterStateFromCache(true)`, so the zoom would not stick.
  * Setting this flag tells the next render to keep the view as-is.
  */
@@ -241,19 +241,17 @@ export function renderScatterDebounced(): void {
     _scatterDebounceTimer = setTimeout(() => { _scatterDebounceTimer = null; renderScatter(); }, 32);
 }
 
-// Expose a re-render trigger for the density-mode zoom path in
-// `rendering.ts`. Rendering can't import `renderScatter` directly without
-// creating a cycle (scatterPage already imports applyView/resetView), so
-// it pokes this global helper instead.
-type ScheduleHelper = { __scatterScheduleRender?: (opts?: { preserveView?: boolean; immediate?: boolean }) => void };
-(globalThis as ScheduleHelper).__scatterScheduleRender = (opts) => {
+// Rendering cannot import `renderScatter` directly because this page already
+// imports view interactions from rendering. Register the page-owned scheduler
+// with the narrow bridge module instead of publishing it on `globalThis`.
+setScatterRenderScheduler((opts) => {
     if (opts?.preserveView) _preserveViewOnNextRender = true;
     if (opts?.immediate) {
         void renderScatter();
         return;
     }
     renderScatterDebounced();
-};
+});
 
 async function renderScatter(): Promise<void> {
     const xSelect = getEl('scatter-x-col');

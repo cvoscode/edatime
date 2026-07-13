@@ -238,6 +238,7 @@ Continue this behavior-preserving split with the remaining renderer-owned seams:
 - Extracted Scatter tooltip HTML into `tooltipPresentation`, with direct escaping, categorical/continuous color-value, and column-type-aware formatting coverage.
 - Extracted Scatter colorbar visibility, density/continuous labels, range values, and bucketed-cardinality copy into `colorbarPresentation`, with direct mode and metadata coverage.
 - Reworked Scatter control binding into one abort-scoped page resource. A new binding retires the previous DOM/window listeners and returns a disposer, replacing the old global "latest listener" filtering workaround. Direct coverage proves that only the newest binding receives events and disposal detaches it.
+- Replaced the density-zoom `globalThis` render callback with `renderScheduler`, a typed one-way bridge from interaction policy to the page-owned fetch/render pipeline. Existing zoom and one-shot view-preservation regressions now verify the explicit contract.
 - Next, review the remaining chart interaction and request/render lifecycle seams; extract only boundaries that eliminate duplicated ownership or reinitialization risk.
 
 ## Target Architecture

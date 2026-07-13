@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { scatterState } from '../../store/scatterState.js';
 import { applyView, buildOption, updateCorrelationStats, updateMarginalPlots } from './rendering.js';
 import { buildDensitySeries, buildDensityTooltipCache, densityTooltipFormatterFactory } from './renderingDensity.js';
+import { setScatterRenderScheduler } from './renderScheduler.js';
 
 class MockCanvasContext2D {
     ops: string[] = [];
@@ -554,16 +555,15 @@ describe('density chart re-bin on view change', () => {
 
         bindRect(document.getElementById('scatter-chart') as HTMLElement, 1308, 648);
 
-        // Register a fake render-scheduler that the density-mode zoom path
-        // pokes via `globalThis.__scatterScheduleRender`.
-        (globalThis as { __scatterScheduleRender?: (opts?: { preserveView?: boolean }) => void }).__scatterScheduleRender = (opts) => {
+        // Register the page-facing scheduler used by the density zoom path.
+        setScatterRenderScheduler((opts) => {
             schedulers.push(1);
             scheduledOpts.push(opts);
-        };
+        });
     });
 
     afterEach(() => {
-        delete (globalThis as { __scatterScheduleRender?: (opts?: { preserveView?: boolean }) => void }).__scatterScheduleRender;
+        setScatterRenderScheduler(null);
     });
 
     it('disposes the density chart and schedules a re-render on applyView', () => {
@@ -597,7 +597,7 @@ describe('density chart re-bin on view change', () => {
     it('looks up the registered density re-render scheduler on every zoom', () => {
         const firstScheduler = vi.fn();
         const secondScheduler = vi.fn();
-        (globalThis as { __scatterScheduleRender?: (opts?: { preserveView?: boolean }) => void }).__scatterScheduleRender = firstScheduler;
+        setScatterRenderScheduler(firstScheduler);
 
         scatterState.chart = { setOption: vi.fn(), resize: vi.fn() } as any;
         scatterState.full = { xMin: 0, xMax: 100, yMin: 0, yMax: 70 };
@@ -605,7 +605,7 @@ describe('density chart re-bin on view change', () => {
         applyView({ xMin: 20, xMax: 60, yMin: 20, yMax: 50 }, true);
         expect(firstScheduler).toHaveBeenCalledWith({ preserveView: true, immediate: true });
 
-        (globalThis as { __scatterScheduleRender?: (opts?: { preserveView?: boolean }) => void }).__scatterScheduleRender = secondScheduler;
+        setScatterRenderScheduler(secondScheduler);
         scatterState.chart = { setOption: vi.fn(), resize: vi.fn() } as any;
         applyView({ xMin: 30, xMax: 50, yMin: 25, yMax: 45 }, true);
         expect(secondScheduler).toHaveBeenCalledWith({ preserveView: true, immediate: true });
