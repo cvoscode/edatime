@@ -140,4 +140,18 @@ describe('settingsPanel', () => {
         document.getElementById('settings-cancel-btn')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         expect(document.getElementById('settings-apply-indicator')?.hidden).toBe(true);
     });
+
+    it('releases settings shortcuts when the owning shell is disposed', async () => {
+        const panelModule = await import('./settingsPanel.js');
+        const dispose = panelModule.initSettingsPanel();
+        dispose();
+
+        document.dispatchEvent(new KeyboardEvent('keydown', {
+            key: ',',
+            ctrlKey: true,
+            bubbles: true,
+        }));
+
+        expect(document.getElementById('settings-modal')?.hidden).toBe(true);
+    });
 });

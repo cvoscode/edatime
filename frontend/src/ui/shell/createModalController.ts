@@ -17,6 +17,7 @@ export function createModalController(opts: {
     }> = [];
     let previousOverflow = '';
     let lastFocusedElement: HTMLElement | null = null;
+    let isOpen = false;
 
     const focusableSelector = [
         'a[href]',
@@ -116,6 +117,8 @@ export function createModalController(opts: {
     };
 
     const open = () => {
+        if (isOpen) return;
+        isOpen = true;
         if (modal) modal.hidden = false;
         lastFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         trapBackgroundInteraction();
@@ -125,6 +128,8 @@ export function createModalController(opts: {
     };
 
     const close = () => {
+        if (!isOpen) return;
+        isOpen = false;
         if (modal) modal.hidden = true;
         document.removeEventListener('keydown', handleKeydown);
         restoreBlockedShell();
@@ -134,14 +139,23 @@ export function createModalController(opts: {
     };
 
     // Bind close buttons
-    for (const id of opts.closeButtonIds) {
-        document.getElementById(id)?.addEventListener('click', close);
-    }
+    const closeButtons = opts.closeButtonIds
+        .map((id) => document.getElementById(id))
+        .filter((button): button is HTMLElement => !!button);
+    for (const button of closeButtons) button.addEventListener('click', close);
 
     // Backdrop click to close
-    modal?.addEventListener('click', (event) => {
+    const onBackdropClick = (event: Event) => {
         if (event.target === modal) close();
-    });
+    };
+    modal?.addEventListener('click', onBackdropClick);
 
-    return { open, close };
+    const dispose = () => {
+        close();
+        for (const button of closeButtons) button.removeEventListener('click', close);
+        modal?.removeEventListener('click', onBackdropClick);
+        document.removeEventListener('keydown', handleKeydown);
+    };
+
+    return { open, close, dispose };
 }

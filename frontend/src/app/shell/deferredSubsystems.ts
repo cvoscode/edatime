@@ -133,9 +133,9 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
         deps.registerCleanup(initProvenance(deps.workspace));
     });
 
-    registerSubsystem('settings-panel', async () => {
+    registerSubsystem('settings-panel', async (deps) => {
         const settingsPanel = await import('../../ui/settingsPanel.js');
-        settingsPanel.initSettingsPanel();
+        deps.registerCleanup(settingsPanel.initSettingsPanel());
         openSettingsModal = settingsPanel.openSettingsModal;
     });
 

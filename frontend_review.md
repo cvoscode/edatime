@@ -528,6 +528,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Reinitialization retires the prior autosave listeners and timer; the bootstrap returns the disposer and requires the subscribe-capable WorkspaceStore contract through Timeseries readiness.
 - App composition retains that bootstrap disposer in `AppRuntime`, so teardown releases the WorkspaceStore subscription and pending autosave timer instead of leaving a process-lifetime listener.
 
+### Completed: Settings panel lifecycle ownership
+
+- Settings initialization now returns an owned disposer for its form, shortcut, and modal listeners. Deferred shell composition registers that disposer, so a remounted shell cannot accumulate Settings handlers.
+- The shared modal controller now closes an active dialog and releases its close/backdrop/keyboard bindings on disposal. Direct regression coverage proves a disposed Settings panel no longer opens from its keyboard shortcut.
+
 ### Completed: adaptive filter WorkspaceStore ownership
 
 - Adaptive gesture refresh now compares canonical adaptive-line state from WorkspaceStore. Gesture application, chip removal, clear controls, and filter-modal changes all flow through the same state publication instead of coordinating with DOM events.

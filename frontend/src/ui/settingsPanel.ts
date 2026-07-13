@@ -205,22 +205,27 @@ function getCheckboxValue(id: string): boolean {
 // ─── Initialization ────────────────────────────────────────────────────────
 
 /** Initialize the settings panel event handlers. */
-export function initSettingsPanel(): void {
+let disposeSettingsPanel: (() => void) | null = null;
+
+export function initSettingsPanel(): () => void {
+    if (disposeSettingsPanel) return disposeSettingsPanel;
+    const abortController = new AbortController();
+    const listenerOptions = { signal: abortController.signal };
     // Page-level "?" help button. Idempotent so safe to call on every
     // settings-panel init.
     initSettingsHelp();
     // Apply button
-    document.getElementById('settings-apply-btn')?.addEventListener('click', applySettings);
+    document.getElementById('settings-apply-btn')?.addEventListener('click', applySettings, listenerOptions);
 
     // Reset button
-    document.getElementById('settings-reset-btn')?.addEventListener('click', resetSettings);
+    document.getElementById('settings-reset-btn')?.addEventListener('click', resetSettings, listenerOptions);
 
     // Tab switching
     document.querySelectorAll<HTMLElement>('.settings-tab-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
             const tab = btn.dataset.tab;
             if (tab) setActiveTab(tab);
-        });
+        }, listenerOptions);
     });
 
     // Palette preview update
@@ -228,29 +233,29 @@ export function initSettingsPanel(): void {
         const draft = syncDraftSettings();
         renderPalettePreview(draft.defaultPalette);
         markUnsavedChanges();
-    });
+    }, listenerOptions);
 
     // Theme preview (live update as user changes)
     document.getElementById('settings-theme')?.addEventListener('change', () => {
         const draft = syncDraftSettings();
         applyTheme(draft.theme);
         markUnsavedChanges();
-    });
+    }, listenerOptions);
 
     // Layout density preview
     document.getElementById('settings-layout')?.addEventListener('change', () => {
         const draft = syncDraftSettings();
         applyLayoutDensity(draft.layoutDensity);
         markUnsavedChanges();
-    });
+    }, listenerOptions);
 
-    document.getElementById('settings-correlation')?.addEventListener('change', markUnsavedChanges);
-    document.getElementById('settings-draw-auto-reset')?.addEventListener('change', markUnsavedChanges);
-    document.getElementById('settings-color-scale')?.addEventListener('change', markUnsavedChanges);
-    document.getElementById('settings-sidebar-collapsed')?.addEventListener('change', markUnsavedChanges);
+    document.getElementById('settings-correlation')?.addEventListener('change', markUnsavedChanges, listenerOptions);
+    document.getElementById('settings-draw-auto-reset')?.addEventListener('change', markUnsavedChanges, listenerOptions);
+    document.getElementById('settings-color-scale')?.addEventListener('change', markUnsavedChanges, listenerOptions);
+    document.getElementById('settings-sidebar-collapsed')?.addEventListener('change', markUnsavedChanges, listenerOptions);
 
     // Settings button in header
-    document.getElementById('settings-btn')?.addEventListener('click', openSettingsModal);
+    document.getElementById('settings-btn')?.addEventListener('click', openSettingsModal, listenerOptions);
 
     // Keyboard shortcut: Ctrl+,
     document.addEventListener('keydown', (e) => {
@@ -259,5 +264,13 @@ export function initSettingsPanel(): void {
             e.preventDefault();
             openSettingsModal();
         }
-    });
+    }, listenerOptions);
+
+    const dispose = () => {
+        abortController.abort();
+        controller.dispose();
+        if (disposeSettingsPanel === dispose) disposeSettingsPanel = null;
+    };
+    disposeSettingsPanel = dispose;
+    return dispose;
 }
