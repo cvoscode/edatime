@@ -1,4 +1,5 @@
 import { createLifecycleScope } from './lifecycleScope.js';
+import { onNavigationChange } from './navigationEvents.js';
 
 // Shared page lifecycle wiring.
 //
@@ -8,7 +9,7 @@ import { createLifecycleScope } from './lifecycleScope.js';
 //       if (initialized) return;
 //       initialized = true;
 //       // ...setup...
-//       window.addEventListener('edatime:page-change', handler);
+//       onNavigationChange(handler);
 //   }
 //
 // Supports two sub-patterns:
@@ -40,7 +41,7 @@ import { createLifecycleScope } from './lifecycleScope.js';
 //   });
 
 export interface PageLifecycleOptions {
-    /** Unique page name matched against edatime:page-change detail.page */
+    /** Unique page name matched against the typed navigation payload. */
     page: string;
     /**
      * Called once on first trigger (either immediate or on first page-change).
@@ -48,7 +49,7 @@ export interface PageLifecycleOptions {
      */
     init(): (() => void) | void;
     /**
-     * Optional: called on *every* edatime:page-change event, regardless of
+     * Optional: called on *every* navigation event, regardless of
      * which page is being switched to. Use for pages that need to
      * re-render shared UI (e.g., chips) on every navigation.
      */
@@ -85,9 +86,8 @@ export function createPageLifecycle(options: PageLifecycleOptions): PageLifecycl
         options.onVisible?.();
     };
 
-    const handler = (event: Event) => {
-        const detail = (event as CustomEvent<{ page?: string }>).detail;
-        const isTargetPage = detail?.page === options.page;
+    const handler = (detail: { page?: string }) => {
+        const isTargetPage = detail.page === options.page;
 
         if (isTargetPage) {
             activate();
@@ -95,6 +95,6 @@ export function createPageLifecycle(options: PageLifecycleOptions): PageLifecycl
         options.onEveryPageChange?.();
     };
 
-    scope.listen(window, 'edatime:page-change', handler);
+    scope.add(onNavigationChange(handler));
     return { activate, dispose: () => scope.dispose() };
 }

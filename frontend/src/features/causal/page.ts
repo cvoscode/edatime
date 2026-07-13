@@ -8,6 +8,7 @@ import {
     disposeCausalPageRuntime,
     initCausalPageRuntime,
 } from './runtime.js';
+import { onNavigationChange } from '../../platform/navigationEvents.js';
 
 export type { CausalDeps } from './selectionState.js';
 export type { MetadataColumn, CausalMetadata } from './selectionState.js';
@@ -134,14 +135,15 @@ export function initCausalPage(deps: CausalDeps): () => void {
         );
     }, listenerOptions);
 
-    window.addEventListener('edatime:page-change', (event: any) => {
-        if (event?.detail?.page === 'causal' && workspaceMetadata(deps)) {
+    const unsubscribeNavigation = onNavigationChange((change) => {
+        if (change.page === 'causal' && workspaceMetadata(deps)) {
             seedSelectedColumnsFromDataset(deps);
             renderColumnChips(deps, columnsBar, openEditPanel);
             scheduleCausalChartRefresh();
             syncCausalEmptyState(_selectedColumns.size);
         }
-    }, listenerOptions);
+    });
+    listenerController.signal.addEventListener('abort', unsubscribeNavigation, { once: true });
 
     return disposeCausalPage;
 }

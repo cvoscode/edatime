@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
+import { emitNavigationChange } from '../../platform/navigationEvents.js';
 
 const buildOptionMock = vi.fn((..._args: unknown[]) => ({}));
 const updateColorbarUIMock = vi.fn();
@@ -242,9 +243,7 @@ describe('bindScatterControls', () => {
         bindScatterControls(callbacks);
         callbacks.setScatterView.mockClear();
 
-        window.dispatchEvent(new CustomEvent('edatime:page-change', {
-            detail: { page: 'scatter', analyticsView: 'plot' },
-        }));
+        emitNavigationChange({ page: 'scatter', analyticsView: 'plot' });
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -293,9 +292,7 @@ describe('bindScatterControls', () => {
         bindScatterControls(callbacks);
         callbacks.setScatterView.mockClear();
 
-        window.dispatchEvent(new CustomEvent('edatime:page-change', {
-            detail: { page: 'scatter', analyticsView: 'plot' },
-        }));
+        emitNavigationChange({ page: 'scatter', analyticsView: 'plot' });
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -340,9 +337,7 @@ describe('bindScatterControls', () => {
         callbacks.setScatterView.mockClear();
 
         for (let i = 0; i < 2; i += 1) {
-            window.dispatchEvent(new CustomEvent('edatime:page-change', {
-                detail: { page: 'scatter', analyticsView: 'plot' },
-            }));
+            emitNavigationChange({ page: 'scatter', analyticsView: 'plot' });
             await Promise.resolve();
             await new Promise((resolve) => setTimeout(resolve, 0));
         }
@@ -388,9 +383,7 @@ describe('bindScatterControls', () => {
         bindScatterControls(callbacks);
         callbacks.setScatterView.mockClear();
 
-        window.dispatchEvent(new CustomEvent('edatime:page-change', {
-            detail: { page: 'scatter', analyticsView: 'plot' },
-        }));
+        emitNavigationChange({ page: 'scatter', analyticsView: 'plot' });
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -418,9 +411,7 @@ describe('bindScatterControls', () => {
 
         bindScatterControls(callbacks);
 
-        window.dispatchEvent(new CustomEvent('edatime:page-change', {
-            detail: { page: 'scatter', analyticsView: 'matrix' },
-        }));
+        emitNavigationChange({ page: 'scatter', analyticsView: 'matrix' });
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -462,9 +453,7 @@ describe('bindScatterControls', () => {
         bindScatterControls(callbacks);
         callbacks.setScatterView.mockClear();
 
-        window.dispatchEvent(new CustomEvent('edatime:page-change', {
-            detail: { page: 'scatter', analyticsView: 'plot' },
-        }));
+        emitNavigationChange({ page: 'scatter', analyticsView: 'plot' });
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 

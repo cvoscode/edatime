@@ -24,6 +24,7 @@ import { toast } from './toast.js';
 import { getHashPage } from './router.js';
 import { getDropdownValue, setDropdownValue } from '../ui/primitives/Dropdown.js';
 import { emitFeatureEvent } from '../platform/featureEvents.js';
+import { onNavigationChange } from '../platform/navigationEvents.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 const STORAGE_KEY = 'edatime-session';
@@ -348,11 +349,11 @@ export function initAutoSave(): () => void {
         _autoSaveTimer = setTimeout(autoSaveSession, 2000);
     };
 
-    window.addEventListener('edatime:page-change', debouncedSave);
+    const unsubscribeNavigation = onNavigationChange(debouncedSave);
     window.addEventListener('beforeunload', autoSaveSession);
     const unsubscribeWorkspace = configuredWorkspace?.subscribe(debouncedSave) ?? (() => {});
     const dispose = () => {
-        window.removeEventListener('edatime:page-change', debouncedSave);
+        unsubscribeNavigation();
         window.removeEventListener('beforeunload', autoSaveSession);
         unsubscribeWorkspace();
         if (_autoSaveTimer) {

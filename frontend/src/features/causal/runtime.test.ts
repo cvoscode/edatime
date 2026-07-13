@@ -5,7 +5,7 @@ describe('Causal page runtime lifecycle', () => {
         vi.restoreAllMocks();
     });
 
-    it('mounts once and releases both page and status listeners on disposal', async () => {
+    it('mounts once without creating window page-change listeners', async () => {
         vi.resetModules();
         const addListener = vi.spyOn(window, 'addEventListener');
         const removeListener = vi.spyOn(window, 'removeEventListener');
@@ -16,21 +16,11 @@ describe('Causal page runtime lifecycle', () => {
 
         expect(first).not.toBeNull();
         expect(second).toBe(first);
-        expect(addListener).toHaveBeenCalledTimes(2);
-        expect(addListener).toHaveBeenCalledWith(
-            'edatime:page-change',
-            expect.any(Function),
-            undefined,
-        );
+        expect(addListener).not.toHaveBeenCalledWith('edatime:page-change', expect.any(Function), undefined);
 
         runtime.disposeCausalPageRuntime();
 
         expect(runtime.getCausalRuntime()).toBeNull();
-        expect(removeListener).toHaveBeenCalledTimes(2);
-        expect(removeListener).toHaveBeenCalledWith(
-            'edatime:page-change',
-            expect.any(Function),
-            undefined,
-        );
+        expect(removeListener).not.toHaveBeenCalledWith('edatime:page-change', expect.any(Function), undefined);
     });
 });

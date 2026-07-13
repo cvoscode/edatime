@@ -254,7 +254,7 @@ describe('getScatterRuntime', () => {
         expect(getScatterRuntime()).toBe(null);
     });
 
-    it('mounts one page lifecycle and disposes it cleanly', () => {
+    it('mounts one typed page lifecycle without window listeners', () => {
         const addListener = vi.spyOn(window, 'addEventListener');
         const removeListener = vi.spyOn(window, 'removeEventListener');
 
@@ -262,19 +262,11 @@ describe('getScatterRuntime', () => {
         const second = initScatterPageRuntime();
 
         expect(second).toBe(first);
-        expect(addListener).toHaveBeenCalledWith(
-            'edatime:page-change',
-            expect.any(Function),
-            undefined,
-        );
+        expect(addListener).not.toHaveBeenCalledWith('edatime:page-change', expect.any(Function), undefined);
 
         disposeScatterPageRuntime();
 
         expect(getScatterRuntime()).toBe(null);
-        expect(removeListener).toHaveBeenCalledWith(
-            'edatime:page-change',
-            expect.any(Function),
-            undefined,
-        );
+        expect(removeListener).not.toHaveBeenCalledWith('edatime:page-change', expect.any(Function), undefined);
     });
 });

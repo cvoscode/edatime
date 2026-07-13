@@ -7,6 +7,7 @@ import { preloadPageStyles } from '../utils/pageStyles.js';
 import { pageNeedsDatasetBootstrap, resolveBackingPageName } from '../utils/pageBootstrap.js';
 import { getHashPage } from '../utils/router.js';
 import { dismissAllToasts } from '../utils/toast.js';
+import { emitNavigationChange } from '../platform/navigationEvents.js';
 
 export interface PageNavigationDeps {
     ensureDatasetReady: (pageName?: string) => Promise<void>;
@@ -79,15 +80,7 @@ export function initPageNavigation(deps: PageNavigationDeps): PageNavigation {
 
         requestAnimationFrame(() => {
             window.dispatchEvent(new Event('resize'));
-            window.dispatchEvent(
-                new CustomEvent('edatime:page-change', {
-                    detail: {
-                        page: resolvedPageName,
-                        navPage: pageName,
-                        analyticsView,
-                    },
-                }),
-            );
+            emitNavigationChange({ page: resolvedPageName, navPage: pageName, analyticsView });
         });
     }
 

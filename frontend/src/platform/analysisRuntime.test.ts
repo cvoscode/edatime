@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAnalysisPageRuntime } from './analysisRuntime.js';
+import { emitNavigationChange } from './navigationEvents.js';
 
 describe('createAnalysisPageRuntime', () => {
     afterEach(() => {
@@ -16,7 +17,7 @@ describe('createAnalysisPageRuntime', () => {
         const unregister = runtime.mount();
         expect(typeof unregister).toBe('function');
         // init is deferred until first page activation — trigger it
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+        emitNavigationChange({ page: 'fft' });
         expect(init).toHaveBeenCalled();
     });
 
@@ -48,7 +49,7 @@ describe('createAnalysisPageRuntime', () => {
             },
         });
         runtime.mount();
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+        emitNavigationChange({ page: 'fft' });
         expect(spy).toHaveBeenCalledWith('fft', expect.any(Object));
     });
 
@@ -60,7 +61,7 @@ describe('createAnalysisPageRuntime', () => {
             onVisible,
         });
         runtime.mount();
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'heatmap' } }));
+        emitNavigationChange({ page: 'heatmap' });
         expect(onVisible).toHaveBeenCalledTimes(1);
     });
 
@@ -119,8 +120,8 @@ describe('createAnalysisPageRuntime', () => {
             onEveryPageChange,
         });
         runtime.mount();
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'timeseries' } }));
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'scatter' } }));
+        emitNavigationChange({ page: 'timeseries' });
+        emitNavigationChange({ page: 'scatter' });
         expect(onEveryPageChange).toHaveBeenCalledTimes(2);
     });
 
@@ -139,7 +140,7 @@ describe('createAnalysisPageRuntime', () => {
             // bindExportsOnInit not set — defaults to true
         });
         runtime.mount();
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+        emitNavigationChange({ page: 'fft' });
         expect(spy).toHaveBeenCalled();
     });
 
@@ -255,9 +256,9 @@ describe('createAnalysisPageRuntime', () => {
             init,
         });
         runtime.mount();
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+        emitNavigationChange({ page: 'fft' });
+        emitNavigationChange({ page: 'fft' });
+        emitNavigationChange({ page: 'fft' });
         // init is called once — the wrapper does not re-implement the once-only guarantee
         expect(init).toHaveBeenCalledTimes(1);
     });
@@ -270,10 +271,10 @@ describe('createAnalysisPageRuntime', () => {
             init,
         });
         runtime.mount();
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'other' } }));
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'another' } }));
+        emitNavigationChange({ page: 'other' });
+        emitNavigationChange({ page: 'another' });
         expect(init).not.toHaveBeenCalled();
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'target' } }));
+        emitNavigationChange({ page: 'target' });
         expect(init).toHaveBeenCalledTimes(1);
     });
 
@@ -285,8 +286,8 @@ describe('createAnalysisPageRuntime', () => {
             onVisible,
         });
         runtime.mount();
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'heatmap' } }));
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'heatmap' } }));
+        emitNavigationChange({ page: 'heatmap' });
+        emitNavigationChange({ page: 'heatmap' });
         // onVisible is forwarded to createPageLifecycle — fires on every activation
         expect(onVisible).toHaveBeenCalledTimes(2);
     });
@@ -299,9 +300,9 @@ describe('createAnalysisPageRuntime', () => {
             onEveryPageChange,
         });
         runtime.mount();
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'timeseries' } }));
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'scatter' } }));
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'heatmap' } }));
+        emitNavigationChange({ page: 'timeseries' });
+        emitNavigationChange({ page: 'scatter' });
+        emitNavigationChange({ page: 'heatmap' });
         // onEveryPageChange fires on every event — no duplicate listener in the wrapper
         expect(onEveryPageChange).toHaveBeenCalledTimes(3);
     });
@@ -316,11 +317,11 @@ describe('createAnalysisPageRuntime', () => {
             onEveryPageChange,
         });
         const unregister = runtime.mount();
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+        emitNavigationChange({ page: 'fft' });
         expect(init).toHaveBeenCalledTimes(1);
         expect(onEveryPageChange).toHaveBeenCalledTimes(1);
         unregister();
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+        emitNavigationChange({ page: 'fft' });
         // After unregister, no further calls — wrapper does not add a second listener
         expect(init).toHaveBeenCalledTimes(1);
         expect(onEveryPageChange).toHaveBeenCalledTimes(1);

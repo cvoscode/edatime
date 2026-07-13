@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { emitNavigationChange } from '../../platform/navigationEvents.js';
 
 const fftChartInstance = {
     init: vi.fn(async () => undefined),
@@ -124,7 +125,7 @@ describe('initFftPage', () => {
 
         const { initFftPage } = await import('./page');
         await initFftPage({ renderTimeseries: vi.fn() });
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+        emitNavigationChange({ page: 'fft' });
 
         expect(fftChartInstance.init).toHaveBeenCalledTimes(1);
         await vi.waitFor(() => {
@@ -148,9 +149,9 @@ describe('initFftPage', () => {
     it('replaces control listeners when the page is initialized twice', async () => {
         const { initFftPage } = await import('./page');
         await initFftPage({ renderTimeseries: vi.fn() });
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+        emitNavigationChange({ page: 'fft' });
         await initFftPage({ renderTimeseries: vi.fn() });
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+        emitNavigationChange({ page: 'fft' });
 
         (document.getElementById('fft-zoom-reset-btn') as HTMLButtonElement).click();
 
@@ -185,7 +186,7 @@ describe('initFftPage', () => {
 
         const { initFftPage } = await import('./page');
         await initFftPage({ renderTimeseries: vi.fn() });
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+        emitNavigationChange({ page: 'fft' });
 
         (document.querySelector('.fft-trace-chip') as HTMLButtonElement).click();
         const startingUpdateCount = fftChartInstance.updateData.mock.calls.length;
@@ -229,7 +230,7 @@ describe('initFftPage', () => {
 
         const { initFftPage } = await import('./page');
         await initFftPage({ renderTimeseries: vi.fn() });
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+        emitNavigationChange({ page: 'fft' });
 
         const chip = document.querySelector<HTMLElement>('.fft-trace-chip')!;
         chip.click();
@@ -244,7 +245,7 @@ describe('initFftPage', () => {
         expect(checkbox.checked).toBe(true);
 
         checkbox.checked = false;
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+        emitNavigationChange({ page: 'fft' });
 
         // Chips are rebuilt by renderChips — re-query to get the reconciled element
         const reconciledChip = document.querySelector<HTMLElement>('.fft-trace-chip')!;
@@ -281,7 +282,7 @@ describe('initFftPage', () => {
 
         const { initFftPage } = await import('./page');
         await initFftPage({ renderTimeseries: vi.fn() });
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+        emitNavigationChange({ page: 'fft' });
 
         (document.querySelector('.fft-trace-chip') as HTMLButtonElement).click();
         await vi.waitFor(() => {
@@ -301,7 +302,7 @@ describe('initFftPage', () => {
         } as any;
 
         await initFftPage({ renderTimeseries: vi.fn() });
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+        emitNavigationChange({ page: 'fft' });
 
         expect(document.querySelectorAll('.fft-trace-chip')).toHaveLength(2);
         await vi.waitFor(() => {
@@ -328,7 +329,7 @@ describe('initFftPage', () => {
 
         const { initFftPage } = await import('./page');
         await initFftPage({ renderTimeseries: vi.fn() });
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+        emitNavigationChange({ page: 'fft' });
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -352,7 +353,7 @@ describe('initFftPage', () => {
 
         const { initFftPage } = await import('./page');
         await initFftPage({ renderTimeseries: vi.fn() });
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+        emitNavigationChange({ page: 'fft' });
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -398,7 +399,7 @@ describe('initFftPage', () => {
 
         const { initFftPage } = await import('./page');
         await initFftPage({ renderTimeseries: vi.fn() });
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+        emitNavigationChange({ page: 'fft' });
 
         const methodField = document.getElementById('fft-clip-method-field') as HTMLElement;
         const paramField = document.getElementById('fft-clip-param-field') as HTMLElement;
@@ -431,7 +432,7 @@ describe('initFftPage', () => {
 
         const { initFftPage } = await import('./page');
         await initFftPage({ renderTimeseries: vi.fn() });
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+        emitNavigationChange({ page: 'fft' });
 
         const filterType = document.getElementById('fft-filter-type') as HTMLSelectElement;
         const lowField = document.getElementById('fft-filter-low-field') as HTMLElement;
@@ -482,7 +483,7 @@ describe('initFftPage', () => {
 
         const { initFftPage } = await import('./page');
         await initFftPage({ renderTimeseries: vi.fn() });
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'fft' } }));
+        emitNavigationChange({ page: 'fft' });
 
         (document.querySelector('.fft-trace-chip') as HTMLButtonElement).click();
         await vi.waitFor(() => {

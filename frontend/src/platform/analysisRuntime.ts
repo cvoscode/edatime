@@ -12,7 +12,7 @@ export interface ExportConfig {
 /**
  * Options for creating an analysis-page runtime.
  *
- * @property page              - Unique page name matched against `edatime:page-change` detail.page.
+ * @property page              - Unique page name matched against the typed navigation payload.
  * @property emptyStateRootId  - DOM id of the empty-state container element.
  * @property statusElId        - Optional DOM id of the page's status text element.
  * @property loadingElId       - Optional DOM id of the loading indicator element.

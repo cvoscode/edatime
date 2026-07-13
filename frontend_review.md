@@ -548,6 +548,11 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Command-palette initialization now returns an idempotent disposer that removes the global Ctrl/Cmd+K listener and the dynamically created overlay. Deferred shell composition owns that disposer.
 - Direct coverage proves disposal leaves no palette overlay and prevents the global shortcut from recreating one.
 
+### Completed: typed navigation lifecycle ownership
+
+- Replaced the global `edatime:page-change` production DOM bus with `platform/navigationEvents`, a typed in-process navigation boundary carrying the resolved page, requested navigation page, and analytics view.
+- Router, page lifecycle, session/provenance, Timeseries, Scatter, Causal, Drift, and Guided Workflow now subscribe through owned typed cleanup handles. Characterization suites emit the same typed payload directly; the prior DOM producer has been removed.
+
 ### Completed: adaptive filter WorkspaceStore ownership
 
 - Adaptive gesture refresh now compares canonical adaptive-line state from WorkspaceStore. Gesture application, chip removal, clear controls, and filter-modal changes all flow through the same state publication instead of coordinating with DOM events.

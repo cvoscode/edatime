@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeWorkspaceSnapshot } from '../../workspace/workspaceStore.js';
 import { emitFeatureEvent } from '../../platform/featureEvents.js';
+import { emitNavigationChange } from '../../platform/navigationEvents.js';
 
 const mocks = vi.hoisted(() => ({
     toast: vi.fn(),
@@ -134,7 +135,7 @@ describe('causal page chart bootstrap', () => {
         const page = document.getElementById('page-causal') as HTMLElement;
         page.hidden = false;
         Object.defineProperty(chartEl, 'clientWidth', { configurable: true, value: 0 });
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'causal' } }));
+        emitNavigationChange({ page: 'causal' });
 
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
@@ -142,7 +143,7 @@ describe('causal page chart bootstrap', () => {
         expect(echarts.getInstanceByDom(chartEl)).toBeUndefined();
 
         Object.defineProperty(chartEl, 'clientWidth', { configurable: true, value: 640 });
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'causal' } }));
+        emitNavigationChange({ page: 'causal' });
 
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));

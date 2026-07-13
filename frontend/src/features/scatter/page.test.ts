@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { emitNavigationChange } from '../../platform/navigationEvents.js';
 
 const createChartMock = vi.fn();
 const echartsInitMock = vi.fn();
@@ -596,9 +597,7 @@ describe('initScatterPage view toggles', () => {
 
         expect(fetchScatterPointsMock).toHaveBeenCalledTimes(1);
 
-        window.dispatchEvent(new CustomEvent('edatime:page-change', {
-            detail: { page: 'scatter', analyticsView: 'plot' },
-        }));
+        emitNavigationChange({ page: 'scatter', analyticsView: 'plot' });
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -633,9 +632,7 @@ describe('initScatterPage view toggles', () => {
         freshChartState.currentStart = 100;
         freshChartState.currentEnd = 500;
 
-        window.dispatchEvent(new CustomEvent('edatime:page-change', {
-            detail: { page: 'scatter', analyticsView: 'plot' },
-        }));
+        emitNavigationChange({ page: 'scatter', analyticsView: 'plot' });
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 

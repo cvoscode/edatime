@@ -18,6 +18,7 @@ import { renderSeriesChipList } from '../../ui/seriesChipList.js';
 import { chartState } from '../../store/chartState.js';
 import { formatUtcDatetimeInputValue } from '../../utils/datetimeInput.js';
 import { getSeriesColor } from '../../utils/seriesColors.js';
+import { onNavigationChange } from '../../platform/navigationEvents.js';
 
 export interface DriftControlCallbacks {
     getSelectedColumns: () => string[];
@@ -347,8 +348,8 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
     }, listenerOptions);
 
     // ── Page change listener (repopulate columns on page show) ─────────────
-    window.addEventListener('edatime:page-change', (e: any) => {
-        if (e?.detail?.page !== 'drift') return;
+    const unsubscribeNavigation = onNavigationChange((change) => {
+        if (change.page !== 'drift') return;
         const cols: string[] = Array.isArray(pageMetadata?.numeric_columns)
             ? pageMetadata.numeric_columns.filter((c: string) => c && c.toLowerCase() !== 'ts')
             : [];
@@ -357,10 +358,11 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
         repopulateColumnSelect(colPickerList, cols);
         selectionChangeCallback?.();
         cb.scheduleDriftChartRefresh();
-    }, listenerOptions);
+    });
 
     return () => {
         abortController.abort();
+        unsubscribeNavigation();
         if (plotTypeDebounce !== null) clearTimeout(plotTypeDebounce);
     };
 }

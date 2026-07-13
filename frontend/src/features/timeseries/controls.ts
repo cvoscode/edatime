@@ -12,6 +12,7 @@ import {
 } from './columnsController.js';
 import { initDatasetSearchInputs, initTimeseriesActions, initTimeseriesExportButtons } from './actions.js';
 import { initChartPageFilterGesture } from './filterGesture.js';
+import { emitNavigationChange } from '../../platform/navigationEvents.js';
 import type { TimeseriesWorkspace } from './selectionIntent.js';
 
 export interface TimeseriesFeatureDeps {
@@ -125,7 +126,7 @@ export function createTimeseriesControls(deps: TimeseriesFeatureDeps) {
             const uploadButton = document.getElementById('timeseries-empty-upload-btn');
             if (uploadButton) {
                 const onUpload = () => {
-                    window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'upload' } }));
+                    emitNavigationChange({ page: 'upload', navPage: 'upload' });
                 };
                 uploadButton.addEventListener('click', onUpload);
                 registerCleanup(() => uploadButton.removeEventListener('click', onUpload));

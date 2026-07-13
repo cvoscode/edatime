@@ -11,6 +11,7 @@ import { chartState } from '../store/chartState.js';
 import { datasetState } from '../store/datasetState.js';
 import { formatAnalysisTime, formatAnalysisNumber } from '../utils/format.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
+import { onNavigationChange } from '../platform/navigationEvents.js';
 
 let _panel: HTMLElement | null = null;
 let _content: HTMLElement | null = null;
@@ -194,13 +195,12 @@ export function initProvenance(workspace: Pick<WorkspaceStore, 'getSnapshot' | '
     };
     window.addEventListener('keydown', onKeyDown);
 
-    const onPageChange = () => refreshProvenance();
-    window.addEventListener('edatime:page-change', onPageChange);
+    const unsubscribeNavigation = onNavigationChange(() => refreshProvenance());
     const unsubscribeWorkspace = workspace.subscribe(() => refreshProvenance());
     const dispose = () => {
         btn?.removeEventListener('click', toggleProvenance);
         window.removeEventListener('keydown', onKeyDown);
-        window.removeEventListener('edatime:page-change', onPageChange);
+        unsubscribeNavigation();
         unsubscribeWorkspace();
         if (_disposeProvenance === dispose) {
             _disposeProvenance = null;

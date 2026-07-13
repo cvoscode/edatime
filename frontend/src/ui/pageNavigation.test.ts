@@ -86,7 +86,8 @@ describe('initPageNavigation', () => {
         window.history.replaceState(null, '', '#page=scattermatrix');
         pageNeedsDatasetBootstrapMock.mockImplementation((page) => page === 'scatter');
         const pageChangeHandler = vi.fn();
-        window.addEventListener('edatime:page-change', pageChangeHandler);
+        const { onNavigationChange } = await import('../platform/navigationEvents.js');
+        const unsubscribeNavigation = onNavigationChange(pageChangeHandler);
         const { initPageNavigation } = await import('./pageNavigation.js');
 
         initPageNavigation(navigationDeps());
@@ -102,12 +103,9 @@ describe('initPageNavigation', () => {
         expect(ensureDatasetReadyMock).toHaveBeenCalledWith('scatter');
         expect(ensurePageModuleLoadedMock).toHaveBeenCalledWith('scatter');
         expect(pageChangeHandler).toHaveBeenCalledWith(expect.objectContaining({
-            detail: expect.objectContaining({
-                page: 'scatter',
-                navPage: 'scattermatrix',
-                analyticsView: 'matrix',
-            }),
+            page: 'scatter', navPage: 'scattermatrix', analyticsView: 'matrix',
         }));
+        unsubscribeNavigation();
     });
 
     it('dismisses sticky toasts when navigating to another page', async () => {

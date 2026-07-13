@@ -24,6 +24,7 @@ import { scatterState } from '../../store/scatterState.js';
 import type { DatasetMetadata } from '../../types/api.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import { onFeatureEvent } from '../../platform/featureEvents.js';
+import { onNavigationChange } from '../../platform/navigationEvents.js';
 import { getEl, normalizeScatterSuggestionThreshold } from './helpers.js';
 import {
     currentControls,
@@ -282,7 +283,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
     // updates after every successful render. The `inFlight` guard drops
     // re-entrant dispatches fired while a
     // previous invocation is still awaiting. Scatter itself does not
-    // dispatch `edatime:page-change` from within the handler chain, so
+    // dispatch a navigation event from within the handler chain, so
     // this is purely defensive: synchronous `setScatterView` calls
     // re-enter the same page-change from `showPage` (which queues the
     // event inside a `requestAnimationFrame`), and we don't want those
@@ -293,8 +294,8 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
     // etc.) still run.
     let inFlight = false;
 
-    listen(window, 'edatime:page-change', async (ev: any) => {
-        if (ev?.detail?.page !== 'scatter') return;
+    const unsubscribeNavigation = onNavigationChange(async (change) => {
+        if (change.page !== 'scatter') return;
         if (inFlight) return;
         inFlight = true;
         try {
@@ -309,7 +310,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
                 await cb.initScatterPage(datasetState.metadata as DatasetMetadata);
             }
 
-            const nextView = normalizeAnalyticsView(ev?.detail?.analyticsView);
+            const nextView = normalizeAnalyticsView(change.analyticsView ?? 'plot');
             const ctl = currentControls();
             // The overview context key includes X, Y, and the color-column
             // selection (in addition to the filter payload) so a navigation
@@ -357,6 +358,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
             inFlight = false;
         }
     });
+    controller.signal.addEventListener('abort', unsubscribeNavigation, { once: true });
 
     return dispose;
 }

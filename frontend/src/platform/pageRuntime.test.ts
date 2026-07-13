@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createPageRuntime } from './pageRuntime.js';
+import { emitNavigationChange } from './navigationEvents.js';
 
 // Shared helper to dispatch a page-change event
 function dispatchPageChange(page: string) {
-    window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page } }));
+    emitNavigationChange({ page });
 }
 
 describe('createPageRuntime', () => {

@@ -9,6 +9,7 @@ const VALID_PAGES = new Set([
     'home', 'upload', 'timeseries', 'correlations', 'scatter',
     'scattermatrix', 'fft', 'spectrogram', 'causal', 'drift', 'settings',
 ]);
+import { onNavigationChange } from '../platform/navigationEvents.js';
 
 let _bound = false;
 
@@ -59,7 +60,7 @@ function replaceHashPage(page: string): void {
  * Bind hash routing to the page navigation system.
  *
  * Call once during app bootstrap, after `initPages()`.
- * Listens for `edatime:page-change` to update the hash,
+ * Listens for typed navigation changes to update the hash,
  * and `popstate` to navigate on back/forward.
  */
 export function initHashRouting(navigateToPage: PageNavigator): void {
@@ -67,12 +68,12 @@ export function initHashRouting(navigateToPage: PageNavigator): void {
     _bound = true;
 
     // On page change → update hash
-    window.addEventListener('edatime:page-change', ((e: CustomEvent) => {
-        const page = e.detail?.navPage || e.detail?.page;
+    onNavigationChange((change) => {
+        const page = change.navPage || change.page;
         if (page && VALID_PAGES.has(page)) {
             setHashPage(page);
         }
-    }) as EventListener);
+    });
 
     // On browser back/forward → navigate to page
     window.addEventListener('popstate', () => {

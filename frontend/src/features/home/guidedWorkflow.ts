@@ -1,6 +1,7 @@
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import { getCurrentCausalGraph } from '../causal/index.js';
 import { onFeatureEvent } from '../../platform/featureEvents.js';
+import { onNavigationChange } from '../../platform/navigationEvents.js';
 import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
 import { toast } from '../../utils/toast.js';
 
@@ -439,13 +440,12 @@ function bindStaticEvents(): () => void {
         if (id === 'scatter-x-col' || id === 'scatter-y-col') scheduleGuidedWorkflowRender();
     }) as EventListener);
 
-    listen(window, 'edatime:page-change', ((event: Event) => {
-        const detail = (event as CustomEvent).detail;
-        const nextPage = detail?.navPage || detail?.page || currentPage();
+    cleanups.push(onNavigationChange((detail) => {
+        const nextPage = detail.navPage || detail.page || currentPage();
         _currentNavPage = nextPage;
         markVisited(nextPage);
         scheduleGuidedWorkflowRender();
-    }) as EventListener);
+    }));
     cleanups.push(onFeatureEvent('session:restored', () => scheduleGuidedWorkflowRender()));
     cleanups.push(onFeatureEvent('workflow:refresh', () => scheduleGuidedWorkflowRender()));
     return () => cleanups.splice(0).reverse().forEach((cleanup) => cleanup());

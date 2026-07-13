@@ -521,7 +521,7 @@ export async function initScatterPage(
     return disposeScatterPage;
 }
 
-/** Bootstrap call — must happen BEFORE the first edatime:page-change 'scatter' event
+/** Bootstrap call — must happen BEFORE the first typed 'scatter' navigation event
  *  so that the runtime's event listener is registered before any page-change handlers
  *  that call initScatterPage. */
 initScatterPageRuntime();

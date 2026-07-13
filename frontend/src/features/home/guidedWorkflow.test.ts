@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildWorkflowSuggestion, computeWorkflowProgress, type WorkflowSnapshot } from './guidedWorkflow';
 import { makeWorkspaceSnapshot } from '../../workspace/workspaceStore.js';
+import { emitNavigationChange } from '../../platform/navigationEvents.js';
 
 function workflowDeps(metadata: unknown = null, columns: string[] = []) {
     return {
@@ -148,7 +149,7 @@ describe('initGuidedWorkflow', () => {
         const timeseries = document.querySelector('.sidebar .nav-item[data-page="timeseries"]') as HTMLButtonElement;
         home.classList.remove('active');
         timeseries.classList.add('active');
-        window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page: 'timeseries', navPage: 'timeseries' } }));
+        emitNavigationChange({ page: 'timeseries', navPage: 'timeseries' });
 
         expect(document.getElementById('workflow-panel')?.textContent).toContain('Open Upload');
 

@@ -209,7 +209,7 @@ export function buildRenderSignature(controls: ScatterControls): string {
  * Build the cache key used by the scatter page-change handler to decide
  * whether the current render can be reused.
  *
- * The `edatime:page-change { page: 'scatter' }` listener compares this key
+ * The typed `{ page: 'scatter' }` navigation listener compares this key
  * against the value stored on the last successful render so an identity
  * dispatch (same filters, same axes, same zoom range) can short-circuit
  * the work. Including `x`, `y`, and `colorColumn` is essential: the

@@ -4,10 +4,11 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createTimeseriesLifecycle as createTimeseriesRuntime } from './lifecycle.js';
+import { emitNavigationChange } from '../../platform/navigationEvents.js';
 
 // Shared helper to dispatch a page-change event
 function dispatchPageChange(page: string) {
-    window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page } }));
+    emitNavigationChange({ page });
 }
 
 describe('createTimeseriesRuntime', () => {

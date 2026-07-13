@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPageLifecycle } from './pageLifecycle.js';
+import { emitNavigationChange } from './navigationEvents.js';
 
 const originalWindow = window;
 
 function dispatchPageChange(page: string) {
-    window.dispatchEvent(new CustomEvent('edatime:page-change', { detail: { page } }));
+    emitNavigationChange({ page });
 }
 
 describe('createPageLifecycle', () => {

@@ -9,6 +9,7 @@
  */
 
 import { toast, type ToastKind } from '../../utils/toast.js';
+import { onNavigationChange } from '../../platform/navigationEvents.js';
 
 const PROGRESS_OVERLAY_ID = 'causal-loading';
 const PROGRESS_LABEL_ID = 'causal-progress-label';
@@ -18,15 +19,13 @@ let disposeStatusLifecycle: (() => void) | null = null;
 /** Bind the Causal status lifecycle once for the active feature instance. */
 export function initCausalStatusLifecycle(): void {
     if (disposeStatusLifecycle) return;
-    const onPageChange = (event: Event) => {
-        const page = (event as CustomEvent<{ page?: string }>).detail?.page;
+    const unsubscribeNavigation = onNavigationChange(({ page }) => {
         if (page === 'causal') return;
         dismissActiveStatusToast?.();
         dismissActiveStatusToast = null;
-    };
-    window.addEventListener('edatime:page-change', onPageChange);
+    });
     disposeStatusLifecycle = () => {
-        window.removeEventListener('edatime:page-change', onPageChange);
+        unsubscribeNavigation();
         dismissActiveStatusToast?.();
         dismissActiveStatusToast = null;
         disposeStatusLifecycle = null;

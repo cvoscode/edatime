@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { makeWorkspaceSnapshot } from '../../workspace/workspaceStore.js';
+import { onNavigationChange } from '../../platform/navigationEvents.js';
 
 const {
     buildColumnTogglesMock,
@@ -146,7 +147,7 @@ describe('createTimeseriesControls', () => {
             updateAnalysisZoom: vi.fn(),
         });
         const onPageChange = vi.fn();
-        window.addEventListener('edatime:page-change', onPageChange);
+        const unsubscribeNavigation = onNavigationChange(onPageChange);
 
         const dispose = feature.init();
         document.getElementById('timeseries-empty-upload-btn')!.click();
@@ -154,8 +155,8 @@ describe('createTimeseriesControls', () => {
         document.getElementById('timeseries-empty-upload-btn')!.click();
 
         expect(onPageChange).toHaveBeenCalledTimes(1);
-        expect(onPageChange.mock.calls[0]?.[0]).toMatchObject({ detail: { page: 'upload' } });
-        window.removeEventListener('edatime:page-change', onPageChange);
+        expect(onPageChange.mock.calls[0]?.[0]).toMatchObject({ page: 'upload', navPage: 'upload' });
+        unsubscribeNavigation();
     });
 
     it('wires the export buttons when all five handlers are provided', () => {
