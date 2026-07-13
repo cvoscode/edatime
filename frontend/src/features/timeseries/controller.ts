@@ -27,6 +27,7 @@ import { buildTimeseriesDataRequest, getTimeseriesLookaroundMs } from './timeser
 import { canReuseBufferedFetch } from './bufferedFetchPolicy.js';
 import { resolveFetchedWindow } from './fetchedWindow.js';
 import { buildTimeseriesRenderModel } from './timeseriesRenderModel.js';
+import { resolveTimeseriesRequestIntent } from './requestIntent.js';
 import {
     appendZoomRestoreState,
     resolveZoomOutDecision,
@@ -122,21 +123,10 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
     let lastFetchedParams: string | null = null;
 
     function getRequestIntent() {
-        const workspace = deps.workspace.getSnapshot();
-        const viewport = workspace.viewport;
-        const workspaceStart = Number(viewport?.xMin);
-        const workspaceEnd = Number(viewport?.xMax);
-        const start = Number.isFinite(workspaceStart) ? workspaceStart : Number(chartState.currentStart);
-        const end = Number.isFinite(workspaceEnd) ? workspaceEnd : Number(chartState.currentEnd);
-        const columns = [...workspace.selection.columns];
-        const colorColumn = workspace.selection.colorColumn;
-        return {
-            start,
-            end,
-            columns,
-            colorColumn,
-            key: `${columns.join(',')}|${colorColumn}`,
-        };
+        return resolveTimeseriesRequestIntent(deps.workspace.getSnapshot(), {
+            start: chartState.currentStart,
+            end: chartState.currentEnd,
+        });
     }
 
     function getFilterIntent(): TimeseriesFilterIntent {
