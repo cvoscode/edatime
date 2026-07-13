@@ -64,6 +64,7 @@ import { getChartExportDomains, getChartExportViewport, type ChartExportDomains,
 import { renderChartExportCanvas } from './chartExportCanvasRenderer.js';
 import { computeZoomPercentRange } from './zoomRangePolicy.js';
 import { computeDisplayYRange } from './displayYRangePolicy.js';
+import { mapCssPointToChartData } from './chartCoordinateMapper.js';
 import {
     DEFAULT_CHART_GRID,
     computeChartGrid,
@@ -412,26 +413,17 @@ export class DataChart {
 
     cssPointToData(clientX: number, clientY: number): { x: number; y: number } | null {
         if (!this._container) return null;
-        if (!Number.isFinite(this._xMin) || !Number.isFinite(this._xMax) || this._xMax! <= this._xMin!) return null;
-        const yRange = this.getYRange();
-        if (!yRange || yRange.max <= yRange.min) return null;
-
         const rect = this._container.getBoundingClientRect();
-        const localX = clientX - rect.left;
-        const localY = clientY - rect.top;
-        const grid = this._updateCurrentGrid();
-        const plotLeft = grid.left;
-        const plotTop = grid.top;
-        const plotRight = Math.max(plotLeft + 1, rect.width - grid.right);
-        const plotBottom = Math.max(plotTop + 1, rect.height - grid.bottom);
-        if (localX < plotLeft || localX > plotRight || localY < plotTop || localY > plotBottom) return null;
-
-        const xNorm = (localX - plotLeft) / Math.max(1, plotRight - plotLeft);
-        const yNorm = (localY - plotTop) / Math.max(1, plotBottom - plotTop);
-        return {
-            x: this._xMin! + xNorm * (this._xMax! - this._xMin!),
-            y: yRange.max - yNorm * (yRange.max - yRange.min),
-        };
+        return mapCssPointToChartData({
+            clientX,
+            clientY,
+            rect,
+            grid: this._updateCurrentGrid(),
+            xRange: Number.isFinite(this._xMin) && Number.isFinite(this._xMax)
+                ? { min: this._xMin!, max: this._xMax! }
+                : null,
+            yRange: this.getYRange(),
+        });
     }
 
     zoomY(_factor: number, _anchorNormalized = 0.5): void { /* intentionally blank */ }

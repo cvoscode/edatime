@@ -176,6 +176,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Added explicit disposal handles for shared box-zoom and Ctrl-pan bindings, and made `DataChart` dispose those listeners and pending interaction work on re-init or teardown.
 - Applied the same box-zoom cleanup contract to FFT and the canvas fallback chart so no chart adapter retains stale interaction listeners after lifecycle changes.
 - Made repeated `DataChart.init()` release the prior ChartGPU instance, resize observers, drawing bindings, canvases, overlays, legend/text DOM, and theme subscription before rebuilding; direct initialization coverage now guards the re-init path.
+- Extracted CSS-pixel to active chart-domain conversion into `chartCoordinateMapper`, with direct plot-boundary and active-Y-range coverage; `DataChart` now supplies its current geometry and state rather than owning mapping arithmetic.
 
 ### Next: DataChart renderer seams
 
