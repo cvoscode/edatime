@@ -526,6 +526,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 
 - Session autosave now debounces canonical WorkspaceStore publications instead of listening for column/adaptive-filter DOM notifications. Selection, filters, viewport, and dataset changes therefore use the same persistence path.
 - Reinitialization retires the prior autosave listeners and timer; the bootstrap returns the disposer and requires the subscribe-capable WorkspaceStore contract through Timeseries readiness.
+- App composition retains that bootstrap disposer in `AppRuntime`, so teardown releases the WorkspaceStore subscription and pending autosave timer instead of leaving a process-lifetime listener.
 
 ### Completed: adaptive filter WorkspaceStore ownership
 

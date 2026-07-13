@@ -9,6 +9,7 @@ const {
     fetchMetadataMock,
     sanitizeSelectedColumnsMock,
     startSessionPersistenceMock,
+    registerRuntimeCleanupMock,
     setNumericColsMock,
     setAdaptiveFilterColumnMock,
     setViewportMock,
@@ -28,6 +29,7 @@ const {
     }),
     sanitizeSelectedColumnsMock: vi.fn(),
     startSessionPersistenceMock: vi.fn(),
+    registerRuntimeCleanupMock: vi.fn(),
     setNumericColsMock: vi.fn(),
     setAdaptiveFilterColumnMock: vi.fn(),
     setViewportMock: vi.fn(),
@@ -87,7 +89,7 @@ vi.mock('../app/bootstrap/timeseriesShortcuts.js', () => ({
 }));
 
 vi.mock('../app/runtime.js', () => ({
-    createAppRuntime: vi.fn(() => ({ registerCleanup: vi.fn() })),
+    createAppRuntime: vi.fn(() => ({ registerCleanup: registerRuntimeCleanupMock })),
 }));
 
 vi.mock('../bootstrap/commands.js', () => ({
@@ -224,9 +226,15 @@ describe('app -> timeseries bootstrap wiring', () => {
         await deps.fetchMetadata();
         expect(fetchMetadataMock).toHaveBeenCalledTimes(1);
 
+        const disposeSessionPersistence = vi.fn();
+        startSessionPersistenceMock.mockReturnValue(disposeSessionPersistence);
         deps.ensureSessionPersistenceStarted();
         deps.ensureSessionPersistenceStarted();
         expect(startSessionPersistenceMock).toHaveBeenCalledTimes(1);
+        const runtimeCleanup = registerRuntimeCleanupMock.mock.calls.at(-1)?.[0] as (() => void) | undefined;
+        expect(runtimeCleanup).toBeTypeOf('function');
+        runtimeCleanup?.();
+        expect(disposeSessionPersistence).toHaveBeenCalledTimes(1);
 
         expect((window as any).__edatime?.ensureDatasetReady).toBeUndefined();
         expect((window as any).__edatime?.ensureReady).toBeUndefined();

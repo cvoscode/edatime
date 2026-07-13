@@ -74,6 +74,7 @@ let fetchAnomalies: DataModules['fetchAnomalies'] | null = null;
 let postTransform: ((expression: string, outputName: string) => Promise<TransformResponse>) | null = null;
 let DataChartCtor: (new (containerId: string, onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null, onYRangeCb: ((min: number, max: number, sourceKind: string) => void) | null, onZoomOutCb: (() => void) | null) => ChartInstance) | null = null;
 let _sessionPersistenceStarted = false;
+let disposeSessionPersistence: (() => void) | null = null;
 
 type DataChartCtorType = new (
     containerId: string,
@@ -106,7 +107,12 @@ async function fetchAndRenderAnalytics(): Promise<void> {
 
 function ensureSessionPersistenceStarted(): void {
     if (_sessionPersistenceStarted) return;
-    startSessionPersistence(workspace);
+    disposeSessionPersistence = startSessionPersistence(workspace);
+    runtime.registerCleanup(() => {
+        disposeSessionPersistence?.();
+        disposeSessionPersistence = null;
+        _sessionPersistenceStarted = false;
+    });
     _sessionPersistenceStarted = true;
 }
 
