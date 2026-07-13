@@ -242,6 +242,7 @@ Continue this behavior-preserving split with the remaining renderer-owned seams:
 - Moved the selection-box DOM gesture wiring to `selectionZoom`; rendering retains the chart option and view-state policies, while the dedicated module owns pointer capture, box presentation, density-mode minimum-selection rules, and double-click history/reset behavior.
 - Consolidated Scatter request policy: `buildScatterOverviewContext` produces the request payload and matching overview cache key together, and `responsePolicy` owns the API-response-to-state mapping. The page and page-change handler no longer maintain duplicate versions of either contract.
 - Extracted chart realization into `chartLifecycle`, which owns signature-based container replacement, WebGPU/ECharts fallback selection, chart reuse, selection-zoom attachment, throttled performance updates, and post-update resize. The page pipeline supplies only option construction and presentation callbacks.
+- Removed the retired `viewController` duplicate. `page.ts` is the sole Scatter Plot/Matrix controller because it owns the complete filter-snapshot, matrix-to-plot reset, warning, render, and panel-navigation contract.
 - Next, review the remaining chart interaction and request/render lifecycle seams; extract only boundaries that eliminate duplicated ownership or reinitialization risk.
 
 ## Target Architecture

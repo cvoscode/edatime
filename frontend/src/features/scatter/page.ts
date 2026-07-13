@@ -5,7 +5,7 @@
  *   runtime.ts          — page runtime, empty-state, filter badge, GPU probe
  *   correlationsPanel.ts — suggestion rendering and correlation refresh
  *   controls.ts         — event listeners and control wiring
- *   viewController.ts   — active view management
+ *   page.ts             — active-view management and render orchestration
  */
 
 import { toast, dismissAllToasts } from '../../utils/toast.js';
@@ -97,7 +97,7 @@ export function handleErr(err: unknown): void {
     showError(String((err as any)?.message ?? err));
 }
 
-// Re-export for use by controls.ts and viewController.ts
+// Re-export for the control binding.
 export { syncScatterFilterBadge };
 
 /* ── Sidebar / view management ────────────────────────── */
@@ -346,7 +346,7 @@ async function rerenderScatterFromCache(resetViewFlag = true): Promise<void> {
     await refreshActiveScatterView();
 }
 
-// Export for controls.ts and viewController.ts
+// Export for the control binding and matrix selection.
 export { renderScatter, rerenderScatterFromCache, refreshActiveScatterView, setScatterView, refreshCorrelationsAndSuggestions };
 
 /* ── Matrix cell click handler ────────────────────────── */
