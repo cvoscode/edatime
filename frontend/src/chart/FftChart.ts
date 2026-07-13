@@ -81,8 +81,7 @@ export class FftChart {
     async init(): Promise<void> {
         const container = document.getElementById(this._containerId);
         if (!container) return;
-        this._selectionBox?.dispose?.();
-        this._selectionBox = null;
+        this.destroy();
         this._container = container;
         ensureRelativePosition(container);
 
@@ -331,6 +330,8 @@ export class FftChart {
         this._selectionBox = null;
         this._overlayObserver?.disconnect();
         this._overlayObserver = null;
+        this._overlayCanvas?.remove();
+        this._overlayCanvas = null;
         this._chart?.dispose?.();
         this._chart = null;
     }

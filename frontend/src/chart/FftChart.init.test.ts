@@ -98,6 +98,19 @@ describe('FftChart.init', () => {
         );
     });
 
+    it('disposes the previous chart before reinitializing', async () => {
+        const first = makeChartInstance();
+        const second = makeChartInstance();
+        createChartMock.mockResolvedValueOnce(first).mockResolvedValueOnce(second);
+        const chart = new FftChart('fft-chart');
+
+        await chart.init();
+        await chart.init();
+
+        expect(first.dispose).toHaveBeenCalledTimes(1);
+        expect(createChartMock).toHaveBeenCalledTimes(2);
+    });
+
     it('uses roomier FFT axes and readable log-scale ticks without duplicating the axis title', async () => {
         const instance = makeChartInstance();
         createChartMock.mockResolvedValue(instance);

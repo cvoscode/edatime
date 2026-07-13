@@ -189,6 +189,7 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Extracted FFT trace normalization, finite-point filtering, log/scaled display values, palette choice, display bounds, full-domain calculation, and first-trace spectral metadata into `fftDataModel`, with direct behavior coverage.
 - `FftChart` retains ChartGPU option/tooltip composition and overlay lifecycle while consuming that deterministic model.
 - Extracted scaled/pre-scale/raw FFT tooltip presentation into `fftTooltipPresentation`, preserving frequency-unit and scaling context under direct behavior coverage.
+- Made repeated `FftChart.init()` release the prior chart instance, overlay observer/node, and box-zoom binding before rebuilding. Direct regression coverage prevents duplicate canvases or retained WebGPU charts on reinitialization.
 
 ### In progress: Spectrogram runtime decomposition
 
