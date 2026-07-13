@@ -22,6 +22,7 @@ import { getAnalyticsChipColor } from './platform/analyticsColumns.js';
 import {
     createTimeseriesModule,
     fetchAndRenderAnalytics as doFetchAndRenderAnalytics,
+    initTimeseriesShortcuts,
     sanitizeSelectedColumns,
 } from './features/timeseries/index.js';
 // `initScatterPage` lives behind the scatter feature entrypoint and is
@@ -30,8 +31,7 @@ import {
 // never enter the initial app bundle.
 import { initAppShell } from './app/shell.js';
 import { showPage } from './app/navigation/showPage.js';
-import { initGlobalShortcuts } from './app/bootstrap/globalShortcuts.js';
-import { initTimeseriesShortcuts } from './app/bootstrap/timeseriesShortcuts.js';
+import { initGlobalShortcuts } from './app/shell/globalShortcuts.js';
 import { createAppRuntime } from './app/runtime.js';
 import { createWorkspaceStore } from './workspace/workspaceStore.js';
 import { markAppReady, resetAppReady } from './app/bootState.js';

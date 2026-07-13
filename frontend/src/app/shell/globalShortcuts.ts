@@ -1,9 +1,8 @@
 /**
  * globalShortcuts — global keyboard shortcuts that are always active.
  *
- * Extracted from app.ts to keep the orchestrator slim.
- * Page-specific shortcuts (e.g. timeseries Shift+R/Z/C) remain in app.ts
- * since they depend on timeseries-specific deps.
+ * Owned by the shell because navigation, commands, and settings are
+ * application-wide shell actions.
  */
 
 export interface GlobalShortcutsDeps {

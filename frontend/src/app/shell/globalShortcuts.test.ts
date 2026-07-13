@@ -18,7 +18,7 @@ afterEach(() => {
     cleanup = undefined;
 });
 
-describe('global shortcuts', () => {
+describe('shell global shortcuts', () => {
     it('opens deferred commands and settings through injected shell actions', async () => {
         const deps = createDeps();
         initGlobalShortcuts(deps);

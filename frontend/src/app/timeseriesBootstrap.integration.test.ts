@@ -80,12 +80,8 @@ vi.mock('../app/navigation/showPage.js', () => ({
     showPage: vi.fn(),
 }));
 
-vi.mock('../app/bootstrap/globalShortcuts.js', () => ({
+vi.mock('../app/shell/globalShortcuts.js', () => ({
     initGlobalShortcuts: vi.fn(),
-}));
-
-vi.mock('../app/bootstrap/timeseriesShortcuts.js', () => ({
-    initTimeseriesShortcuts: vi.fn(),
 }));
 
 vi.mock('../app/runtime.js', () => ({
@@ -136,6 +132,7 @@ vi.mock('../utils/pageBootstrap.js', () => ({
 vi.mock('../features/timeseries/index.js', () => ({
     createTimeseriesModule: createTimeseriesModuleMock,
     fetchAndRenderAnalytics: vi.fn().mockResolvedValue(undefined),
+    initTimeseriesShortcuts: vi.fn(),
     sanitizeSelectedColumns: sanitizeSelectedColumnsMock,
 }));
 

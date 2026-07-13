@@ -565,6 +565,12 @@ Continue replacing cross-feature deep imports with small public surfaces, then e
 - Moved the command-palette registry into the deferred shell that initializes it and retained direct action characterization coverage there.
 - Deleted the root `bootstrap/` legacy keyboard-shortcut implementation and its isolated test harness: neither had a production consumer after global and Timeseries shortcut controllers became the supported owners. The root implementation directory is now empty.
 
+### Completed: shortcut owner alignment
+
+- Moved global command/settings/navigation shortcuts into the shell, which owns those application-wide actions and their cleanup registration.
+- Moved Timeseries viewport, export, and adaptive-filter shortcuts into the Timeseries feature and exposed the supported initializer through its public index.
+- Preserved direct idempotence and lifecycle-disposal characterization coverage while removing the remaining `app/bootstrap/` shortcut owners.
+
 ### Completed: shell page-help lifecycle ownership
 
 - The shared page-help primitive now returns an idempotent disposer that removes its trigger listener and closes an active modal. Direct regression coverage verifies a disposed binding cannot reopen help.

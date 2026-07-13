@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
     __resetTimeseriesShortcutsForTest,
     initTimeseriesShortcuts,
-} from './timeseriesShortcuts.js';
+} from './shortcuts.js';
 
 let cleanup: (() => void) | undefined;
 
@@ -36,7 +36,7 @@ afterEach(() => {
     delete (window as any).__edatime;
 });
 
-describe('timeseries shortcuts', () => {
+describe('Timeseries shortcuts', () => {
     it('binds once without publishing a window marker', async () => {
         renderPage('timeseries');
         const deps = createDeps();

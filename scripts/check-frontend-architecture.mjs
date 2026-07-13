@@ -68,7 +68,7 @@ function isStartupShellOrSharedUiFile(rel) {
     'frontend/src/app/shell.ts',
     'frontend/src/app/shell/core.ts',
     'frontend/src/ui/pageNavigation.ts',
-    'frontend/src/app/bootstrap/globalShortcuts.ts',
+    'frontend/src/app/shell/globalShortcuts.ts',
     'frontend/src/app/shell/commands.ts',
   ].includes(rel);
 }

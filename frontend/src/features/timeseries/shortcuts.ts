@@ -1,12 +1,8 @@
 /**
  * timeseriesShortcuts — page-specific keyboard shortcuts for the timeseries view.
  *
- * Extracted from app.ts because these handlers depend on timeseries-specific
- * closures (fetchAndRender, zoomOut, resetZoom, chart access, etc.) that
- * cannot be centralized in globalShortcuts.ts without creating a circular
- * dependency on app.ts lifecycle.
- *
- * The Alt+1..0 navigation shortcuts live in globalShortcuts.ts via APP_COMMAND_DEFINITIONS.
+ * Owned by Timeseries because these handlers depend on its fetch, viewport,
+ * chart-export, and adaptive-filter actions.
  */
 
 function isTypingTarget(target: EventTarget | null): boolean {
