@@ -43,7 +43,6 @@ import {
     updateBinnedReadout,
     updateCorrelationStats,
     updateMarginalPlots,
-    initSelectionZoom,
     syncModeUI,
     applyView,
     resetView,
@@ -54,6 +53,7 @@ import {
     exportScatterParquet,
     setCorrelationOverlayText,
 } from './rendering.js';
+import { initSelectionZoom } from './selectionZoom.js';
 import {
     renderScatterMatrixView,
     selectMatrixPair,

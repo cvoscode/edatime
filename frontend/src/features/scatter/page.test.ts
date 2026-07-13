@@ -156,7 +156,6 @@ vi.mock('./rendering.js', () => ({
     updateBinnedReadout: vi.fn(),
     updateCorrelationStats: vi.fn(),
     updateMarginalPlots: vi.fn(),
-    initSelectionZoom: vi.fn(),
     syncModeUI: vi.fn(),
     applyView: vi.fn(),
     resetView: vi.fn(),
@@ -166,6 +165,10 @@ vi.mock('./rendering.js', () => ({
     exportScatterData: vi.fn(),
     exportScatterParquet: vi.fn(),
     setCorrelationOverlayText: vi.fn(),
+}));
+
+vi.mock('./selectionZoom.js', () => ({
+    initSelectionZoom: vi.fn(),
 }));
 
 vi.mock('./matrix.js', () => ({

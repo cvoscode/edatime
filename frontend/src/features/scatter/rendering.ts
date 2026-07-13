@@ -34,7 +34,6 @@ import {
 } from './layout.js';
 import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
 import { getChartPalette } from '../../utils/theme.js';
-import { dragToViewport, type DragState } from '../../chart/chartInteractions.js';
 import {
     buildDensityMarginalCounts,
     buildDensitySeries,
@@ -501,103 +500,6 @@ export function updateCorrelationStats(): void {
         correlationContext: count ? `${getCorrelationModeBasisLabel(mode)} · ${count}` : getCorrelationModeBasisLabel(mode),
     });
     setCorrelationOverlayText(pearsonNumber, spearmanNumber);
-}
-
-/* ── Selection zoom ───────────────────────────────────── */
-
-export function initSelectionZoom(container: HTMLElement): void {
-    if (!container || scatterState.selectionBox) return;
-    if (window.getComputedStyle(container).position === 'static') container.style.position = 'relative';
-
-    const box = document.createElement('div');
-    const palette = getChartPalette();
-    Object.assign(box.style, {
-        position: 'absolute', left: '0', top: '0', width: '0', height: '0',
-        border: `1px solid ${palette.pendingPointBorder}`, background: palette.pendingPoint,
-        pointerEvents: 'none', display: 'none', zIndex: '8',
-    });
-    container.appendChild(box);
-    scatterState.selectionBox = box;
-
-    const renderSelectionBox = () => {
-        if (!scatterState.selectionBox || !scatterState.drag) return;
-        const left = Math.min(scatterState.drag.startX, scatterState.drag.endX);
-        const right = Math.max(scatterState.drag.startX, scatterState.drag.endX);
-        const top = Math.min(scatterState.drag.startY, scatterState.drag.endY);
-        const bottom = Math.max(scatterState.drag.startY, scatterState.drag.endY);
-        scatterState.selectionBox.style.left = `${left}px`;
-        scatterState.selectionBox.style.top = `${top}px`;
-        scatterState.selectionBox.style.width = `${Math.max(0, right - left)}px`;
-        scatterState.selectionBox.style.height = `${Math.max(0, bottom - top)}px`;
-        scatterState.selectionBox.style.display = 'block';
-    };
-
-    const hideSelectionBox = () => { if (scatterState.selectionBox) scatterState.selectionBox.style.display = 'none'; };
-
-    container.addEventListener('pointerdown', (ev) => {
-        if (ev.button !== 0) return;
-        const rect = container.getBoundingClientRect();
-        scatterState.drag = { pointerId: ev.pointerId, startX: ev.clientX - rect.left, endX: ev.clientX - rect.left, startY: ev.clientY - rect.top, endY: ev.clientY - rect.top };
-        try { container.setPointerCapture(ev.pointerId); } catch { }
-        renderSelectionBox();
-    });
-
-    container.addEventListener('pointermove', (ev) => {
-        if (!scatterState.drag || ev.pointerId !== scatterState.drag.pointerId) return;
-        const rect = container.getBoundingClientRect();
-        scatterState.drag.endX = ev.clientX - rect.left;
-        scatterState.drag.endY = ev.clientY - rect.top;
-        renderSelectionBox();
-    });
-
-    const finishDrag = (ev: PointerEvent) => {
-        if (!scatterState.drag || ev.pointerId !== scatterState.drag.pointerId) return;
-        const drag: DragState = {
-            pointerId: scatterState.drag.pointerId,
-            startX: scatterState.drag.startX,
-            startY: scatterState.drag.startY,
-            endX: scatterState.drag.endX,
-            endY: scatterState.drag.endY,
-        };
-        scatterState.drag = null;
-        hideSelectionBox();
-        try { container.releasePointerCapture(ev.pointerId); } catch { }
-
-        // Density mode requires a real 2D box selection. A horizontal-only
-        // drag would otherwise zoom into a single y-row of the heatmap and
-        // collapse the binning, leaving the chart looking "cut off" on
-        // every zoom. We require both axes to have ≥ 8px of selection before
-        // calling `dragToViewport`. The non-density path keeps the
-        // existing horizontal-only fallback in `dragToViewport`.
-        const isDensityMode = currentControls().renderMode === 'density';
-        const dx = Math.abs(drag.endX - drag.startX);
-        const dy = Math.abs(drag.endY - drag.startY);
-        if (isDensityMode && (dx < 8 || dy < 8)) return;
-
-        const rect = container.getBoundingClientRect();
-        const width = Math.max(1, rect.width);
-        const height = Math.max(1, rect.height);
-        const cur = scatterState.view;
-        const next = dragToViewport(
-            drag,
-            width,
-            height,
-            SCATTER_PLOT_GRID,
-            { min: cur.xMin, max: cur.xMax },
-            { min: cur.yMin, max: cur.yMax },
-        );
-        if (!next) return;
-        applyView(next, true);
-    };
-
-    container.addEventListener('pointerup', finishDrag);
-    container.addEventListener('pointercancel', finishDrag);
-    container.addEventListener('dblclick', (ev) => {
-        if (ev.shiftKey) return;
-        if (scatterState.zoomHistory.length > 0) { applyView(scatterState.zoomHistory.pop()!, false); return; }
-        resetView(false);
-    });
-
 }
 
 /* ── Sync mode UI ─────────────────────────────────────── */
