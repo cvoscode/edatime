@@ -52,6 +52,7 @@ describe('settings correlation mode', () => {
             defaultFftPreset: 'balanced',
             defaultCausalMethod: 'pcmci',
             defaultTauMax: 12,
+            analyticsDrawerOpen: true,
         }));
 
         expect(loadSettings()).not.toHaveProperty('defaultExportFormat');
@@ -59,5 +60,6 @@ describe('settings correlation mode', () => {
         expect(loadSettings()).not.toHaveProperty('defaultFftPreset');
         expect(loadSettings()).not.toHaveProperty('defaultCausalMethod');
         expect(loadSettings()).not.toHaveProperty('defaultTauMax');
+        expect(loadSettings()).not.toHaveProperty('analyticsDrawerOpen');
     });
 });

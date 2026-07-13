@@ -1,20 +1,13 @@
 /**
  * analyticsDrawer — right-side collapsible analytics panel for timeseries.
- * Toggles open/closed via toolbar button; saves state to preferences.
+ * Toggles open/closed via toolbar button. The drawer is transient UI state.
  */
 
-import { updateSetting } from '../utils/settings.js';
 import { createDrawerController } from './shell/createDrawerController';
 
 const controller = createDrawerController({
     drawerId: 'analytics-drawer',
     toggleButtonIds: ['open-analytics-panel-btn'],
-    onOpen: () => {
-        updateSetting('analyticsDrawerOpen', true);
-    },
-    onClose: () => {
-        updateSetting('analyticsDrawerOpen', false);
-    },
 });
 
 export function initAnalyticsDrawer(): void {
@@ -24,11 +17,8 @@ export function initAnalyticsDrawer(): void {
         closeButton.dataset.bound = '1';
     }
 
-    // Always normalize the runtime state on page load so a persisted
-    // preference cannot leave the document in a stale interaction-blocking
-    // state before the user explicitly opens the drawer again.
+    // Always normalize runtime state before the user explicitly opens it.
     controller.close();
-    updateSetting('analyticsDrawerOpen', false);
 }
 
 export const openDrawer = controller.open;

@@ -127,7 +127,6 @@ function collectSettingsFromForm(): AppSettings {
         drawAutoReset: getCheckboxValue('settings-draw-auto-reset'),
         colorScale: getSelectValue('settings-color-scale') as ColorScaleName || DEFAULT_SETTINGS.colorScale,
         sidebarCollapsed: getCheckboxValue('settings-sidebar-collapsed'),
-        analyticsDrawerOpen: false,
     };
 }
 

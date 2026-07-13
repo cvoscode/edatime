@@ -35,7 +35,6 @@ export interface AppSettings {
     drawAutoReset: boolean;
     colorScale: ColorScaleName;
     sidebarCollapsed: boolean;
-    analyticsDrawerOpen: boolean;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -46,7 +45,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
     drawAutoReset: false,
     colorScale: 'viridis',
     sidebarCollapsed: false,
-    analyticsDrawerOpen: false,
 };
 
 const STORAGE_KEY = 'edatime-settings';
@@ -65,7 +63,6 @@ export function loadSettings(): AppSettings {
             drawAutoReset: parsed.drawAutoReset ?? DEFAULT_SETTINGS.drawAutoReset,
             colorScale: parsed.colorScale ?? DEFAULT_SETTINGS.colorScale,
             sidebarCollapsed: parsed.sidebarCollapsed ?? DEFAULT_SETTINGS.sidebarCollapsed,
-            analyticsDrawerOpen: parsed.analyticsDrawerOpen ?? DEFAULT_SETTINGS.analyticsDrawerOpen,
         };
     } catch {
         return { ...DEFAULT_SETTINGS };
