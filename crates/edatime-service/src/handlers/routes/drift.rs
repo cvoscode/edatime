@@ -25,6 +25,8 @@ pub struct DriftQuery {
     pub psi_minor_threshold: Option<f64>,
     pub psi_major_threshold: Option<f64>,
     pub wasserstein_std_multiplier: Option<f64>,
+    #[serde(default)]
+    pub cleaning_plan: Option<crate::handlers::routes::cleaning::PlanRequestEnvelope>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -46,6 +48,8 @@ pub struct DriftInvestigateQuery {
     pub include_quality: Option<bool>,
     pub include_change_points: Option<bool>,
     pub include_correlations: Option<bool>,
+    #[serde(default)]
+    pub cleaning_plan: Option<crate::handlers::routes::cleaning::PlanRequestEnvelope>,
 }
 
 fn window_ms(window: &str) -> i64 {
@@ -132,8 +136,12 @@ async fn filtered_drift_df(
     segment_by: Option<&str>,
     reference_start: DateTime<Utc>,
     comparison_end: DateTime<Utc>,
+    cleaning_plan: Option<&crate::handlers::routes::cleaning::PlanRequestEnvelope>,
 ) -> Result<(polars::prelude::DataFrame, i64, f64), AppError> {
-    let lf = state.dataset_snapshot();
+    let lf = if let Some(envelope) = cleaning_plan {
+        let (_version, _hash, frame) = crate::handlers::routes::cleaning::compile_request_frame(state, envelope)?;
+        frame
+    } else { state.dataset_snapshot() };
     let ctx = state.ts_context(&lf)?;
     let ts_col = ctx.ts_col.clone();
     let multiplier = ctx.multiplier;
@@ -169,7 +177,10 @@ pub async fn post_drift_stats(
     let ref_end = parse_datetime(&query.reference_end)?;
     validate_time_window(ref_start, ref_end)?;
 
-    let lf = state.dataset_snapshot();
+    let lf = if let Some(envelope) = query.cleaning_plan.as_ref() {
+        let (_version, _hash, frame) = crate::handlers::routes::cleaning::compile_request_frame(&state, envelope)?;
+        frame
+    } else { state.dataset_snapshot() };
     let (column_name, window_size) =
         validate_drift_stats_query(&lf, &query, &state.config.validation)?;
     let ctx = state.ts_context(&lf)?;
@@ -293,6 +304,7 @@ pub async fn post_drift_investigate(
         query.segment_by.as_deref(),
         reference_start,
         comparison_end,
+        query.cleaning_plan.as_ref(),
     )
     .await?;
     let thresholds = normalized_thresholds(
@@ -340,6 +352,7 @@ mod tests {
             psi_minor_threshold: None,
             psi_major_threshold: None,
             wasserstein_std_multiplier: None,
+            cleaning_plan: None,
         }
     }
 

@@ -1,4 +1,6 @@
 import { deleteJson, getJson, postJson } from './http.js';
+import { cleaningPlanStore } from '../../cleaning/store.js';
+import { buildPlanRequestSnapshot } from '../../cleaning/compiler.js';
 import type { ApiRequestOptions } from './http.js';
 import { apiV1Routes } from '../../contracts/api/v1/routes.js';
 
@@ -42,9 +44,17 @@ export async function fetchDatabaseStatus(): Promise<unknown> {
 // ── Drift ──────────────────────────────────────────────────────────────────
 
 export async function fetchDriftStats<T>(payload: unknown, options?: ApiRequestOptions): Promise<T> {
-    return postJson<T>(apiV1Routes.drift.stats, payload, 'Drift stats', options);
+    return postJson<T>(apiV1Routes.drift.stats, withCleaningPlan(payload), 'Drift stats', options);
 }
 
 export async function fetchDriftInvestigation<T>(payload: unknown, options?: ApiRequestOptions): Promise<T> {
-    return postJson<T>(apiV1Routes.drift.investigate, payload, 'Drift investigation', options);
+    return postJson<T>(apiV1Routes.drift.investigate, withCleaningPlan(payload), 'Drift investigation', options);
+}
+
+function withCleaningPlan(payload: unknown): unknown {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return payload;
+    const plan = cleaningPlanStore.getSnapshot();
+    return plan?.stages.some((stage) => stage.enabled)
+        ? { ...(payload as Record<string, unknown>), cleaningPlan: buildPlanRequestSnapshot(plan) }
+        : payload;
 }
