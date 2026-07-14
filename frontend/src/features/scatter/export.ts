@@ -25,6 +25,8 @@ import type { WorkspaceSnapshot } from '../../contracts/workspace.js';
 import { scaleScatterPlotGrid } from './layout.js';
 import { getCorrelationModeBasisLabel, getCorrelationModeShortLabel, normalizeCorrelationMetric } from '../../utils/correlationModes.js';
 import { getSetting } from '../../utils/settings.js';
+import { cleaningPlanStore } from '../../cleaning/store.js';
+import { buildPlanRequestSnapshot } from '../../cleaning/compiler.js';
 
 /* ── Linear tick helper ───────────────────────────────── */
 
@@ -364,8 +366,13 @@ export async function exportScatterParquet(intent?: Pick<WorkspaceSnapshot, 'fil
         colorColumn: controls.selectedColorColumn,
     }, intent);
     if (Number.isFinite(context.start) && Number.isFinite(context.end)) { payload.start = context.start; payload.end = context.end; }
-    if (Array.isArray(context.filters) && context.filters.length > 0) payload.filters = JSON.stringify(context.filters);
-    if (Array.isArray(context.lineFilters) && context.lineFilters.length > 0) payload.line_filters = JSON.stringify(context.lineFilters);
+    const plan = cleaningPlanStore.getSnapshot();
+    if (plan?.stages.some((stage) => stage.enabled)) {
+        payload.cleaning_plan = buildPlanRequestSnapshot(plan);
+    } else {
+        if (Array.isArray(context.filters) && context.filters.length > 0) payload.filters = JSON.stringify(context.filters);
+        if (Array.isArray(context.lineFilters) && context.lineFilters.length > 0) payload.line_filters = JSON.stringify(context.lineFilters);
+    }
 
     downloadBlob(await exportScatterParquetBlob(payload), 'edatime_scatter_filtered.parquet');
     return true;

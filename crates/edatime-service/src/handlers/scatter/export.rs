@@ -12,13 +12,19 @@ use edatime_store::state::AppState;
 
 use super::collect::collect_filtered_scatter_frame;
 use super::{ScatterPointsQuery, parse_scatter_filters, parse_scatter_line_filters};
+use crate::handlers::routes::cleaning::compile_request_frame;
 
 #[tracing::instrument(skip(state))]
 pub async fn post_scatter_export_parquet(
     State(state): State<AppState>,
     Json(params): Json<ScatterPointsQuery>,
 ) -> Result<Response, AppError> {
-    let lf = state.dataset_snapshot();
+    let lf = if let Some(envelope) = params.cleaning_plan.as_ref() {
+        let (_version, _hash, frame) = compile_request_frame(&state, envelope)?;
+        frame
+    } else {
+        state.dataset_snapshot()
+    };
 
     let x = params.x.clone();
     let y = params.y.clone();

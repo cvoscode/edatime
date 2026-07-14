@@ -16,6 +16,7 @@ use super::{
     clamp_limit, collect_filtered_scatter_frame, collect_sampled_xyc_rows, parse_scatter_filters,
     parse_scatter_line_filters, resolved_scatter_limit,
 };
+use crate::handlers::routes::cleaning::compile_request_frame;
 
 #[derive(Debug, serde::Serialize)]
 struct ScatterMatrixCellMeta {
@@ -118,10 +119,17 @@ async fn scatter_matrix_response(
         validate_time_window(start_dt, end_dt)?;
     }
 
+    let (lf, cleaning_plan_hash) = if let Some(envelope) = params.cleaning_plan.as_ref() {
+        let (_version, hash, frame) = compile_request_frame(&state, envelope)?;
+        (frame, Some(hash))
+    } else {
+        (state.dataset_snapshot(), None)
+    };
+
     let pairs_key = serde_json::to_string(&pairs)
         .map_err(|error| AppError::internal(format!("Serialize scatter matrix pairs: {error}")))?;
     let cache_key = format!(
-        "scatter-matrix:v{}:{}:{}:{}:{}:{}:{}",
+        "scatter-matrix:v{}:{}:{}:{}:{}:{}:{}:{}",
         state.dataset_revision(),
         pairs_key,
         color_col.as_deref().unwrap_or(""),
@@ -129,6 +137,7 @@ async fn scatter_matrix_response(
         end.map(|value| value.to_string()).unwrap_or_default(),
         params.filters.as_deref().unwrap_or(""),
         params.line_filters.as_deref().unwrap_or(""),
+        cleaning_plan_hash.as_deref().unwrap_or(""),
     );
     let cache_key = format!("{cache_key}:{limit}");
     if let Some(cached) = state.cache.get(&cache_key).await {
@@ -137,7 +146,6 @@ async fn scatter_matrix_response(
     }
     state.metrics.record_cache_miss();
 
-    let lf = state.dataset_snapshot();
     let time_column = if requires_time_column {
         Some(state.ts_context(&lf)?.ts_col)
     } else {
@@ -314,6 +322,7 @@ mod tests {
             end: None,
             filters: None,
             line_filters: None,
+            cleaning_plan: None,
             limit: 10,
             time_color_mode: None,
         };
@@ -368,6 +377,7 @@ mod tests {
             end: None,
             filters: None,
             line_filters: None,
+            cleaning_plan: None,
             limit: 10,
             time_color_mode: None,
         };
@@ -417,6 +427,7 @@ mod tests {
             end: None,
             filters: None,
             line_filters: None,
+            cleaning_plan: None,
             limit: 10,
             time_color_mode: None,
         };

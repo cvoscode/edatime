@@ -136,6 +136,8 @@ pub struct ScatterMatrixQuery {
     pub time_color_mode: Option<String>,
     pub filters: Option<String>,
     pub line_filters: Option<String>,
+    #[serde(default)]
+    pub cleaning_plan: Option<crate::handlers::routes::cleaning::PlanRequestEnvelope>,
     #[serde(default = "default_scatter_limit")]
     pub limit: usize,
 }
