@@ -24,6 +24,7 @@ use super::{
     ColorCardinalityInfo, ScatterPointsQuery, clamp_limit, parse_scatter_filters,
     parse_scatter_line_filters, resolved_scatter_limit,
 };
+use crate::handlers::routes::cleaning::compile_request_frame;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -66,7 +67,12 @@ async fn scatter_points_response(
         params.limit
     );
 
-    let lf = state.dataset_snapshot();
+    let (lf, cleaning_plan_hash) = if let Some(envelope) = params.cleaning_plan.as_ref() {
+        let (_version, hash, frame) = compile_request_frame(&state, envelope)?;
+        (frame, Some(hash))
+    } else {
+        (state.dataset_snapshot(), None)
+    };
 
     let x_col = params.x.clone();
     let y_col = params.y.clone();
@@ -101,7 +107,7 @@ async fn scatter_points_response(
     validate_scatter_limit(limit, &state.config.validation)?;
     let time_color_mode = TimeColorMode::from_query(params.time_color_mode.as_deref());
     let cache_key = format!(
-        "scatter:v{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}",
+        "scatter:v{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}",
         state.dataset_revision(),
         x_col,
         y_col,
@@ -111,6 +117,7 @@ async fn scatter_points_response(
         end.map(|value| value.to_string()).unwrap_or_default(),
         params.filters.as_deref().unwrap_or(""),
         params.line_filters.as_deref().unwrap_or(""),
+        cleaning_plan_hash.as_deref().unwrap_or(""),
         limit,
         params.format.as_deref().unwrap_or("arrow"),
         time_color_mode_label(time_color_mode),
@@ -466,6 +473,7 @@ mod tests {
             end: None,
             filters: None,
             line_filters: None,
+            cleaning_plan: None,
             limit: 10,
             format: None,
             time_color_mode: None,
@@ -499,6 +507,7 @@ mod tests {
             end: None,
             filters: None,
             line_filters: None,
+            cleaning_plan: None,
             limit: 10,
             format: Some("arrow".to_string()),
             time_color_mode: None,
@@ -559,6 +568,7 @@ mod tests {
                 r#"[{"id":"adaptive-1781794868781-c3v0r8","column":"HUFL","x1":1491469996428.5715,"y1":76.32572064536755,"x2":1497229179081.6326,"y2":77.28037623208502,"keepAbove":false}]"#
                     .to_string(),
             ),
+            cleaning_plan: None,
             limit: 10,
             format: Some("arrow".to_string()),
             time_color_mode: None,
@@ -594,6 +604,7 @@ mod tests {
             end: None,
             filters: None,
             line_filters: None,
+            cleaning_plan: None,
             limit: 10,
             format: Some("json".to_string()),
             time_color_mode: None,

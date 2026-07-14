@@ -21,6 +21,8 @@ import {
     type ArrowColumn,
     type ApiRequestOptions,
 } from './http.js';
+import { cleaningPlanStore } from '../../cleaning/store.js';
+import { buildPlanRequestSnapshot } from '../../cleaning/compiler.js';
 
 function normalizeScatterLineFilters(lineFilters: unknown[]): Array<{
     column: string;
@@ -72,10 +74,15 @@ export async function fetchScatterPoints(
         payload.start = start;
         payload.end = end;
     }
-    if (Array.isArray(options?.filters) && options!.filters!.length > 0) {
+    const activePlan = cleaningPlanStore.getSnapshot();
+    const hasCanonicalPlan = !!activePlan?.stages.some((stage) => stage.enabled);
+    if (hasCanonicalPlan && activePlan) {
+        payload.cleaning_plan = buildPlanRequestSnapshot(activePlan);
+    }
+    if (!hasCanonicalPlan && Array.isArray(options?.filters) && options!.filters!.length > 0) {
         payload.filters = JSON.stringify(options!.filters);
     }
-    if (Array.isArray(options?.lineFilters) && options!.lineFilters!.length > 0) {
+    if (!hasCanonicalPlan && Array.isArray(options?.lineFilters) && options!.lineFilters!.length > 0) {
         payload.line_filters = JSON.stringify(normalizeScatterLineFilters(options!.lineFilters));
     }
 

@@ -104,6 +104,7 @@ mod tests {
                 r#"[{"id":"adaptive-1781794868781-c3v0r8","column":"HUFL","x1":1491469996428.5715,"y1":76.32572064536755,"x2":1497229179081.6326,"y2":77.28037623208502,"keepAbove":false}]"#
                     .to_string(),
             ),
+            cleaning_plan: None,
             limit: 10,
             format: None,
             time_color_mode: None,

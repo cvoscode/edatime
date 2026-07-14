@@ -58,6 +58,11 @@ pub struct ScatterPointsQuery {
     pub end: Option<f64>,
     pub filters: Option<String>,
     pub line_filters: Option<String>,
+    /// Canonical, version-guarded cleaning plan. When present it is executed
+    /// before this route's sampling/projection, rather than approximated via
+    /// legacy query filter fields.
+    #[serde(default)]
+    pub cleaning_plan: Option<crate::handlers::routes::cleaning::PlanRequestEnvelope>,
     #[serde(default = "default_scatter_limit")]
     pub limit: usize,
     /// Optional output format.  Clients may also set

@@ -113,7 +113,7 @@ fn validate_envelope(state: &AppState, envelope: &PlanRequestEnvelope) -> Result
     Ok((version, hash))
 }
 
-fn compile_request_frame(state: &AppState, envelope: &PlanRequestEnvelope) -> Result<(DatasetVersionRecord, String, polars::prelude::LazyFrame), AppError> {
+pub(crate) fn compile_request_frame(state: &AppState, envelope: &PlanRequestEnvelope) -> Result<(DatasetVersionRecord, String, polars::prelude::LazyFrame), AppError> {
     let (version, plan_hash) = validate_envelope(state, envelope)?;
     let source = state.dataset_snapshot_for_version(&version.id)?;
     let frame = compile_cleaning_plan(source, &envelope.plan).map_err(AppError::from)?;
