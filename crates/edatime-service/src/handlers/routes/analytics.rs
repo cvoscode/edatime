@@ -15,7 +15,7 @@ use serde::Deserialize;
 
 use crate::analytics;
 use crate::error::AppError;
-use crate::handlers::routes::shared::{downsample_by_stride, filter_preamble};
+use crate::handlers::routes::shared::{downsample_by_stride, filter_preamble, filter_preamble_with_plan};
 use edatime_query::query;
 use edatime_query::validation::validate_numeric_columns_lazy;
 use edatime_store::state::AppState;
@@ -155,6 +155,7 @@ pub struct FftQuery {
     pub columns: Option<String>,
     /// Max points for FFT (default: 8192, will downsample if data is larger)
     pub max_points: Option<usize>,
+    pub cleaning_plan: Option<String>,
 }
 
 #[tracing::instrument(skip(state))]
@@ -163,7 +164,7 @@ pub async fn get_fft(
     Query(params): Query<FftQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     let (value_cols, filtered) =
-        filter_preamble(&state, params.start, params.end, params.columns.as_deref()).await?;
+        filter_preamble_with_plan(&state, params.start, params.end, params.columns.as_deref(), params.cleaning_plan.as_deref()).await?;
 
     let max_pts = params.max_points.unwrap_or(8192).max(64);
     let work_df = downsample_by_stride(filtered, max_pts, "FFT")?;
@@ -203,6 +204,7 @@ pub struct SpectrogramQuery {
     /// Threshold for the active clip mode (percentage on each tail for
     /// `percentile`, k multiplier for `iqr`).
     pub clip_param: Option<f64>,
+    pub cleaning_plan: Option<String>,
 }
 
 #[tracing::instrument(skip(state))]
@@ -210,11 +212,12 @@ pub async fn get_spectrogram(
     State(state): State<AppState>,
     Query(params): Query<SpectrogramQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let (value_cols, filtered) = filter_preamble(
+    let (value_cols, filtered) = filter_preamble_with_plan(
         &state,
         params.start,
         params.end,
         Some(params.column.as_str()),
+        params.cleaning_plan.as_deref(),
     )
     .await?;
     let col = &value_cols[0];

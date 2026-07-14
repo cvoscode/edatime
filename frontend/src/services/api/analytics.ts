@@ -1,6 +1,8 @@
 import { getJson, postJson } from './http.js';
 import type { ApiRequestOptions } from './http.js';
 import { apiV1Routes, withApiQuery } from '../../contracts/api/v1/routes.js';
+import { cleaningPlanStore } from '../../cleaning/store.js';
+import { buildPlanRequestSnapshot } from '../../cleaning/compiler.js';
 import type {
     AnomalyResponse,
     CausalGraphResponse,
@@ -13,6 +15,13 @@ import type {
     SpectrogramScaleOptions,
     TransformResponse,
 } from '../../contracts/api/v1/analytics.js';
+
+function appendCleaningPlan(params: URLSearchParams): void {
+    const plan = cleaningPlanStore.getSnapshot();
+    if (plan?.stages.some((stage) => stage.enabled)) {
+        params.set('cleaning_plan', JSON.stringify(buildPlanRequestSnapshot(plan)));
+    }
+}
 
 export type {
     RollingBand,
@@ -75,6 +84,7 @@ export async function fetchFft(
     options?: ApiRequestOptions,
 ): Promise<FftResponse> {
     const params = new URLSearchParams({ start, end, columns, max_points: String(maxPoints) });
+    appendCleaningPlan(params);
     const url = withApiQuery(apiV1Routes.analytics.fft, params);
     return getJson<FftResponse>(url, 'FFT', options);
 }
@@ -102,6 +112,7 @@ export async function fetchSpectrogram(
     if (scaleOptions?.clipParam != null && Number.isFinite(scaleOptions.clipParam)) {
         params.set('clip_param', String(scaleOptions.clipParam));
     }
+    appendCleaningPlan(params);
     const url = withApiQuery(apiV1Routes.analytics.spectrogram, params);
     return getJson<SpectrogramResponse>(url, 'Spectrogram', options);
 }
