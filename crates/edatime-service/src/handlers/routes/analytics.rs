@@ -555,6 +555,8 @@ pub struct CausalGraphRequest {
     pub knn: Option<usize>,
     /// Number of shuffle samples for CMI-KNN significance test (default: 200)
     pub sig_samples: Option<usize>,
+    #[serde(default)]
+    pub cleaning_plan: Option<crate::handlers::routes::cleaning::PlanRequestEnvelope>,
 }
 
 const MAX_CAUSAL_TAU_MAX: usize = 128;
@@ -604,7 +606,12 @@ pub async fn post_causal_graph(
     State(state): State<AppState>,
     Json(params): Json<CausalGraphRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let lf = state.dataset_snapshot();
+    let lf = if let Some(envelope) = params.cleaning_plan.as_ref() {
+        let (_version, _hash, frame) = crate::handlers::routes::cleaning::compile_request_frame(&state, envelope)?;
+        frame
+    } else {
+        state.dataset_snapshot()
+    };
     let cols = query::parse_columns(params.columns.as_deref());
     let limits = &state.config.validation;
     let value_cols = validate_numeric_columns_lazy(&lf, &cols, limits)?;
@@ -753,6 +760,7 @@ mod tests {
                 n_preliminary_iterations: Some(1),
                 knn: None,
                 sig_samples: None,
+                cleaning_plan: None,
             }),
         )
         .await
@@ -803,6 +811,7 @@ mod tests {
                 n_preliminary_iterations: Some(1),
                 knn: None,
                 sig_samples: None,
+                cleaning_plan: None,
             }),
         )
         .await
@@ -849,6 +858,7 @@ mod tests {
                 n_preliminary_iterations: Some(1),
                 knn: None,
                 sig_samples: None,
+                cleaning_plan: None,
             }),
         )
         .await

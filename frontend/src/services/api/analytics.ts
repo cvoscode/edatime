@@ -142,6 +142,8 @@ export async function fetchCausalGraph(
         test,
         fdr_method: fdrMethod,
     };
+    const plan = cleaningPlanStore.getSnapshot();
+    if (plan?.stages.some((stage) => stage.enabled)) body.cleaning_plan = buildPlanRequestSnapshot(plan);
     if (maxCondsDim != null) body.max_conds_dim = maxCondsDim;
     return postJson<CausalGraphResponse>(url, body, 'Causal graph', options);
 }
