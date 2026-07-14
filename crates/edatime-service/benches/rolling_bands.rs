@@ -17,8 +17,7 @@ const SEED: u64 = 0x1337_BEEF_C0DE_CAFE;
 fn synth_long_frame(rows: usize, columns: usize) -> DataFrame {
     let mut state = SEED.wrapping_add(rows as u64);
     let mut ts = Vec::with_capacity(rows);
-    let mut cols: Vec<Vec<f64>> =
-        (0..columns).map(|_| Vec::with_capacity(rows)).collect();
+    let mut cols: Vec<Vec<f64>> = (0..columns).map(|_| Vec::with_capacity(rows)).collect();
 
     for i in 0..rows {
         ts.push(i as i64);
@@ -53,15 +52,13 @@ fn bench_rolling(c: &mut Criterion) {
     let cases: &[(usize, usize)] = &[(50_000, 50), (50_000, 200), (200_000, 50), (200_000, 2_000)];
     for &(rows, window) in cases {
         let df = synth_long_frame(rows, 3);
-        let col_names: Vec<String> =
-            (0..3).map(|j| format!("v{j}")).collect();
+        let col_names: Vec<String> = (0..3).map(|j| format!("v{j}")).collect();
         group.bench_with_input(
             BenchmarkId::from_parameter(format!("{rows}r_w{window}")),
             &(rows, window),
             |b, _| {
                 b.iter(|| {
-                    compute_rolling_bands(&df, &col_names, window)
-                        .expect("rolling bands");
+                    compute_rolling_bands(&df, &col_names, window).expect("rolling bands");
                 });
             },
         );

@@ -23,8 +23,9 @@ const SEED: u64 = 0x5D5E_E5A4_DEAD_BEEF;
 fn synth_frame(numeric_columns: usize, rows: usize) -> DataFrame {
     let mut state = SEED.wrapping_add(rows as u64);
     let mut ts = Vec::with_capacity(rows);
-    let mut cols: Vec<Vec<f64>> =
-        (0..numeric_columns).map(|_| Vec::with_capacity(rows)).collect();
+    let mut cols: Vec<Vec<f64>> = (0..numeric_columns)
+        .map(|_| Vec::with_capacity(rows))
+        .collect();
 
     for i in 0..rows {
         // 1 ms step is irrelevant to scatter sampling — we never compare
@@ -66,25 +67,21 @@ fn bench_scatter_sample(c: &mut Criterion) {
         // while 10_000 rows stays inside the head slice.
         let effective_limit = 200_000;
         let limit = effective_limit;
-        group.bench_with_input(
-            BenchmarkId::from_parameter(rows),
-            &rows,
-            |b, _| {
-                b.iter(|| {
-                    collect_sampled_xyc_rows(
-                        &df,
-                        "col_0",
-                        "col_1",
-                        Some("col_2"),
-                        Some("col_3"),
-                        limit,
-                        effective_limit,
-                        TimeColorMode::Bucket,
-                    )
-                    .expect("scatter sample should not error");
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::from_parameter(rows), &rows, |b, _| {
+            b.iter(|| {
+                collect_sampled_xyc_rows(
+                    &df,
+                    "col_0",
+                    "col_1",
+                    Some("col_2"),
+                    Some("col_3"),
+                    limit,
+                    effective_limit,
+                    TimeColorMode::Bucket,
+                )
+                .expect("scatter sample should not error");
+            });
+        });
     }
     group.finish();
 }

@@ -11,9 +11,8 @@ use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 // `compute_correlation_matrix` lives in a private module. The bench
 // reaches it through the `*_bench_target` re-export on the public
 // scatter module surface (`#[doc(hidden)]`).
-use edatime_service::handlers::scatter::compute_correlation_matrix_bench_target
-    as compute_correlation_matrix;
 use edatime_core::metrics::AppMetrics;
+use edatime_service::handlers::scatter::compute_correlation_matrix_bench_target as compute_correlation_matrix;
 use polars::prelude::*;
 use std::sync::Arc;
 
@@ -25,15 +24,13 @@ const SEED: u64 = 0xA5A5_A5A5_5A5A_5A5A;
 fn synth_wide_frame(columns: usize, rows: usize) -> DataFrame {
     let mut state = SEED.wrapping_add(rows as u64).wrapping_add(columns as u64);
     let mut ts = Vec::with_capacity(rows);
-    let mut cols: Vec<Vec<f64>> =
-        (0..columns).map(|_| Vec::with_capacity(rows)).collect();
+    let mut cols: Vec<Vec<f64>> = (0..columns).map(|_| Vec::with_capacity(rows)).collect();
 
     for i in 0..rows {
         ts.push(i as i64);
         for j in 0..columns {
             let trend = ((i as f64) * 0.001 + j as f64 * 0.5).cos();
-            let shared =
-                ((i as f64) * 0.0003).sin() * (j as f64 * 0.2).cos() * 25.0;
+            let shared = ((i as f64) * 0.0003).sin() * (j as f64 * 0.2).cos() * 25.0;
             state = state
                 .wrapping_mul(6364136223846793005)
                 .wrapping_add(1442695040888963407);
@@ -68,11 +65,8 @@ fn bench_correlations(c: &mut Criterion) {
             &cols,
             |b, _| {
                 b.iter(|| {
-                    compute_correlation_matrix(
-                        lazy.clone(),
-                        Arc::clone(&metrics),
-                    )
-                    .expect("correlation matrix");
+                    compute_correlation_matrix(lazy.clone(), Arc::clone(&metrics))
+                        .expect("correlation matrix");
                 });
             },
         );

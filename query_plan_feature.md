@@ -19,6 +19,73 @@ The user should be able to:
 
 This is not a page-local filter feature. It is a shared, visual query-plan builder.
 
+## Review Decisions: Baseline, Accumulation, and Export
+
+This section resolves the central product contract before implementation. It is
+normative for the rest of this document.
+
+### Immutable Baseline and Derived Working Dataset
+
+When a file is uploaded or a database table is loaded, EdaTime creates an
+immutable **source dataset version**. The active plan is always evaluated from
+that version (or from an explicitly selected materialized child version), never
+from whatever rows a chart most recently fetched. This gives the user a stable
+reference/original dataset while they experiment.
+
+The UI must make the three identities visible:
+
+| Identity | Meaning | May change as stages are edited? |
+| --- | --- | --- |
+| Source dataset version | Immutable baseline, its schema, fingerprint, and full rows | No |
+| Active plan | Ordered, reversible transformations authored from any page | Yes |
+| Working dataset | `execute(source dataset version, active plan)` used by every plot/export | Yes, by recomputation only |
+
+"Original" means the initial uploaded/loaded source version, not the last
+materialized result. `Apply plan` creates a new child dataset version with
+provenance pointing at its parent; it never overwrites the original. The user
+can switch back to the root source or choose a child as a new baseline. This is
+an explicit version-selection action, not a side effect of navigation or
+export.
+
+### Accumulation Invariant
+
+Every explicit `Add … to plan` action appends one enabled stage to the end of
+the active plan. It does not replace stages made from another plot, reset the
+plan to a page-local filter snapshot, or mutate the source dataset. Therefore,
+for source `S` and enabled stages `[s1, s2, …, sn]`, every consumer sees:
+
+```text
+workingDataset = sn(...s2(s1(S))...)
+```
+
+Edits change only the chosen stage; disable/remove/reorder recomputes from `S`.
+The only permitted replacement behavior is an explicit "edit selected stage"
+or "replace this stage" command that names its target stage ID. Adding the
+same-looking range twice creates two audit-visible stages rather than silently
+merging them. The compiler may optimize equivalent lazy predicates internally,
+but the saved stage order and exported plan must remain unchanged.
+
+### Export Contract
+
+Offer three unambiguous exports, all generated from the backend-canonicalized
+plan and the selected baseline:
+
+1. **Transformed dataset** — CSV or Parquet containing the full working dataset,
+   not merely the selected chart columns or viewport.
+2. **Query plan** — canonical JSON plus a manifest with source version ID,
+   source fingerprint, schema fingerprint, plan hash, stage capabilities, and
+   export timestamp. This is the complete accumulated query.
+3. **Reproducibility bundle** — a ZIP containing (1), (2), generated Python
+   and Rust code when all enabled stages are exportable, and checksums. An
+   opt-in `include source data` option adds a Parquet copy of the immutable
+   baseline when it is within export limits. It is off by default because the
+   source may be large or sensitive.
+
+The data export and manifest must carry the same `sourceVersionId`,
+`datasetRevision`, and backend `planHash`. The server rejects an export if any
+of those identities no longer resolves to the requested immutable baseline;
+it must never export an accidental mixture of a new upload and an old plan.
+
 ## Current Code Grounding
 
 Use these existing seams as the implementation base:
@@ -27,10 +94,10 @@ Use these existing seams as the implementation base:
 - Backward-compatible app state access is in `frontend/src/store/index.ts` and `frontend/src/store/appStateCompat.ts`.
 - Timeseries filter helpers live in `frontend/src/services/timeseries/filtering.ts`.
 - Timeseries clear/reset action wiring lives in `frontend/src/features/timeseries/actions.ts`.
-- Scatter query context is currently built in `frontend/src/scatter/state.ts` via `buildScatterQueryContext`.
+- Scatter query context is currently built in `frontend/src/features/scatter/state.ts` via `buildScatterQueryContext`.
 - Scatter still has plot/matrix filter snapshots in `frontend/src/store/scatterState.ts`; those should stop being the authoritative filter model.
-- Scatter points/matrix/export serialize `filters` and `line_filters` in `frontend/src/services/api/scatter.ts` and `frontend/src/scatter/export.ts`.
-- Timeseries filtered export already sends `filters` and `line_filters` to `GET /api/export/parquet` from `frontend/src/features/export/entrypoint.ts`.
+- Scatter points/matrix/export serialize `filters` and `line_filters` in `frontend/src/services/api/scatter.ts` and `frontend/src/features/scatter/export.ts`.
+- Timeseries filtered export already sends `filters` and `line_filters` to `GET /api/v1/export/parquet` from `frontend/src/features/export/feature.ts`.
 - Backend reusable row filtering is in `crates/edatime-query/src/filters.rs`:
   - `RangeFilter`
   - `LineFilter`
@@ -43,9 +110,14 @@ Use these existing seams as the implementation base:
 - Drift routes in `crates/edatime-service/src/handlers/routes/drift.rs` currently use their own time-window filtering.
 - Existing core `Pipeline` in `crates/edatime-core/src/pipeline.rs` is too small for this feature. Do not force the full cleaning plan into that trait object model. Introduce a serializable cleaning-plan DTO and compiler, and reuse existing pipeline/filter helpers internally.
 - Existing transform and outlier mutation endpoints mutate the active dataset:
-  - `/api/transform`
-  - `/api/analytics/remove_outliers`
+  - `/api/v1/transform`
+  - `/api/v1/analytics/remove_outliers`
   They should remain compatible, but the new plan workflow should be reversible by default.
+- `edatime_store::AppState` currently owns one replaceable `DataRepository`
+  snapshot and a revision-only correlation cache. It does **not** retain a root
+  dataset after `replace_dataset`; a source/version registry is therefore a
+  prerequisite for the original-dataset guarantee, not an implementation
+  detail that can be deferred to the Apply button.
 
 ## Product Semantics
 
@@ -55,15 +127,20 @@ Every plot-authored cleaning action creates or updates a plan stage. It must not
 
 ### One Active Plan
 
-There is one active plan for the current dataset revision. All plots read from it. Page-local display zoom, chart pan, hover state, sort order, and selected render mode are not plan state unless the user explicitly clicks an action such as `Add visible range to plan`.
+There is one active plan for the selected baseline dataset version. All plots
+read from its derived working dataset. Page-local display zoom, chart pan,
+hover state, sort order, and selected render mode are not plan state unless the
+user explicitly clicks an action such as `Add visible range to plan`.
 
 ### Source Dataset Remains Addressable
 
 The app must distinguish:
 
-- source dataset: original uploaded/loaded data for the current revision,
-- active plan: reversible preprocessing stages,
-- materialized dataset: optional result after the user explicitly applies the plan.
+- source dataset version: original uploaded/loaded data, retained immutably,
+- active plan: reversible preprocessing stages anchored to one source version,
+- working dataset: on-demand execution of that source plus plan,
+- materialized dataset version: an optional immutable child created only by
+  explicit Apply, with parent/source/plan provenance.
 
 ### All Plots Can Author Stages
 
@@ -149,7 +226,9 @@ export interface CleaningPlan {
   id: string;
   /** Increments on every user-visible mutation; never used as the semantic hash. */
   planRevision: number;
-  /** Current backend revision; must be a safe non-negative integer. */
+  /** Immutable baseline selected for this plan; never infer it from a filename. */
+  sourceVersionId: string;
+  /** Backend revision of the selected source version. */
   datasetRevision: number | null;
   datasetFingerprint?: string | null;
   /** Stable fingerprint of column names, dtypes, and the selected time column. */
@@ -211,11 +290,16 @@ export interface CleaningProvenance {
 `id`, `planRevision`, labels, notes, timestamps, source-page provenance, and
 disabled stages are audit metadata. They are not semantic input to computation
 and must be excluded from the semantic hash. The hash must include, in order,
-the schema version, source dataset fingerprint/revision, time-column identity,
-and normalized enabled-stage parameters. Canonicalization must normalize numeric
-`-0` to `0`, sort only order-insensitive lists such as category values, normalize
-reversed bounds, and preserve stage order and polygon vertex order. Do not use a
-plain `JSON.stringify` result as a cache key.
+the schema version, `sourceVersionId`, source dataset fingerprint/revision,
+time-column identity, and normalized enabled-stage parameters. Canonicalization
+must normalize numeric `-0` to `0`, sort only order-insensitive lists such as
+category values, normalize reversed bounds, and preserve stage order and polygon
+vertex order. Do not use a plain `JSON.stringify` result as a cache key.
+
+`sourceVersionId` is executable identity. `datasetRevision` is a stale-client
+guard, not a substitute for that ID. Apply produces a child source version that
+can become the baseline of a new empty plan; the completed plan remains
+immutable provenance for that child and still identifies its original baseline.
 
 ### Stage Capability and Scope
 
@@ -423,6 +507,12 @@ later reference to a dropped/renamed column and reject a duplicate output name
 unless the stage explicitly replaces that column. The plan panel should expose
 this dependency error next to the offending stage and prevent preview/export.
 
+Compilation always starts with a newly acquired snapshot of the plan's
+`sourceVersionId`; it never starts with a cached chart response, a previous
+preview frame, or a materialized child unless that child was explicitly selected
+as the new baseline. This makes a Scatter stage accumulate with an earlier
+Timeseries stage while preserving reversibility.
+
 Row predicates on unchanged source columns are often mathematically
 commutative, but that is an optimization the backend may apply only after it has
 proved equivalence. It is not a reason to alter the saved plan order.
@@ -499,7 +589,7 @@ The stage should produce a new column by default:
 
 If `replaceSource = true`, generated code should either overwrite the source column or create output then project/rename. Prefer output-then-rename internally to keep provenance clear.
 
-Current `/api/analytics/spectral-filter` returns a preview series. For this
+Current `/api/v1/analytics/spectral-filter` returns a preview series. For this
 feature, add plan compilation support for the same transform so export and
 apply use the backend compiler, not only the preview endpoint.
 
@@ -666,27 +756,50 @@ Avoid treating this as a decorative card-heavy panel. This is operational UI. It
 
 ### Dataset Lifecycle
 
-On dataset revision change:
+Add a source/version selector to the workspace contract rather than treating
+`WorkspaceSnapshot.dataset.revision` as the only identity:
 
-- if plan dataset revision differs, mark the plan stale,
-- if the change is a normal upload/load/transform, archive the prior plan in
-  session storage under its old fingerprint and start a fresh plan;
-- if the change is `Apply plan`, retain the completed plan as immutable
-  provenance linked to both parent and child revision, then start a fresh empty
-  active plan for the materialized child;
-- imported plans are eligible only when their schema fingerprint and referenced
-  columns/dtypes validate against the new source. A matching filename is never
-  sufficient,
-- clear compatibility `columnRanges` and `adaptiveLineFilters`,
-- clear scatter snapshots,
-- dispatch `edatime:cleaning-plan-change`.
+```ts
+dataset: {
+  metadata: DatasetMetadata | null;
+  revision: number;
+  activeSourceVersionId: string | null;
+  rootSourceVersionId: string | null;
+  sourceFingerprint: string | null;
+  parentSourceVersionId: string | null;
+}
+```
 
-This should hook near current dataset mutation/refresh behavior in `frontend/src/app/bootstrap/datasetBootstrap.ts` and existing state reset paths.
+On upload/load, the server creates a new root source version, selects it, and
+creates an empty plan anchored to it. On `Apply plan`, it creates a child source
+version atomically and selects it only after the new data and provenance record
+are durable. It does not call the existing destructive `replace_dataset` path
+in a way that discards the root. The UI then starts a new empty plan for the
+child and keeps the completed parent plan read-only in its lineage record.
 
-Persist the active plan in `sessionStorage` keyed by dataset fingerprint so
-normal navigation and a browser refresh preserve an in-progress investigation.
-Do not silently restore it across a different fingerprint. Local persistent
-history can be considered later; it is not required for v1.
+On any source-version selection or revision change:
+
+- archive the in-progress plan under its exact source version and fingerprint;
+- restore only a plan whose `sourceVersionId`, schema fingerprint, and referenced
+  columns/dtypes all validate; otherwise mark it stale and require explicit
+  user choice to discard, export, or rebase it;
+- clear compatibility `columnRanges`, `adaptiveLineFilters`, and scatter view
+  snapshots, then derive them again from the selected plan only where legacy
+  consumers still require them;
+- abort in-flight page/preview/export requests and dispatch
+  `edatime:cleaning-plan-change` with source version and hash metadata.
+
+`Reset to original dataset` selects the root source version and an empty plan;
+it is not a destructive reset. `Choose this derived dataset as baseline` selects
+that child and likewise starts a new plan. Imported plans are eligible only when
+their explicit source identity (or an explicit user-approved rebase) and schema
+validate. A matching filename is never sufficient.
+
+This should hook in `frontend/src/features/timeseries/datasetBootstrap.ts`, the
+workspace store, and all existing state-reset paths. Persist active drafts in
+`sessionStorage` under `sourceVersionId + sourceFingerprint`, not a filename or
+revision alone. Local persistent history can be considered later; it is not
+required for v1.
 
 ## Page Integration Details
 
@@ -694,7 +807,7 @@ history can be considered later; it is not required for v1.
 
 Current relevant files:
 
-- `frontend/src/pages/timeseriesPage.ts`
+- `frontend/src/features/timeseries/module.ts`
 - `frontend/src/features/timeseries/actions.ts`
 - `frontend/src/features/timeseries/rangeControls.ts`
 - `frontend/src/features/timeseries/filterModalController.ts`
@@ -722,12 +835,12 @@ Compatibility bridge:
 
 Current relevant files:
 
-- `frontend/src/scatter/state.ts`
-- `frontend/src/scatter/scatterPage.ts`
-- `frontend/src/scatter/rendering.ts`
-- `frontend/src/scatter/matrix.ts`
-- `frontend/src/scatter/controls.ts`
-- `frontend/src/scatter/export.ts`
+- `frontend/src/features/scatter/state.ts`
+- `frontend/src/features/scatter/page.ts`
+- `frontend/src/features/scatter/rendering.ts`
+- `frontend/src/features/scatter/matrix.ts`
+- `frontend/src/features/scatter/controls.ts`
+- `frontend/src/features/scatter/export.ts`
 - `frontend/src/store/scatterState.ts`
 - `frontend/src/services/api/scatter.ts`
 
@@ -761,7 +874,7 @@ Required behavior:
 
 Current relevant files:
 
-- `frontend/src/pages/heatmapPage.ts`
+- `frontend/src/features/heatmap/page.ts`
 - `frontend/src/services/api/scatter-matrix.ts`
 - `crates/edatime-service/src/handlers/scatter/correlations.rs`
 
@@ -782,14 +895,14 @@ Required behavior:
 
 Backend:
 
-- Extend `/api/scatter/correlations` and `/api/scatter/correlations/matrix` to accept plan context.
+- Extend `/api/v1/scatter/correlations` and `/api/v1/scatter/correlations/matrix` to accept plan context.
 - Cache key must include dataset revision plus plan hash plus selected mode.
 
 ### FFT
 
 Current relevant files:
 
-- `frontend/src/pages/fftPage.ts`
+- `frontend/src/features/fft/page.ts`
 - `frontend/src/chart/FftChart.ts`
 - `frontend/src/services/api/analytics.ts`
 - `crates/edatime-service/src/handlers/routes/analytics.rs`
@@ -809,7 +922,7 @@ Required behavior:
 
 Backend:
 
-- Existing `/api/analytics/fft` should accept active plan context.
+- Existing `/api/v1/analytics/fft` should accept active plan context.
 - Add compiler support for frequency transform stages.
 - If full lazy Polars expression is not practical for the filter operation, generated code may include helper functions operating on collected arrays, but the surrounding plan must remain reproducible.
 - FFT settings such as axis scale, averaging, window display, and selected
@@ -820,8 +933,8 @@ Backend:
 
 Current relevant files:
 
-- `frontend/src/pages/spectrogramChartRuntime.ts`
-- `frontend/src/pages/spectrogramPage.ts`
+- `frontend/src/features/spectrogram/runtime.ts`
+- `frontend/src/features/spectrogram/page.ts`
 - `frontend/src/services/api/analytics.ts`
 
 Required behavior:
@@ -836,7 +949,7 @@ Required behavior:
 
 Backend:
 
-- `/api/analytics/spectrogram` accepts active plan context.
+- `/api/v1/analytics/spectrogram` accepts active plan context.
 - `spectrogramArtifact` row-window drop compiles to normal time filters.
 - Time-frequency transform/masking should compile through helper code and be represented explicitly in exported code.
 - A spectrogram rectangle is not automatically a row filter: it spans time and
@@ -849,8 +962,8 @@ Backend:
 
 Current relevant files:
 
-- `frontend/src/causal/causalPage.ts`
-- `frontend/src/causal/workflow.ts`
+- `frontend/src/features/causal/page.ts`
+- `frontend/src/features/causal/workflow.ts`
 - `frontend/src/services/api/analytics.ts`
 - `crates/edatime-service/src/handlers/routes/analytics.rs`
 
@@ -869,16 +982,16 @@ Required behavior:
 
 Backend:
 
-- `/api/analytics/causal` accepts active plan context before `CausalDataFrame::from_polars`.
+- `/api/v1/analytics/causal` accepts active plan context before `CausalDataFrame::from_polars`.
 - Work-unit estimation should use post-plan row count if available, or max-points fallback if not.
 
 ### Drift
 
 Current relevant files:
 
-- `frontend/src/drift/driftPage.ts`
-- `frontend/src/drift/controls.ts`
-- `frontend/src/drift/viewModels.ts`
+- `frontend/src/features/drift/page.ts`
+- `frontend/src/features/drift/controls.ts`
+- `frontend/src/features/drift/viewModels.ts`
 - `crates/edatime-service/src/handlers/routes/drift.rs`
 
 Required behavior:
@@ -898,10 +1011,56 @@ Required behavior:
 
 Backend:
 
-- `/api/drift/stats` and `/api/drift/investigate` accept active plan context.
+- `/api/v1/drift/stats` and `/api/v1/drift/investigate` accept active plan context.
 - Apply plan before Drift splits into reference/comparison windows.
 
 ## Backend Architecture
+
+### Source-Version Registry and Snapshot Resolution
+
+The current `AppState` exposes only `dataset_snapshot()` and
+`replace_dataset()`. Replace that single mutable-dataset assumption for this
+feature with a small source-version registry owned by `edatime-store`:
+
+```rust
+pub struct DatasetVersionRecord {
+    pub id: DatasetVersionId,
+    pub root_id: DatasetVersionId,
+    pub parent_id: Option<DatasetVersionId>,
+    pub revision: u64,
+    pub fingerprint: String,
+    pub schema_fingerprint: String,
+    pub source_name: Option<String>,
+    pub materialized_from_plan_hash: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+pub trait DatasetVersionStore {
+    fn snapshot(&self, id: &DatasetVersionId) -> Result<LazyFrame, AppError>;
+    fn metadata(&self, id: &DatasetVersionId) -> Result<DatasetVersionRecord, AppError>;
+    fn create_root(&self, df: DataFrame, source_name: Option<String>) -> Result<DatasetVersionRecord, AppError>;
+    fn create_child(&self, parent: &DatasetVersionId, df: DataFrame, plan: PlanProvenance)
+        -> Result<DatasetVersionRecord, AppError>;
+}
+```
+
+`AppState::dataset_snapshot()` remains a compatibility facade for the selected
+version while old routes are migrated. New plan-aware code must resolve the
+envelope's `sourceVersionId` through this registry, then compare its revision,
+fingerprint, schema fingerprint, and time column before compilation. Store root
+and child frames in a server-side version store with an explicit retention
+policy, not only in browser state. For v1, retain every admitted version for the
+active server session and reject a new materialization before it would exceed
+the configured version/byte limit; do not evict an original silently. If a
+server restart cannot retain a source artifact, plan import/export must report
+it as unavailable rather than claim reproducibility.
+
+Creating a child is a transaction: execute the full validated plan from the
+requested parent snapshot, validate the output, write its frame and provenance,
+select it, then invalidate caches. Any failure leaves parent, selected version,
+and active plan unchanged. Cache keys include `sourceVersionId`, revision, and
+plan hash; a child baseline with an empty plan must never share a cache entry
+with its parent plus a non-empty plan.
 
 ### Routes
 
@@ -910,12 +1069,15 @@ Add a new cleaning route module and mount it in `api_router`.
 New routes:
 
 ```text
-POST /api/cleaning/validate
-POST /api/cleaning/preview
-POST /api/cleaning/export/data
-POST /api/cleaning/export/plan
-POST /api/cleaning/export/code
-POST /api/cleaning/apply
+POST /api/v1/cleaning/validate
+POST /api/v1/cleaning/preview
+POST /api/v1/cleaning/export/data
+POST /api/v1/cleaning/export/plan
+POST /api/v1/cleaning/export/bundle
+POST /api/v1/cleaning/export/code
+POST /api/v1/cleaning/apply
+GET  /api/v1/datasets/versions
+POST /api/v1/datasets/versions/select
 ```
 
 `/validate` performs schema/revision/dependency/capability checks without
@@ -924,7 +1086,7 @@ collecting data and returns the backend canonical plan plus server hash.
 client-side download after `/validate`, but retaining it as a server route is
 useful when the server needs to return a canonicalized artifact.
 
-All six routes take the same envelope. Do not create one-off `plan` fields with
+All plan-aware operations take the same envelope. Do not create one-off `plan` fields with
 different stale-plan behavior in each analysis request:
 
 ```rust
@@ -933,6 +1095,7 @@ different stale-plan behavior in each analysis request:
 pub struct PlanRequestEnvelope {
     pub plan: CleaningPlanDto,
     pub expected_plan_hash: Option<String>,
+    pub expected_source_version_id: DatasetVersionId,
     pub expected_dataset_revision: u64,
 }
 ```
@@ -957,6 +1120,7 @@ pub struct CleaningPlanRequest {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CleaningPreviewResponse {
+    pub source_version_id: DatasetVersionId,
     pub dataset_revision: u64,
     pub plan_hash: String,
     pub rows_before: usize,
@@ -1014,8 +1178,10 @@ pub fn compile_cleaning_plan(
 
 Compiler rules:
 
-- Validate dataset revision, dataset fingerprint, schema fingerprint, and time
-  column identity before stage validation.
+- Resolve `plan.sourceVersionId` first; require it to equal
+  `expectedSourceVersionId`, then validate that version's revision, dataset
+  fingerprint, schema fingerprint, and time-column identity before stage
+  validation.
 - Validate all referenced columns against the schema that exists at that exact
   point in stage order, including derived output columns and prior drops.
 - Validate all numeric filters target numeric or temporal columns.
@@ -1038,6 +1204,9 @@ Compiler rules:
 - Apply the complete plan before an endpoint's page-specific projection. The
   compiler must retain every column referenced by a later stage even when a
   scatter cell or FFT endpoint ultimately needs only two columns.
+- A plan-aware endpoint either executes every enabled stage or fails with a
+  capability/validation error. It must not render a partly transformed result
+  because a page does not yet understand one stage kind.
 
 Preview defaults to a single overall before/after count plus output schema. Per
 stage row impacts are optional and explicitly requested because calculating
@@ -1053,19 +1222,19 @@ Every endpoint that currently takes time/filter parameters should be upgraded in
 
 Upgrade these:
 
-- `/api/data`
-- `/api/export/parquet`
-- `/api/scatter/points`
-- `/api/scatter/matrix`
-- `/api/scatter/export/parquet`
-- `/api/scatter/correlations`
-- `/api/scatter/correlations/matrix`
-- `/api/analytics/fft`
-- `/api/analytics/spectrogram`
-- `/api/analytics/spectral-filter`
-- `/api/analytics/causal`
-- `/api/drift/stats`
-- `/api/drift/investigate`
+- `/api/v1/data`
+- `/api/v1/export/parquet`
+- `/api/v1/scatter/points`
+- `/api/v1/scatter/matrix`
+- `/api/v1/scatter/export/parquet`
+- `/api/v1/scatter/correlations`
+- `/api/v1/scatter/correlations/matrix`
+- `/api/v1/analytics/fft`
+- `/api/v1/analytics/spectrogram`
+- `/api/v1/analytics/spectral-filter`
+- `/api/v1/analytics/causal`
+- `/api/v1/drift/stats`
+- `/api/v1/drift/investigate`
 
 For GET endpoints, do not put large JSON plans in query strings long term. Add
 POST equivalents or switch existing frontend calls to POST where plan payloads
@@ -1135,6 +1304,55 @@ Code export is all-or-nothing by default: it fails when any enabled stage is
 `backendOnly`. The UI may offer an explicit `export portable subset` action,
 but that artifact must list omitted stage IDs and carry a different hash; it
 must never be presented as an export of the active plan.
+
+### Dataset and Bundle Export
+
+`POST /api/v1/cleaning/export/data` takes the same plan envelope and an
+explicit `DataExportOptions` body. Its default is intentionally different from
+the existing chart-export controls:
+
+```ts
+interface DataExportOptions {
+  format: 'parquet' | 'csv';
+  /** Omit to export every output column from the complete working dataset. */
+  outputColumns?: string[];
+  /** A projection is allowed only when the user explicitly chose it. */
+  projectionLabel?: string;
+}
+
+interface BundleExportOptions extends DataExportOptions {
+  includeSourceData: boolean;
+  includePython: boolean;
+  includeRust: boolean;
+}
+```
+
+The server executes the *complete* validated plan before applying an optional
+output projection. It must preserve the requested output row order and never
+implicitly add the visible chart range, selected series, Scatter axes, or a
+downsampling limit. Response headers and the embedded Parquet/CSV metadata must
+include `sourceVersionId`, `datasetRevision`, `sourceFingerprint`,
+`schemaFingerprint`, and `planHash`.
+
+`POST /api/v1/cleaning/export/bundle` streams a ZIP with this stable layout:
+
+```text
+edatime-export/
+  manifest.json                 # hashes, identities, format, checksums
+  plan.canonical.json           # exact backend-canonical accumulated plan
+  transformed-data.parquet      # or transformed-data.csv
+  apply_plan.py                 # only if requested and exportable
+  apply_plan.rs                 # only if requested and exportable
+  source-data.parquet           # only with explicit includeSourceData
+```
+
+`manifest.json` records whether code or source data was omitted and why. It
+also records an output-data checksum calculated while streaming so an imported
+bundle can verify that its payload matches the plan export. If source inclusion
+exceeds configured row/byte limits, reject the request with a specific limit
+error; do not silently produce a bundle that appears self-contained. A bundle
+without `source-data.parquet` is still a query/data export, but is not called a
+standalone replay bundle in the UI.
 
 ### Python Polars Code
 
@@ -1287,6 +1505,11 @@ Deliver before product code:
 - canonical null/NaN, time-bound, typed-category, and ordering semantics,
 - request envelope/error schema and a decision to add POST equivalents rather
   than overload existing GET query strings,
+- source-version identity, retention, parent/child provenance, and selection
+  contract; include the decision that root source frames are retained before
+  any Apply/materialization capability is exposed,
+- bundle manifest/checksum schema and the distinction between transformed-data
+  export, query-plan export, and opt-in self-contained replay bundle,
 - a compact shared fixture dataset covering datetime units, nulls, NaN,
   categories, duplicate timestamps, and known row IDs.
 
@@ -1299,7 +1522,9 @@ Deliver:
 
 - frontend `CleaningPlan` types/store,
 - plan hash,
-- session-scoped persistence keyed by dataset fingerprint,
+- source-version fields in the workspace snapshot plus a read-only lineage
+  selector/root-reset affordance,
+- session-scoped persistence keyed by source version and fingerprint,
 - plan panel with add/remove/enable/reorder/duplicate and stale-plan state,
 - frontend stage factories only for portable time/range/adaptive-line stages,
 - compile the portable subset to current `start`, `end`, `filters`, and
@@ -1314,22 +1539,30 @@ Acceptance:
 - no consumer writes `columnRanges` or adaptive filters as its primary action,
 - unsupported enabled stages cannot enter a legacy request silently,
 - the plan survives navigation/refresh for the same fingerprint and becomes
-  stale, not silently reused, after a revision change.
+  stale, not silently reused, after a source-version or revision change,
+- adding stages from different authoring surfaces is append-only and a plan
+  edit/reorder always rebuilds compatibility state from the anchored baseline.
 
 ### Phase 2: Backend Validation, Preview, and Pure-Polars Export
 
 Deliver:
 
 - Rust DTO/parser/canonicalizer/hash implementation,
-- `/api/cleaning/validate` and `/api/cleaning/preview`,
+- server-side source-version registry, root source retention, and snapshot
+  lookup tests before plan execution is enabled,
+- `/api/v1/cleaning/validate` and `/api/v1/cleaning/preview`,
 - lazy compiler for the portable subset only,
-- `/api/cleaning/export/data` and canonical plan export,
+- `/api/v1/cleaning/export/data`, canonical plan export, and a manifest-only
+  bundle path; full source-including ZIP can follow once streaming limits are
+  verified,
 - frontend preview controller with request cancellation and snapshot matching,
 - 400 validation error presentation and 409 stale-plan recovery.
 
 Acceptance:
 
 - preview and exported data agree on schema and row count,
+- an export contains all working rows/columns unless an explicit projection was
+  requested, and its manifest hash/identity exactly match the canonical plan,
 - backend hash matches fixed fixtures and is returned by every new route,
 - disabled/annotation stages have no data effect,
 - an invalid stage reports its `stageId` and does not partially execute the
@@ -1419,18 +1652,19 @@ Acceptance:
 
 Deliver:
 
-- `/api/cleaning/apply`,
+- `/api/v1/cleaning/apply`,
 - confirmation UI populated by a fresh preview for the exact server hash,
-- atomic dataset revision bump/swap only after successful execution and output
-  validation,
+- atomic child-version creation/selection only after successful execution and
+  output validation; the root and parent snapshots remain retrievable,
 - completed plan persisted as parent-to-child provenance and a new empty active
   child plan.
 
 Acceptance:
 
-- failure leaves the source dataset, current revision, and active plan intact,
-- applying plan updates metadata and all pages only after the atomic swap,
-- stale plans are detected after revision change and cannot be re-applied.
+- failure leaves source/parent datasets, selected version, and active plan intact,
+- applying plan updates metadata and all pages only after atomic child creation,
+- the user can switch back to the original root version after applying,
+- stale plans are detected after version change and cannot be re-applied.
 
 ## Testing Matrix
 
@@ -1446,6 +1680,13 @@ Add tests for:
   session-storage restore only for matching fingerprints,
 - response race handling: an old plan/revision response cannot render after a
   newer mutation,
+- accumulation: stages authored by Timeseries, Scatter, and Drift execute in
+  append order against one baseline; edit/remove/reorder recomputes from that
+  baseline rather than from an already filtered response,
+- source-version selection/reset, session restore keyed by source version, and
+  correct handling of an unavailable retained source,
+- data-export options: default full working-frame export, explicit projection,
+  manifest identity/checksum display, and source-data opt-in warning,
 - `cleaning/stageLabels.ts`
 - plan panel rendering/editing
 - timeseries stage authoring
@@ -1458,20 +1699,22 @@ Existing tests to update:
 
 - `frontend/src/features/timeseries/actions.filters.test.ts`
 - `frontend/src/ui/yRangeControls.test.ts`
-- `frontend/src/scatter/state.test.ts`
-- `frontend/src/scatter/scatterPage.test.ts`
-- `frontend/src/scatter/matrix.test.ts`
-- `frontend/src/pages/fftPage.test.ts`
-- `frontend/src/pages/spectrogramPage.test.ts`
-- `frontend/src/causal/causalPage.test.ts`
-- `frontend/src/drift/driftPayload.test.ts`
-- `frontend/src/features/export/entrypoint.test.ts`
+- `frontend/src/features/scatter/state.test.ts`
+- `frontend/src/features/scatter/page.test.ts`
+- `frontend/src/features/scatter/matrix.test.ts`
+- `frontend/src/features/fft/page.test.ts`
+- `frontend/src/features/spectrogram/page.test.ts`
+- `frontend/src/features/causal/page.test.ts`
+- `frontend/src/features/drift/driftPayload.test.ts`
+- `frontend/src/features/export/feature.test.ts`
 
 ### Backend Unit and Route Tests
 
 Add tests for:
 
 - DTO parsing and validation,
+- root/child source-version creation, retrieval, selection, retention failure,
+  and parent-plan provenance,
 - plan envelope revision/fingerprint rejection (`409 stale_plan`), canonical
   hash equality, request limits, and typed-category validation,
 - each stage compiler,
@@ -1479,6 +1722,8 @@ Add tests for:
 - stage order/schema dependency failures and no-partial-execution guarantee,
 - preview row counts,
 - export data route,
+- data/plan/bundle manifest identity and checksum agreement, source-data
+  inclusion limits, and full-frame-versus-explicit-projection behavior,
 - Python codegen snapshots,
 - Rust codegen snapshots,
 - analysis routes with plan context,
@@ -1511,8 +1756,8 @@ Use focused tests first:
 
 ```bash
 npm test -- frontend/src/cleaning
-npm test -- frontend/src/features/timeseries/actions.filters.test.ts frontend/src/scatter/state.test.ts frontend/src/scatter/matrix.test.ts
-npm test -- frontend/src/pages/fftPage.test.ts frontend/src/pages/spectrogramPage.test.ts frontend/src/drift/driftPayload.test.ts
+npm test -- frontend/src/features/timeseries/actions.filters.test.ts frontend/src/features/scatter/state.test.ts frontend/src/features/scatter/matrix.test.ts
+npm test -- frontend/src/features/fft/page.test.ts frontend/src/features/spectrogram/page.test.ts frontend/src/features/drift/driftPayload.test.ts
 cargo test -q -p edatime-query filters
 cargo test -q -p edatime-service cleaning
 cargo test -q -p edatime-service handlers::routes::analytics
@@ -1558,6 +1803,10 @@ The feature is done when:
 3. Every plot recomputes from the active plan.
 4. Preview row counts and warnings update after plan edits.
 5. Exported Parquet/CSV data is generated from the backend compiler.
-6. Exported JSON/Python/Rust artifacts represent the same plan.
-7. Applying the plan materializes a new active dataset revision only after explicit confirmation.
-8. Focused frontend/backend tests and the standard frontend gates pass.
+6. Dataset export defaults to the complete working dataset; a projection or
+   source-data inclusion is always explicit and described in its manifest.
+7. Exported JSON/Python/Rust artifacts represent the same accumulated plan and
+   source-version identity as the data artifact.
+8. Applying the plan creates an immutable child dataset version only after
+   explicit confirmation, while the original root remains selectable.
+9. Focused frontend/backend tests and the standard frontend gates pass.
