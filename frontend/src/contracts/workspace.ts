@@ -9,7 +9,15 @@ export interface DatasetSession {
 }
 
 export interface WorkspaceSnapshot {
-    dataset: { metadata: DatasetMetadata | null; revision: number };
+    dataset: {
+        metadata: DatasetMetadata | null;
+        revision: number;
+        /** Optional while legacy metadata endpoints are being migrated. */
+        activeSourceVersionId?: string | null;
+        rootSourceVersionId?: string | null;
+        parentSourceVersionId?: string | null;
+        sourceFingerprint?: string | null;
+    };
     selection: { columns: readonly string[]; colorColumn: string | null };
     filters: {
         columnRanges: Readonly<Record<string, ColumnRange>>;

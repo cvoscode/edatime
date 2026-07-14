@@ -7,3 +7,4 @@ pub mod db;
 pub mod parquet_adapter;
 pub mod repository;
 pub mod state;
+pub mod versions;

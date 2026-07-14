@@ -30,6 +30,7 @@ import { initAppShell } from './app/shell.js';
 import { showPage } from './app/navigation/showPage.js';
 import { createAppRuntime } from './app/runtime.js';
 import { createWorkspaceStore } from './workspace/workspaceStore.js';
+import { cleaningDatasetIdentityFromMetadata, cleaningPlanStore } from './cleaning/index.js';
 import { markAppReady, resetAppReady } from './app/bootState.js';
 import { upgradeSelects } from './ui/primitives/Dropdown.js';
 import { upgradeFlexibleNumberInputs } from './ui/primitives/FlexibleNumberInput.js';
@@ -151,6 +152,9 @@ export function createApp(): AppRoot {
             exportFilteredCsv: exportFeature.exportFilteredCsv,
             exportFilteredJson: exportFeature.exportFilteredJson,
             exportFilteredParquet: exportFeature.exportFilteredParquet,
+            onDatasetCommitted: (metadata, revision) => {
+                cleaningPlanStore.resetForDataset(cleaningDatasetIdentityFromMetadata(metadata, revision));
+            },
         });
 
         // Mount registers page lifecycle (page-change listener, etc.)

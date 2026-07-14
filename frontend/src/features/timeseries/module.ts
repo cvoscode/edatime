@@ -56,6 +56,7 @@ export interface TimeseriesModuleDeps {
     exportFilteredCsv?: () => void;
     exportFilteredJson?: () => void;
     exportFilteredParquet?: () => void;
+    onDatasetCommitted?: (metadata: DatasetMetadata, revision: number) => void;
 }
 
 export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
@@ -202,6 +203,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         updateAnalysisZoom: deps.updateAnalysisZoom,
         emitWorkflowRefresh: () => emitFeatureEvent('workflow:refresh', undefined),
         setAdaptiveFilterColumn: deps.setAdaptiveFilterColumn,
+        onDatasetCommitted: deps.onDatasetCommitted,
     });
 
     const chartBootstrap = createTimeseriesBootstrap({

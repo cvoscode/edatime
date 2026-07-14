@@ -8,6 +8,12 @@ describe('API v1 route contract', () => {
             metadata: '/api/v1/metadata',
             data: '/api/v1/data',
             exportParquet: '/api/v1/export/parquet',
+            cleaning: {
+                validate: '/api/v1/cleaning/validate',
+                preview: '/api/v1/cleaning/preview',
+                exportData: '/api/v1/cleaning/export/data',
+                versions: '/api/v1/datasets/versions',
+            },
             upload: '/api/v1/upload',
             uploadPreview: '/api/v1/upload/preview',
             transform: '/api/v1/transform',

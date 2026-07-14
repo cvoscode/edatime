@@ -15,6 +15,18 @@ use edatime_store::state::AppState;
 #[derive(Debug, Clone, Serialize)]
 pub struct DatasetMetadata {
     pub revision: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_version_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub root_source_version_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_source_version_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dataset_fingerprint: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub schema_fingerprint: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_name: Option<String>,
     pub total_rows: usize,
     pub columns: Vec<ColumnMetadata>,
     pub numeric_columns: Vec<String>,
@@ -314,6 +326,12 @@ fn build_dataset_metadata_from_lazyframe(
 
     Ok(DatasetMetadata {
         revision: 0,
+        source_version_id: None,
+        root_source_version_id: None,
+        parent_source_version_id: None,
+        dataset_fingerprint: None,
+        schema_fingerprint: None,
+        source_name: None,
         total_rows,
         columns,
         numeric_columns,
@@ -448,6 +466,12 @@ pub fn build_dataset_metadata(
 
     Ok(DatasetMetadata {
         revision: 0,
+        source_version_id: None,
+        root_source_version_id: None,
+        parent_source_version_id: None,
+        dataset_fingerprint: None,
+        schema_fingerprint: None,
+        source_name: None,
         total_rows,
         columns,
         numeric_columns,
@@ -507,8 +531,15 @@ pub async fn get_metadata(
     .map_err(|e| AppError::internal(format!("Failed to join metadata task: {e:?}")))??;
 
     let revision = state.repository.revision();
+    let version = state.current_dataset_version()?;
     let mut metadata = metadata;
     metadata.revision = revision;
+    metadata.source_version_id = Some(version.id);
+    metadata.root_source_version_id = Some(version.root_id);
+    metadata.parent_source_version_id = version.parent_id;
+    metadata.dataset_fingerprint = Some(version.dataset_fingerprint);
+    metadata.schema_fingerprint = Some(version.schema_fingerprint);
+    metadata.source_name = version.source_name;
     Ok(Json(metadata))
 }
 

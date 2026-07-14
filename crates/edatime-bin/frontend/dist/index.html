@@ -47,8 +47,8 @@
       });
     }
   </script>
-  <script type="module" crossorigin src="/assets/index-GWlPa__f.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/settings-DkBT1xH3.js">
+  <script type="module" crossorigin src="/assets/index-BJsuKcct.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/settings-C_RLRvj1.js">
   <link rel="stylesheet" crossorigin href="/assets/index-ChKhUg-o.css">
 </head>
 
@@ -865,22 +865,6 @@
                   <span class="fft-export-icons__label">CSV</span>
                 </button>
               </div>
-              <details class="toolbar-disclosure toolbar-disclosure--end" hidden>
-                <summary class="toolbar-disclosure__summary">
-                  <span class="toolbar-label">Format</span>
-                  <span class="toolbar-disclosure__value">Image + CSV</span>
-                </summary>
-                <div class="toolbar-disclosure__menu">
-                  <button id="fft-export-png-btn-fallback" class="btn btn-ghost btn-sm" type="button"
-                    disabled>PNG</button>
-                  <button id="fft-export-svg-btn-fallback" class="btn btn-ghost btn-sm" type="button"
-                    disabled>SVG</button>
-                  <button id="fft-export-html-btn-fallback" class="btn btn-ghost btn-sm" type="button"
-                    disabled>HTML</button>
-                  <button id="fft-export-csv-btn-fallback" class="btn btn-ghost btn-sm" type="button"
-                    disabled>CSV</button>
-                </div>
-              </details>
             </div>
           </div>
         </div>
@@ -1388,10 +1372,6 @@
                     </div>
                   </div>
                 </div>
-                <!-- hidden select kept for backward-compat JS reads via selectedOptions -->
-                <select id="drift-col-select" style="display:none;" multiple aria-hidden="true" tabindex="-1">
-                  <!-- populated by driftPage.ts -->
-                </select>
               </div>
               <div class="scatter-toolbar__field">
                 <span class="scatter-toolbar__field-label">Window</span>
@@ -2345,55 +2325,6 @@
         </div>
       </div>
 
-      <!-- Analytics Modal (for backward compat — scatter page) -->
-      <div id="analytics-modal" class="modal-backdrop" hidden>
-        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="analytics-title-modal">
-          <div class="modal-header">
-            <div class="modal-title" id="analytics-title-modal">Analytics</div>
-            <button class="modal-close" id="analytics-close-btn-modal" type="button" aria-label="Close">&times;</button>
-          </div>
-          <div class="modal-body">
-            <label class="toolbar-field toolbar-field--toggle" for="rolling-enabled-modal">
-              <span class="toolbar-field__label">Rolling bands</span>
-              <span class="toolbar-field__control scatter-link-toggle" title="Show rolling mean ± σ bands">
-                <input id="rolling-enabled-modal" type="checkbox"
-                  aria-label="Show rolling mean ± σ bands in analytics modal">
-                <span>Show mean ± σ bands</span>
-              </span>
-            </label>
-            <label class="toolbar-field" for="rolling-window-modal">
-              <span class="toolbar-field__label" title="Rolling window size (number of points)">Window size</span>
-              <input id="rolling-window-modal" type="number" class="modal-input" value="50" min="3" max="5000" step="1"
-                aria-label="Rolling window size (number of points)">
-            </label>
-            <label class="toolbar-field toolbar-field--toggle" for="anomaly-enabled-modal">
-              <span class="toolbar-field__label">Anomalies</span>
-              <span class="toolbar-field__control scatter-link-toggle" title="Show anomaly detection regions">
-                <input id="anomaly-enabled-modal" type="checkbox"
-                  aria-label="Enable anomaly detection regions in analytics modal">
-                <span>Enable regions</span>
-              </span>
-            </label>
-            <label class="toolbar-field" for="anomaly-method-modal">
-              <span class="toolbar-field__label">Method</span>
-              <select id="anomaly-method-modal" class="modal-select" title="Anomaly detection method">
-                <option value="zscore">Z-score</option>
-                <option value="iqr">IQR</option>
-              </select>
-            </label>
-            <label class="toolbar-field" for="anomaly-threshold-modal">
-              <span class="toolbar-field__label">Threshold</span>
-              <input id="anomaly-threshold-modal" type="number" class="modal-input" value="3" min="0.5" max="10"
-                step="0.1" title="Anomaly threshold">
-            </label>
-          </div>
-          <div class="modal-actions">
-            <div></div>
-            <button class="btn btn-primary btn-sm" id="analytics-done-btn-modal" type="button">Done</button>
-          </div>
-        </div>
-      </div>
-
       <!-- Settings Modal -->
       <div id="settings-modal" class="modal-backdrop settings-modal" hidden>
         <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
@@ -2407,10 +2338,7 @@
 
           <div class="settings-tabs">
             <button class="settings-tab-btn active" data-tab="appearance" type="button">Appearance</button>
-            <button class="settings-tab-btn" data-tab="export" type="button">Export</button>
             <button class="settings-tab-btn" data-tab="analytics" type="button">Analytics</button>
-            <button class="settings-tab-btn" data-tab="causal" type="button">Causal</button>
-            <button class="settings-tab-btn" data-tab="spectral" type="button">Spectral</button>
             <button class="settings-tab-btn" data-tab="timeseries" type="button">Timeseries</button>
           </div>
 
@@ -2464,32 +2392,6 @@
             </div>
           </div>
 
-          <!-- Export Tab -->
-          <div class="settings-tab-panel" data-tab="export" hidden>
-            <div class="settings-section">
-              <div class="settings-section-title">Export Defaults</div>
-              <div class="settings-row">
-                <label class="settings-label" for="settings-export-format">Default format</label>
-                <div class="settings-control">
-                  <select id="settings-export-format" class="modal-select">
-                    <option value="png">PNG</option>
-                    <option value="svg">SVG</option>
-                    <option value="csv">CSV</option>
-                    <option value="json">JSON</option>
-                    <option value="parquet">Parquet</option>
-                  </select>
-                </div>
-              </div>
-              <div class="settings-row">
-                <label class="settings-label" for="settings-white-bg">Presentation mode</label>
-                <div class="settings-control settings-toggle">
-                  <input id="settings-white-bg" type="checkbox" aria-label="Use white background for exports">
-                  <span>White background for exports</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
           <!-- Analytics Tab -->
           <div class="settings-tab-panel" data-tab="analytics" hidden>
             <div class="settings-section">
@@ -2506,52 +2408,6 @@
                     <option value="kendall_diff">Kendall tau · First differences</option>
                   </select>
                   <div class="settings-hint">Used for scatter suggestions, scatter readouts, and the heatmap.</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Causal Tab -->
-          <div class="settings-tab-panel" data-tab="causal" hidden>
-            <div class="settings-section">
-              <div class="settings-section-title">Causal Discovery</div>
-              <div class="settings-row">
-                <label class="settings-label" for="settings-causal-method">Default method</label>
-                <div class="settings-control">
-                  <select id="settings-causal-method" class="modal-select">
-                    <option value="pcmci">PCMCI</option>
-                    <option value="pcmciplus">PCMCI+</option>
-                    <option value="lpcmci">LPCMCI</option>
-                    <option value="fullci">Full CI</option>
-                    <option value="bivci">Bivariate CI</option>
-                  </select>
-                </div>
-              </div>
-              <div class="settings-row">
-                <label class="settings-label" for="settings-tau-max">Default tau max</label>
-                <div class="settings-control">
-                  <input id="settings-tau-max" type="number" class="modal-input" min="1" max="128" value="5"
-                    style="width:80px;">
-                  <div class="settings-hint">Maximum time lag to consider</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Spectral Tab -->
-          <div class="settings-tab-panel" data-tab="spectral" hidden>
-            <div class="settings-section">
-              <div class="settings-section-title">FFT Presets</div>
-              <div class="settings-row">
-                <label class="settings-label" for="settings-fft-preset">Default preset</label>
-                <div class="settings-control">
-                  <select id="settings-fft-preset" class="modal-select">
-                    <option value="auto">Auto (detect from data)</option>
-                    <option value="slow-trends">Slow trends (large window)</option>
-                    <option value="fast-oscillations">Fast oscillations (small window)</option>
-                    <option value="balanced">Balanced</option>
-                  </select>
-                  <div class="settings-hint">Preset for spectrogram window size</div>
                 </div>
               </div>
             </div>

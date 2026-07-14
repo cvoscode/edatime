@@ -33,6 +33,7 @@ export interface DatasetBootstrapDeps {
     onMetadataReady?: () => void;
     emitWorkflowRefresh?: () => void;
     setAdaptiveFilterColumn: (col: string | null) => void;
+    onDatasetCommitted?: (metadata: DatasetMetadata, revision: number) => void;
     timeseriesFeatureInit?: () => void;
     ensureSessionPersistenceStarted?: () => void;
     updateAnalysisZoom: (start: number, end: number, sourceKind: string) => void;
@@ -98,6 +99,7 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
             assertDatasetRequestScopeActive(requestScope);
             const revision = Number.isFinite(Number(metadata?.revision)) ? Number(metadata.revision) : 0;
             if (!deps.workspace.commitDataset(workspaceSession, metadata, revision)) return;
+            deps.onDatasetCommitted?.(metadata, revision);
             deps.storeFetchedMetadata(metadata);
             lastDatasetRevision = revision;
             deps.markMetadataReady();
@@ -139,6 +141,7 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
         const metadata = await deps.fetchMetadata();
         const nextRevision = Number.isFinite(Number(metadata?.revision)) ? Number(metadata.revision) : 0;
         if (!deps.workspace.commitDataset(workspaceSession, metadata, nextRevision)) return;
+        deps.onDatasetCommitted?.(metadata, nextRevision);
         deps.storeFetchedMetadata(metadata);
         lastDatasetRevision = nextRevision;
         deps.markMetadataReady();

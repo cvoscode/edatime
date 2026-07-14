@@ -11,6 +11,12 @@ export const apiV1Routes = {
     data: '/api/v1/data',
     sample: (name: string): string => `/api/v1/sample/${encodeURIComponent(name)}`,
     exportParquet: '/api/v1/export/parquet',
+    cleaning: {
+        validate: '/api/v1/cleaning/validate',
+        preview: '/api/v1/cleaning/preview',
+        exportData: '/api/v1/cleaning/export/data',
+        versions: '/api/v1/datasets/versions',
+    },
     upload: '/api/v1/upload',
     uploadPreview: '/api/v1/upload/preview',
     database: {

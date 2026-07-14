@@ -8,6 +8,7 @@ use tokio::sync::RwLock;
 use crate::cache::{CorrelationMatrixCacheEntry, ResponseCache};
 use crate::db::DbPool;
 use crate::repository::{DataRepository, InMemoryDataRepository};
+use crate::versions::{DatasetVersionRecord, DatasetVersionRegistry};
 use edatime_core::config::AppConfig;
 use edatime_core::error::AppError;
 use edatime_core::metrics::AppMetrics;
@@ -26,6 +27,7 @@ pub struct DbConnectionInfo {
 #[allow(clippy::clone_on_ref_ptr)]
 pub struct AppState {
     pub repository: Arc<dyn DataRepository>,
+    pub dataset_versions: Arc<DatasetVersionRegistry>,
     pub query_executor: Arc<QueryExecutor>,
     pub cache: Arc<ResponseCache>,
     pub metrics: Arc<AppMetrics>,
@@ -41,6 +43,7 @@ impl Clone for AppState {
     fn clone(&self) -> Self {
         Self {
             repository: Arc::clone(&self.repository),
+            dataset_versions: Arc::clone(&self.dataset_versions),
             query_executor: Arc::clone(&self.query_executor),
             cache: Arc::clone(&self.cache),
             metrics: Arc::clone(&self.metrics),
@@ -56,6 +59,7 @@ impl Clone for AppState {
 
 impl AppState {
     pub fn new(df: DataFrame, config: AppConfig) -> Self {
+        let dataset_versions = Arc::new(DatasetVersionRegistry::new(df.clone(), 0, None));
         let repository = Arc::new(InMemoryDataRepository::new(df));
         let cache = Arc::new(ResponseCache::new(crate::cache::CacheConfig {
             ttl: std::time::Duration::from_secs(config.cache.ttl_seconds.max(1)),
@@ -72,6 +76,7 @@ impl AppState {
         );
         Self {
             repository,
+            dataset_versions,
             query_executor,
             cache,
             metrics,
@@ -92,6 +97,19 @@ impl AppState {
     /// Cloning LazyFrame is cheap (~microseconds).
     pub fn dataset_snapshot(&self) -> LazyFrame {
         self.repository.snapshot()
+    }
+
+    /// Resolve an immutable source/baseline snapshot for a plan-aware request.
+    pub fn dataset_snapshot_for_version(&self, version_id: &str) -> Result<LazyFrame, AppError> {
+        self.dataset_versions.snapshot(version_id).map_err(AppError::from)
+    }
+
+    pub fn current_dataset_version(&self) -> Result<DatasetVersionRecord, AppError> {
+        self.dataset_versions.current().map_err(AppError::from)
+    }
+
+    pub fn dataset_versions(&self) -> Result<Vec<DatasetVersionRecord>, AppError> {
+        self.dataset_versions.list().map_err(AppError::from)
     }
 
     /// Clone only the requested columns from the shared frame.
@@ -124,7 +142,10 @@ impl AppState {
     }
 
     pub async fn replace_dataset(&self, df: DataFrame) -> Result<u64, AppError> {
-        let rev = self.repository.replace_from_dataframe(df)?;
+        let rev = self.repository.replace_from_dataframe(df.clone())?;
+        self.dataset_versions
+            .register_root(df, rev, None)
+            .map_err(AppError::from)?;
         // Invalidate cached responses so stale data is never served after upload.
         self.cache.invalidate_all().await;
         self.clear_correlation_matrix_cache();

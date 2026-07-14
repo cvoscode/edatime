@@ -24,7 +24,15 @@ function cloneSnapshot(snapshot: WorkspaceSnapshot): WorkspaceSnapshot {
 /** Build a complete, cloned workspace snapshot for tests and feature fixtures. */
 export function makeWorkspaceSnapshot(fixture: WorkspaceSnapshotFixture = {}): WorkspaceSnapshot {
     return cloneSnapshot({
-        dataset: { metadata: null, revision: 0, ...fixture.dataset },
+        dataset: {
+            metadata: null,
+            revision: 0,
+            activeSourceVersionId: null,
+            rootSourceVersionId: null,
+            parentSourceVersionId: null,
+            sourceFingerprint: null,
+            ...fixture.dataset,
+        },
         selection: { columns: [], colorColumn: null, ...fixture.selection },
         filters: {
             columnRanges: {},
@@ -70,9 +78,17 @@ export function createWorkspaceStore(): WorkspaceStore {
         },
         commitDataset(session, metadata, revision) {
             if (!activeSession || activeSession.id !== session.id || session.signal.aborted) return false;
+            const sourceVersionId = String(metadata.source_version_id ?? '').trim() || `legacy-source-r${revision}`;
             update({
                 ...snapshot,
-                dataset: { metadata, revision },
+                dataset: {
+                    metadata,
+                    revision,
+                    activeSourceVersionId: sourceVersionId,
+                    rootSourceVersionId: String(metadata.root_source_version_id ?? '').trim() || sourceVersionId,
+                    parentSourceVersionId: String(metadata.parent_source_version_id ?? '').trim() || null,
+                    sourceFingerprint: String(metadata.dataset_fingerprint ?? '').trim() || null,
+                },
             });
             return true;
         },

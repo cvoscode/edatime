@@ -1,0 +1,74 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { __resetApiRequestStateForTests } from '../services/api/http.js';
+import { exportCleaningData, previewCleaningPlan, validateCleaningPlan } from './api.js';
+import type { CleaningPlan } from './types.js';
+
+function plan(): CleaningPlan {
+    return {
+        schemaVersion: 1,
+        id: 'plan-1',
+        planRevision: 1,
+        sourceVersionId: 'source-0',
+        datasetRevision: 0,
+        datasetFingerprint: 'frame',
+        schemaFingerprint: 'schema',
+        timeColumn: 'ts',
+        stages: [],
+        createdAt: 'now',
+        updatedAt: 'now',
+    };
+}
+
+function jsonResponse(body: unknown): Response {
+    return { ok: true, status: 200, json: vi.fn().mockResolvedValue(body) } as unknown as Response;
+}
+
+describe('cleaning API', () => {
+    const fetchMock = vi.fn();
+
+    beforeEach(() => {
+        __resetApiRequestStateForTests();
+        fetchMock.mockReset();
+        vi.stubGlobal('fetch', fetchMock);
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+        __resetApiRequestStateForTests();
+    });
+
+    it('sends the complete anchored plan envelope for validation and preview', async () => {
+        fetchMock
+            .mockResolvedValueOnce(jsonResponse({ planHash: 'server-hash' }))
+            .mockResolvedValueOnce(jsonResponse({ rowsBefore: 3, rowsAfter: 2 }));
+
+        await validateCleaningPlan(plan());
+        await previewCleaningPlan(plan());
+
+        for (const [url, init] of fetchMock.mock.calls) {
+            expect(url).toMatch(/\/api\/v1\/cleaning\/(validate|preview)/);
+            const body = JSON.parse(String(init.body));
+            expect(body).toMatchObject({
+                expectedSourceVersionId: 'source-0',
+                expectedDatasetRevision: 0,
+                plan: { sourceVersionId: 'source-0', datasetFingerprint: 'frame', schemaFingerprint: 'schema' },
+            });
+        }
+    });
+
+    it('exports a full working dataset unless the caller explicitly supplies a projection', async () => {
+        fetchMock.mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            blob: vi.fn().mockResolvedValue(new Blob(['parquet'])),
+        });
+
+        await exportCleaningData(plan());
+
+        expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/cleaning/export/data');
+        const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+        expect(body.format).toBe('parquet');
+        expect(body.outputColumns).toBeUndefined();
+    });
+});

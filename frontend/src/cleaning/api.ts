@@ -1,0 +1,84 @@
+import { apiV1Routes } from '../contracts/api/v1/routes.js';
+import { getJson, postBlob, postJson } from '../services/api/http.js';
+import type { ApiRequestOptions } from '../services/api/http.js';
+import { buildPlanRequestSnapshot } from './compiler.js';
+import type { CleaningPlan } from './types.js';
+
+export interface DatasetVersionRecord {
+    id: string;
+    rootId: string;
+    parentId: string | null;
+    revision: number;
+    datasetFingerprint: string;
+    schemaFingerprint: string;
+    sourceName: string | null;
+    materializedFromPlanHash: string | null;
+    createdAt: string;
+}
+
+export interface CleaningValidationResponse {
+    sourceVersion: DatasetVersionRecord;
+    datasetRevision: number;
+    planHash: string;
+    canonicalPlan: CleaningPlan;
+}
+
+export interface CleaningPreviewResponse {
+    sourceVersion: DatasetVersionRecord;
+    datasetRevision: number;
+    planHash: string;
+    rowsBefore: number;
+    rowsAfter: number;
+    rowsRemoved: number;
+    columnsBefore: number;
+    columnsAfter: number;
+    warnings: string[];
+}
+
+export interface CleaningDataExportOptions {
+    format?: 'parquet';
+    outputColumns?: string[];
+}
+
+function envelope(plan: CleaningPlan): Record<string, unknown> {
+    const snapshot = buildPlanRequestSnapshot(plan);
+    return {
+        plan: snapshot.plan,
+        expectedPlanHash: snapshot.expectedPlanHash,
+        expectedSourceVersionId: snapshot.expectedSourceVersionId,
+        expectedDatasetRevision: snapshot.expectedDatasetRevision,
+    };
+}
+
+export function validateCleaningPlan(
+    plan: CleaningPlan,
+    options?: ApiRequestOptions,
+): Promise<CleaningValidationResponse> {
+    return postJson(apiV1Routes.cleaning.validate, envelope(plan), 'Cleaning plan validation', options);
+}
+
+export function previewCleaningPlan(
+    plan: CleaningPlan,
+    options?: ApiRequestOptions,
+): Promise<CleaningPreviewResponse> {
+    return postJson(apiV1Routes.cleaning.preview, envelope(plan), 'Cleaning plan preview', options);
+}
+
+export function exportCleaningData(
+    plan: CleaningPlan,
+    exportOptions: CleaningDataExportOptions = {},
+    options?: ApiRequestOptions,
+): Promise<Blob> {
+    return postBlob(
+        apiV1Routes.cleaning.exportData,
+        { ...envelope(plan), format: exportOptions.format ?? 'parquet', outputColumns: exportOptions.outputColumns },
+        'Cleaning data export',
+        options,
+    );
+}
+
+export function listDatasetVersions(options?: ApiRequestOptions): Promise<DatasetVersionRecord[]> {
+    // Versions are dataset-scoped by design: a replacement invalidates this
+    // selection list along with all other dataset-derived responses.
+    return getJson(apiV1Routes.cleaning.versions, 'Dataset versions', options);
+}

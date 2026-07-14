@@ -12,16 +12,17 @@ use serde::Serialize;
 
 static ERROR_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ErrorKind {
     Validation,
+    Conflict,
     Internal,
     RateLimit,
     NotFound,
 }
 
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ErrorCode {
     InvalidRequest,
@@ -34,6 +35,7 @@ pub enum ErrorCode {
     UploadTooLarge,
     RateLimitExceeded,
     NotFound,
+    StalePlan,
     Internal,
 }
 
@@ -75,6 +77,10 @@ impl AppError {
         Self::new(ErrorKind::RateLimit, ErrorCode::RateLimitExceeded, msg)
     }
 
+    pub fn stale_plan(msg: impl Into<String>) -> Self {
+        Self::new(ErrorKind::Conflict, ErrorCode::StalePlan, msg)
+    }
+
     fn new(kind: ErrorKind, code: ErrorCode, msg: impl Into<String>) -> Self {
         Self {
             kind,
@@ -87,6 +93,7 @@ impl AppError {
     fn status_code(&self) -> StatusCode {
         match self.kind {
             ErrorKind::Validation => StatusCode::BAD_REQUEST,
+            ErrorKind::Conflict => StatusCode::CONFLICT,
             ErrorKind::RateLimit => StatusCode::TOO_MANY_REQUESTS,
             ErrorKind::NotFound => StatusCode::NOT_FOUND,
             ErrorKind::Internal => StatusCode::INTERNAL_SERVER_ERROR,
@@ -96,6 +103,7 @@ impl AppError {
     fn label(&self) -> &'static str {
         match self.kind {
             ErrorKind::Validation => "Bad request",
+            ErrorKind::Conflict => "Conflict",
             ErrorKind::RateLimit => "Rate limit exceeded",
             ErrorKind::NotFound => "Not found",
             ErrorKind::Internal => "Internal error",

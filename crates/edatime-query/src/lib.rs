@@ -3,6 +3,7 @@
 
 pub mod aggregations;
 pub mod arrow_export;
+pub mod cleaning;
 pub mod downsample;
 pub mod executor;
 pub mod filters;

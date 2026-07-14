@@ -1,6 +1,7 @@
 pub mod aggregate;
 pub mod analytics;
 pub mod config;
+pub mod cleaning;
 pub mod data;
 pub mod database;
 pub mod drift;
@@ -25,6 +26,10 @@ pub fn api_router() -> Router<AppState> {
         .route("/health", get(health))
         .route("/data", get(data::get_data))
         .route("/export/parquet", get(export::export_parquet))
+        .route("/cleaning/validate", post(cleaning::validate))
+        .route("/cleaning/preview", post(cleaning::preview))
+        .route("/cleaning/export/data", post(cleaning::export_data))
+        .route("/datasets/versions", get(cleaning::list_versions))
         .route("/metadata", get(metadata::get_metadata))
         .route("/metrics", get(metrics::get_metrics))
         .route(

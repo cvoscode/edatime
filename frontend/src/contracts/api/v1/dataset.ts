@@ -33,6 +33,12 @@ export interface ColumnProfile {
 
 export interface DatasetMetadata {
     revision?: number;
+    source_version_id?: string;
+    root_source_version_id?: string;
+    parent_source_version_id?: string | null;
+    dataset_fingerprint?: string;
+    schema_fingerprint?: string;
+    source_name?: string | null;
     total_rows: number;
     columns: ColumnMetadata[];
     numeric_columns: string[];
