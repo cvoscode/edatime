@@ -19,6 +19,7 @@ import type { DataObject, DatasetMetadata } from '../../types/api.js';
 import type { ViewSnapshot } from '../../types/chart.js';
 import type { WorkspaceStore } from '../../contracts/workspace.js';
 import type { ApiRequestOptions } from '../../services/api/http.js';
+import type { CleaningPlanStore } from '../../cleaning/store.js';
 
 export interface TimeseriesModuleDeps {
     fetchData: (
@@ -57,6 +58,7 @@ export interface TimeseriesModuleDeps {
     exportFilteredJson?: () => void;
     exportFilteredParquet?: () => void;
     onDatasetCommitted?: (metadata: DatasetMetadata, revision: number) => void;
+    cleaningPlanStore?: Pick<CleaningPlanStore, 'getSnapshot' | 'addStage' | 'updateStage' | 'removeStage'>;
 }
 
 export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
@@ -142,6 +144,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         exportFilteredCsv: deps.exportFilteredCsv,
         exportFilteredJson: deps.exportFilteredJson,
         exportFilteredParquet: deps.exportFilteredParquet,
+        cleaningPlanStore: deps.cleaningPlanStore,
     });
 
     // 3. Create the bootstrap (owns dataset readiness)

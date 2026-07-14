@@ -99,7 +99,7 @@ describe('scatter query context builders', () => {
         expect(result.end).toBeUndefined();
     });
 
-    it('scopes column-range filters to active scatter columns', () => {
+    it('keeps global column-range filters for scatter pairs even when a third column authored them', () => {
         primePlotSnapshot({
             x: { from: 1, to: 9 },
             y: { from: 2, to: 8 },
@@ -110,6 +110,7 @@ describe('scatter query context builders', () => {
         expect(result.filters).toEqual([
             { column: 'x', from: 1, to: 9 },
             { column: 'y', from: 2, to: 8 },
+            { column: 'unrelated', from: 5, to: 6 },
         ]);
     });
 
@@ -124,7 +125,7 @@ describe('scatter query context builders', () => {
         expect(result.lineFilters).toEqual([expect.objectContaining({ column: 'snapshot' })]);
     });
 
-    it('reports only active scoped filter columns for badge summaries', () => {
+    it('reports all active global filter columns for badge summaries', () => {
         primePlotSnapshot({
             x: { from: 1, to: 9 },
             color_bucket: { from: 0, to: 1 },
@@ -132,7 +133,7 @@ describe('scatter query context builders', () => {
         });
 
         const cols = getActiveScatterFilterColumns({ x: 'x', y: 'y', colorColumn: 'color_bucket' });
-        expect(cols.sort()).toEqual(['color_bucket', 'x']);
+        expect(cols.sort()).toEqual(['color_bucket', 'ignored', 'x']);
     });
 
     it('reads badge filters from explicit workspace intent', () => {

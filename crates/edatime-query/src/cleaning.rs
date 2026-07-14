@@ -315,4 +315,41 @@ mod tests {
         }]);
         assert!(compile_cleaning_plan(LazyFrame::default(), &plan).is_err());
     }
+
+    #[test]
+    fn parses_the_frontend_stage_shape_without_dropping_audit_fields() {
+        let raw = serde_json::json!({
+            "schemaVersion": 1,
+            "id": "plan-1",
+            "planRevision": 1,
+            "sourceVersionId": "source-0",
+            "datasetRevision": 0,
+            "datasetFingerprint": "frame",
+            "schemaFingerprint": "schema",
+            "timeColumn": "ts",
+            "sourceName": null,
+            "createdAt": "now",
+            "updatedAt": "now",
+            "stages": [{
+                "id": "range-1",
+                "kind": "columnRange",
+                "executionClass": "polarsExpression",
+                "scope": "row",
+                "enabled": true,
+                "sourcePage": "timeseries",
+                "label": "Keep value",
+                "note": "from chart",
+                "createdAt": "now",
+                "updatedAt": "now",
+                "column": "value",
+                "from": 1.0,
+                "to": 2.0,
+                "mode": "keepInside"
+            }]
+        });
+
+        let parsed = serde_json::from_value::<CleaningPlanDto>(raw).expect("frontend DTO");
+        assert_eq!(parsed.stages.len(), 1);
+        assert_eq!(parsed.stages[0].id(), "range-1");
+    }
 }

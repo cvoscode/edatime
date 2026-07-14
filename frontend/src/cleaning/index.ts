@@ -4,3 +4,4 @@ export * from './compiler.js';
 export * from './store.js';
 export * from './datasetIdentity.js';
 export * from './api.js';
+export * from './compatibility.js';

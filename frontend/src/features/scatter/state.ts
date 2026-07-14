@@ -147,9 +147,12 @@ export function buildScatterQueryContext(
         intent?.filters.columnRanges as Record<string, { from: number; to: number }> | undefined
             ?? activeSnapshot?.columnRanges,
     );
-    const filters = columns.scopeToColumns === false
-        ? allFilters
-        : scopeFiltersToColumns(allFilters, [columns.x || '', columns.y || '', columns.colorColumn || '']);
+    // Cleaning-plan filters are global row predicates. A range on a third
+    // column must constrain every scatter pair/matrix cell, not disappear just
+    // because that column is not currently drawn on an axis.
+    const filters = columns.scopeToColumns === true
+        ? scopeFiltersToColumns(allFilters, [columns.x || '', columns.y || '', columns.colorColumn || ''])
+        : allFilters;
 
     const linkedRangeValid = hasTimeColumn
         && isLinkedBrushEnabled()
@@ -167,7 +170,7 @@ export function buildScatterQueryContext(
 }
 
 export function getActiveScatterFilterColumns(
-    columns: { x?: string; y?: string; colorColumn?: string } = {},
+    columns: { x?: string; y?: string; colorColumn?: string; scopeToColumns?: boolean } = {},
     intent?: Pick<WorkspaceSnapshot, 'filters'>,
 ): string[] {
     const activeSnapshot = intent
@@ -177,8 +180,10 @@ export function getActiveScatterFilterColumns(
         intent?.filters.columnRanges as Record<string, { from: number; to: number }> | undefined
             ?? activeSnapshot?.columnRanges,
     );
-    const scoped = scopeFiltersToColumns(allFilters, [columns.x || '', columns.y || '', columns.colorColumn || '']);
-    return scoped.map((f) => f.column);
+    const filters = columns.scopeToColumns === true
+        ? scopeFiltersToColumns(allFilters, [columns.x || '', columns.y || '', columns.colorColumn || ''])
+        : allFilters;
+    return filters.map((f) => f.column);
 }
 
 /* ── Render-signature helpers ─────────────────────────── */

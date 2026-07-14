@@ -5,6 +5,7 @@ import {
 } from '../../store/chartState.js';
 import { datasetState, setMetadata } from '../../store/datasetState.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
+import { createCleaningPlanStore } from '../../cleaning/store.js';
 
 let workspace = createWorkspaceStore();
 let currentData: any = null;
@@ -159,6 +160,28 @@ describe('initFilterModalController', () => {
             expect(minInput.value).toBe('0.00');
             expect(maxInput.value).toBe('1.00');
         });
+    });
+
+    it('writes a Timeseries range stage first when a cleaning plan is active', () => {
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({
+            sourceVersionId: 'source-1', datasetRevision: 1, datasetFingerprint: 'frame',
+            schemaFingerprint: 'schema', timeColumn: 'ts',
+        });
+        initFilterModalController({
+            renderCurrentData: vi.fn(),
+            updateAnalysisYRange: vi.fn(),
+            cleaningPlanStore: planStore,
+        });
+        openFilterForColumn('HUFL');
+        (document.getElementById('column-filter-min') as HTMLInputElement).value = '0.2';
+        (document.getElementById('column-filter-max') as HTMLInputElement).value = '0.8';
+        (document.getElementById('column-filter-apply-btn') as HTMLButtonElement).click();
+
+        expect(planStore.getSnapshot()!.stages).toMatchObject([{
+            kind: 'columnRange', sourcePage: 'timeseries', column: 'HUFL', from: 0.2, to: 0.8,
+        }]);
+        expect(workspace.getSnapshot().filters.columnRanges).toEqual({});
     });
 
     describe('apply button', () => {

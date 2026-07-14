@@ -15,6 +15,7 @@ import { initChartPageFilterGesture } from './filterGesture.js';
 import { emitNavigationChange } from '../../platform/navigationEvents.js';
 import type { TimeseriesWorkspace } from './selectionIntent.js';
 import type { DataObject } from '../../types/api.js';
+import type { CleaningPlanStore } from '../../cleaning/store.js';
 
 export interface TimeseriesFeatureDeps {
     workspace: TimeseriesWorkspace;
@@ -29,6 +30,7 @@ export interface TimeseriesFeatureDeps {
     exportFilteredCsv?: () => void;
     exportFilteredJson?: () => void;
     exportFilteredParquet?: () => void;
+    cleaningPlanStore?: Pick<CleaningPlanStore, 'getSnapshot' | 'addStage' | 'updateStage' | 'removeStage'>;
 }
 
 /**
@@ -66,13 +68,22 @@ export function createTimeseriesControls(deps: TimeseriesFeatureDeps) {
         init(): () => void {
             if (initialized) return dispose;
             initialized = true;
-            modalController = initColumnFilterModal(
-                deps.renderCurrentData,
-                deps.updateAnalysisYRange,
-                deps.workspace,
-                openColumnFilter,
-                deps.getCurrentData,
-            );
+            modalController = deps.cleaningPlanStore
+                ? initColumnFilterModal(
+                    deps.renderCurrentData,
+                    deps.updateAnalysisYRange,
+                    deps.workspace,
+                    openColumnFilter,
+                    deps.getCurrentData,
+                    deps.cleaningPlanStore,
+                )
+                : initColumnFilterModal(
+                    deps.renderCurrentData,
+                    deps.updateAnalysisYRange,
+                    deps.workspace,
+                    openColumnFilter,
+                    deps.getCurrentData,
+                );
             registerCleanup(() => modalController?.dispose());
             registerCleanup(initChartPageFilterGesture(openColumnFilter));
             initDatasetSearchInputs({

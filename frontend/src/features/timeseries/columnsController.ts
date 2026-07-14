@@ -25,6 +25,7 @@ import { renderColorByControl } from './colorByControl.js';
 import type { SelectionWorkspace } from './selectionIntent.js';
 import type { FilterWorkspace } from './selectionIntent.js';
 import type { DataObject } from '../../types/api.js';
+import type { CleaningPlanStore } from '../../cleaning/store.js';
 
 // ─── Column toggles (chips) ─────────────────────────────────────────────────
 
@@ -113,6 +114,7 @@ export function initColumnFilterModal(
     workspace: FilterWorkspace,
     openColumnFilter: (column: string | null) => void,
     getCurrentData: () => DataObject | null,
+    cleaningPlanStore?: Pick<CleaningPlanStore, 'getSnapshot' | 'addStage' | 'updateStage' | 'removeStage'>,
 ) {
     return initFilterModalController({
         renderCurrentData,
@@ -120,5 +122,6 @@ export function initColumnFilterModal(
         workspace,
         openColumnFilter,
         getCurrentData,
+        cleaningPlanStore,
     });
 }

@@ -10,6 +10,8 @@ import { downloadBlob } from '../../utils/dom.js';
 import { escapeCsvField } from '../../utils/csv.js';
 import type { DataObject } from '../../types/api.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
+import { exportCleaningData } from '../../cleaning/api.js';
+import type { CleaningPlanStore } from '../../cleaning/store.js';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -24,6 +26,7 @@ export type ExportFeature = ExportActions;
 export interface ExportFeatureDeps {
     getData: () => DataObject | null;
     workspace: Pick<WorkspaceStore, 'getSnapshot'>;
+    cleaningPlanStore?: Pick<CleaningPlanStore, 'getSnapshot'>;
 }
 
 // ── Internal helpers ─────────────────────────────────────────────────────────
@@ -113,6 +116,12 @@ function exportFilteredJson(deps: ExportFeatureDeps): boolean {
 }
 
 async function exportFilteredParquet(deps: ExportFeatureDeps): Promise<boolean> {
+    const plan = deps.cleaningPlanStore?.getSnapshot();
+    if (plan?.stages.some((stage) => stage.enabled)) {
+        const blob = await exportCleaningData(plan);
+        downloadBlob(blob, 'edatime_cleaned.parquet');
+        return true;
+    }
     const snapshot = deps.workspace.getSnapshot();
     if (!snapshot.viewport) return false;
     const start = Number(snapshot.viewport.xMin);

@@ -3,9 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DataObject } from '../../types/api.js';
 import { makeWorkspaceSnapshot, type WorkspaceSnapshot } from '../../workspace/workspaceStore.js';
 
-const { downloadBlobMock, exportParquetMock } = vi.hoisted(() => ({
+const { downloadBlobMock, exportParquetMock, exportCleaningDataMock } = vi.hoisted(() => ({
     downloadBlobMock: vi.fn(),
     exportParquetMock: vi.fn(),
+    exportCleaningDataMock: vi.fn(),
 }));
 
 vi.mock('../../utils/dom.js', async (importOriginal) => {
@@ -18,6 +19,10 @@ vi.mock('../../utils/dom.js', async (importOriginal) => {
 
 vi.mock('../../services/api/index.js', () => ({
     exportParquet: exportParquetMock,
+}));
+
+vi.mock('../../cleaning/api.js', () => ({
+    exportCleaningData: exportCleaningDataMock,
 }));
 
 import { createExportFeature } from './feature.js';
@@ -60,10 +65,11 @@ function makeLargeData(rowCount: number): DataObject {
 let currentData: DataObject | null = null;
 let workspaceSnapshot: WorkspaceSnapshot = makeWorkspaceSnapshot();
 
-function createFeature() {
+function createFeature(cleaningPlanStore?: { getSnapshot: () => any }) {
     return createExportFeature({
         getData: () => currentData,
         workspace: { getSnapshot: () => workspaceSnapshot },
+        cleaningPlanStore,
     });
 }
 
@@ -71,6 +77,7 @@ describe('export feature characterization', () => {
     beforeEach(() => {
         downloadBlobMock.mockReset();
         exportParquetMock.mockReset();
+        exportCleaningDataMock.mockReset();
         currentData = null;
         workspaceSnapshot = makeWorkspaceSnapshot({
             selection: { columns: [] },
@@ -88,6 +95,23 @@ describe('export feature characterization', () => {
         expect(feature.exportFilteredCsv()).toBe(false);
         expect(feature.exportFilteredJson()).toBe(false);
         expect(downloadBlobMock).not.toHaveBeenCalled();
+    });
+
+    it('exports the complete plan-derived dataset instead of the chart viewport when the plan has stages', async () => {
+        const plan = {
+            schemaVersion: 1,
+            id: 'plan', planRevision: 1, sourceVersionId: 'source-0', datasetRevision: 0,
+            datasetFingerprint: 'frame', schemaFingerprint: 'schema', timeColumn: 'ts',
+            stages: [{ id: 'range', kind: 'columnRange', enabled: true }], createdAt: 'now', updatedAt: 'now',
+        };
+        exportCleaningDataMock.mockResolvedValue(new Blob(['parquet']));
+        const feature = createFeature({ getSnapshot: () => plan });
+
+        await expect(feature.exportFilteredParquet()).resolves.toBe(true);
+
+        expect(exportCleaningDataMock).toHaveBeenCalledWith(plan);
+        expect(exportParquetMock).not.toHaveBeenCalled();
+        expect(downloadBlobMock).toHaveBeenCalledWith(expect.any(Blob), 'edatime_cleaned.parquet');
     });
 
     it('exports filtered CSV rows in timestamp and series order', async () => {

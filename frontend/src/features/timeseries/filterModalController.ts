@@ -7,6 +7,7 @@ import { buildRangeControls } from './rangeControls.js';
 import { ColumnFilterModal } from '../../ui/composites/ColumnFilterModal.js';
 import { getDropdownValue, setDropdownOptions } from '../../ui/primitives/Dropdown.js';
 import type { FilterWorkspace } from './selectionIntent.js';
+import type { CleaningPlanStore } from '../../cleaning/store.js';
 
 export interface FilterModalControllerDeps {
     renderCurrentData: () => void;
@@ -14,6 +15,7 @@ export interface FilterModalControllerDeps {
     workspace: FilterWorkspace;
     openColumnFilter: (column: string | null) => void;
     getCurrentData: () => DataObject | null;
+    cleaningPlanStore?: Pick<CleaningPlanStore, 'getSnapshot' | 'addStage' | 'updateStage' | 'removeStage'>;
 }
 
 export interface ColumnFilterModalController {
@@ -73,11 +75,51 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
     let activeBounds: { min: number; max: number } | null = null;
 
     function setColumnRange(col: string, range: { from: number; to: number }): void {
+        const plan = deps.cleaningPlanStore?.getSnapshot();
+        if (plan && deps.cleaningPlanStore) {
+            const existing = [...plan.stages]
+                .reverse()
+                .find((stage) => stage.kind === 'columnRange' && stage.sourcePage === 'timeseries' && stage.column === col);
+            if (existing) {
+                deps.cleaningPlanStore.updateStage(existing.id, {
+                    from: range.from,
+                    to: range.to,
+                    enabled: true,
+                } as never);
+            } else {
+                deps.cleaningPlanStore.addStage({
+                    kind: 'columnRange',
+                    executionClass: 'polarsExpression',
+                    scope: 'row',
+                    enabled: true,
+                    sourcePage: 'timeseries',
+                    label: `Keep ${col} in selected range`,
+                    column: col,
+                    from: range.from,
+                    to: range.to,
+                    mode: 'keepInside',
+                });
+            }
+            return;
+        }
         const filters = deps.workspace.getSnapshot().filters;
         deps.workspace.setFilters({
             ...filters,
             columnRanges: { ...filters.columnRanges, [col]: range },
         });
+    }
+
+    function clearColumnRange(col: string, full: { from: number; to: number }): void {
+        const plan = deps.cleaningPlanStore?.getSnapshot();
+        if (plan && deps.cleaningPlanStore) {
+            for (const stage of plan.stages) {
+                if (stage.kind === 'columnRange' && stage.sourcePage === 'timeseries' && stage.column === col) {
+                    deps.cleaningPlanStore.removeStage(stage.id);
+                }
+            }
+            return;
+        }
+        setColumnRange(col, full);
     }
 
     function setHint(text: string) { hintEl.textContent = text || ''; }
@@ -335,7 +377,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
         const col = getDropdownValue('column-filter-col');
         const full = getFullBoundsForCol(col);
         if (!col || !full) return;
-        setColumnRange(col, { from: full.min, to: full.max });
+        clearColumnRange(col, { from: full.min, to: full.max });
         buildRangeControls(deps.workspace, deps.openColumnFilter);
         deps.renderCurrentData();
         chartState.chart?.fitYToData?.();
