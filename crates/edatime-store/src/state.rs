@@ -152,6 +152,38 @@ impl AppState {
         Ok(rev)
     }
 
+    /// Make a plan result the active working dataset while retaining its
+    /// immutable parent snapshot in the version registry.
+    pub async fn materialize_dataset_child(
+        &self,
+        parent_id: &str,
+        df: DataFrame,
+        plan_hash: String,
+    ) -> Result<DatasetVersionRecord, AppError> {
+        // Resolve the parent before replacing the compatibility repository so
+        // a bad/stale ID cannot mutate the live working dataset.
+        let _parent = self.dataset_versions.record(parent_id).map_err(AppError::from)?;
+        let revision = self.repository.replace_from_dataframe(df.clone())?;
+        let record = self
+            .dataset_versions
+            .register_child(parent_id, df, revision, plan_hash)
+            .map_err(AppError::from)?;
+        self.cache.invalidate_all().await;
+        self.clear_correlation_matrix_cache();
+        Ok(record)
+    }
+
+    /// Select a retained immutable source without removing any versions.
+    pub async fn select_dataset_version(&self, version_id: &str) -> Result<DatasetVersionRecord, AppError> {
+        let snapshot = self.dataset_snapshot_for_version(version_id)?;
+        let data = self.query_executor.execute_async(snapshot).await.map_err(AppError::from)?;
+        let revision = self.repository.replace_from_dataframe(data)?;
+        let record = self.dataset_versions.select(version_id, revision).map_err(AppError::from)?;
+        self.cache.invalidate_all().await;
+        self.clear_correlation_matrix_cache();
+        Ok(record)
+    }
+
     pub fn cached_correlation_matrix(&self, revision: u64) -> Option<CorrelationMatrixCacheEntry> {
         // The caller supplies the snapshot revision it is about to use. A
         // concurrent dataset replacement may commit immediately after this

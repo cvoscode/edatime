@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use edatime_core::error::AppError;
 
-use crate::filters::{LineFilter, RangeFilter, apply_filters};
+use crate::filters::{LineFilter, RangeFilter, apply_line_stage, apply_range_stage, apply_time_range_stage};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -168,10 +168,6 @@ pub fn validate_cleaning_plan(plan: &CleaningPlanDto) -> Result<(), AppError> {
 }
 
 /// Compile all enabled v1 portable stages in their saved order.
-///
-/// Drop modes are deliberately rejected here until their null behavior is
-/// represented by the shared expression builder; accepting them and silently
-/// changing null semantics would make exported data untrustworthy.
 pub fn compile_cleaning_plan(mut lf: LazyFrame, plan: &CleaningPlanDto) -> Result<LazyFrame, AppError> {
     validate_cleaning_plan(plan)?;
     for stage in &plan.stages {
@@ -179,25 +175,20 @@ pub fn compile_cleaning_plan(mut lf: LazyFrame, plan: &CleaningPlanDto) -> Resul
             continue;
         }
         lf = match stage {
-            CleaningStageDto::TimeRange { base, start_ms, end_ms, mode, .. } => {
-                if *mode != TimeRangeMode::KeepInside {
-                    return Err(AppError::bad_request(format!(
-                        "Cleaning stage '{}' dropInside is not available in the portable compiler yet", base.id
-                    )));
-                }
-                apply_filters(lf, Some(&plan.time_column), Some(*start_ms), Some(*end_ms), &[], &[])?
+            CleaningStageDto::TimeRange { start_ms, end_ms, mode, .. } => {
+                apply_time_range_stage(
+                    lf,
+                    &plan.time_column,
+                    *start_ms,
+                    *end_ms,
+                    *mode == TimeRangeMode::KeepInside,
+                )?
             }
-            CleaningStageDto::ColumnRange { base, column, from, to, mode, .. } => {
-                if *mode != RangeMode::KeepInside {
-                    return Err(AppError::bad_request(format!(
-                        "Cleaning stage '{}' dropInside is not available in the portable compiler yet", base.id
-                    )));
-                }
+            CleaningStageDto::ColumnRange { column, from, to, mode, .. } => {
                 let filter = RangeFilter { column: column.clone(), from: *from, to: *to };
-                apply_filters(lf, None, None, None, &[filter], &[])?
+                apply_range_stage(lf, &filter, *mode == RangeMode::KeepInside)?
             }
             CleaningStageDto::AdaptiveLine {
-                base,
                 column,
                 x1_ms,
                 y1,
@@ -205,12 +196,8 @@ pub fn compile_cleaning_plan(mut lf: LazyFrame, plan: &CleaningPlanDto) -> Resul
                 y2,
                 keep_above,
                 apply_within_segment_only,
+                ..
             } => {
-                if !apply_within_segment_only {
-                    return Err(AppError::bad_request(format!(
-                        "Cleaning stage '{}' must set applyWithinSegmentOnly for the portable compiler", base.id
-                    )));
-                }
                 let filter = LineFilter {
                     id: None,
                     column: column.clone(),
@@ -220,7 +207,7 @@ pub fn compile_cleaning_plan(mut lf: LazyFrame, plan: &CleaningPlanDto) -> Resul
                     y2: *y2,
                     keep_above: *keep_above,
                 };
-                apply_filters(lf, Some(&plan.time_column), None, None, &[], &[filter])?
+                apply_line_stage(lf, &plan.time_column, &filter, *apply_within_segment_only)?
             }
             CleaningStageDto::Annotation { .. } => lf,
         };
@@ -309,11 +296,37 @@ mod tests {
     }
 
     #[test]
-    fn refuses_drop_stage_without_silent_partial_execution() {
+    fn drop_stage_removes_inside_values_but_preserves_nulls() {
         let plan = plan(vec![CleaningStageDto::ColumnRange {
             base: base("drop"), column: "value".to_string(), from: 1.0, to: 2.0, mode: RangeMode::DropInside,
         }]);
-        assert!(compile_cleaning_plan(LazyFrame::default(), &plan).is_err());
+        let df = DataFrame::new(4, vec![
+            Series::new("ts".into(), vec![1_i64, 2, 3, 4]).into(),
+            Series::new("value".into(), vec![Some(1.0_f64), Some(2.0), Some(3.0), None]).into(),
+        ]).expect("frame");
+        let result = compile_cleaning_plan(df.lazy(), &plan).expect("compile").collect().expect("collect");
+        assert_eq!(result.height(), 2);
+        assert_eq!(result.column("ts").expect("ts").i64().expect("i64").into_no_null_iter().collect::<Vec<_>>(), vec![3, 4]);
+    }
+
+    #[test]
+    fn full_line_stage_is_not_limited_to_its_drawn_segment() {
+        let plan = plan(vec![CleaningStageDto::AdaptiveLine {
+            base: base("line"),
+            column: "value".to_string(),
+            x1_ms: 1.0,
+            y1: 2.0,
+            x2_ms: 2.0,
+            y2: 2.0,
+            keep_above: true,
+            apply_within_segment_only: false,
+        }]);
+        let df = DataFrame::new(3, vec![
+            Series::new("ts".into(), vec![1_i64, 2, 3]).into(),
+            Series::new("value".into(), vec![1.0_f64, 2.0, 3.0]).into(),
+        ]).expect("frame");
+        let result = compile_cleaning_plan(df.lazy(), &plan).expect("compile").collect().expect("collect");
+        assert_eq!(result.height(), 2);
     }
 
     #[test]

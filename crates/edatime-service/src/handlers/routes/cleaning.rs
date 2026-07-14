@@ -6,6 +6,7 @@ use axum::{
     http::{HeaderValue, header},
     response::Response,
 };
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
@@ -59,6 +60,33 @@ pub struct CleaningPreviewResponse {
     pub columns_before: usize,
     pub columns_after: usize,
     pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CleaningApplyResponse {
+    pub source_version: DatasetVersionRecord,
+    pub dataset_revision: u64,
+    pub plan_hash: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CleaningPlanExportArtifact {
+    pub schema_version: u16,
+    pub exported_at: DateTime<Utc>,
+    pub source_version: DatasetVersionRecord,
+    pub dataset_revision: u64,
+    pub dataset_fingerprint: String,
+    pub schema_fingerprint: String,
+    pub plan_hash: String,
+    pub plan: CleaningPlanDto,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DatasetVersionSelectRequest {
+    pub version_id: String,
 }
 
 fn validate_envelope(state: &AppState, envelope: &PlanRequestEnvelope) -> Result<(DatasetVersionRecord, String), AppError> {
@@ -171,10 +199,74 @@ pub async fn export_data(
     Ok(response)
 }
 
+/// Export the backend-validated canonical plan together with the immutable
+/// source identity that the data export is bound to.
+pub async fn export_plan(
+    State(state): State<AppState>,
+    Json(envelope): Json<PlanRequestEnvelope>,
+) -> Result<Response, AppError> {
+    let (version, plan_hash) = validate_envelope(&state, &envelope)?;
+    // Compile once here as well: plan export must not claim executability for
+    // a stage that only passed envelope identity validation.
+    let source = state.dataset_snapshot_for_version(&version.id)?;
+    let _ = compile_cleaning_plan(source, &envelope.plan).map_err(AppError::from)?;
+    let artifact = CleaningPlanExportArtifact {
+        schema_version: 1,
+        exported_at: Utc::now(),
+        dataset_revision: version.revision,
+        dataset_fingerprint: version.dataset_fingerprint.clone(),
+        schema_fingerprint: version.schema_fingerprint.clone(),
+        source_version: version,
+        plan_hash,
+        plan: envelope.plan,
+    };
+    let bytes = serde_json::to_vec_pretty(&artifact)
+        .map_err(|error| AppError::internal(format!("Cleaning plan serialization failed: {error}")))?;
+    let mut response = Response::new(bytes.into());
+    response.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_static("application/json; charset=utf-8"));
+    response.headers_mut().insert(
+        header::CONTENT_DISPOSITION,
+        HeaderValue::from_static("attachment; filename=edatime_cleaning_plan.json"),
+    );
+    Ok(response)
+}
+
+/// Explicitly materialize the compiled plan as a new child source version.
+/// Export and preview never call this route, so the immutable baseline stays
+/// available until the user deliberately chooses this transition.
+pub async fn apply(
+    State(state): State<AppState>,
+    Json(envelope): Json<PlanRequestEnvelope>,
+) -> Result<Json<CleaningApplyResponse>, AppError> {
+    let (version, plan_hash, frame) = compile_request_frame(&state, &envelope)?;
+    let data = state.query_executor.execute_async(frame).await.map_err(AppError::from)?;
+    let child = state
+        .materialize_dataset_child(&version.id, data, plan_hash.clone())
+        .await?;
+    Ok(Json(CleaningApplyResponse {
+        dataset_revision: child.revision,
+        source_version: child,
+        plan_hash,
+    }))
+}
+
 pub async fn list_versions(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<DatasetVersionRecord>>, AppError> {
     Ok(Json(state.dataset_versions()?))
+}
+
+/// Explicitly select a retained version. Preview and export never change the
+/// active dataset, so the original remains recoverable by user action.
+pub async fn select_version(
+    State(state): State<AppState>,
+    Json(request): Json<DatasetVersionSelectRequest>,
+) -> Result<Json<DatasetVersionRecord>, AppError> {
+    let id = request.version_id.trim();
+    if id.is_empty() {
+        return Err(AppError::bad_request("versionId must not be empty"));
+    }
+    Ok(Json(state.select_dataset_version(id).await?))
 }
 
 #[cfg(test)]
@@ -271,5 +363,41 @@ mod tests {
         request.expected_source_version_id = "missing".to_string();
         let error = validate(State(state), Json(request)).await.expect_err("stale source");
         assert_eq!(error.code, crate::error::ErrorCode::StalePlan);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn apply_creates_a_child_without_losing_the_requested_baseline() {
+        let state = state();
+        let root = state.current_dataset_version().expect("root");
+        let response = apply(State(state.clone()), Json(envelope(&state))).await.expect("apply").0;
+        assert_eq!(response.source_version.parent_id.as_deref(), Some(root.id.as_str()));
+        assert_eq!(state.dataset_snapshot_for_version(&root.id).expect("root").collect().expect("collect").height(), 3);
+        assert_eq!(state.dataset_snapshot().collect().expect("working").height(), 2);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn plan_export_carries_the_same_immutable_identity_as_execution() {
+        let state = state();
+        let export = export_plan(State(state.clone()), Json(envelope(&state))).await.expect("export");
+        assert_eq!(export.headers().get(header::CONTENT_TYPE).expect("type"), "application/json; charset=utf-8");
+        let body = axum::body::to_bytes(export.into_body(), usize::MAX).await.expect("body");
+        let artifact: serde_json::Value = serde_json::from_slice(&body).expect("json");
+        assert_eq!(artifact["sourceVersion"]["id"], "source-0");
+        assert!(artifact["planHash"].as_str().is_some());
+        assert_eq!(artifact["plan"]["sourceVersionId"], "source-0");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn selecting_a_retained_root_restores_its_full_working_frame() {
+        let state = state();
+        let root = state.current_dataset_version().expect("root");
+        let _ = apply(State(state.clone()), Json(envelope(&state))).await.expect("apply");
+        let selected = select_version(
+            State(state.clone()),
+            Json(DatasetVersionSelectRequest { version_id: root.id.clone() }),
+        ).await.expect("select").0;
+        assert_eq!(selected.id, root.id);
+        assert_eq!(state.dataset_snapshot().collect().expect("working").height(), 3);
+        assert_eq!(state.current_dataset_version().expect("current").id, root.id);
     }
 }

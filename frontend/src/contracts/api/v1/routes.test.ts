@@ -11,8 +11,11 @@ describe('API v1 route contract', () => {
             cleaning: {
                 validate: '/api/v1/cleaning/validate',
                 preview: '/api/v1/cleaning/preview',
+                apply: '/api/v1/cleaning/apply',
                 exportData: '/api/v1/cleaning/export/data',
+                exportPlan: '/api/v1/cleaning/export/plan',
                 versions: '/api/v1/datasets/versions',
+                selectVersion: '/api/v1/datasets/versions/select',
             },
             upload: '/api/v1/upload',
             uploadPreview: '/api/v1/upload/preview',

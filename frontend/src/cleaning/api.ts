@@ -35,6 +35,12 @@ export interface CleaningPreviewResponse {
     warnings: string[];
 }
 
+export interface CleaningApplyResponse {
+    sourceVersion: DatasetVersionRecord;
+    datasetRevision: number;
+    planHash: string;
+}
+
 export interface CleaningDataExportOptions {
     format?: 'parquet';
     outputColumns?: string[];
@@ -64,6 +70,13 @@ export function previewCleaningPlan(
     return postJson(apiV1Routes.cleaning.preview, envelope(plan), 'Cleaning plan preview', options);
 }
 
+export function applyCleaningPlan(
+    plan: CleaningPlan,
+    options?: ApiRequestOptions,
+): Promise<CleaningApplyResponse> {
+    return postJson(apiV1Routes.cleaning.apply, envelope(plan), 'Cleaning plan apply', options);
+}
+
 export function exportCleaningData(
     plan: CleaningPlan,
     exportOptions: CleaningDataExportOptions = {},
@@ -77,8 +90,22 @@ export function exportCleaningData(
     );
 }
 
+export function exportCleaningPlan(
+    plan: CleaningPlan,
+    options?: ApiRequestOptions,
+): Promise<Blob> {
+    return postBlob(apiV1Routes.cleaning.exportPlan, envelope(plan), 'Cleaning plan export', options);
+}
+
 export function listDatasetVersions(options?: ApiRequestOptions): Promise<DatasetVersionRecord[]> {
     // Versions are dataset-scoped by design: a replacement invalidates this
     // selection list along with all other dataset-derived responses.
     return getJson(apiV1Routes.cleaning.versions, 'Dataset versions', options);
+}
+
+export function selectDatasetVersion(
+    versionId: string,
+    options?: ApiRequestOptions,
+): Promise<DatasetVersionRecord> {
+    return postJson(apiV1Routes.cleaning.selectVersion, { versionId }, 'Dataset version selection', options);
 }

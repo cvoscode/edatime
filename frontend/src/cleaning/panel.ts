@@ -1,4 +1,4 @@
-import { previewCleaningPlan } from './api.js';
+import { applyCleaningPlan, exportCleaningPlan, listDatasetVersions, previewCleaningPlan, selectDatasetVersion } from './api.js';
 import type { CleaningPlanStore } from './store.js';
 import { downloadBlob } from '../utils/dom.js';
 
@@ -9,6 +9,7 @@ export interface CleaningPlanPanelDeps {
     planStore: PlanPanelStore;
     getViewport: () => { xMin: number | null; xMax: number | null } | null;
     onPlanChanged?: () => void;
+    onPlanApplied?: () => Promise<void> | void;
 }
 
 function button(label: string, className = 'btn btn-ghost btn-sm'): HTMLButtonElement {
@@ -129,14 +130,54 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             }
         });
         const exportPlan = button('Export plan JSON');
-        exportPlan.addEventListener('click', () => {
+        exportPlan.addEventListener('click', async () => {
             const current = deps.planStore.getSnapshot();
             if (!current) return;
-            downloadBlob(new Blob([JSON.stringify(current, null, 2)], { type: 'application/json;charset=utf-8' }), 'edatime_cleaning_plan.json');
+            exportPlan.disabled = true;
+            try {
+                downloadBlob(await exportCleaningPlan(current), 'edatime_cleaning_plan.json');
+            } catch (error) {
+                preview.textContent = error instanceof Error ? error.message : 'Could not export this plan.';
+            } finally {
+                exportPlan.disabled = false;
+            }
+        });
+        const apply = button('Apply as new dataset', 'btn btn-primary btn-sm');
+        apply.addEventListener('click', async () => {
+            const current = deps.planStore.getSnapshot();
+            if (!current) return;
+            apply.disabled = true;
+            preview.textContent = 'Materializing a new dataset version…';
+            try {
+                const result = await applyCleaningPlan(current);
+                preview.textContent = `Created ${result.sourceVersion.id} from ${current.sourceVersionId}.`;
+                await deps.onPlanApplied?.();
+            } catch (error) {
+                preview.textContent = error instanceof Error ? error.message : 'Could not materialize this plan.';
+            } finally {
+                apply.disabled = false;
+            }
+        });
+        const resetOriginal = button('Use original dataset');
+        resetOriginal.addEventListener('click', async () => {
+            resetOriginal.disabled = true;
+            preview.textContent = 'Restoring the original source dataset…';
+            try {
+                const versions = await listDatasetVersions();
+                const root = versions.find((version) => version.id === version.rootId);
+                if (!root) throw new Error('The original source version is no longer available.');
+                await selectDatasetVersion(root.id);
+                preview.textContent = `Restored ${root.id}.`;
+                await deps.onPlanApplied?.();
+            } catch (error) {
+                preview.textContent = error instanceof Error ? error.message : 'Could not restore the original dataset.';
+            } finally {
+                resetOriginal.disabled = false;
+            }
         });
         const close = button('Done', 'btn btn-primary btn-sm');
         close.addEventListener('click', () => { backdrop.hidden = true; trigger.focus(); });
-        actions.append(addViewport, previewButton, exportPlan, close);
+        actions.append(addViewport, previewButton, exportPlan, apply, resetOriginal, close);
     };
 
     const open = () => { render(); backdrop.hidden = false; };

@@ -174,6 +174,7 @@ export function createApp(): AppRoot {
                 timeseriesModule.renderCurrentData();
                 void timeseriesModule.fetchAndRender();
             },
+            onPlanApplied: () => timeseriesModule.refreshAfterMutation(),
         }));
 
         initAppShell({

@@ -28,8 +28,11 @@ pub fn api_router() -> Router<AppState> {
         .route("/export/parquet", get(export::export_parquet))
         .route("/cleaning/validate", post(cleaning::validate))
         .route("/cleaning/preview", post(cleaning::preview))
+        .route("/cleaning/apply", post(cleaning::apply))
         .route("/cleaning/export/data", post(cleaning::export_data))
+        .route("/cleaning/export/plan", post(cleaning::export_plan))
         .route("/datasets/versions", get(cleaning::list_versions))
+        .route("/datasets/versions/select", post(cleaning::select_version))
         .route("/metadata", get(metadata::get_metadata))
         .route("/metrics", get(metrics::get_metrics))
         .route(

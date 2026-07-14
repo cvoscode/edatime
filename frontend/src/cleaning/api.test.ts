@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { __resetApiRequestStateForTests } from '../services/api/http.js';
-import { exportCleaningData, previewCleaningPlan, validateCleaningPlan } from './api.js';
+import { applyCleaningPlan, exportCleaningData, exportCleaningPlan, previewCleaningPlan, selectDatasetVersion, validateCleaningPlan } from './api.js';
 import type { CleaningPlan } from './types.js';
 
 function plan(): CleaningPlan {
@@ -70,5 +70,30 @@ describe('cleaning API', () => {
         const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
         expect(body.format).toBe('parquet');
         expect(body.outputColumns).toBeUndefined();
+    });
+
+    it('uses the same guarded envelope when materializing a child dataset', async () => {
+        fetchMock.mockResolvedValueOnce(jsonResponse({ datasetRevision: 1, planHash: 'server-hash', sourceVersion: { id: 'source-1' } }));
+
+        await applyCleaningPlan(plan());
+
+        expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/cleaning/apply');
+        expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
+            expectedSourceVersionId: 'source-0', expectedDatasetRevision: 0,
+        });
+    });
+
+    it('asks the server for the canonical plan artifact rather than serializing a browser-only snapshot', async () => {
+        fetchMock.mockResolvedValueOnce({ ok: true, status: 200, blob: vi.fn().mockResolvedValue(new Blob(['plan'])) });
+        await exportCleaningPlan(plan());
+        expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/cleaning/export/plan');
+        expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({ expectedSourceVersionId: 'source-0' });
+    });
+
+    it('selects a retained version through the dedicated explicit endpoint', async () => {
+        fetchMock.mockResolvedValueOnce(jsonResponse({ id: 'source-0' }));
+        await selectDatasetVersion('source-0');
+        expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/datasets/versions/select');
+        expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ versionId: 'source-0' });
     });
 });

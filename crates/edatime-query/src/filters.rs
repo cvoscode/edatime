@@ -90,6 +90,104 @@ fn temporal_ms_expr(column: &str, dtype: &DataType) -> Expr {
     }
 }
 
+/// Convert a predicate into explicit cleaning-plan row semantics.
+/// `keepInside` retains only known-true rows. `dropInside` retains known-false
+/// rows and nulls, because a null value cannot be classified as inside.
+fn keep_or_drop_predicate(predicate: Expr, keep_inside: bool) -> Expr {
+    if keep_inside {
+        predicate.clone().is_not_null().and(predicate)
+    } else {
+        predicate.clone().is_null().or(predicate.not())
+    }
+}
+
+/// Apply a portable time range stage with explicit keep/drop null semantics.
+pub fn apply_time_range_stage<I: Into<LazyFrame>>(
+    df: I,
+    time_column: &str,
+    start_ms: f64,
+    end_ms: f64,
+    keep_inside: bool,
+) -> Result<LazyFrame, AppError> {
+    let lf: LazyFrame = df.into();
+    let column = time_column.trim();
+    if column.is_empty() {
+        return Err(AppError::bad_request("Missing time column for time filter"));
+    }
+    let schema = lf.clone().collect_schema().map_err(|error| {
+        AppError::bad_request(format!("Failed to get schema for time filter: {error}"))
+    })?;
+    let dtype = schema.get(column).ok_or_else(|| {
+        AppError::bad_request(format!("Missing time column '{column}' for time filter"))
+    })?;
+    let predicate = temporal_range_expr(column, dtype, start_ms.min(end_ms), start_ms.max(end_ms))?;
+    Ok(lf.filter(keep_or_drop_predicate(predicate, keep_inside)))
+}
+
+/// Apply a portable numeric or temporal column range with keep/drop semantics.
+pub fn apply_range_stage<I: Into<LazyFrame>>(
+    df: I,
+    filter: &RangeFilter,
+    keep_inside: bool,
+) -> Result<LazyFrame, AppError> {
+    let lf: LazyFrame = df.into();
+    let column = filter.column.trim();
+    if column.is_empty() {
+        return Err(AppError::bad_request("Cleaning range stage requires a column"));
+    }
+    let schema = lf.clone().collect_schema().map_err(|error| {
+        AppError::bad_request(format!("Failed to get schema for filter column '{column}': {error}"))
+    })?;
+    let dtype = schema.get(column).ok_or_else(|| AppError::bad_request(format!("Unknown filter column '{column}'")))?;
+    let predicate = match dtype {
+        dtype if dtype.is_numeric() => numeric_range_expr(column, filter.from.min(filter.to), filter.from.max(filter.to)),
+        DataType::Datetime(_, _) | DataType::Date => temporal_range_expr(column, dtype, filter.from.min(filter.to), filter.from.max(filter.to))?,
+        _ => return Err(AppError::bad_request(format!("Filter column '{column}' is not numeric or temporal"))),
+    };
+    Ok(lf.filter(keep_or_drop_predicate(predicate, keep_inside)))
+}
+
+/// Apply one portable adaptive-line stage. Segment-only stages pass rows
+/// outside the segment; full-line stages compare every timestamp.
+pub fn apply_line_stage<I: Into<LazyFrame>>(
+    df: I,
+    time_column: &str,
+    filter: &LineFilter,
+    apply_within_segment_only: bool,
+) -> Result<LazyFrame, AppError> {
+    let lf: LazyFrame = df.into();
+    let time_column = time_column.trim();
+    let column = filter.column.trim();
+    if time_column.is_empty() || column.is_empty() || filter.x1 == filter.x2 {
+        return Err(AppError::bad_request("Adaptive filter requires a time column, numeric column, and non-zero line segment"));
+    }
+    let schema = lf.clone().collect_schema().map_err(|error| {
+        AppError::bad_request(format!("Failed to get schema for line filter: {error}"))
+    })?;
+    let ts_dtype = schema.get(time_column).ok_or_else(|| {
+        AppError::bad_request(format!("Missing time column '{time_column}' for adaptive filter"))
+    })?;
+    if !schema.get(column).is_some_and(|dtype| dtype.is_numeric()) {
+        return Err(AppError::bad_request(format!("Adaptive filter column '{column}' must be numeric")));
+    }
+    let ts_expr = temporal_ms_expr(time_column, ts_dtype);
+    let slope = (filter.y2 - filter.y1) / (filter.x2 - filter.x1);
+    let line_expr = lit(filter.y1) + ((ts_expr.clone() - lit(filter.x1)) * lit(slope));
+    let comparison = if filter.keep_above {
+        col(column).cast(DataType::Float64).gt_eq(line_expr)
+    } else {
+        col(column).cast(DataType::Float64).lt_eq(line_expr)
+    };
+    let predicate = if apply_within_segment_only {
+        let min_x = filter.x1.min(filter.x2);
+        let max_x = filter.x1.max(filter.x2);
+        ts_expr.clone().gt_eq(lit(min_x)).and(ts_expr.lt_eq(lit(max_x))).not().or(comparison)
+    } else {
+        comparison
+    };
+    Ok(lf.filter(keep_or_drop_predicate(predicate, true)))
+}
+
 // ── Composite filter application ───────────────────────────────────────────
 
 pub fn apply_filters<I: Into<LazyFrame>>(

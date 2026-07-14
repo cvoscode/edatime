@@ -192,6 +192,26 @@ impl DatasetVersionRegistry {
             .map_err(|_| AppError::internal("dataset version selection lock poisoned"))? = id;
         Ok(record)
     }
+
+    /// Select an already-retained immutable snapshot as the working dataset.
+    /// Only its active-generation revision changes; frame and provenance do not.
+    pub fn select(&self, id: &str, revision: u64) -> Result<DatasetVersionRecord, AppError> {
+        let mut entries = self
+            .entries
+            .write()
+            .map_err(|_| AppError::internal("dataset version registry lock poisoned"))?;
+        let entry = entries
+            .get_mut(id)
+            .ok_or_else(|| AppError::NotFound(format!("Unknown dataset version '{id}'")))?;
+        entry.record.revision = revision;
+        let record = entry.record.clone();
+        drop(entries);
+        *self
+            .current_id
+            .write()
+            .map_err(|_| AppError::internal("dataset version selection lock poisoned"))? = id.to_string();
+        Ok(record)
+    }
 }
 
 #[cfg(test)]
