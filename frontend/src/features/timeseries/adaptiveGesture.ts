@@ -16,6 +16,7 @@ import { chartState } from '../../store/chartState.js';
 import type { DataObject } from '../../types/api.js';
 import type { AdaptiveLineFilter } from '../../types/store.js';
 import type { WorkspaceStore, WorkspaceSnapshot } from '../../contracts/workspace.js';
+import type { CleaningPlanStore } from '../../cleaning/store.js';
 
 export function buildAdaptiveFilterFromPoints(
     data: DataObject | null,
@@ -68,6 +69,7 @@ export function initAdaptiveFilterGesture(
         renderCurrentData: () => void;
         getCurrentData: () => DataObject | null;
         updateAnalysisYRange: (min: number, max: number, sourceKind: string) => void;
+        cleaningPlanStore?: Pick<CleaningPlanStore, 'getSnapshot' | 'addStage'>;
     },
 ): () => void {
     const container = document.getElementById('main-chart') as (HTMLElement & { dataset: DOMStringMap }) | null;
@@ -104,6 +106,25 @@ export function initAdaptiveFilterGesture(
         const snapshot = deps.workspace.getSnapshot();
         const filter = buildAdaptiveFilterFromPoints(deps.getCurrentData(), column, p1, p2, snapshot);
         if (!filter) return;
+        if (deps.cleaningPlanStore?.getSnapshot()) {
+            deps.cleaningPlanStore.addStage({
+                kind: 'adaptiveLine',
+                executionClass: 'polarsExpression',
+                scope: 'row',
+                enabled: true,
+                sourcePage: 'timeseries',
+                label: `${filter.keepAbove ? 'Keep above' : 'Keep below'} adaptive line for ${column}`,
+                column,
+                x1Ms: filter.x1,
+                y1: filter.y1,
+                x2Ms: filter.x2,
+                y2: filter.y2,
+                keepAbove: filter.keepAbove,
+                applyWithinSegmentOnly: true,
+            });
+            deps.buildColumnToggles();
+            return;
+        }
         const filters = snapshot.filters;
         deps.workspace.setFilters({
             ...filters,

@@ -17,6 +17,7 @@ import { restoreSessionAfterChartReady } from '../../platform/sessionLifecycle.j
 import { dbg, dbgGroup } from '../../debug.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import type { DataObject } from '../../types/api.js';
+import type { CleaningPlanStore } from '../../cleaning/store.js';
 export interface TimeseriesBootstrapCallbacks {
     onZoom: (view: ViewSnapshot, sourceKind: string) => void;
     onYRange: (min: number, max: number, sourceKind: string) => void;
@@ -41,6 +42,7 @@ export interface TimeseriesBootstrapDeps {
     refreshZoomControlsState: () => void;
     setAnomalyOverlayRenderCallback?: (callback: (() => void) | null) => void;
     workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setSelection' | 'setFilters' | 'setViewport' | 'subscribe'>;
+    cleaningPlanStore?: Pick<CleaningPlanStore, 'getSnapshot' | 'addStage'>;
 }
 
 export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
@@ -96,14 +98,17 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                     ]);
 
                     bindAnalysisChartEvents();
-                    initAdaptiveFilterGesture({
+                    const adaptiveGestureDeps = {
                         workspace: deps.workspace,
                         buildColumnToggles: deps.buildColumnToggles,
                         buildRangeControls: deps.buildRangeControls,
                         renderCurrentData: deps.renderCurrentData,
                         getCurrentData: deps.getCurrentData,
                         updateAnalysisYRange: deps.onYRange,
-                    });
+                    };
+                    initAdaptiveFilterGesture(deps.cleaningPlanStore
+                        ? { ...adaptiveGestureDeps, cleaningPlanStore: deps.cleaningPlanStore }
+                        : adaptiveGestureDeps);
                     deps.refreshZoomControlsState();
 
                     deps.setAnomalyOverlayRenderCallback?.(() => chartState.chart?.requestOverlayRender?.());

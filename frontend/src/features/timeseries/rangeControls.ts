@@ -16,6 +16,7 @@ import {
 import { chartState } from '../../store/chartState.js';
 import { RangeControls, RangeControlItem } from '../../ui/composites/RangeControls.js';
 import type { FilterWorkspace } from './selectionIntent.js';
+import type { CleaningPlanStore } from '../../cleaning/store.js';
 
 /**
  * Render clickable range chips for selected columns and active adaptive filters.
@@ -24,6 +25,7 @@ import type { FilterWorkspace } from './selectionIntent.js';
 export function buildRangeControls(
     workspace: FilterWorkspace,
     openColumnFilter: (column: string | null) => void = () => {},
+    cleaningPlanStore?: Pick<CleaningPlanStore, 'getSnapshot' | 'removeStage'>,
 ): void {
     const container = document.getElementById('column-range-controls');
     if (!container) return;
@@ -33,6 +35,21 @@ export function buildRangeControls(
     const snapshot = workspace.getSnapshot();
     const selectedColumns = snapshot.selection.columns;
     const filters = snapshot.filters;
+    const activePlan = cleaningPlanStore?.getSnapshot();
+
+    const removePlanAdaptiveStage = (filter: { column: string; x1: number; y1: number; x2: number; y2: number }) => {
+        if (!activePlan || !cleaningPlanStore) return false;
+        const stage = activePlan.stages.find((candidate) => candidate.kind === 'adaptiveLine'
+            && candidate.sourcePage === 'timeseries'
+            && candidate.column === filter.column
+            && candidate.x1Ms === filter.x1
+            && candidate.y1 === filter.y1
+            && candidate.x2Ms === filter.x2
+            && candidate.y2 === filter.y2);
+        if (!stage) return false;
+        cleaningPlanStore.removeStage(stage.id);
+        return true;
+    };
 
     // Adaptive filter target chip (static — not clickable)
     if (uiState.adaptiveFilterColumn && selectedColumns.includes(uiState.adaptiveFilterColumn)) {
@@ -70,12 +87,17 @@ export function buildRangeControls(
             className: 'range-chip range-chip--clickable',
             ariaLabel: `Remove adaptive filter for ${filter.column}`,
             onActivate: () => {
+                if (removePlanAdaptiveStage(filter)) {
+                    setPendingAdaptivePoint(null);
+                    buildRangeControls(workspace, openColumnFilter, cleaningPlanStore);
+                    return;
+                }
                 const nextAdaptiveLines = filters.adaptiveLines.filter(
                         (item) => (item as unknown as { id?: string }).id !== filterIdCopy,
                 );
                 workspace.setFilters({ ...filters, adaptiveLines: nextAdaptiveLines });
                 setPendingAdaptivePoint(null);
-                buildRangeControls(workspace);
+                buildRangeControls(workspace, openColumnFilter, cleaningPlanStore);
             },
         });
     }
@@ -89,9 +111,19 @@ export function buildRangeControls(
             className: 'range-chip range-chip--clickable',
             ariaLabel: 'Clear adaptive filters',
             onActivate: () => {
+                if (activePlan && cleaningPlanStore) {
+                    for (const stage of activePlan.stages) {
+                        if (stage.kind === 'adaptiveLine' && stage.sourcePage === 'timeseries') {
+                            cleaningPlanStore.removeStage(stage.id);
+                        }
+                    }
+                    setPendingAdaptivePoint(null);
+                    buildRangeControls(workspace, openColumnFilter, cleaningPlanStore);
+                    return;
+                }
                 workspace.setFilters({ ...filters, adaptiveLines: [] });
                 setPendingAdaptivePoint(null);
-                buildRangeControls(workspace);
+                buildRangeControls(workspace, openColumnFilter, cleaningPlanStore);
                 (chartState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
             },
         });

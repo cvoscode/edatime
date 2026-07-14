@@ -44,7 +44,7 @@ export function createTimeseriesControls(deps: TimeseriesFeatureDeps) {
     let modalController: ReturnType<typeof initColumnFilterModal> | null = null;
     const openColumnFilter = (column: string | null) => modalController?.open(column);
 
-    const buildWorkspaceRangeControls = () => buildRangeControls(deps.workspace, openColumnFilter);
+    const buildWorkspaceRangeControls = () => buildRangeControls(deps.workspace, openColumnFilter, deps.cleaningPlanStore);
     const rebuildColumns = () => {
         buildColumnToggles(deps.fetchAndRender, buildWorkspaceRangeControls, deps.renderCurrentData, deps.workspace, openColumnFilter);
     };
@@ -99,6 +99,7 @@ export function createTimeseriesControls(deps: TimeseriesFeatureDeps) {
                 renderCurrentData: deps.renderCurrentData,
                 updateAnalysisZoom: deps.updateAnalysisZoom,
                 registerCleanup,
+                cleaningPlanStore: deps.cleaningPlanStore,
             });
             if (deps.chartExportPng && deps.chartExportSvg && deps.exportFilteredCsv
                 && deps.exportFilteredJson && deps.exportFilteredParquet) {

@@ -30,7 +30,7 @@ import { initAppShell } from './app/shell.js';
 import { showPage } from './app/navigation/showPage.js';
 import { createAppRuntime } from './app/runtime.js';
 import { createWorkspaceStore } from './workspace/workspaceStore.js';
-import { bindCleaningPlanCompatibility, cleaningDatasetIdentityFromMetadata, cleaningPlanStore } from './cleaning/index.js';
+import { bindCleaningPlanCompatibility, cleaningDatasetIdentityFromMetadata, cleaningPlanStore, mountCleaningPlanPanel } from './cleaning/index.js';
 import { markAppReady, resetAppReady } from './app/bootState.js';
 import { upgradeSelects } from './ui/primitives/Dropdown.js';
 import { upgradeFlexibleNumberInputs } from './ui/primitives/FlexibleNumberInput.js';
@@ -166,6 +166,15 @@ export function createApp(): AppRoot {
 
         // Mount registers page lifecycle (page-change listener, etc.)
         runtime.registerCleanup(timeseriesModule.mount());
+        runtime.registerCleanup(mountCleaningPlanPanel({
+            planStore: cleaningPlanStore,
+            getViewport: () => workspace.getSnapshot().viewport,
+            onPlanChanged: () => {
+                timeseriesModule.buildRangeControls();
+                timeseriesModule.renderCurrentData();
+                void timeseriesModule.fetchAndRender();
+            },
+        }));
 
         initAppShell({
             ensurePageModuleLoaded: featureRegistry.ensureFeatureLoaded,

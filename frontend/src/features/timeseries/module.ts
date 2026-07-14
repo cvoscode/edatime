@@ -222,6 +222,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         refreshZoomControlsState: deps.refreshZoomControlsState,
         setAnomalyOverlayRenderCallback: deps.setAnomalyOverlayRenderCallback,
         workspace: deps.workspace,
+        cleaningPlanStore: deps.cleaningPlanStore,
     });
 
     // 4. Create the runtime (owns page lifecycle via createPageRuntime)

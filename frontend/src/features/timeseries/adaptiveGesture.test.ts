@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { initAdaptiveFilterGesture } from './adaptiveGesture.js';
 import { setChartInstance } from '../../store/chartState.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
+import { createCleaningPlanStore } from '../../cleaning/store.js';
 
 describe('adaptive filter gesture', () => {
     let currentData: any;
@@ -62,6 +63,32 @@ describe('adaptive filter gesture', () => {
         window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Control' }));
 
         expect(workspace.getSnapshot().filters.adaptiveLines).toHaveLength(1);
+    });
+
+    it('adds the completed adaptive line to the active cleaning plan', () => {
+        const workspace = createWorkspaceStore();
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 0, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        workspace.setSelection(['value']);
+        initAdaptiveFilterGesture({
+            workspace,
+            cleaningPlanStore: planStore,
+            buildColumnToggles: vi.fn(),
+            buildRangeControls: vi.fn(),
+            renderCurrentData: vi.fn(),
+            getCurrentData: () => currentData,
+            updateAnalysisYRange: vi.fn(),
+        } as any);
+        const chart = document.getElementById('main-chart')!;
+
+        chart.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true, button: 0 }));
+        chart.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true, button: 0 }));
+        window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Control' }));
+
+        expect(planStore.getSnapshot()!.stages).toMatchObject([{
+            kind: 'adaptiveLine', column: 'value', x1Ms: 0, x2Ms: 10, applyWithinSegmentOnly: true,
+        }]);
+        expect(workspace.getSnapshot().filters.adaptiveLines).toEqual([]);
     });
 
     it('applies the gesture through explicit deps instead of a window bridge', () => {

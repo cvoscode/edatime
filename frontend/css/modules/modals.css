@@ -49,6 +49,14 @@
   gap: 14px;
 }
 
+.cleaning-plan-modal { max-width: 680px; }
+.cleaning-plan-status, .cleaning-plan-preview { margin: 0; color: var(--text-dim); font-size: 0.8125rem; }
+.cleaning-plan-stages { display: grid; gap: 8px; max-height: min(42vh, 340px); overflow: auto; }
+.cleaning-plan-stage { display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-md); }
+.cleaning-plan-stage > span { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 0.8125rem; }
+.cleaning-plan-stage .is-disabled { opacity: 0.55; text-decoration: line-through; }
+.cleaning-plan-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+
 .modal-field {
   display: grid;
   gap: 6px;

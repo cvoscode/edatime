@@ -21,6 +21,7 @@ import { clearScatterViewSnapshots } from '../../store/scatterState.js';
 import { debounce } from '../../utils/function.js';
 import { onFeatureEvent } from '../../platform/featureEvents.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
+import type { CleaningPlanStore } from '../../cleaning/store.js';
 
 export interface TimeseriesActionDeps {
     workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'setViewport'>;
@@ -31,6 +32,7 @@ export interface TimeseriesActionDeps {
     fetchAndRender: () => Promise<void>;
     updateAnalysisZoom: (start: number, end: number, sourceKind?: string) => void;
     registerCleanup: (cleanup: () => void) => void;
+    cleaningPlanStore?: Pick<CleaningPlanStore, 'getSnapshot' | 'removeStage'>;
 }
 
 export interface TimeseriesExportDeps {
@@ -152,6 +154,14 @@ export function initTimeseriesActions(deps: TimeseriesActionDeps): void {
     }));
 
     const clearAllFilters = async (source = 'clear') => {
+        const plan = deps.cleaningPlanStore?.getSnapshot();
+        if (plan && deps.cleaningPlanStore) {
+            for (const stage of plan.stages) {
+                if (stage.sourcePage === 'timeseries' && (stage.kind === 'columnRange' || stage.kind === 'adaptiveLine')) {
+                    deps.cleaningPlanStore.removeStage(stage.id);
+                }
+            }
+        }
         const filters = deps.workspace.getSnapshot().filters;
         deps.workspace.setFilters({ ...filters, columnRanges: {}, adaptiveLines: [] });
         clearScatterViewSnapshots();
