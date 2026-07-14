@@ -1,6 +1,7 @@
 import { applyCleaningPlan, exportCleaningPlan, listDatasetVersions, previewCleaningPlan, selectDatasetVersion } from './api.js';
 import type { CleaningPlanStore } from './store.js';
 import { downloadBlob } from '../utils/dom.js';
+import { generatePythonPolars, generateRustPolars } from './codegen.js';
 
 type PlanPanelStore = Pick<CleaningPlanStore,
     'getSnapshot' | 'subscribe' | 'addStage' | 'updateStage' | 'removeStage' | 'setStageEnabled'>;
@@ -142,6 +143,16 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
                 exportPlan.disabled = false;
             }
         });
+        const exportPython = button('Python Polars');
+        exportPython.addEventListener('click', () => {
+            const current = deps.planStore.getSnapshot();
+            if (current) downloadBlob(new Blob([generatePythonPolars(current)], { type: 'text/x-python;charset=utf-8' }), 'apply_edatime_plan.py');
+        });
+        const exportRust = button('Rust Polars');
+        exportRust.addEventListener('click', () => {
+            const current = deps.planStore.getSnapshot();
+            if (current) downloadBlob(new Blob([generateRustPolars(current)], { type: 'text/rust;charset=utf-8' }), 'apply_edatime_plan.rs');
+        });
         const apply = button('Apply as new dataset', 'btn btn-primary btn-sm');
         apply.addEventListener('click', async () => {
             const current = deps.planStore.getSnapshot();
@@ -177,7 +188,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         });
         const close = button('Done', 'btn btn-primary btn-sm');
         close.addEventListener('click', () => { backdrop.hidden = true; trigger.focus(); });
-        actions.append(addViewport, previewButton, exportPlan, apply, resetOriginal, close);
+        actions.append(addViewport, previewButton, exportPlan, exportPython, exportRust, apply, resetOriginal, close);
     };
 
     const open = () => { render(); backdrop.hidden = false; };
