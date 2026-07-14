@@ -39,23 +39,57 @@ pub async fn get_rolling(
     let (value_cols, filtered) =
         filter_preamble(&state, params.start, params.end, params.columns.as_deref()).await?;
     let params = Arc::new(params);
+    let metrics = Arc::clone(&state.metrics);
 
+    // Phase 0.1: capture the route-level window clamp bounds before the
+    // window is moved into the spawn_blocking closure so the telemetry
+    // record reflects the same value the worker actually computed on.
+    let window = params.window.unwrap_or(50).clamp(2, 10_000);
+    let rows_in = filtered.height() as u64;
+    let columns_in = value_cols.len() as u64;
+
+    let queue_start = std::time::Instant::now();
+    metrics.record_cpu_submit(edatime_core::metrics::CpuStage::Analytics);
+    let closure_metrics = Arc::clone(&metrics);
+    // Carry compute_ns out of the closure so the single rolling telemetry
+    // record reflects both the worker compute time and the post-spawn
+    // response-byte measurement.
+    let compute_ns_holder = Arc::new(std::sync::atomic::AtomicU64::new(0));
+    let holder_for_closure = Arc::clone(&compute_ns_holder);
     let bands = tokio::task::spawn_blocking({
-        let params = params.clone();
         let filtered = filtered.clone();
         let value_cols = value_cols.clone();
         move || {
-            analytics::compute_rolling_bands(
-                &filtered,
-                &value_cols,
-                params.window.unwrap_or(50).clamp(2, 10_000),
-            )
+            let queue_wait_ns = queue_start.elapsed().as_nanos() as u64;
+            closure_metrics
+                .record_cpu_started(edatime_core::metrics::CpuStage::Analytics, queue_wait_ns);
+            let compute_start = std::time::Instant::now();
+            let result = analytics::compute_rolling_bands(&filtered, &value_cols, window);
+            let compute_ns = compute_start.elapsed().as_nanos() as u64;
+            closure_metrics.record_cpu_completed(edatime_core::metrics::CpuStage::Analytics);
+            // Stash compute_ns for the outer-scope record. We only stash
+            // on the success path so the metric describes a real
+            // computation, not a validation failure bubbling up.
+            if result.is_ok() {
+                holder_for_closure.store(compute_ns, std::sync::atomic::Ordering::Relaxed);
+            }
+            result
         }
     })
     .await
     .map_err(|e| AppError::internal(format!("Join error: {e}")))??;
 
-    Ok(Json(serde_json::json!({ "bands": bands })))
+    // Phase 0.1: emit a single rolling telemetry record that combines
+    // worker compute time (from the closure) and response bytes (from
+    // serializing the final payload once here for size measurement only).
+    let response_payload = serde_json::json!({ "bands": &bands });
+    let response_bytes = serde_json::to_vec(&response_payload)
+        .map(|b| b.len() as u64)
+        .unwrap_or(0);
+    let compute_ns = compute_ns_holder.load(std::sync::atomic::Ordering::Relaxed);
+    metrics.record_rolling(rows_in, columns_in, response_bytes, compute_ns);
+
+    Ok(Json(response_payload))
 }
 
 // ── Anomaly Detection ──────────────────────────────────────────────────────
@@ -89,17 +123,17 @@ pub async fn get_anomalies(
         move || {
             let regions = match method.as_str() {
                 "iqr" => {
-                let k = params.threshold.unwrap_or(1.5);
-                analytics::detect_anomalies_iqr(&filtered, &value_cols, k)
+                    let k = params.threshold.unwrap_or(1.5);
+                    analytics::detect_anomalies_iqr(&filtered, &value_cols, k)
                 }
                 _ => {
-                let threshold = params.threshold.unwrap_or(3.0);
-                analytics::detect_anomalies_zscore(&filtered, &value_cols, threshold)
+                    let threshold = params.threshold.unwrap_or(3.0);
+                    analytics::detect_anomalies_zscore(&filtered, &value_cols, threshold)
                 }
             }?;
             let summary_stats = analytics::compute_summary_stats(&filtered, &value_cols)?;
             Ok::<_, AppError>((regions, summary_stats))
-            }
+        }
     })
     .await
     .map_err(|e| AppError::internal(format!("Join error: {e}")))??;
@@ -912,7 +946,9 @@ mod tests {
             .await
             .expect("response body should read");
         let json: Value = serde_json::from_slice(&body).expect("response should be json");
-        let summary = json.get("summary_stats").expect("summary stats should be present");
+        let summary = json
+            .get("summary_stats")
+            .expect("summary stats should be present");
 
         assert_eq!(summary.get("min").and_then(Value::as_f64), Some(1.0));
         assert_eq!(summary.get("max").and_then(Value::as_f64), Some(40.0));

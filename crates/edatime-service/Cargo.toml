@@ -34,3 +34,19 @@ criterion = "0.5.1"
 [[bench]]
 name = "causal"
 harness = false
+
+# Phase 0.2: reproducible Criterion benches for the three hot inner
+# loops identified in backend_plan.md. Each is self-contained and uses a
+# deterministic synthetic fixture so before/after comparisons from
+# different hosts remain defensible.
+[[bench]]
+name = "scatter_sample"
+harness = false
+
+[[bench]]
+name = "rolling_bands"
+harness = false
+
+[[bench]]
+name = "correlations"
+harness = false

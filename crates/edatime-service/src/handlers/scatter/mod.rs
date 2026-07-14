@@ -26,6 +26,18 @@ pub use collect::{
 pub use correlations::{
     get_correlation_matrix, get_scatter_correlations, spawn_correlation_matrix_warmup,
 };
+// Phase 0.2: re-export the inner matrix computation under a
+// `_bench_target` suffix so the Criterion bench under
+// `crates/edatime-service/benches/correlations.rs` can pin its
+// wall-clock cost against the live production code path. Marked
+// `#[doc(hidden)]` because end users should call the public handlers
+// above; the function is stable for benchmarking only. The
+// `CorrelationMatrixData` return type is re-exported alongside it so
+// the same `#[doc(hidden)]` audit reasoning applies.
+#[doc(hidden)]
+pub use correlations::compute_correlation_matrix as compute_correlation_matrix_bench_target;
+#[doc(hidden)]
+pub use correlations::CorrelationMatrixData as CorrelationMatrixDataBenchTarget;
 pub use export::post_scatter_export_parquet;
 pub use matrix::post_scatter_matrix;
 pub use points::{get_scatter_points, post_scatter_points};

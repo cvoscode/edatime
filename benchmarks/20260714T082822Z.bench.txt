@@ -1,0 +1,42 @@
+warning: Use of ambiguously glob imported trait `Engine`
+   --> crates/edatime-service/src/handlers/scatter/matrix.rs:266:25
+    |
+  4 | use base64::prelude::*;
+    |     --------------- `Engine` imported ambiguously here
+...
+266 |         BASE64_STANDARD.encode(header_json),
+    |                         ^^^^^^
+    |
+    = help: Import `Engine` explicitly
+    = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+    = note: for more information, see issue #147992 <https://github.com/rust-lang/rust/issues/147992>
+    = note: `#[warn(ambiguous_glob_imported_traits)]` (part of `#[warn(future_incompatible)]`) on by default
+
+warning: `edatime-service` (lib) generated 1 warning
+    Finished `bench` profile [optimized] target(s) in 0.16s
+     Running benches/correlations.rs (target/release/deps/correlations-d89eae49e4fe5e2c)
+Gnuplot not found, using plotters backend
+test correlations_matrix/4c_5k_rows ... bench:     9277247 ns/iter (+/- 179195)
+test correlations_matrix/8c_5k_rows ... bench:    36313580 ns/iter (+/- 1391501)
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 15.4s, or reduce sample count to 30.
+test correlations_matrix/16c_5k_rows ... bench:   141364073 ns/iter (+/- 5800966)
+
+     Running benches/rolling_bands.rs (target/release/deps/rolling_bands-085b7de5818b2eae)
+Gnuplot not found, using plotters backend
+test rolling_bands/50000r_w50 ... bench:     4845796 ns/iter (+/- 137597)
+test rolling_bands/50000r_w200 ... bench:    12922577 ns/iter (+/- 567991)
+test rolling_bands/200000r_w50 ... bench:    23322992 ns/iter (+/- 840377)
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 45.7s, or reduce sample count to 10.
+test rolling_bands/200000r_w2000 ... bench:   420359011 ns/iter (+/- 15498804)
+
+     Running benches/scatter_sample.rs (target/release/deps/scatter_sample-a1db9f4fb55bc8e8)
+Gnuplot not found, using plotters backend
+test scatter_sample/10000 ... bench:      216423 ns/iter (+/- 12371)
+test scatter_sample/100000 ... bench:     6814028 ns/iter (+/- 145181)
+test scatter_sample/500000 ... bench:    24368101 ns/iter (+/- 786817)
+
+test scatter_sample_color_kind/continuous ... bench:    14423419 ns/iter (+/- 720983)
+test scatter_sample_color_kind/categorical ... bench:    24869190 ns/iter (+/- 948459)
+

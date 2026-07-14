@@ -64,8 +64,12 @@ impl AppState {
         }));
         let metrics = Arc::new(AppMetrics::new());
         let max_stored = config.query.max_stored.max(1);
-        // QueryExecutor uses Streaming mode by default for memory efficiency.
-        let query_executor = Arc::new(QueryExecutor::new(ExecutionContext::Streaming));
+        // QueryExecutor uses Streaming mode by default for memory
+        // efficiency. Phase 0.1: attach the metrics handle so every
+        // `execute_async` call records `Query` CPU admission lifecycle.
+        let query_executor = Arc::new(
+            QueryExecutor::new(ExecutionContext::Streaming).with_metrics(Arc::clone(&metrics)),
+        );
         Self {
             repository,
             query_executor,

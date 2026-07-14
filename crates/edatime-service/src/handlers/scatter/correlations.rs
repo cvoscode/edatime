@@ -1,5 +1,7 @@
 //! Scatter correlation handler — GET /api/scatter/correlations
 
+use std::sync::Arc;
+
 use axum::{
     Json,
     extract::{Query, State},
@@ -7,6 +9,7 @@ use axum::{
 use serde::Deserialize;
 
 use crate::error::AppError;
+use edatime_core::metrics::{AppMetrics, CorrelationStage, CorrelationTelemetryMode, CpuStage};
 use edatime_core::stats;
 use edatime_store::cache::CorrelationMatrixCacheEntry;
 use edatime_store::state::AppState;
@@ -35,6 +38,21 @@ impl CorrelationMode {
             Self::PearsonDiff => &data.pearson_diff,
             Self::SpearmanDiff => &data.spearman_diff,
             Self::KendallDiff => &data.kendall_diff,
+        }
+    }
+
+    /// Stable snake_case label used as a low-cardinality bucket for
+    /// telemetry. NEVER derive a label from raw user input here — the
+    /// `mode` parameter is already a closed enum, so any reachable label
+    /// belongs to the six known values.
+    fn telemetry_mode(self) -> CorrelationTelemetryMode {
+        match self {
+            Self::PearsonRaw => CorrelationTelemetryMode::PearsonRaw,
+            Self::SpearmanRaw => CorrelationTelemetryMode::SpearmanRaw,
+            Self::KendallRaw => CorrelationTelemetryMode::KendallRaw,
+            Self::PearsonDiff => CorrelationTelemetryMode::PearsonDiff,
+            Self::SpearmanDiff => CorrelationTelemetryMode::SpearmanDiff,
+            Self::KendallDiff => CorrelationTelemetryMode::KendallDiff,
         }
     }
 }
@@ -92,9 +110,14 @@ pub async fn get_scatter_correlations(
     let threshold = params.threshold.unwrap_or(0.7).clamp(0.0, 1.0);
     let requested_base = params.base.clone();
     let mode = params.mode.unwrap_or(CorrelationMode::PearsonRaw);
+    let mode_telemetry = mode.telemetry_mode();
     let revision = state.dataset_revision();
+    let metrics = Arc::clone(&state.metrics);
 
     if let Some(entry) = state.cached_correlation_matrix(revision) {
+        let numeric_columns = entry.columns.len() as u64;
+        metrics.record_correlation_request(true, mode_telemetry);
+        metrics.record_correlation_input(numeric_columns, 0);
         return Ok(Json(build_scatter_correlations_from_cached_matrix(
             entry,
             requested_base.as_deref(),
@@ -103,11 +126,23 @@ pub async fn get_scatter_correlations(
         )?));
     }
 
-    let data = tokio::task::spawn_blocking(move || compute_correlation_matrix(lf))
-        .await
-        .map_err(|e| {
-            AppError::internal(format!("Failed to join scatter correlation task: {:?}", e))
-        })??;
+    metrics.record_correlation_request(false, mode_telemetry);
+
+    let queue_start = std::time::Instant::now();
+    metrics.record_cpu_submit(CpuStage::Correlations);
+
+    let closure_metrics = Arc::clone(&metrics);
+    let data = tokio::task::spawn_blocking(move || {
+        let queue_wait_ns = queue_start.elapsed().as_nanos() as u64;
+        closure_metrics.record_cpu_started(CpuStage::Correlations, queue_wait_ns);
+        let result = compute_correlation_matrix(lf, Arc::clone(&closure_metrics));
+        closure_metrics.record_cpu_completed(CpuStage::Correlations);
+        result
+    })
+    .await
+    .map_err(|e| {
+        AppError::internal(format!("Failed to join scatter correlation task: {:?}", e))
+    })??;
     state.store_correlation_matrix_if_current(revision, data.clone().into_cache());
     Ok(Json(build_scatter_correlations_from_matrix_data(
         &data,
@@ -142,8 +177,15 @@ pub struct CorrelationMatrixQuery {
     pub mode: Option<CorrelationMode>,
 }
 
+// Phase 0.2: the type used to be `struct CorrelationMatrixData` with
+// module-private visibility. The Criterion bench under
+// `crates/edatime-service/benches/correlations.rs` cannot reach a
+// private return type. It is `pub` so the bench can receive the result
+// and is re-exported under a `*BenchTarget` alias on
+// `handlers::scatter` (`#[doc(hidden)]`) so the documented public API
+// surface stays unchanged.
 #[derive(Debug, Clone)]
-struct CorrelationMatrixData {
+pub struct CorrelationMatrixData {
     columns: Vec<String>,
     pearson_raw: Vec<Vec<Option<f64>>>,
     spearman_raw: Vec<Vec<Option<f64>>>,
@@ -267,6 +309,7 @@ fn compute_pair_correlation(
 fn compute_correlation_matrix_for_mode(
     lf: LazyFrame,
     mode: CorrelationMode,
+    metrics: Arc<AppMetrics>,
 ) -> Result<CorrelationMatrixResponse, AppError> {
     let mut numeric = numeric_columns(lf.clone());
     numeric.sort();
@@ -277,11 +320,18 @@ fn compute_correlation_matrix_for_mode(
 
     let n = numeric.len();
     let mut selected = vec![vec![None; n]; n];
+    let collect_start = std::time::Instant::now();
     let df = lf
         .with_new_streaming(true)
         .collect()
         .map_err(|e| AppError::internal(format!("correlation matrix collect: {}", e)))?;
+    metrics.record_correlation_stage(
+        CorrelationStage::Collect,
+        collect_start.elapsed().as_nanos() as u64,
+    );
+    metrics.record_correlation_input(n as u64, df.height() as u64);
 
+    let pair_start = std::time::Instant::now();
     for i in 0..n {
         selected[i][i] = Some(1.0);
         for j in (i + 1)..n {
@@ -292,6 +342,10 @@ fn compute_correlation_matrix_for_mode(
             selected[j][i] = value;
         }
     }
+    metrics.record_correlation_stage(
+        CorrelationStage::PairCalc,
+        pair_start.elapsed().as_nanos() as u64,
+    );
 
     let mut response = empty_matrix_response(numeric, mode);
     match mode {
@@ -305,7 +359,18 @@ fn compute_correlation_matrix_for_mode(
     Ok(response)
 }
 
-fn compute_correlation_matrix(lf: LazyFrame) -> Result<CorrelationMatrixData, AppError> {
+// Phase 0.2: the body used to be `fn compute_correlation_matrix(...)`
+// with module-private visibility. The Criterion bench under
+// `crates/edatime-service/benches/correlations.rs` cannot reach a
+// module-private function because benches are external compilation
+// units. The function is re-exported under a `*_bench_target` alias on
+// `handlers::scatter` (`#[doc(hidden)]`) so it does not enlarge the
+// documented public API.
+#[doc(hidden)]
+pub fn compute_correlation_matrix(
+    lf: LazyFrame,
+    metrics: Arc<AppMetrics>,
+) -> Result<CorrelationMatrixData, AppError> {
     let mut numeric = numeric_columns(lf.clone());
     numeric.sort();
 
@@ -331,11 +396,23 @@ fn compute_correlation_matrix(lf: LazyFrame) -> Result<CorrelationMatrixData, Ap
     let mut kendall_diff = vec![vec![None; n]; n];
     let mut counts = vec![vec![0; n]; n];
 
+    // Phase 0.1: split the matrix computation into two observable stages
+    // — collect (single full-frame read) and pair-calc (the O(n^2) loop).
+    // The extract stage is intentionally not measured separately: today
+    // `collect_xy_pairs` re-casts on every pair and is what Phase 3 will
+    // move out of the hot loop. Once it does, we may add an explicit
+    // Extract timer.
+    let collect_start = std::time::Instant::now();
     let df = lf
         .with_new_streaming(true)
         .collect()
         .map_err(|e| AppError::internal(format!("correlation matrix collect: {}", e)))?;
+    let collect_ns = collect_start.elapsed().as_nanos() as u64;
+    metrics.record_correlation_stage(CorrelationStage::Collect, collect_ns);
+    let input_rows = df.height() as u64;
+    metrics.record_correlation_input(n as u64, input_rows);
 
+    let pair_start = std::time::Instant::now();
     for i in 0..n {
         pearson_raw[i][i] = Some(1.0);
         spearman_raw[i][i] = Some(1.0);
@@ -370,6 +447,15 @@ fn compute_correlation_matrix(lf: LazyFrame) -> Result<CorrelationMatrixData, Ap
             counts[j][i] = count;
         }
     }
+    let pair_ns = pair_start.elapsed().as_nanos() as u64;
+    metrics.record_correlation_stage(CorrelationStage::PairCalc, pair_ns);
+    // The all_modes label reflects the work this function performs
+    // (every matrix, raw + diff). Single-mode endpoints call this function
+    // once and read just one of the matrices back; the request-level
+    // label is still "all_modes" because that's how much CPU the cache
+    // paid for. The per-request mode label is recorded by the handler
+    // before this function runs.
+    metrics.record_correlation_all_modes();
 
     Ok(CorrelationMatrixData {
         columns: numeric,
@@ -529,7 +615,22 @@ pub fn spawn_correlation_matrix_warmup(state: AppState) -> tokio::task::JoinHand
             return;
         }
         let lf = state.dataset_snapshot();
-        match tokio::task::spawn_blocking(move || compute_correlation_matrix(lf)).await {
+        let metrics = Arc::clone(&state.metrics);
+        metrics.record_correlation_warmup_dispatched();
+        let queue_start = std::time::Instant::now();
+        metrics.record_cpu_submit(CpuStage::Correlations);
+        let closure_metrics = Arc::clone(&metrics);
+        match tokio::task::spawn_blocking(move || {
+            closure_metrics.record_cpu_started(
+                CpuStage::Correlations,
+                queue_start.elapsed().as_nanos() as u64,
+            );
+            let result = compute_correlation_matrix(lf, Arc::clone(&closure_metrics));
+            closure_metrics.record_cpu_completed(CpuStage::Correlations);
+            result
+        })
+        .await
+        {
             Ok(Ok(data)) => {
                 state.store_correlation_matrix_if_current(revision, data.into_cache());
             }
@@ -550,8 +651,17 @@ pub async fn get_correlation_matrix(
 ) -> Result<Json<CorrelationMatrixResponse>, AppError> {
     let mode = params.mode;
     let revision = state.dataset_revision();
+    let metrics = Arc::clone(&state.metrics);
     if let Some(entry) = state.cached_correlation_matrix(revision) {
+        let numeric_columns = entry.columns.len() as u64;
         let data = CorrelationMatrixData::from_cache(entry);
+        // Cache hit on the matrix endpoint is recorded against the
+        // requested mode (or "all_modes" when None).
+        let mode_telemetry = mode
+            .map(|m| m.telemetry_mode())
+            .unwrap_or(CorrelationTelemetryMode::AllModes);
+        metrics.record_correlation_request(true, mode_telemetry);
+        metrics.record_correlation_input(numeric_columns, 0);
         return Ok(Json(match mode {
             Some(mode) => data.to_response_for_mode(mode),
             None => data.to_response(),
@@ -560,20 +670,44 @@ pub async fn get_correlation_matrix(
 
     let lf = state.dataset_snapshot();
     if let Some(mode) = mode {
-        let response =
-            tokio::task::spawn_blocking(move || compute_correlation_matrix_for_mode(lf, mode))
-                .await
-                .map_err(|e| {
-                    AppError::internal(format!("Failed to join correlation matrix task: {:?}", e))
-                })??;
-        return Ok(Json(response));
-    }
-
-    let data = tokio::task::spawn_blocking(move || compute_correlation_matrix(lf))
+        metrics.record_correlation_request(false, mode.telemetry_mode());
+        let queue_start = std::time::Instant::now();
+        metrics.record_cpu_submit(CpuStage::Correlations);
+        let closure_metrics = Arc::clone(&metrics);
+        let response = tokio::task::spawn_blocking(move || {
+            closure_metrics.record_cpu_started(
+                CpuStage::Correlations,
+                queue_start.elapsed().as_nanos() as u64,
+            );
+            let result =
+                compute_correlation_matrix_for_mode(lf, mode, Arc::clone(&closure_metrics));
+            closure_metrics.record_cpu_completed(CpuStage::Correlations);
+            result
+        })
         .await
         .map_err(|e| {
             AppError::internal(format!("Failed to join correlation matrix task: {:?}", e))
         })??;
+        return Ok(Json(response));
+    }
+
+    metrics.record_correlation_request(false, CorrelationTelemetryMode::AllModes);
+    let queue_start = std::time::Instant::now();
+    metrics.record_cpu_submit(CpuStage::Correlations);
+    let closure_metrics = Arc::clone(&metrics);
+    let data = tokio::task::spawn_blocking(move || {
+        closure_metrics.record_cpu_started(
+            CpuStage::Correlations,
+            queue_start.elapsed().as_nanos() as u64,
+        );
+        let result = compute_correlation_matrix(lf, Arc::clone(&closure_metrics));
+        closure_metrics.record_cpu_completed(CpuStage::Correlations);
+        result
+    })
+    .await
+    .map_err(|e| {
+        AppError::internal(format!("Failed to join correlation matrix task: {:?}", e))
+    })??;
     state.store_correlation_matrix_if_current(revision, data.clone().into_cache());
     Ok(Json(data.to_response()))
 }
@@ -586,6 +720,13 @@ mod tests {
     use edatime_core::IntoLazy;
     use edatime_core::config::AppConfig;
     use polars::prelude::{DataFrame, NamedFrom, Series};
+
+    /// Test-only metrics handle. Telemetry from compute_correlation_matrix
+    /// is observed but discarded in tests; the test still asserts on the
+    /// returned matrix, not on metric counters.
+    fn test_metrics() -> Arc<AppMetrics> {
+        Arc::new(AppMetrics::new())
+    }
 
     #[test]
     fn cached_matrix_builds_sorted_correlations_for_requested_base() {
@@ -835,7 +976,8 @@ mod tests {
         )
         .expect("dataframe should build");
 
-        let result = compute_correlation_matrix(df.lazy()).expect("matrix should not error");
+        let result =
+            compute_correlation_matrix(df.lazy(), test_metrics()).expect("matrix should not error");
 
         assert!(result.columns.is_empty());
         assert!(result.pearson_raw.is_empty());
@@ -858,7 +1000,8 @@ mod tests {
         )
         .expect("dataframe should build");
 
-        let result = compute_correlation_matrix(df.lazy()).expect("matrix should not error");
+        let result =
+            compute_correlation_matrix(df.lazy(), test_metrics()).expect("matrix should not error");
 
         assert_eq!(result.columns, vec!["only"]);
         assert_eq!(result.pearson_raw, vec![vec![Some(1.0)]]);
@@ -881,7 +1024,8 @@ mod tests {
         )
         .expect("dataframe should build");
 
-        let result = compute_correlation_matrix(df.lazy()).expect("matrix should not error");
+        let result =
+            compute_correlation_matrix(df.lazy(), test_metrics()).expect("matrix should not error");
 
         assert_eq!(result.pearson_raw[0][1], Some(-1.0));
         assert_eq!(result.spearman_raw[0][1], Some(-1.0));
@@ -902,8 +1046,13 @@ mod tests {
         )
         .expect("dataframe should build");
 
-        let response = compute_correlation_matrix_for_mode(df.lazy(), CorrelationMode::KendallDiff)
-            .expect("selected-mode matrix should build");
+        let metrics = test_metrics();
+        let response = compute_correlation_matrix_for_mode(
+            df.lazy(),
+            CorrelationMode::KendallDiff,
+            Arc::clone(&metrics),
+        )
+        .expect("selected-mode matrix should build");
 
         assert_eq!(response.columns, vec!["a", "b"]);
         assert!(response.pearson_raw.is_none());
@@ -915,6 +1064,11 @@ mod tests {
             response.kendall_diff,
             Some(vec![vec![Some(1.0), None], vec![None, Some(1.0)]])
         );
+        let snapshot = metrics.snapshot(0, 0);
+        assert_eq!(snapshot.correlations_stages.numeric_columns_total, 2);
+        assert_eq!(snapshot.correlations_stages.input_rows_total, 3);
+        assert!(snapshot.correlations_stages.collect_ns_total > 0);
+        assert!(snapshot.correlations_stages.pair_calc_ns_total > 0);
     }
 
     #[tokio::test(flavor = "multi_thread")]

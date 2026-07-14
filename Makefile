@@ -43,8 +43,28 @@ docs:
 docs-clean:
 	rm -rf docs/_build
 
+# Phase 0.2: Criterion benches over the deterministic inner loops of
+# the four hot paths (scatter, correlations, rolling, plus the existing
+# causal bench). See scripts/benchmark.md for the full procedure. Do
+# NOT wire this into CI — runner variance dominates the timing
+# thresholds.
 bench:
 	cargo bench
+
+# Convenience target: drive the HTTP workload with the documented
+# request mix against an already-running release server. Pass the
+# server's PID so the driver can sample RSS.
+bench-http:
+	@if [ -z "$$EDATIME_TARGET" ]; then echo "EDATIME_TARGET is required, e.g. http://127.0.0.1:3000"; exit 1; fi
+	@if [ -z "$$EDATIME_PID" ]; then echo "EDATIME_PID is required, the PID of the running release server"; exit 1; fi
+	node scripts/bench_http.mjs run \
+	    --target "$$EDATIME_TARGET" \
+	    --seconds $${BENCH_SECONDS:-30} \
+	    --concurrency $${BENCH_CONCURRENCY:-4} \
+	    --out benchmarks/run.http.json
+	node scripts/bench_http.mjs snapshot \
+	    --target "$$EDATIME_TARGET" \
+	    --out benchmarks/run.metrics.json
 
 # Build frontend for production (requires Node)
 frontend-prod:
