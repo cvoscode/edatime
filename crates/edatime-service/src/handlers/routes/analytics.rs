@@ -11,7 +11,8 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use chrono::{DateTime, TimeZone, Utc};
-use serde::Deserialize;
+use serde::{Deserialize, de::DeserializeOwned};
+use serde_json::Value;
 
 use crate::analytics;
 use crate::error::AppError;
@@ -37,6 +38,24 @@ pub struct RollingQuery {
 
 fn analytics_response<T: serde::Serialize>(value: T, identity: &ExecutionIdentity) -> Response {
     add_execution_identity_headers(Json(value).into_response(), identity)
+}
+
+/// Decode a POST analytics body while requiring a real plan envelope instead
+/// of URL-encoded JSON. The existing GET query structs keep the serialized
+/// envelope string for backwards compatibility; all execution still runs
+/// through the same validated preamble.
+fn decode_plan_aware_post<T: DeserializeOwned>(mut value: Value) -> Result<T, AppError> {
+    if let Some(plan) = value.get_mut("cleaning_plan") {
+        let envelope: crate::handlers::routes::cleaning::PlanRequestEnvelope =
+            serde_json::from_value(std::mem::take(plan)).map_err(|error| {
+                AppError::bad_request(format!("Invalid cleaning plan envelope: {error}"))
+            })?;
+        *plan = Value::String(serde_json::to_string(&envelope).map_err(|error| {
+            AppError::internal(format!("Serialize cleaning plan envelope: {error}"))
+        })?);
+    }
+    serde_json::from_value(value)
+        .map_err(|error| AppError::bad_request(format!("Invalid analytics request: {error}")))
 }
 
 #[tracing::instrument(skip(state))]
@@ -106,6 +125,13 @@ pub async fn get_rolling(
     Ok(analytics_response(response_payload, &identity))
 }
 
+pub async fn post_rolling(
+    State(state): State<AppState>,
+    Json(body): Json<Value>,
+) -> Result<Response, AppError> {
+    get_rolling(State(state), Query(decode_plan_aware_post(body)?)).await
+}
+
 // ── Anomaly Detection ──────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
@@ -170,6 +196,13 @@ pub async fn get_anomalies(
     ))
 }
 
+pub async fn post_anomalies(
+    State(state): State<AppState>,
+    Json(body): Json<Value>,
+) -> Result<Response, AppError> {
+    get_anomalies(State(state), Query(decode_plan_aware_post(body)?)).await
+}
+
 // ── FFT / PSD ──────────────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
@@ -214,6 +247,13 @@ pub async fn get_fft(
         }),
         &identity,
     ))
+}
+
+pub async fn post_fft(
+    State(state): State<AppState>,
+    Json(body): Json<Value>,
+) -> Result<Response, AppError> {
+    get_fft(State(state), Query(decode_plan_aware_post(body)?)).await
 }
 
 // ── Spectrogram (STFT) ────────────────────────────────────────────────────
@@ -287,6 +327,13 @@ pub async fn get_spectrogram(
         }),
         &identity,
     ))
+}
+
+pub async fn post_spectrogram(
+    State(state): State<AppState>,
+    Json(body): Json<Value>,
+) -> Result<Response, AppError> {
+    get_spectrogram(State(state), Query(decode_plan_aware_post(body)?)).await
 }
 
 // ── Spectral Filter ────────────────────────────────────────────────────────
@@ -433,6 +480,13 @@ pub async fn get_spectral_filter(
         }),
         &identity,
     ))
+}
+
+pub async fn post_spectral_filter(
+    State(state): State<AppState>,
+    Json(body): Json<Value>,
+) -> Result<Response, AppError> {
+    get_spectral_filter(State(state), Query(decode_plan_aware_post(body)?)).await
 }
 
 // ── Column Transformation ──────────────────────────────────────────────────

@@ -16,7 +16,7 @@ use edatime_query::cleaning::{CleaningPlanDto, compile_cleaning_plan, semantic_h
 use edatime_store::state::AppState;
 use edatime_store::versions::DatasetVersionRecord;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PlanRequestEnvelope {
     pub plan: CleaningPlanDto,
