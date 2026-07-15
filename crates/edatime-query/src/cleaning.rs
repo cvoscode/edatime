@@ -94,6 +94,13 @@ pub enum CleaningStageDto {
         columns: Vec<String>,
         mode: ColumnSelectMode,
     },
+    Sort {
+        #[serde(flatten)]
+        base: CleaningStageBaseDto,
+        columns: Vec<String>,
+        descending: bool,
+        nulls_last: bool,
+    },
     Annotation {
         #[serde(flatten)]
         base: CleaningStageBaseDto,
@@ -111,6 +118,7 @@ impl CleaningStageDto {
             | Self::MissingValue { base, .. }
             | Self::Deduplicate { base, .. }
             | Self::ColumnSelect { base, .. }
+            | Self::Sort { base, .. }
             | Self::Annotation { base, .. } => &base.id,
         }
     }
@@ -123,6 +131,7 @@ impl CleaningStageDto {
             | Self::MissingValue { base, .. }
             | Self::Deduplicate { base, .. }
             | Self::ColumnSelect { base, .. }
+            | Self::Sort { base, .. }
             | Self::Annotation { base, .. } => base.enabled,
         }
     }
@@ -277,6 +286,17 @@ pub fn validate_cleaning_plan(plan: &CleaningPlanDto) -> Result<(), AppError> {
                     )));
                 }
             }
+            CleaningStageDto::Sort { base, columns, .. } => {
+                if columns.is_empty()
+                    || columns.iter().any(|column| column.trim().is_empty())
+                    || columns.len() != columns.iter().collect::<std::collections::HashSet<_>>().len()
+                {
+                    return Err(AppError::bad_request(format!(
+                        "Cleaning stage '{}' requires unique non-empty sort columns",
+                        base.id
+                    )));
+                }
+            }
             CleaningStageDto::Annotation { .. } => {}
         }
     }
@@ -370,6 +390,13 @@ pub fn compile_cleaning_plan(
                 ColumnSelectMode::Keep => lf.select(columns.iter().map(polars::prelude::col).collect::<Vec<_>>()),
                 ColumnSelectMode::Drop => lf.drop(polars::prelude::by_name(columns, true, false)),
             },
+            CleaningStageDto::Sort { columns, descending, nulls_last, .. } => lf.sort(
+                columns.iter().map(String::as_str).collect::<Vec<_>>(),
+                polars::prelude::SortMultipleOptions::default()
+                    .with_order_descending(*descending)
+                    .with_nulls_last(*nulls_last)
+                    .with_maintain_order(true),
+            ),
             CleaningStageDto::Annotation { .. } => lf,
         };
     }
@@ -457,6 +484,12 @@ fn semantic_stage_value(stage: &CleaningStageDto) -> Option<serde_json::Value> {
             "kind": "columnSelect",
             "columns": columns.iter().map(|column| column.trim()).collect::<Vec<_>>(),
             "mode": mode,
+        })),
+        CleaningStageDto::Sort { columns, descending, nulls_last, .. } => Some(serde_json::json!({
+            "kind": "sort",
+            "columns": columns.iter().map(|column| column.trim()).collect::<Vec<_>>(),
+            "descending": descending,
+            "nullsLast": nulls_last,
         })),
         CleaningStageDto::Annotation { .. } => None,
     }
@@ -689,6 +722,32 @@ mod tests {
             .expect("collect");
         assert!(dropped.column("value").is_err());
         assert_eq!(dropped.width(), 2);
+    }
+
+    #[test]
+    fn sort_stage_is_stable_and_honors_null_placement() {
+        let plan = plan(vec![CleaningStageDto::Sort {
+            base: base("sort"),
+            columns: vec!["key".to_string()],
+            descending: false,
+            nulls_last: true,
+        }]);
+        let df = DataFrame::new(
+            4,
+            vec![
+                Series::new("ts".into(), vec![10_i64, 20, 30, 40]).into(),
+                Series::new("key".into(), vec![Some(2_i64), Some(1), Some(1), None]).into(),
+            ],
+        )
+        .expect("frame");
+        let result = compile_cleaning_plan(df.lazy(), &plan)
+            .expect("compile")
+            .collect()
+            .expect("collect");
+        assert_eq!(
+            result.column("ts").expect("ts").i64().expect("i64").into_no_null_iter().collect::<Vec<_>>(),
+            vec![20, 30, 10, 40]
+        );
     }
 
     #[test]

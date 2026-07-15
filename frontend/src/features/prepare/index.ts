@@ -21,6 +21,7 @@ function stageSummary(stage: CleaningPlan['stages'][number]): string {
         case 'missingValue': return 'Drop ' + (stage.dropNulls ? 'null' : '') + (stage.dropNulls && stage.dropNonFinite ? ' and ' : '') + (stage.dropNonFinite ? 'non-finite' : '') + ' ' + stage.column + ' rows';
         case 'deduplicate': return 'Keep ' + stage.keep + ' row by ' + stage.columns.join(', ');
         case 'columnSelect': return (stage.mode === 'keep' ? 'Keep only ' : 'Drop ') + 'columns: ' + stage.columns.join(', ');
+        case 'sort': return 'Stable ' + (stage.descending ? 'descending' : 'ascending') + ' sort by ' + stage.columns.join(', ');
         case 'annotation': return 'Annotation';
     }
 }
@@ -205,6 +206,37 @@ function renderPrepareWorkspace(root: HTMLElement, plan: CleaningPlan | null, de
         });
         deps.onPlanChanged?.();
     });
+    const addSort = createElement('form', 'prepare-workspace__policy-form');
+    const sortTitle = createElement('h3');
+    sortTitle.textContent = 'Add stable sort';
+    const sortColumns = createElement('input', 'modal-input');
+    sortColumns.name = 'columns';
+    sortColumns.placeholder = 'Columns, comma-separated';
+    sortColumns.required = true;
+    sortColumns.setAttribute('aria-label', 'Columns to sort by');
+    const sortDescending = checkbox('Sort descending', 'descending', false);
+    const sortNullsLast = checkbox('Place nulls last', 'nullsLast', true);
+    const sortSubmit = actionButton('Add sort', () => {});
+    sortSubmit.type = 'submit';
+    const sortStatus = createElement('p', 'prepare-workspace__policy-status');
+    sortStatus.setAttribute('aria-live', 'polite');
+    addSort.append(sortTitle, sortColumns, sortDescending, sortNullsLast, sortSubmit, sortStatus);
+    addSort.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const columns = sortColumns.value.split(',').map((column) => column.trim()).filter(Boolean);
+        if (columns.length === 0 || new Set(columns).size !== columns.length) {
+            sortStatus.textContent = 'Choose one or more unique columns.';
+            return;
+        }
+        const descending = (addSort.elements.namedItem('descending') as HTMLInputElement).checked;
+        const nullsLast = (addSort.elements.namedItem('nullsLast') as HTMLInputElement).checked;
+        cleaningPlanStore.addStage({
+            kind: 'sort', executionClass: 'polarsExpression', scope: 'order', enabled: true,
+            sourcePage: 'manual', label: 'Stable ' + (descending ? 'descending' : 'ascending') + ' sort by ' + columns.join(', '),
+            columns, descending, nullsLast,
+        });
+        deps.onPlanChanged?.();
+    });
     const list = createElement('ol', 'prepare-workspace__stage-list');
     if (plan.stages.length === 0) {
         const empty = createElement('li', 'prepare-workspace__empty');
@@ -241,7 +273,7 @@ function renderPrepareWorkspace(root: HTMLElement, plan: CleaningPlan | null, de
         item.append(summary, controls);
         list.append(item);
     }
-    stagesSection.append(stageTitle, stageCopy, history, addPolicy, addDeduplicate, addColumnSelect, list);
+    stagesSection.append(stageTitle, stageCopy, history, addPolicy, addDeduplicate, addColumnSelect, addSort, list);
     root.append(header, identity, graphSection, stagesSection);
 }
 

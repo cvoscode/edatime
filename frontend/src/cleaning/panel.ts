@@ -40,6 +40,7 @@ function stageSummary(stage: CleaningStage): string {
         case 'missingValue': return 'Drop ' + (stage.dropNulls ? 'null' : '') + (stage.dropNulls && stage.dropNonFinite ? ' and ' : '') + (stage.dropNonFinite ? 'non-finite' : '') + ' rows for ' + stage.column;
         case 'deduplicate': return 'Keep ' + stage.keep + ' row by ' + stage.columns.join(', ');
         case 'columnSelect': return (stage.mode === 'keep' ? 'Keep only ' : 'Drop ') + 'columns: ' + stage.columns.join(', ');
+        case 'sort': return 'Stable ' + (stage.descending ? 'descending' : 'ascending') + ' sort by ' + stage.columns.join(', ');
         case 'annotation': return stage.note?.trim() || stage.label;
     }
 }
@@ -286,6 +287,10 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             const columns = readText(form, 'columns').split(',').map((column) => column.trim()).filter(Boolean);
             if (columns.length === 0 || new Set(columns).size !== columns.length) throw new Error('Column selection needs unique column names.');
             patch = { ...common, columns, mode: readText(form, 'mode') as 'keep' | 'drop' } as Partial<CleaningStage>;
+        } else if (stage.kind === 'sort') {
+            const columns = readText(form, 'columns').split(',').map((column) => column.trim()).filter(Boolean);
+            if (columns.length === 0 || new Set(columns).size !== columns.length) throw new Error('Sorting needs unique column names.');
+            patch = { ...common, columns, descending: readChecked(form, 'descending'), nullsLast: readChecked(form, 'nullsLast') } as Partial<CleaningStage>;
         } else if (stage.kind === 'adaptiveLine') {
             const x1Ms = readNumber(form, 'x1Ms', 'X1');
             const x2Ms = readNumber(form, 'x2Ms', 'X2');
@@ -359,6 +364,12 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             fields.append(
                 textInput('Columns (comma-separated)', stage.columns.join(', '), 'columns'),
                 selectInput('Mode', stage.mode, 'mode', [['keep', 'Keep only these columns'], ['drop', 'Drop these columns']]),
+            );
+        } else if (stage.kind === 'sort') {
+            fields.append(
+                textInput('Columns (comma-separated)', stage.columns.join(', '), 'columns'),
+                checkboxInput('Descending', stage.descending, 'descending'),
+                checkboxInput('Place nulls last', stage.nullsLast, 'nullsLast'),
             );
         } else if (stage.kind === 'adaptiveLine') {
             fields.append(
@@ -495,6 +506,39 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             });
             notify();
         });
+        const addSortForm = document.createElement('form');
+        addSortForm.className = 'pipeline-workbench__add-stage';
+        const sortHeading = document.createElement('h3');
+        sortHeading.textContent = 'Add stable sort';
+        const sortFields = document.createElement('div');
+        sortFields.className = 'modal-grid';
+        sortFields.append(
+            textInput('Columns (comma-separated)', '', 'sortColumns'),
+            checkboxInput('Descending', false, 'sortDescending'),
+            checkboxInput('Place nulls last', true, 'sortNullsLast'),
+        );
+        const sortActions = document.createElement('div');
+        sortActions.className = 'pipeline-workbench__editor-actions';
+        const addSort = button('Add sort', 'btn btn-primary btn-sm');
+        addSort.type = 'submit';
+        sortActions.appendChild(addSort);
+        addSortForm.append(sortHeading, sortFields, sortActions);
+        addSortForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const columns = readText(addSortForm, 'sortColumns').split(',').map((column) => column.trim()).filter(Boolean);
+            if (columns.length === 0 || new Set(columns).size !== columns.length) {
+                preview.textContent = 'Choose one or more unique columns for stable sorting.';
+                return;
+            }
+            const descending = readChecked(addSortForm, 'sortDescending');
+            const nullsLast = readChecked(addSortForm, 'sortNullsLast');
+            deps.planStore.addStage({
+                kind: 'sort', executionClass: 'polarsExpression', scope: 'order', enabled: true,
+                sourcePage: 'manual', label: 'Stable ' + (descending ? 'descending' : 'ascending') + ' sort by ' + columns.join(', '),
+                columns, descending, nullsLast,
+            });
+            notify();
+        });
         const list = document.createElement('div');
         list.className = 'cleaning-plan-stages';
         if (plan.stages.length === 0) {
@@ -543,7 +587,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             row.append(description, impact, toggle, up, down, remove);
             list.appendChild(row);
         }
-        panel.append(addMissingForm, addDeduplicateForm, addColumnSelectForm, list);
+        panel.append(addMissingForm, addDeduplicateForm, addColumnSelectForm, addSortForm, list);
         const selected = plan.stages.find((stage) => stage.id === selectedStageId);
         if (selected) renderEditor(selected);
     };
@@ -869,6 +913,11 @@ function isImportableStage(value: unknown): value is CleaningStage {
                 && stage.columns.every((column) => typeof column === 'string' && !!column.trim())
                 && new Set(stage.columns).size === stage.columns.length
                 && (stage.mode === 'keep' || stage.mode === 'drop');
+        case 'sort':
+            return Array.isArray(stage.columns) && stage.columns.length > 0
+                && stage.columns.every((column) => typeof column === 'string' && !!column.trim())
+                && new Set(stage.columns).size === stage.columns.length
+                && typeof stage.descending === 'boolean' && typeof stage.nullsLast === 'boolean';
         case 'annotation':
             return stage.severity === undefined || stage.severity === 'info' || stage.severity === 'warning' || stage.severity === 'critical';
         default:

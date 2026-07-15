@@ -42,4 +42,11 @@ describe('cleaning code generation', () => {
         expect(generateRustPolars(plan)).toContain('lf = lf.select(vec![col("ts"), col("target")]);');
         expect(generateRustPolars(plan)).toContain('lf = lf.drop(by_name(["metadata"], true, false));');
     });
+
+    it('emits a stable ordered sort in both portable targets', () => {
+        const plan = createEmptyCleaningPlan({ sourceVersionId: 'source-1', datasetRevision: 1, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        plan.stages.push({ id: 'sort', kind: 'sort', executionClass: 'polarsExpression', scope: 'order', enabled: true, sourcePage: 'manual', label: 'sort', createdAt: 'now', updatedAt: 'now', columns: ['device', 'ts'], descending: true, nullsLast: true });
+        expect(generatePythonPolars(plan)).toContain('lf.sort(by=["device", "ts"], descending=True, nulls_last=True, maintain_order=True)');
+        expect(generateRustPolars(plan)).toContain('with_order_descending(true).with_nulls_last(true).with_maintain_order(true)');
+    });
 });

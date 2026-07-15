@@ -71,6 +71,8 @@ function stageDetail(stage: CleaningStage): string {
             return `Keep ${stage.keep} row by ${stage.columns.join(', ')}`;
         case 'columnSelect':
             return `${stage.mode === 'keep' ? 'Keep only' : 'Drop'} columns: ${stage.columns.join(', ')}`;
+        case 'sort':
+            return `Stable ${stage.descending ? 'descending' : 'ascending'} sort by ${stage.columns.join(', ')}`;
         case 'annotation':
             return stage.note?.trim() || 'Informational annotation';
     }
