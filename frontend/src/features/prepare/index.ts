@@ -34,7 +34,8 @@ function renderPrepareWorkspace(root: HTMLElement, plan: CleaningPlan | null): v
     }
     const activeStages = plan.stages.filter((stage) => stage.enabled && stage.executionClass !== 'annotation').length;
     identity.textContent = 'Source ' + plan.sourceVersionId + ' · revision ' + String(plan.datasetRevision)
-        + ' · ' + String(activeStages) + ' active executable stage' + (activeStages === 1 ? '' : 's');
+        + ' · ' + String(activeStages) + ' active executable stage' + (activeStages === 1 ? '' : 's')
+        + ' · ' + (cleaningPlanStore.isDirty() ? 'unmaterialized changes' : 'source baseline');
 
     const graphSection = createElement('section', 'prepare-workspace__graph');
     const graphTitle = createElement('h2');

@@ -13,6 +13,7 @@ export interface CleaningPlanStore {
     reorderStage(id: string, targetIndex: number): void;
     canUndo(): boolean;
     canRedo(): boolean;
+    isDirty(): boolean;
     undo(): boolean;
     redo(): boolean;
     clear(): void;
@@ -71,8 +72,10 @@ export function createEmptyCleaningPlan(identity: CleaningDatasetIdentity): Clea
 
 export function createCleaningPlanStore(): CleaningPlanStore {
     let plan: CleaningPlan | null = null;
-    let undoStack: CleaningPlan[] = [];
-    let redoStack: CleaningPlan[] = [];
+    let dirty = false;
+    type HistoryEntry = { plan: CleaningPlan; dirty: boolean };
+    let undoStack: HistoryEntry[] = [];
+    let redoStack: HistoryEntry[] = [];
     const listeners = new Set<(plan: CleaningPlan | null) => void>();
 
     const publish = (): void => {
@@ -83,13 +86,14 @@ export function createCleaningPlanStore(): CleaningPlanStore {
         if (!plan) throw new Error('No active cleaning plan. Select a dataset first.');
         return plan;
     };
-    const commit = (next: CleaningPlan, recordHistory = true): void => {
+    const commit = (next: CleaningPlan, recordHistory = true, nextDirty = true): void => {
         validatePlan(next);
         if (recordHistory && plan) {
-            undoStack.push(clone(plan));
+            undoStack.push({ plan: clone(plan), dirty });
             redoStack = [];
         }
         plan = clone(next);
+        dirty = nextDirty;
         publish();
     };
 
@@ -103,14 +107,16 @@ export function createCleaningPlanStore(): CleaningPlanStore {
             const next = createEmptyCleaningPlan(identity);
             undoStack = [];
             redoStack = [];
-            commit(next, false);
+            commit(next, false, false);
             return clone(next);
         },
         setPlan(next) {
             validatePlan(next);
             undoStack = [];
             redoStack = [];
-            commit(next, false);
+            // Imported plans are reproducible inputs, but their stages have
+            // not yet been materialized against this active source version.
+            commit(next, false, true);
         },
         addStage(input, options) {
             const current = requirePlan();
@@ -153,24 +159,28 @@ export function createCleaningPlanStore(): CleaningPlanStore {
         },
         canUndo: () => undoStack.length > 0,
         canRedo: () => redoStack.length > 0,
+        isDirty: () => dirty,
         undo() {
             if (!plan || undoStack.length === 0) return false;
             const previous = undoStack.pop()!;
-            redoStack.push(clone(plan));
-            plan = previous;
+            redoStack.push({ plan: clone(plan), dirty });
+            plan = previous.plan;
+            dirty = previous.dirty;
             publish();
             return true;
         },
         redo() {
             if (!plan || redoStack.length === 0) return false;
             const next = redoStack.pop()!;
-            undoStack.push(clone(plan));
-            plan = next;
+            undoStack.push({ plan: clone(plan), dirty });
+            plan = next.plan;
+            dirty = next.dirty;
             publish();
             return true;
         },
         clear() {
             plan = null;
+            dirty = false;
             undoStack = [];
             redoStack = [];
             publish();

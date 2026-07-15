@@ -73,23 +73,41 @@ describe('cleaning plan store', () => {
 
     it('undoes and redoes stage mutations without crossing a dataset reset boundary', () => {
         const store = setupPlan();
+        expect(store.isDirty()).toBe(false);
         const stage = store.addStage({
             kind: 'timeRange', executionClass: 'polarsExpression', scope: 'row', enabled: true,
             sourcePage: 'timeseries', label: 'Window', startMs: 1, endMs: 2, mode: 'keepInside',
         });
 
         expect(store.canUndo()).toBe(true);
+        expect(store.isDirty()).toBe(true);
         expect(store.undo()).toBe(true);
         expect(store.getSnapshot()!.stages).toEqual([]);
+        expect(store.isDirty()).toBe(false);
         expect(store.canRedo()).toBe(true);
         expect(store.redo()).toBe(true);
         expect(store.getSnapshot()!.stages.map((item) => item.id)).toEqual([stage.id]);
+        expect(store.isDirty()).toBe(true);
 
         store.resetForDataset({
             sourceVersionId: 'source-2', datasetRevision: 8, datasetFingerprint: 'data-2', schemaFingerprint: 'schema-2', timeColumn: 'ts',
         });
         expect(store.canUndo()).toBe(false);
         expect(store.canRedo()).toBe(false);
+        expect(store.isDirty()).toBe(false);
+    });
+
+    it('treats an imported plan as unmaterialized until the dataset baseline changes', () => {
+        const store = setupPlan();
+        const imported = { ...store.getSnapshot()!, id: 'imported-plan', planRevision: 4 };
+
+        store.setPlan(imported);
+
+        expect(store.isDirty()).toBe(true);
+        store.resetForDataset({
+            sourceVersionId: 'source-2', datasetRevision: 8, datasetFingerprint: 'data-2', schemaFingerprint: 'schema-2', timeColumn: 'ts',
+        });
+        expect(store.isDirty()).toBe(false);
     });
 });
 

@@ -14,7 +14,7 @@ import type { CleaningPlanStore } from './store.js';
 import { downloadBlob } from '../utils/dom.js';
 
 type PlanPanelStore = Pick<CleaningPlanStore,
-    'getSnapshot' | 'subscribe' | 'setPlan' | 'addStage' | 'updateStage' | 'removeStage' | 'setStageEnabled' | 'reorderStage' | 'canUndo' | 'canRedo' | 'undo' | 'redo'>;
+    'getSnapshot' | 'subscribe' | 'setPlan' | 'addStage' | 'updateStage' | 'removeStage' | 'setStageEnabled' | 'reorderStage' | 'canUndo' | 'canRedo' | 'isDirty' | 'undo' | 'redo'>;
 type WorkbenchTab = 'pipeline' | 'stages' | 'export';
 
 export interface CleaningPlanPanelDeps {
@@ -598,7 +598,8 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         if (lastPreview && (lastPreview.planId !== plan.id || lastPreview.planRevision !== plan.planRevision)) lastPreview = null;
         preview.textContent = lastPreview ? previewSummary(lastPreview.result) : '';
         const activeCount = plan.stages.filter((stage) => executable(stage) && stage.enabled).length;
-        status.textContent = String(activeCount) + ' active executable stage' + (activeCount === 1 ? '' : 's') + ' · source ' + plan.sourceVersionId + ' · revision ' + plan.datasetRevision;
+        status.textContent = String(activeCount) + ' active executable stage' + (activeCount === 1 ? '' : 's') + ' · source ' + plan.sourceVersionId + ' · revision ' + plan.datasetRevision
+            + ' · ' + (deps.planStore.isDirty() ? 'unmaterialized changes' : 'source baseline');
         if (activeTab === 'pipeline') renderPipeline(plan);
         else if (activeTab === 'stages') renderStages(plan);
         else renderExport(plan);
