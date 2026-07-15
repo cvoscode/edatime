@@ -231,6 +231,20 @@ export async function fetchSpectralFilter(
     options?: ApiRequestOptions,
 ): Promise<SpectralFilterResponse> {
     const query = new URLSearchParams(params);
+    const plan = activeCleaningPlan();
+    if (plan) {
+        const body: Record<string, unknown> = Object.fromEntries(query.entries());
+        for (const key of ['low_hz', 'high_hz', 'sample_rate_hz', 'max_points']) {
+            if (body[key] !== undefined) body[key] = Number(body[key]);
+        }
+        body.cleaning_plan = plan;
+        return postJson<SpectralFilterResponse>(
+            apiV1Routes.analytics.spectralFilter,
+            body,
+            'Spectral filter',
+            options,
+        );
+    }
     appendCleaningPlan(query);
     return getJson<SpectralFilterResponse>(
         withApiQuery(apiV1Routes.analytics.spectralFilter, query),

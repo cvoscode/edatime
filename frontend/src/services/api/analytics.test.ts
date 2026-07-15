@@ -131,7 +131,7 @@ describe('analytics api helpers', () => {
         for (const [index, call] of fetchMock.mock.calls.entries()) {
             const request = call[1] as RequestInit | undefined;
             const url = new URL(String(call[0]), 'http://localhost');
-            const envelope = index < 2
+            const envelope = index < 3
                 ? JSON.parse(String(request?.body ?? '{}')).cleaning_plan
                 : JSON.parse(String(url.searchParams.get('cleaning_plan')));
             expect(envelope).toMatchObject({
@@ -142,6 +142,7 @@ describe('analytics api helpers', () => {
         }
         expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: 'POST' });
         expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: 'POST' });
+        expect(fetchMock.mock.calls[2]?.[1]).toMatchObject({ method: 'POST' });
     });
 
     it('propagates structured errors from analytics routes', async () => {
