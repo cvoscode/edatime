@@ -229,6 +229,27 @@ mod tests {
         AppState::new(df, AppConfig::default())
     }
 
+    fn build_large_nan_state() -> AppState {
+        let rows = 10_000usize;
+        let ts_ms: Vec<i64> = (0..rows)
+            .map(|index| 1_514_764_800_000_i64 + index as i64 * 1_000)
+            .collect();
+        let mut values: Vec<f64> = (0..rows).map(|index| (index as f64 * 0.01).sin()).collect();
+        values[rows / 2] = f64::NAN;
+        let ts_series = Series::new("ts".into(), ts_ms)
+            .cast(&polars::prelude::DataType::Datetime(
+                polars::prelude::TimeUnit::Milliseconds,
+                None,
+            ))
+            .expect("cast date column");
+        let df = DataFrame::new(
+            rows,
+            vec![ts_series.into(), Series::new("HUFL".into(), values).into()],
+        )
+        .expect("test dataframe should build");
+        AppState::new(df, AppConfig::default())
+    }
+
     /// Regression test for audit issue 2.3: a future time window used
     /// to return an empty Arrow payload without any signal that no
     /// data was found. The handler now sets `x-edatime-empty: 1` on
@@ -328,6 +349,33 @@ mod tests {
             dropped,
             Some("0"),
             "x-edatime-dropped-rows must be 0 when the LTTB target is above the filtered row count"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn get_data_keeps_nan_series_at_the_viewport_cap() {
+        let state = build_large_nan_state();
+        let params = DataQuery {
+            start: chrono::Utc.with_ymd_and_hms(2018, 1, 1, 0, 0, 0).unwrap(),
+            end: chrono::Utc.with_ymd_and_hms(2018, 1, 2, 0, 0, 0).unwrap(),
+            width: 50,
+            columns: Some("HUFL".to_string()),
+            color_column: None,
+            lookaround_ms: None,
+            format: None,
+        };
+
+        let response = get_data(State(state), Query(params))
+            .await
+            .expect("NaN-containing time series should remain renderable");
+        let returned = response
+            .headers()
+            .get("x-edatime-returned-rows")
+            .and_then(|value| value.to_str().ok());
+        assert_eq!(
+            returned,
+            Some("100"),
+            "one NaN must not bypass the viewport-derived LTTB cap"
         );
     }
 }

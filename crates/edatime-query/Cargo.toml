@@ -20,3 +20,7 @@ axum.workspace = true
 
 [dev-dependencies]
 criterion = "0.5.1"
+
+[[bench]]
+name = "downsample"
+harness = false

@@ -1,0 +1,150 @@
+{
+  "cmd": "run",
+  "target": "http://127.0.0.1:13000",
+  "seconds": 60,
+  "concurrency": 8,
+  "rundown_seconds": 15,
+  "total_requests": 90824,
+  "throughput_rps": 1513.7333333333333,
+  "per_route": {
+    "data": {
+      "requests": 63608,
+      "errors": 0,
+      "p50_ms": 49.030307999993965,
+      "p95_ms": 56.544701000000714,
+      "p99_ms": 62.250364999999874,
+      "bytes_total": 2070058752
+    },
+    "scatter_correlations": {
+      "requests": 9107,
+      "errors": 0,
+      "p50_ms": 18.968806000000768,
+      "p95_ms": 24.069798000000446,
+      "p99_ms": 25.91432799999984,
+      "bytes_total": 24479616
+    },
+    "scatter_points": {
+      "requests": 18049,
+      "errors": 0,
+      "p50_ms": 190.04543700000067,
+      "p95_ms": 206.56345799999986,
+      "p99_ms": 228.6970339999998,
+      "bytes_total": 2174110344
+    },
+    "rolling": {
+      "requests": 60,
+      "errors": 0,
+      "p50_ms": 876.6945570000025,
+      "p95_ms": 915.5975229999967,
+      "p99_ms": 987.9247839999998,
+      "bytes_total": 60110460
+    }
+  },
+  "aggregate": {
+    "p50_ms": 49.76030400000309,
+    "p95_ms": 195.798358,
+    "p99_ms": 207.14240399999994
+  },
+  "peak_rss_bytes": 186863616,
+  "p95_rss_bytes": 182673408,
+  "cpu_admission_pending": {
+    "queued": 0,
+    "running": 0
+  },
+  "metrics": {
+    "average_request_ms": 0.4045293842935626,
+    "cache_hits": 81647,
+    "cache_misses": 10,
+    "correlations_stages": {
+      "all_modes_total": 11,
+      "cache_hit_total": 9097,
+      "cache_miss_total": 10,
+      "collect_ns_total": 1120115,
+      "extract_ns_total": 0,
+      "input_rows_total": 55000,
+      "mode_breakdown": {
+        "pearson_raw": 9107
+      },
+      "numeric_columns_total": 154836,
+      "pair_calc_ns_total": 1925522353,
+      "requests_total": 9107,
+      "single_flight_total": 0,
+      "warmup_dispatched_total": 1
+    },
+    "cpu_admission": {
+      "by_stage": {
+        "analytics": {
+          "completed": 60,
+          "queue_wait_ns": 2059552,
+          "started": 60,
+          "submitted": 60
+        },
+        "correlations": {
+          "completed": 11,
+          "queue_wait_ns": 1286909,
+          "started": 11,
+          "submitted": 11
+        },
+        "query": {
+          "completed": 69,
+          "queue_wait_ns": 2418952,
+          "started": 69,
+          "submitted": 69
+        },
+        "scatter": {
+          "completed": 1,
+          "queue_wait_ns": 11918,
+          "started": 1,
+          "submitted": 1
+        }
+      },
+      "completed_total": 141,
+      "queue_wait_ns_total": 5777331,
+      "started_total": 141,
+      "submitted_total": 141
+    },
+    "dataset_revision": 1,
+    "dataset_rows": 5000,
+    "rate_limited_requests": 0,
+    "request_counts": {
+      "GET /api/v1/analytics/rolling 200": 60,
+      "GET /api/v1/data 200": 63608,
+      "GET /api/v1/health 200": 2,
+      "GET /api/v1/metadata 200": 1,
+      "GET /api/v1/metrics 200": 1,
+      "GET /api/v1/scatter/correlations 200": 9107,
+      "GET /api/v1/scatter/points 200": 18049,
+      "POST /api/v1/upload 200": 1
+    },
+    "rolling_stages": {
+      "columns_total": 120,
+      "compute_ns_total": 20567761,
+      "requests_total": 60,
+      "response_bytes_total": 60110460,
+      "rows_total": 300000
+    },
+    "scatter_sampling": {
+      "requests": 1,
+      "total_points_returned": 5000,
+      "total_points_seen": 5000
+    },
+    "scatter_stages": {
+      "cache_hit_total": 18048,
+      "cache_miss_total": 1,
+      "collect_ns_total": 86526,
+      "filtered_rows_total": 5000,
+      "response_bytes_total": 120456,
+      "returned_total": 5000,
+      "sample_ns_total": 609687,
+      "serialize_ns_total": 217581,
+      "valid_points_total": 5000
+    },
+    "total_requests": 90829,
+    "uptime_seconds": 112
+  },
+  "ts_bounds_used": {
+    "start": "1970-01-01T00:00:00Z",
+    "end": "2024-12-31T23:59:59Z"
+  },
+  "started_at": "2026-07-14T15:51:47.794Z"
+}

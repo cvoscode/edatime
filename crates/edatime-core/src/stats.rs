@@ -34,6 +34,18 @@ pub fn build_histogram(values: &[f64], min: f64, max: f64) -> Option<Histogram> 
     build_histogram_with_bins(values, min, max, DEFAULT_BINS)
 }
 
+/// Build an exact histogram from a finite-value iterator without retaining the
+/// input. Callers that must discover min/max first can make a second streaming
+/// pass and avoid allocating one f64 per row just to construct a histogram.
+pub fn build_histogram_from_finite_iter(
+    values: impl IntoIterator<Item = f64>,
+    min: f64,
+    max: f64,
+    value_count: usize,
+) -> Option<Histogram> {
+    build_histogram_from_finite_iter_with_bins(values, min, max, value_count, DEFAULT_BINS)
+}
+
 /// Build a histogram with a configurable number of bins (clamped to 2..=max_bins).
 pub fn build_histogram_with_bins(
     values: &[f64],
@@ -41,7 +53,17 @@ pub fn build_histogram_with_bins(
     max: f64,
     bins: usize,
 ) -> Option<Histogram> {
-    if values.is_empty() {
+    build_histogram_from_finite_iter_with_bins(values.iter().copied(), min, max, values.len(), bins)
+}
+
+fn build_histogram_from_finite_iter_with_bins(
+    values: impl IntoIterator<Item = f64>,
+    min: f64,
+    max: f64,
+    value_count: usize,
+    bins: usize,
+) -> Option<Histogram> {
+    if value_count == 0 {
         return None;
     }
 
@@ -50,13 +72,13 @@ pub fn build_histogram_with_bins(
     if max <= min {
         return Some(Histogram {
             bin_edges: vec![min, max],
-            counts: vec![values.len() as u64],
+            counts: vec![value_count as u64],
         });
     }
 
     let span = max - min;
     let mut counts = vec![0u64; bins];
-    for &v in values {
+    for v in values {
         let mut idx = ((v - min) / span * bins as f64).floor() as isize;
         idx = idx.clamp(0, bins as isize - 1);
         counts[idx as usize] += 1;
@@ -727,6 +749,18 @@ pub fn epps_singleton_test(a: &[f64], b: &[f64]) -> (f64, f64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn streaming_histogram_matches_slice_histogram() {
+        let values = [1.0, 2.0, 3.0, 4.0, 5.0];
+        let from_slice = build_histogram(&values, 1.0, 5.0).expect("slice histogram");
+        let from_iter =
+            build_histogram_from_finite_iter(values.into_iter(), 1.0, 5.0, values.len())
+                .expect("streaming histogram");
+
+        assert_eq!(from_iter.bin_edges, from_slice.bin_edges);
+        assert_eq!(from_iter.counts, from_slice.counts);
+    }
 
     #[test]
     fn test_ks_identical_and_different() {

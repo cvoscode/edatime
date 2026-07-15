@@ -393,7 +393,7 @@ pub fn build_dataset_metadata(
             let values = casted.f64()?;
             let mut min = f64::INFINITY;
             let mut max = f64::NEG_INFINITY;
-            let mut finite_values = Vec::with_capacity(non_null_count.min(4096));
+            let mut finite_count = 0usize;
 
             for value in values.into_iter().flatten() {
                 if !value.is_finite() {
@@ -401,16 +401,22 @@ pub fn build_dataset_metadata(
                 }
                 min = min.min(value);
                 max = max.max(value);
-                if include_histograms {
-                    finite_values.push(value);
-                }
+                finite_count += 1;
             }
 
             if min.is_finite() && max.is_finite() {
                 profile.min = Some(min);
                 profile.max = Some(max);
                 if include_histograms {
-                    profile.histogram = stats::build_histogram(&finite_values, min, max);
+                    profile.histogram = stats::build_histogram_from_finite_iter(
+                        values
+                            .into_iter()
+                            .flatten()
+                            .filter(|value| value.is_finite()),
+                        min,
+                        max,
+                        finite_count,
+                    );
                 }
             }
         } else if matches!(dtype, DataType::Datetime(_, _) | DataType::Date) {
@@ -418,13 +424,11 @@ pub fn build_dataset_metadata(
             let ints = casted.i64()?;
             let mut min_raw: Option<i64> = None;
             let mut max_raw: Option<i64> = None;
-            let mut temporal_values = Vec::with_capacity(non_null_count.min(4096));
+            let mut temporal_count = 0usize;
             for value in ints.into_iter().flatten() {
                 min_raw = Some(min_raw.map_or(value, |current| current.min(value)));
                 max_raw = Some(max_raw.map_or(value, |current| current.max(value)));
-                if include_histograms {
-                    temporal_values.push(temporal::native_to_epoch_ms(value, &dtype));
-                }
+                temporal_count += 1;
             }
             if let Some(value) = min_raw {
                 profile.min = Some(temporal::native_to_epoch_ms(value, &dtype));
@@ -433,7 +437,14 @@ pub fn build_dataset_metadata(
                 profile.max = Some(temporal::native_to_epoch_ms(value, &dtype));
             }
             if include_histograms && let (Some(min), Some(max)) = (profile.min, profile.max) {
-                profile.histogram = stats::build_histogram(&temporal_values, min, max);
+                profile.histogram = stats::build_histogram_from_finite_iter(
+                    ints.into_iter()
+                        .flatten()
+                        .map(|value| temporal::native_to_epoch_ms(value, &dtype)),
+                    min,
+                    max,
+                    temporal_count,
+                );
             }
         }
 

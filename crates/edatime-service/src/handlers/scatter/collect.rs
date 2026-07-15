@@ -12,9 +12,13 @@ use super::{ScatterFilterSpec, ScatterLineFilterSpec, apply_scatter_filters};
 
 // ── Value helpers ─────────────────────────────────────────────────────────────
 
-/// Convert a DataFrame column to `Vec<Option<f64>>` for scatter rendering.
-/// Numeric columns are returned as-is; temporal columns (Datetime/Date) are
-/// converted to milliseconds since epoch as f64.
+/// Convert a DataFrame column to row-aligned `Vec<Option<f64>>` for scatter
+/// rendering. Numeric columns retain null and non-finite entries as `None`;
+/// temporal columns (Datetime/Date) are converted to milliseconds since epoch.
+///
+/// Keeping placeholders is essential: callers zip x, y, color, and size by
+/// row. Filtering a NaN from just one column would silently shift every later
+/// value onto the wrong row.
 pub fn series_to_scatter_values(df: &DataFrame, name: &str) -> Result<Vec<Option<f64>>, AppError> {
     let series = df
         .column(name)
@@ -22,10 +26,18 @@ pub fn series_to_scatter_values(df: &DataFrame, name: &str) -> Result<Vec<Option
         .as_materialized_series();
 
     match series.dtype() {
-        dt if dt.is_numeric() => Ok(edatime_core::stats::series_to_finite_f64(series, name)?
-            .into_iter()
-            .map(Some)
-            .collect()),
+        dt if dt.is_numeric() => {
+            let casted = series
+                .cast(&DataType::Float64)
+                .map_err(|e| AppError::internal(format!("Cast '{name}': {e}")))?;
+            let values = casted
+                .f64()
+                .map_err(|e| AppError::internal(format!("Read '{name}' as Float64: {e}")))?;
+            Ok(values
+                .into_iter()
+                .map(|value| value.filter(|value| value.is_finite()))
+                .collect())
+        }
         DataType::Datetime(_, _) | DataType::Date => {
             let casted = series.cast(&DataType::Int64).map_err(|e| {
                 AppError::internal(format!(
@@ -360,7 +372,9 @@ pub fn collect_filtered_scatter_frame<I: Into<LazyFrame>>(
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
-    use super::{cap_categorical_cardinality, collect_filtered_scatter_frame};
+    use super::{
+        cap_categorical_cardinality, collect_filtered_scatter_frame, series_to_scatter_values,
+    };
     use crate::error::AppError;
     use polars::prelude::{DataFrame, DataType, IntoColumn, IntoLazy, NamedFrom, Series, TimeUnit};
 
@@ -404,6 +418,23 @@ mod tests {
             .f64()
             .expect("x column should be f64");
         assert_eq!(x_values.get(0), Some(20.0));
+    }
+
+    #[test]
+    fn numeric_scatter_values_preserve_row_alignment_for_nulls_and_nan() {
+        let df = DataFrame::new(
+            4,
+            vec![
+                Series::new("x".into(), [Some(1.0_f64), None, Some(f64::NAN), Some(4.0)])
+                    .into(),
+            ],
+        )
+        .expect("dataframe should build");
+
+        assert_eq!(
+            series_to_scatter_values(&df, "x").expect("values"),
+            vec![Some(1.0), None, None, Some(4.0)],
+        );
     }
 
     /// Audit issue 2.2: when distinct label count is below the cap,

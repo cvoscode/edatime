@@ -194,23 +194,28 @@ impl CondIndTest {
         // Generate all permutations first (for deterministic seeds)
         let seeds: Vec<u64> = (0..self.sig_samples).map(|_| rng.next_u64()).collect();
 
-        // Parallel shuffle test with rayon
+        // Parallel shuffle test with Rayon. `map_init` keeps one permutation
+        // buffer per worker instead of allocating O(samples) index vectors.
+        // Reseeding for every item preserves the previous deterministic
+        // permutation sequence exactly.
         let count: usize = seeds
             .par_iter()
-            .map(|&seed| {
-                let mut local_rng = StdRng::seed_from_u64(seed);
+            .map_init(
+                || (StdRng::seed_from_u64(0), Vec::with_capacity(n_samples)),
+                |(local_rng, perm), &seed| {
+                    *local_rng = StdRng::seed_from_u64(seed);
+                    perm.clear();
+                    perm.extend(0..n_samples);
+                    perm.shuffle(local_rng);
 
-                // Create permutation
-                let mut perm: Vec<usize> = (0..n_samples).collect();
-                perm.shuffle(&mut local_rng);
-
-                let null_val = cmi_knn_value_permuted(array, knn, Some(&perm), &is_y, &dims);
-                if null_val.abs() >= observed_val.abs() {
-                    1
-                } else {
-                    0
-                }
-            })
+                    let null_val = cmi_knn_value_permuted(array, knn, Some(perm), &is_y, &dims);
+                    if null_val.abs() >= observed_val.abs() {
+                        1
+                    } else {
+                        0
+                    }
+                },
+            )
             .sum();
 
         (count as f64 + 1.0) / (self.sig_samples as f64 + 1.0)
@@ -1086,5 +1091,27 @@ mod tests {
         assert!((digamma(1.0) - (-0.5772156649)).abs() < 1e-6);
         // ψ(2) ≈ 0.4228
         assert!((digamma(2.0) - 0.4227843351).abs() < 1e-6);
+    }
+
+    #[test]
+    fn cmi_knn_shuffle_is_deterministic_with_reused_worker_buffers() {
+        let samples = 32;
+        let mut array = Array2::<f64>::zeros((2, samples));
+        for sample in 0..samples {
+            let x = sample as f64;
+            array[[0, sample]] = x;
+            array[[1, sample]] = x * 0.5 + (sample % 3) as f64;
+        }
+        let xyz = vec![XyzGroup::X, XyzGroup::Y];
+        let mut test = CondIndTest::new(IndependenceTestKind::CmiKnn);
+        test.knn = 3;
+        test.sig_samples = 10;
+        test.seed = 7;
+
+        let first = test.run_test(&array, &xyz, 0.05);
+        let second = test.run_test(&array, &xyz, 0.05);
+        assert_eq!(first.val, second.val);
+        assert_eq!(first.pval, second.pval);
+        assert_eq!(first.dependent, second.dependent);
     }
 }

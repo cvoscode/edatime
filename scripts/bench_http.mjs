@@ -41,6 +41,7 @@ function parseArgs(argv) {
         cols: 16,
         seed: "0xA5A5A5A55A5A5A5A",
         pid: null,
+        rundown: 15,
         help: false,
     };
     // Treat any leading `--help` (in any position) as a request for help
@@ -60,6 +61,7 @@ function parseArgs(argv) {
             case "--cols": args.cols = Number(value); i += 1; break;
             case "--seed": args.seed = value; i += 1; break;
             case "--pid": args.pid = Number(value); i += 1; break;
+            case "--rundown": args.rundown = Number(value); i += 1; break;
             case "--help": args.help = true; break;
             default: throw new Error(`unknown flag: ${flag}`);
         }
@@ -87,6 +89,10 @@ flags:
   --seed <hex>         deterministic seed for the CSV fixture
   --pid <pid>          RSS sample target (defaults to a server pid
                        provided via --pid or the env EDATIME_PID)
+  --rundown <seconds>  seconds to wait after the run loop ends before
+                       snapshotting metrics, so the spawn_blocking
+                       queue can drain and the cpu_admission counters
+                       settle (default 15; set 0 to disable)
 `);
 }
 
@@ -291,21 +297,20 @@ const REQUEST_MIX = [
 
 function buildRequestUrl(target, kind, tsBounds) {
     // Build URLs that match the contract exercised by
-    // tests/api_integration.rs. Numeric ranges are pinned so the dataset's
-    // time column (`ts` epoch-ms in the synthetic fixtures) is hit on
-    // every request.
-    const base = target.replace(/\/$/, "");
-    switch (kind) {
-        case "data":
-            return `${base}/api/v1/data?start=${tsBounds.start}&end=${tsBounds.end}&width=500&columns=ts,c0,c1,c2`;
-        case "scatter_points":
-            return `${base}/api/v1/scatter/points?x=c0&y=c1&color=c2&limit=200000&format=arrow`;
-        case "scatter_correlations":
-            return `${base}/api/v1/scatter/correlations`;
-        case "rolling":
-            return `${base}/api/v1/analytics/rolling?start=${tsBounds.start}&end=${tsBounds.end}&columns=c0,c1&window=50`;
-        default:
-            throw new Error(`unknown route ${kind}`);
+  // tests/api_integration.rs. `ts` is the time column in the synthetic
+  // fixtures so it is NOT included in the `columns=` list — it is not
+  // a numeric column for the `/data` endpoint and would 400 the
+  // request otherwise.
+  const base = target.replace(/\/$/, "");
+  switch (kind) {
+    case "data":
+      return `${base}/api/v1/data?start=${encodeURIComponent(tsBounds.start)}&end=${encodeURIComponent(tsBounds.end)}&width=500&columns=c0,c1,c2`;
+    case "scatter_points":
+      return `${base}/api/v1/scatter/points?x=c0&y=c1&color=c2&limit=200000&format=arrow`;
+    case "scatter_correlations":
+      return `${base}/api/v1/scatter/correlations`;
+    case "rolling":
+      return `${base}/api/v1/analytics/rolling?start=${encodeURIComponent(tsBounds.start)}&end=${encodeURIComponent(tsBounds.end)}&columns=c0,c1&window=50`;
     }
 }
 
@@ -339,47 +344,72 @@ async function cmdRun(args) {
     // to a default window so requests still exercise the routes.
     const tsBounds = await probeTsBounds(args.target);
     const rng = Math.random; // run mix is not deterministic; that's fine.
-    const start = performance.now();
-    const end = start + args.seconds * 1000;
+  // Capture both wall-clock and monotonic start separately so the run
+  // mix maths uses a stable monotonic clock while the `started_at`
+  // field is a real ISO-8601 timestamp. `performance.now()` is
+  // ms-since-process-start; passing it to `new Date(...)` interprets it
+  // as Unix ms-since-epoch and produces a "1970-01-01" timestamp for
+  // early-start runs.
+  const start = performance.now();
+  const end = start + args.seconds * 1000;
+  const runStartedAt = new Date().toISOString();
 
     const inflight = new Set();
     const samples = [];
     const rssSamples = [];
     let rollingCounter = 0;
     let nextRollingMs = start;
+  // Resolve the RSS target: explicit `--pid` flag > $BENCH_PID > $EDATIME_PID.
+  // We do not raise an error when nothing is set — RSS is optional and the
+  // procedure stays usable on hosts that do not expose `/proc/<pid>/status`.
+  const rssCandidates = [
+    args.pid,
+    process.env.BENCH_PID,
+    process.env.EDATIME_PID,
+  ];
+  // Reject null/undefined/empty so the first candidate wins only when it
+  // is a real positive integer string. Without the null guard `args.pid`
+  // (default `null`) would shadow the env var and the sampler would be
+  // silently disabled.
+  const rssPidRaw = rssCandidates.find(
+    (value) => value != null && value !== "" && Number.isFinite(Number(value)) && Number(value) > 0,
+  );
+  const rssPid = Number(rssPidRaw ?? NaN);
+  const rssPidIsValid = Number.isFinite(rssPid) && rssPid > 0;
 
-    const rssTimer = setInterval(() => {
-        const rss = readRssBytes();
-        if (rss != null) rssSamples.push({ t: performance.now() - start, rss_bytes: rss });
-    }, 1000);
+  const rssTimer = setInterval(() => {
+    if (!rssPidIsValid) return;
+    const rss = readRssBytes(rssPid);
+    if (rss != null) rssSamples.push({ t: performance.now() - start, rss_bytes: rss });
+  }, 1000);
 
-    async function dispatchOnce() {
-        // Mix in a small fraction of rolling requests at low frequency, so
-        // the workload is not dominated by /data.
-        let kind;
-        if (rollingCounter < args.seconds && performance.now() >= nextRollingMs) {
-            kind = "rolling";
-            rollingCounter += 1;
-            nextRollingMs = start + rollingCounter * (args.seconds * 1000) / Math.max(1, args.seconds);
-        } else {
-            kind = pickKind(rng);
-        }
-        const url = buildRequestUrl(args.target, kind, tsBounds);
-        const t0 = performance.now();
-        let status = 0;
-        let bytes = 0;
-        try {
-            const resp = await fetch(url);
-            status = resp.status;
-            const buf = new Uint8Array(await resp.arrayBuffer());
-            bytes = buf.byteLength;
-        } catch (err) {
-            status = -1;
-            bytes = 0;
-        }
-        const t1 = performance.now();
-        samples.push({ kind, status, latency_ms: t1 - t0, bytes });
+  async function dispatchOnce() {
+    // Mix in a small fraction of rolling requests at low frequency, so
+    // the workload is not dominated by /data.
+    let kind;
+    if (rollingCounter < args.seconds && performance.now() >= nextRollingMs) {
+      kind = "rolling";
+      rollingCounter += 1;
+      nextRollingMs = start + rollingCounter * (args.seconds * 1000) / Math.max(1, args.seconds);
+    } else {
+      kind = pickKind(rng);
     }
+    const url = buildRequestUrl(args.target, kind, tsBounds);
+    const t0 = performance.now();
+    let status = 0;
+    let bytes = 0;
+    try {
+      const resp = await fetch(url);
+      status = resp.status;
+      const buf = new Uint8Array(await resp.arrayBuffer());
+      bytes = buf.byteLength;
+    } catch (err) {
+      status = -1;
+      bytes = 0;
+    }
+    const t1 = performance.now();
+    samples.push({ kind, status, latency_ms: t1 - t0, bytes });
+  }
 
     async function workerLoop() {
         while (performance.now() < end) {
@@ -396,8 +426,45 @@ async function cmdRun(args) {
     await Promise.all([...inflight]);
     clearInterval(rssTimer);
 
-    // Snapshot metrics at end so we can correlate with stage telemetry.
-    const endMetrics = await fetchMetrics(args.target);
+    // Drain the spawn_blocking queue so the cpu_admission counters
+    // settle before we take the end-of-run snapshot. The HTTP handler
+    // records `submit` synchronously and `started`/`completed` inside
+    // the spawned closure; if we snapshot immediately we can see
+    // submitted > started with no bug to chase. Wait up to
+    // `--rundown` seconds for `pending = submitted - started -
+    // completed` to reach zero, polling metrics every second.
+    let endMetrics = null;
+    if (args.rundown > 0) {
+        const rundownEnd = performance.now() + args.rundown * 1000;
+        let lastPending = Infinity;
+        let stableSinceMs = null;
+        while (performance.now() < rundownEnd) {
+            await new Promise((r) => setTimeout(r, 1000));
+            const m = await fetchMetrics(args.target);
+            if (!m || !m.cpu_admission) continue;
+            const submitted = m.cpu_admission.submitted_total ?? 0;
+            const started = m.cpu_admission.started_total ?? 0;
+            const completed = m.cpu_admission.completed_total ?? 0;
+            const pending = submitted - started - completed;
+            if (pending === lastPending) {
+                if (stableSinceMs === null) stableSinceMs = performance.now();
+                if (performance.now() - stableSinceMs >= 2000) break;
+            } else {
+                lastPending = pending;
+                stableSinceMs = null;
+            }
+            if (pending <= 0) break;
+        }
+    }
+    endMetrics = await fetchMetrics(args.target);
+    if (endMetrics && endMetrics.cpu_admission) {
+        const { submitted_total: s, started_total: st, completed_total: c } = endMetrics.cpu_admission;
+        const queued = Math.max(0, (s ?? 0) - (st ?? 0));
+        const running = Math.max(0, (st ?? 0) - (c ?? 0));
+        process.stderr.write(
+            `[drain] submitted=${s} started=${st} completed=${c} queued=${queued} running=${running}\n`
+        );
+    }
 
     // Per-route percentiles.
     const byRoute = {};
@@ -424,6 +491,7 @@ async function cmdRun(args) {
         target: args.target,
         seconds: args.seconds,
         concurrency: args.concurrency,
+        rundown_seconds: args.rundown,
         total_requests: samples.length,
         throughput_rps: samples.length / args.seconds,
         per_route: perRoute,
@@ -434,9 +502,19 @@ async function cmdRun(args) {
         },
         peak_rss_bytes: rssSorted.length ? rssSorted[rssSorted.length - 1] : 0,
         p95_rss_bytes: percentile(rssSorted, 0.95),
+        cpu_admission_pending: endMetrics && endMetrics.cpu_admission
+            ? {
+                queued: Math.max(0,
+                    (endMetrics.cpu_admission.submitted_total ?? 0)
+                    - (endMetrics.cpu_admission.started_total ?? 0)),
+                running: Math.max(0,
+                    (endMetrics.cpu_admission.started_total ?? 0)
+                    - (endMetrics.cpu_admission.completed_total ?? 0)),
+            }
+            : null,
         metrics: endMetrics,
         ts_bounds_used: tsBounds,
-        started_at: new Date(start).toISOString(),
+        started_at: runStartedAt,
     };
     await writeFile(args.out, JSON.stringify(result, null, 2));
     process.stdout.write(JSON.stringify(result, null, 2) + "\n");
@@ -455,20 +533,27 @@ async function fetchMetrics(target) {
 }
 
 async function probeTsBounds(target) {
-    // Pull /api/v1/metadata and try to use its time_range.start /
-    // time_range.end as bounds. Fall back to a wide window when metadata
-    // is unavailable or has no time_range (e.g. server has no dataset).
-    const fallback = { start: 0, end: "1704067200000" };
-    try {
-        const resp = await fetch(`${target.replace(/\/$/, "")}/api/v1/metadata`);
-        if (!resp.ok) return fallback;
-        const body = await resp.json();
-        const range = body?.time_range;
-        if (!range || !range.start || !range.end) return fallback;
-        return { start: range.start, end: range.end };
-    } catch {
-        return fallback;
-    }
+  // Pull /api/v1/metadata and try to use its time_range.start /
+  // time_range.end as bounds. Fall back to a wide ISO-8601 window when
+  // metadata is unavailable or has no time_range (e.g. server has no
+  // dataset yet). The fallback is ISO-8601 because `/api/v1/data` and
+  // `/api/v1/analytics/rolling` use `DateTime<Utc>` params and reject
+  // bare integer Unix-ms values; RFC 3339 strings are the only shape
+  // that deserializes through `chrono::DateTime<Utc>`.
+  const fallback = {
+    start: "1970-01-01T00:00:00Z",
+    end: "2024-12-31T23:59:59Z",
+  };
+  try {
+    const resp = await fetch(`${target.replace(/\/$/, "")}/api/v1/metadata`);
+    if (!resp.ok) return fallback;
+    const body = await resp.json();
+    const range = body?.time_range;
+    if (!range || !range.start || !range.end) return fallback;
+    return { start: range.start, end: range.end };
+  } catch {
+    return fallback;
+  }
 }
 
 async function cmdSnapshot(args) {
@@ -480,23 +565,25 @@ async function cmdSnapshot(args) {
 
 // ── RSS sampling (Linux-only) ───────────────────────────────────────────────
 
-function readRssBytes() {
-    const pid = process.env.EDATIME_PID;
-    if (!pid) return null;
-    const statusPath = `/proc/${pid}/status`;
-    if (!existsSync(statusPath)) return null;
-    try {
-        const fd = openSync(statusPath, "r");
-        const buf = Buffer.alloc(2048);
-        const n = readSync(fd, buf, 0, buf.length, 0);
-        closeSync(fd);
-        const text = buf.toString("utf8", 0, n);
-        const match = text.match(/VmRSS:\s+(\d+)\s+kB/);
-        if (!match) return null;
-        return Number(match[1]) * 1024;
-    } catch {
-        return null;
-    }
+function readRssBytes(pid) {
+  // Linux-only. Reads `VmRSS` from `/proc/<pid>/status` and returns
+  // it in bytes. Returns `null` on any read failure so the caller can
+  // skip the sample without branching on platform-specific code.
+  if (!pid || !Number.isFinite(pid) || pid <= 0) return null;
+  const statusPath = `/proc/${pid}/status`;
+  if (!existsSync(statusPath)) return null;
+  try {
+    const fd = openSync(statusPath, "r");
+    const buf = Buffer.alloc(2048);
+    const n = readSync(fd, buf, 0, buf.length, 0);
+    closeSync(fd);
+    const text = buf.toString("utf8", 0, n);
+    const match = text.match(/VmRSS:\s+(\d+)\s+kB/);
+    if (!match) return null;
+    return Number(match[1]) * 1024;
+  } catch {
+    return null;
+  }
 }
 
 // ── Entry point ─────────────────────────────────────────────────────────────

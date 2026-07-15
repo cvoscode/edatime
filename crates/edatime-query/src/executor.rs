@@ -8,6 +8,9 @@ use edatime_core::types::LazyFrame;
 use rayon::ThreadPool;
 use std::sync::Arc;
 
+const DEFAULT_QUERY_WORKER_CAP: usize = 8;
+const QUERY_THREADS_ENV: &str = "EDATIME_QUERY_THREADS";
+
 #[derive(Clone)]
 pub enum ExecutionContext {
     Eager,
@@ -58,10 +61,8 @@ impl QueryExecutor {
                 metrics.record_cpu_started(CpuStage::Query, queue_wait_ns);
             }
             let result = pool.install(|| match ctx {
-                ExecutionContext::Eager => lf.collect(),
-                ExecutionContext::Streaming | ExecutionContext::Parallel => {
-                    lf.with_new_streaming(true).collect()
-                }
+                ExecutionContext::Eager | ExecutionContext::Parallel => lf.collect(),
+                ExecutionContext::Streaming => lf.with_new_streaming(true).collect(),
             });
             if let Some(metrics) = metrics.as_ref() {
                 metrics.record_cpu_completed(CpuStage::Query);
@@ -113,11 +114,43 @@ impl QueryExecutor {
 }
 
 fn build_default_pool() -> Arc<ThreadPool> {
+    let workers = configured_worker_count(
+        std::env::var(QUERY_THREADS_ENV).ok().as_deref(),
+        std::thread::available_parallelism()
+            .map(|parallelism| parallelism.get())
+            .unwrap_or(1),
+    );
     Arc::new(
         rayon::ThreadPoolBuilder::new()
-            .num_threads(4)
+            .num_threads(workers)
             .thread_name(|i| format!("edatime-cpu-{i}"))
             .build()
             .unwrap(),
     )
+}
+
+/// Resolve a bounded default that follows the host size while leaving an
+/// explicit deployment override. A single shared pool prevents each request
+/// from creating its own CPU workers; the cap avoids saturating a large host
+/// by default when Polars or other handlers also perform parallel work.
+fn configured_worker_count(configured: Option<&str>, available: usize) -> usize {
+    let available = available.max(1);
+    configured
+        .and_then(|value| value.trim().parse::<usize>().ok())
+        .filter(|workers| *workers > 0)
+        .map(|workers| workers.min(available))
+        .unwrap_or_else(|| available.min(DEFAULT_QUERY_WORKER_CAP))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::configured_worker_count;
+
+    #[test]
+    fn query_worker_count_is_capped_by_available_parallelism() {
+        assert_eq!(configured_worker_count(Some("12"), 6), 6);
+        assert_eq!(configured_worker_count(Some("0"), 6), 6);
+        assert_eq!(configured_worker_count(Some("invalid"), 16), 8);
+        assert_eq!(configured_worker_count(None, 2), 2);
+    }
 }

@@ -18,17 +18,20 @@ use polars::prelude::*;
 ///    the sorted view; look that position up in the sorted-by-x array to
 ///    recover the original row index.
 ///
-/// The function falls back to the prior row-index-based sampling path
-/// (i.e. `(0..n).collect()`) for inputs that LTTB cannot safely consume
-/// — non-finite x at any index, sorted x that is not strictly
-/// increasing, or any mapping failure. This guarantees that callers
-/// never receive an empty selection from valid input.
+/// The function uses a bounded, evenly-spaced fallback for inputs that
+/// LTTB cannot safely consume — non-finite x/y values, duplicate x values,
+/// or a mapping failure. This preserves the response cap for very long
+/// series: one malformed point must not turn a 2,000-point chart request
+/// into a multi-million-row response.
 ///
 /// When `n <= target_points` or `target_points < 3` the function keeps
 /// every row in insertion order, mirroring the historical early-return
 /// behavior of the scatter and time-series helpers.
 pub fn downsample_indices(x_vals: &[f64], y_vals: &[f64], target_points: usize) -> Vec<usize> {
-    let n = x_vals.len();
+    // Every selected index is consumed as an x/y pair by callers. Restrict
+    // the domain to the shared prefix so malformed input slices cannot make
+    // a later projection produce misaligned arrays.
+    let n = x_vals.len().min(y_vals.len());
     if n == 0 {
         return Vec::new();
     }
@@ -36,74 +39,82 @@ pub fn downsample_indices(x_vals: &[f64], y_vals: &[f64], target_points: usize) 
         return (0..n).collect();
     }
 
-    // Validate x: any non-finite value (NaN / +-inf) means LTTB cannot
-    // operate safely. Take the row-index fallback.
-    if x_vals.iter().any(|v| !v.is_finite()) {
-        return (0..n).collect();
+    // LTTB's area calculations cannot represent NaN / infinity safely.
+    // Keep a bounded stride sample instead of injecting 0.0 (which creates
+    // artificial spikes) or returning every input row.
+    if x_vals[..n].iter().any(|v| !v.is_finite()) || y_vals[..n].iter().any(|v| !v.is_finite()) {
+        return evenly_spaced_indices(n, target_points);
     }
 
-    // Pair each row with its real x value and original row index, then
-    // sort by x. This preserves x-aware ordering of the LTTB input.
-    let mut indexed: Vec<(f64, usize)> = Vec::with_capacity(n);
-    for i in 0..n {
-        let x_val = x_vals.get(i).copied().unwrap_or(i as f64);
-        indexed.push((x_val, i));
-    }
-    indexed.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
-
-    // The LTTB precondition is strictly-increasing x. After sorting by
-    // real x, duplicate x values violate this and the debug_assert in
-    // minmaxlttb will fire. Take the row-index fallback so we never
-    // panic / silently return empty on duplicate-x input.
-    if indexed
-        .windows(2)
-        .any(|w| w[0].0.partial_cmp(&w[1].0) != Some(std::cmp::Ordering::Less))
-    {
-        return (0..n).collect();
+    // A normal time series is already strictly sorted by timestamp. Avoid
+    // allocating and sorting an `(x, row_index)` vector in that dominant
+    // case; this removes O(n log n) work and one large temporary allocation
+    // from very long time-series requests.
+    if x_vals[..n].windows(2).all(|window| window[0] < window[1]) {
+        let points: Vec<Point> = y_vals[..n]
+            .iter()
+            .enumerate()
+            .map(|(index, &y)| Point::new(index as f64, y))
+            .collect();
+        return decode_lttb_positions(&points, target_points)
+            .unwrap_or_else(|| evenly_spaced_indices(n, target_points));
     }
 
-    // Build LTTB points using a strictly increasing encoded x sequence
-    // (0..n). This decouples the algorithm's coordinate axis from the
-    // caller's real x — which may be epoch timestamps, negative values,
-    // fractional values, etc. — while keeping the y values aligned with
-    // the real x-sorted order so the triangle-area selection still
-    // reflects the actual shape of the data.
+    // Unordered x values still need a sorted sampling view. Keep the row
+    // lookup separately so sampled positions can be mapped to input rows.
+    let mut indexed: Vec<(f64, usize)> = (0..n).map(|index| (x_vals[index], index)).collect();
+    indexed.sort_by(|a, b| a.0.total_cmp(&b.0));
+    if indexed.windows(2).any(|window| window[0].0 >= window[1].0) {
+        return evenly_spaced_indices(n, target_points);
+    }
+
     let points: Vec<Point> = indexed
         .iter()
         .enumerate()
-        .map(|(encoded_x, (_real_x, original_idx))| {
-            let y_val = y_vals.get(*original_idx).copied().unwrap_or(0.0);
-            Point::new(encoded_x as f64, y_val)
-        })
+        .map(|(encoded_x, (_, original_idx))| Point::new(encoded_x as f64, y_vals[*original_idx]))
         .collect();
-
-    let Ok(sampled) = minmaxlttb(&points, target_points, 4) else {
-        // On LTTB failure keep the original order so callers get a stable
-        // fallback instead of an empty result.
-        return (0..n).collect();
+    let Some(positions) = decode_lttb_positions(&points, target_points) else {
+        return evenly_spaced_indices(n, target_points);
     };
-
-    // Map each sampled point back to its original row index. The
-    // encoded x is the position in `indexed`; we look that up to recover
-    // the original row. Any out-of-range or non-finite encoded x is a
-    // contract violation we treat as a fallback trigger so we never
-    // produce an empty selection from valid input.
-    let mut indices: Vec<usize> = Vec::with_capacity(sampled.len());
-    for p in &sampled {
-        let encoded_x = p.x();
-        if !encoded_x.is_finite() {
-            return (0..n).collect();
-        }
-        let sorted_pos = encoded_x.round() as usize;
-        let original = match indexed.get(sorted_pos) {
-            Some((_, original)) => *original,
-            None => return (0..n).collect(),
-        };
-        indices.push(original);
-    }
+    let mut indices: Vec<usize> = positions
+        .into_iter()
+        .map(|position| indexed[position].1)
+        .collect();
     indices.sort_unstable();
     indices.dedup();
     indices
+}
+
+/// Decode `minmaxlttb`'s encoded, integer x coordinates back into positions.
+/// `None` means the library returned a value outside that internal contract.
+fn decode_lttb_positions(points: &[Point], target_points: usize) -> Option<Vec<usize>> {
+    let sampled = minmaxlttb(points, target_points, 4).ok()?;
+    let mut positions = Vec::with_capacity(sampled.len());
+    for point in sampled {
+        let encoded_x = point.x();
+        if !encoded_x.is_finite() || encoded_x < 0.0 || encoded_x >= points.len() as f64 {
+            return None;
+        }
+        let position = encoded_x as usize;
+        if encoded_x != position as f64 {
+            return None;
+        }
+        positions.push(position);
+    }
+    positions.sort_unstable();
+    positions.dedup();
+    Some(positions)
+}
+
+/// Produce exactly `min(n, target_points)` monotonically increasing indices,
+/// including both endpoints. Used only when shape-preserving LTTB is unsafe.
+fn evenly_spaced_indices(n: usize, target_points: usize) -> Vec<usize> {
+    debug_assert!(n > target_points && target_points >= 3);
+    let last = n - 1;
+    let denominator = target_points - 1;
+    (0..target_points)
+        .map(|slot| slot * last / denominator)
+        .collect()
 }
 
 /// Top up a sorted, deduplicated set of indices so the final length is
@@ -163,7 +174,14 @@ pub fn downsample_xy_pairs(
     color_vals: Option<&[f64]>,
     target_points: usize,
 ) -> (Vec<f64>, Vec<f64>, Option<Vec<f64>>) {
-    let n = x_vals.len();
+    let n = x_vals.len().min(y_vals.len());
+    let x_vals = &x_vals[..n];
+    let y_vals = &y_vals[..n];
+    // A partial color vector cannot remain aligned with selected xy rows.
+    // Drop that optional channel rather than returning unequal output arrays.
+    let color_vals = color_vals
+        .filter(|values| values.len() >= n)
+        .map(|values| &values[..n]);
     if n <= target_points || target_points < 3 {
         let out_x = x_vals.to_vec();
         let out_y = y_vals.to_vec();
@@ -359,6 +377,25 @@ mod tests {
     }
 
     #[test]
+    fn downsample_indices_keeps_very_long_non_finite_series_bounded() {
+        // One NaN must not activate the historical "return every row"
+        // fallback. This models an uploaded multi-million-row sensor series
+        // with one malformed reading while a chart asks for a small viewport.
+        let n = 1_000_000;
+        let target = 2_000;
+        let x_vals: Vec<f64> = (0..n).map(|index| index as f64).collect();
+        let mut y_vals: Vec<f64> = (0..n).map(|index| (index as f64 * 0.001).sin()).collect();
+        y_vals[n / 2] = f64::NAN;
+
+        let indices = downsample_indices(&x_vals, &y_vals, target);
+
+        assert_eq!(indices.len(), target);
+        assert_eq!(indices.first().copied(), Some(0));
+        assert_eq!(indices.last().copied(), Some(n - 1));
+        assert!(indices.windows(2).all(|window| window[0] < window[1]));
+    }
+
+    #[test]
     fn downsample_indices_xy_swap_returns_non_empty_valid_indices() {
         // LTTB is not symmetric in x and y, so a strict equality between
         // forward and swapped selections is not a real contract (the
@@ -476,6 +513,19 @@ mod tests {
         assert_eq!(sx, x_vals.to_vec());
         assert_eq!(sy, y_vals.to_vec());
         assert_eq!(sc, Some(color_vals.to_vec()));
+    }
+
+    #[test]
+    fn downsample_xy_pairs_drops_misaligned_optional_color() {
+        let x_vals = [0.0, 1.0, 2.0, 3.0];
+        let y_vals = [1.0, 2.0, 3.0, 4.0];
+        let short_color = [10.0, 20.0];
+
+        let (sampled_x, sampled_y, sampled_color) =
+            downsample_xy_pairs(&x_vals, &y_vals, Some(&short_color), 3);
+
+        assert_eq!(sampled_x.len(), sampled_y.len());
+        assert_eq!(sampled_color, None);
     }
 
     // ── pad_to_limit tests ─────────────────────────────────────────────────

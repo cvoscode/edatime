@@ -578,6 +578,7 @@ fn estimate_causal_work_units(
     max_points: usize,
     method: &str,
     test: crate::causal::IndependenceTestKind,
+    sig_samples: usize,
 ) -> u128 {
     let lag_terms = (tau_max as u128) + 1;
     let base = (n_cols as u128) * (n_cols as u128) * lag_terms * (max_points as u128);
@@ -593,7 +594,17 @@ fn estimate_causal_work_units(
         crate::causal::IndependenceTestKind::RobustParCorr => 12u128,
         crate::causal::IndependenceTestKind::Gsquared => 18u128,
         crate::causal::IndependenceTestKind::CmiSymb => 18u128,
-        crate::causal::IndependenceTestKind::CmiKnn => 60u128,
+        // CMI-KNN performs an O(n²) neighbor scan for every permutation.
+        // Scale the existing baseline by both requested shuffle samples and
+        // input size so a seemingly small column/lag request cannot admit a
+        // multi-minute computation on a long series.
+        crate::causal::IndependenceTestKind::CmiKnn => {
+            let sample_factor = (max_points as u128).div_ceil(256).max(1);
+            let shuffle_factor = (sig_samples as u128).div_ceil(200).max(1);
+            60u128
+                .saturating_mul(sample_factor)
+                .saturating_mul(shuffle_factor)
+        }
     };
 
     base.saturating_mul(method_factor)
@@ -646,6 +657,7 @@ pub async fn post_causal_graph(
         Some("cmi_symb") => crate::causal::IndependenceTestKind::CmiSymb,
         _ => crate::causal::IndependenceTestKind::ParCorr,
     };
+    let sig_samples = params.sig_samples.unwrap_or(200).clamp(10, 1000);
 
     let work_units = estimate_causal_work_units(
         value_cols.len(),
@@ -653,6 +665,7 @@ pub async fn post_causal_graph(
         max_pts.min(df.height()),
         &method,
         test_kind,
+        sig_samples,
     );
     if work_units > MAX_CAUSAL_WORK_UNITS {
         return Err(AppError::bad_request(format!(
@@ -662,8 +675,6 @@ pub async fn post_causal_graph(
 
     let n_preliminary_iterations = params.n_preliminary_iterations.unwrap_or(1).clamp(0, 5);
     let knn = params.knn.unwrap_or(10).clamp(1, 100);
-    let sig_samples = params.sig_samples.unwrap_or(200).clamp(10, 1000);
-
     let result = tokio::task::spawn_blocking(move || -> Result<serde_json::Value, AppError> {
         use crate::causal::pcmci::PcmciConfig;
         use crate::causal::{CondIndTest, Pcmci, PcmciPlus};
@@ -725,7 +736,10 @@ pub async fn post_causal_graph(
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
-    use super::{AnomalyQuery, CausalGraphRequest, get_anomalies, post_causal_graph};
+    use super::{
+        AnomalyQuery, CausalGraphRequest, estimate_causal_work_units, get_anomalies,
+        post_causal_graph,
+    };
     use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
     use chrono::TimeZone;
     use edatime_core::config::AppConfig;
@@ -878,6 +892,27 @@ mod tests {
                 .contains("causal request is too large"),
             "unexpected error body: {json}"
         );
+    }
+
+    #[test]
+    fn cmi_knn_work_estimate_scales_with_samples_and_shuffle_count() {
+        let baseline = estimate_causal_work_units(
+            2,
+            3,
+            1_000,
+            "pcmci",
+            crate::causal::IndependenceTestKind::CmiKnn,
+            200,
+        );
+        let larger = estimate_causal_work_units(
+            2,
+            3,
+            5_000,
+            "pcmci",
+            crate::causal::IndependenceTestKind::CmiKnn,
+            400,
+        );
+        assert!(larger > baseline);
     }
 
     // ── Fix 5.1/5.2 regression tests ─────────────────────────────────────

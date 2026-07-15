@@ -46,6 +46,8 @@ result file. It is the "who, what, when" of the run:
   free -h | head -2
   echo "=== release profile ==="
   grep -A6 '\[profile.release\]' Cargo.toml
+  echo "=== runtime env vars (EDATIME_*) ==="
+  env | grep '^EDATIME_' | sort
   echo "=== started ==="
   date -Iseconds
 } > benchmarks/$(date -u +%Y%m%dT%H%M%SZ).env
@@ -53,6 +55,9 @@ result file. It is the "who, what, when" of the run:
 
 The file is the first entry in the result log. If `git status` shows
 uncommitted changes, label the run "dirty" and report the diff alongside.
+The `EDATIME_*` env capture makes runtime overrides (e.g. rate-limit
+caps) reproducible between hosts and tools — without it, a future
+re-run may silently use different parameters than the captured one.
 
 ## Synthetic fixtures
 
@@ -112,7 +117,16 @@ SERVER_PID=$!
 node scripts/bench_http.mjs upload --fixture wide_frame
 # 3. Run the timed workload for 60 s at concurrency 16.
 node scripts/bench_http.mjs run --seconds 60 --concurrency 16
-# 4. Snapshot /api/v1/metrics and shut down the server.
+# 4. **Drain the spawn_blocking queue.** The metrics snapshot will be
+# taken on the next step; if we snapshot immediately, in-flight
+# `record_cpu_submit` calls (synchronous in the HTTP handler) will have
+# been counted but their matching `record_cpu_started` (inside the
+# closure) will not yet have fired. This produces a misleading
+# `submitted > started` ratio. The `run` subcommand already waits 15 s
+# for the rundown, but the spawn_blocking pool can be backed up further
+# under high concurrency; wait until
+# `pending = submitted - started - completed` is stable.
+# 5. Snapshot /api/v1/metrics and shut down the server.
 node scripts/bench_http.mjs snapshot --out benchmarks/run.metrics.json
 kill "$SERVER_PID"
 ```
@@ -136,6 +150,44 @@ kill "$SERVER_PID"
   `completed_total` per stage (query, scatter, correlations,
   analytics). Stage imbalance (started - submitted growing under load)
   is the leading indicator for thread-pool saturation.
+
+### cpu_admission snapshot-timing caveat
+
+`record_cpu_submit` runs synchronously in the HTTP handler (before
+`spawn_blocking` returns a `JoinHandle`). `record_cpu_started` and
+`record_cpu_completed` run **inside** the spawned closure on a worker
+thread. The metrics snapshot is taken at a single point in time, so
+under high concurrency you will routinely see:
+
+```
+submitted_total > started_total   (jobs in queue)
+started_total   ≥ completed_total (jobs in flight or done)
+```
+
+This is **not a bug** and not double-counting — every call site calls
+`record_cpu_submit` exactly once. The 2× ratio that appears in early
+baselines (e.g. `Query: submitted=150, started=75, completed=75`) means
+75 spawn_blocking jobs were still in the queue at snapshot time. The
+correctness invariant to gate on is:
+
+```
+pending = submitted - started - completed ≈ 0   at end of run
+started + completed ≈ request_count            per stage
+```
+
+If `pending` is non-zero at end of run, the run was either truncated
+early or the spawn_blocking pool is saturated. Use the `--rundown`
+flag on the driver to wait longer, or check `pair_calc_ns_total` /
+`compute_ns_total` for per-stage cost.
+
+The `correlations.requests_total` counter also has a documented
+imbalance against `request_counts["GET /api/v1/scatter/correlations
+200"]`: the warmup path (`record_correlation_warmup_dispatched`)
+contributes to `cpu_admission` but not to HTTP `request_counts`, and
+the first cold-cache request that races the warmup counts in
+`requests_total` but may not return 200. Net difference observed in
+the 2026-07-14 baseline: `+2` (1 warmup + 1 cold-cache race). This is
+expected and is **not** a gating signal.
 
 ## Criterion benches
 

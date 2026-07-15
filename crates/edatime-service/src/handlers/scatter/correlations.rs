@@ -6,6 +6,7 @@ use axum::{
     Json,
     extract::{Query, State},
 };
+use rayon::prelude::*;
 use serde::Deserialize;
 
 use crate::error::AppError;
@@ -15,7 +16,8 @@ use edatime_store::cache::CorrelationMatrixCacheEntry;
 use edatime_store::state::AppState;
 use polars::prelude::LazyFrame;
 
-use super::{CorrelationItem, SuggestionItem, collect_xy_pairs, numeric_columns};
+use super::collect::series_to_scatter_values;
+use super::{CorrelationItem, SuggestionItem, numeric_columns};
 
 #[derive(Debug, Clone, Copy, Deserialize, serde::Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -177,13 +179,15 @@ pub struct CorrelationMatrixQuery {
     pub mode: Option<CorrelationMode>,
 }
 
-// Phase 0.2: the type used to be `struct CorrelationMatrixData` with
-// module-private visibility. The Criterion bench under
-// `crates/edatime-service/benches/correlations.rs` cannot reach a
-// private return type. It is `pub` so the bench can receive the result
-// and is re-exported under a `*BenchTarget` alias on
-// `handlers::scatter` (`#[doc(hidden)]`) so the documented public API
-// surface stays unchanged.
+// Phase 0.2 + Phase 0.3 follow-up: the type was promoted from
+// module-private to `pub` so the Criterion bench
+// (`crates/edatime-service/benches/correlations.rs`) can use the
+// return type. `#[doc(hidden)]` here AND the matching alias on
+// `handlers::scatter` are what keep it out of the rendered rustdoc.
+// Without the `#[doc(hidden)]` here, the rustdoc rendered surface
+// would expose this struct (with six full `Vec<Vec<Option<f64>>>`
+// matrices) as part of the public API.
+#[doc(hidden)]
 #[derive(Debug, Clone)]
 pub struct CorrelationMatrixData {
     columns: Vec<String>,
@@ -306,6 +310,98 @@ fn compute_pair_correlation(
     }
 }
 
+type CorrelationColumn = Vec<Option<f64>>;
+
+/// Materialize each correlation column once, preserving row alignment for
+/// nulls and non-finite values. Before this extraction phase, every pair
+/// independently cast both source columns, multiplying conversion/allocation
+/// work by the number of pairs.
+fn extract_correlation_columns(
+    df: &polars::prelude::DataFrame,
+    columns: &[String],
+) -> Result<Vec<CorrelationColumn>, AppError> {
+    columns
+        .iter()
+        .map(|column| series_to_scatter_values(df, column))
+        .collect()
+}
+
+fn collect_aligned_pairs(x_values: &[Option<f64>], y_values: &[Option<f64>]) -> Vec<[f64; 2]> {
+    x_values
+        .iter()
+        .zip(y_values)
+        .filter_map(|(x, y)| match (x, y) {
+            (Some(x), Some(y)) => Some([*x, *y]),
+            _ => None,
+        })
+        .collect()
+}
+
+#[derive(Debug)]
+struct PairCorrelationValues {
+    i: usize,
+    j: usize,
+    raw_pearson: Option<f64>,
+    raw_spearman: Option<f64>,
+    raw_kendall: Option<f64>,
+    diff_pearson: Option<f64>,
+    diff_spearman: Option<f64>,
+    diff_kendall: Option<f64>,
+    count: usize,
+}
+
+fn compute_all_pair_correlations(
+    i: usize,
+    j: usize,
+    values: &[CorrelationColumn],
+) -> PairCorrelationValues {
+    let pairs = collect_aligned_pairs(&values[i], &values[j]);
+    let diff_pairs = first_difference_pairs(&pairs);
+    PairCorrelationValues {
+        i,
+        j,
+        raw_pearson: stats::pearson(&pairs),
+        raw_spearman: stats::spearman(&pairs),
+        raw_kendall: stats::kendall_tau(&pairs),
+        diff_pearson: stats::pearson(&diff_pairs),
+        diff_spearman: stats::spearman(&diff_pairs),
+        diff_kendall: stats::kendall_tau(&diff_pairs),
+        count: pairs.len(),
+    }
+}
+
+fn compute_mode_pair_correlation(
+    i: usize,
+    j: usize,
+    mode: CorrelationMode,
+    values: &[CorrelationColumn],
+) -> (usize, usize, Option<f64>) {
+    let pairs = collect_aligned_pairs(&values[i], &values[j]);
+    let diff_pairs = first_difference_pairs(&pairs);
+    (i, j, compute_pair_correlation(mode, &pairs, &diff_pairs))
+}
+
+fn upper_triangle_indices(column_count: usize) -> Vec<(usize, usize)> {
+    (0..column_count)
+        .flat_map(|i| ((i + 1)..column_count).map(move |j| (i, j)))
+        .collect()
+}
+
+/// Small and medium matrices are faster without Rayon scheduling overhead.
+/// Wide matrices (at least 256 independent pairs, or 24 columns) use Rayon’s
+/// bounded global pool; results are applied serially so no matrix locks or
+/// shared mutable state enter the hot path.
+fn map_pair_indices<T: Send>(
+    indices: &[(usize, usize)],
+    work: impl Fn((usize, usize)) -> T + Send + Sync,
+) -> Vec<T> {
+    if indices.len() < 256 {
+        indices.iter().copied().map(work).collect()
+    } else {
+        indices.par_iter().copied().map(work).collect()
+    }
+}
+
 fn compute_correlation_matrix_for_mode(
     lf: LazyFrame,
     mode: CorrelationMode,
@@ -331,16 +427,22 @@ fn compute_correlation_matrix_for_mode(
     );
     metrics.record_correlation_input(n as u64, df.height() as u64);
 
+    let extract_start = std::time::Instant::now();
+    let values = extract_correlation_columns(&df, &numeric)?;
+    metrics.record_correlation_stage(
+        CorrelationStage::Extract,
+        extract_start.elapsed().as_nanos() as u64,
+    );
+
     let pair_start = std::time::Instant::now();
     for i in 0..n {
         selected[i][i] = Some(1.0);
-        for j in (i + 1)..n {
-            let pairs = collect_xy_pairs(&df, &numeric[i], &numeric[j])?;
-            let diff_pairs = first_difference_pairs(&pairs);
-            let value = compute_pair_correlation(mode, &pairs, &diff_pairs);
-            selected[i][j] = value;
-            selected[j][i] = value;
-        }
+    }
+    for (i, j, value) in map_pair_indices(&upper_triangle_indices(n), |(i, j)| {
+        compute_mode_pair_correlation(i, j, mode, &values)
+    }) {
+        selected[i][j] = value;
+        selected[j][i] = value;
     }
     metrics.record_correlation_stage(
         CorrelationStage::PairCalc,
@@ -396,12 +498,6 @@ pub fn compute_correlation_matrix(
     let mut kendall_diff = vec![vec![None; n]; n];
     let mut counts = vec![vec![0; n]; n];
 
-    // Phase 0.1: split the matrix computation into two observable stages
-    // — collect (single full-frame read) and pair-calc (the O(n^2) loop).
-    // The extract stage is intentionally not measured separately: today
-    // `collect_xy_pairs` re-casts on every pair and is what Phase 3 will
-    // move out of the hot loop. Once it does, we may add an explicit
-    // Extract timer.
     let collect_start = std::time::Instant::now();
     let df = lf
         .with_new_streaming(true)
@@ -412,6 +508,13 @@ pub fn compute_correlation_matrix(
     let input_rows = df.height() as u64;
     metrics.record_correlation_input(n as u64, input_rows);
 
+    let extract_start = std::time::Instant::now();
+    let values = extract_correlation_columns(&df, &numeric)?;
+    metrics.record_correlation_stage(
+        CorrelationStage::Extract,
+        extract_start.elapsed().as_nanos() as u64,
+    );
+
     let pair_start = std::time::Instant::now();
     for i in 0..n {
         pearson_raw[i][i] = Some(1.0);
@@ -421,31 +524,24 @@ pub fn compute_correlation_matrix(
         spearman_diff[i][i] = Some(1.0);
         kendall_diff[i][i] = Some(1.0);
         counts[i][i] = df.height();
-        for j in (i + 1)..n {
-            let pairs = collect_xy_pairs(&df, &numeric[i], &numeric[j])?;
-            let diff_pairs = first_difference_pairs(&pairs);
-            let raw_pearson = stats::pearson(&pairs);
-            let raw_spearman = stats::spearman(&pairs);
-            let raw_kendall = stats::kendall_tau(&pairs);
-            let diff_pearson = stats::pearson(&diff_pairs);
-            let diff_spearman = stats::spearman(&diff_pairs);
-            let diff_kendall = stats::kendall_tau(&diff_pairs);
-            let count = pairs.len();
-            pearson_raw[i][j] = raw_pearson;
-            pearson_raw[j][i] = raw_pearson;
-            spearman_raw[i][j] = raw_spearman;
-            spearman_raw[j][i] = raw_spearman;
-            kendall_raw[i][j] = raw_kendall;
-            kendall_raw[j][i] = raw_kendall;
-            pearson_diff[i][j] = diff_pearson;
-            pearson_diff[j][i] = diff_pearson;
-            spearman_diff[i][j] = diff_spearman;
-            spearman_diff[j][i] = diff_spearman;
-            kendall_diff[i][j] = diff_kendall;
-            kendall_diff[j][i] = diff_kendall;
-            counts[i][j] = count;
-            counts[j][i] = count;
-        }
+    }
+    for pair in map_pair_indices(&upper_triangle_indices(n), |(i, j)| {
+        compute_all_pair_correlations(i, j, &values)
+    }) {
+        pearson_raw[pair.i][pair.j] = pair.raw_pearson;
+        pearson_raw[pair.j][pair.i] = pair.raw_pearson;
+        spearman_raw[pair.i][pair.j] = pair.raw_spearman;
+        spearman_raw[pair.j][pair.i] = pair.raw_spearman;
+        kendall_raw[pair.i][pair.j] = pair.raw_kendall;
+        kendall_raw[pair.j][pair.i] = pair.raw_kendall;
+        pearson_diff[pair.i][pair.j] = pair.diff_pearson;
+        pearson_diff[pair.j][pair.i] = pair.diff_pearson;
+        spearman_diff[pair.i][pair.j] = pair.diff_spearman;
+        spearman_diff[pair.j][pair.i] = pair.diff_spearman;
+        kendall_diff[pair.i][pair.j] = pair.diff_kendall;
+        kendall_diff[pair.j][pair.i] = pair.diff_kendall;
+        counts[pair.i][pair.j] = pair.count;
+        counts[pair.j][pair.i] = pair.count;
     }
     let pair_ns = pair_start.elapsed().as_nanos() as u64;
     metrics.record_correlation_stage(CorrelationStage::PairCalc, pair_ns);
@@ -1036,6 +1132,24 @@ mod tests {
     }
 
     #[test]
+    fn correlation_matrix_does_not_shift_rows_after_non_finite_values() {
+        let df = DataFrame::new(
+            4,
+            vec![
+                Series::new("a".into(), [1.0_f64, f64::NAN, 3.0, 4.0]).into(),
+                Series::new("b".into(), [10.0_f64, 20.0, 30.0, 40.0]).into(),
+            ],
+        )
+        .expect("dataframe should build");
+
+        let result =
+            compute_correlation_matrix(df.lazy(), test_metrics()).expect("matrix should not error");
+
+        assert_eq!(result.counts[0][1], 3);
+        assert_eq!(result.pearson_raw[0][1], Some(1.0));
+    }
+
+    #[test]
     fn correlation_matrix_for_selected_mode_only_populates_requested_matrix() {
         let df = DataFrame::new(
             3,
@@ -1068,6 +1182,7 @@ mod tests {
         assert_eq!(snapshot.correlations_stages.numeric_columns_total, 2);
         assert_eq!(snapshot.correlations_stages.input_rows_total, 3);
         assert!(snapshot.correlations_stages.collect_ns_total > 0);
+        assert!(snapshot.correlations_stages.extract_ns_total > 0);
         assert!(snapshot.correlations_stages.pair_calc_ns_total > 0);
     }
 

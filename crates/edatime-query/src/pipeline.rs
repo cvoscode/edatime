@@ -9,6 +9,11 @@ use crate::arrow_export::dataframe_to_arrow_ipc;
 use crate::query::AggFn;
 use edatime_core::error::AppError;
 
+/// Window aggregation materializes one output row per step. Keep that result
+/// bounded so a millisecond step across a multi-year sparse series cannot
+/// spend unbounded CPU looping over empty windows.
+const MAX_WINDOW_AGGREGATE_WINDOWS: u64 = 10_000;
+
 /// Filter a `LazyFrame` to only rows whose timestamp column falls within
 /// `[start_ts, end_ts]` (in milliseconds), selecting only the requested columns.
 /// Returns a `LazyFrame` so that callers can chain additional lazy stages
@@ -162,13 +167,32 @@ fn window_aggregate(
         .i64()
         .map_err(|e| AppError::Io(format!("ts i64: {}", e)))?;
 
-    let ts_vec: Vec<i64> = ts_values.into_iter().flatten().collect();
+    // Keep timestamp positions alongside their original DataFrame rows.
+    // Value vectors below deliberately preserve null/NaN slots, so using a
+    // compacted timestamp or value vector here would make window boundaries
+    // address the wrong samples after malformed input.
+    let mut ts_vec = Vec::with_capacity(df.height());
+    let mut ts_rows = Vec::with_capacity(df.height());
+    for (row, timestamp) in ts_values.into_iter().enumerate() {
+        if let Some(timestamp) = timestamp {
+            ts_vec.push(timestamp);
+            ts_rows.push(row);
+        }
+    }
     if ts_vec.is_empty() {
         return Ok((DataFrame::default(), true));
     }
 
     let ts_min = ts_vec.iter().copied().min().unwrap_or(0);
     let ts_max = ts_vec.iter().copied().max().unwrap_or(0);
+    // Positivity was checked above, so this cast is lossless.
+    let step_size = step_size_native as u64;
+    let window_count = (ts_max.saturating_sub(ts_min) as u64 / step_size).saturating_add(1);
+    if window_count > MAX_WINDOW_AGGREGATE_WINDOWS {
+        return Err(AppError::BadRequest(format!(
+            "Window aggregation would produce {window_count} windows; reduce the time range or increase the step"
+        )));
+    }
 
     let mut per_col_values: Vec<Vec<Option<f64>>> = Vec::with_capacity(value_cols.len());
     for col_name in value_cols {
@@ -176,8 +200,15 @@ fn window_aggregate(
             .column(col_name)
             .map(|c| c.as_materialized_series())
             .map_err(|e| AppError::BadRequest(format!("Missing '{}': {}", col_name, e)))?;
-        let finite: Vec<f64> = edatime_core::stats::series_to_finite_f64(series, col_name)?;
-        per_col_values.push(finite.into_iter().map(Some).collect());
+        let values = series
+            .cast(&DataType::Float64)
+            .map_err(|e| AppError::Io(format!("Cast '{}': {}", col_name, e)))?
+            .f64()
+            .map_err(|e| AppError::Io(format!("Read '{}': {}", col_name, e)))?
+            .into_iter()
+            .map(|value| value.filter(|value| value.is_finite()))
+            .collect();
+        per_col_values.push(values);
     }
 
     let mut out_ts: Vec<i64> = Vec::new();
@@ -198,8 +229,10 @@ fn window_aggregate(
         if lo < hi {
             out_ts.push(midpoint);
             for (col_idx, source_values) in per_col_values.iter().enumerate() {
-                let window_vals: Vec<f64> =
-                    source_values[lo..hi].iter().copied().flatten().collect();
+                let window_vals: Vec<f64> = ts_rows[lo..hi]
+                    .iter()
+                    .filter_map(|&row| source_values[row])
+                    .collect();
                 out_cols[col_idx].push(reduce_window_values(&window_vals, agg_fn));
             }
         }
@@ -436,7 +469,8 @@ pub fn serialize_json(
 
 #[cfg(test)]
 mod tests {
-    use super::serialize_json;
+    use super::{Reduction, apply_reduction, serialize_json};
+    use crate::query::AggFn;
     use polars::prelude::*;
 
     #[test]
@@ -466,5 +500,68 @@ mod tests {
         let object = payload.as_object().expect("object payload");
         assert!(object.contains_key("event_time"));
         assert!(!object.contains_key("ts"));
+    }
+
+    #[test]
+    fn window_aggregate_keeps_nan_and_null_values_row_aligned() {
+        let df = DataFrame::new(
+            5,
+            vec![
+                Series::new("ts".into(), vec![0_i64, 1, 2, 3, 4]).into(),
+                Series::new(
+                    "value".into(),
+                    vec![Some(1.0), Some(f64::NAN), Some(3.0), None, Some(5.0)],
+                )
+                .into(),
+            ],
+        )
+        .expect("dataframe");
+        let (aggregated, was_reduced) = apply_reduction(
+            &df,
+            &["value".to_string()],
+            &[],
+            &Reduction::WindowAgg {
+                window_size_native: 3,
+                step_size_native: 3,
+                agg: AggFn::Mean,
+            },
+            "ts",
+        )
+        .expect("window aggregation");
+
+        assert!(was_reduced);
+        let values = aggregated
+            .column("value")
+            .expect("value column")
+            .f64()
+            .expect("f64 values")
+            .into_iter()
+            .collect::<Vec<_>>();
+        assert_eq!(values, vec![Some(2.0), Some(5.0)]);
+    }
+
+    #[test]
+    fn window_aggregate_rejects_an_unbounded_sparse_window_grid() {
+        let df = DataFrame::new(
+            2,
+            vec![
+                Series::new("ts".into(), vec![0_i64, 1_000_000]).into(),
+                Series::new("value".into(), vec![1.0_f64, 2.0]).into(),
+            ],
+        )
+        .expect("dataframe");
+        let result = apply_reduction(
+            &df,
+            &["value".to_string()],
+            &[],
+            &Reduction::WindowAgg {
+                window_size_native: 1,
+                step_size_native: 1,
+                agg: AggFn::Mean,
+            },
+            "ts",
+        );
+
+        assert!(result.is_err(), "oversized sparse window grid must fail fast");
     }
 }
