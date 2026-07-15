@@ -525,11 +525,26 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
     };
     const closeOnBackdrop = (event: MouseEvent) => { if (event.target === backdrop) close(); };
     const closeOnEscape = (event: KeyboardEvent) => { if (!backdrop.hidden && event.key === 'Escape') close(); };
+    const trapFocus = (event: KeyboardEvent) => {
+        if (backdrop.hidden || event.key !== 'Tab') return;
+        const focusable = Array.from(modal.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        )).filter((element) => !element.hidden);
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        const active = document.activeElement;
+        if (event.shiftKey ? active === first || !modal.contains(active) : active === last || !modal.contains(active)) {
+            event.preventDefault();
+            (event.shiftKey ? last : first).focus();
+        }
+    };
     trigger.addEventListener('click', open);
     closeButton.addEventListener('click', close);
     for (const tab of tabs) tab.addEventListener('click', () => setActiveTab(tab.dataset.planTab as WorkbenchTab));
     backdrop.addEventListener('click', closeOnBackdrop);
     document.addEventListener('keydown', closeOnEscape);
+    document.addEventListener('keydown', trapFocus);
     updateToolbarSummary(deps.planStore.getSnapshot());
     const unsubscribe = deps.planStore.subscribe(() => {
         updateToolbarSummary(deps.planStore.getSnapshot());
@@ -540,6 +555,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         closeButton.removeEventListener('click', close);
         backdrop.removeEventListener('click', closeOnBackdrop);
         document.removeEventListener('keydown', closeOnEscape);
+        document.removeEventListener('keydown', trapFocus);
         unsubscribe();
         backdrop.remove();
     };

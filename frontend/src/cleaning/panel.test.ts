@@ -171,4 +171,22 @@ describe('cleaning plan panel', () => {
 
         expect(planStore.getSnapshot()!.stages.map((stage) => stage.id)).toEqual([second.id, first.id]);
     });
+
+    it('keeps keyboard focus inside the workbench overlay and restores the trigger on close', () => {
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        mountCleaningPlanPanel({ planStore, getViewport: () => null });
+
+        const trigger = document.getElementById('open-cleaning-plan-btn') as HTMLButtonElement;
+        trigger.click();
+        const close = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Close')!;
+        const lastAction = Array.from(document.querySelectorAll('.cleaning-plan-actions button')).at(-1) as HTMLButtonElement;
+        lastAction.focus();
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+        expect(document.activeElement).toBe(close);
+
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        expect(document.activeElement).toBe(trigger);
+        expect(close.isConnected).toBe(true);
+    });
 });
