@@ -55,5 +55,6 @@ describe('cleaning code generation', () => {
         plan.stages.push({ id: 'fill', kind: 'fillNull', executionClass: 'polarsExpression', scope: 'row', enabled: true, sourcePage: 'manual', label: 'fill', createdAt: 'now', updatedAt: 'now', columns: ['value'], strategy: 'forward', limit: 2 });
         expect(generatePythonPolars(plan)).toContain('pl.col("value").fill_null(strategy="forward", limit=2)');
         expect(generateRustPolars(plan)).toContain('FillNullStrategy::Forward(Some(2))');
+        expect(generatePythonPolars(plan)).toContain('requires an earlier stable sort on the time column');
     });
 });
