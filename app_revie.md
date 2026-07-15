@@ -17,7 +17,8 @@
   version/revision, schema fingerprint, backend plan hash, and versioned
   sampling metadata where applicable. Analytics GET routes now carry the same
   identity; chart/scatter/correlation clients retain it with decoded results.
-  Causal/materialization and broader client parity remain. (`e543078`,
+  Causal now carries the same identity; materialization and broader client
+  parity remain. (`e543078`,
   `0aaab7f`, `2431453`, `f437017`, `3ad00ff`, `2541478`, `961caa4`,
   `65a8feb`)
 - **Milestone C started:** retained versions use an Arrow-content-derived
@@ -107,7 +108,7 @@ Do not start with allocator, SIMD, PGO, compression, framework replacement, or a
 - `/data`, scatter, and correlation routes are plan-aware and return the
   common immutable source/version/schema/plan identity headers. Rolling bands,
   anomalies, and spectral filtering now carry the common identity headers.
-  Causal/materialization and complete client parity remain open; Drift and
+  Materialization and complete client parity remain open; Causal, Drift, and
   plan/scatter exports also carry the common identity headers.
 - `crates/edatime-service/src/handlers/routes/data.rs` projects requested columns and time-filters lazily, but then collects every matching row before LTTB. Very wide time windows can therefore allocate in proportion to source rows rather than response rows.
 - Scatter similarly collects the filtered candidate frame before sampling. The response is bounded, but pre-sampling memory is not.
