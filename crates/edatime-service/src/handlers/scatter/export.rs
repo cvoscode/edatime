@@ -13,17 +13,23 @@ use edatime_store::state::AppState;
 use super::collect::collect_filtered_scatter_frame;
 use super::{ScatterPointsQuery, parse_scatter_filters, parse_scatter_line_filters};
 use crate::handlers::routes::cleaning::compile_request_frame;
+use crate::handlers::routes::shared::{
+    ExecutionIdentity, add_execution_identity_headers, current_execution_identity,
+};
 
 #[tracing::instrument(skip(state))]
 pub async fn post_scatter_export_parquet(
     State(state): State<AppState>,
     Json(params): Json<ScatterPointsQuery>,
 ) -> Result<Response, AppError> {
-    let lf = if let Some(envelope) = params.cleaning_plan.as_ref() {
-        let (_version, _hash, frame) = compile_request_frame(&state, envelope)?;
-        frame
+    let (lf, identity) = if let Some(envelope) = params.cleaning_plan.as_ref() {
+        let (version, hash, frame) = compile_request_frame(&state, envelope)?;
+        (frame, ExecutionIdentity::from_version(version, Some(hash)))
     } else {
-        state.dataset_snapshot()
+        (
+            state.dataset_snapshot(),
+            current_execution_identity(&state)?,
+        )
     };
 
     let x = params.x.clone();
@@ -64,7 +70,7 @@ pub async fn post_scatter_export_parquet(
         header::CONTENT_DISPOSITION,
         HeaderValue::from_static("attachment; filename=edatime_scatter_filtered.parquet"),
     );
-    Ok(response)
+    Ok(add_execution_identity_headers(response, &identity))
 }
 
 #[cfg(test)]
@@ -126,6 +132,13 @@ mod tests {
                 .get(header::CONTENT_TYPE)
                 .and_then(|v| v.to_str().ok()),
             Some("application/x-parquet")
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("x-edatime-source-version")
+                .and_then(|v| v.to_str().ok()),
+            Some("source-0")
         );
     }
 }
