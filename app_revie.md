@@ -614,3 +614,174 @@ The goal is achieved when all of the following are true:
 7. Grouped/panel time series have explicit per-group semantics across preparation and export.
 8. The exported Parquet, canonical JSON plan, generated Python Polars, split definition, and manifest can reproduce the modeling input with verified parity.
 9. Small-workload UX/performance does not regress beyond the accepted gate, and large-data benchmarks demonstrate bounded memory rather than merely faster full collection.
+
+## 12. Detailed Implementation Programme
+
+This section is the execution order for the roadmap. Each milestone is small
+enough to test and commit independently. Do not start a later milestone before
+its stated contract and verification are in place.
+
+### Status Reconciliation Before New Work
+
+The P0.1 and P0.2 findings above were written against the initial review
+snapshot. The current checkout already includes the following corrections:
+
+- plan-aware `POST /api/v1/data`, with plan execution before viewport
+  filtering and reduction;
+- plan propagation to rolling, anomalies, spectral filtering, scatter
+  correlations, and correlation matrices;
+- backend semantic plan hashing that excludes audit-only fields;
+- immutable source-version revisions, separate active-session revisions, and
+  `source_version_revision` metadata;
+- plan-aware timeseries cache identity and regression coverage.
+
+They remain part of the verification matrix, but are not reimplemented by the
+pipeline-workbench milestones below. Content-derived source fingerprints,
+uniform result identity headers, and the remaining POST migrations are still
+open.
+
+### Milestone A — Pipeline Overview and Editable Workbench
+
+**Purpose:** make the current executable context visible without inventing a
+second pipeline model. The graph is a projection of the canonical
+`CleaningPlan`; editing the graph changes that plan through the existing store.
+
+1. **Graph model and export contract**
+   - Add a pure `frontend/src/cleaning/pipelineGraph.ts` module.
+   - Derive a directed graph from `source version → enabled/disabled stages in
+     saved order → working dataset`; annotations are represented as attached
+     metadata nodes rather than membership-changing edges.
+   - Include stable node IDs, edge IDs, labels, execution status, stage kind,
+     source/version identity, and a semantic graph version.
+   - Export the graph as deterministic JSON and as an SVG snapshot. JSON is
+     intended for audit/review; SVG is intended for reports and tickets.
+   - Test empty plans, disabled stages, annotations, reordered stages, and
+     escaping of user labels in the SVG.
+
+2. **Accessible workbench overlay**
+   - Replace the compact plan-modal body with a tabbed overlay: **Pipeline**,
+     **Stages**, and **Export**. Keep the existing Plan toolbar trigger and
+     preserve Escape/backdrop/focus-return behavior.
+   - Render the graph as semantic SVG: source node, ordered stage nodes,
+     working-dataset node, status and stage-count legend. Nodes must also be
+     represented in the Stages tab, so graph interaction is never the only
+     way to edit the plan.
+   - Selecting a graph node selects the corresponding stage row and opens a
+     type-aware editor. The first release edits label, note, enabled state,
+     range bounds/mode, and adaptive-line parameters; it supports keyboard
+     move up/down, remove, and enable/disable. Reordering uses the existing
+     `CleaningPlanStore.reorderStage` API.
+   - Preview remains server authoritative. Changes are local until the normal
+     plan preview/apply/export actions are chosen.
+
+3. **Integration and lifecycle**
+   - Mount one pipeline workbench from `app.ts`; it subscribes to the existing
+     singleton plan store and is disposed through `AppRuntime`.
+   - The overview reflects plan changes made from Timeseries immediately and
+     asks the existing Timeseries owner to refresh only after an executable
+     plan change.
+   - Add a compact stage-count/status label to the existing Plan toolbar. Do
+     not add a new page or eagerly load chart libraries for this milestone.
+   - Export uses the backend canonical plan JSON already available, plus local
+     graph JSON/SVG. Generated Python/Rust remain explicitly marked as client
+     previews until backend canonical code generation exists.
+
+4. **Milestone A acceptance**
+   - A user can inspect source → stages → result, edit/reorder/disable/remove
+     stages in the overlay, preview the canonical plan, and export graph JSON
+     or SVG without mutating the source dataset.
+   - Unit tests cover graph derivation/export and overlay editing. Browser
+     coverage proves the overlay opens, responds to plan changes, and has no
+     console errors. Frontend architecture and bundle gates remain green.
+
+### Milestone B — Complete Execution Identity
+
+1. Define and publish one result-identity DTO/header helper for every
+   dataset-derived response: immutable source version, immutable source
+   revision, backend plan hash, projection/schema identity, and algorithm
+   version when sampling is used.
+2. Migrate remaining plan-bearing GET routes to typed POST envelopes so plan
+   size cannot exceed URL limits.
+3. Make client request coalescing identity explicit and separate from the
+   backend plan hash; discard mismatched responses before rendering.
+4. Add route-parity fixtures covering Timeseries, Scatter, correlation,
+   analytics, Drift, export, and materialization.
+
+**Commit/verification:** Rust route tests, frontend contract tests, full
+workspace/frontend suites, and one browser flow proving a stage edit refreshes
+all visible consumers.
+
+### Milestone C — Content Identity and Baselines
+
+1. Introduce content-derived source fingerprints while upload/normalization
+   writes the managed source; retain shape/schema fingerprints only for cheap
+   diagnostics.
+2. Add collision fixtures for same-shape/different-content sources and cache
+   isolation for selected retained versions.
+3. Record the canonical hashing/fingerprint contract in an ADR and golden
+   fixtures shared by TypeScript and Rust.
+
+**Gate:** stale plan, select-away/select-back, cache isolation, and artifact
+identity tests pass before storage redesign begins.
+
+### Milestone D — Scan-Backed Versions and Streaming Artifacts
+
+1. Add `DatasetArtifactStore` and a persisted descriptor catalog with atomic
+   publish, configurable quota, retention, startup recovery, and cleanup.
+2. Stream incoming files into managed storage while hashing; normalize CSV
+   once to Parquet and register Parquet files as scan-backed sources.
+3. Resolve new plan-aware queries from fresh lazy scans; keep the resident
+   tier only when estimated decoded size fits its configured budget.
+4. Materialize child versions and exports through temp files/streaming sinks,
+   never a complete response byte vector.
+
+**Gate:** a configured-over-budget Parquet source can be profiled, graphed,
+filtered, and exported without a second full resident copy; restart and
+interruption tests prove catalog recovery and atomicity.
+
+### Milestone E — Admission, Jobs, and Bounded Overview Queries
+
+1. Add a scheduler with workload permits, work/memory estimates, deadlines,
+   and structured `job_required` decisions.
+2. Move ingest normalization, exact profile, full export/materialization, and
+   exact wide analytics into observable/cancellable jobs.
+3. Replace collect-then-reduce Timeseries and Scatter overview paths with
+   bounded candidate envelopes/reservoir sampling after plan predicates.
+4. Surface queue/progress/cancellation and sampled/exact metadata in the UI.
+
+**Gate:** cancellation releases permits and temp files; one background job
+cannot block viewport interactions; peak memory follows configured candidate
+budgets on long/wide fixtures.
+
+### Milestone F — Profile, Prepare, and Modeling Handoff
+
+1. Add progressive schema/time-quality/column-quality profiling with cached
+   sampled versus exact status.
+2. Promote the overlay into a lazy Prepare feature page after the workbench
+   interactions are proven: stage editing, impact comparison, undo/redo,
+   import/rebind, and quality-finding actions.
+3. Add stage families one at a time, each with Rust compiler, null semantics,
+   preview, export, codegen parity, and plot authoring only after its consumer
+   migration. Delivery order: schema/null/duplicate → temporal regularization
+   → robust cleaning → modeling transforms → explicit signal transforms.
+4. Add backend canonical code generation, chronological split definitions,
+   leakage warnings, checksummed manifests, and reproducibility bundles.
+
+### Milestone G — Panel Series, Wide Analytics, and Remote Sources
+
+1. Add explicit `seriesKeys` and per-group semantics across plan stages,
+   profiling, cache identity, sampling, display, split, and export.
+2. Add selected-column/approximate-screening workflows, single-flight cache
+   entries, and job conversion for wide correlations and causal analysis.
+3. Introduce remote database descriptors and safe pushdown only after local
+   scan-backed parity is established.
+
+### Commit Discipline
+
+- One owner seam per implementation commit; do not mix generated assets,
+  formatting churn, or unrelated workspace edits into that commit.
+- Before each commit run the narrow regression tests for the seam, then
+  `npm test`, `npm run check:frontend:all`, `cargo test -q`, the production
+  build, and the relevant browser flow.
+- Rebuild packaged frontend assets only after source gates pass, and include
+  them in the same commit when this repository’s release layout requires it.
