@@ -4,7 +4,7 @@ use axum::{
     Json,
     extract::State,
     http::{HeaderValue, header},
-    response::Response,
+    response::{IntoResponse, Response},
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -266,7 +266,7 @@ pub async fn export_plan(
 pub async fn apply(
     State(state): State<AppState>,
     Json(envelope): Json<PlanRequestEnvelope>,
-) -> Result<Json<CleaningApplyResponse>, AppError> {
+) -> Result<Response, AppError> {
     let (version, plan_hash, frame) = compile_request_frame(&state, &envelope)?;
     let data = state
         .query_executor
@@ -276,11 +276,15 @@ pub async fn apply(
     let child = state
         .materialize_dataset_child(&version.id, data, plan_hash.clone())
         .await?;
-    Ok(Json(CleaningApplyResponse {
+    let response = CleaningApplyResponse {
         dataset_revision: child.revision,
-        source_version: child,
-        plan_hash,
-    }))
+        source_version: child.clone(),
+        plan_hash: plan_hash.clone(),
+    };
+    Ok(add_execution_identity_headers(
+        Json(response).into_response(),
+        &ExecutionIdentity::from_version(child, Some(plan_hash)),
+    ))
 }
 
 pub async fn list_versions(
@@ -418,10 +422,20 @@ mod tests {
         let root = state.current_dataset_version().expect("root");
         let response = apply(State(state.clone()), Json(envelope(&state)))
             .await
-            .expect("apply")
-            .0;
+            .expect("apply");
         assert_eq!(
-            response.source_version.parent_id.as_deref(),
+            response
+                .headers()
+                .get("x-edatime-source-version")
+                .and_then(|value| value.to_str().ok()),
+            Some("source-1")
+        );
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("response body");
+        let response: serde_json::Value = serde_json::from_slice(&body).expect("response JSON");
+        assert_eq!(
+            response["sourceVersion"]["parentId"].as_str(),
             Some(root.id.as_str())
         );
         assert_eq!(
