@@ -87,6 +87,7 @@ impl DatasetArtifactStore {
     pub fn publish(&self, descriptor: DatasetArtifactDescriptor) -> Result<(), AppError> {
         std::fs::create_dir_all(&self.root)
             .map_err(|e| AppError::Io(format!("Create artifact directory: {e}")))?;
+        self.cleanup_temporary_files()?;
         let mut catalog = self.load_catalog()?;
         catalog.retain(|entry| entry.version_id != descriptor.version_id);
         catalog.push(descriptor);
@@ -112,6 +113,7 @@ impl DatasetArtifactStore {
         let file_name = artifact_file_name(&version_id)?;
         std::fs::create_dir_all(&self.root)
             .map_err(|e| AppError::Io(format!("Create artifact directory: {e}")))?;
+        self.cleanup_temporary_files()?;
         let path = self.root.join(&file_name);
         if path.exists() {
             return Err(AppError::bad_request(format!(
@@ -200,6 +202,26 @@ impl DatasetArtifactStore {
                 "Managed artifact quota exceeded: {} bytes used + {} bytes pending exceeds {} bytes",
                 used, pending_bytes, limit
             )));
+        }
+        Ok(())
+    }
+
+    fn cleanup_temporary_files(&self) -> Result<(), AppError> {
+        let entries = std::fs::read_dir(&self.root)
+            .map_err(|error| AppError::Io(format!("Read artifact directory: {error}")))?;
+        for entry in entries {
+            let entry =
+                entry.map_err(|error| AppError::Io(format!("Read artifact entry: {error}")))?;
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if name == "catalog.json.tmp" || name.ends_with(".parquet.tmp") {
+                let path = entry.path();
+                if path.is_file() {
+                    std::fs::remove_file(path).map_err(|error| {
+                        AppError::Io(format!("Remove incomplete artifact: {error}"))
+                    })?;
+                }
+            }
         }
         Ok(())
     }
@@ -353,6 +375,27 @@ mod tests {
                 max_bytes: Some(10_000),
             }
         );
+
+        fs::remove_dir_all(root).expect("clean test artifact directory");
+    }
+
+    #[test]
+    fn managed_writes_clean_only_recognized_interrupted_artifacts() {
+        let root = test_root();
+        fs::create_dir_all(&root).expect("create artifact directory");
+        fs::write(root.join("catalog.json.tmp"), "partial catalog").expect("write catalog temp");
+        fs::write(root.join("source-11.parquet.tmp"), "partial parquet")
+            .expect("write parquet temp");
+        fs::write(root.join("operator-note.tmp"), "keep me").expect("write unrelated temp");
+        let store = DatasetArtifactStore::new(&root);
+
+        store
+            .publish(descriptor("source-11", 1))
+            .expect("publish descriptor after cleanup");
+
+        assert!(!root.join("catalog.json.tmp").exists());
+        assert!(!root.join("source-11.parquet.tmp").exists());
+        assert!(root.join("operator-note.tmp").exists());
 
         fs::remove_dir_all(root).expect("clean test artifact directory");
     }
