@@ -31,7 +31,7 @@ complete.
 | Portable plan core | Implemented for `timeRange`, `columnRange`, `adaptiveLine`, and `annotation` | Shared TypeScript store/compiler and Rust DTO/compiler exist; advanced row, column, transform, drift, and frequency stages remain |
 | Reversible baseline | Implemented in memory | Immutable root/child snapshots, explicit materialize/apply, version listing, and version selection exist; persistence and spill/out-of-core version storage remain |
 | Validation and preview | Implemented for the portable v1 stages | Backend validates source identity and compiles from the retained source snapshot |
-| Dataset and plan export | Partial | Full plan-aware Parquet and canonical JSON export exist; CSV, ZIP reproducibility bundle, checksums, source inclusion, and plan import remain |
+| Dataset and plan export | Partial | Full plan-aware Parquet and canonical JSON export exist; the workbench imports JSON plans bound to the active baseline; CSV, ZIP reproducibility bundle, checksums, source inclusion, and cross-baseline rebind remain |
 | Code generation | Partial | Frontend Python/Rust generators cover portable filters; Rust adaptive-line generation and backend-canonical bundle generation remain |
 | Plan consumption | Broad first slice | Timeseries, scatter points/matrix/export/correlations, FFT, spectrogram, causal, rolling, anomalies, spectral filtering, and drift accept the active plan |
 | Plan authoring | Timeseries only | Timeseries range/adaptive gestures author stages; scatter, correlation, FFT, spectrogram, causal, and drift authoring actions remain |
@@ -59,6 +59,9 @@ complete.
 - The Pipeline Workbench now treats every explicit `Add visible time range`
   action as append-only. Editing/replacing a prior stage is available only via
   its named stage editor, preserving saved order and audit history.
+- The Pipeline Workbench imports a saved JSON plan only when its immutable
+  source/version/fingerprint/schema/time-column identity matches the active
+  baseline. Import/rebind across datasets remains deliberately unavailable.
 
 ### Highest-Priority Remaining Query-Plan Work
 
