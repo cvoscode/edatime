@@ -128,15 +128,20 @@ describe('analytics api helpers', () => {
         await fetchSpectralFilter(new URLSearchParams({ column: 'value', filter_type: 'lowpass' }));
         await fetchCorrelationMatrix();
 
-        for (const call of fetchMock.mock.calls) {
+        for (const [index, call] of fetchMock.mock.calls.entries()) {
+            const request = call[1] as RequestInit | undefined;
             const url = new URL(String(call[0]), 'http://localhost');
-            const envelope = JSON.parse(String(url.searchParams.get('cleaning_plan')));
+            const envelope = index < 2
+                ? JSON.parse(String(request?.body ?? '{}')).cleaning_plan
+                : JSON.parse(String(url.searchParams.get('cleaning_plan')));
             expect(envelope).toMatchObject({
                 expectedSourceVersionId: 'source-3',
                 expectedDatasetRevision: 3,
                 plan: { stages: [{ kind: 'columnRange' }] },
             });
         }
+        expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: 'POST' });
+        expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: 'POST' });
     });
 
     it('propagates structured errors from analytics routes', async () => {

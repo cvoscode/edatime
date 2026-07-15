@@ -17,10 +17,15 @@ import type {
 } from '../../contracts/api/v1/analytics.js';
 
 function appendCleaningPlan(params: URLSearchParams): void {
+    const plan = activeCleaningPlan();
+    if (plan) params.set('cleaning_plan', JSON.stringify(plan));
+}
+
+function activeCleaningPlan(): ReturnType<typeof buildPlanRequestSnapshot> | null {
     const plan = cleaningPlanStore.getSnapshot();
-    if (plan?.stages.some((stage) => stage.enabled)) {
-        params.set('cleaning_plan', JSON.stringify(buildPlanRequestSnapshot(plan)));
-    }
+    return plan?.stages.some((stage) => stage.enabled)
+        ? buildPlanRequestSnapshot(plan)
+        : null;
 }
 
 export type {
@@ -53,6 +58,12 @@ export async function fetchRollingBands(
     window = 50,
     options?: ApiRequestOptions,
 ): Promise<RollingResponse> {
+    const plan = activeCleaningPlan();
+    if (plan) {
+        return postJson<RollingResponse>(apiV1Routes.analytics.rolling, {
+            start, end, columns, window, cleaning_plan: plan,
+        }, 'Rolling bands', options);
+    }
     const params = new URLSearchParams({ start, end, columns, window: String(window) });
     appendCleaningPlan(params);
     const url = withApiQuery(apiV1Routes.analytics.rolling, params);
@@ -69,6 +80,12 @@ export async function fetchAnomalies(
     threshold?: number,
     options?: ApiRequestOptions,
 ): Promise<AnomalyResponse> {
+    const plan = activeCleaningPlan();
+    if (plan) {
+        return postJson<AnomalyResponse>(apiV1Routes.analytics.anomalies, {
+            start, end, columns, method, threshold, cleaning_plan: plan,
+        }, 'Anomaly detection', options);
+    }
     const params = new URLSearchParams({ start, end, columns, method });
     if (threshold !== undefined) params.set('threshold', String(threshold));
     appendCleaningPlan(params);
@@ -85,6 +102,12 @@ export async function fetchFft(
     maxPoints = 8192,
     options?: ApiRequestOptions,
 ): Promise<FftResponse> {
+    const plan = activeCleaningPlan();
+    if (plan) {
+        return postJson<FftResponse>(apiV1Routes.analytics.fft, {
+            start, end, columns, max_points: maxPoints, cleaning_plan: plan,
+        }, 'FFT', options);
+    }
     const params = new URLSearchParams({ start, end, columns, max_points: String(maxPoints) });
     appendCleaningPlan(params);
     const url = withApiQuery(apiV1Routes.analytics.fft, params);
@@ -103,6 +126,19 @@ export async function fetchSpectrogram(
     options?: ApiRequestOptions,
     scaleOptions?: SpectrogramScaleOptions,
 ): Promise<SpectrogramResponse> {
+    const plan = activeCleaningPlan();
+    if (plan) {
+        return postJson<SpectrogramResponse>(apiV1Routes.analytics.spectrogram, {
+            start, end, column,
+            window_size: windowSize,
+            hop_size: hopSize,
+            max_points: maxPoints,
+            normalize: scaleOptions?.normalize,
+            clip: scaleOptions?.clip,
+            clip_param: scaleOptions?.clipParam,
+            cleaning_plan: plan,
+        }, 'Spectrogram', options);
+    }
     const params = new URLSearchParams({
         start, end, column,
         window_size: String(windowSize),
