@@ -435,6 +435,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             if (!file) return;
             try {
                 deps.planStore.setPlan(parseImportedPlan(await file.text(), plan));
+                deps.onPlanChanged?.();
                 preview.textContent = 'Imported ' + file.name + ' for this dataset baseline.';
             } catch (error) {
                 preview.textContent = error instanceof Error ? error.message : 'Could not import this plan.';

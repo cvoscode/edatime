@@ -173,7 +173,8 @@ describe('cleaning plan panel', () => {
         const planStore = createCleaningPlanStore();
         planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
         const imported = { ...planStore.getSnapshot()!, id: 'imported-plan', stages: [] };
-        mountCleaningPlanPanel({ planStore, getViewport: () => null });
+        const onPlanChanged = vi.fn();
+        mountCleaningPlanPanel({ planStore, getViewport: () => null, onPlanChanged });
 
         document.getElementById('open-cleaning-plan-btn')!.click();
         Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Export')!.click();
@@ -185,6 +186,7 @@ describe('cleaning plan panel', () => {
         await Promise.resolve();
 
         expect(planStore.getSnapshot()!.id).toBe('imported-plan');
+        expect(onPlanChanged).toHaveBeenCalledTimes(1);
         expect(document.querySelector('[data-plan-preview]')?.textContent).toContain('Imported saved-plan.json');
     });
 
