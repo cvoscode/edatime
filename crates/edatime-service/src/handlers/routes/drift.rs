@@ -1,12 +1,19 @@
 //! `POST /api/drift/stats` and `POST /api/drift/investigate`.
 
-use axum::{Json, extract::State, response::Response};
+use axum::{
+    Json,
+    extract::State,
+    response::{IntoResponse, Response},
+};
 use chrono::{DateTime, NaiveDateTime, Utc};
 use polars::prelude::col;
 use serde::Deserialize;
 
 use crate::analytics::{DriftThresholds, compute_drift_investigation, compute_temporal_drift};
 use crate::error::AppError;
+use crate::handlers::routes::shared::{
+    ExecutionIdentity, add_execution_identity_headers, current_execution_identity,
+};
 use edatime_core::temporal::native_to_epoch_ms;
 use edatime_query::pipeline::filter_time_range;
 use edatime_query::validation::validate_numeric_columns_lazy;
@@ -132,16 +139,12 @@ fn normalized_thresholds(
 
 async fn filtered_drift_df(
     state: &AppState,
+    lf: polars::prelude::LazyFrame,
     query_columns: &[String],
     segment_by: Option<&str>,
     reference_start: DateTime<Utc>,
     comparison_end: DateTime<Utc>,
-    cleaning_plan: Option<&crate::handlers::routes::cleaning::PlanRequestEnvelope>,
 ) -> Result<(polars::prelude::DataFrame, i64, f64), AppError> {
-    let lf = if let Some(envelope) = cleaning_plan {
-        let (_version, _hash, frame) = crate::handlers::routes::cleaning::compile_request_frame(state, envelope)?;
-        frame
-    } else { state.dataset_snapshot() };
     let ctx = state.ts_context(&lf)?;
     let ts_col = ctx.ts_col.clone();
     let multiplier = ctx.multiplier;
@@ -168,6 +171,19 @@ async fn filtered_drift_df(
     ))
 }
 
+fn drift_frame_with_identity(
+    state: &AppState,
+    cleaning_plan: Option<&crate::handlers::routes::cleaning::PlanRequestEnvelope>,
+) -> Result<(polars::prelude::LazyFrame, ExecutionIdentity), AppError> {
+    if let Some(envelope) = cleaning_plan {
+        let (version, hash, frame) =
+            crate::handlers::routes::cleaning::compile_request_frame(state, envelope)?;
+        Ok((frame, ExecutionIdentity::from_version(version, Some(hash))))
+    } else {
+        Ok((state.dataset_snapshot(), current_execution_identity(state)?))
+    }
+}
+
 #[tracing::instrument(skip(state))]
 pub async fn post_drift_stats(
     State(state): State<AppState>,
@@ -177,10 +193,7 @@ pub async fn post_drift_stats(
     let ref_end = parse_datetime(&query.reference_end)?;
     validate_time_window(ref_start, ref_end)?;
 
-    let lf = if let Some(envelope) = query.cleaning_plan.as_ref() {
-        let (_version, _hash, frame) = crate::handlers::routes::cleaning::compile_request_frame(&state, envelope)?;
-        frame
-    } else { state.dataset_snapshot() };
+    let (lf, identity) = drift_frame_with_identity(&state, query.cleaning_plan.as_ref())?;
     let (column_name, window_size) =
         validate_drift_stats_query(&lf, &query, &state.config.validation)?;
     let ctx = state.ts_context(&lf)?;
@@ -233,17 +246,18 @@ pub async fn post_drift_stats(
     )?;
 
     let body = serde_json::to_string(&result).map_err(|e| AppError::internal(e.to_string()))?;
-    Response::builder()
+    let response = Response::builder()
         .header("content-type", "application/json")
         .body(body.into())
-        .map_err(|e| AppError::internal(e.to_string()))
+        .map_err(|e| AppError::internal(e.to_string()))?;
+    Ok(add_execution_identity_headers(response, &identity))
 }
 
 #[tracing::instrument(skip(state))]
 pub async fn post_drift_investigate(
     State(state): State<AppState>,
     Json(query): Json<DriftInvestigateQuery>,
-) -> Result<Json<crate::analytics::DriftInvestigationResponse>, AppError> {
+) -> Result<Response, AppError> {
     let window_size = window_ms(&query.window);
     let reference_start = parse_datetime(&query.reference_start)?;
     let reference_end = parse_datetime(&query.reference_end)?;
@@ -253,10 +267,10 @@ pub async fn post_drift_investigate(
         Some(value) => parse_datetime(value)?,
         None => reference_end,
     };
+    let (lf, identity) = drift_frame_with_identity(&state, query.cleaning_plan.as_ref())?;
     let comparison_end = match query.comparison_end.as_deref() {
         Some(value) => parse_datetime(value)?,
         None => {
-            let lf = state.dataset_snapshot();
             let ctx = state.ts_context(&lf)?;
             let max_native = max_timestamp_native(
                 &state,
@@ -273,7 +287,6 @@ pub async fn post_drift_investigate(
     };
     validate_time_window(comparison_start, comparison_end)?;
 
-    let lf = state.dataset_snapshot();
     let limits = &state.config.validation;
     let columns =
         validate_numeric_columns_lazy(&lf, &query.columns, limits).map_err(AppError::from)?;
@@ -300,11 +313,11 @@ pub async fn post_drift_investigate(
 
     let (df, _, _) = filtered_drift_df(
         &state,
+        lf,
         &columns,
         query.segment_by.as_deref(),
         reference_start,
         comparison_end,
-        query.cleaning_plan.as_ref(),
     )
     .await?;
     let thresholds = normalized_thresholds(
@@ -330,15 +343,18 @@ pub async fn post_drift_investigate(
         query.include_change_points.unwrap_or(true),
         query.include_correlations.unwrap_or(true),
     )?;
-    Ok(Json(response))
+    Ok(add_execution_identity_headers(
+        Json(response).into_response(),
+        &identity,
+    ))
 }
 
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use polars::prelude::IntoLazy;
     use polars::df;
+    use polars::prelude::IntoLazy;
     use serde_json::json;
 
     fn sample_drift_query() -> DriftQuery {
