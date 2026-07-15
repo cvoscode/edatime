@@ -32,11 +32,12 @@
   explicit plan materializations publish those descriptors as managed Parquet
   artifacts. Catalog entries now carry the immutable root/parent/revision/
   schema/plan provenance required to restore an ordered Parquet version graph,
-  and the registry validates that graph on recovery. Application startup does
-  not yet attach a restored scan to the legacy active repository; ingest,
-  quota, retention, and complete restart recovery remain open. (`f2ed211`,
+  and the registry validates that graph on recovery. Application startup
+  attaches the newest valid restored version to the active repository as a
+  lazy scan with persisted metadata, without collecting its rows. Ingest,
+  quota, retention, and streaming materialization/export remain open. (`f2ed211`,
   `9887e4f`, `6ab6f44`, `7413758`, `7847b46`, `5bfdc39`, `d2dca71`,
-  `7c31697`)
+  `7c31697`, `84fd48f`)
 
 ## 1. Goal
 
@@ -115,9 +116,9 @@ Do not start with allocator, SIMD, PGO, compression, framework replacement, or a
   descriptor as a fresh `LazyFrame` scan. Configuring
   `data.artifact_dir`/`EDATIME_ARTIFACT_DIR` writes replacement roots and
   materialized children to that catalog. Root/materialized frames are still
-  collected first. The registry can reconstruct catalogued version provenance,
-  but startup has not yet transitioned the active compatibility repository to
-  a restored scan; there is also no quota, retention, or eviction.
+  collected first. The registry reconstructs catalogued version provenance and
+  startup transitions the active compatibility repository to the latest
+  restored lazy scan; there is still no quota, retention, or eviction.
 - Dataset fingerprints are currently derived from canonical Arrow content
   (schema, row order, nulls, and values); they are still resident-frame hashes
   rather than streaming ingest hashes.
