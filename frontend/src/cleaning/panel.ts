@@ -13,7 +13,7 @@ import type { CleaningPlanStore } from './store.js';
 import { downloadBlob } from '../utils/dom.js';
 
 type PlanPanelStore = Pick<CleaningPlanStore,
-    'getSnapshot' | 'subscribe' | 'addStage' | 'updateStage' | 'removeStage' | 'setStageEnabled' | 'reorderStage'>;
+    'getSnapshot' | 'subscribe' | 'setPlan' | 'addStage' | 'updateStage' | 'removeStage' | 'setStageEnabled' | 'reorderStage'>;
 type WorkbenchTab = 'pipeline' | 'stages' | 'export';
 
 export interface CleaningPlanPanelDeps {
@@ -424,6 +424,24 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         pythonExport.addEventListener('click', () => exportText(generatePythonPolars(plan), 'apply_edatime_plan.py', 'text/x-python;charset=utf-8'));
         const rustExport = button('Rust Polars');
         rustExport.addEventListener('click', () => exportText(generateRustPolars(plan), 'apply_edatime_plan.rs', 'text/rust;charset=utf-8'));
+        const importInput = document.createElement('input');
+        importInput.type = 'file';
+        importInput.accept = 'application/json,.json';
+        importInput.hidden = true;
+        const importPlan = button('Import plan JSON');
+        importPlan.addEventListener('click', () => importInput.click());
+        importInput.addEventListener('change', async () => {
+            const file = importInput.files?.[0];
+            if (!file) return;
+            try {
+                deps.planStore.setPlan(parseImportedPlan(await file.text(), plan));
+                preview.textContent = 'Imported ' + file.name + ' for this dataset baseline.';
+            } catch (error) {
+                preview.textContent = error instanceof Error ? error.message : 'Could not import this plan.';
+            } finally {
+                importInput.value = '';
+            }
+        });
         const storage = document.createElement('p');
         storage.className = 'pipeline-workbench__hint';
         storage.textContent = 'Managed artifact storage is not loaded.';
@@ -444,7 +462,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
                 refreshStorage.disabled = false;
             }
         });
-        controls.append(planExport, graphExport, svgExport, pythonExport, rustExport, refreshStorage);
+        controls.append(planExport, graphExport, svgExport, pythonExport, rustExport, importPlan, importInput, refreshStorage);
         panel.append(copy, controls, storage);
     };
     const renderActions = (plan: CleaningPlan) => {
@@ -592,4 +610,39 @@ function formatBytes(bytes: number): string {
         unit += 1;
     } while (value >= 1024 && unit < units.length - 1);
     return value.toFixed(value >= 10 ? 0 : 1) + ' ' + units[unit];
+}
+
+function parseImportedPlan(text: string, current: CleaningPlan): CleaningPlan {
+    let candidate: unknown;
+    try {
+        candidate = JSON.parse(text);
+    } catch {
+        throw new Error('The selected file is not valid JSON.');
+    }
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+        throw new Error('The selected file is not a cleaning plan.');
+    }
+    const plan = candidate as Partial<CleaningPlan>;
+    if (plan.schemaVersion !== 1 || !Array.isArray(plan.stages)) {
+        throw new Error('The selected file is not a supported cleaning plan.');
+    }
+    if (plan.sourceVersionId !== current.sourceVersionId
+        || plan.datasetRevision !== current.datasetRevision
+        || plan.datasetFingerprint !== current.datasetFingerprint
+        || plan.schemaFingerprint !== current.schemaFingerprint
+        || plan.timeColumn !== current.timeColumn) {
+        throw new Error('This plan belongs to a different dataset baseline. Rebinding is not available yet.');
+    }
+    if (typeof plan.id !== 'string' || typeof plan.planRevision !== 'number'
+        || typeof plan.createdAt !== 'string' || typeof plan.updatedAt !== 'string') {
+        throw new Error('The selected plan is missing required metadata.');
+    }
+    for (const stage of plan.stages) {
+        if (!stage || typeof stage !== 'object'
+            || !['timeRange', 'columnRange', 'adaptiveLine', 'annotation'].includes((stage as CleaningStage).kind)
+            || typeof (stage as CleaningStage).id !== 'string') {
+            throw new Error('The selected plan contains an unsupported stage.');
+        }
+    }
+    return plan as CleaningPlan;
 }

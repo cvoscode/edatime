@@ -169,6 +169,25 @@ describe('cleaning plan panel', () => {
         expect(document.querySelector('.pipeline-workbench__hint:last-child')?.textContent).toContain('2 retained artifacts · 1.5 MiB used · 10 MiB quota');
     });
 
+    it('imports a saved plan only when it is anchored to the active dataset baseline', async () => {
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        const imported = { ...planStore.getSnapshot()!, id: 'imported-plan', stages: [] };
+        mountCleaningPlanPanel({ planStore, getViewport: () => null });
+
+        document.getElementById('open-cleaning-plan-btn')!.click();
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Export')!.click();
+        const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+        const file = new File([JSON.stringify(imported)], 'saved-plan.json', { type: 'application/json' });
+        Object.defineProperty(input, 'files', { value: [file] });
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(planStore.getSnapshot()!.id).toBe('imported-plan');
+        expect(document.querySelector('[data-plan-preview]')?.textContent).toContain('Imported saved-plan.json');
+    });
+
     it('supports keyboard-accessible stage reordering from the Stages tab', () => {
         const planStore = createCleaningPlanStore();
         planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
