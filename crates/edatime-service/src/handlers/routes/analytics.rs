@@ -8,14 +8,17 @@ use std::sync::Arc;
 use axum::{
     Json,
     extract::{Query, State},
-    response::IntoResponse,
+    response::{IntoResponse, Response},
 };
 use chrono::{DateTime, TimeZone, Utc};
 use serde::Deserialize;
 
 use crate::analytics;
 use crate::error::AppError;
-use crate::handlers::routes::shared::{downsample_by_stride, filter_preamble_with_plan};
+use crate::handlers::routes::shared::{
+    ExecutionIdentity, add_execution_identity_headers, downsample_by_stride,
+    filter_preamble_with_plan,
+};
 use edatime_query::query;
 use edatime_query::validation::validate_numeric_columns_lazy;
 use edatime_store::state::AppState;
@@ -32,12 +35,16 @@ pub struct RollingQuery {
     pub cleaning_plan: Option<String>,
 }
 
+fn analytics_response<T: serde::Serialize>(value: T, identity: &ExecutionIdentity) -> Response {
+    add_execution_identity_headers(Json(value).into_response(), identity)
+}
+
 #[tracing::instrument(skip(state))]
 pub async fn get_rolling(
     State(state): State<AppState>,
     Query(params): Query<RollingQuery>,
-) -> Result<impl IntoResponse, AppError> {
-    let (value_cols, filtered) = filter_preamble_with_plan(
+) -> Result<Response, AppError> {
+    let (value_cols, filtered, identity) = filter_preamble_with_plan(
         &state,
         params.start,
         params.end,
@@ -96,7 +103,7 @@ pub async fn get_rolling(
     let compute_ns = compute_ns_holder.load(std::sync::atomic::Ordering::Relaxed);
     metrics.record_rolling(rows_in, columns_in, response_bytes, compute_ns);
 
-    Ok(Json(response_payload))
+    Ok(analytics_response(response_payload, &identity))
 }
 
 // ── Anomaly Detection ──────────────────────────────────────────────────────
@@ -117,9 +124,9 @@ pub struct AnomalyQuery {
 pub async fn get_anomalies(
     State(state): State<AppState>,
     Query(params): Query<AnomalyQuery>,
-) -> Result<impl IntoResponse, AppError> {
+) -> Result<Response, AppError> {
     let params = Arc::new(params);
-    let (value_cols, filtered) = filter_preamble_with_plan(
+    let (value_cols, filtered, identity) = filter_preamble_with_plan(
         &state,
         params.start,
         params.end,
@@ -152,12 +159,15 @@ pub async fn get_anomalies(
     .await
     .map_err(|e| AppError::internal(format!("Join error: {e}")))??;
 
-    Ok(Json(serde_json::json!({
-        "method": method,
-        "threshold": params.threshold.unwrap_or(if method == "iqr" { 1.5 } else { 3.0 }),
-        "regions": regions,
-        "summary_stats": summary_stats,
-    })))
+    Ok(analytics_response(
+        serde_json::json!({
+            "method": method,
+            "threshold": params.threshold.unwrap_or(if method == "iqr" { 1.5 } else { 3.0 }),
+            "regions": regions,
+            "summary_stats": summary_stats,
+        }),
+        &identity,
+    ))
 }
 
 // ── FFT / PSD ──────────────────────────────────────────────────────────────
@@ -176,8 +186,8 @@ pub struct FftQuery {
 pub async fn get_fft(
     State(state): State<AppState>,
     Query(params): Query<FftQuery>,
-) -> Result<impl IntoResponse, AppError> {
-    let (value_cols, filtered) = filter_preamble_with_plan(
+) -> Result<Response, AppError> {
+    let (value_cols, filtered, identity) = filter_preamble_with_plan(
         &state,
         params.start,
         params.end,
@@ -197,10 +207,13 @@ pub async fn get_fft(
     .await
     .map_err(|e| AppError::internal(format!("Join error: {e}")))??;
 
-    Ok(Json(serde_json::json!({
-        "sample_count": work_df.height(),
-        "results": results,
-    })))
+    Ok(analytics_response(
+        serde_json::json!({
+            "sample_count": work_df.height(),
+            "results": results,
+        }),
+        &identity,
+    ))
 }
 
 // ── Spectrogram (STFT) ────────────────────────────────────────────────────
@@ -231,8 +244,8 @@ pub struct SpectrogramQuery {
 pub async fn get_spectrogram(
     State(state): State<AppState>,
     Query(params): Query<SpectrogramQuery>,
-) -> Result<impl IntoResponse, AppError> {
-    let (value_cols, filtered) = filter_preamble_with_plan(
+) -> Result<Response, AppError> {
+    let (value_cols, filtered, identity) = filter_preamble_with_plan(
         &state,
         params.start,
         params.end,
@@ -267,10 +280,13 @@ pub async fn get_spectrogram(
     .await
     .map_err(|e| AppError::internal(format!("Join error: {e}")))??;
 
-    Ok(Json(serde_json::json!({
-        "sample_count": work_df.height(),
-        "result": result,
-    })))
+    Ok(analytics_response(
+        serde_json::json!({
+            "sample_count": work_df.height(),
+            "result": result,
+        }),
+        &identity,
+    ))
 }
 
 // ── Spectral Filter ────────────────────────────────────────────────────────
@@ -300,7 +316,7 @@ pub struct SpectralFilterQuery {
 pub async fn get_spectral_filter(
     State(state): State<AppState>,
     Query(params): Query<SpectralFilterQuery>,
-) -> Result<impl IntoResponse, AppError> {
+) -> Result<Response, AppError> {
     let col_opt = Some(params.column.clone());
 
     // Resolve optional start/end from dataset time range when not provided.
@@ -368,7 +384,7 @@ pub async fn get_spectral_filter(
         }
     };
 
-    let (value_cols, filtered) = filter_preamble_with_plan(
+    let (value_cols, filtered, identity) = filter_preamble_with_plan(
         &state,
         start,
         end,
@@ -405,15 +421,18 @@ pub async fn get_spectral_filter(
     .await
     .map_err(|e| AppError::internal(format!("Join error: {e}")))??;
 
-    Ok(Json(serde_json::json!({
-        "column": col,
-        "ts": ts_ms,
-        "values": filtered_values,
-        "filter_type": params.filter_type,
-        "low_hz": low_hz,
-        "high_hz": high_hz,
-        "sample_count": ts_ms.len(),
-    })))
+    Ok(analytics_response(
+        serde_json::json!({
+            "column": col,
+            "ts": ts_ms,
+            "values": filtered_values,
+            "filter_type": params.filter_type,
+            "low_hz": low_hz,
+            "high_hz": high_hz,
+            "sample_count": ts_ms.len(),
+        }),
+        &identity,
+    ))
 }
 
 // ── Column Transformation ──────────────────────────────────────────────────
@@ -1042,8 +1061,22 @@ mod tests {
             }),
         )
         .await
-        .expect("anomaly route should succeed")
-        .into_response();
+        .expect("anomaly route should succeed");
+
+        assert_eq!(
+            response
+                .headers()
+                .get("x-edatime-source-version")
+                .and_then(|value| value.to_str().ok()),
+            Some("source-0")
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("x-edatime-plan-hash")
+                .and_then(|value| value.to_str().ok()),
+            Some("none")
+        );
 
         let body = axum::body::to_bytes(response.into_body(), usize::MAX)
             .await

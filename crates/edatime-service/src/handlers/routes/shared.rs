@@ -163,22 +163,30 @@ pub async fn filter_preamble_with_plan(
     end: DateTime<Utc>,
     columns: Option<&str>,
     cleaning_plan: Option<&str>,
-) -> Result<(Vec<String>, DataFrame), AppError> {
+) -> Result<(Vec<String>, DataFrame, ExecutionIdentity), AppError> {
     validate_time_window(start, end)?;
-    let (lf, time_column) = match cleaning_plan.filter(|raw| !raw.trim().is_empty()) {
+    let (lf, time_column, identity) = match cleaning_plan.filter(|raw| !raw.trim().is_empty()) {
         Some(raw) => {
             let envelope: PlanRequestEnvelope = serde_json::from_str(raw).map_err(|error| {
                 AppError::bad_request(format!("Invalid cleaning plan query: {error}"))
             })?;
-            let (_version, _hash, frame) = compile_request_frame(state, &envelope)?;
-            (frame, envelope.plan.time_column)
+            let (version, hash, frame) = compile_request_frame(state, &envelope)?;
+            (
+                frame,
+                envelope.plan.time_column,
+                ExecutionIdentity::from_version(version, Some(hash)),
+            )
         }
-        None => (
-            state.dataset_snapshot(),
-            state
-                .time_column_display_name_sync()
-                .unwrap_or_else(|| "ts".to_string()),
-        ),
+        None => {
+            let identity = current_execution_identity(state)?;
+            (
+                state.dataset_snapshot(),
+                state
+                    .time_column_display_name_sync()
+                    .unwrap_or_else(|| "ts".to_string()),
+                identity,
+            )
+        }
     };
     let cols = query::parse_columns(columns);
     let limits = &state.config.validation;
@@ -194,6 +202,7 @@ pub async fn filter_preamble_with_plan(
     Ok((
         value_cols,
         state.query_executor.execute_async(filtered_lf).await?,
+        identity,
     ))
 }
 
