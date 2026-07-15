@@ -42,7 +42,12 @@ pub struct CleaningStageBaseDto {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum CleaningStageDto {
     TimeRange {
         #[serde(flatten)]
@@ -511,6 +516,57 @@ mod tests {
         let parsed = serde_json::from_value::<CleaningPlanDto>(raw).expect("frontend DTO");
         assert_eq!(parsed.stages.len(), 1);
         assert_eq!(parsed.stages[0].id(), "range-1");
+    }
+
+    #[test]
+    fn parses_frontend_adaptive_line_fields_as_camel_case() {
+        let raw = serde_json::json!({
+            "schemaVersion": 1,
+            "id": "plan-1",
+            "planRevision": 1,
+            "sourceVersionId": "source-0",
+            "datasetRevision": 0,
+            "datasetFingerprint": "frame",
+            "schemaFingerprint": "schema",
+            "timeColumn": "ts",
+            "sourceName": null,
+            "createdAt": "now",
+            "updatedAt": "now",
+            "stages": [{
+                "id": "line-1",
+                "kind": "adaptiveLine",
+                "executionClass": "polarsExpression",
+                "scope": "row",
+                "enabled": true,
+                "sourcePage": "timeseries",
+                "label": "Keep above trend",
+                "note": null,
+                "createdAt": "now",
+                "updatedAt": "now",
+                "column": "value",
+                "x1Ms": 1.0,
+                "y1": 2.0,
+                "x2Ms": 3.0,
+                "y2": 4.0,
+                "keepAbove": true,
+                "applyWithinSegmentOnly": true
+            }]
+        });
+
+        let parsed = serde_json::from_value::<CleaningPlanDto>(raw).expect("frontend DTO");
+        let CleaningStageDto::AdaptiveLine {
+            x1_ms,
+            x2_ms,
+            keep_above,
+            apply_within_segment_only,
+            ..
+        } = &parsed.stages[0]
+        else {
+            panic!("expected adaptive line stage");
+        };
+        assert_eq!((*x1_ms, *x2_ms), (1.0, 3.0));
+        assert!(*keep_above);
+        assert!(*apply_within_segment_only);
     }
 
     #[test]
