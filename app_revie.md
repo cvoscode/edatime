@@ -90,7 +90,8 @@ Do not start with allocator, SIMD, PGO, compression, framework replacement, or a
   with plan-aware requests; the backend applies it before projection and
   reduction. The result keeps immutable execution provenance in `_meta`.
 - `frontend/src/features/home/guidedWorkflow.ts` guides Upload → Timeseries → Correlations → Scatter → Causal. It does not finish with quality review, preparation, validation, or export.
-- Upload validation has a hard-coded 256 MiB frontend limit in `features/upload/partialLoadControls.ts`, independent of server configuration.
+- Upload validation now checks format only; server-side configurable admission
+  owns file-size policy so the UI does not preempt scan-backed/streaming work.
 - Arrow decoding is bounded for normal chart routes, but it copies Arrow columns into JavaScript typed arrays. Response budgets must therefore remain strict even after the backend becomes out-of-core.
 
 ### 3.2 Backend
