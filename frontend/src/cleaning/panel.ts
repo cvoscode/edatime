@@ -912,6 +912,12 @@ function parseImportedPlan(text: string, current: CleaningPlan): CleaningPlan {
             throw new Error('The selected plan contains an unsupported stage.');
         }
     }
+    for (const [index, stage] of plan.stages.entries()) {
+        if (stage.kind !== 'fillNull' || !stage.enabled) continue;
+        const hasTimeSort = plan.stages.slice(0, index).some((prior) => prior.enabled && prior.kind === 'sort'
+            && prior.columns.some((column) => column.trim() === current.timeColumn.trim()));
+        if (!hasTimeSort) throw new Error('Ordered null fill requires an earlier enabled stable sort on the time column.');
+    }
     return plan as CleaningPlan;
 }
 

@@ -256,6 +256,20 @@ describe('cleaning plan panel', () => {
         expect(document.querySelector('[data-plan-preview]')?.textContent).toContain('different dataset baseline');
     });
 
+    it('rejects imported ordered null fill without a preceding time sort', async () => {
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        const imported = { ...planStore.getSnapshot()!, stages: [{ id: 'fill', kind: 'fillNull', executionClass: 'polarsExpression', scope: 'row', enabled: true, sourcePage: 'manual', label: 'Fill', createdAt: 'now', updatedAt: 'now', columns: ['value'], strategy: 'forward', limit: null }] };
+        mountCleaningPlanPanel({ planStore, getViewport: () => null });
+        document.getElementById('open-cleaning-plan-btn')!.click();
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Export')!.click();
+        const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+        Object.defineProperty(input, 'files', { value: [new File([JSON.stringify(imported)], 'unordered-fill.json')] });
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        await Promise.resolve(); await Promise.resolve();
+        expect(document.querySelector('[data-plan-preview]')?.textContent).toContain('requires an earlier enabled stable sort');
+    });
+
     it('supports keyboard-accessible stage reordering from the Stages tab', () => {
         const planStore = createCleaningPlanStore();
         planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
