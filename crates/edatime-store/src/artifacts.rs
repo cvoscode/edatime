@@ -42,11 +42,22 @@ pub struct DatasetArtifactProvenance {
 #[derive(Debug, Clone)]
 pub struct DatasetArtifactStore {
     root: PathBuf,
+    max_bytes: Option<u64>,
 }
 
 impl DatasetArtifactStore {
     pub fn new(root: impl Into<PathBuf>) -> Self {
-        Self { root: root.into() }
+        Self {
+            root: root.into(),
+            max_bytes: None,
+        }
+    }
+
+    pub fn with_max_bytes(root: impl Into<PathBuf>, max_bytes: Option<u64>) -> Self {
+        Self {
+            root: root.into(),
+            max_bytes,
+        }
     }
 
     fn catalog_path(&self) -> PathBuf {
@@ -107,6 +118,13 @@ impl DatasetArtifactStore {
                 "Write Parquet artifact: {error}"
             )));
         }
+        let byte_size = std::fs::metadata(&temp)
+            .map_err(|e| AppError::Io(format!("Read pending Parquet artifact size: {e}")))?
+            .len();
+        if let Err(error) = self.ensure_capacity(&version_id, byte_size) {
+            let _ = std::fs::remove_file(&temp);
+            return Err(error);
+        }
         if let Err(error) = std::fs::rename(&temp, &path) {
             let _ = std::fs::remove_file(&temp);
             return Err(AppError::Io(format!("Finalize Parquet artifact: {error}")));
@@ -115,9 +133,7 @@ impl DatasetArtifactStore {
             version_id,
             path,
             format: "parquet".to_string(),
-            byte_size: std::fs::metadata(self.root.join(&file_name))
-                .map_err(|e| AppError::Io(format!("Read Parquet artifact size: {e}")))?
-                .len(),
+            byte_size,
             content_fingerprint,
             created_at,
             provenance: None,
@@ -144,6 +160,29 @@ impl DatasetArtifactStore {
 
     pub fn root(&self) -> &Path {
         &self.root
+    }
+
+    pub fn max_bytes(&self) -> Option<u64> {
+        self.max_bytes
+    }
+
+    fn ensure_capacity(&self, version_id: &str, pending_bytes: u64) -> Result<(), AppError> {
+        let Some(limit) = self.max_bytes else {
+            return Ok(());
+        };
+        let used = self
+            .load_catalog()?
+            .into_iter()
+            .filter(|entry| entry.version_id != version_id)
+            .map(|entry| entry.byte_size)
+            .sum::<u64>();
+        if used.saturating_add(pending_bytes) > limit {
+            return Err(AppError::bad_request(format!(
+                "Managed artifact quota exceeded: {} bytes used + {} bytes pending exceeds {} bytes",
+                used, pending_bytes, limit
+            )));
+        }
+        Ok(())
     }
 }
 
@@ -252,6 +291,28 @@ mod tests {
         assert!(published.byte_size > 0);
         assert_eq!(store.load_catalog().expect("load catalog"), vec![published]);
         assert!(!root.join("source-8.parquet.tmp").exists());
+
+        fs::remove_dir_all(root).expect("clean test artifact directory");
+    }
+
+    #[test]
+    fn quota_rejects_an_artifact_before_it_is_published() {
+        let root = test_root();
+        let store = DatasetArtifactStore::with_max_bytes(&root, Some(1));
+
+        let error = store
+            .publish_parquet(
+                "source-9".to_string(),
+                "content-9".to_string(),
+                Utc::now(),
+                frame(vec![1, 2, 3]),
+            )
+            .expect_err("quota should reject parquet");
+
+        assert!(error.to_string().contains("quota exceeded"));
+        assert!(store.load_catalog().expect("catalog").is_empty());
+        assert!(!root.join("source-9.parquet").exists());
+        assert!(!root.join("source-9.parquet.tmp").exists());
 
         fs::remove_dir_all(root).expect("clean test artifact directory");
     }

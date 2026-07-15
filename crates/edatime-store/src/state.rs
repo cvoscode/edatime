@@ -66,11 +66,12 @@ impl AppState {
         let can_restore_catalog = df.width() == 0 && df.height() == 0;
         let mut dataset_versions = Arc::new(DatasetVersionRegistry::new(df.clone(), 0, None));
         let repository = Arc::new(InMemoryDataRepository::new(df));
-        let artifact_store = config
-            .data
-            .artifact_dir
-            .as_ref()
-            .map(|path| Arc::new(DatasetArtifactStore::new(path)));
+        let artifact_store = config.data.artifact_dir.as_ref().map(|path| {
+            Arc::new(DatasetArtifactStore::with_max_bytes(
+                path,
+                config.data.max_artifact_bytes,
+            ))
+        });
         if can_restore_catalog && let Some(store) = &artifact_store {
             match store.load_catalog() {
                 Ok(catalog) if !catalog.is_empty() => {

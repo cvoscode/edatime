@@ -56,6 +56,8 @@ pub struct DataSettings {
     /// Optional managed directory for durable Parquet dataset artifacts.
     /// Leaving this unset preserves the current in-memory-only behavior.
     pub artifact_dir: Option<PathBuf>,
+    /// Optional aggregate cap for managed Parquet artifacts.
+    pub max_artifact_bytes: Option<u64>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -244,6 +246,11 @@ impl AppConfig {
                 self.data.artifact_dir = Some(PathBuf::from(artifact_dir));
             }
         }
+        if let Ok(max_artifact_bytes) = env::var("EDATIME_MAX_ARTIFACT_BYTES")
+            && let Ok(max_artifact_bytes) = max_artifact_bytes.parse::<u64>()
+        {
+            self.data.max_artifact_bytes = Some(max_artifact_bytes);
+        }
         if let Ok(min_width) = env::var("EDATIME_MIN_VIEWPORT_WIDTH")
             && let Ok(min_width) = min_width.parse::<usize>()
         {
@@ -372,6 +379,29 @@ mod tests {
             },
             None => unsafe {
                 env::remove_var("EDATIME_ARTIFACT_DIR");
+            },
+        }
+    }
+
+    #[test]
+    fn artifact_quota_can_be_overridden_from_env() {
+        let _guard = env_lock().lock().expect("env lock should not be poisoned");
+        let previous = env::var("EDATIME_MAX_ARTIFACT_BYTES").ok();
+
+        unsafe {
+            env::set_var("EDATIME_MAX_ARTIFACT_BYTES", "1048576");
+        }
+
+        let mut config = AppConfig::default();
+        config.apply_env_overrides();
+        assert_eq!(config.data.max_artifact_bytes, Some(1_048_576));
+
+        match previous {
+            Some(value) => unsafe {
+                env::set_var("EDATIME_MAX_ARTIFACT_BYTES", value);
+            },
+            None => unsafe {
+                env::remove_var("EDATIME_MAX_ARTIFACT_BYTES");
             },
         }
     }
