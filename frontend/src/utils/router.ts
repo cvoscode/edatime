@@ -6,7 +6,7 @@
  */
 
 const VALID_PAGES = new Set([
-    'home', 'upload', 'timeseries', 'correlations', 'scatter',
+    'home', 'upload', 'timeseries', 'prepare', 'correlations', 'scatter',
     'scattermatrix', 'fft', 'spectrogram', 'causal', 'drift', 'settings',
 ]);
 import { onNavigationChange } from '../platform/navigationEvents.js';

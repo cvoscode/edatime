@@ -12,6 +12,11 @@
   graph from the canonical cleaning plan, exposes all v1 stage editors and
   reordering, and exports backend-plan JSON, graph JSON/SVG, and starter
   Python/Rust code. (`ba9a639`, `65e1f67`)
+- **Milestone F started:** a lazy, hash-routable **Prepare** destination now
+  presents the canonical source → stages → result graph and live source
+  identity. It hands off to the shared Pipeline Workbench for editing,
+  previewing, exporting, and materialization while the larger page-native
+  editor and quality workflow remain in progress.
 - **Milestone B in progress:** data, scatter points/matrix, correlations, and
   correlation matrix, Drift, and export artifacts now carry immutable source
   version/revision, schema fingerprint, backend plan hash, and versioned

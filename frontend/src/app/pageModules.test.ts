@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
     ensureStyleModule: vi.fn(),
+    initPreparePage: vi.fn(),
     initFftPage: vi.fn(),
     initHeatmapPage: vi.fn(),
     initScatterPage: vi.fn(),
@@ -11,6 +12,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../utils/pageStyles.js', () => ({ ensureStyleModule: mocks.ensureStyleModule }));
+vi.mock('../features/prepare/index.js', () => ({ initPreparePage: mocks.initPreparePage }));
 vi.mock('../features/fft/index.js', () => ({ initFftPage: mocks.initFftPage }));
 vi.mock('../features/heatmap/index.js', () => ({ initHeatmapPage: mocks.initHeatmapPage }));
 vi.mock('../features/scatter/index.js', () => ({ initScatterPage: mocks.initScatterPage }));
@@ -37,10 +39,23 @@ describe('page module descriptors', () => {
         const register = vi.fn();
         await loadPageDescriptors({ register } as unknown as FeatureRegistry, createDeps());
 
-        expect(register).toHaveBeenCalledTimes(6);
+        expect(register).toHaveBeenCalledTimes(7);
         expect(register.mock.calls.map(([name]) => name)).toEqual([
-            'fft', 'heatmap', 'scatter', 'spectrogram', 'causal', 'drift',
+            'prepare', 'fft', 'heatmap', 'scatter', 'spectrogram', 'causal', 'drift',
         ]);
+    });
+
+    it('loads Prepare lazily and preloads only its page stylesheet', async () => {
+        const deps = createDeps();
+        const register = vi.fn();
+        await loadPageDescriptors({ register } as unknown as FeatureRegistry, deps);
+        const prepare = register.mock.calls.find(([name]) => name === 'prepare')?.[1];
+
+        expect(mocks.initPreparePage).not.toHaveBeenCalled();
+        await prepare!.init();
+
+        expect(mocks.ensureStyleModule).toHaveBeenCalledWith('prepare');
+        expect(mocks.initPreparePage).toHaveBeenCalledTimes(1);
     });
 
     it('loads Scatter directly from its descriptor only on first page initialization', async () => {
@@ -56,7 +71,7 @@ describe('page module descriptors', () => {
         const scatter = register.mock.calls.find(([name]) => name === 'scatter')?.[1];
 
         expect(scatter).toBeDefined();
-        expect(mocks.ensureStyleModule).not.toHaveBeenCalled();
+        expect(mocks.ensureStyleModule).not.toHaveBeenCalledWith('scatter');
         await scatter!.init();
 
         expect(mocks.ensureStyleModule).toHaveBeenCalledWith('scatter');

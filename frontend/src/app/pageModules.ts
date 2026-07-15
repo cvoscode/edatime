@@ -46,6 +46,15 @@ export interface PageDescriptor {
  */
 const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
     {
+        name: 'prepare',
+        requiresMetadata: true,
+        cssModules: ['prepare'],
+        async load() {
+            const { initPreparePage } = await import('../features/prepare/index.js');
+            return { init: initPreparePage };
+        },
+    },
+    {
         name: 'fft',
         requiresMetadata: true,
         async load(deps) {

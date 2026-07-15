@@ -1,4 +1,4 @@
-const STYLE_MODULE_NAMES = ['drift', 'home', 'scatter'] as const;
+const STYLE_MODULE_NAMES = ['drift', 'home', 'prepare', 'scatter'] as const;
 
 export type StyleModuleName = typeof STYLE_MODULE_NAMES[number];
 
@@ -9,6 +9,7 @@ const PAGE_STYLE_MODULES = {
     drift: ['drift'],
     home: ['home'],
     heatmap: ['scatter'],
+    prepare: ['prepare'],
     scatter: ['scatter'],
     scattermatrix: ['scatter'],
 } as const satisfies Record<string, readonly StyleModuleName[]>;

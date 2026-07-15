@@ -39,6 +39,13 @@ describe('hash router valid pages', () => {
         expect(getHashPage()).toBe('drift');
     });
 
+    it('accepts Prepare as a valid hash-routed page', async () => {
+        const { getHashPage } = await import('./router.js');
+        window.history.replaceState(null, '', '#page=prepare');
+
+        expect(getHashPage()).toBe('prepare');
+    });
+
     it('keeps scattermatrix as a first-class hash-routed page', async () => {
         const { getHashPage } = await import('./router.js');
         window.history.replaceState(null, '', '#page=scattermatrix');

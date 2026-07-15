@@ -7,6 +7,7 @@
  */
 const DATASET_BOOTSTRAP_PAGES = new Set([
     'timeseries',
+    'prepare',
     'scatter',
     'fft',
     'heatmap',
@@ -55,6 +56,7 @@ export const CORE_WORKFLOW_PAGES = new Set([
     'home',
     'upload',
     'timeseries',
+    'prepare',
     'correlations',
     'scatter',
 ]);
