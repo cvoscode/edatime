@@ -20,7 +20,7 @@
   Causal now carries the same identity; materialization and broader client
   parity remain. (`e543078`,
   `0aaab7f`, `2431453`, `f437017`, `3ad00ff`, `2541478`, `961caa4`,
-  `65a8feb`)
+  `65a8feb`, `e81b529`, `c770b26`, `bd1d131`, `7e51990`, `073c5bb`)
 - **Milestone C started:** retained versions use an Arrow-content-derived
   fingerprint, with a same-shape/different-content regression. Streaming
   hashing, retained-version cache-isolation tests, and the ADR remain open.
@@ -731,8 +731,9 @@ second pipeline model. The graph is a projection of the canonical
    dataset-derived response: immutable source version, immutable source
    revision, backend plan hash, projection/schema identity, and algorithm
    version when sampling is used.
-2. Migrate remaining plan-bearing GET routes to typed POST envelopes so plan
-   size cannot exceed URL limits.
+2. **Completed for active-plan analytics/correlation clients:** migrate
+   plan-bearing requests to typed POST envelopes so plan size cannot exceed URL
+   limits, retaining GET only as a backwards-compatible no-plan/legacy path.
 3. Make client request coalescing identity explicit and separate from the
    backend plan hash; discard mismatched responses before rendering.
 4. Add route-parity fixtures covering Timeseries, Scatter, correlation,
