@@ -272,6 +272,27 @@ describe('cleaning plan panel', () => {
         }]);
     });
 
+    it('creates and edits an explicit schema column-selection stage', () => {
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        mountCleaningPlanPanel({ planStore, getViewport: () => null });
+
+        document.getElementById('open-cleaning-plan-btn')!.click();
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Stages')!.click();
+        const form = document.querySelectorAll<HTMLFormElement>('form.pipeline-workbench__add-stage')[2];
+        (form.elements.namedItem('columnSelectColumns') as HTMLInputElement).value = 'ts, target';
+        (form.elements.namedItem('columnSelectMode') as HTMLSelectElement).value = 'keep';
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+
+        const stage = planStore.getSnapshot()!.stages[0];
+        expect(stage).toMatchObject({ kind: 'columnSelect', columns: ['ts', 'target'], mode: 'keep', scope: 'schema' });
+        Array.from(document.querySelectorAll('.cleaning-plan-stage__summary'))[0].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        const editor = document.querySelector<HTMLFormElement>('form.pipeline-workbench__editor')!;
+        (editor.elements.namedItem('mode') as HTMLSelectElement).value = 'drop';
+        editor.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        expect(planStore.getSnapshot()!.stages[0]).toMatchObject({ kind: 'columnSelect', mode: 'drop' });
+    });
+
     it('keeps keyboard focus inside the workbench overlay and restores the trigger on close', () => {
         const planStore = createCleaningPlanStore();
         planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });

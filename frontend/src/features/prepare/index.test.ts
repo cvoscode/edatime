@@ -96,4 +96,19 @@ describe('Prepare page', () => {
         }]);
         dispose();
     });
+
+    it('creates explicit column selection without leaving Prepare', () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        const dispose = initPreparePage();
+        const form = document.querySelectorAll<HTMLFormElement>('form.prepare-workspace__policy-form')[2];
+        (form.elements.namedItem('columns') as HTMLInputElement).value = 'ts, target';
+        (form.elements.namedItem('mode') as HTMLSelectElement).value = 'keep';
+
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+
+        expect(cleaningPlanStore.getSnapshot()!.stages).toMatchObject([{
+            kind: 'columnSelect', columns: ['ts', 'target'], mode: 'keep', scope: 'schema',
+        }]);
+        dispose();
+    });
 });

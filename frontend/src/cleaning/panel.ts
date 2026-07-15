@@ -39,6 +39,7 @@ function stageSummary(stage: CleaningStage): string {
         case 'adaptiveLine': return (stage.keepAbove ? 'Keep above' : 'Keep below') + ' line for ' + stage.column;
         case 'missingValue': return 'Drop ' + (stage.dropNulls ? 'null' : '') + (stage.dropNulls && stage.dropNonFinite ? ' and ' : '') + (stage.dropNonFinite ? 'non-finite' : '') + ' rows for ' + stage.column;
         case 'deduplicate': return 'Keep ' + stage.keep + ' row by ' + stage.columns.join(', ');
+        case 'columnSelect': return (stage.mode === 'keep' ? 'Keep only ' : 'Drop ') + 'columns: ' + stage.columns.join(', ');
         case 'annotation': return stage.note?.trim() || stage.label;
     }
 }
@@ -281,6 +282,10 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             const columns = readText(form, 'columns').split(',').map((column) => column.trim()).filter(Boolean);
             if (columns.length === 0 || new Set(columns).size !== columns.length) throw new Error('Duplicate resolution needs unique key columns.');
             patch = { ...common, columns, keep: readText(form, 'keep') as 'first' | 'last' } as Partial<CleaningStage>;
+        } else if (stage.kind === 'columnSelect') {
+            const columns = readText(form, 'columns').split(',').map((column) => column.trim()).filter(Boolean);
+            if (columns.length === 0 || new Set(columns).size !== columns.length) throw new Error('Column selection needs unique column names.');
+            patch = { ...common, columns, mode: readText(form, 'mode') as 'keep' | 'drop' } as Partial<CleaningStage>;
         } else if (stage.kind === 'adaptiveLine') {
             const x1Ms = readNumber(form, 'x1Ms', 'X1');
             const x2Ms = readNumber(form, 'x2Ms', 'X2');
@@ -349,6 +354,11 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             fields.append(
                 textInput('Key columns (comma-separated)', stage.columns.join(', '), 'columns'),
                 selectInput('Keep', stage.keep, 'keep', [['first', 'First row'], ['last', 'Last row']]),
+            );
+        } else if (stage.kind === 'columnSelect') {
+            fields.append(
+                textInput('Columns (comma-separated)', stage.columns.join(', '), 'columns'),
+                selectInput('Mode', stage.mode, 'mode', [['keep', 'Keep only these columns'], ['drop', 'Drop these columns']]),
             );
         } else if (stage.kind === 'adaptiveLine') {
             fields.append(
@@ -455,6 +465,36 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             });
             notify();
         });
+        const addColumnSelectForm = document.createElement('form');
+        addColumnSelectForm.className = 'pipeline-workbench__add-stage';
+        const columnSelectHeading = document.createElement('h3');
+        columnSelectHeading.textContent = 'Add column selection';
+        const columnSelectFields = document.createElement('div');
+        columnSelectFields.className = 'modal-grid';
+        columnSelectFields.append(
+            textInput('Columns (comma-separated)', '', 'columnSelectColumns'),
+            selectInput('Mode', 'keep', 'columnSelectMode', [['keep', 'Keep only these columns'], ['drop', 'Drop these columns']]),
+        );
+        const columnSelectActions = document.createElement('div');
+        columnSelectActions.className = 'pipeline-workbench__editor-actions';
+        const addColumnSelect = button('Add selection', 'btn btn-primary btn-sm');
+        addColumnSelect.type = 'submit';
+        columnSelectActions.appendChild(addColumnSelect);
+        addColumnSelectForm.append(columnSelectHeading, columnSelectFields, columnSelectActions);
+        addColumnSelectForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const columns = readText(addColumnSelectForm, 'columnSelectColumns').split(',').map((column) => column.trim()).filter(Boolean);
+            if (columns.length === 0 || new Set(columns).size !== columns.length) {
+                preview.textContent = 'Choose one or more unique columns for column selection.';
+                return;
+            }
+            const mode = readText(addColumnSelectForm, 'columnSelectMode') as 'keep' | 'drop';
+            deps.planStore.addStage({
+                kind: 'columnSelect', executionClass: 'polarsExpression', scope: 'schema', enabled: true,
+                sourcePage: 'manual', label: (mode === 'keep' ? 'Keep only ' : 'Drop ') + columns.join(', '), columns, mode,
+            });
+            notify();
+        });
         const list = document.createElement('div');
         list.className = 'cleaning-plan-stages';
         if (plan.stages.length === 0) {
@@ -503,7 +543,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             row.append(description, impact, toggle, up, down, remove);
             list.appendChild(row);
         }
-        panel.append(addMissingForm, addDeduplicateForm, list);
+        panel.append(addMissingForm, addDeduplicateForm, addColumnSelectForm, list);
         const selected = plan.stages.find((stage) => stage.id === selectedStageId);
         if (selected) renderEditor(selected);
     };
@@ -824,6 +864,11 @@ function isImportableStage(value: unknown): value is CleaningStage {
                 && stage.columns.every((column) => typeof column === 'string' && !!column.trim())
                 && new Set(stage.columns).size === stage.columns.length
                 && (stage.keep === 'first' || stage.keep === 'last');
+        case 'columnSelect':
+            return Array.isArray(stage.columns) && stage.columns.length > 0
+                && stage.columns.every((column) => typeof column === 'string' && !!column.trim())
+                && new Set(stage.columns).size === stage.columns.length
+                && (stage.mode === 'keep' || stage.mode === 'drop');
         case 'annotation':
             return stage.severity === undefined || stage.severity === 'info' || stage.severity === 'warning' || stage.severity === 'critical';
         default:

@@ -88,6 +88,12 @@ pub enum CleaningStageDto {
         columns: Vec<String>,
         keep: DuplicateKeep,
     },
+    ColumnSelect {
+        #[serde(flatten)]
+        base: CleaningStageBaseDto,
+        columns: Vec<String>,
+        mode: ColumnSelectMode,
+    },
     Annotation {
         #[serde(flatten)]
         base: CleaningStageBaseDto,
@@ -104,6 +110,7 @@ impl CleaningStageDto {
             | Self::AdaptiveLine { base, .. }
             | Self::MissingValue { base, .. }
             | Self::Deduplicate { base, .. }
+            | Self::ColumnSelect { base, .. }
             | Self::Annotation { base, .. } => &base.id,
         }
     }
@@ -115,6 +122,7 @@ impl CleaningStageDto {
             | Self::AdaptiveLine { base, .. }
             | Self::MissingValue { base, .. }
             | Self::Deduplicate { base, .. }
+            | Self::ColumnSelect { base, .. }
             | Self::Annotation { base, .. } => base.enabled,
         }
     }
@@ -139,6 +147,13 @@ pub enum RangeMode {
 pub enum DuplicateKeep {
     First,
     Last,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ColumnSelectMode {
+    Keep,
+    Drop,
 }
 
 fn ensure_finite(stage_id: &str, field: &str, value: f64) -> Result<(), AppError> {
@@ -247,6 +262,21 @@ pub fn validate_cleaning_plan(plan: &CleaningPlanDto) -> Result<(), AppError> {
                     )));
                 }
             }
+            CleaningStageDto::ColumnSelect { base, columns, .. } => {
+                if columns.is_empty()
+                    || columns.iter().any(|column| column.trim().is_empty())
+                    || columns.len()
+                        != columns
+                            .iter()
+                            .collect::<std::collections::HashSet<_>>()
+                            .len()
+                {
+                    return Err(AppError::bad_request(format!(
+                        "Cleaning stage '{}' requires unique non-empty column names",
+                        base.id
+                    )));
+                }
+            }
             CleaningStageDto::Annotation { .. } => {}
         }
     }
@@ -336,6 +366,10 @@ pub fn compile_cleaning_plan(
                     strategy,
                 )
             }
+            CleaningStageDto::ColumnSelect { columns, mode, .. } => match mode {
+                ColumnSelectMode::Keep => lf.select(columns.iter().map(polars::prelude::col).collect::<Vec<_>>()),
+                ColumnSelectMode::Drop => lf.drop(polars::prelude::by_name(columns, true, false)),
+            },
             CleaningStageDto::Annotation { .. } => lf,
         };
     }
@@ -418,6 +452,11 @@ fn semantic_stage_value(stage: &CleaningStageDto) -> Option<serde_json::Value> {
             "kind": "deduplicate",
             "columns": columns.iter().map(|column| column.trim()).collect::<Vec<_>>(),
             "keep": keep,
+        })),
+        CleaningStageDto::ColumnSelect { columns, mode, .. } => Some(serde_json::json!({
+            "kind": "columnSelect",
+            "columns": columns.iter().map(|column| column.trim()).collect::<Vec<_>>(),
+            "mode": mode,
         })),
         CleaningStageDto::Annotation { .. } => None,
     }
@@ -609,6 +648,47 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![2, 3]
         );
+    }
+
+    #[test]
+    fn column_select_stage_projects_saved_order_or_drops_named_columns() {
+        let df = DataFrame::new(
+            2,
+            vec![
+                Series::new("ts".into(), vec![1_i64, 2]).into(),
+                Series::new("value".into(), vec![10.0_f64, 20.0]).into(),
+                Series::new("device".into(), vec!["a", "b"]).into(),
+            ],
+        )
+        .expect("frame");
+        let keep_plan = plan(vec![CleaningStageDto::ColumnSelect {
+            base: base("select"),
+            columns: vec!["device".to_string(), "ts".to_string()],
+            mode: ColumnSelectMode::Keep,
+        }]);
+        let kept = compile_cleaning_plan(df.clone().lazy(), &keep_plan)
+            .expect("compile")
+            .collect()
+            .expect("collect");
+        assert_eq!(
+            kept.get_column_names()
+                .iter()
+                .map(|name| name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["device", "ts"]
+        );
+
+        let drop_plan = plan(vec![CleaningStageDto::ColumnSelect {
+            base: base("drop"),
+            columns: vec!["value".to_string()],
+            mode: ColumnSelectMode::Drop,
+        }]);
+        let dropped = compile_cleaning_plan(df.lazy(), &drop_plan)
+            .expect("compile")
+            .collect()
+            .expect("collect");
+        assert!(dropped.column("value").is_err());
+        assert_eq!(dropped.width(), 2);
     }
 
     #[test]

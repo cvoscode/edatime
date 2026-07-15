@@ -5,9 +5,9 @@
  * may create stages, but never own the execution semantics themselves.
  */
 
-export type CleaningStageKind = 'timeRange' | 'columnRange' | 'adaptiveLine' | 'missingValue' | 'deduplicate' | 'annotation';
+export type CleaningStageKind = 'timeRange' | 'columnRange' | 'adaptiveLine' | 'missingValue' | 'deduplicate' | 'columnSelect' | 'annotation';
 export type StageExecutionClass = 'polarsExpression' | 'annotation';
-export type StageScope = 'row' | 'annotation';
+export type StageScope = 'row' | 'schema' | 'annotation';
 export type SourcePage = 'timeseries' | 'scatter' | 'correlation' | 'fft' | 'spectrogram' | 'causal' | 'drift' | 'manual' | 'import';
 
 export interface CleaningDatasetIdentity {
@@ -98,6 +98,15 @@ export interface DeduplicateStage extends CleaningStageBase {
     keep: 'first' | 'last';
 }
 
+/** Explicit projection or removal of named columns, preserving their saved order. */
+export interface ColumnSelectStage extends CleaningStageBase {
+    kind: 'columnSelect';
+    executionClass: 'polarsExpression';
+    scope: 'schema';
+    columns: string[];
+    mode: 'keep' | 'drop';
+}
+
 export interface AnnotationStage extends CleaningStageBase {
     kind: 'annotation';
     executionClass: 'annotation';
@@ -105,13 +114,14 @@ export interface AnnotationStage extends CleaningStageBase {
     severity?: 'info' | 'warning' | 'critical';
 }
 
-export type CleaningStage = TimeRangeStage | ColumnRangeStage | AdaptiveLineStage | MissingValueStage | DeduplicateStage | AnnotationStage;
+export type CleaningStage = TimeRangeStage | ColumnRangeStage | AdaptiveLineStage | MissingValueStage | DeduplicateStage | ColumnSelectStage | AnnotationStage;
 
 export type CleaningStageInput = Omit<TimeRangeStage, 'id' | 'createdAt' | 'updatedAt'>
     | Omit<ColumnRangeStage, 'id' | 'createdAt' | 'updatedAt'>
     | Omit<AdaptiveLineStage, 'id' | 'createdAt' | 'updatedAt'>
     | Omit<MissingValueStage, 'id' | 'createdAt' | 'updatedAt'>
     | Omit<DeduplicateStage, 'id' | 'createdAt' | 'updatedAt'>
+    | Omit<ColumnSelectStage, 'id' | 'createdAt' | 'updatedAt'>
     | Omit<AnnotationStage, 'id' | 'createdAt' | 'updatedAt'>;
 
 export interface PlanRequestSnapshot {

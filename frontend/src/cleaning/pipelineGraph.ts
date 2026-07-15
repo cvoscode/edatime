@@ -69,6 +69,8 @@ function stageDetail(stage: CleaningStage): string {
             return `Drop ${stage.dropNulls ? 'null' : ''}${stage.dropNulls && stage.dropNonFinite ? ' and ' : ''}${stage.dropNonFinite ? 'non-finite' : ''} ${stage.column} rows`;
         case 'deduplicate':
             return `Keep ${stage.keep} row by ${stage.columns.join(', ')}`;
+        case 'columnSelect':
+            return `${stage.mode === 'keep' ? 'Keep only' : 'Drop'} columns: ${stage.columns.join(', ')}`;
         case 'annotation':
             return stage.note?.trim() || 'Informational annotation';
     }

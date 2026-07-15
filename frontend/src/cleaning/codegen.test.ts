@@ -23,4 +23,23 @@ describe('cleaning code generation', () => {
         expect(generatePythonPolars(plan)).toContain('pl.col("value").is_not_null() & pl.col("value").is_finite()');
         expect(generateRustPolars(plan)).toContain('col("value").is_not_null().and(col("value").is_finite())');
     });
+
+    it('emits portable schema projection and drop operations', () => {
+        const plan = createEmptyCleaningPlan({ sourceVersionId: 'source-1', datasetRevision: 1, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        plan.stages.push({
+            id: 'select', kind: 'columnSelect', executionClass: 'polarsExpression', scope: 'schema', enabled: true,
+            sourcePage: 'manual', label: 'Keep model columns', createdAt: 'now', updatedAt: 'now',
+            columns: ['ts', 'target'], mode: 'keep',
+        });
+        plan.stages.push({
+            id: 'drop', kind: 'columnSelect', executionClass: 'polarsExpression', scope: 'schema', enabled: true,
+            sourcePage: 'manual', label: 'Drop metadata', createdAt: 'now', updatedAt: 'now',
+            columns: ['metadata'], mode: 'drop',
+        });
+
+        expect(generatePythonPolars(plan)).toContain('lf = lf.select([pl.col("ts"), pl.col("target")])');
+        expect(generatePythonPolars(plan)).toContain('lf = lf.drop(["metadata"])');
+        expect(generateRustPolars(plan)).toContain('lf = lf.select(vec![col("ts"), col("target")]);');
+        expect(generateRustPolars(plan)).toContain('lf = lf.drop(by_name(["metadata"], true, false));');
+    });
 });

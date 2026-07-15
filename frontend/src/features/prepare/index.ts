@@ -20,6 +20,7 @@ function stageSummary(stage: CleaningPlan['stages'][number]): string {
         case 'adaptiveLine': return (stage.keepAbove ? 'Keep above' : 'Keep below') + ' line for ' + stage.column;
         case 'missingValue': return 'Drop ' + (stage.dropNulls ? 'null' : '') + (stage.dropNulls && stage.dropNonFinite ? ' and ' : '') + (stage.dropNonFinite ? 'non-finite' : '') + ' ' + stage.column + ' rows';
         case 'deduplicate': return 'Keep ' + stage.keep + ' row by ' + stage.columns.join(', ');
+        case 'columnSelect': return (stage.mode === 'keep' ? 'Keep only ' : 'Drop ') + 'columns: ' + stage.columns.join(', ');
         case 'annotation': return 'Annotation';
     }
 }
@@ -168,6 +169,42 @@ function renderPrepareWorkspace(root: HTMLElement, plan: CleaningPlan | null, de
         });
         deps.onPlanChanged?.();
     });
+    const addColumnSelect = createElement('form', 'prepare-workspace__policy-form');
+    const columnSelectTitle = createElement('h3');
+    columnSelectTitle.textContent = 'Add column selection';
+    const columnSelectColumns = createElement('input', 'modal-input');
+    columnSelectColumns.name = 'columns';
+    columnSelectColumns.placeholder = 'Columns, comma-separated';
+    columnSelectColumns.required = true;
+    columnSelectColumns.setAttribute('aria-label', 'Columns to keep or drop');
+    const columnSelectMode = createElement('select', 'modal-select');
+    columnSelectMode.name = 'mode';
+    const keepColumns = createElement('option');
+    keepColumns.value = 'keep';
+    keepColumns.textContent = 'Keep only these columns';
+    const dropColumns = createElement('option');
+    dropColumns.value = 'drop';
+    dropColumns.textContent = 'Drop these columns';
+    columnSelectMode.append(keepColumns, dropColumns);
+    const columnSelectSubmit = actionButton('Add selection', () => {});
+    columnSelectSubmit.type = 'submit';
+    const columnSelectStatus = createElement('p', 'prepare-workspace__policy-status');
+    columnSelectStatus.setAttribute('aria-live', 'polite');
+    addColumnSelect.append(columnSelectTitle, columnSelectColumns, columnSelectMode, columnSelectSubmit, columnSelectStatus);
+    addColumnSelect.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const columns = columnSelectColumns.value.split(',').map((column) => column.trim()).filter(Boolean);
+        if (columns.length === 0 || new Set(columns).size !== columns.length) {
+            columnSelectStatus.textContent = 'Choose one or more unique columns.';
+            return;
+        }
+        const mode = columnSelectMode.value as 'keep' | 'drop';
+        cleaningPlanStore.addStage({
+            kind: 'columnSelect', executionClass: 'polarsExpression', scope: 'schema', enabled: true,
+            sourcePage: 'manual', label: (mode === 'keep' ? 'Keep only ' : 'Drop ') + columns.join(', '), columns, mode,
+        });
+        deps.onPlanChanged?.();
+    });
     const list = createElement('ol', 'prepare-workspace__stage-list');
     if (plan.stages.length === 0) {
         const empty = createElement('li', 'prepare-workspace__empty');
@@ -204,7 +241,7 @@ function renderPrepareWorkspace(root: HTMLElement, plan: CleaningPlan | null, de
         item.append(summary, controls);
         list.append(item);
     }
-    stagesSection.append(stageTitle, stageCopy, history, addPolicy, addDeduplicate, list);
+    stagesSection.append(stageTitle, stageCopy, history, addPolicy, addDeduplicate, addColumnSelect, list);
     root.append(header, identity, graphSection, stagesSection);
 }
 

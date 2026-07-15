@@ -15,7 +15,8 @@
 - **Milestone F started:** a lazy, hash-routable **Prepare** destination now
   presents the canonical source → stages → result graph and live source
   identity. It provides page-native ordered-stage enable/disable, reordering,
-  removal, undo/redo, and missing-value policy authoring, then hands off to
+  removal, undo/redo, missing-value/duplicate-resolution/column-selection
+  authoring, then hands off to
   the shared Pipeline Workbench for detailed field editing, previewing, exporting, and
   materialization while the quality workflow remains in progress.
 - **Milestone B in progress:** data, scatter points/matrix, correlations, and
@@ -101,10 +102,11 @@ Do not start with allocator, SIMD, PGO, compression, framework replacement, or a
 - `frontend/src/app.ts` is a real composition root. It owns `AppRuntime`, `FeatureRegistry`, `WorkspaceStore`, the Timeseries module, and cleaning-plan compatibility.
 - `frontend/src/app/featureRegistry.ts` already lazy-loads feature modules and disposes them across dataset sessions.
 - `frontend/src/contracts/api/v1/` owns frontend route/DTO mirrors; this should remain the only frontend wire-contract surface.
-- `frontend/src/cleaning/` provides a plan store, request envelope, preview/apply/export calls, a compact plan modal, local code generation, and compatibility lowering.
+- `frontend/src/cleaning/` provides a plan store, request envelope, preview/apply/export calls, a shared Pipeline Workbench overlay, local code generation, and compatibility lowering.
 - `frontend/src/cleaning/types.ts` exposes portable `timeRange`, `columnRange`,
-  `adaptiveLine`, column-scoped `missingValue`, stable `deduplicate`, and
-  `annotation` stages. More schema, temporal, robust-cleaning, and modeling
+  `adaptiveLine`, column-scoped `missingValue`, stable `deduplicate`, explicit
+  keep/drop `columnSelect`, and `annotation` stages. More schema, temporal,
+  robust-cleaning, and modeling
   stage families remain open.
 - `frontend/src/cleaning/panel.ts` is now a Pipeline Workbench: it visualizes
   the canonical plan, edits all v1 stage parameters, enables/disables,
@@ -137,7 +139,7 @@ Do not start with allocator, SIMD, PGO, compression, framework replacement, or a
 - Dataset fingerprints are currently derived from canonical Arrow content
   (schema, row order, nulls, and values); they are still resident-frame hashes
   rather than streaming ingest hashes.
-- `crates/edatime-query/src/cleaning.rs` validates and compiles the six v1
+- `crates/edatime-query/src/cleaning.rs` validates and compiles the seven v1
   portable stage kinds. Its semantic hash uses executable canonical content;
   labels, IDs, notes, and timestamps do not affect server execution identity.
 - `crates/edatime-service/src/handlers/routes/cleaning.rs` correctly validates source/version/schema identity, but preview collects the source and result, apply collects the full result, and data export collects then serializes the full result into a byte vector.
