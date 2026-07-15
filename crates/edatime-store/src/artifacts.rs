@@ -17,6 +17,22 @@ pub struct DatasetArtifactDescriptor {
     pub byte_size: u64,
     pub content_fingerprint: String,
     pub created_at: DateTime<Utc>,
+    /// Version lineage needed to restore a retained source after restart.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provenance: Option<DatasetArtifactProvenance>,
+}
+
+/// Durable version metadata kept separate from storage-file details so old
+/// catalogs remain readable while newly published artifacts are restartable.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DatasetArtifactProvenance {
+    pub root_id: String,
+    pub parent_id: Option<String>,
+    pub revision: u64,
+    pub schema_fingerprint: String,
+    pub source_name: Option<String>,
+    pub materialized_from_plan_hash: Option<String>,
 }
 
 /// Small atomic JSON catalog used as the durable boundary before the version
@@ -61,10 +77,10 @@ impl DatasetArtifactStore {
             .map_err(|e| AppError::Io(format!("Publish artifact catalog: {e}")))
     }
 
-    /// Write a complete immutable frame to a managed Parquet file, then make
-    /// it visible through the catalog. The catalog is the publish boundary;
-    /// an interrupted write can leave only an ignored temporary file.
-    pub fn publish_parquet(
+    /// Write a complete immutable frame to its final managed Parquet path but
+    /// do not yet expose it in the catalog. Callers can attach the definitive
+    /// registry provenance before publishing the descriptor.
+    pub fn write_parquet(
         &self,
         version_id: String,
         content_fingerprint: String,
@@ -102,7 +118,21 @@ impl DatasetArtifactStore {
                 .len(),
             content_fingerprint,
             created_at,
+            provenance: None,
         };
+        Ok(descriptor)
+    }
+
+    /// Write a complete immutable frame and immediately publish it when the
+    /// caller does not need to enrich the descriptor with registry metadata.
+    pub fn publish_parquet(
+        &self,
+        version_id: String,
+        content_fingerprint: String,
+        created_at: DateTime<Utc>,
+        frame: DataFrame,
+    ) -> Result<DatasetArtifactDescriptor, AppError> {
+        let descriptor = self.write_parquet(version_id, content_fingerprint, created_at, frame)?;
         if let Err(error) = self.publish(descriptor.clone()) {
             let _ = std::fs::remove_file(&descriptor.path);
             return Err(error);
@@ -157,6 +187,7 @@ mod tests {
             byte_size,
             content_fingerprint: format!("fingerprint-{version_id}-{byte_size}"),
             created_at: Utc::now(),
+            provenance: None,
         }
     }
 

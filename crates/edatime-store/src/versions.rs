@@ -524,6 +524,7 @@ mod tests {
                     byte_size: 1,
                     content_fingerprint: "fixture-content".to_string(),
                     created_at: Utc::now(),
+                    provenance: None,
                 },
                 7,
                 Some("retained.parquet".to_string()),

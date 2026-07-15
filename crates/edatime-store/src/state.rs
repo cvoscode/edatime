@@ -6,7 +6,7 @@ use chrono::Utc;
 use polars::prelude::{DataFrame, LazyFrame, SchemaExt};
 use tokio::sync::RwLock;
 
-use crate::artifacts::DatasetArtifactStore;
+use crate::artifacts::{DatasetArtifactProvenance, DatasetArtifactStore};
 use crate::cache::{CorrelationMatrixCacheEntry, ResponseCache};
 use crate::db::DbPool;
 use crate::repository::{DataRepository, InMemoryDataRepository};
@@ -158,18 +158,27 @@ impl AppState {
             let version_id = self.dataset_versions.allocate_artifact_version_id();
             let (content_fingerprint, _) = fingerprints_for_frame(&df);
             let store = Arc::clone(store);
+            let writer_store = Arc::clone(&store);
             let artifact_frame = df.clone();
-            let descriptor = tokio::task::spawn_blocking(move || {
-                store.publish_parquet(version_id, content_fingerprint, Utc::now(), artifact_frame)
+            let mut descriptor = tokio::task::spawn_blocking(move || {
+                writer_store.write_parquet(
+                    version_id,
+                    content_fingerprint,
+                    Utc::now(),
+                    artifact_frame,
+                )
             })
             .await
             .map_err(|error| {
                 AppError::internal(format!("Failed to join artifact write: {error}"))
             })??;
             let rev = self.repository.replace_from_dataframe(df)?;
-            self.dataset_versions
-                .register_root_artifact(descriptor, rev, None)
+            let record = self
+                .dataset_versions
+                .register_root_artifact(descriptor.clone(), rev, None)
                 .map_err(AppError::from)?;
+            descriptor.provenance = Some(provenance_from_record(&record));
+            store.publish(descriptor)?;
             rev
         } else {
             let rev = self.repository.replace_from_dataframe(df.clone())?;
@@ -202,18 +211,28 @@ impl AppState {
             let version_id = self.dataset_versions.allocate_artifact_version_id();
             let (content_fingerprint, _) = fingerprints_for_frame(&df);
             let store = Arc::clone(store);
+            let writer_store = Arc::clone(&store);
             let artifact_frame = df.clone();
-            let descriptor = tokio::task::spawn_blocking(move || {
-                store.publish_parquet(version_id, content_fingerprint, Utc::now(), artifact_frame)
+            let mut descriptor = tokio::task::spawn_blocking(move || {
+                writer_store.write_parquet(
+                    version_id,
+                    content_fingerprint,
+                    Utc::now(),
+                    artifact_frame,
+                )
             })
             .await
             .map_err(|error| {
                 AppError::internal(format!("Failed to join artifact write: {error}"))
             })??;
             let revision = self.repository.replace_from_dataframe(df)?;
-            self.dataset_versions
-                .register_child_artifact(parent_id, descriptor, revision, plan_hash)
-                .map_err(AppError::from)?
+            let record = self
+                .dataset_versions
+                .register_child_artifact(parent_id, descriptor.clone(), revision, plan_hash)
+                .map_err(AppError::from)?;
+            descriptor.provenance = Some(provenance_from_record(&record));
+            store.publish(descriptor)?;
+            record
         } else {
             let revision = self.repository.replace_from_dataframe(df.clone())?;
             self.dataset_versions
@@ -355,6 +374,17 @@ impl Default for AppState {
     }
 }
 
+fn provenance_from_record(record: &DatasetVersionRecord) -> DatasetArtifactProvenance {
+    DatasetArtifactProvenance {
+        root_id: record.root_id.clone(),
+        parent_id: record.parent_id.clone(),
+        revision: record.revision,
+        schema_fingerprint: record.schema_fingerprint.clone(),
+        source_name: record.source_name.clone(),
+        materialized_from_plan_hash: record.materialized_from_plan_hash.clone(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs;
@@ -363,6 +393,8 @@ mod tests {
     use polars::prelude::{DataFrame, NamedFrom, Series};
 
     use super::AppState;
+    use crate::artifacts::DatasetArtifactProvenance;
+    use crate::versions::DatasetVersionRecord;
     use edatime_core::config::AppConfig;
 
     fn frame(values: Vec<i64>) -> DataFrame {
@@ -405,17 +437,44 @@ mod tests {
             .expect("persist child");
         assert_eq!(child.parent_id.as_deref(), Some(root.id.as_str()));
         assert!(child.id.starts_with("artifact-"));
-        assert_eq!(
-            state
-                .artifact_store
-                .as_ref()
-                .expect("configured artifact store")
-                .load_catalog()
-                .expect("catalog")
-                .len(),
-            2
+        let catalog = state
+            .artifact_store
+            .as_ref()
+            .expect("configured artifact store")
+            .load_catalog()
+            .expect("catalog");
+        assert_eq!(catalog.len(), 2);
+        let root_artifact = catalog
+            .iter()
+            .find(|artifact| artifact.version_id == root.id)
+            .expect("root artifact");
+        expect_provenance(root_artifact.provenance.as_ref(), &root, None);
+        let child_artifact = catalog
+            .iter()
+            .find(|artifact| artifact.version_id == child.id)
+            .expect("child artifact");
+        expect_provenance(
+            child_artifact.provenance.as_ref(),
+            &child,
+            Some(root.id.as_str()),
         );
 
         fs::remove_dir_all(artifact_dir).expect("clean artifact test directory");
+    }
+
+    fn expect_provenance(
+        provenance: Option<&DatasetArtifactProvenance>,
+        record: &DatasetVersionRecord,
+        expected_parent: Option<&str>,
+    ) {
+        let provenance = provenance.expect("artifact provenance");
+        assert_eq!(provenance.root_id, record.root_id);
+        assert_eq!(provenance.parent_id.as_deref(), expected_parent);
+        assert_eq!(provenance.revision, record.revision);
+        assert_eq!(provenance.schema_fingerprint, record.schema_fingerprint);
+        assert_eq!(
+            provenance.materialized_from_plan_hash,
+            record.materialized_from_plan_hash
+        );
     }
 }
