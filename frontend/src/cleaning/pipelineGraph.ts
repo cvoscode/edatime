@@ -33,6 +33,8 @@ export interface PipelineGraph {
     schemaVersion: typeof PIPELINE_GRAPH_SCHEMA_VERSION;
     sourceVersionId: string;
     datasetRevision: number;
+    datasetFingerprint: string | null;
+    schemaFingerprint: string;
     timeColumn: string;
     planRevision: number;
     nodes: PipelineGraphNode[];
@@ -166,6 +168,8 @@ export function buildPipelineGraph(plan: CleaningPlan): PipelineGraph {
         schemaVersion: PIPELINE_GRAPH_SCHEMA_VERSION,
         sourceVersionId: plan.sourceVersionId,
         datasetRevision: plan.datasetRevision,
+        datasetFingerprint: plan.datasetFingerprint,
+        schemaFingerprint: plan.schemaFingerprint,
         timeColumn: plan.timeColumn,
         planRevision: plan.planRevision,
         nodes,

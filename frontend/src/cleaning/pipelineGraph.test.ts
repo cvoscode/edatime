@@ -64,6 +64,8 @@ describe('pipeline graph', () => {
             schemaVersion: 1,
             sourceVersionId: 'source-7',
             datasetRevision: 7,
+            datasetFingerprint: 'dataset-fingerprint',
+            schemaFingerprint: 'schema-fingerprint',
             timeColumn: 'ts',
         });
     });
