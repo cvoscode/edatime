@@ -42,8 +42,12 @@ pub struct DatasetVersionRegistry {
 }
 
 fn fnv1a(input: &str) -> String {
+    fnv1a_bytes(input.as_bytes())
+}
+
+fn fnv1a_bytes(input: &[u8]) -> String {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-    for byte in input.as_bytes() {
+    for byte in input {
         hash ^= u64::from(*byte);
         hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
     }
@@ -58,7 +62,24 @@ fn fingerprints(df: &DataFrame) -> (String, String) {
         .collect::<Vec<_>>()
         .join("|");
     let schema_fingerprint = fnv1a(&columns);
-    let dataset_fingerprint = fnv1a(&format!("rows={};{columns}", df.height()));
+    // A baseline must identify its values as well as its shape. The prior
+    // `rows + schema` fingerprint allowed two same-shaped uploads to share a
+    // plan/cache identity. Arrow IPC is the canonical in-memory
+    // representation used by this application, and includes column order,
+    // logical dtypes, row order, nulls, and values. The bytes are hashed only
+    // while a complete resident frame is already required; scan-backed
+    // ingestion will replace this with streaming hashing in Milestone D.
+    let dataset_fingerprint = edatime_query::arrow_export::dataframe_to_arrow_ipc(df.clone())
+        .map(|bytes| format!("fnv1a-content-{}", &fnv1a_bytes(&bytes)[6..]))
+        // DataFrames admitted to the registry are Arrow-serializable. Keep a
+        // deterministic diagnostic fallback for an unexpected serializer
+        // failure rather than making source registration panic.
+        .unwrap_or_else(|_| {
+            format!(
+                "fnv1a-fallback-{}",
+                &fnv1a(&format!("rows={};{columns}", df.height()))[6..]
+            )
+        });
     (dataset_fingerprint, schema_fingerprint)
 }
 
@@ -286,5 +307,18 @@ mod tests {
             registry.record(&child.id).expect("child record").revision,
             5
         );
+    }
+
+    #[test]
+    fn same_shape_sources_have_distinct_content_fingerprints() {
+        let registry = DatasetVersionRegistry::new(frame(vec![1, 2]), 0, None);
+        let first = registry.current().expect("first source");
+        let second = registry
+            .register_root(frame(vec![1, 3]), 1, None)
+            .expect("second source");
+
+        assert_eq!(first.schema_fingerprint, second.schema_fingerprint);
+        assert_ne!(first.dataset_fingerprint, second.dataset_fingerprint);
+        assert!(first.dataset_fingerprint.starts_with("fnv1a-content-"));
     }
 }
