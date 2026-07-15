@@ -48,6 +48,11 @@ function checkbox(label: string, name: string, checked: boolean): HTMLLabelEleme
     return field;
 }
 
+function hasEnabledTimeSort(plan: CleaningPlan): boolean {
+    return plan.stages.some((stage) => stage.enabled && stage.kind === 'sort'
+        && stage.columns.some((column) => column.trim() === plan.timeColumn.trim()));
+}
+
 function renderPrepareWorkspace(root: HTMLElement, plan: CleaningPlan | null, deps: PreparePageDeps): void {
     root.replaceChildren();
     const header = createElement('div', 'prepare-workspace__header');
@@ -247,7 +252,7 @@ function renderPrepareWorkspace(root: HTMLElement, plan: CleaningPlan | null, de
     const fillSubmit = actionButton('Add null fill', () => {}); fillSubmit.type = 'submit';
     const fillStatus = createElement('p', 'prepare-workspace__policy-status'); fillStatus.setAttribute('aria-live', 'polite');
     addFill.append(fillTitle, fillColumns, fillStrategy, fillLimit, fillSubmit, fillStatus);
-    addFill.addEventListener('submit', (event) => { event.preventDefault(); const columns = fillColumns.value.split(',').map((column) => column.trim()).filter(Boolean); const limit = fillLimit.value ? Number(fillLimit.value) : null; if (columns.length === 0 || new Set(columns).size !== columns.length || (limit != null && (!Number.isInteger(limit) || limit <= 0))) { fillStatus.textContent = 'Choose unique columns and an optional positive integer limit.'; return; } const strategy = fillStrategy.value as 'forward' | 'backward'; cleaningPlanStore.addStage({ kind: 'fillNull', executionClass: 'polarsExpression', scope: 'row', enabled: true, sourcePage: 'manual', label: (strategy === 'forward' ? 'Forward' : 'Backward') + ' fill nulls in ' + columns.join(', '), columns, strategy, limit }); deps.onPlanChanged?.(); });
+    addFill.addEventListener('submit', (event) => { event.preventDefault(); const columns = fillColumns.value.split(',').map((column) => column.trim()).filter(Boolean); const limit = fillLimit.value ? Number(fillLimit.value) : null; if (!hasEnabledTimeSort(plan)) { fillStatus.textContent = 'Add and enable a stable sort on the time column before ordered null fill.'; return; } if (columns.length === 0 || new Set(columns).size !== columns.length || (limit != null && (!Number.isInteger(limit) || limit <= 0))) { fillStatus.textContent = 'Choose unique columns and an optional positive integer limit.'; return; } const strategy = fillStrategy.value as 'forward' | 'backward'; cleaningPlanStore.addStage({ kind: 'fillNull', executionClass: 'polarsExpression', scope: 'row', enabled: true, sourcePage: 'manual', label: (strategy === 'forward' ? 'Forward' : 'Backward') + ' fill nulls in ' + columns.join(', '), columns, strategy, limit }); deps.onPlanChanged?.(); });
     const list = createElement('ol', 'prepare-workspace__stage-list');
     if (plan.stages.length === 0) {
         const empty = createElement('li', 'prepare-workspace__empty');

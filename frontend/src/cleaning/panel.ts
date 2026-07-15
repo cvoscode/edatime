@@ -50,6 +50,11 @@ function executable(stage: CleaningStage | undefined): boolean {
     return !!stage && stage.executionClass !== 'annotation';
 }
 
+function hasEnabledTimeSort(plan: CleaningPlan): boolean {
+    return plan.stages.some((stage) => stage.enabled && stage.kind === 'sort'
+        && stage.columns.some((column) => column.trim() === plan.timeColumn.trim()));
+}
+
 function previewSummary(result: CleaningPreviewResponse): string {
     const rows = String(result.rowsAfter.toLocaleString()) + ' of ' + String(result.rowsBefore.toLocaleString())
         + ' rows remain (' + String(result.rowsRemoved.toLocaleString()) + ' removed).';
@@ -566,6 +571,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             const columns = readText(addFillForm, 'fillColumns').split(',').map((column) => column.trim()).filter(Boolean);
             const rawLimit = readText(addFillForm, 'fillLimit');
             const limit = rawLimit ? Number(rawLimit) : null;
+            if (!hasEnabledTimeSort(plan)) { preview.textContent = 'Add and enable a stable sort on the time column before ordered null fill.'; return; }
             if (columns.length === 0 || new Set(columns).size !== columns.length || (limit != null && (!Number.isInteger(limit) || limit <= 0))) { preview.textContent = 'Choose unique columns and an optional positive integer limit.'; return; }
             const strategy = readText(addFillForm, 'fillStrategy') as 'forward' | 'backward';
             deps.planStore.addStage({ kind: 'fillNull', executionClass: 'polarsExpression', scope: 'row', enabled: true, sourcePage: 'manual', label: (strategy === 'forward' ? 'Forward' : 'Backward') + ' fill nulls in ' + columns.join(', '), columns, strategy, limit });
