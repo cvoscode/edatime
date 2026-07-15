@@ -29,3 +29,10 @@
 # Top-N distinct labels preserved in the scatter categorical
 # color legend before the long tail collapses into "Other".
 # max_color_cardinality = 64
+
+# Optional durable storage for retained dataset versions. When set, future
+# uploads and explicit plan materializations can publish managed Parquet
+# artifacts here. Leave unset to retain the in-memory-only default.
+#
+# [data]
+# artifact_dir = "./edatime-artifacts"

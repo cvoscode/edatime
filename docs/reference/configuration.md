@@ -30,7 +30,7 @@ window_seconds = 60
 max_upload_bytes = 536870912
 
 [data]
-sample_data_path = "./my_data.csv"
+artifact_dir = "./edatime-artifacts" # optional; managed Parquet versions
 ```
 
 ## Environment Variables
@@ -47,6 +47,7 @@ sample_data_path = "./my_data.csv"
 | `EDATIME_RATE_LIMIT_MAX_REQUESTS` | Per-client request budget | `1000` |
 | `EDATIME_RATE_LIMIT_WINDOW_SECONDS` | Rate-limit window | `60` |
 | `EDATIME_MAX_UPLOAD_BYTES` | Maximum upload size in bytes | `268435456` |
+| `EDATIME_ARTIFACT_DIR` | Managed directory for durable Parquet versions | unset |
 | `EDATIME_DATABASE_URL` | Database connection string | unset |
 | `EDATIME_DATABASE_BACKEND` | Preferred database backend | `none` |
 | `EDATIME_FRONTEND_DIR` | Override the frontend static directory | `frontend/` in the repo |
@@ -56,3 +57,6 @@ sample_data_path = "./my_data.csv"
 - The sample data path is loaded at startup. If the file cannot be loaded, the app starts with an empty dataset.
 - The frontend static directory can be overridden for custom deployment layouts.
 - Large uploads are bounded both by frontend workflow and server-side body limits.
+- Set `[data].artifact_dir` (or `EDATIME_ARTIFACT_DIR`) before enabling durable
+  version retention. When unset, the application remains in its current
+  in-memory storage mode.

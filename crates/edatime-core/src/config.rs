@@ -1,4 +1,7 @@
-use std::{env, fs, path::Path};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+};
 
 use serde::Deserialize;
 
@@ -49,7 +52,11 @@ pub struct UploadSettings {
 
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(default)]
-pub struct DataSettings {}
+pub struct DataSettings {
+    /// Optional managed directory for durable Parquet dataset artifacts.
+    /// Leaving this unset preserves the current in-memory-only behavior.
+    pub artifact_dir: Option<PathBuf>,
+}
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
@@ -231,6 +238,12 @@ impl AppConfig {
         {
             self.upload.max_upload_bytes = max_upload_bytes;
         }
+        if let Ok(artifact_dir) = env::var("EDATIME_ARTIFACT_DIR") {
+            let artifact_dir = artifact_dir.trim();
+            if !artifact_dir.is_empty() {
+                self.data.artifact_dir = Some(PathBuf::from(artifact_dir));
+            }
+        }
         if let Ok(min_width) = env::var("EDATIME_MIN_VIEWPORT_WIDTH")
             && let Ok(min_width) = min_width.parse::<usize>()
         {
@@ -333,6 +346,32 @@ mod tests {
             },
             None => unsafe {
                 env::remove_var("EDATIME_DEFAULT_SCATTER_LIMIT");
+            },
+        }
+    }
+
+    #[test]
+    fn artifact_directory_can_be_overridden_from_env() {
+        let _guard = env_lock().lock().expect("env lock should not be poisoned");
+        let previous = env::var("EDATIME_ARTIFACT_DIR").ok();
+
+        unsafe {
+            env::set_var("EDATIME_ARTIFACT_DIR", "/tmp/edatime-artifacts");
+        }
+
+        let mut config = AppConfig::default();
+        config.apply_env_overrides();
+        assert_eq!(
+            config.data.artifact_dir,
+            Some(PathBuf::from("/tmp/edatime-artifacts"))
+        );
+
+        match previous {
+            Some(value) => unsafe {
+                env::set_var("EDATIME_ARTIFACT_DIR", value);
+            },
+            None => unsafe {
+                env::remove_var("EDATIME_ARTIFACT_DIR");
             },
         }
     }
