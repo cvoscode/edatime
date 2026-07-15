@@ -32,6 +32,18 @@ function actionButton(label: string, onClick: () => void, disabled = false): HTM
     return button;
 }
 
+function checkbox(label: string, name: string, checked: boolean): HTMLLabelElement {
+    const field = createElement('label', 'prepare-workspace__policy-checkbox');
+    const input = createElement('input');
+    input.type = 'checkbox';
+    input.name = name;
+    input.checked = checked;
+    const caption = createElement('span');
+    caption.textContent = label;
+    field.append(input, caption);
+    return field;
+}
+
 function renderPrepareWorkspace(root: HTMLElement, plan: CleaningPlan | null, deps: PreparePageDeps): void {
     root.replaceChildren();
     const header = createElement('div', 'prepare-workspace__header');
@@ -79,6 +91,46 @@ function renderPrepareWorkspace(root: HTMLElement, plan: CleaningPlan | null, de
         actionButton('Undo', () => { if (cleaningPlanStore.undo()) deps.onPlanChanged?.(); }, !cleaningPlanStore.canUndo()),
         actionButton('Redo', () => { if (cleaningPlanStore.redo()) deps.onPlanChanged?.(); }, !cleaningPlanStore.canRedo()),
     );
+    const addPolicy = createElement('form', 'prepare-workspace__policy-form');
+    const policyTitle = createElement('h3');
+    policyTitle.textContent = 'Add missing-value policy';
+    const policyColumn = createElement('input', 'modal-input');
+    policyColumn.name = 'column';
+    policyColumn.placeholder = 'Numeric column';
+    policyColumn.required = true;
+    policyColumn.setAttribute('aria-label', 'Numeric column');
+    const policySubmit = actionButton('Add policy', () => {});
+    policySubmit.type = 'submit';
+    const policyStatus = createElement('p', 'prepare-workspace__policy-status');
+    policyStatus.setAttribute('aria-live', 'polite');
+    addPolicy.append(
+        policyTitle,
+        policyColumn,
+        checkbox('Drop null rows', 'dropNulls', true),
+        checkbox('Drop non-finite rows', 'dropNonFinite', true),
+        policySubmit,
+        policyStatus,
+    );
+    addPolicy.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const column = policyColumn.value.trim();
+        const dropNulls = (addPolicy.elements.namedItem('dropNulls') as HTMLInputElement).checked;
+        const dropNonFinite = (addPolicy.elements.namedItem('dropNonFinite') as HTMLInputElement).checked;
+        if (!column) {
+            policyStatus.textContent = 'Choose a numeric column.';
+            return;
+        }
+        if (!dropNulls && !dropNonFinite) {
+            policyStatus.textContent = 'Choose null removal, non-finite removal, or both.';
+            return;
+        }
+        cleaningPlanStore.addStage({
+            kind: 'missingValue', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+            sourcePage: 'manual', label: 'Drop missing values from ' + column,
+            column, dropNulls, dropNonFinite,
+        });
+        deps.onPlanChanged?.();
+    });
     const list = createElement('ol', 'prepare-workspace__stage-list');
     if (plan.stages.length === 0) {
         const empty = createElement('li', 'prepare-workspace__empty');
@@ -115,7 +167,7 @@ function renderPrepareWorkspace(root: HTMLElement, plan: CleaningPlan | null, de
         item.append(summary, controls);
         list.append(item);
     }
-    stagesSection.append(stageTitle, stageCopy, history, list);
+    stagesSection.append(stageTitle, stageCopy, history, addPolicy, list);
     root.append(header, identity, graphSection, stagesSection);
 }
 

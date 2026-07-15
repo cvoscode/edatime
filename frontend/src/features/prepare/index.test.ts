@@ -64,4 +64,20 @@ describe('Prepare page', () => {
 
         dispose();
     });
+
+    it('creates a valid missing-value policy without leaving Prepare', () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        const onPlanChanged = vi.fn();
+        const dispose = initPreparePage({ onPlanChanged });
+        const form = document.querySelector('form.prepare-workspace__policy-form') as HTMLFormElement;
+        (form.elements.namedItem('column') as HTMLInputElement).value = 'value';
+
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+
+        expect(cleaningPlanStore.getSnapshot()!.stages).toMatchObject([{
+            kind: 'missingValue', column: 'value', dropNulls: true, dropNonFinite: true,
+        }]);
+        expect(onPlanChanged).toHaveBeenCalledTimes(1);
+        dispose();
+    });
 });

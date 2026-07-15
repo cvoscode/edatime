@@ -15,8 +15,8 @@
 - **Milestone F started:** a lazy, hash-routable **Prepare** destination now
   presents the canonical source → stages → result graph and live source
   identity. It provides page-native ordered-stage enable/disable, reordering,
-  removal, and undo/redo controls, then hands off to the shared Pipeline
-  Workbench for detailed field editing, previewing, exporting, and
+  removal, undo/redo, and missing-value policy authoring, then hands off to
+  the shared Pipeline Workbench for detailed field editing, previewing, exporting, and
   materialization while the quality workflow remains in progress.
 - **Milestone B in progress:** data, scatter points/matrix, correlations, and
   correlation matrix, Drift, and export artifacts now carry immutable source

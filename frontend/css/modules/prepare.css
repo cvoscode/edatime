@@ -11,6 +11,11 @@
 .prepare-workspace__stages { display: grid; gap: 12px; padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--shell-surface-elevated); }
 .prepare-workspace__stages h2 { margin: 0; font-size: 1rem; }
 .prepare-workspace__history, .prepare-workspace__stage-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.prepare-workspace__policy-form { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--border-hi); border-radius: var(--radius-md); background: var(--shell-hover); }
+.prepare-workspace__policy-form h3 { width: 100%; margin: 0; font-size: 0.875rem; }
+.prepare-workspace__policy-form .modal-input { flex: 1 1 180px; }
+.prepare-workspace__policy-checkbox { display: inline-flex; align-items: center; gap: 7px; min-height: var(--ctrl-h); color: var(--text-dim); font-size: 0.8125rem; }
+.prepare-workspace__policy-status { width: 100%; margin: 0; color: var(--text-dim); font-size: 0.8125rem; }
 .prepare-workspace__stage-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .prepare-workspace__stage { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-md); }
 .prepare-workspace__stage-summary { display: grid; gap: 3px; min-width: 0; }
