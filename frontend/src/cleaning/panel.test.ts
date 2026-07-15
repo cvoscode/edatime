@@ -285,6 +285,19 @@ describe('cleaning plan panel', () => {
         }]);
     });
 
+    it('requires a time sort before authoring ordered null fill', () => {
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        mountCleaningPlanPanel({ planStore, getViewport: () => null });
+        document.getElementById('open-cleaning-plan-btn')!.click();
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Stages')!.click();
+        const form = document.querySelectorAll<HTMLFormElement>('form.pipeline-workbench__add-stage')[4];
+        (form.elements.namedItem('fillColumns') as HTMLInputElement).value = 'value';
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        expect(planStore.getSnapshot()!.stages).toHaveLength(0);
+        expect(document.querySelector('[data-plan-preview]')?.textContent).toContain('stable sort on the time column');
+    });
+
     it('creates and edits an explicit schema column-selection stage', () => {
         const planStore = createCleaningPlanStore();
         planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });

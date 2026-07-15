@@ -111,4 +111,15 @@ describe('Prepare page', () => {
         }]);
         dispose();
     });
+
+    it('requires a time sort before authoring ordered null fill', () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        const dispose = initPreparePage();
+        const form = document.querySelectorAll<HTMLFormElement>('form.prepare-workspace__policy-form')[4];
+        (form.elements.namedItem('columns') as HTMLInputElement).value = 'value';
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        expect(cleaningPlanStore.getSnapshot()!.stages).toHaveLength(0);
+        expect(form.textContent).toContain('stable sort on the time column');
+        dispose();
+    });
 });
