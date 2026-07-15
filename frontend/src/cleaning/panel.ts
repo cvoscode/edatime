@@ -437,20 +437,16 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
                 preview.textContent = 'Zoom or set a valid visible time range first.';
                 return;
             }
-            const existing = [...plan.stages].reverse().find((stage) => stage.kind === 'timeRange' && stage.sourcePage === 'timeseries');
-            if (existing) {
-                deps.planStore.updateStage(existing.id, {
-                    startMs: Math.min(startMs, endMs), endMs: Math.max(startMs, endMs), enabled: true,
-                } as Partial<CleaningStage>);
-                notify(existing);
-            } else {
-                deps.planStore.addStage({
-                    kind: 'timeRange', executionClass: 'polarsExpression', scope: 'row', enabled: true,
-                    sourcePage: 'timeseries', label: 'Keep visible time range',
-                    startMs: Math.min(startMs, endMs), endMs: Math.max(startMs, endMs), mode: 'keepInside',
-                });
-                notify();
-            }
+            // An explicit Add action is append-only. Replacing a previous
+            // stage here would hide user intent and break the pipeline's
+            // saved-order/audit invariant; editing remains available from the
+            // Stages tab after the new stage is added.
+            deps.planStore.addStage({
+                kind: 'timeRange', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+                sourcePage: 'timeseries', label: 'Keep visible time range',
+                startMs: Math.min(startMs, endMs), endMs: Math.max(startMs, endMs), mode: 'keepInside',
+            });
+            notify();
             setActiveTab('stages');
         });
         const previewButton = button('Preview');

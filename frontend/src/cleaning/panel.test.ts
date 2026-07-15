@@ -52,6 +52,23 @@ describe('cleaning plan panel', () => {
         expect(downloadBlobMock).toHaveBeenCalledWith(expect.any(Blob), 'edatime_cleaning_plan.json');
     });
 
+    it('appends each explicit visible-range action instead of rewriting prior pipeline history', () => {
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        mountCleaningPlanPanel({ planStore, getViewport: () => ({ xMin: 10, xMax: 40 }) });
+
+        document.getElementById('open-cleaning-plan-btn')!.click();
+        const addVisibleRange = () => Array.from(document.querySelectorAll('button'))
+            .find((button) => button.textContent === 'Add visible time range')!;
+        addVisibleRange().click();
+        addVisibleRange().click();
+
+        const stages = planStore.getSnapshot()!.stages;
+        expect(stages).toHaveLength(2);
+        expect(stages.map((stage) => stage.kind)).toEqual(['timeRange', 'timeRange']);
+        expect(stages[0].id).not.toBe(stages[1].id);
+    });
+
     it('previews the current accumulated plan and reports its row impact', async () => {
         const planStore = createCleaningPlanStore();
         planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
