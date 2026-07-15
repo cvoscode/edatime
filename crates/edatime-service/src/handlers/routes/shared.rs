@@ -8,6 +8,7 @@ use edatime_query::pipeline;
 use edatime_query::query;
 use edatime_query::validation::{validate_numeric_columns_lazy, validate_time_window};
 use edatime_store::state::AppState;
+use edatime_store::versions::DatasetVersionRecord;
 use polars::prelude::DataFrame;
 
 use crate::handlers::routes::cleaning::{PlanRequestEnvelope, compile_request_frame};
@@ -18,6 +19,63 @@ pub struct ResponseMeta {
     pub is_downsampled: bool,
     pub returned_rows: usize,
     pub target_points: Option<usize>,
+}
+
+/// Immutable provenance for a dataset-derived response.
+///
+/// The active dataset can change while a request is in flight. Routes must
+/// therefore identify the resolved source snapshot, rather than treating the
+/// current session revision as the result identity. `plan_hash` is `None`
+/// when the request used the source unchanged; the wire representation uses
+/// the explicit `none` sentinel so clients never need to infer that from a
+/// missing header.
+#[derive(Debug, Clone)]
+pub struct ExecutionIdentity {
+    pub source_version_id: String,
+    pub source_revision: u64,
+    pub schema_fingerprint: String,
+    pub plan_hash: Option<String>,
+}
+
+impl ExecutionIdentity {
+    pub fn from_version(version: DatasetVersionRecord, plan_hash: Option<String>) -> Self {
+        Self {
+            source_version_id: version.id,
+            source_revision: version.revision,
+            schema_fingerprint: version.schema_fingerprint,
+            plan_hash,
+        }
+    }
+
+    /// Headers which make a cached, exported, or delayed result attributable
+    /// to the exact immutable source and cleaning plan used to build it.
+    pub fn headers(&self) -> Vec<(String, String)> {
+        vec![
+            (
+                "x-edatime-source-version".to_string(),
+                self.source_version_id.clone(),
+            ),
+            (
+                "x-edatime-source-revision".to_string(),
+                self.source_revision.to_string(),
+            ),
+            (
+                "x-edatime-schema-fingerprint".to_string(),
+                self.schema_fingerprint.clone(),
+            ),
+            (
+                "x-edatime-plan-hash".to_string(),
+                self.plan_hash.clone().unwrap_or_else(|| "none".to_string()),
+            ),
+        ]
+    }
+}
+
+pub fn current_execution_identity(state: &AppState) -> Result<ExecutionIdentity, AppError> {
+    Ok(ExecutionIdentity::from_version(
+        state.current_dataset_version()?,
+        None,
+    ))
 }
 
 /// Add the standard edatime headers (`x-edatime-downsampled`, `x-edatime-returned-rows`,

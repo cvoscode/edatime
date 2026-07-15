@@ -17,6 +17,7 @@ use super::{
     parse_scatter_line_filters, resolved_scatter_limit,
 };
 use crate::handlers::routes::cleaning::compile_request_frame;
+use crate::handlers::routes::shared::{ExecutionIdentity, current_execution_identity};
 
 #[derive(Debug, serde::Serialize)]
 struct ScatterMatrixCellMeta {
@@ -119,25 +120,29 @@ async fn scatter_matrix_response(
         validate_time_window(start_dt, end_dt)?;
     }
 
-    let (lf, cleaning_plan_hash) = if let Some(envelope) = params.cleaning_plan.as_ref() {
-        let (_version, hash, frame) = compile_request_frame(&state, envelope)?;
-        (frame, Some(hash))
+    let (lf, identity) = if let Some(envelope) = params.cleaning_plan.as_ref() {
+        let (version, hash, frame) = compile_request_frame(&state, envelope)?;
+        (frame, ExecutionIdentity::from_version(version, Some(hash)))
     } else {
-        (state.dataset_snapshot(), None)
+        (
+            state.dataset_snapshot(),
+            current_execution_identity(&state)?,
+        )
     };
 
     let pairs_key = serde_json::to_string(&pairs)
         .map_err(|error| AppError::internal(format!("Serialize scatter matrix pairs: {error}")))?;
     let cache_key = format!(
-        "scatter-matrix:v{}:{}:{}:{}:{}:{}:{}:{}",
-        state.dataset_revision(),
+        "scatter-matrix:source={}:revision={}:pairs={}:color={}:start={}:end={}:filters={}:line-filters={}:plan={}",
+        identity.source_version_id,
+        identity.source_revision,
         pairs_key,
         color_col.as_deref().unwrap_or(""),
         start.map(|value| value.to_string()).unwrap_or_default(),
         end.map(|value| value.to_string()).unwrap_or_default(),
         params.filters.as_deref().unwrap_or(""),
         params.line_filters.as_deref().unwrap_or(""),
-        cleaning_plan_hash.as_deref().unwrap_or(""),
+        identity.plan_hash.as_deref().unwrap_or("none"),
     );
     let cache_key = format!("{cache_key}:{limit}");
     if let Some(cached) = state.cache.get(&cache_key).await {
@@ -269,10 +274,11 @@ async fn scatter_matrix_response(
     let header_json = serde_json::to_vec(&metadata).map_err(|error| {
         AppError::internal(format!("Serialize scatter matrix metadata: {error}"))
     })?;
-    let mut extra_headers = vec![(
+    let mut extra_headers = identity.headers();
+    extra_headers.push((
         "x-edatime-matrix-cells".to_string(),
         BASE64_STANDARD.encode(header_json),
-    )];
+    ));
     if let Some(color) = color_col_for_headers {
         extra_headers.push(("x-edatime-scatter-color".to_string(), color));
     }
@@ -337,6 +343,27 @@ mod tests {
                 .get("content-type")
                 .and_then(|value| value.to_str().ok()),
             Some("application/vnd.apache.arrow.stream")
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("x-edatime-source-version")
+                .and_then(|value| value.to_str().ok()),
+            Some("source-0")
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("x-edatime-plan-hash")
+                .and_then(|value| value.to_str().ok()),
+            Some("none")
+        );
+        assert!(
+            response
+                .headers()
+                .get("x-edatime-schema-fingerprint")
+                .and_then(|value| value.to_str().ok())
+                .is_some_and(|value| value.starts_with("fnv1a-"))
         );
         let encoded = response
             .headers()

@@ -25,6 +25,7 @@ use super::{
     parse_scatter_line_filters, resolved_scatter_limit,
 };
 use crate::handlers::routes::cleaning::compile_request_frame;
+use crate::handlers::routes::shared::{ExecutionIdentity, current_execution_identity};
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -67,11 +68,14 @@ async fn scatter_points_response(
         params.limit
     );
 
-    let (lf, cleaning_plan_hash) = if let Some(envelope) = params.cleaning_plan.as_ref() {
-        let (_version, hash, frame) = compile_request_frame(&state, envelope)?;
-        (frame, Some(hash))
+    let (lf, identity) = if let Some(envelope) = params.cleaning_plan.as_ref() {
+        let (version, hash, frame) = compile_request_frame(&state, envelope)?;
+        (frame, ExecutionIdentity::from_version(version, Some(hash)))
     } else {
-        (state.dataset_snapshot(), None)
+        (
+            state.dataset_snapshot(),
+            current_execution_identity(&state)?,
+        )
     };
 
     let x_col = params.x.clone();
@@ -107,8 +111,9 @@ async fn scatter_points_response(
     validate_scatter_limit(limit, &state.config.validation)?;
     let time_color_mode = TimeColorMode::from_query(params.time_color_mode.as_deref());
     let cache_key = format!(
-        "scatter:v{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}",
-        state.dataset_revision(),
+        "scatter:source={}:revision={}:x={}:y={}:color={}:size={}:start={}:end={}:filters={}:line-filters={}:plan={}:limit={}:format={}:time-color={}",
+        identity.source_version_id,
+        identity.source_revision,
         x_col,
         y_col,
         color_col.as_deref().unwrap_or(""),
@@ -117,7 +122,7 @@ async fn scatter_points_response(
         end.map(|value| value.to_string()).unwrap_or_default(),
         params.filters.as_deref().unwrap_or(""),
         params.line_filters.as_deref().unwrap_or(""),
-        cleaning_plan_hash.as_deref().unwrap_or(""),
+        identity.plan_hash.as_deref().unwrap_or("none"),
         limit,
         params.format.as_deref().unwrap_or("arrow"),
         time_color_mode_label(time_color_mode),
@@ -308,7 +313,8 @@ async fn scatter_points_response(
 
     metrics.record_scatter_sampling(total_points, returned_points);
 
-    let mut extra_headers = vec![
+    let mut extra_headers = identity.headers();
+    extra_headers.extend([
         (
             "x-edatime-scatter-total".to_string(),
             total_points.to_string(),
@@ -319,7 +325,7 @@ async fn scatter_points_response(
         ),
         ("x-edatime-scatter-x".to_string(), x_col_for_headers.clone()),
         ("x-edatime-scatter-y".to_string(), y_col_for_headers.clone()),
-    ];
+    ]);
     if let Some(cm) = color_min {
         extra_headers.push(("x-edatime-color-min".to_string(), cm.to_string()));
     }
@@ -526,6 +532,27 @@ mod tests {
                 .get("x-edatime-cache")
                 .and_then(|v| v.to_str().ok()),
             Some("miss")
+        );
+        assert_eq!(
+            first
+                .headers()
+                .get("x-edatime-source-version")
+                .and_then(|value| value.to_str().ok()),
+            Some("source-0")
+        );
+        assert_eq!(
+            first
+                .headers()
+                .get("x-edatime-plan-hash")
+                .and_then(|value| value.to_str().ok()),
+            Some("none")
+        );
+        assert!(
+            first
+                .headers()
+                .get("x-edatime-schema-fingerprint")
+                .and_then(|value| value.to_str().ok())
+                .is_some_and(|value| value.starts_with("fnv1a-"))
         );
         assert_eq!(
             second

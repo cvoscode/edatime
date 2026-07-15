@@ -18,7 +18,10 @@ use edatime_query::validation::{
 use edatime_store::cache::CachedResponse;
 use edatime_store::state::AppState;
 
-use super::cleaning::{PlanRequestEnvelope, compile_request_frame};
+use super::{
+    cleaning::{PlanRequestEnvelope, compile_request_frame},
+    shared::{ExecutionIdentity, current_execution_identity},
+};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -56,28 +59,22 @@ async fn data_response(
     let limits = &state.config.validation;
     validate_width(params.width, limits)?;
 
-    let (lf, source_version_id, source_revision, plan_hash, resolved_time_column) =
-        if let Some(envelope) = cleaning_plan {
-            let (version, plan_hash, frame) = compile_request_frame(&state, envelope)?;
-            (
-                frame,
-                version.id,
-                version.revision,
-                plan_hash,
-                envelope.plan.time_column.clone(),
-            )
-        } else {
-            let version = state.current_dataset_version()?;
-            (
-                state.dataset_snapshot(),
-                version.id,
-                state.dataset_revision(),
-                String::new(),
-                state
-                    .time_column_display_name_sync()
-                    .unwrap_or_else(|| "ts".to_string()),
-            )
-        };
+    let (lf, identity, resolved_time_column) = if let Some(envelope) = cleaning_plan {
+        let (version, plan_hash, frame) = compile_request_frame(&state, envelope)?;
+        (
+            frame,
+            ExecutionIdentity::from_version(version, Some(plan_hash)),
+            envelope.plan.time_column.clone(),
+        )
+    } else {
+        (
+            state.dataset_snapshot(),
+            current_execution_identity(&state)?,
+            state
+                .time_column_display_name_sync()
+                .unwrap_or_else(|| "ts".to_string()),
+        )
+    };
     let value_cols = validate_numeric_columns_lazy(
         &lf,
         &query::parse_columns(params.columns.as_deref()),
@@ -127,9 +124,9 @@ async fn data_response(
     let format = query::output_format(params.format.as_deref());
     let cache_key = format!(
         "data:source={}:revision={}:plan={}:{}:{}:{}:{}:{}:{}:{:?}",
-        source_version_id,
-        source_revision,
-        plan_hash,
+        identity.source_version_id,
+        identity.source_revision,
+        identity.plan_hash.as_deref().unwrap_or("none"),
         params.start.timestamp_millis(),
         params.end.timestamp_millis(),
         params.width,
@@ -228,7 +225,14 @@ async fn data_response(
     // the pre-LTTB filtered set. LTTB can also reduce rows; clamp at
     // zero so the contract stays non-negative.
     let dropped_rows = filtered_rows.saturating_sub(returned_rows);
-    let cached = cached.with_extra_headers(vec![
+    let mut identity_headers = identity.headers();
+    // Compatibility header: it now carries the immutable resolved source
+    // revision, matching the new, explicitly named source-revision header.
+    identity_headers.push((
+        "x-edatime-dataset-revision".to_string(),
+        identity.source_revision.to_string(),
+    ));
+    let mut extra_headers = vec![
         ("x-edatime-empty".to_string(), empty_header.to_string()),
         (
             "x-edatime-filtered-rows".to_string(),
@@ -238,13 +242,9 @@ async fn data_response(
             "x-edatime-dropped-rows".to_string(),
             dropped_rows.to_string(),
         ),
-        ("x-edatime-source-version".to_string(), source_version_id),
-        (
-            "x-edatime-dataset-revision".to_string(),
-            source_revision.to_string(),
-        ),
-        ("x-edatime-plan-hash".to_string(), plan_hash),
-    ]);
+    ];
+    extra_headers.append(&mut identity_headers);
+    let cached = cached.with_extra_headers(extra_headers);
 
     state.cache.insert(cache_key, cached.clone()).await;
     Ok(cached.into_response("miss"))
@@ -502,6 +502,20 @@ mod tests {
                 .get("x-edatime-plan-hash")
                 .and_then(|value| value.to_str().ok())
                 .is_some_and(|value| !value.is_empty()),
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("x-edatime-source-version")
+                .and_then(|value| value.to_str().ok()),
+            Some("source-0"),
+        );
+        assert!(
+            response
+                .headers()
+                .get("x-edatime-schema-fingerprint")
+                .and_then(|value| value.to_str().ok())
+                .is_some_and(|value| value.starts_with("fnv1a-"))
         );
     }
 }
