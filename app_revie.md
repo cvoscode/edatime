@@ -1,6 +1,6 @@
 # EdaTime Application Review and Improvement Plan
 
-**Status:** implementation roadmap; Milestone A is complete and Milestones B/C have active, committed slices
+**Status:** implementation roadmap; Milestone A is complete and Milestones B/C/D have active, committed slices
 
 **Reviewed:** 2026-07-15
 
@@ -22,9 +22,14 @@
   `0aaab7f`, `2431453`, `f437017`, `3ad00ff`, `2541478`, `961caa4`,
   `65a8feb`, `e81b529`, `c770b26`, `bd1d131`, `7e51990`, `073c5bb`)
 - **Milestone C started:** retained versions use an Arrow-content-derived
-  fingerprint, with a same-shape/different-content regression. Streaming
-  hashing, retained-version cache-isolation tests, and the ADR remain open.
-  (`72e187e`)
+  fingerprint, with a same-shape/different-content regression and a documented
+  content-identity contract. Streaming hashing and retained-version
+  cache-isolation tests remain open. (`72e187e`, `75f4633`)
+- **Milestone D started:** the store has an atomically published artifact
+  catalog with persistence regression coverage, and the version registry can
+  resolve retained Parquet descriptors as fresh lazy scans. Upload,
+  materialization, retention, quota, and restart-recovery flows do not yet
+  publish or restore those descriptors. (`f2ed211`, `9887e4f`, `6ab6f44`)
 
 ## 1. Goal
 
@@ -57,7 +62,7 @@ EdaTime already has a strong EDA foundation:
 - the first working slice of an immutable, reversible cleaning-plan system;
 - reproducible frontend, Rust, browser, and benchmark gates.
 
-The main limitation is architectural rather than cosmetic: the application is still fundamentally an **in-memory, single-active-dataset application**. File ingest ends in a full `DataFrame` collect, database access copies a bounded snapshot into memory, retained dataset versions hold frames in memory, and full cleaning export/materialization collects before writing. This prevents the current design from scaling beyond available RAM even though several individual query steps use `LazyFrame` and streaming collection.
+The main limitation is architectural rather than cosmetic: the application is still fundamentally an **in-memory, single-active-dataset application** in normal operation. File ingest ends in a full `DataFrame` collect, database access copies a bounded snapshot into memory, and full cleaning export/materialization collects before writing. A catalog and scan-backed Parquet version source now exist, but no normal upload or materialization flow publishes to them yet. This prevents the current design from scaling beyond available RAM even though several individual query steps use `LazyFrame` and streaming collection.
 
 The second limitation is product correctness: the cleaning plan is not yet the execution context for every page. The existing v1 plan supports only time ranges, numeric ranges, adaptive lines, and annotations. Timeseries applies range/line stages after server downsampling in the browser, while correlations, rolling bands, anomalies, and spectral filtering still read the active compatibility dataset without the plan. Other pages mostly consume a plan but do not yet author executable stages.
 
@@ -98,7 +103,11 @@ Do not start with allocator, SIMD, PGO, compression, framework replacement, or a
 
 - `crates/edatime-ingest/src/ingest.rs` starts with lazy CSV/Parquet scans but sorts and performs a final `collect()`, returning a fully resident `DataFrame`.
 - `crates/edatime-store/src/repository.rs` stores one replaceable in-memory `LazyFrame` backed by a `DataFrame`.
-- `crates/edatime-store/src/versions.rs` retains every root/materialized version as a `LazyFrame` derived from an in-memory frame. There is no retention limit, eviction policy, persistent artifact catalog, or restart recovery.
+- `crates/edatime-store/src/artifacts.rs` provides an atomic local descriptor
+  catalog; `crates/edatime-store/src/versions.rs` can open a retained Parquet
+  descriptor as a fresh `LazyFrame` scan. Root/materialized versions are still
+  created in memory, and there is no configured data directory, retention,
+  eviction, or restart recovery.
 - Dataset fingerprints are currently derived from canonical Arrow content
   (schema, row order, nulls, and values); they are still resident-frame hashes
   rather than streaming ingest hashes.
