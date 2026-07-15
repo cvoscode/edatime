@@ -28,6 +28,7 @@ export interface PageDescriptorInitDeps {
     showPage: (name: string) => void;
     chipColor: (col: string, idx: number) => string;
     setLoading: (btnId: string, overlayId: string, loading: boolean, label?: string) => void;
+    onCleaningPlanChanged: () => void;
     workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'subscribe'>;
 }
 
@@ -48,9 +49,9 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
     {
         name: 'prepare',
         requiresMetadata: true,
-        async load() {
+        async load(deps) {
             const { initPreparePage } = await import('../features/prepare/index.js');
-            return { init: initPreparePage };
+            return { init: () => initPreparePage({ onPlanChanged: deps.onCleaningPlanChanged }) };
         },
     },
     {

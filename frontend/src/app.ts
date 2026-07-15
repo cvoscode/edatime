@@ -165,14 +165,15 @@ export function createApp(): AppRoot {
 
         // Mount registers page lifecycle (page-change listener, etc.)
         runtime.registerCleanup(timeseriesModule.mount());
+        const refreshCleaningPlanConsumers = () => {
+            timeseriesModule.buildRangeControls();
+            timeseriesModule.renderCurrentData();
+            void timeseriesModule.fetchAndRender();
+        };
         runtime.registerCleanup(mountCleaningPlanPanel({
             planStore: cleaningPlanStore,
             getViewport: () => workspace.getSnapshot().viewport,
-            onPlanChanged: () => {
-                timeseriesModule.buildRangeControls();
-                timeseriesModule.renderCurrentData();
-                void timeseriesModule.fetchAndRender();
-            },
+            onPlanChanged: refreshCleaningPlanConsumers,
             onPlanApplied: () => timeseriesModule.refreshAfterMutation(),
         }));
 
@@ -208,6 +209,7 @@ export function createApp(): AppRoot {
             showPage,
             chipColor: (col, idx) => getAnalyticsChipColor(col, idx),
             setLoading: setComputeLoading,
+            onCleaningPlanChanged: refreshCleaningPlanConsumers,
             workspace,
         });
 

@@ -38,4 +38,30 @@ describe('Prepare page', () => {
 
         dispose();
     });
+
+    it('edits ordered stages and history through the canonical store', () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        const first = cleaningPlanStore.addStage({
+            kind: 'timeRange', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+            sourcePage: 'timeseries', label: 'First', startMs: 1, endMs: 2, mode: 'keepInside',
+        });
+        const second = cleaningPlanStore.addStage({
+            kind: 'timeRange', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+            sourcePage: 'timeseries', label: 'Second', startMs: 3, endMs: 4, mode: 'keepInside',
+        });
+        const onPlanChanged = vi.fn();
+        const dispose = initPreparePage({ onPlanChanged });
+
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Down')!.click();
+        expect(cleaningPlanStore.getSnapshot()!.stages.map((stage) => stage.id)).toEqual([second.id, first.id]);
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Disable')!.click();
+        expect(cleaningPlanStore.getSnapshot()!.stages[0].enabled).toBe(false);
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Undo')!.click();
+        expect(cleaningPlanStore.getSnapshot()!.stages[0].enabled).toBe(true);
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Remove')!.click();
+        expect(cleaningPlanStore.getSnapshot()!.stages).toHaveLength(1);
+        expect(onPlanChanged).toHaveBeenCalledTimes(4);
+
+        dispose();
+    });
 });

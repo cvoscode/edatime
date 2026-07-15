@@ -8,4 +8,11 @@
 .prepare-workspace__graph h2 { margin: 0; font-size: 1rem; }
 .prepare-workspace__graph-scroll { overflow: auto; margin-top: 16px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--shell-bg); }
 .prepare-workspace__graph-scroll .pipeline-graph { min-width: 680px; }
-@media (max-width: 680px) { .page-prepare { padding: 14px; } .prepare-workspace__header { flex-direction: column; } }
+.prepare-workspace__stages { display: grid; gap: 12px; padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--shell-surface-elevated); }
+.prepare-workspace__stages h2 { margin: 0; font-size: 1rem; }
+.prepare-workspace__history, .prepare-workspace__stage-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.prepare-workspace__stage-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.prepare-workspace__stage { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-md); }
+.prepare-workspace__stage-summary { display: grid; gap: 3px; min-width: 0; }
+.prepare-workspace__stage-summary span, .prepare-workspace__empty { color: var(--text-dim); font-size: 0.8125rem; }
+@media (max-width: 680px) { .page-prepare { padding: 14px; } .prepare-workspace__header, .prepare-workspace__stage { flex-direction: column; align-items: stretch; } }

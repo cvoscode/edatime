@@ -30,6 +30,7 @@ function createDeps(): PageDescriptorInitDeps {
         showPage: vi.fn(),
         chipColor: vi.fn(() => '#fff'),
         setLoading: vi.fn(),
+        onCleaningPlanChanged: vi.fn(),
         workspace: { getSnapshot: vi.fn(() => makeWorkspaceSnapshot()), setFilters: vi.fn(), subscribe: vi.fn(() => vi.fn()) },
     };
 }
@@ -55,6 +56,7 @@ describe('page module descriptors', () => {
         await prepare!.init();
 
         expect(mocks.initPreparePage).toHaveBeenCalledTimes(1);
+        expect(mocks.initPreparePage).toHaveBeenCalledWith({ onPlanChanged: deps.onCleaningPlanChanged });
     });
 
     it('loads Scatter directly from its descriptor only on first page initialization', async () => {
