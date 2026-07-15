@@ -70,6 +70,27 @@ describe('cleaning plan store', () => {
         expect(received).toEqual([1]);
         expect(store.getSnapshot()!.stages).toHaveLength(1);
     });
+
+    it('undoes and redoes stage mutations without crossing a dataset reset boundary', () => {
+        const store = setupPlan();
+        const stage = store.addStage({
+            kind: 'timeRange', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+            sourcePage: 'timeseries', label: 'Window', startMs: 1, endMs: 2, mode: 'keepInside',
+        });
+
+        expect(store.canUndo()).toBe(true);
+        expect(store.undo()).toBe(true);
+        expect(store.getSnapshot()!.stages).toEqual([]);
+        expect(store.canRedo()).toBe(true);
+        expect(store.redo()).toBe(true);
+        expect(store.getSnapshot()!.stages.map((item) => item.id)).toEqual([stage.id]);
+
+        store.resetForDataset({
+            sourceVersionId: 'source-2', datasetRevision: 8, datasetFingerprint: 'data-2', schemaFingerprint: 'schema-2', timeColumn: 'ts',
+        });
+        expect(store.canUndo()).toBe(false);
+        expect(store.canRedo()).toBe(false);
+    });
 });
 
 describe('legacy cleaning-plan compiler', () => {

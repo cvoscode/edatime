@@ -13,7 +13,7 @@ import type { CleaningPlanStore } from './store.js';
 import { downloadBlob } from '../utils/dom.js';
 
 type PlanPanelStore = Pick<CleaningPlanStore,
-    'getSnapshot' | 'subscribe' | 'setPlan' | 'addStage' | 'updateStage' | 'removeStage' | 'setStageEnabled' | 'reorderStage'>;
+    'getSnapshot' | 'subscribe' | 'setPlan' | 'addStage' | 'updateStage' | 'removeStage' | 'setStageEnabled' | 'reorderStage' | 'canUndo' | 'canRedo' | 'undo' | 'redo'>;
 type WorkbenchTab = 'pipeline' | 'stages' | 'export';
 
 export interface CleaningPlanPanelDeps {
@@ -468,6 +468,22 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
     };
     const renderActions = (plan: CleaningPlan) => {
         actions.replaceChildren();
+        const undo = button('Undo');
+        undo.disabled = !deps.planStore.canUndo();
+        undo.addEventListener('click', () => {
+            if (deps.planStore.undo()) {
+                preview.textContent = 'Undid the latest pipeline edit.';
+                deps.onPlanChanged?.();
+            }
+        });
+        const redo = button('Redo');
+        redo.disabled = !deps.planStore.canRedo();
+        redo.addEventListener('click', () => {
+            if (deps.planStore.redo()) {
+                preview.textContent = 'Restored the latest pipeline edit.';
+                deps.onPlanChanged?.();
+            }
+        });
         const addViewport = button('Add visible time range');
         addViewport.addEventListener('click', () => {
             const viewport = deps.getViewport();
@@ -532,7 +548,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
                 resetOriginal.disabled = false;
             }
         });
-        actions.append(addViewport, previewButton, apply, resetOriginal);
+        actions.append(undo, redo, addViewport, previewButton, apply, resetOriginal);
     };
     const render = () => {
         const plan = deps.planStore.getSnapshot();

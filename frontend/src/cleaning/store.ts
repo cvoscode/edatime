@@ -11,6 +11,10 @@ export interface CleaningPlanStore {
     removeStage(id: string): void;
     setStageEnabled(id: string, enabled: boolean): void;
     reorderStage(id: string, targetIndex: number): void;
+    canUndo(): boolean;
+    canRedo(): boolean;
+    undo(): boolean;
+    redo(): boolean;
     clear(): void;
 }
 
@@ -67,6 +71,8 @@ export function createEmptyCleaningPlan(identity: CleaningDatasetIdentity): Clea
 
 export function createCleaningPlanStore(): CleaningPlanStore {
     let plan: CleaningPlan | null = null;
+    let undoStack: CleaningPlan[] = [];
+    let redoStack: CleaningPlan[] = [];
     const listeners = new Set<(plan: CleaningPlan | null) => void>();
 
     const publish = (): void => {
@@ -77,8 +83,12 @@ export function createCleaningPlanStore(): CleaningPlanStore {
         if (!plan) throw new Error('No active cleaning plan. Select a dataset first.');
         return plan;
     };
-    const commit = (next: CleaningPlan): void => {
+    const commit = (next: CleaningPlan, recordHistory = true): void => {
         validatePlan(next);
+        if (recordHistory && plan) {
+            undoStack.push(clone(plan));
+            redoStack = [];
+        }
         plan = clone(next);
         publish();
     };
@@ -91,12 +101,16 @@ export function createCleaningPlanStore(): CleaningPlanStore {
         },
         resetForDataset(identity) {
             const next = createEmptyCleaningPlan(identity);
-            commit(next);
+            undoStack = [];
+            redoStack = [];
+            commit(next, false);
             return clone(next);
         },
         setPlan(next) {
             validatePlan(next);
-            commit(next);
+            undoStack = [];
+            redoStack = [];
+            commit(next, false);
         },
         addStage(input, options) {
             const current = requirePlan();
@@ -137,8 +151,28 @@ export function createCleaningPlanStore(): CleaningPlanStore {
             stages.splice(Math.max(0, Math.min(stages.length, Math.trunc(targetIndex))), 0, stage);
             commit(touch({ ...current, stages }));
         },
+        canUndo: () => undoStack.length > 0,
+        canRedo: () => redoStack.length > 0,
+        undo() {
+            if (!plan || undoStack.length === 0) return false;
+            const previous = undoStack.pop()!;
+            redoStack.push(clone(plan));
+            plan = previous;
+            publish();
+            return true;
+        },
+        redo() {
+            if (!plan || redoStack.length === 0) return false;
+            const next = redoStack.pop()!;
+            undoStack.push(clone(plan));
+            plan = next;
+            publish();
+            return true;
+        },
         clear() {
             plan = null;
+            undoStack = [];
+            redoStack = [];
             publish();
         },
     };
