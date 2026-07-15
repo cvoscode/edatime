@@ -30,7 +30,7 @@ import { initAppShell } from './app/shell.js';
 import { showPage } from './app/navigation/showPage.js';
 import { createAppRuntime } from './app/runtime.js';
 import { createWorkspaceStore } from './workspace/workspaceStore.js';
-import { bindCleaningPlanCompatibility, cleaningDatasetIdentityFromMetadata, cleaningPlanStore, mountCleaningPlanPanel } from './cleaning/index.js';
+import { bindCleaningPlanCompatibility, cleaningDatasetIdentityFromMetadata, cleaningPlanStore } from './cleaning/index.js';
 import { markAppReady, resetAppReady } from './app/bootState.js';
 import { upgradeSelects } from './ui/primitives/Dropdown.js';
 import { upgradeFlexibleNumberInputs } from './ui/primitives/FlexibleNumberInput.js';
@@ -170,13 +170,6 @@ export function createApp(): AppRoot {
             timeseriesModule.renderCurrentData();
             void timeseriesModule.fetchAndRender();
         };
-        runtime.registerCleanup(mountCleaningPlanPanel({
-            planStore: cleaningPlanStore,
-            getViewport: () => workspace.getSnapshot().viewport,
-            onPlanChanged: refreshCleaningPlanConsumers,
-            onPlanApplied: () => timeseriesModule.refreshAfterMutation(),
-        }));
-
         initAppShell({
             ensurePageModuleLoaded: featureRegistry.ensureFeatureLoaded,
             ensureDatasetReady: () => timeseriesModule.ensureDatasetReady(),
@@ -198,6 +191,18 @@ export function createApp(): AppRoot {
             registerCleanup: runtime.registerCleanup,
             workspace,
         });
+
+        // The workbench owns its graph/editor/export implementation, so keep
+        // it out of the initial chart shell. The global Plan trigger is
+        // already present in markup and becomes active as soon as this small
+        // feature chunk is ready.
+        const { mountCleaningPlanPanel } = await import('./cleaning/panel.js');
+        runtime.registerCleanup(mountCleaningPlanPanel({
+            planStore: cleaningPlanStore,
+            getViewport: () => workspace.getSnapshot().viewport,
+            onPlanChanged: refreshCleaningPlanConsumers,
+            onPlanApplied: () => timeseriesModule.refreshAfterMutation(),
+        }));
 
         // Descriptor registration is independent of the primary shell and is
         // itself deferred so every advanced page factory stays outside the
