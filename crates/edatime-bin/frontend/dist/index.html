@@ -47,8 +47,8 @@
       });
     }
   </script>
-  <script type="module" crossorigin src="/assets/index-ChBSwlLe.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/settings-C_RLRvj1.js">
+  <script type="module" crossorigin src="/assets/index-ChwmO5ZI.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/settings-o9Ub-W5V.js">
   <link rel="stylesheet" crossorigin href="/assets/index-B0Qhpszs.css">
 </head>
 
@@ -96,6 +96,17 @@
         </span>
         <span class="nav-text">Timeseries</span>
         <kbd class="nav-shortcut">⌥2</kbd>
+      </button>
+      <button class="nav-item" type="button" data-page="prepare" title="Prepare data" aria-label="Prepare data">
+        <span class="nav-icon">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M2 3h12M4 8h8M6 13h4" />
+            <circle cx="4" cy="3" r="1" fill="var(--shell-bg)" />
+            <circle cx="11" cy="8" r="1" fill="var(--shell-bg)" />
+            <circle cx="8" cy="13" r="1" fill="var(--shell-bg)" />
+          </svg>
+        </span>
+        <span class="nav-text">Prepare</span>
       </button>
       <button class="nav-item" type="button" data-page="correlations" title="Correlations (Alt+7)"
         aria-label="Correlations">
@@ -505,6 +516,10 @@
             </div>
           </div>
         </main>
+      </section>
+
+      <section class="page page--analysis-scroll page-prepare" id="page-prepare" data-page-name="prepare" hidden>
+        <div id="prepare-workspace"></div>
       </section>
 
       <section class="page" id="page-scatter" data-page-name="scatter" hidden>
