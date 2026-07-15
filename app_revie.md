@@ -27,9 +27,12 @@
   cache-isolation tests remain open. (`72e187e`, `75f4633`)
 - **Milestone D started:** the store has an atomically published artifact
   catalog with persistence regression coverage, and the version registry can
-  resolve retained Parquet descriptors as fresh lazy scans. Upload,
-  materialization, retention, quota, and restart-recovery flows do not yet
-  publish or restore those descriptors. (`f2ed211`, `9887e4f`, `6ab6f44`)
+  resolve retained Parquet descriptors as fresh lazy scans. With the opt-in
+  `data.artifact_dir`/`EDATIME_ARTIFACT_DIR` setting, dataset replacements and
+  explicit plan materializations publish those descriptors as managed Parquet
+  artifacts. Ingest is still resident, and quota, retention, and restart
+  recovery remain open. (`f2ed211`, `9887e4f`, `6ab6f44`, `7413758`,
+  `7847b46`, `5bfdc39`)
 
 ## 1. Goal
 
@@ -62,7 +65,7 @@ EdaTime already has a strong EDA foundation:
 - the first working slice of an immutable, reversible cleaning-plan system;
 - reproducible frontend, Rust, browser, and benchmark gates.
 
-The main limitation is architectural rather than cosmetic: the application is still fundamentally an **in-memory, single-active-dataset application** in normal operation. File ingest ends in a full `DataFrame` collect, database access copies a bounded snapshot into memory, and full cleaning export/materialization collects before writing. A catalog and scan-backed Parquet version source now exist, but no normal upload or materialization flow publishes to them yet. This prevents the current design from scaling beyond available RAM even though several individual query steps use `LazyFrame` and streaming collection.
+The main limitation is architectural rather than cosmetic: file ingest still ends in a full `DataFrame` collect, database access copies a bounded snapshot into memory, and full cleaning export/materialization collect before writing. When an operator configures a managed artifact directory, roots and explicit plan materializations are durably written to Parquet and retained versions reopen as scans; the active compatibility repository remains resident. This is a durable-version step, not yet a larger-than-memory ingest or export path.
 
 The second limitation is product correctness: the cleaning plan is not yet the execution context for every page. The existing v1 plan supports only time ranges, numeric ranges, adaptive lines, and annotations. Timeseries applies range/line stages after server downsampling in the browser, while correlations, rolling bands, anomalies, and spectral filtering still read the active compatibility dataset without the plan. Other pages mostly consume a plan but do not yet author executable stages.
 
@@ -105,9 +108,11 @@ Do not start with allocator, SIMD, PGO, compression, framework replacement, or a
 - `crates/edatime-store/src/repository.rs` stores one replaceable in-memory `LazyFrame` backed by a `DataFrame`.
 - `crates/edatime-store/src/artifacts.rs` provides an atomic local descriptor
   catalog; `crates/edatime-store/src/versions.rs` can open a retained Parquet
-  descriptor as a fresh `LazyFrame` scan. Root/materialized versions are still
-  created in memory, and there is no configured data directory, retention,
-  eviction, or restart recovery.
+  descriptor as a fresh `LazyFrame` scan. Configuring
+  `data.artifact_dir`/`EDATIME_ARTIFACT_DIR` writes replacement roots and
+  materialized children to that catalog. Root/materialized frames are still
+  collected first, and there is no quota, retention, eviction, or restart
+  recovery.
 - Dataset fingerprints are currently derived from canonical Arrow content
   (schema, row order, nulls, and values); they are still resident-frame hashes
   rather than streaming ingest hashes.
