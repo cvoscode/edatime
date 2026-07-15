@@ -1,9 +1,11 @@
 //! `GET /api/data` — full dataset
 
 use axum::{
+    Json,
     extract::{Query, State},
     response::Response,
 };
+use serde::Deserialize;
 
 use edatime_core::pipeline::{Pipeline, ProjectStage, TimeFilterStage};
 
@@ -16,10 +18,37 @@ use edatime_query::validation::{
 use edatime_store::cache::CachedResponse;
 use edatime_store::state::AppState;
 
+use super::cleaning::{PlanRequestEnvelope, compile_request_frame};
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PlanAwareDataQuery {
+    #[serde(flatten)]
+    pub query: DataQuery,
+    #[serde(default)]
+    pub cleaning_plan: Option<PlanRequestEnvelope>,
+}
+
 #[tracing::instrument(skip(state))]
 pub async fn get_data(
     State(state): State<AppState>,
     Query(params): Query<DataQuery>,
+) -> Result<Response, AppError> {
+    data_response(state, params, None).await
+}
+
+#[tracing::instrument(skip(state))]
+pub async fn post_data(
+    State(state): State<AppState>,
+    Json(request): Json<PlanAwareDataQuery>,
+) -> Result<Response, AppError> {
+    data_response(state, request.query, request.cleaning_plan.as_ref()).await
+}
+
+async fn data_response(
+    state: AppState,
+    params: DataQuery,
+    cleaning_plan: Option<&PlanRequestEnvelope>,
 ) -> Result<Response, AppError> {
     tracing::info!("get_data called with params: {:?}", params);
 
@@ -27,7 +56,28 @@ pub async fn get_data(
     let limits = &state.config.validation;
     validate_width(params.width, limits)?;
 
-    let lf = state.dataset_snapshot();
+    let (lf, source_version_id, source_revision, plan_hash, resolved_time_column) =
+        if let Some(envelope) = cleaning_plan {
+            let (version, plan_hash, frame) = compile_request_frame(&state, envelope)?;
+            (
+                frame,
+                version.id,
+                version.revision,
+                plan_hash,
+                envelope.plan.time_column.clone(),
+            )
+        } else {
+            let version = state.current_dataset_version()?;
+            (
+                state.dataset_snapshot(),
+                version.id,
+                state.dataset_revision(),
+                String::new(),
+                state
+                    .time_column_display_name_sync()
+                    .unwrap_or_else(|| "ts".to_string()),
+            )
+        };
     let value_cols = validate_numeric_columns_lazy(
         &lf,
         &query::parse_columns(params.columns.as_deref()),
@@ -59,7 +109,7 @@ pub async fn get_data(
         output_cols.push(color_col.clone());
     }
 
-    let ctx = state.ts_context(&lf)?;
+    let ctx = edatime_core::temporal::ts_context(&lf, &resolved_time_column)?;
     let lookaround_ms = params.lookaround_ms.unwrap_or(0).max(0);
     let lookaround_ts = lookaround_ms.saturating_mul(ctx.multiplier.abs());
     let start_ts = params
@@ -76,8 +126,10 @@ pub async fn get_data(
     let ts_col = ctx.ts_col;
     let format = query::output_format(params.format.as_deref());
     let cache_key = format!(
-        "data:v{}:{}:{}:{}:{}:{}:{}:{:?}",
-        state.dataset_revision(),
+        "data:source={}:revision={}:plan={}:{}:{}:{}:{}:{}:{}:{:?}",
+        source_version_id,
+        source_revision,
+        plan_hash,
         params.start.timestamp_millis(),
         params.end.timestamp_millis(),
         params.width,
@@ -170,11 +222,7 @@ pub async fn get_data(
     // the frontend can distinguish "no data in range" from "load
     // failed silently". Default to "0" so a normal non-empty response
     // carries a stable contract.
-    let empty_header = if returned_rows == 0 {
-        "1"
-    } else {
-        "0"
-    };
+    let empty_header = if returned_rows == 0 { "1" } else { "0" };
     // Filter-drop accounting (audit issue 1.4): expose how many rows
     // survived the time filter and how many were dropped relative to
     // the pre-LTTB filtered set. LTTB can also reduce rows; clamp at
@@ -182,11 +230,20 @@ pub async fn get_data(
     let dropped_rows = filtered_rows.saturating_sub(returned_rows);
     let cached = cached.with_extra_headers(vec![
         ("x-edatime-empty".to_string(), empty_header.to_string()),
-        ("x-edatime-filtered-rows".to_string(), filtered_rows.to_string()),
+        (
+            "x-edatime-filtered-rows".to_string(),
+            filtered_rows.to_string(),
+        ),
         (
             "x-edatime-dropped-rows".to_string(),
             dropped_rows.to_string(),
         ),
+        ("x-edatime-source-version".to_string(), source_version_id),
+        (
+            "x-edatime-dataset-revision".to_string(),
+            source_revision.to_string(),
+        ),
+        ("x-edatime-plan-hash".to_string(), plan_hash),
     ]);
 
     state.cache.insert(cache_key, cached.clone()).await;
@@ -197,7 +254,10 @@ pub async fn get_data(
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use axum::extract::{Query, State};
+    use axum::{
+        Json,
+        extract::{Query, State},
+    };
     use chrono::TimeZone;
     use edatime_core::config::AppConfig;
     use edatime_store::state::AppState;
@@ -220,10 +280,7 @@ mod tests {
             .expect("cast date column");
         let df = DataFrame::new(
             3,
-            vec![
-                ts_series.into(),
-                Series::new("HUFL".into(), xs).into(),
-            ],
+            vec![ts_series.into(), Series::new("HUFL".into(), xs).into()],
         )
         .expect("test dataframe should build");
         AppState::new(df, AppConfig::default())
@@ -376,6 +433,75 @@ mod tests {
             returned,
             Some("100"),
             "one NaN must not bypass the viewport-derived LTTB cap"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn post_data_applies_cleaning_plan_before_reduction() {
+        let state = build_test_state();
+        let version = state.current_dataset_version().expect("source version");
+        let request: PlanAwareDataQuery = serde_json::from_value(serde_json::json!({
+            "start": "2018-01-01T00:00:00Z",
+            "end": "2018-04-01T00:00:00Z",
+            "width": 400,
+            "columns": "HUFL",
+            "color_column": null,
+            "lookaround_ms": null,
+            "format": null,
+            "cleaning_plan": {
+                "plan": {
+                    "schemaVersion": 1,
+                    "id": "plan-1",
+                    "planRevision": 1,
+                    "sourceVersionId": version.id,
+                    "datasetRevision": version.revision,
+                    "datasetFingerprint": version.dataset_fingerprint,
+                    "schemaFingerprint": version.schema_fingerprint,
+                    "timeColumn": "ts",
+                    "sourceName": null,
+                    "stages": [{
+                        "kind": "columnRange",
+                        "id": "range-1",
+                        "enabled": true,
+                        "executionClass": "polarsExpression",
+                        "scope": "row",
+                        "sourcePage": "timeseries",
+                        "label": "keep upper values",
+                        "note": null,
+                        "createdAt": "2026-07-15T00:00:00Z",
+                        "updatedAt": "2026-07-15T00:00:00Z",
+                        "column": "HUFL",
+                        "from": 2.0,
+                        "to": 3.0,
+                        "mode": "keepInside"
+                    }],
+                    "createdAt": "2026-07-15T00:00:00Z",
+                    "updatedAt": "2026-07-15T00:00:00Z"
+                },
+                "expectedPlanHash": null,
+                "expectedSourceVersionId": version.id,
+                "expectedDatasetRevision": version.revision
+            }
+        }))
+        .expect("plan-aware data request");
+
+        let response = post_data(State(state), Json(request))
+            .await
+            .expect("plan-aware data response");
+
+        assert_eq!(
+            response
+                .headers()
+                .get("x-edatime-filtered-rows")
+                .and_then(|value| value.to_str().ok()),
+            Some("2"),
+        );
+        assert!(
+            response
+                .headers()
+                .get("x-edatime-plan-hash")
+                .and_then(|value| value.to_str().ok())
+                .is_some_and(|value| !value.is_empty()),
         );
     }
 }

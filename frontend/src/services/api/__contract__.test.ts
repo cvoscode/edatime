@@ -111,6 +111,47 @@ describe('contract: every endpoint targets /api/v1', () => {
         }
     });
 
+    it('scatter matrix helper carries the active cleaning plan', async () => {
+        const spy = installFetchSpy();
+        try {
+            const { cleaningPlanStore } = await import('../../cleaning/store.js');
+            const { fetchCorrelationMatrix } = await import('./scatter-matrix.js');
+            cleaningPlanStore.resetForDataset({
+                sourceVersionId: 'source-matrix',
+                datasetRevision: 5,
+                datasetFingerprint: 'dataset-matrix',
+                schemaFingerprint: 'schema-matrix',
+                timeColumn: 'ts',
+            });
+            cleaningPlanStore.addStage({
+                kind: 'columnRange',
+                executionClass: 'polarsExpression',
+                scope: 'row',
+                enabled: true,
+                sourcePage: 'correlation',
+                label: 'Matrix range',
+                column: 'value',
+                from: 0,
+                to: 10,
+                mode: 'keepInside',
+            });
+
+            await fetchCorrelationMatrix('spearman_diff');
+
+            const url = new URL(String(spy.calls[0]?.url), 'http://localhost');
+            expect(url.pathname).toBe('/api/v1/scatter/correlations/matrix');
+            expect(url.searchParams.get('mode')).toBe('spearman_diff');
+            expect(JSON.parse(String(url.searchParams.get('cleaning_plan')))).toMatchObject({
+                expectedSourceVersionId: 'source-matrix',
+                expectedDatasetRevision: 5,
+                plan: { stages: [{ kind: 'columnRange' }] },
+            });
+            cleaningPlanStore.clear();
+        } finally {
+            spy.restore();
+        }
+    });
+
     it('timeseries data fetch targets /api/v1', async () => {
         const spy = installFetchSpy();
         try {

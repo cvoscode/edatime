@@ -193,6 +193,64 @@ describe('API client fetch helpers', () => {
             expect(calledUrl).toContain('columns=value');
         });
 
+        it('uses the plan-aware POST contract when an executable cleaning plan is active', async () => {
+            const { fetchData } = await import('./services/api/index.js');
+            const { cleaningPlanStore } = await import('./cleaning/store.js');
+            cleaningPlanStore.resetForDataset({
+                sourceVersionId: 'source-7',
+                datasetRevision: 7,
+                datasetFingerprint: 'dataset-7',
+                schemaFingerprint: 'schema-7',
+                timeColumn: 'event_time',
+            });
+            cleaningPlanStore.addStage({
+                kind: 'columnRange',
+                executionClass: 'polarsExpression',
+                scope: 'row',
+                enabled: true,
+                sourcePage: 'timeseries',
+                label: 'Keep useful values',
+                column: 'value',
+                from: 1,
+                to: 2,
+                mode: 'keepInside',
+            });
+
+            mockFetch.mockResolvedValueOnce({
+                ok: true,
+                headers: new Map([
+                    ['x-edatime-downsampled', '0'],
+                    ['x-edatime-returned-rows', '3'],
+                    ['x-edatime-target-points', '1000'],
+                    ['x-edatime-time-column', 'event_time'],
+                ]),
+                arrayBuffer: () => Promise.resolve(new ArrayBuffer(100)),
+            });
+
+            try {
+                await fetchData('1704067200000', '1706745600000', 1000, 'value');
+
+                expect(mockFetch).toHaveBeenCalledWith('/api/v1/data', expect.objectContaining({
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                }));
+                const body = JSON.parse(String(mockFetch.mock.calls[0][1]?.body));
+                expect(body).toMatchObject({
+                    start: '1704067200000',
+                    end: '1706745600000',
+                    width: 1000,
+                    columns: 'value',
+                    cleaning_plan: {
+                        expectedSourceVersionId: 'source-7',
+                        expectedDatasetRevision: 7,
+                        plan: { sourceVersionId: 'source-7', stages: [{ kind: 'columnRange' }] },
+                    },
+                });
+            } finally {
+                cleaningPlanStore.clear();
+            }
+        });
+
         it('includes color_column when specified', async () => {
             const { fetchData } = await import('./services/api/index.js');
 
@@ -448,6 +506,55 @@ describe('API client fetch helpers', () => {
 
             await fetchScatterCorrelations('col_a', 0.75, 'pearson_diff');
             expect(mockFetch).toHaveBeenCalledWith('/api/v1/scatter/correlations?threshold=0.75&base=col_a&mode=pearson_diff', { cache: 'no-store' });
+        });
+
+        it('includes the active cleaning plan in correlation requests', async () => {
+            const { fetchScatterCorrelations } = await import('./services/api/index.js');
+            const { cleaningPlanStore } = await import('./cleaning/store.js');
+            cleaningPlanStore.resetForDataset({
+                sourceVersionId: 'source-9',
+                datasetRevision: 9,
+                datasetFingerprint: 'dataset-9',
+                schemaFingerprint: 'schema-9',
+                timeColumn: 'ts',
+            });
+            cleaningPlanStore.addStage({
+                kind: 'columnRange',
+                executionClass: 'polarsExpression',
+                scope: 'row',
+                enabled: true,
+                sourcePage: 'scatter',
+                label: 'Keep range',
+                column: 'col_a',
+                from: 1,
+                to: 5,
+                mode: 'keepInside',
+            });
+            mockFetch.mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve({
+                    mode: 'pearson_raw',
+                    base_column: 'col_a',
+                    threshold: 0.5,
+                    numeric_columns: ['col_a', 'col_b'],
+                    correlations: [],
+                    suggestions: [],
+                }),
+            });
+
+            try {
+                await fetchScatterCorrelations('col_a', 0.5, 'pearson_raw');
+
+                const requestUrl = new URL(String(mockFetch.mock.calls[0]?.[0]), 'http://localhost');
+                const envelope = JSON.parse(String(requestUrl.searchParams.get('cleaning_plan')));
+                expect(envelope).toMatchObject({
+                    expectedSourceVersionId: 'source-9',
+                    expectedDatasetRevision: 9,
+                    plan: { stages: [{ kind: 'columnRange' }] },
+                });
+            } finally {
+                cleaningPlanStore.clear();
+            }
         });
 
         it('throws if correlations array is missing', async () => {

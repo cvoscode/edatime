@@ -71,19 +71,25 @@ pub async fn filter_preamble_with_plan(
     cleaning_plan: Option<&str>,
 ) -> Result<(Vec<String>, DataFrame), AppError> {
     validate_time_window(start, end)?;
-    let lf = match cleaning_plan.filter(|raw| !raw.trim().is_empty()) {
+    let (lf, time_column) = match cleaning_plan.filter(|raw| !raw.trim().is_empty()) {
         Some(raw) => {
-            let envelope: PlanRequestEnvelope = serde_json::from_str(raw)
-                .map_err(|error| AppError::bad_request(format!("Invalid cleaning plan query: {error}")))?;
+            let envelope: PlanRequestEnvelope = serde_json::from_str(raw).map_err(|error| {
+                AppError::bad_request(format!("Invalid cleaning plan query: {error}"))
+            })?;
             let (_version, _hash, frame) = compile_request_frame(state, &envelope)?;
-            frame
+            (frame, envelope.plan.time_column)
         }
-        None => state.dataset_snapshot(),
+        None => (
+            state.dataset_snapshot(),
+            state
+                .time_column_display_name_sync()
+                .unwrap_or_else(|| "ts".to_string()),
+        ),
     };
     let cols = query::parse_columns(columns);
     let limits = &state.config.validation;
     let value_cols = validate_numeric_columns_lazy(&lf, &cols, limits)?;
-    let ctx = state.ts_context(&lf)?;
+    let ctx = edatime_core::temporal::ts_context(&lf, &time_column)?;
     let filtered_lf = pipeline::filter_time_range(
         lf,
         start.timestamp_millis() * ctx.multiplier,
@@ -91,7 +97,10 @@ pub async fn filter_preamble_with_plan(
         &value_cols,
         &ctx.ts_col,
     )?;
-    Ok((value_cols, state.query_executor.execute_async(filtered_lf).await?))
+    Ok((
+        value_cols,
+        state.query_executor.execute_async(filtered_lf).await?,
+    ))
 }
 
 /// Downsample a DataFrame by taking every Nth row when it exceeds `max_pts`.

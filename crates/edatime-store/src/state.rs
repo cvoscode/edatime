@@ -101,7 +101,9 @@ impl AppState {
 
     /// Resolve an immutable source/baseline snapshot for a plan-aware request.
     pub fn dataset_snapshot_for_version(&self, version_id: &str) -> Result<LazyFrame, AppError> {
-        self.dataset_versions.snapshot(version_id).map_err(AppError::from)
+        self.dataset_versions
+            .snapshot(version_id)
+            .map_err(AppError::from)
     }
 
     pub fn current_dataset_version(&self) -> Result<DatasetVersionRecord, AppError> {
@@ -162,7 +164,10 @@ impl AppState {
     ) -> Result<DatasetVersionRecord, AppError> {
         // Resolve the parent before replacing the compatibility repository so
         // a bad/stale ID cannot mutate the live working dataset.
-        let _parent = self.dataset_versions.record(parent_id).map_err(AppError::from)?;
+        let _parent = self
+            .dataset_versions
+            .record(parent_id)
+            .map_err(AppError::from)?;
         let revision = self.repository.replace_from_dataframe(df.clone())?;
         let record = self
             .dataset_versions
@@ -174,11 +179,21 @@ impl AppState {
     }
 
     /// Select a retained immutable source without removing any versions.
-    pub async fn select_dataset_version(&self, version_id: &str) -> Result<DatasetVersionRecord, AppError> {
+    pub async fn select_dataset_version(
+        &self,
+        version_id: &str,
+    ) -> Result<DatasetVersionRecord, AppError> {
         let snapshot = self.dataset_snapshot_for_version(version_id)?;
-        let data = self.query_executor.execute_async(snapshot).await.map_err(AppError::from)?;
-        let revision = self.repository.replace_from_dataframe(data)?;
-        let record = self.dataset_versions.select(version_id, revision).map_err(AppError::from)?;
+        let data = self
+            .query_executor
+            .execute_async(snapshot)
+            .await
+            .map_err(AppError::from)?;
+        self.repository.replace_from_dataframe(data)?;
+        let record = self
+            .dataset_versions
+            .select(version_id)
+            .map_err(AppError::from)?;
         self.cache.invalidate_all().await;
         self.clear_correlation_matrix_cache();
         Ok(record)

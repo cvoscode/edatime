@@ -54,6 +54,7 @@ export async function fetchRollingBands(
     options?: ApiRequestOptions,
 ): Promise<RollingResponse> {
     const params = new URLSearchParams({ start, end, columns, window: String(window) });
+    appendCleaningPlan(params);
     const url = withApiQuery(apiV1Routes.analytics.rolling, params);
     return getJson<RollingResponse>(url, 'Rolling bands', options);
 }
@@ -70,6 +71,7 @@ export async function fetchAnomalies(
 ): Promise<AnomalyResponse> {
     const params = new URLSearchParams({ start, end, columns, method });
     if (threshold !== undefined) params.set('threshold', String(threshold));
+    appendCleaningPlan(params);
     const url = withApiQuery(apiV1Routes.analytics.anomalies, params);
     return getJson<AnomalyResponse>(url, 'Anomaly detection', options);
 }
@@ -161,7 +163,12 @@ export async function postTransform(
 // ── Correlation Matrix ───────────────────────────────────────────────────────
 
 export async function fetchCorrelationMatrix(): Promise<CorrelationMatrixResponse> {
-    return getJson<CorrelationMatrixResponse>(apiV1Routes.scatter.correlationMatrix, 'Correlation matrix');
+    const params = new URLSearchParams();
+    appendCleaningPlan(params);
+    const url = params.size > 0
+        ? withApiQuery(apiV1Routes.scatter.correlationMatrix, params)
+        : apiV1Routes.scatter.correlationMatrix;
+    return getJson<CorrelationMatrixResponse>(url, 'Correlation matrix');
 }
 
 // ── Outlier Removal ─────────────────────────────────────────────────────────
@@ -187,8 +194,10 @@ export async function fetchSpectralFilter(
     params: URLSearchParams,
     options?: ApiRequestOptions,
 ): Promise<SpectralFilterResponse> {
+    const query = new URLSearchParams(params);
+    appendCleaningPlan(query);
     return getJson<SpectralFilterResponse>(
-        withApiQuery(apiV1Routes.analytics.spectralFilter, params),
+        withApiQuery(apiV1Routes.analytics.spectralFilter, query),
         'Spectral filter',
         options,
     );

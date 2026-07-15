@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { __resetApiRequestStateForTests, invalidateDatasetRequestScope } from './http.js';
+import { cleaningPlanStore } from '../../cleaning/store.js';
 import {
     fetchAnomalies,
     fetchCausalGraph,
@@ -57,6 +58,7 @@ describe('analytics api helpers', () => {
     });
 
     afterEach(() => {
+        cleaningPlanStore.clear();
         vi.restoreAllMocks();
         __resetApiRequestStateForTests();
     });
@@ -93,6 +95,48 @@ describe('analytics api helpers', () => {
         expect(requestUrl.pathname).toBe('/api/v1/analytics/anomalies');
         expect(requestUrl.searchParams.get('method')).toBe('mad');
         expect(requestUrl.searchParams.get('threshold')).toBeNull();
+    });
+
+    it('adds the active cleaning plan to rolling, anomaly, spectral-filter, and correlation requests', async () => {
+        cleaningPlanStore.resetForDataset({
+            sourceVersionId: 'source-3',
+            datasetRevision: 3,
+            datasetFingerprint: 'dataset-3',
+            schemaFingerprint: 'schema-3',
+            timeColumn: 'ts',
+        });
+        cleaningPlanStore.addStage({
+            kind: 'columnRange',
+            executionClass: 'polarsExpression',
+            scope: 'row',
+            enabled: true,
+            sourcePage: 'timeseries',
+            label: 'range',
+            column: 'value',
+            from: 0,
+            to: 10,
+            mode: 'keepInside',
+        });
+        fetchMock
+            .mockResolvedValueOnce(jsonResponse({ bands: [] }))
+            .mockResolvedValueOnce(jsonResponse({ method: 'zscore', threshold: 3, regions: [] }))
+            .mockResolvedValueOnce(jsonResponse({ column: 'value', ts: [], values: [], filter_type: 'lowpass' }))
+            .mockResolvedValueOnce(jsonResponse({ columns: [] }));
+
+        await fetchRollingBands('start', 'end', 'value');
+        await fetchAnomalies('start', 'end', 'value');
+        await fetchSpectralFilter(new URLSearchParams({ column: 'value', filter_type: 'lowpass' }));
+        await fetchCorrelationMatrix();
+
+        for (const call of fetchMock.mock.calls) {
+            const url = new URL(String(call[0]), 'http://localhost');
+            const envelope = JSON.parse(String(url.searchParams.get('cleaning_plan')));
+            expect(envelope).toMatchObject({
+                expectedSourceVersionId: 'source-3',
+                expectedDatasetRevision: 3,
+                plan: { stages: [{ kind: 'columnRange' }] },
+            });
+        }
     });
 
     it('propagates structured errors from analytics routes', async () => {

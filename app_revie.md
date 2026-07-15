@@ -1,0 +1,616 @@
+# EdaTime Application Review and Improvement Plan
+
+**Status:** implementation roadmap based on the live checkout
+
+**Reviewed:** 2026-07-15
+
+**Scope:** frontend, Rust backend, ingestion, query execution, preprocessing, analytics, export, and the data-scientist workflow
+
+## 1. Goal
+
+EdaTime should let a data scientist move safely from raw time-series data to an analysis- and modeling-ready dataset:
+
+1. Load or connect to data without first copying the entire dataset into browser memory.
+2. Understand schema, quality, temporal coverage, missingness, gaps, duplicates, irregular sampling, distributions, relationships, seasonality, anomalies, and drift.
+3. Turn findings from any analysis page into one reversible preprocessing plan.
+4. See every page execute against exactly the same dataset version and plan.
+5. Export a reproducible dataset, plan, code, provenance, and train/validation/test definition.
+6. Remain responsive on datasets larger than RAM when the underlying operation can be scanned or streamed.
+
+“As much data as possible” must not be expressed as an unlimited row-count promise. The enforceable contract should be:
+
+- storage may exceed RAM;
+- interactive responses are bounded by viewport, sample, or aggregate budgets;
+- exact full-data work runs as a cancellable job with progress and an explicit resource estimate;
+- memory, CPU concurrency, temporary disk, and response size all have configurable limits;
+- results identify the exact source version and preprocessing plan that produced them.
+
+## 2. Executive Assessment
+
+EdaTime already has a strong EDA foundation:
+
+- a modular TypeScript frontend with lazy feature loading and explicit lifecycle ownership;
+- Arrow IPC transport and GPU-accelerated time-series rendering with a fallback renderer;
+- time-series, scatter/matrix, correlation, FFT, spectrogram, causal, and drift workflows;
+- CSV/Parquet preview, partial ingest, and PostgreSQL/TimescaleDB snapshot loading;
+- server-side filtering, downsampling, caching, analytics, and workload telemetry;
+- the first working slice of an immutable, reversible cleaning-plan system;
+- reproducible frontend, Rust, browser, and benchmark gates.
+
+The main limitation is architectural rather than cosmetic: the application is still fundamentally an **in-memory, single-active-dataset application**. File ingest ends in a full `DataFrame` collect, database access copies a bounded snapshot into memory, retained dataset versions hold frames in memory, and full cleaning export/materialization collects before writing. This prevents the current design from scaling beyond available RAM even though several individual query steps use `LazyFrame` and streaming collection.
+
+The second limitation is product correctness: the cleaning plan is not yet the execution context for every page. The existing v1 plan supports only time ranges, numeric ranges, adaptive lines, and annotations. Timeseries applies range/line stages after server downsampling in the browser, while correlations, rolling bands, anomalies, and spectral filtering still read the active compatibility dataset without the plan. Other pages mostly consume a plan but do not yet author executable stages.
+
+The recommended order is therefore:
+
+1. Close dataset/plan identity and cross-page execution gaps.
+2. Introduce disk-backed dataset descriptors and bounded query admission.
+3. Add progressive profiling and a dedicated Prepare workflow.
+4. Expand the plan into the transformations required for modeling.
+5. Add grouped/panel time-series support and scalable exact analytics.
+
+Do not start with allocator, SIMD, PGO, compression, framework replacement, or a distributed engine. Those may help later, but none removes the current full-materialization boundary.
+
+## 3. Evidence From the Current Checkout
+
+### 3.1 Frontend
+
+- `frontend/src/app.ts` is a real composition root. It owns `AppRuntime`, `FeatureRegistry`, `WorkspaceStore`, the Timeseries module, and cleaning-plan compatibility.
+- `frontend/src/app/featureRegistry.ts` already lazy-loads feature modules and disposes them across dataset sessions.
+- `frontend/src/contracts/api/v1/` owns frontend route/DTO mirrors; this should remain the only frontend wire-contract surface.
+- `frontend/src/cleaning/` provides a plan store, request envelope, preview/apply/export calls, a compact plan modal, local code generation, and compatibility lowering.
+- `frontend/src/cleaning/types.ts` currently exposes only four stage kinds: `timeRange`, `columnRange`, `adaptiveLine`, and `annotation`.
+- `frontend/src/cleaning/panel.ts` can add a visible time range, preview, enable/disable, remove, apply, select a retained version, and export. It cannot yet edit arbitrary stage parameters, reorder stages, undo/redo, import a plan, compare stage-level impact, or create most preparation operations.
+- Executable stage authoring is currently concentrated in Timeseries (`filterModalController.ts`, `adaptiveGesture.ts`, and the plan panel). Scatter, Correlations, FFT, Spectrogram, Causal, and Drift do not yet fulfill the “author from every plot” goal.
+- `frontend/src/services/api/timeseries.ts` sends only viewport, width, selected columns, color, and lookaround. It does not send a cleaning-plan request envelope.
+- `frontend/src/features/timeseries/timeseriesRenderModel.ts` applies numeric and adaptive-line filters to the already-downsampled browser response. This can display a different sample from a server-side plan execution and makes filtered-row counts misleading.
+- `frontend/src/features/home/guidedWorkflow.ts` guides Upload → Timeseries → Correlations → Scatter → Causal. It does not finish with quality review, preparation, validation, or export.
+- Upload validation has a hard-coded 256 MiB frontend limit in `features/upload/partialLoadControls.ts`, independent of server configuration.
+- Arrow decoding is bounded for normal chart routes, but it copies Arrow columns into JavaScript typed arrays. Response budgets must therefore remain strict even after the backend becomes out-of-core.
+
+### 3.2 Backend
+
+- `crates/edatime-ingest/src/ingest.rs` starts with lazy CSV/Parquet scans but sorts and performs a final `collect()`, returning a fully resident `DataFrame`.
+- `crates/edatime-store/src/repository.rs` stores one replaceable in-memory `LazyFrame` backed by a `DataFrame`.
+- `crates/edatime-store/src/versions.rs` retains every root/materialized version as a `LazyFrame` derived from an in-memory frame. There is no retention limit, eviction policy, persistent artifact catalog, or restart recovery.
+- Dataset fingerprints currently hash row count and schema text, not source contents. Different datasets with the same shape and schema receive the same dataset fingerprint.
+- `crates/edatime-query/src/cleaning.rs` validates and compiles the four v1 stage kinds. Its backend semantic hash uses Rust debug formatting for stages, so labels, IDs, notes, and timestamps can affect a hash that is documented as executable-only. It is not the same canonical representation used by the frontend optimistic hash.
+- `crates/edatime-service/src/handlers/routes/cleaning.rs` correctly validates source/version/schema identity, but preview collects the source and result, apply collects the full result, and data export collects then serializes the full result into a byte vector.
+- The `expectedPlanHash` field is intentionally not trusted by the backend. That is acceptable only if it remains explicitly an optimistic client hint; cache and result identity must always use the backend hash.
+- Plan-aware execution exists for scatter points/matrix/export, FFT, Spectrogram, Causal, and Drift.
+- `GET /data`, correlations, rolling bands, anomalies, and spectral filtering are not plan-aware. Several plan-aware responses also do not return a common `{sourceVersionId, datasetRevision, planHash}` result identity.
+- `crates/edatime-service/src/handlers/routes/data.rs` projects requested columns and time-filters lazily, but then collects every matching row before LTTB. Very wide time windows can therefore allocate in proportion to source rows rather than response rows.
+- Scatter similarly collects the filtered candidate frame before sampling. The response is bounded, but pre-sampling memory is not.
+- `QueryExecutor` uses a shared Rayon pool capped at eight workers and dispatches through `spawn_blocking`, but there is no per-workload semaphore, memory admission, deadline, or cooperative cancellation. Aborting a browser request does not stop an already-running Polars/analytics job.
+- The response cache is already bounded by entry count and bytes. It should be retained and measured before considering a replacement.
+- The correlation cache eagerly represents all six raw/differenced × Pearson/Spearman/Kendall matrices. Correlation cost is quadratic in column count, and the GET correlation endpoints currently ignore the active cleaning plan.
+- Database routes push selection/range/limit into the initial SQL snapshot, but ultimately load at most a default one million rows into the same in-memory repository. They are not live query-pushdown sources.
+
+### 3.3 Measured Baseline
+
+`benchmarks/20260714T150000Z.bench.md` is the current accepted small-workload baseline:
+
+- aggregate HTTP p95: 195.80 ms;
+- peak RSS: 178.2 MiB;
+- scatter points p95: 206.56 ms;
+- rolling p95: 915.60 ms for the benchmark route mix;
+- 16-column × 5,000-row correlation matrix kernel: 152.42 ms;
+- 500,000-row scatter sampling kernel: 23.98 ms;
+- all CPU admission counters drained to zero pending work.
+
+This baseline is useful for regression protection but not proof of large-data scalability. Its HTTP metrics snapshot uses a 5,000-row active dataset, and the largest isolated scatter kernel is 500,000 rows. Phase 0 must add datasets that expose storage, scan, materialization, and cancellation behavior.
+
+## 4. Product and Architecture Contracts
+
+These contracts are non-negotiable because later performance work depends on them.
+
+### 4.1 One Execution Context
+
+Every dataset-derived request must resolve the same context:
+
+```text
+DatasetContext = source version + source fingerprint + dataset revision + cleaning plan + backend plan hash
+```
+
+- The frontend may hold a mirrored plan type, but Rust owns validation, canonicalization, compilation, and semantic hashing.
+- Page-local zoom, color scale, graph layout, thresholds, and display sampling are analysis/view state, not cleaning stages.
+- Every response must return its resolved source version, dataset revision, and backend plan hash.
+- The frontend must discard a response when its result identity no longer matches the active context.
+- Legacy requests without a plan may continue during migration, but mixing legacy filters and a plan in one request must be rejected rather than partially applied.
+
+### 4.2 Immutable Sources, Descriptor-Backed Versions
+
+A dataset version should describe storage rather than contain a resident frame:
+
+```rust
+DatasetVersion {
+    id,
+    root_id,
+    parent_id,
+    revision,
+    content_fingerprint,
+    schema_fingerprint,
+    storage: Memory | ParquetArtifact | DatabaseSnapshot,
+    row_count,
+    byte_size,
+    time_column,
+    series_keys,
+    sort_order,
+    created_at,
+    materialized_from_plan_hash,
+}
+```
+
+- Small datasets may use the memory tier.
+- Large file datasets must be scanned from managed Parquet artifacts.
+- Materializing a child writes a new artifact to a temporary path, finalizes metadata/checksum, and atomically publishes it.
+- The registry persists metadata and has configurable version retention/eviction.
+- Source fingerprints must be content-derived. Compute them while receiving/copying the source or while writing the managed artifact; never re-read a multi-gigabyte source solely to hash it.
+- The active compatibility repository may remain temporarily, but new routes resolve a `DatasetSource`/`DatasetScan` from the version registry.
+
+### 4.3 Bounded Interactive Work
+
+Interactive endpoints must have a bounded-work contract before execution:
+
+- maximum projected columns;
+- maximum returned points/cells/bins;
+- estimated scanned rows/bytes when available;
+- CPU class and concurrency permit;
+- memory estimate and spill eligibility;
+- timeout/deadline;
+- cancellation token;
+- exact vs approximate mode.
+
+Requests outside interactive limits should return a structured decision, not hang or silently clamp:
+
+```json
+{
+  "code": "job_required",
+  "message": "This exact correlation exceeds the interactive budget.",
+  "estimate": { "rows": 120000000, "columns": 140, "workUnits": 233000000000 },
+  "suggestedAction": "run_background_job"
+}
+```
+
+### 4.4 Approximate Overview, Exact Export
+
+- Overview charts may use documented sampling or aggregation.
+- Statistics displayed as exact must be computed from the full filtered source or labeled as estimates with sample size/method.
+- Full exports and materialized child versions execute the exact plan.
+- Sampling happens after the cleaning predicates that affect membership, never before.
+- Cache keys include source version/revision, backend plan hash, operation, projection, viewport, analysis parameters, approximation method, and algorithm version.
+
+## 5. Target User Workflow
+
+The application should expose six understandable phases while keeping expert shortcuts:
+
+| Phase | User question | EdaTime surface | Output |
+| --- | --- | --- | --- |
+| Load | What data am I using? | file/database source wizard | immutable source version |
+| Profile | Is the time axis and schema usable? | progressive profile + quality report | schema/time configuration |
+| Explore | What patterns and problems exist? | existing visual pages | selections and evidence |
+| Prepare | What transformations should be applied? | dedicated plan workbench | ordered reversible plan |
+| Validate | Did preparation improve data without damage? | before/after quality and plot comparison | accepted plan revision |
+| Handoff | Can modeling reproduce this dataset? | export/bundle/split panel | Parquet + plan + code + manifest |
+
+The existing page navigation can remain. Add a first-class **Prepare** destination rather than hiding the central workflow in a small modal.
+
+## 6. Prioritized Findings
+
+### P0.1 — Make Plan Execution Correct Everywhere
+
+**Problem:** Timeseries filters sampled browser data; correlations, rolling, anomalies, and spectral-filter ignore the plan. This violates the current plan document’s central promise.
+
+**Implementation:**
+
+- Add a plan-aware POST timeseries query route. Keep `GET /api/v1/data` as a compatibility adapter until all call sites migrate.
+- Send `PlanRequestEnvelope` from `services/api/timeseries.ts` and include backend result identity in Arrow headers.
+- Apply plan → viewport/time predicate → projection → bounded reduction on the server.
+- Remove cleaning-plan-derived filters from browser-side membership filtering. Browser filters may remain only for temporary view previews that are explicitly labeled and not exported.
+- Add plan context to correlations, rolling, anomalies, and spectral-filter.
+- Return a shared result identity from scatter, FFT, Spectrogram, Causal, Drift, and exports.
+- Add cross-page golden fixtures proving the same plan yields the same row membership and columns on every route.
+
+**Primary files:**
+
+- `frontend/src/services/api/timeseries.ts`
+- `frontend/src/features/timeseries/controller.ts`
+- `frontend/src/cleaning/compatibility.ts`
+- `frontend/src/contracts/api/v1/`
+- `crates/edatime-service/src/handlers/routes/data.rs`
+- `crates/edatime-service/src/handlers/routes/analytics.rs`
+- `crates/edatime-service/src/handlers/scatter/correlations.rs`
+- `crates/edatime-service/src/handlers/routes/shared.rs`
+
+**Acceptance:** No page or export shows rows excluded by the active plan; response identity is testable and stale responses never render.
+
+### P0.2 — Fix Canonical Identity and Version Semantics
+
+**Problem:** dataset fingerprints are shape-only; backend plan hashing includes unstable audit fields through debug formatting; version revisions mutate when versions are selected; plan-aware scatter cache keys use the active repository revision even when executing a retained source version.
+
+**Implementation:**
+
+- Define one canonical JSON serializer in Rust for executable plan semantics.
+- Use a stable versioned hash algorithm and golden fixtures. The frontend optimistic hash may differ only if it is clearly named `clientCoalescingKey`; it must never be presented as the plan hash.
+- Exclude labels, notes, stage IDs, creation timestamps, and UI metadata from the semantic hash while preserving executable stage order.
+- Replace row-count/schema fingerprints with content-derived source/artifact fingerprints.
+- Separate immutable version revision from active-session generation. Selecting a version increments session generation; it must not rewrite the version’s identity.
+- Key caches from the resolved version record, never from the unrelated active compatibility repository.
+- Add collisions/stale-selection/cache-isolation tests.
+
+**Primary files:** `edatime-query/src/cleaning.rs`, `edatime-store/src/versions.rs`, `edatime-store/src/state.rs`, `handlers/routes/cleaning.rs`, and all plan-aware cache key builders.
+
+### P0.3 — Establish Real Scale Baselines and Resource Budgets
+
+**Problem:** current benchmarks protect small interactive behavior but do not exercise files larger than RAM, wide schemas, many retained versions, exact export, or cancellation.
+
+**Add deterministic fixtures:**
+
+- `long_numeric`: 1M, 10M, and 100M rows with null/non-finite seeds;
+- `wide_numeric`: 32, 128, and 512 numeric columns;
+- `panel_series`: group key × timestamp with duplicates, gaps, and unequal lengths;
+- `messy_temporal`: mixed time units, unsorted rows, duplicate timestamps, irregular cadence, and time zones;
+- compressed CSV and Parquet artifacts at approximately 256 MiB, 1 GiB, and larger-than-configured-memory-budget sizes.
+
+**Measure:** ingest time, time to schema, time to first profile, time to first chart, p50/p95/p99, rows/bytes scanned, response bytes, peak RSS, temporary disk, queue wait, cancellation latency, cache hit rate, and export throughput.
+
+**Gates:**
+
+- preserve the current small-workload p95/RSS within the existing 5% regression budget unless a documented correctness change justifies rebasing;
+- select large-data SLOs from the first reproducible baseline rather than inventing percentage improvements;
+- fail any phase that grows memory with total source size for an operation documented as bounded/streaming.
+
+### P1.1 — Introduce Scan-Backed Dataset Storage
+
+**Problem:** all ingestion paths end in a resident `DataFrame`; every materialized version adds another resident frame.
+
+**Implementation:**
+
+1. Add `DatasetArtifactStore` and a persisted catalog under an operator-configured data directory.
+2. Stream uploads to managed storage while hashing and enforcing a disk quota.
+3. Preserve Parquet sources when compatible; otherwise normalize into managed Parquet with deliberate row-group sizing.
+4. Convert CSV once, because repeatedly scanning/inferencing large CSV files is expensive and weakens schema stability.
+5. Store `DatasetVersion` descriptors and open a fresh lazy scan per query.
+6. Keep an optional resident tier for small sources, selected by estimated decoded size and configured budget—not upload bytes alone.
+7. Write plan materializations and exports through streaming sinks/files. Do not build the complete output `DataFrame` or response `Vec<u8>`.
+8. Add cleanup for failed uploads/jobs, restart recovery, retention, and user-visible disk usage.
+
+**Important decision:** sorting a large unsorted source can itself require unbounded memory. Before relying on Polars streaming sort, benchmark the exact Polars 0.53 plan. If it cannot spill within budget, either implement a chunked external sort or require/verify sorted input for scan-backed interactive mode and offer sorting as a background materialization job.
+
+**Primary files:**
+
+- `crates/edatime-store/src/repository.rs`
+- `crates/edatime-store/src/versions.rs`
+- new `crates/edatime-store/src/artifacts.rs`
+- `crates/edatime-ingest/src/ingest.rs`
+- `crates/edatime-service/src/handlers/routes/upload.rs`
+- `crates/edatime-service/src/handlers/routes/cleaning.rs`
+- `crates/edatime-service/src/handlers/routes/export.rs`
+
+**Acceptance:** a Parquet dataset larger than the configured memory budget can be registered, profiled progressively, viewed, filtered, and exported without a full resident copy.
+
+### P1.2 — Add Query Admission, Jobs, Progress, and Cancellation
+
+**Problem:** the shared Rayon pool limits worker threads but not the number or memory cost of queued tasks. Client abort does not cancel server work.
+
+**Implementation:**
+
+- Introduce a `QueryScheduler` owned by `AppState` with workload classes: interactive scan, scatter, correlation, spectral, causal, materialization/export, and ingest/profile.
+- Give each class a semaphore, deadline, work estimate, and memory/disk reservation.
+- Propagate a cancellation token from Axum request lifetime into query/job stages. Where Polars collection cannot be interrupted safely, split work at controllable boundaries and prevent abandoned follow-up work/output.
+- Add a persistent-enough session job registry with states: queued, running, cancelling, completed, failed, expired.
+- Add `POST /api/v1/jobs`, `GET /api/v1/jobs/{id}`, `DELETE /api/v1/jobs/{id}`, and progress events via SSE. Polling may be the initial implementation if SSE adds too much scope.
+- Move ingest normalization, full profiling, exact wide correlations, plan materialization, and large export to jobs.
+- Return structured overload/resource errors with retry guidance.
+
+**Acceptance:** a cancelled large operation releases its permit and temporary files; interactive viewport queries remain responsive while one export/profile job runs.
+
+### P1.3 — Bound Collection Before Chart Sampling
+
+**Problem:** Timeseries and Scatter bound response size but may collect all filtered candidates first.
+
+**Timeseries approach:**
+
+- Use time predicate and projection pushdown first.
+- For small candidate counts, keep exact LTTB.
+- For large windows, build a bounded candidate envelope per pixel/time bucket (first, last, min, max per selected series), then run LTTB on that candidate set if needed.
+- Preserve a documented sampling algorithm version in cache/result metadata.
+- Return filtered candidate count separately from returned point count.
+
+**Scatter approach:**
+
+- Push plan, range, line, time, null/non-finite, and projection predicates before sampling.
+- Add bounded reservoir/hash sampling for scatter mode and bounded bin aggregation for density mode.
+- Avoid materializing unused color/size columns.
+- Maintain deterministic samples from source version + plan hash + axes + seed so navigation and export previews do not jump.
+
+**Acceptance:** peak memory is proportional to the configured candidate/response budget, not all matching rows, for overview modes.
+
+### P1.4 — Progressive Profiling and a Data Quality Report
+
+**Problem:** upload preview calculates a broad aggregate scan before the user can work, while the product lacks the time-series-specific quality report required for preparation.
+
+**Implementation:**
+
+- Split profiling into:
+  - immediate schema and source facts;
+  - fast bounded sample profile;
+  - exact background profile with progress;
+  - cached profile keyed by source version + profile algorithm version.
+- Report per column: dtype, null/non-finite count, distinct estimate/exact status, quantiles, robust spread, zeros/constants, min/max, and distribution sketch.
+- Report time-axis quality: monotonicity, duplicate timestamps, gap distribution, inferred cadence/confidence, irregularity, timezone, coverage, and rows per interval.
+- For panel data, report group count, group-size distribution, per-group coverage/cadence, and incomplete groups.
+- Label sampled values as estimates and show sample size.
+- Make profile cards virtualized/searchable for hundreds of columns.
+
+**Acceptance:** the user can see schema quickly on a large Parquet source and continue exploring while exact profile work runs separately.
+
+### P2.1 — Build a First-Class Prepare Workbench
+
+The Prepare page should replace the plan modal as the main editing surface while retaining the modal as a quick summary.
+
+**Layout:**
+
+- source/version identity and storage/size summary;
+- quality findings with “add fix to plan” actions;
+- ordered stage list with drag/keyboard reorder;
+- stage editor with validation and column/type-aware controls;
+- before/after row, column, null, gap, cadence, and distribution impact;
+- preview sampling status and exact-preview action;
+- undo/redo and dirty/saved state;
+- validation warnings and modeling leakage warnings;
+- export/materialize controls.
+
+**Required plan operations, ordered by delivery priority:**
+
+1. Row/schema correctness: keep/drop time windows, numeric/category filters, null/non-finite policy, column keep/drop/rename/cast, sort, duplicate resolution.
+2. Temporal regularization: resample/grouped resample, aggregation, gap marking, fill forward/backward, constant fill, linear/time interpolation with maximum-gap limits.
+3. Robust cleaning: clipping/winsorization, explicit outlier flag/drop/replace rules, impossible-value rules.
+4. Modeling transforms: expression-derived columns, difference/percent change, log/power transforms, lag features, rolling features, standard/robust scaling.
+5. Signal transforms: explicit low/high/band-pass materialization only after sampling-rate and irregularity preflight.
+
+Every stage needs explicit null semantics, group scope, ordering requirements, schema effect, portability class, preview cost, and export/codegen support. Do not add an operation to the UI until Rust execution, JSON fixtures, preview, export, and generated-code parity exist.
+
+### P2.2 — Make Every Plot Author Useful Stages
+
+| Page | First executable authoring actions | State that must remain analysis-only |
+| --- | --- | --- |
+| Timeseries | keep/drop interval, value rule, adaptive line, anomaly interval | zoom, pan, y range, overlays |
+| Scatter | box/lasso keep/drop, category subset, outlier selection | axes, density mode, point size |
+| Correlations | keep/drop columns, redundant-feature proposal | metric, threshold, clustering/order |
+| FFT | add differencing or explicit frequency filter after preflight | display scale, cursor, PSD mode |
+| Spectrogram | keep/drop artifact interval; later signal filter | colormap, clip/display normalization |
+| Causal | keep/drop candidate features, add lag proposal with provenance | graph layout, alpha, method |
+| Drift | keep/drop windows or groups, annotate regime boundary | reference/comparison UI state |
+
+Selection-to-stage actions must always open a confirmation/editor that shows exact semantics. A chart gesture by itself must never mutate the plan.
+
+### P2.3 — Replace Destructive Mutation Endpoints
+
+`/transform` and `/analytics/remove_outliers` currently mutate the active dataset. Migrate the UI to plan-stage creation and make materialization explicit. Keep the routes temporarily as compatibility adapters that internally create/apply a plan and return provenance, then deprecate them.
+
+**Acceptance:** no normal analysis control overwrites the active source; every dataset-changing result has parent version and plan provenance.
+
+### P2.4 — Reproducible Modeling Handoff
+
+Add an export manifest containing:
+
+- source and root version IDs plus content checksums;
+- schema and time/group-key configuration;
+- backend canonical plan and hash;
+- exact row/column counts and time coverage;
+- quality summary before/after;
+- approximation methods used during exploration (not silently applied to export);
+- application, schema, and algorithm versions;
+- generated Python Polars code and dependency constraints;
+- checksums for every bundle artifact.
+
+Add a split definition that is metadata/plan-aware rather than a chart selection:
+
+- chronological train/validation/test boundaries;
+- optional gap/embargo between splits;
+- per-group split policy for panel data;
+- warnings when interpolation, scaling, or imputation was fitted across future boundaries;
+- export either one dataset with a `split` column or separate Parquet artifacts.
+
+Code generation should move to the backend canonical plan. Frontend-only generation is useful for previews but cannot guarantee parity once stage types grow.
+
+### P3.1 — Support Grouped/Panel Time Series
+
+The current schema assumes one time column and numeric series columns. Add optional `seriesKeys`/entity keys so users can analyze many devices, customers, experiments, or sensors without pivoting everything into a very wide frame.
+
+**Cross-cutting changes:**
+
+- dataset identity includes ordered group keys and sort contract;
+- every temporal stage declares global vs per-group behavior;
+- resampling, lag, rolling, interpolation, anomaly, drift, and split operations run per group;
+- Timeseries can filter/search groups and overlay a bounded number;
+- Scatter/Correlation can operate globally, per group, or on grouped aggregates;
+- query cache keys include group selection;
+- profile and quality reports expose group imbalance.
+
+Implement only after single-series plan semantics and scan-backed storage are stable; otherwise every current ambiguity gets multiplied across groups.
+
+### P3.2 — Scale Correlation and Expensive Analytics Deliberately
+
+- Stop unconditional all-mode correlation warmup. Cache by source version + plan hash + column set + mode + algorithm version.
+- Add single-flight execution so concurrent cold requests share one computation.
+- Require selected columns or a bounded feature-screening step for very wide data.
+- Offer approximate screening followed by exact computation on a chosen subset; label both.
+- Move exact wide correlation and expensive causal requests to jobs.
+- Keep the causal work-unit rejection and extend the same estimator pattern to correlation, drift, spectral, and plan preview.
+- Ensure rolling/anomaly work is server-side over the canonical plan; avoid recomputing rolling bands from a chart sample when presented as analysis output.
+
+### P3.3 — Database Pushdown as a Separate Source Type
+
+After file-backed scans are stable, allow PostgreSQL/TimescaleDB sources to remain remote instead of always becoming in-memory snapshots.
+
+- Store a source descriptor and safe, quoted table/column metadata.
+- Push time, group, category/range, projection, aggregation, and limit predicates into SQL when exact semantics are supported.
+- Materialize locally when a stage cannot be pushed down.
+- Show whether a plan is remote-pushdown, hybrid, or local-materialization.
+- Keep credentials outside exported plans and logs.
+
+Do not couple this phase to P1 storage work; remote pushdown requires its own parity/security tests.
+
+### P4 — UX, Accessibility, and Maintainability Follow-Through
+
+- Keep vanilla TypeScript and the existing feature-entrypoint/lifecycle design; a frontend framework rewrite does not advance the product goal.
+- Add a query/job status center with queued/running/cancelled states and resource estimates.
+- Make large-data mode visible: scanned rows/bytes, returned points, exact/estimated badge, active sample method, and plan hash/version details.
+- Extend the guided workflow through Prepare → Validate → Export.
+- Autosave plan drafts by content/source identity and provide explicit import/rebind behavior when schemas differ.
+- Add keyboard-accessible stage reorder/edit actions, not drag-only controls.
+- Keep page modules lazy and enforce bundle budgets as new Prepare components are added.
+- Continue virtualizing long column/profile/stage lists.
+- Update `README.md`, `docs/user-manual.md`, API docs, and architecture docs from the implemented behavior; older design documents must not be treated as live architecture.
+
+## 7. Phased Delivery Plan
+
+### Phase 0 — Correctness and Scale Baseline
+
+**Deliverables:**
+
+- canonical dataset/version/plan identity decision record;
+- backend canonical JSON/hash implementation and golden TypeScript/Rust fixtures;
+- plan-aware route capability matrix with live tests;
+- new large/wide/messy/panel benchmark fixtures and resource metrics;
+- documented resource budgets and interactive-vs-job decision rules.
+
+**Exit gate:** cross-page plan parity is green; content fingerprints distinguish same-shape sources; current small-workload benchmark remains within its gate; large-data baseline artifacts are checked in.
+
+### Phase 1 — Unified Plan-Aware Queries
+
+**Deliverables:**
+
+- plan-aware Timeseries POST route and frontend migration;
+- Correlation, Rolling, Anomaly, and Spectral Filter plan support;
+- shared result identity on every dataset-derived response;
+- cache keys resolved from source version + backend plan hash;
+- removal of browser-side canonical membership filtering.
+
+**Exit gate:** one fixture/plan produces identical membership across Timeseries, Scatter, export, and analytics; stale async results are rejected in frontend integration tests.
+
+### Phase 2 — Disk-Backed Storage and Streaming Output
+
+**Deliverables:**
+
+- artifact catalog and scan-backed repository;
+- upload-to-managed-artifact flow;
+- persistent descriptor-backed versions with retention;
+- streaming materialization/export and failure cleanup;
+- configurable memory/disk/upload budgets exposed to the frontend.
+
+**Exit gate:** complete a larger-than-memory-budget Parquet workflow without a full resident copy; restart recovers the catalog; interrupted jobs leave no published partial version.
+
+### Phase 3 — Scheduler, Jobs, and Bounded Sampling
+
+**Deliverables:**
+
+- workload admission and resource estimates;
+- progress/cancel job API and UI;
+- bounded Timeseries candidate reduction;
+- bounded deterministic Scatter sampling/density aggregation;
+- overload/job-required error contract.
+
+**Exit gate:** cancellation and concurrent-interaction tests pass; peak memory follows configured budgets; overview results disclose approximation metadata.
+
+### Phase 4 — Progressive Quality and Prepare Workbench
+
+**Deliverables:**
+
+- progressive profile service/cache;
+- temporal and per-column quality report;
+- Prepare page with full stage editing/reorder/undo/preview;
+- plot-to-stage actions for Timeseries and Scatter first;
+- plan autosave/import/rebind UX.
+
+**Exit gate:** a user can diagnose and fix nulls, duplicates, time order, gaps, ranges, and outliers without destructive mutation.
+
+### Phase 5 — Modeling Transform Catalog and Handoff
+
+**Deliverables:**
+
+- resample/fill/interpolate/schema/outlier/derived/time-series stage families;
+- backend code generation and parity fixtures;
+- chronological split definition and leakage warnings;
+- reproducibility bundle and checksums;
+- authoring actions from Correlation, FFT, Spectrogram, Causal, and Drift.
+
+**Exit gate:** exported Python Polars reproduces the materialized Parquet schema, row count, sampled values/checksum policy, and split boundaries for every portable golden plan.
+
+### Phase 6 — Panel Series, Wide Analytics, and Remote Pushdown
+
+**Deliverables:** grouped time-series semantics, bounded wide-correlation workflow, exact analytics jobs, and optional database pushdown/hybrid execution.
+
+**Exit gate:** group-aware correctness fixtures pass across plan execution, profiling, visualization, split/export, and generated code.
+
+## 8. Verification Matrix
+
+| Area | Required verification |
+| --- | --- |
+| Plan DTO/hash | Rust + TypeScript golden JSON, unknown-field rejection, stable semantic hash, audit-field invariance |
+| Version identity | same-shape/different-content sources, select-away/select-back, retained-source query, cache isolation |
+| Route parity | Timeseries/Scatter/Correlation/FFT/Spectrogram/Causal/Drift/export membership and result identity |
+| Ingest | CSV/Parquet, temporal units, unsorted input, partial selection, interrupted upload, disk quota |
+| Storage | restart recovery, retention/eviction, orphan cleanup, atomic publish, larger-than-memory scan |
+| Preparation | stage order, enable/disable/reorder, null/NaN semantics, group semantics, schema effects |
+| Sampling | deterministic result, extrema preservation, filters-before-sample, exact/estimated labels |
+| Scheduler | admission, fairness, timeout, disconnect/cancel, permit release, temp cleanup |
+| Analytics | exact vs sample, wide-column rejection/job conversion, plan-aware cache keys |
+| Export | streamed Parquet, manifest/checksums, source/plan match, generated-code parity, split leakage checks |
+| Frontend | stale-response rejection, lazy feature lifecycle, keyboard plan editing, virtualized wide schema |
+| Performance | existing small baseline plus long/wide/panel/storage fixtures, p95/RSS/temp-disk/queue/cancel metrics |
+
+Keep the existing gates and extend them rather than replacing them:
+
+```bash
+npm test
+npm run check:frontend:all
+cargo test --workspace --tests --release
+npm run test:e2e -- --workers=1 --reporter=line
+node scripts/build-frontend.mjs --prod
+git diff --check
+```
+
+Performance phases additionally run Criterion benches and the HTTP/job benchmark procedure with captured toolchain, commit, runtime configuration, fixture identity, and clean queue rundown.
+
+## 9. Ownership Map
+
+| Concern | Canonical owner |
+| --- | --- |
+| Dataset artifacts/catalog/version records | `edatime-store` |
+| File normalization and source inspection | `edatime-ingest` |
+| Plan DTO, validation, canonicalization, compilation, codegen | `edatime-query` |
+| Scheduling/resource admission | shared backend service owned by `AppState`, implementation in store/service boundary after ADR |
+| HTTP envelopes, result identity, jobs, streamed responses | `edatime-service` |
+| Wire mirrors/routes | `frontend/src/contracts/api/v1` |
+| Active workspace and dataset session | `frontend/src/workspace` |
+| Plan authoring/editing | `frontend/src/cleaning` and new Prepare feature entrypoint |
+| Page-local analysis/view state | each `frontend/src/features/<page>` module |
+| Benchmarks and reproducible procedures | `crates/*/benches`, `scripts/`, `benchmarks/` |
+
+## 10. Explicitly Deferred or Rejected First Moves
+
+- No distributed engine until a single-node scan-backed design is measured and demonstrably insufficient.
+- No allocator replacement, unsafe SIMD, `target-cpu=native`, PGO, or cache-library replacement without hotspot evidence from the new large-data baselines.
+- No frontend framework rewrite.
+- No silent sampling for exported data or statistics labeled exact.
+- No unlimited “all points” browser mode.
+- No plan stage whose Rust execution, null/group semantics, preview, export, and code generation are unspecified.
+- No permanent support for two authoritative filter models; compatibility state must be retired after route migration.
+- No database query pushdown mixed into the first artifact-store milestone.
+
+## 11. Definition of Done
+
+The goal is achieved when all of the following are true:
+
+1. A dataset larger than the configured RAM budget can be loaded as a managed scan-backed source and explored without full materialization.
+2. Every page and export executes the same immutable source version and canonical plan and exposes matching result identity.
+3. The data scientist can diagnose time-axis/schema/quality issues and build a reversible preparation plan covering the core modeling transformations.
+4. Large exact work is estimated, admitted, observable, cancellable, and isolated from interactive requests.
+5. Overview sampling is bounded, deterministic, disclosed, and applied only after membership-changing filters.
+6. Dataset versions survive restart as descriptors/artifacts, have content-derived identity, and follow retention/quota policy.
+7. Grouped/panel time series have explicit per-group semantics across preparation and export.
+8. The exported Parquet, canonical JSON plan, generated Python Polars, split definition, and manifest can reproduce the modeling input with verified parity.
+9. Small-workload UX/performance does not regress beyond the accepted gate, and large-data benchmarks demonstrate bounded memory rather than merely faster full collection.

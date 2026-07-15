@@ -65,6 +65,7 @@ pub struct ScatterCorrelationsQuery {
     pub base: Option<String>,
     pub threshold: Option<f64>,
     pub mode: Option<CorrelationMode>,
+    pub cleaning_plan: Option<String>,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -107,7 +108,7 @@ pub async fn get_scatter_correlations(
         params.threshold
     );
 
-    let lf = state.dataset_snapshot();
+    let (lf, plan_hash) = correlation_frame_with_plan(&state, params.cleaning_plan.as_deref())?;
 
     let threshold = params.threshold.unwrap_or(0.7).clamp(0.0, 1.0);
     let requested_base = params.base.clone();
@@ -116,7 +117,9 @@ pub async fn get_scatter_correlations(
     let revision = state.dataset_revision();
     let metrics = Arc::clone(&state.metrics);
 
-    if let Some(entry) = state.cached_correlation_matrix(revision) {
+    if plan_hash.is_none()
+        && let Some(entry) = state.cached_correlation_matrix(revision)
+    {
         let numeric_columns = entry.columns.len() as u64;
         metrics.record_correlation_request(true, mode_telemetry);
         metrics.record_correlation_input(numeric_columns, 0);
@@ -145,7 +148,9 @@ pub async fn get_scatter_correlations(
     .map_err(|e| {
         AppError::internal(format!("Failed to join scatter correlation task: {:?}", e))
     })??;
-    state.store_correlation_matrix_if_current(revision, data.clone().into_cache());
+    if plan_hash.is_none() {
+        state.store_correlation_matrix_if_current(revision, data.clone().into_cache());
+    }
     Ok(Json(build_scatter_correlations_from_matrix_data(
         &data,
         requested_base.as_deref(),
@@ -177,6 +182,25 @@ pub struct CorrelationMatrixResponse {
 #[serde(deny_unknown_fields)]
 pub struct CorrelationMatrixQuery {
     pub mode: Option<CorrelationMode>,
+    pub cleaning_plan: Option<String>,
+}
+
+fn correlation_frame_with_plan(
+    state: &AppState,
+    cleaning_plan: Option<&str>,
+) -> Result<(LazyFrame, Option<String>), AppError> {
+    match cleaning_plan.filter(|raw| !raw.trim().is_empty()) {
+        Some(raw) => {
+            let envelope: crate::handlers::routes::cleaning::PlanRequestEnvelope =
+                serde_json::from_str(raw).map_err(|error| {
+                    AppError::bad_request(format!("Invalid cleaning plan envelope: {error}"))
+                })?;
+            let (_version, plan_hash, frame) =
+                crate::handlers::routes::cleaning::compile_request_frame(state, &envelope)?;
+            Ok((frame, Some(plan_hash)))
+        }
+        None => Ok((state.dataset_snapshot(), None)),
+    }
 }
 
 // Phase 0.2 + Phase 0.3 follow-up: the type was promoted from
@@ -746,9 +770,12 @@ pub async fn get_correlation_matrix(
     Query(params): Query<CorrelationMatrixQuery>,
 ) -> Result<Json<CorrelationMatrixResponse>, AppError> {
     let mode = params.mode;
+    let (lf, plan_hash) = correlation_frame_with_plan(&state, params.cleaning_plan.as_deref())?;
     let revision = state.dataset_revision();
     let metrics = Arc::clone(&state.metrics);
-    if let Some(entry) = state.cached_correlation_matrix(revision) {
+    if plan_hash.is_none()
+        && let Some(entry) = state.cached_correlation_matrix(revision)
+    {
         let numeric_columns = entry.columns.len() as u64;
         let data = CorrelationMatrixData::from_cache(entry);
         // Cache hit on the matrix endpoint is recorded against the
@@ -764,7 +791,6 @@ pub async fn get_correlation_matrix(
         }));
     }
 
-    let lf = state.dataset_snapshot();
     if let Some(mode) = mode {
         metrics.record_correlation_request(false, mode.telemetry_mode());
         let queue_start = std::time::Instant::now();
@@ -804,7 +830,9 @@ pub async fn get_correlation_matrix(
     .map_err(|e| {
         AppError::internal(format!("Failed to join correlation matrix task: {:?}", e))
     })??;
-    state.store_correlation_matrix_if_current(revision, data.clone().into_cache());
+    if plan_hash.is_none() {
+        state.store_correlation_matrix_if_current(revision, data.clone().into_cache());
+    }
     Ok(Json(data.to_response()))
 }
 
@@ -1230,6 +1258,7 @@ mod tests {
                 base: Some("a".to_string()),
                 threshold: Some(0.7),
                 mode: Some(CorrelationMode::SpearmanDiff),
+                cleaning_plan: None,
             }),
         )
         .await
@@ -1241,5 +1270,79 @@ mod tests {
             .cached_correlation_matrix(revision)
             .expect("cold miss should populate the shared matrix cache");
         assert_eq!(cached.columns, vec!["a", "b", "c"]);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn planned_scatter_correlations_use_filtered_source_without_polluting_active_cache() {
+        let df = DataFrame::new(
+            3,
+            vec![
+                Series::new("ts".into(), [1_i64, 2, 3]).into(),
+                Series::new("a".into(), [1.0_f64, 2.0, 3.0]).into(),
+                Series::new("b".into(), [2.0_f64, 4.0, 6.0]).into(),
+            ],
+        )
+        .expect("test dataframe should build");
+        let state = AppState::new(df, AppConfig::default());
+        let revision = state.dataset_revision();
+        let version = state.current_dataset_version().expect("source version");
+        let envelope = serde_json::json!({
+            "plan": {
+                "schemaVersion": 1,
+                "id": "correlation-plan",
+                "planRevision": 1,
+                "sourceVersionId": version.id,
+                "datasetRevision": version.revision,
+                "datasetFingerprint": version.dataset_fingerprint,
+                "schemaFingerprint": version.schema_fingerprint,
+                "timeColumn": "ts",
+                "sourceName": null,
+                "stages": [{
+                    "kind": "columnRange",
+                    "id": "range-a",
+                    "enabled": true,
+                    "executionClass": "polarsExpression",
+                    "scope": "row",
+                    "sourcePage": "scatter",
+                    "label": "keep upper rows",
+                    "note": null,
+                    "createdAt": "2026-07-15T00:00:00Z",
+                    "updatedAt": "2026-07-15T00:00:00Z",
+                    "column": "a",
+                    "from": 2.0,
+                    "to": 3.0,
+                    "mode": "keepInside"
+                }],
+                "createdAt": "2026-07-15T00:00:00Z",
+                "updatedAt": "2026-07-15T00:00:00Z"
+            },
+            "expectedPlanHash": null,
+            "expectedSourceVersionId": version.id,
+            "expectedDatasetRevision": version.revision
+        });
+
+        let response = get_scatter_correlations(
+            State(state.clone()),
+            Query(ScatterCorrelationsQuery {
+                base: Some("a".to_string()),
+                threshold: Some(0.0),
+                mode: Some(CorrelationMode::PearsonRaw),
+                cleaning_plan: Some(serde_json::to_string(&envelope).expect("serialize envelope")),
+            }),
+        )
+        .await
+        .expect("planned correlations request should succeed");
+
+        let b = response
+            .0
+            .correlations
+            .iter()
+            .find(|item| item.column == "b")
+            .expect("b correlation");
+        assert_eq!(b.count, 2);
+        assert!(
+            state.cached_correlation_matrix(revision).is_none(),
+            "a plan-specific matrix must not be stored under the active dataset revision"
+        );
     }
 }

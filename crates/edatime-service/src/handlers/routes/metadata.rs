@@ -18,6 +18,8 @@ pub struct DatasetMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_version_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_version_revision: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub root_source_version_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_source_version_id: Option<String>,
@@ -327,6 +329,7 @@ fn build_dataset_metadata_from_lazyframe(
     Ok(DatasetMetadata {
         revision: 0,
         source_version_id: None,
+        source_version_revision: None,
         root_source_version_id: None,
         parent_source_version_id: None,
         dataset_fingerprint: None,
@@ -478,6 +481,7 @@ pub fn build_dataset_metadata(
     Ok(DatasetMetadata {
         revision: 0,
         source_version_id: None,
+        source_version_revision: None,
         root_source_version_id: None,
         parent_source_version_id: None,
         dataset_fingerprint: None,
@@ -546,6 +550,7 @@ pub async fn get_metadata(
     let mut metadata = metadata;
     metadata.revision = revision;
     metadata.source_version_id = Some(version.id);
+    metadata.source_version_revision = Some(version.revision);
     metadata.root_source_version_id = Some(version.root_id);
     metadata.parent_source_version_id = version.parent_id;
     metadata.dataset_fingerprint = Some(version.dataset_fingerprint);

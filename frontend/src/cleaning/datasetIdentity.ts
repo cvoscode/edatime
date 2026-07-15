@@ -32,7 +32,7 @@ export function cleaningDatasetIdentityFromMetadata(
     const fingerprint = String(metadata.dataset_fingerprint ?? '').trim() || null;
     return {
         sourceVersionId,
-        datasetRevision: Math.max(0, Math.trunc(revision)),
+        datasetRevision: Math.max(0, Math.trunc(Number(metadata.source_version_revision ?? revision))),
         datasetFingerprint: fingerprint,
         schemaFingerprint: schemaFingerprint(metadata),
         timeColumn: String(metadata.time_column ?? '').trim() || 'ts',

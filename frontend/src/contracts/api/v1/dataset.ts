@@ -34,6 +34,7 @@ export interface ColumnProfile {
 export interface DatasetMetadata {
     revision?: number;
     source_version_id?: string;
+    source_version_revision?: number;
     root_source_version_id?: string;
     parent_source_version_id?: string | null;
     dataset_fingerprint?: string;

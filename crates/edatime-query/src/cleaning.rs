@@ -5,7 +5,9 @@ use serde::{Deserialize, Serialize};
 
 use edatime_core::error::AppError;
 
-use crate::filters::{LineFilter, RangeFilter, apply_line_stage, apply_range_stage, apply_time_range_stage};
+use crate::filters::{
+    LineFilter, RangeFilter, apply_line_stage, apply_range_stage, apply_time_range_stage,
+};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -138,23 +140,50 @@ pub fn validate_cleaning_plan(plan: &CleaningPlanDto) -> Result<(), AppError> {
     let mut ids = std::collections::HashSet::new();
     for stage in &plan.stages {
         if stage.id().trim().is_empty() || !ids.insert(stage.id()) {
-            return Err(AppError::bad_request("Cleaning plan stage IDs must be unique and non-empty"));
+            return Err(AppError::bad_request(
+                "Cleaning plan stage IDs must be unique and non-empty",
+            ));
         }
         match stage {
-            CleaningStageDto::TimeRange { base, start_ms, end_ms, .. } => {
+            CleaningStageDto::TimeRange {
+                base,
+                start_ms,
+                end_ms,
+                ..
+            } => {
                 ensure_finite(&base.id, "startMs", *start_ms)?;
                 ensure_finite(&base.id, "endMs", *end_ms)?;
             }
-            CleaningStageDto::ColumnRange { base, column, from, to, .. } => {
+            CleaningStageDto::ColumnRange {
+                base,
+                column,
+                from,
+                to,
+                ..
+            } => {
                 if column.trim().is_empty() {
-                    return Err(AppError::bad_request(format!("Cleaning stage '{}' requires a column", base.id)));
+                    return Err(AppError::bad_request(format!(
+                        "Cleaning stage '{}' requires a column",
+                        base.id
+                    )));
                 }
                 ensure_finite(&base.id, "from", *from)?;
                 ensure_finite(&base.id, "to", *to)?;
             }
-            CleaningStageDto::AdaptiveLine { base, column, x1_ms, y1, x2_ms, y2, .. } => {
+            CleaningStageDto::AdaptiveLine {
+                base,
+                column,
+                x1_ms,
+                y1,
+                x2_ms,
+                y2,
+                ..
+            } => {
                 if column.trim().is_empty() || x1_ms == x2_ms {
-                    return Err(AppError::bad_request(format!("Cleaning stage '{}' requires a column and non-zero line segment", base.id)));
+                    return Err(AppError::bad_request(format!(
+                        "Cleaning stage '{}' requires a column and non-zero line segment",
+                        base.id
+                    )));
                 }
                 ensure_finite(&base.id, "x1Ms", *x1_ms)?;
                 ensure_finite(&base.id, "y1", *y1)?;
@@ -168,24 +197,40 @@ pub fn validate_cleaning_plan(plan: &CleaningPlanDto) -> Result<(), AppError> {
 }
 
 /// Compile all enabled v1 portable stages in their saved order.
-pub fn compile_cleaning_plan(mut lf: LazyFrame, plan: &CleaningPlanDto) -> Result<LazyFrame, AppError> {
+pub fn compile_cleaning_plan(
+    mut lf: LazyFrame,
+    plan: &CleaningPlanDto,
+) -> Result<LazyFrame, AppError> {
     validate_cleaning_plan(plan)?;
     for stage in &plan.stages {
         if !stage.enabled() {
             continue;
         }
         lf = match stage {
-            CleaningStageDto::TimeRange { start_ms, end_ms, mode, .. } => {
-                apply_time_range_stage(
-                    lf,
-                    &plan.time_column,
-                    *start_ms,
-                    *end_ms,
-                    *mode == TimeRangeMode::KeepInside,
-                )?
-            }
-            CleaningStageDto::ColumnRange { column, from, to, mode, .. } => {
-                let filter = RangeFilter { column: column.clone(), from: *from, to: *to };
+            CleaningStageDto::TimeRange {
+                start_ms,
+                end_ms,
+                mode,
+                ..
+            } => apply_time_range_stage(
+                lf,
+                &plan.time_column,
+                *start_ms,
+                *end_ms,
+                *mode == TimeRangeMode::KeepInside,
+            )?,
+            CleaningStageDto::ColumnRange {
+                column,
+                from,
+                to,
+                mode,
+                ..
+            } => {
+                let filter = RangeFilter {
+                    column: column.clone(),
+                    from: *from,
+                    to: *to,
+                };
                 apply_range_stage(lf, &filter, *mode == RangeMode::KeepInside)?
             }
             CleaningStageDto::AdaptiveLine {
@@ -224,25 +269,78 @@ fn fnv1a(value: &str) -> String {
     format!("fnv1a-{hash:016x}")
 }
 
+fn canonical_number(value: f64) -> f64 {
+    if value == 0.0 { 0.0 } else { value }
+}
+
+fn semantic_stage_value(stage: &CleaningStageDto) -> Option<serde_json::Value> {
+    if !stage.enabled() {
+        return None;
+    }
+    match stage {
+        CleaningStageDto::TimeRange {
+            start_ms,
+            end_ms,
+            mode,
+            ..
+        } => Some(serde_json::json!({
+            "kind": "timeRange",
+            "startMs": canonical_number(start_ms.min(*end_ms)),
+            "endMs": canonical_number(start_ms.max(*end_ms)),
+            "mode": mode,
+        })),
+        CleaningStageDto::ColumnRange {
+            column,
+            from,
+            to,
+            mode,
+            ..
+        } => Some(serde_json::json!({
+            "kind": "columnRange",
+            "column": column.trim(),
+            "from": canonical_number(from.min(*to)),
+            "to": canonical_number(from.max(*to)),
+            "mode": mode,
+        })),
+        CleaningStageDto::AdaptiveLine {
+            column,
+            x1_ms,
+            y1,
+            x2_ms,
+            y2,
+            keep_above,
+            apply_within_segment_only,
+            ..
+        } => Some(serde_json::json!({
+            "kind": "adaptiveLine",
+            "column": column.trim(),
+            "x1Ms": canonical_number(*x1_ms),
+            "y1": canonical_number(*y1),
+            "x2Ms": canonical_number(*x2_ms),
+            "y2": canonical_number(*y2),
+            "keepAbove": keep_above,
+            "applyWithinSegmentOnly": apply_within_segment_only,
+        })),
+        CleaningStageDto::Annotation { .. } => None,
+    }
+}
+
 /// Server-owned optimistic/cache identity. Audit-only fields are excluded.
 pub fn semantic_hash(plan: &CleaningPlanDto) -> Result<String, AppError> {
     validate_cleaning_plan(plan)?;
-    let mut value = format!(
-        "v={};source={};revision={};fingerprint={};schema={};time={};",
-        plan.schema_version,
-        plan.source_version_id,
-        plan.dataset_revision,
-        plan.dataset_fingerprint.as_deref().unwrap_or(""),
-        plan.schema_fingerprint,
-        plan.time_column,
-    );
-    for stage in &plan.stages {
-        if !stage.enabled() || matches!(stage, CleaningStageDto::Annotation { .. }) {
-            continue;
-        }
-        value.push_str(&format!("{:?};", stage));
-    }
-    Ok(format!("fnv1a-{}", fnv1a(&value)))
+    let canonical = serde_json::json!({
+        "schemaVersion": plan.schema_version,
+        "sourceVersionId": plan.source_version_id,
+        "datasetRevision": plan.dataset_revision,
+        "datasetFingerprint": plan.dataset_fingerprint,
+        "schemaFingerprint": plan.schema_fingerprint,
+        "timeColumn": plan.time_column,
+        "stages": plan.stages.iter().filter_map(semantic_stage_value).collect::<Vec<_>>(),
+    });
+    let encoded = serde_json::to_string(&canonical).map_err(|error| {
+        AppError::internal(format!("Cleaning plan canonicalization failed: {error}"))
+    })?;
+    Ok(fnv1a(&encoded))
 }
 
 #[cfg(test)]
@@ -284,29 +382,71 @@ mod tests {
     #[test]
     fn compiles_enabled_stages_in_order() {
         let plan = plan(vec![
-            CleaningStageDto::TimeRange { base: base("time"), start_ms: 1.0, end_ms: 3.0, mode: TimeRangeMode::KeepInside },
-            CleaningStageDto::ColumnRange { base: base("range"), column: "value".to_string(), from: 2.0, to: 3.0, mode: RangeMode::KeepInside },
+            CleaningStageDto::TimeRange {
+                base: base("time"),
+                start_ms: 1.0,
+                end_ms: 3.0,
+                mode: TimeRangeMode::KeepInside,
+            },
+            CleaningStageDto::ColumnRange {
+                base: base("range"),
+                column: "value".to_string(),
+                from: 2.0,
+                to: 3.0,
+                mode: RangeMode::KeepInside,
+            },
         ]);
-        let df = DataFrame::new(3, vec![
-            Series::new("ts".into(), vec![1_i64, 2, 3]).into(),
-            Series::new("value".into(), vec![1.0_f64, 2.0, 3.0]).into(),
-        ]).expect("frame");
-        let result = compile_cleaning_plan(df.lazy(), &plan).expect("compile").collect().expect("collect");
+        let df = DataFrame::new(
+            3,
+            vec![
+                Series::new("ts".into(), vec![1_i64, 2, 3]).into(),
+                Series::new("value".into(), vec![1.0_f64, 2.0, 3.0]).into(),
+            ],
+        )
+        .expect("frame");
+        let result = compile_cleaning_plan(df.lazy(), &plan)
+            .expect("compile")
+            .collect()
+            .expect("collect");
         assert_eq!(result.height(), 2);
     }
 
     #[test]
     fn drop_stage_removes_inside_values_but_preserves_nulls() {
         let plan = plan(vec![CleaningStageDto::ColumnRange {
-            base: base("drop"), column: "value".to_string(), from: 1.0, to: 2.0, mode: RangeMode::DropInside,
+            base: base("drop"),
+            column: "value".to_string(),
+            from: 1.0,
+            to: 2.0,
+            mode: RangeMode::DropInside,
         }]);
-        let df = DataFrame::new(4, vec![
-            Series::new("ts".into(), vec![1_i64, 2, 3, 4]).into(),
-            Series::new("value".into(), vec![Some(1.0_f64), Some(2.0), Some(3.0), None]).into(),
-        ]).expect("frame");
-        let result = compile_cleaning_plan(df.lazy(), &plan).expect("compile").collect().expect("collect");
+        let df = DataFrame::new(
+            4,
+            vec![
+                Series::new("ts".into(), vec![1_i64, 2, 3, 4]).into(),
+                Series::new(
+                    "value".into(),
+                    vec![Some(1.0_f64), Some(2.0), Some(3.0), None],
+                )
+                .into(),
+            ],
+        )
+        .expect("frame");
+        let result = compile_cleaning_plan(df.lazy(), &plan)
+            .expect("compile")
+            .collect()
+            .expect("collect");
         assert_eq!(result.height(), 2);
-        assert_eq!(result.column("ts").expect("ts").i64().expect("i64").into_no_null_iter().collect::<Vec<_>>(), vec![3, 4]);
+        assert_eq!(
+            result
+                .column("ts")
+                .expect("ts")
+                .i64()
+                .expect("i64")
+                .into_no_null_iter()
+                .collect::<Vec<_>>(),
+            vec![3, 4]
+        );
     }
 
     #[test]
@@ -321,11 +461,18 @@ mod tests {
             keep_above: true,
             apply_within_segment_only: false,
         }]);
-        let df = DataFrame::new(3, vec![
-            Series::new("ts".into(), vec![1_i64, 2, 3]).into(),
-            Series::new("value".into(), vec![1.0_f64, 2.0, 3.0]).into(),
-        ]).expect("frame");
-        let result = compile_cleaning_plan(df.lazy(), &plan).expect("compile").collect().expect("collect");
+        let df = DataFrame::new(
+            3,
+            vec![
+                Series::new("ts".into(), vec![1_i64, 2, 3]).into(),
+                Series::new("value".into(), vec![1.0_f64, 2.0, 3.0]).into(),
+            ],
+        )
+        .expect("frame");
+        let result = compile_cleaning_plan(df.lazy(), &plan)
+            .expect("compile")
+            .collect()
+            .expect("collect");
         assert_eq!(result.height(), 2);
     }
 
@@ -364,5 +511,33 @@ mod tests {
         let parsed = serde_json::from_value::<CleaningPlanDto>(raw).expect("frontend DTO");
         assert_eq!(parsed.stages.len(), 1);
         assert_eq!(parsed.stages[0].id(), "range-1");
+    }
+
+    #[test]
+    fn semantic_hash_ignores_audit_fields_but_tracks_executable_changes() {
+        let mut original = plan(vec![CleaningStageDto::ColumnRange {
+            base: base("range-a"),
+            column: "value".to_string(),
+            from: 1.0,
+            to: 2.0,
+            mode: RangeMode::KeepInside,
+        }]);
+        let expected = semantic_hash(&original).expect("original hash");
+
+        original.id = "renamed-plan".to_string();
+        original.plan_revision += 1;
+        original.updated_at = "later".to_string();
+        if let CleaningStageDto::ColumnRange { base, .. } = &mut original.stages[0] {
+            base.id = "range-b".to_string();
+            base.label = "New label".to_string();
+            base.note = Some("audit note".to_string());
+            base.updated_at = "later".to_string();
+        }
+        assert_eq!(semantic_hash(&original).expect("audit-only hash"), expected);
+
+        if let CleaningStageDto::ColumnRange { to, .. } = &mut original.stages[0] {
+            *to = 3.0;
+        }
+        assert_ne!(semantic_hash(&original).expect("changed hash"), expected);
     }
 }

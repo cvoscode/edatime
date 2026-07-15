@@ -10,6 +10,8 @@ import {
     DEBUG,
 } from './http.js';
 import type { ApiRequestOptions } from './http.js';
+import { cleaningPlanStore } from '../../cleaning/store.js';
+import { buildPlanRequestSnapshot } from '../../cleaning/compiler.js';
 
 export async function fetchData(
     start: string,
@@ -41,10 +43,30 @@ export async function fetchData(
     if (Number.isFinite(lookaroundMs) && lookaroundMs > 0) params.set('lookaround_ms', String(Math.round(lookaroundMs)));
 
     const tableFromIPC = await ensureArrowParser();
-    const url = withApiQuery(apiV1Routes.data, params);
+    const activePlan = cleaningPlanStore.getSnapshot();
+    const hasActivePlan = !!activePlan?.stages.some((stage) => stage.enabled);
+    const url = hasActivePlan ? apiV1Routes.data : withApiQuery(apiV1Routes.data, params);
 
-    dbg('GET', url);
-    const res = await globalThis.fetch(url, options?.signal ? { signal: options.signal, cache: 'no-store' } : { cache: 'no-store' });
+    const requestInit: RequestInit = hasActivePlan && activePlan
+        ? {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                start,
+                end,
+                width: safeWidth,
+                columns,
+                color_column: colorColumn || undefined,
+                lookaround_ms: Number.isFinite(lookaroundMs) && lookaroundMs > 0 ? Math.round(lookaroundMs) : undefined,
+                cleaning_plan: buildPlanRequestSnapshot(activePlan),
+            }),
+            signal: options?.signal,
+            cache: 'no-store',
+        }
+        : options?.signal ? { signal: options.signal, cache: 'no-store' } : { cache: 'no-store' };
+
+    dbg(hasActivePlan ? 'POST' : 'GET', url);
+    const res = await globalThis.fetch(url, requestInit);
     assertDatasetRequestScopeActive(requestScope);
 
     if (DEBUG) {

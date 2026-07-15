@@ -15,7 +15,7 @@ use serde::Deserialize;
 
 use crate::analytics;
 use crate::error::AppError;
-use crate::handlers::routes::shared::{downsample_by_stride, filter_preamble, filter_preamble_with_plan};
+use crate::handlers::routes::shared::{downsample_by_stride, filter_preamble_with_plan};
 use edatime_query::query;
 use edatime_query::validation::validate_numeric_columns_lazy;
 use edatime_store::state::AppState;
@@ -29,6 +29,7 @@ pub struct RollingQuery {
     pub columns: Option<String>,
     /// Rolling window size in number of samples (default: 50)
     pub window: Option<usize>,
+    pub cleaning_plan: Option<String>,
 }
 
 #[tracing::instrument(skip(state))]
@@ -36,8 +37,14 @@ pub async fn get_rolling(
     State(state): State<AppState>,
     Query(params): Query<RollingQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let (value_cols, filtered) =
-        filter_preamble(&state, params.start, params.end, params.columns.as_deref()).await?;
+    let (value_cols, filtered) = filter_preamble_with_plan(
+        &state,
+        params.start,
+        params.end,
+        params.columns.as_deref(),
+        params.cleaning_plan.as_deref(),
+    )
+    .await?;
     let params = Arc::new(params);
     let metrics = Arc::clone(&state.metrics);
 
@@ -103,6 +110,7 @@ pub struct AnomalyQuery {
     pub method: Option<String>,
     /// Threshold for zscore (default: 3.0) or IQR multiplier (default: 1.5)
     pub threshold: Option<f64>,
+    pub cleaning_plan: Option<String>,
 }
 
 #[tracing::instrument(skip(state))]
@@ -111,8 +119,14 @@ pub async fn get_anomalies(
     Query(params): Query<AnomalyQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     let params = Arc::new(params);
-    let (value_cols, filtered) =
-        filter_preamble(&state, params.start, params.end, params.columns.as_deref()).await?;
+    let (value_cols, filtered) = filter_preamble_with_plan(
+        &state,
+        params.start,
+        params.end,
+        params.columns.as_deref(),
+        params.cleaning_plan.as_deref(),
+    )
+    .await?;
 
     let method = params.method.as_deref().unwrap_or("zscore");
     let (regions, summary_stats) = tokio::task::spawn_blocking({
@@ -163,8 +177,14 @@ pub async fn get_fft(
     State(state): State<AppState>,
     Query(params): Query<FftQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let (value_cols, filtered) =
-        filter_preamble_with_plan(&state, params.start, params.end, params.columns.as_deref(), params.cleaning_plan.as_deref()).await?;
+    let (value_cols, filtered) = filter_preamble_with_plan(
+        &state,
+        params.start,
+        params.end,
+        params.columns.as_deref(),
+        params.cleaning_plan.as_deref(),
+    )
+    .await?;
 
     let max_pts = params.max_points.unwrap_or(8192).max(64);
     let work_df = downsample_by_stride(filtered, max_pts, "FFT")?;
@@ -273,6 +293,7 @@ pub struct SpectralFilterQuery {
     pub sample_rate_hz: Option<f64>,
     /// Max points (default: 16384)
     pub max_points: Option<usize>,
+    pub cleaning_plan: Option<String>,
 }
 
 #[tracing::instrument(skip(state))]
@@ -286,8 +307,33 @@ pub async fn get_spectral_filter(
     let (start, end) = match (params.start, params.end) {
         (Some(s), Some(e)) => (s, e),
         (opt_s, opt_e) => {
-            let lf_snap = state.dataset_snapshot();
-            let ctx = state.ts_context(&lf_snap)?;
+            let (lf_snap, time_column) = match params
+                .cleaning_plan
+                .as_deref()
+                .filter(|raw| !raw.trim().is_empty())
+            {
+                Some(raw) => {
+                    let envelope: crate::handlers::routes::cleaning::PlanRequestEnvelope =
+                        serde_json::from_str(raw).map_err(|error| {
+                            AppError::bad_request(format!(
+                                "Invalid cleaning plan envelope: {error}"
+                            ))
+                        })?;
+                    let time_column = envelope.plan.time_column.clone();
+                    let (_version, _hash, frame) =
+                        crate::handlers::routes::cleaning::compile_request_frame(
+                            &state, &envelope,
+                        )?;
+                    (frame, time_column)
+                }
+                None => (
+                    state.dataset_snapshot(),
+                    state
+                        .time_column_display_name_sync()
+                        .unwrap_or_else(|| "ts".to_string()),
+                ),
+            };
+            let ctx = edatime_core::temporal::ts_context(&lf_snap, &time_column)?;
             let ts_col = ctx.ts_col;
             let multiplier = ctx.multiplier;
             let df_snap = state
@@ -322,7 +368,14 @@ pub async fn get_spectral_filter(
         }
     };
 
-    let (value_cols, filtered) = filter_preamble(&state, start, end, col_opt.as_deref()).await?;
+    let (value_cols, filtered) = filter_preamble_with_plan(
+        &state,
+        start,
+        end,
+        col_opt.as_deref(),
+        params.cleaning_plan.as_deref(),
+    )
+    .await?;
     let col = &value_cols[0];
 
     let max_pts = params.max_points.unwrap_or(16384).clamp(64, 65536);
@@ -618,7 +671,8 @@ pub async fn post_causal_graph(
     Json(params): Json<CausalGraphRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     let lf = if let Some(envelope) = params.cleaning_plan.as_ref() {
-        let (_version, _hash, frame) = crate::handlers::routes::cleaning::compile_request_frame(&state, envelope)?;
+        let (_version, _hash, frame) =
+            crate::handlers::routes::cleaning::compile_request_frame(&state, envelope)?;
         frame
     } else {
         state.dataset_snapshot()
@@ -984,6 +1038,7 @@ mod tests {
                 columns: Some("HUFL,HULL".to_string()),
                 method: Some("zscore".to_string()),
                 threshold: Some(3.0),
+                cleaning_plan: None,
             }),
         )
         .await

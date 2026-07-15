@@ -19,6 +19,65 @@ The user should be able to:
 
 This is not a page-local filter feature. It is a shared, visual query-plan builder.
 
+## Implementation Review Status (2026-07-15)
+
+The repository contains a working first vertical slice, but it does **not** yet
+implement the full feature described below. Treat the remaining sections as the
+target contract and phased backlog, not as a claim that every stage and page is
+complete.
+
+| Area | Current status | Evidence / remaining gap |
+| --- | --- | --- |
+| Portable plan core | Implemented for `timeRange`, `columnRange`, `adaptiveLine`, and `annotation` | Shared TypeScript store/compiler and Rust DTO/compiler exist; advanced row, column, transform, drift, and frequency stages remain |
+| Reversible baseline | Implemented in memory | Immutable root/child snapshots, explicit materialize/apply, version listing, and version selection exist; persistence and spill/out-of-core version storage remain |
+| Validation and preview | Implemented for the portable v1 stages | Backend validates source identity and compiles from the retained source snapshot |
+| Dataset and plan export | Partial | Full plan-aware Parquet and canonical JSON export exist; CSV, ZIP reproducibility bundle, checksums, source inclusion, and plan import remain |
+| Code generation | Partial | Frontend Python/Rust generators cover portable filters; Rust adaptive-line generation and backend-canonical bundle generation remain |
+| Plan consumption | Broad first slice | Timeseries, scatter points/matrix/export/correlations, FFT, spectrogram, causal, rolling, anomalies, spectral filtering, and drift accept the active plan |
+| Plan authoring | Timeseries only | Timeseries range/adaptive gestures author stages; scatter, correlation, FFT, spectrogram, causal, and drift authoring actions remain |
+| Shared plan UI | Implemented first slice | The plan panel supports accumulated stages and version actions; richer per-stage editors, capability reporting, and large-plan ergonomics remain |
+| Large-data execution | Not complete | Current snapshots and most results are memory-resident; bounded streaming ingest, spill-to-disk execution, durable artifacts, and resource budgets remain separate scale work |
+
+### Corrections Made During This Review
+
+- `/api/v1/data` now has a plan-aware POST contract. The backend executes the
+  plan before viewport filtering and LTTB reduction, so the browser no longer
+  filters an already-downsampled result.
+- Rolling bands, anomaly detection, and spectral filtering now receive and
+  execute the active plan.
+- Scatter correlations and correlation matrices now execute the active plan.
+  Plan-specific matrices bypass the active-dataset correlation cache so a
+  filtered result cannot be served later as an unfiltered result.
+- Backend semantic hashing now uses executable canonical stage content and
+  ignores labels, notes, timestamps, plan revision, and annotations. Range
+  endpoints and signed zero are normalized before hashing.
+- Selecting an immutable dataset version no longer rewrites that version's
+  revision. Metadata exposes `source_version_revision` separately from the
+  active session revision so a plan remains anchored to its true baseline.
+- Plan-aware timeseries results include source-version, dataset-revision, and
+  backend plan-hash headers, and their cache key includes all three identities.
+
+### Highest-Priority Remaining Query-Plan Work
+
+1. Add plan authoring and compiler support one stage family at a time, starting
+   with column keep/drop and scatter polygon/category stages. Migrate every
+   consumer for a family before enabling its authoring UI.
+2. Replace plan-bearing GET query strings with typed POST envelopes. A useful
+   accumulated plan can exceed browser, proxy, or server URL limits.
+3. Standardize result identity on every plan-aware response and client cache:
+   source version, immutable source revision, backend plan hash, and output
+   schema/projection identity.
+4. Strengthen exported artifact identity and reproducibility: content-derived
+   dataset fingerprints, checksums, import validation, canonical backend code
+   generation, and a ZIP bundle.
+5. Move immutable versions and large exports to bounded, spillable storage.
+   The current in-memory registry is correct for reversibility but is not a
+   solution for datasets near or above available RAM.
+
+The `Current Code Grounding` section records the original implementation seams;
+where it says "currently," use the review table above and live code as the
+authoritative present state.
+
 ## Review Decisions: Baseline, Accumulation, and Export
 
 This section resolves the central product contract before implementation. It is

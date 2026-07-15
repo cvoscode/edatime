@@ -297,20 +297,20 @@ const REQUEST_MIX = [
 
 function buildRequestUrl(target, kind, tsBounds) {
     // Build URLs that match the contract exercised by
-  // tests/api_integration.rs. `ts` is the time column in the synthetic
-  // fixtures so it is NOT included in the `columns=` list — it is not
-  // a numeric column for the `/data` endpoint and would 400 the
-  // request otherwise.
-  const base = target.replace(/\/$/, "");
-  switch (kind) {
-    case "data":
-      return `${base}/api/v1/data?start=${encodeURIComponent(tsBounds.start)}&end=${encodeURIComponent(tsBounds.end)}&width=500&columns=c0,c1,c2`;
-    case "scatter_points":
-      return `${base}/api/v1/scatter/points?x=c0&y=c1&color=c2&limit=200000&format=arrow`;
-    case "scatter_correlations":
-      return `${base}/api/v1/scatter/correlations`;
-    case "rolling":
-      return `${base}/api/v1/analytics/rolling?start=${encodeURIComponent(tsBounds.start)}&end=${encodeURIComponent(tsBounds.end)}&columns=c0,c1&window=50`;
+    // tests/api_integration.rs. `ts` is the time column in the synthetic
+    // fixtures so it is NOT included in the `columns=` list — it is not
+    // a numeric column for the `/data` endpoint and would 400 the
+    // request otherwise.
+    const base = target.replace(/\/$/, "");
+    switch (kind) {
+        case "data":
+            return `${base}/api/v1/data?start=${encodeURIComponent(tsBounds.start)}&end=${encodeURIComponent(tsBounds.end)}&width=500&columns=c0,c1,c2`;
+        case "scatter_points":
+            return `${base}/api/v1/scatter/points?x=c0&y=c1&color=c2&limit=200000&format=arrow`;
+        case "scatter_correlations":
+            return `${base}/api/v1/scatter/correlations`;
+        case "rolling":
+            return `${base}/api/v1/analytics/rolling?start=${encodeURIComponent(tsBounds.start)}&end=${encodeURIComponent(tsBounds.end)}&columns=c0,c1&window=50`;
     }
 }
 
@@ -344,72 +344,72 @@ async function cmdRun(args) {
     // to a default window so requests still exercise the routes.
     const tsBounds = await probeTsBounds(args.target);
     const rng = Math.random; // run mix is not deterministic; that's fine.
-  // Capture both wall-clock and monotonic start separately so the run
-  // mix maths uses a stable monotonic clock while the `started_at`
-  // field is a real ISO-8601 timestamp. `performance.now()` is
-  // ms-since-process-start; passing it to `new Date(...)` interprets it
-  // as Unix ms-since-epoch and produces a "1970-01-01" timestamp for
-  // early-start runs.
-  const start = performance.now();
-  const end = start + args.seconds * 1000;
-  const runStartedAt = new Date().toISOString();
+    // Capture both wall-clock and monotonic start separately so the run
+    // mix maths uses a stable monotonic clock while the `started_at`
+    // field is a real ISO-8601 timestamp. `performance.now()` is
+    // ms-since-process-start; passing it to `new Date(...)` interprets it
+    // as Unix ms-since-epoch and produces a "1970-01-01" timestamp for
+    // early-start runs.
+    const start = performance.now();
+    const end = start + args.seconds * 1000;
+    const runStartedAt = new Date().toISOString();
 
     const inflight = new Set();
     const samples = [];
     const rssSamples = [];
     let rollingCounter = 0;
     let nextRollingMs = start;
-  // Resolve the RSS target: explicit `--pid` flag > $BENCH_PID > $EDATIME_PID.
-  // We do not raise an error when nothing is set — RSS is optional and the
-  // procedure stays usable on hosts that do not expose `/proc/<pid>/status`.
-  const rssCandidates = [
-    args.pid,
-    process.env.BENCH_PID,
-    process.env.EDATIME_PID,
-  ];
-  // Reject null/undefined/empty so the first candidate wins only when it
-  // is a real positive integer string. Without the null guard `args.pid`
-  // (default `null`) would shadow the env var and the sampler would be
-  // silently disabled.
-  const rssPidRaw = rssCandidates.find(
-    (value) => value != null && value !== "" && Number.isFinite(Number(value)) && Number(value) > 0,
-  );
-  const rssPid = Number(rssPidRaw ?? NaN);
-  const rssPidIsValid = Number.isFinite(rssPid) && rssPid > 0;
+    // Resolve the RSS target: explicit `--pid` flag > $BENCH_PID > $EDATIME_PID.
+    // We do not raise an error when nothing is set — RSS is optional and the
+    // procedure stays usable on hosts that do not expose `/proc/<pid>/status`.
+    const rssCandidates = [
+        args.pid,
+        process.env.BENCH_PID,
+        process.env.EDATIME_PID,
+    ];
+    // Reject null/undefined/empty so the first candidate wins only when it
+    // is a real positive integer string. Without the null guard `args.pid`
+    // (default `null`) would shadow the env var and the sampler would be
+    // silently disabled.
+    const rssPidRaw = rssCandidates.find(
+        (value) => value != null && value !== "" && Number.isFinite(Number(value)) && Number(value) > 0,
+    );
+    const rssPid = Number(rssPidRaw ?? NaN);
+    const rssPidIsValid = Number.isFinite(rssPid) && rssPid > 0;
 
-  const rssTimer = setInterval(() => {
-    if (!rssPidIsValid) return;
-    const rss = readRssBytes(rssPid);
-    if (rss != null) rssSamples.push({ t: performance.now() - start, rss_bytes: rss });
-  }, 1000);
+    const rssTimer = setInterval(() => {
+        if (!rssPidIsValid) return;
+        const rss = readRssBytes(rssPid);
+        if (rss != null) rssSamples.push({ t: performance.now() - start, rss_bytes: rss });
+    }, 1000);
 
-  async function dispatchOnce() {
-    // Mix in a small fraction of rolling requests at low frequency, so
-    // the workload is not dominated by /data.
-    let kind;
-    if (rollingCounter < args.seconds && performance.now() >= nextRollingMs) {
-      kind = "rolling";
-      rollingCounter += 1;
-      nextRollingMs = start + rollingCounter * (args.seconds * 1000) / Math.max(1, args.seconds);
-    } else {
-      kind = pickKind(rng);
+    async function dispatchOnce() {
+        // Mix in a small fraction of rolling requests at low frequency, so
+        // the workload is not dominated by /data.
+        let kind;
+        if (rollingCounter < args.seconds && performance.now() >= nextRollingMs) {
+            kind = "rolling";
+            rollingCounter += 1;
+            nextRollingMs = start + rollingCounter * (args.seconds * 1000) / Math.max(1, args.seconds);
+        } else {
+            kind = pickKind(rng);
+        }
+        const url = buildRequestUrl(args.target, kind, tsBounds);
+        const t0 = performance.now();
+        let status = 0;
+        let bytes = 0;
+        try {
+            const resp = await fetch(url);
+            status = resp.status;
+            const buf = new Uint8Array(await resp.arrayBuffer());
+            bytes = buf.byteLength;
+        } catch (err) {
+            status = -1;
+            bytes = 0;
+        }
+        const t1 = performance.now();
+        samples.push({ kind, status, latency_ms: t1 - t0, bytes });
     }
-    const url = buildRequestUrl(args.target, kind, tsBounds);
-    const t0 = performance.now();
-    let status = 0;
-    let bytes = 0;
-    try {
-      const resp = await fetch(url);
-      status = resp.status;
-      const buf = new Uint8Array(await resp.arrayBuffer());
-      bytes = buf.byteLength;
-    } catch (err) {
-      status = -1;
-      bytes = 0;
-    }
-    const t1 = performance.now();
-    samples.push({ kind, status, latency_ms: t1 - t0, bytes });
-  }
 
     async function workerLoop() {
         while (performance.now() < end) {
@@ -533,27 +533,27 @@ async function fetchMetrics(target) {
 }
 
 async function probeTsBounds(target) {
-  // Pull /api/v1/metadata and try to use its time_range.start /
-  // time_range.end as bounds. Fall back to a wide ISO-8601 window when
-  // metadata is unavailable or has no time_range (e.g. server has no
-  // dataset yet). The fallback is ISO-8601 because `/api/v1/data` and
-  // `/api/v1/analytics/rolling` use `DateTime<Utc>` params and reject
-  // bare integer Unix-ms values; RFC 3339 strings are the only shape
-  // that deserializes through `chrono::DateTime<Utc>`.
-  const fallback = {
-    start: "1970-01-01T00:00:00Z",
-    end: "2024-12-31T23:59:59Z",
-  };
-  try {
-    const resp = await fetch(`${target.replace(/\/$/, "")}/api/v1/metadata`);
-    if (!resp.ok) return fallback;
-    const body = await resp.json();
-    const range = body?.time_range;
-    if (!range || !range.start || !range.end) return fallback;
-    return { start: range.start, end: range.end };
-  } catch {
-    return fallback;
-  }
+    // Pull /api/v1/metadata and try to use its time_range.start /
+    // time_range.end as bounds. Fall back to a wide ISO-8601 window when
+    // metadata is unavailable or has no time_range (e.g. server has no
+    // dataset yet). The fallback is ISO-8601 because `/api/v1/data` and
+    // `/api/v1/analytics/rolling` use `DateTime<Utc>` params and reject
+    // bare integer Unix-ms values; RFC 3339 strings are the only shape
+    // that deserializes through `chrono::DateTime<Utc>`.
+    const fallback = {
+        start: "1970-01-01T00:00:00Z",
+        end: "2024-12-31T23:59:59Z",
+    };
+    try {
+        const resp = await fetch(`${target.replace(/\/$/, "")}/api/v1/metadata`);
+        if (!resp.ok) return fallback;
+        const body = await resp.json();
+        const range = body?.time_range;
+        if (!range || !range.start || !range.end) return fallback;
+        return { start: range.start, end: range.end };
+    } catch {
+        return fallback;
+    }
 }
 
 async function cmdSnapshot(args) {
@@ -566,24 +566,24 @@ async function cmdSnapshot(args) {
 // ── RSS sampling (Linux-only) ───────────────────────────────────────────────
 
 function readRssBytes(pid) {
-  // Linux-only. Reads `VmRSS` from `/proc/<pid>/status` and returns
-  // it in bytes. Returns `null` on any read failure so the caller can
-  // skip the sample without branching on platform-specific code.
-  if (!pid || !Number.isFinite(pid) || pid <= 0) return null;
-  const statusPath = `/proc/${pid}/status`;
-  if (!existsSync(statusPath)) return null;
-  try {
-    const fd = openSync(statusPath, "r");
-    const buf = Buffer.alloc(2048);
-    const n = readSync(fd, buf, 0, buf.length, 0);
-    closeSync(fd);
-    const text = buf.toString("utf8", 0, n);
-    const match = text.match(/VmRSS:\s+(\d+)\s+kB/);
-    if (!match) return null;
-    return Number(match[1]) * 1024;
-  } catch {
-    return null;
-  }
+    // Linux-only. Reads `VmRSS` from `/proc/<pid>/status` and returns
+    // it in bytes. Returns `null` on any read failure so the caller can
+    // skip the sample without branching on platform-specific code.
+    if (!pid || !Number.isFinite(pid) || pid <= 0) return null;
+    const statusPath = `/proc/${pid}/status`;
+    if (!existsSync(statusPath)) return null;
+    try {
+        const fd = openSync(statusPath, "r");
+        const buf = Buffer.alloc(2048);
+        const n = readSync(fd, buf, 0, buf.length, 0);
+        closeSync(fd);
+        const text = buf.toString("utf8", 0, n);
+        const match = text.match(/VmRSS:\s+(\d+)\s+kB/);
+        if (!match) return null;
+        return Number(match[1]) * 1024;
+    } catch {
+        return null;
+    }
 }
 
 // ── Entry point ─────────────────────────────────────────────────────────────

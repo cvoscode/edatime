@@ -1,7 +1,7 @@
 //! Scatter matrix batch handler — POST /api/scatter/matrix.
 
 use axum::{Json, extract::State, response::Response};
-use base64::prelude::*;
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use polars::prelude::*;
 use std::sync::Arc;
 

@@ -349,6 +349,10 @@ export async function fetchScatterCorrelations(
         params.set('base', String(base));
     }
     params.set('mode', mode);
+    const plan = cleaningPlanStore.getSnapshot();
+    if (plan?.stages.some((stage) => stage.enabled)) {
+        params.set('cleaning_plan', JSON.stringify(buildPlanRequestSnapshot(plan)));
+    }
     const url = withApiQuery(apiV1Routes.scatter.correlations, params);
     const data = await getJson<unknown>(url, 'Scatter correlations');
     assertScatterCorrelations(data);

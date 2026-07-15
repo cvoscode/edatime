@@ -24,7 +24,7 @@ use edatime_store::state::AppState;
 pub fn api_router() -> Router<AppState> {
     Router::new()
         .route("/health", get(health))
-        .route("/data", get(data::get_data))
+        .route("/data", get(data::get_data).post(data::post_data))
         .route("/export/parquet", get(export::export_parquet))
         .route("/cleaning/validate", post(cleaning::validate))
         .route("/cleaning/preview", post(cleaning::preview))

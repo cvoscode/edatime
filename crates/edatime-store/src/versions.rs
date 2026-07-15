@@ -152,7 +152,13 @@ impl DatasetVersionRegistry {
         self.entries
             .write()
             .map_err(|_| AppError::internal("dataset version registry lock poisoned"))?
-            .insert(id.clone(), DatasetVersionEntry { record: record.clone(), frame: frame.lazy() });
+            .insert(
+                id.clone(),
+                DatasetVersionEntry {
+                    record: record.clone(),
+                    frame: frame.lazy(),
+                },
+            );
         *self
             .current_id
             .write()
@@ -185,7 +191,13 @@ impl DatasetVersionRegistry {
         self.entries
             .write()
             .map_err(|_| AppError::internal("dataset version registry lock poisoned"))?
-            .insert(id.clone(), DatasetVersionEntry { record: record.clone(), frame: frame.lazy() });
+            .insert(
+                id.clone(),
+                DatasetVersionEntry {
+                    record: record.clone(),
+                    frame: frame.lazy(),
+                },
+            );
         *self
             .current_id
             .write()
@@ -194,22 +206,23 @@ impl DatasetVersionRegistry {
     }
 
     /// Select an already-retained immutable snapshot as the working dataset.
-    /// Only its active-generation revision changes; frame and provenance do not.
-    pub fn select(&self, id: &str, revision: u64) -> Result<DatasetVersionRecord, AppError> {
-        let mut entries = self
+    /// Version identity stays immutable; the compatibility repository owns the
+    /// separate active-session revision used to invalidate live requests.
+    pub fn select(&self, id: &str) -> Result<DatasetVersionRecord, AppError> {
+        let entries = self
             .entries
-            .write()
+            .read()
             .map_err(|_| AppError::internal("dataset version registry lock poisoned"))?;
         let entry = entries
-            .get_mut(id)
+            .get(id)
             .ok_or_else(|| AppError::NotFound(format!("Unknown dataset version '{id}'")))?;
-        entry.record.revision = revision;
         let record = entry.record.clone();
         drop(entries);
         *self
             .current_id
             .write()
-            .map_err(|_| AppError::internal("dataset version selection lock poisoned"))? = id.to_string();
+            .map_err(|_| AppError::internal("dataset version selection lock poisoned"))? =
+            id.to_string();
         Ok(record)
     }
 }
@@ -220,12 +233,17 @@ mod tests {
     use polars::prelude::{DataFrame, NamedFrom, Series};
 
     fn frame(values: Vec<i64>) -> DataFrame {
-        DataFrame::new(values.len(), vec![Series::new("value".into(), values).into()]).expect("frame")
+        DataFrame::new(
+            values.len(),
+            vec![Series::new("value".into(), values).into()],
+        )
+        .expect("frame")
     }
 
     #[test]
     fn preserves_root_and_child_snapshots() {
-        let registry = DatasetVersionRegistry::new(frame(vec![1, 2]), 0, Some("root.csv".to_string()));
+        let registry =
+            DatasetVersionRegistry::new(frame(vec![1, 2]), 0, Some("root.csv".to_string()));
         let root = registry.current().expect("root");
         let child = registry
             .register_child(&root.id, frame(vec![2]), 1, "plan-hash".to_string())
@@ -233,7 +251,40 @@ mod tests {
 
         assert_eq!(child.root_id, root.id);
         assert_eq!(child.parent_id.as_deref(), Some(root.id.as_str()));
-        assert_eq!(registry.snapshot(&root.id).expect("root frame").collect().expect("collect").height(), 2);
-        assert_eq!(registry.snapshot(&child.id).expect("child frame").collect().expect("collect").height(), 1);
+        assert_eq!(
+            registry
+                .snapshot(&root.id)
+                .expect("root frame")
+                .collect()
+                .expect("collect")
+                .height(),
+            2
+        );
+        assert_eq!(
+            registry
+                .snapshot(&child.id)
+                .expect("child frame")
+                .collect()
+                .expect("collect")
+                .height(),
+            1
+        );
+    }
+
+    #[test]
+    fn selecting_a_version_does_not_rewrite_its_identity() {
+        let registry = DatasetVersionRegistry::new(frame(vec![1, 2]), 4, None);
+        let root = registry.current().expect("root");
+        let child = registry
+            .register_child(&root.id, frame(vec![2]), 5, "plan".to_string())
+            .expect("child");
+
+        let selected = registry.select(&root.id).expect("select root");
+
+        assert_eq!(selected.revision, 4);
+        assert_eq!(
+            registry.record(&child.id).expect("child record").revision,
+            5
+        );
     }
 }
