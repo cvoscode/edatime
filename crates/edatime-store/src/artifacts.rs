@@ -64,3 +64,68 @@ impl DatasetArtifactStore {
         &self.root
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    use chrono::Utc;
+
+    use super::{DatasetArtifactDescriptor, DatasetArtifactStore};
+
+    static NEXT_TEST_DIRECTORY: AtomicU64 = AtomicU64::new(0);
+
+    fn test_root() -> PathBuf {
+        let serial = NEXT_TEST_DIRECTORY.fetch_add(1, Ordering::Relaxed);
+        std::env::temp_dir().join(format!(
+            "edatime-artifact-store-{}-{serial}",
+            Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ))
+    }
+
+    fn descriptor(version_id: &str, byte_size: u64) -> DatasetArtifactDescriptor {
+        DatasetArtifactDescriptor {
+            version_id: version_id.to_string(),
+            path: PathBuf::from(format!("{version_id}.parquet")),
+            format: "parquet".to_string(),
+            byte_size,
+            content_fingerprint: format!("fingerprint-{version_id}-{byte_size}"),
+            created_at: Utc::now(),
+        }
+    }
+
+    #[test]
+    fn a_missing_catalog_is_an_empty_catalog() {
+        let root = test_root();
+        let store = DatasetArtifactStore::new(&root);
+
+        assert_eq!(
+            store.load_catalog().expect("load empty catalog"),
+            Vec::new()
+        );
+        assert!(!root.exists());
+    }
+
+    #[test]
+    fn publishing_replaces_a_version_without_leaving_a_temp_catalog() {
+        let root = test_root();
+        let store = DatasetArtifactStore::new(&root);
+        let first = descriptor("source-7", 12);
+        let replacement = descriptor("source-7", 24);
+
+        store.publish(first).expect("publish first descriptor");
+        store
+            .publish(replacement.clone())
+            .expect("replace descriptor");
+
+        assert_eq!(
+            store.load_catalog().expect("load replacement catalog"),
+            vec![replacement]
+        );
+        assert!(!root.join("catalog.json.tmp").exists());
+
+        fs::remove_dir_all(root).expect("clean test artifact directory");
+    }
+}
