@@ -35,7 +35,7 @@ complete.
 | Code generation | Partial | Frontend Python/Rust generators cover portable filters; Rust adaptive-line generation and backend-canonical bundle generation remain |
 | Plan consumption | Broad first slice | Timeseries, scatter points/matrix/export/correlations, FFT, spectrogram, causal, rolling, anomalies, spectral filtering, and drift accept the active plan |
 | Plan authoring | Timeseries only | Timeseries range/adaptive gestures author stages; scatter, correlation, FFT, spectrogram, causal, and drift authoring actions remain |
-| Shared plan UI | Implemented first slice | A shared-header Plan action opens the larger Pipeline Workbench on every page; it supports accumulated stages, version actions, same-baseline import, and local undo/redo. Capability reporting and richer large-plan ergonomics remain |
+| Shared plan UI | Implemented first slice | A shared-header Plan action opens the larger Pipeline Workbench on every page; it supports accumulated stages, version actions, same-baseline import, local undo/redo, and explicit per-stage row-impact previews. Capability reporting and richer large-plan ergonomics remain |
 | Large-data execution | Not complete | Current snapshots and most results are memory-resident; bounded streaming ingest, spill-to-disk execution, durable artifacts, and resource budgets remain separate scale work |
 
 ### Corrections Made During This Review

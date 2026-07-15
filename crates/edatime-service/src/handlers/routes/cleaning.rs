@@ -12,7 +12,9 @@ use serde::{Deserialize, Serialize};
 use crate::error::AppError;
 use crate::handlers::routes::shared::{ExecutionIdentity, add_execution_identity_headers};
 use edatime_query::arrow_export::dataframe_to_parquet;
-use edatime_query::cleaning::{CleaningPlanDto, compile_cleaning_plan, semantic_hash};
+use edatime_query::cleaning::{
+    CleaningPlanDto, CleaningStageDto, compile_cleaning_plan, semantic_hash,
+};
 use edatime_store::artifacts::ArtifactStorageUsage;
 use edatime_store::state::AppState;
 use edatime_store::versions::DatasetVersionRecord;
@@ -61,7 +63,21 @@ pub struct CleaningPreviewResponse {
     pub rows_removed: usize,
     pub columns_before: usize,
     pub columns_after: usize,
+    pub stage_impacts: Vec<CleaningStageImpact>,
     pub warnings: Vec<String>,
+}
+
+/// Exact row-membership change at each saved plan stage. These values are
+/// calculated only for an explicit preview request; regular chart queries do
+/// not pay for the per-stage collections required to produce this audit view.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CleaningStageImpact {
+    pub stage_id: String,
+    pub executed: bool,
+    pub rows_before: usize,
+    pub rows_after: usize,
+    pub rows_removed: usize,
 }
 
 #[derive(Debug, Serialize)]
@@ -158,10 +174,44 @@ pub async fn preview(
     })?;
     let rows_before = state
         .query_executor
-        .execute_async(source)
+        .execute_async(source.clone())
         .await
         .map_err(AppError::from)?
         .height();
+    let mut stage_frame = source.clone();
+    let mut prior_rows = rows_before;
+    let mut stage_impacts = Vec::with_capacity(envelope.plan.stages.len());
+    for stage in &envelope.plan.stages {
+        let executed = stage.enabled() && !matches!(stage, CleaningStageDto::Annotation { .. });
+        let rows_after = if executed {
+            // Compile exactly one stage at a time over the preceding stage's
+            // lazy frame. This preserves saved order and exposes the real
+            // marginal effect instead of independently comparing every stage
+            // against the raw source.
+            let one_stage_plan = CleaningPlanDto {
+                stages: vec![stage.clone()],
+                ..envelope.plan.clone()
+            };
+            stage_frame =
+                compile_cleaning_plan(stage_frame, &one_stage_plan).map_err(AppError::from)?;
+            state
+                .query_executor
+                .execute_async(stage_frame.clone())
+                .await
+                .map_err(AppError::from)?
+                .height()
+        } else {
+            prior_rows
+        };
+        stage_impacts.push(CleaningStageImpact {
+            stage_id: stage.id().to_string(),
+            executed,
+            rows_before: prior_rows,
+            rows_after,
+            rows_removed: prior_rows.saturating_sub(rows_after),
+        });
+        prior_rows = rows_after;
+    }
     let result = state
         .query_executor
         .execute_async(frame)
@@ -177,6 +227,7 @@ pub async fn preview(
         rows_removed: rows_before.saturating_sub(rows_after),
         columns_before: source_schema.len(),
         columns_after: result.width(),
+        stage_impacts,
         warnings: Vec::new(),
     }))
 }
@@ -385,6 +436,12 @@ mod tests {
             .0;
         assert_eq!(response.rows_before, 3);
         assert_eq!(response.rows_after, 2);
+        assert_eq!(response.stage_impacts.len(), 1);
+        assert_eq!(response.stage_impacts[0].stage_id, "range");
+        assert!(response.stage_impacts[0].executed);
+        assert_eq!(response.stage_impacts[0].rows_before, 3);
+        assert_eq!(response.stage_impacts[0].rows_after, 2);
+        assert_eq!(response.stage_impacts[0].rows_removed, 1);
 
         let export = export_data(
             State(state.clone()),

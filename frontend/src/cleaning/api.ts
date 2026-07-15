@@ -39,7 +39,17 @@ export interface CleaningPreviewResponse {
     rowsRemoved: number;
     columnsBefore: number;
     columnsAfter: number;
+    stageImpacts: CleaningStageImpact[];
     warnings: string[];
+}
+
+/** Exact row-membership change at one saved stage from an explicit preview. */
+export interface CleaningStageImpact {
+    stageId: string;
+    executed: boolean;
+    rowsBefore: number;
+    rowsAfter: number;
+    rowsRemoved: number;
 }
 
 export interface CleaningApplyResponse {

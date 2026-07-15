@@ -55,6 +55,7 @@
 .cleaning-plan-stage { display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-md); }
 .cleaning-plan-stage.is-selected { border-color: var(--accent); background: var(--accent-dim); }
 .cleaning-plan-stage__summary { flex: 1; min-width: 0; overflow-wrap: anywhere; text-align: left; font-size: 0.8125rem; }
+.cleaning-plan-stage__impact { flex: 0 1 240px; color: var(--text-dim); font-size: 0.75rem; line-height: 1.35; }
 .cleaning-plan-stage .is-disabled { opacity: 0.55; text-decoration: line-through; }
 .cleaning-plan-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 
@@ -93,6 +94,7 @@
 @media (max-width: 680px) {
   .cleaning-plan-stage { align-items: flex-start; flex-wrap: wrap; }
   .cleaning-plan-stage__summary { flex-basis: 100%; }
+  .cleaning-plan-stage__impact { flex-basis: 100%; }
   .pipeline-workbench-modal { width: 100%; max-height: calc(100vh - 18px); }
   .pipeline-workbench-modal .modal-body { max-height: calc(100vh - 86px); }
 }

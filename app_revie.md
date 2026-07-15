@@ -101,9 +101,9 @@ Do not start with allocator, SIMD, PGO, compression, framework replacement, or a
   the canonical plan, edits all v1 stage parameters, enables/disables,
   reorders, removes, previews/applies, and exports backend-plan JSON, graph
   JSON/SVG, and starter code. It is available from the shared header on every
-  page and includes local undo/redo plus same-baseline plan import. Cross-
-  baseline rebind, stage-impact comparison, and most preparation operation
-  families remain open.
+  page and includes local undo/redo, same-baseline plan import, and explicit
+  per-stage row-impact previews. Cross-baseline rebind and most preparation
+  operation families remain open.
 - Executable stage authoring is currently concentrated in Timeseries (`filterModalController.ts`, `adaptiveGesture.ts`, and the plan panel). Scatter, Correlations, FFT, Spectrogram, Causal, and Drift do not yet fulfill the “author from every plot” goal.
 - `frontend/src/services/api/timeseries.ts` sends the canonical plan envelope
   with plan-aware requests; the backend applies it before projection and

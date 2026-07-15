@@ -75,7 +75,10 @@ describe('cleaning plan panel', () => {
     it('previews the current accumulated plan and reports its row impact', async () => {
         const planStore = createCleaningPlanStore();
         planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
-        previewMock.mockResolvedValue({ rowsBefore: 100, rowsAfter: 61, rowsRemoved: 39 });
+        previewMock.mockResolvedValue({
+            rowsBefore: 100, rowsAfter: 61, rowsRemoved: 39,
+            columnsBefore: 2, columnsAfter: 2, stageImpacts: [], warnings: [],
+        });
         mountCleaningPlanPanel({ planStore, getViewport: () => null });
 
         document.getElementById('open-cleaning-plan-btn')!.click();
@@ -84,6 +87,30 @@ describe('cleaning plan panel', () => {
 
         expect(previewMock).toHaveBeenCalledWith(planStore.getSnapshot());
         expect(document.querySelector('[data-plan-preview]')?.textContent).toContain('61 of 100 rows remain');
+    });
+
+    it('shows an explicit preview\'s marginal row impact beside each stage', async () => {
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        const stage = planStore.addStage({
+            kind: 'columnRange', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+            sourcePage: 'timeseries', label: 'Keep reviewed values', column: 'value', from: 1, to: 9, mode: 'keepInside',
+        });
+        previewMock.mockResolvedValue({
+            rowsBefore: 100, rowsAfter: 61, rowsRemoved: 39,
+            columnsBefore: 2, columnsAfter: 2, warnings: [],
+            stageImpacts: [{ stageId: stage.id, executed: true, rowsBefore: 100, rowsAfter: 61, rowsRemoved: 39 }],
+        });
+        mountCleaningPlanPanel({ planStore, getViewport: () => null });
+
+        document.getElementById('open-cleaning-plan-btn')!.click();
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Preview')!.click();
+        await Promise.resolve();
+        await Promise.resolve();
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Stages')!.click();
+
+        expect(document.querySelector('.cleaning-plan-stage__impact')?.textContent)
+            .toContain('61 of 100 rows after this stage · 39 removed.');
     });
 
     it('only materializes when the user explicitly requests a new dataset version', async () => {

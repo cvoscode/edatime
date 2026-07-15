@@ -6,6 +6,7 @@ import {
     previewCleaningPlan,
     selectDatasetVersion,
 } from './api.js';
+import type { CleaningPreviewResponse, CleaningStageImpact } from './api.js';
 import { generatePythonPolars, generateRustPolars } from './codegen.js';
 import { buildPipelineGraph, renderPipelineGraphSvg, serializePipelineGraph } from './pipelineGraph.js';
 import type { CleaningPlan, CleaningStage } from './types.js';
@@ -42,6 +43,23 @@ function stageSummary(stage: CleaningStage): string {
 
 function executable(stage: CleaningStage | undefined): boolean {
     return !!stage && stage.executionClass !== 'annotation';
+}
+
+function previewSummary(result: CleaningPreviewResponse): string {
+    const rows = String(result.rowsAfter.toLocaleString()) + ' of ' + String(result.rowsBefore.toLocaleString())
+        + ' rows remain (' + String(result.rowsRemoved.toLocaleString()) + ' removed).';
+    const columns = result.columnsAfter === result.columnsBefore
+        ? ' Columns unchanged.'
+        : ' Columns: ' + String(result.columnsBefore) + ' → ' + String(result.columnsAfter) + '.';
+    return rows + columns;
+}
+
+function stageImpactSummary(stage: CleaningStage, impact: CleaningStageImpact | undefined): string {
+    if (!impact) return 'Preview to calculate row impact.';
+    if (!stage.enabled) return 'Disabled — not run in this preview.';
+    if (!impact.executed) return 'Annotation — no row membership change.';
+    return String(impact.rowsAfter.toLocaleString()) + ' of ' + String(impact.rowsBefore.toLocaleString())
+        + ' rows after this stage · ' + String(impact.rowsRemoved.toLocaleString()) + ' removed.';
 }
 
 function textInput(label: string, value: string, name: string, type = 'text'): HTMLLabelElement {
@@ -184,6 +202,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
     const tabs = [pipelineTab, stagesTab, exportTab];
     let activeTab: WorkbenchTab = 'pipeline';
     let selectedStageId: string | null = null;
+    let lastPreview: { planId: string; planRevision: number; result: CleaningPreviewResponse } | null = null;
 
     const notify = (stage?: CleaningStage) => {
         if (stage === undefined || executable(stage)) deps.onPlanChanged?.();
@@ -353,6 +372,9 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             empty.textContent = 'No transforms yet. Add a visible time range or create a stage from a plot.';
             list.appendChild(empty);
         }
+        const impacts = new Map((lastPreview?.planId === plan.id && lastPreview.planRevision === plan.planRevision
+            ? lastPreview.result.stageImpacts
+            : []).map((impact) => [impact.stageId, impact]));
         for (const [index, stage] of plan.stages.entries()) {
             const row = document.createElement('div');
             row.className = 'cleaning-plan-stage';
@@ -361,6 +383,9 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             description.setAttribute('aria-pressed', String(stage.id === selectedStageId));
             description.classList.toggle('is-disabled', !stage.enabled);
             description.addEventListener('click', () => selectStage(stage.id));
+            const impact = document.createElement('span');
+            impact.className = 'cleaning-plan-stage__impact';
+            impact.textContent = stageImpactSummary(stage, impacts.get(stage.id));
             const toggle = button(stage.enabled ? 'Disable' : 'Enable');
             toggle.addEventListener('click', () => {
                 deps.planStore.setStageEnabled(stage.id, !stage.enabled);
@@ -384,7 +409,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
                 if (selectedStageId === stage.id) selectedStageId = null;
                 notify(stage);
             });
-            row.append(description, toggle, up, down, remove);
+            row.append(description, impact, toggle, up, down, remove);
             list.appendChild(row);
         }
         panel.appendChild(list);
@@ -507,10 +532,18 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         });
         const previewButton = button('Preview');
         previewButton.addEventListener('click', async () => {
+            const current = deps.planStore.getSnapshot();
+            if (!current) return;
             preview.textContent = 'Calculating preview…';
             try {
-                const result = await previewCleaningPlan(deps.planStore.getSnapshot()!);
-                preview.textContent = String(result.rowsAfter.toLocaleString()) + ' of ' + String(result.rowsBefore.toLocaleString()) + ' rows remain (' + String(result.rowsRemoved.toLocaleString()) + ' removed).';
+                const result = await previewCleaningPlan(current);
+                const latest = deps.planStore.getSnapshot();
+                if (!latest || latest.id !== current.id || latest.planRevision !== current.planRevision) {
+                    preview.textContent = 'The plan changed while this preview was running. Preview again for current impacts.';
+                    return;
+                }
+                lastPreview = { planId: current.id, planRevision: current.planRevision, result };
+                render();
             } catch (error) {
                 preview.textContent = error instanceof Error ? error.message : 'Could not preview this plan.';
             }
@@ -553,14 +586,17 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
     const render = () => {
         const plan = deps.planStore.getSnapshot();
         renderTabs();
-        preview.textContent = '';
         updateToolbarSummary(plan);
         if (!plan) {
+            lastPreview = null;
+            preview.textContent = '';
             status.textContent = 'Load a dataset to start an accumulated cleaning plan.';
             panel.replaceChildren();
             actions.replaceChildren();
             return;
         }
+        if (lastPreview && (lastPreview.planId !== plan.id || lastPreview.planRevision !== plan.planRevision)) lastPreview = null;
+        preview.textContent = lastPreview ? previewSummary(lastPreview.result) : '';
         const activeCount = plan.stages.filter((stage) => executable(stage) && stage.enabled).length;
         status.textContent = String(activeCount) + ' active executable stage' + (activeCount === 1 ? '' : 's') + ' · source ' + plan.sourceVersionId + ' · revision ' + plan.datasetRevision;
         if (activeTab === 'pipeline') renderPipeline(plan);
