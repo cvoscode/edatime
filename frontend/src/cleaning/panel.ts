@@ -41,6 +41,7 @@ function stageSummary(stage: CleaningStage): string {
         case 'deduplicate': return 'Keep ' + stage.keep + ' row by ' + stage.columns.join(', ');
         case 'columnSelect': return (stage.mode === 'keep' ? 'Keep only ' : 'Drop ') + 'columns: ' + stage.columns.join(', ');
         case 'sort': return 'Stable ' + (stage.descending ? 'descending' : 'ascending') + ' sort by ' + stage.columns.join(', ');
+        case 'fillNull': return (stage.strategy === 'forward' ? 'Forward' : 'Backward') + ' fill nulls in ' + stage.columns.join(', ');
         case 'annotation': return stage.note?.trim() || stage.label;
     }
 }
@@ -291,6 +292,12 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             const columns = readText(form, 'columns').split(',').map((column) => column.trim()).filter(Boolean);
             if (columns.length === 0 || new Set(columns).size !== columns.length) throw new Error('Sorting needs unique column names.');
             patch = { ...common, columns, descending: readChecked(form, 'descending'), nullsLast: readChecked(form, 'nullsLast') } as Partial<CleaningStage>;
+        } else if (stage.kind === 'fillNull') {
+            const columns = readText(form, 'columns').split(',').map((column) => column.trim()).filter(Boolean);
+            const rawLimit = readText(form, 'limit');
+            const limit = rawLimit ? Number(rawLimit) : null;
+            if (columns.length === 0 || new Set(columns).size !== columns.length || (limit != null && (!Number.isInteger(limit) || limit <= 0))) throw new Error('Fill needs unique columns and an optional positive integer limit.');
+            patch = { ...common, columns, strategy: readText(form, 'strategy') as 'forward' | 'backward', limit } as Partial<CleaningStage>;
         } else if (stage.kind === 'adaptiveLine') {
             const x1Ms = readNumber(form, 'x1Ms', 'X1');
             const x2Ms = readNumber(form, 'x2Ms', 'X2');
@@ -371,6 +378,8 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
                 checkboxInput('Descending', stage.descending, 'descending'),
                 checkboxInput('Place nulls last', stage.nullsLast, 'nullsLast'),
             );
+        } else if (stage.kind === 'fillNull') {
+            fields.append(textInput('Columns (comma-separated)', stage.columns.join(', '), 'columns'), selectInput('Direction', stage.strategy, 'strategy', [['forward', 'Forward fill'], ['backward', 'Backward fill']]), textInput('Maximum consecutive fills (blank = unlimited)', stage.limit == null ? '' : String(stage.limit), 'limit', 'number'));
         } else if (stage.kind === 'adaptiveLine') {
             fields.append(
                 textInput('Column', stage.column, 'column'),
@@ -539,6 +548,29 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             });
             notify();
         });
+        const addFillForm = document.createElement('form');
+        addFillForm.className = 'pipeline-workbench__add-stage';
+        const fillHeading = document.createElement('h3');
+        fillHeading.textContent = 'Add ordered null fill';
+        const fillFields = document.createElement('div');
+        fillFields.className = 'modal-grid';
+        fillFields.append(textInput('Columns (comma-separated)', '', 'fillColumns'), selectInput('Direction', 'forward', 'fillStrategy', [['forward', 'Forward fill'], ['backward', 'Backward fill']]), textInput('Maximum consecutive fills (optional)', '', 'fillLimit', 'number'));
+        const fillActions = document.createElement('div');
+        fillActions.className = 'pipeline-workbench__editor-actions';
+        const addFill = button('Add null fill', 'btn btn-primary btn-sm');
+        addFill.type = 'submit';
+        fillActions.appendChild(addFill);
+        addFillForm.append(fillHeading, fillFields, fillActions);
+        addFillForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const columns = readText(addFillForm, 'fillColumns').split(',').map((column) => column.trim()).filter(Boolean);
+            const rawLimit = readText(addFillForm, 'fillLimit');
+            const limit = rawLimit ? Number(rawLimit) : null;
+            if (columns.length === 0 || new Set(columns).size !== columns.length || (limit != null && (!Number.isInteger(limit) || limit <= 0))) { preview.textContent = 'Choose unique columns and an optional positive integer limit.'; return; }
+            const strategy = readText(addFillForm, 'fillStrategy') as 'forward' | 'backward';
+            deps.planStore.addStage({ kind: 'fillNull', executionClass: 'polarsExpression', scope: 'row', enabled: true, sourcePage: 'manual', label: (strategy === 'forward' ? 'Forward' : 'Backward') + ' fill nulls in ' + columns.join(', '), columns, strategy, limit });
+            notify();
+        });
         const list = document.createElement('div');
         list.className = 'cleaning-plan-stages';
         if (plan.stages.length === 0) {
@@ -587,7 +619,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             row.append(description, impact, toggle, up, down, remove);
             list.appendChild(row);
         }
-        panel.append(addMissingForm, addDeduplicateForm, addColumnSelectForm, addSortForm, list);
+        panel.append(addMissingForm, addDeduplicateForm, addColumnSelectForm, addSortForm, addFillForm, list);
         const selected = plan.stages.find((stage) => stage.id === selectedStageId);
         if (selected) renderEditor(selected);
     };
@@ -918,6 +950,12 @@ function isImportableStage(value: unknown): value is CleaningStage {
                 && stage.columns.every((column) => typeof column === 'string' && !!column.trim())
                 && new Set(stage.columns).size === stage.columns.length
                 && typeof stage.descending === 'boolean' && typeof stage.nullsLast === 'boolean';
+        case 'fillNull':
+            return Array.isArray(stage.columns) && stage.columns.length > 0
+                && stage.columns.every((column) => typeof column === 'string' && !!column.trim())
+                && new Set(stage.columns).size === stage.columns.length
+                && (stage.strategy === 'forward' || stage.strategy === 'backward')
+                && (stage.limit === null || (typeof stage.limit === 'number' && Number.isInteger(stage.limit) && stage.limit > 0));
         case 'annotation':
             return stage.severity === undefined || stage.severity === 'info' || stage.severity === 'warning' || stage.severity === 'critical';
         default:

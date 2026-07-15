@@ -57,6 +57,8 @@ function stageSemanticValue(stage: CleaningStage): Record<string, unknown> | nul
             return { kind: stage.kind, columns: stage.columns.map((column) => column.trim()), mode: stage.mode };
         case 'sort':
             return { kind: stage.kind, columns: stage.columns.map((column) => column.trim()), descending: stage.descending, nullsLast: stage.nullsLast };
+        case 'fillNull':
+            return { kind: stage.kind, columns: stage.columns.map((column) => column.trim()), strategy: stage.strategy, limit: stage.limit };
         default: {
             const exhaustive: never = stage;
             return exhaustive;

@@ -101,6 +101,13 @@ pub enum CleaningStageDto {
         descending: bool,
         nulls_last: bool,
     },
+    FillNull {
+        #[serde(flatten)]
+        base: CleaningStageBaseDto,
+        columns: Vec<String>,
+        strategy: FillNullDirection,
+        limit: Option<u32>,
+    },
     Annotation {
         #[serde(flatten)]
         base: CleaningStageBaseDto,
@@ -119,6 +126,7 @@ impl CleaningStageDto {
             | Self::Deduplicate { base, .. }
             | Self::ColumnSelect { base, .. }
             | Self::Sort { base, .. }
+            | Self::FillNull { base, .. }
             | Self::Annotation { base, .. } => &base.id,
         }
     }
@@ -132,6 +140,7 @@ impl CleaningStageDto {
             | Self::Deduplicate { base, .. }
             | Self::ColumnSelect { base, .. }
             | Self::Sort { base, .. }
+            | Self::FillNull { base, .. }
             | Self::Annotation { base, .. } => base.enabled,
         }
     }
@@ -164,6 +173,10 @@ pub enum ColumnSelectMode {
     Keep,
     Drop,
 }
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum FillNullDirection { Forward, Backward }
 
 fn ensure_finite(stage_id: &str, field: &str, value: f64) -> Result<(), AppError> {
     if value.is_finite() {
@@ -297,6 +310,18 @@ pub fn validate_cleaning_plan(plan: &CleaningPlanDto) -> Result<(), AppError> {
                     )));
                 }
             }
+            CleaningStageDto::FillNull { base, columns, limit, .. } => {
+                if columns.is_empty()
+                    || columns.iter().any(|column| column.trim().is_empty())
+                    || columns.len() != columns.iter().collect::<std::collections::HashSet<_>>().len()
+                    || matches!(limit, Some(0))
+                {
+                    return Err(AppError::bad_request(format!(
+                        "Cleaning stage '{}' requires unique non-empty columns and a positive fill limit",
+                        base.id
+                    )));
+                }
+            }
             CleaningStageDto::Annotation { .. } => {}
         }
     }
@@ -397,6 +422,15 @@ pub fn compile_cleaning_plan(
                     .with_nulls_last(*nulls_last)
                     .with_maintain_order(true),
             ),
+            CleaningStageDto::FillNull { columns, strategy, limit, .. } => {
+                let strategy = match strategy {
+                    FillNullDirection::Forward => polars::prelude::FillNullStrategy::Forward(*limit),
+                    FillNullDirection::Backward => polars::prelude::FillNullStrategy::Backward(*limit),
+                };
+                lf.with_columns(columns.iter().map(|column| {
+                    polars::prelude::col(column).fill_null_with_strategy(strategy)
+                }).collect::<Vec<_>>())
+            }
             CleaningStageDto::Annotation { .. } => lf,
         };
     }
@@ -490,6 +524,12 @@ fn semantic_stage_value(stage: &CleaningStageDto) -> Option<serde_json::Value> {
             "columns": columns.iter().map(|column| column.trim()).collect::<Vec<_>>(),
             "descending": descending,
             "nullsLast": nulls_last,
+        })),
+        CleaningStageDto::FillNull { columns, strategy, limit, .. } => Some(serde_json::json!({
+            "kind": "fillNull",
+            "columns": columns.iter().map(|column| column.trim()).collect::<Vec<_>>(),
+            "strategy": strategy,
+            "limit": limit,
         })),
         CleaningStageDto::Annotation { .. } => None,
     }
@@ -748,6 +788,20 @@ mod tests {
             result.column("ts").expect("ts").i64().expect("i64").into_no_null_iter().collect::<Vec<_>>(),
             vec![20, 30, 10, 40]
         );
+    }
+
+    #[test]
+    fn fill_null_stage_respects_direction_and_limit() {
+        let plan = plan(vec![CleaningStageDto::FillNull {
+            base: base("fill"), columns: vec!["value".to_string()],
+            strategy: FillNullDirection::Forward, limit: Some(1),
+        }]);
+        let df = DataFrame::new(4, vec![
+            Series::new("ts".into(), vec![1_i64, 2, 3, 4]).into(),
+            Series::new("value".into(), vec![Some(1.0_f64), None, None, Some(4.0)]).into(),
+        ]).expect("frame");
+        let result = compile_cleaning_plan(df.lazy(), &plan).expect("compile").collect().expect("collect");
+        assert_eq!(result.column("value").expect("value").f64().expect("f64").into_iter().collect::<Vec<_>>(), vec![Some(1.0), Some(1.0), None, Some(4.0)]);
     }
 
     #[test]

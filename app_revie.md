@@ -105,7 +105,7 @@ Do not start with allocator, SIMD, PGO, compression, framework replacement, or a
 - `frontend/src/cleaning/` provides a plan store, request envelope, preview/apply/export calls, a shared Pipeline Workbench overlay, local code generation, and compatibility lowering.
 - `frontend/src/cleaning/types.ts` exposes portable `timeRange`, `columnRange`,
   `adaptiveLine`, column-scoped `missingValue`, stable `deduplicate`, explicit
-  keep/drop `columnSelect`, stable `sort`, and `annotation` stages. More schema, temporal,
+  keep/drop `columnSelect`, stable `sort`, bounded forward/backward `fillNull`, and `annotation` stages. More schema, temporal,
   robust-cleaning, and modeling
   stage families remain open.
 - `frontend/src/cleaning/panel.ts` is now a Pipeline Workbench: it visualizes
@@ -139,7 +139,7 @@ Do not start with allocator, SIMD, PGO, compression, framework replacement, or a
 - Dataset fingerprints are currently derived from canonical Arrow content
   (schema, row order, nulls, and values); they are still resident-frame hashes
   rather than streaming ingest hashes.
-- `crates/edatime-query/src/cleaning.rs` validates and compiles the eight v1
+- `crates/edatime-query/src/cleaning.rs` validates and compiles the nine v1
   portable stage kinds. Its semantic hash uses executable canonical content;
   labels, IDs, notes, and timestamps do not affect server execution identity.
 - `crates/edatime-service/src/handlers/routes/cleaning.rs` correctly validates source/version/schema identity, but preview collects the source and result, apply collects the full result, and data export collects then serializes the full result into a byte vector.

@@ -30,6 +30,8 @@ export function generatePythonPolars(plan: CleaningPlan): string {
                 : `    lf = lf.drop([${stage.columns.map(quote).join(', ')}])`);
         } else if (stage.kind === 'sort') {
             lines.push(`    lf = lf.sort(by=[${stage.columns.map(quote).join(', ')}], descending=${stage.descending ? 'True' : 'False'}, nulls_last=${stage.nullsLast ? 'True' : 'False'}, maintain_order=True)`);
+        } else if (stage.kind === 'fillNull') {
+            lines.push(`    lf = lf.with_columns([${stage.columns.map((column) => `pl.col(${quote(column)}).fill_null(strategy=${quote(stage.strategy)}, limit=${stage.limit == null ? 'None' : String(stage.limit)})`).join(', ')}])`);
         } else {
             const slope = (stage.y2 - stage.y1) / (stage.x2Ms - stage.x1Ms);
             const compare = `pl.col(${quote(stage.column)}) ${stage.keepAbove ? '>=' : '<='} (${numeric(stage.y1)} + ((pl.col(${quote(plan.timeColumn)}) - ${numeric(stage.x1Ms)}) * ${numeric(slope)}))`;
@@ -67,6 +69,9 @@ export function generateRustPolars(plan: CleaningPlan): string {
                 : `    lf = lf.drop(by_name([${stage.columns.map(quote).join(', ')}], true, false));`);
         } else if (stage.kind === 'sort') {
             lines.push(`    lf = lf.sort(vec![${stage.columns.map(quote).join(', ')}], SortMultipleOptions::default().with_order_descending(${stage.descending}).with_nulls_last(${stage.nullsLast}).with_maintain_order(true));`);
+        } else if (stage.kind === 'fillNull') {
+            const strategy = stage.strategy === 'forward' ? 'Forward' : 'Backward';
+            lines.push(`    lf = lf.with_columns(vec![${stage.columns.map((column) => `col(${quote(column)}).fill_null_with_strategy(FillNullStrategy::${strategy}(${stage.limit == null ? 'None' : `Some(${stage.limit})`}))`).join(', ')}]);`);
         } else {
             lines.push(`    // Adaptive line stage ${quote(stage.id)}: use the same time-unit conversion as your input frame.`);
         }

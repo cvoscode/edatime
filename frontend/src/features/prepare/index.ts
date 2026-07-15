@@ -22,6 +22,7 @@ function stageSummary(stage: CleaningPlan['stages'][number]): string {
         case 'deduplicate': return 'Keep ' + stage.keep + ' row by ' + stage.columns.join(', ');
         case 'columnSelect': return (stage.mode === 'keep' ? 'Keep only ' : 'Drop ') + 'columns: ' + stage.columns.join(', ');
         case 'sort': return 'Stable ' + (stage.descending ? 'descending' : 'ascending') + ' sort by ' + stage.columns.join(', ');
+        case 'fillNull': return (stage.strategy === 'forward' ? 'Forward' : 'Backward') + ' fill nulls in ' + stage.columns.join(', ');
         case 'annotation': return 'Annotation';
     }
 }
@@ -237,6 +238,16 @@ function renderPrepareWorkspace(root: HTMLElement, plan: CleaningPlan | null, de
         });
         deps.onPlanChanged?.();
     });
+    const addFill = createElement('form', 'prepare-workspace__policy-form');
+    const fillTitle = createElement('h3'); fillTitle.textContent = 'Add ordered null fill';
+    const fillColumns = createElement('input', 'modal-input'); fillColumns.name = 'columns'; fillColumns.placeholder = 'Columns, comma-separated'; fillColumns.required = true;
+    const fillStrategy = createElement('select', 'modal-select'); fillStrategy.name = 'strategy';
+    for (const [value, label] of [['forward', 'Forward fill'], ['backward', 'Backward fill']] as const) { const option = createElement('option'); option.value = value; option.textContent = label; fillStrategy.appendChild(option); }
+    const fillLimit = createElement('input', 'modal-input'); fillLimit.name = 'limit'; fillLimit.type = 'number'; fillLimit.min = '1'; fillLimit.placeholder = 'Maximum consecutive fills (optional)';
+    const fillSubmit = actionButton('Add null fill', () => {}); fillSubmit.type = 'submit';
+    const fillStatus = createElement('p', 'prepare-workspace__policy-status'); fillStatus.setAttribute('aria-live', 'polite');
+    addFill.append(fillTitle, fillColumns, fillStrategy, fillLimit, fillSubmit, fillStatus);
+    addFill.addEventListener('submit', (event) => { event.preventDefault(); const columns = fillColumns.value.split(',').map((column) => column.trim()).filter(Boolean); const limit = fillLimit.value ? Number(fillLimit.value) : null; if (columns.length === 0 || new Set(columns).size !== columns.length || (limit != null && (!Number.isInteger(limit) || limit <= 0))) { fillStatus.textContent = 'Choose unique columns and an optional positive integer limit.'; return; } const strategy = fillStrategy.value as 'forward' | 'backward'; cleaningPlanStore.addStage({ kind: 'fillNull', executionClass: 'polarsExpression', scope: 'row', enabled: true, sourcePage: 'manual', label: (strategy === 'forward' ? 'Forward' : 'Backward') + ' fill nulls in ' + columns.join(', '), columns, strategy, limit }); deps.onPlanChanged?.(); });
     const list = createElement('ol', 'prepare-workspace__stage-list');
     if (plan.stages.length === 0) {
         const empty = createElement('li', 'prepare-workspace__empty');
@@ -273,7 +284,7 @@ function renderPrepareWorkspace(root: HTMLElement, plan: CleaningPlan | null, de
         item.append(summary, controls);
         list.append(item);
     }
-    stagesSection.append(stageTitle, stageCopy, history, addPolicy, addDeduplicate, addColumnSelect, addSort, list);
+    stagesSection.append(stageTitle, stageCopy, history, addPolicy, addDeduplicate, addColumnSelect, addSort, addFill, list);
     root.append(header, identity, graphSection, stagesSection);
 }
 

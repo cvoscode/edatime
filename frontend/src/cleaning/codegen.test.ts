@@ -49,4 +49,11 @@ describe('cleaning code generation', () => {
         expect(generatePythonPolars(plan)).toContain('lf.sort(by=["device", "ts"], descending=True, nulls_last=True, maintain_order=True)');
         expect(generateRustPolars(plan)).toContain('with_order_descending(true).with_nulls_last(true).with_maintain_order(true)');
     });
+
+    it('emits bounded forward null fills in both portable targets', () => {
+        const plan = createEmptyCleaningPlan({ sourceVersionId: 'source-1', datasetRevision: 1, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        plan.stages.push({ id: 'fill', kind: 'fillNull', executionClass: 'polarsExpression', scope: 'row', enabled: true, sourcePage: 'manual', label: 'fill', createdAt: 'now', updatedAt: 'now', columns: ['value'], strategy: 'forward', limit: 2 });
+        expect(generatePythonPolars(plan)).toContain('pl.col("value").fill_null(strategy="forward", limit=2)');
+        expect(generateRustPolars(plan)).toContain('FillNullStrategy::Forward(Some(2))');
+    });
 });

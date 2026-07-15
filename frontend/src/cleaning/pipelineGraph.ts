@@ -73,6 +73,8 @@ function stageDetail(stage: CleaningStage): string {
             return `${stage.mode === 'keep' ? 'Keep only' : 'Drop'} columns: ${stage.columns.join(', ')}`;
         case 'sort':
             return `Stable ${stage.descending ? 'descending' : 'ascending'} sort by ${stage.columns.join(', ')}`;
+        case 'fillNull':
+            return `${stage.strategy === 'forward' ? 'Forward' : 'Backward'} fill nulls in ${stage.columns.join(', ')}${stage.limit == null ? '' : ` (limit ${stage.limit})`}`;
         case 'annotation':
             return stage.note?.trim() || 'Informational annotation';
     }
