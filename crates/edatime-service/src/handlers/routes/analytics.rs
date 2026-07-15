@@ -16,8 +16,8 @@ use serde::Deserialize;
 use crate::analytics;
 use crate::error::AppError;
 use crate::handlers::routes::shared::{
-    ExecutionIdentity, add_execution_identity_headers, downsample_by_stride,
-    filter_preamble_with_plan,
+    ExecutionIdentity, add_execution_identity_headers, current_execution_identity,
+    downsample_by_stride, filter_preamble_with_plan,
 };
 use edatime_query::query;
 use edatime_query::validation::validate_numeric_columns_lazy;
@@ -689,12 +689,15 @@ pub async fn post_causal_graph(
     State(state): State<AppState>,
     Json(params): Json<CausalGraphRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let lf = if let Some(envelope) = params.cleaning_plan.as_ref() {
-        let (_version, _hash, frame) =
+    let (lf, identity) = if let Some(envelope) = params.cleaning_plan.as_ref() {
+        let (version, hash, frame) =
             crate::handlers::routes::cleaning::compile_request_frame(&state, envelope)?;
-        frame
+        (frame, ExecutionIdentity::from_version(version, Some(hash)))
     } else {
-        state.dataset_snapshot()
+        (
+            state.dataset_snapshot(),
+            current_execution_identity(&state)?,
+        )
     };
     let cols = query::parse_columns(params.columns.as_deref());
     let limits = &state.config.validation;
@@ -803,7 +806,7 @@ pub async fn post_causal_graph(
     .await
     .map_err(|e| AppError::internal(format!("Join error: {e}")))??;
 
-    Ok(Json(result))
+    Ok(analytics_response(result, &identity))
 }
 
 #[cfg(test)]
@@ -853,6 +856,14 @@ mod tests {
         .await
         .expect("causal route should succeed")
         .into_response();
+
+        assert_eq!(
+            response
+                .headers()
+                .get("x-edatime-source-version")
+                .and_then(|value| value.to_str().ok()),
+            Some("source-0")
+        );
 
         let body = axum::body::to_bytes(response.into_body(), usize::MAX)
             .await
