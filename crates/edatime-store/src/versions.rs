@@ -11,7 +11,7 @@ use serde::Serialize;
 
 use edatime_core::error::AppError;
 
-use crate::artifacts::DatasetArtifactDescriptor;
+use crate::artifacts::{DatasetArtifactDescriptor, DatasetArtifactProvenance};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -400,6 +400,75 @@ impl DatasetVersionRegistry {
         Ok(record)
     }
 
+    /// Restore descriptor-backed versions after a process restart. Entries are
+    /// replayed in parent-before-child order, and each stored schema identity
+    /// is checked against a fresh Parquet scan before it becomes selectable.
+    pub fn restore_artifacts(
+        &self,
+        artifacts: Vec<DatasetArtifactDescriptor>,
+    ) -> Result<Vec<DatasetVersionRecord>, AppError> {
+        let mut pending = artifacts;
+        pending.sort_by_key(|artifact| artifact.created_at);
+        let mut restored = Vec::with_capacity(pending.len());
+
+        while !pending.is_empty() {
+            let next = pending.iter().position(|artifact| {
+                artifact
+                    .provenance
+                    .as_ref()
+                    .is_some_and(|provenance| match &provenance.parent_id {
+                        Some(parent_id) => self.record(parent_id).is_ok(),
+                        None => true,
+                    })
+            });
+            let Some(index) = next else {
+                return Err(AppError::bad_request(
+                    "Retained artifact catalog has missing provenance or unresolved parent versions",
+                ));
+            };
+            let artifact = pending.remove(index);
+            let provenance = artifact.provenance.clone().ok_or_else(|| {
+                AppError::bad_request("Retained artifact catalog entry has no version provenance")
+            })?;
+            let source = parquet_source(&artifact)?;
+            let actual_schema_fingerprint = schema_fingerprint(source.snapshot()?)?;
+            if actual_schema_fingerprint != provenance.schema_fingerprint {
+                return Err(AppError::bad_request(format!(
+                    "Retained artifact '{}' schema fingerprint does not match its catalog",
+                    artifact.version_id
+                )));
+            }
+            let record = record_from_artifact(&artifact, provenance)?;
+            let mut entries = self
+                .entries
+                .write()
+                .map_err(|_| AppError::internal("dataset version registry lock poisoned"))?;
+            if entries.contains_key(&record.id) {
+                return Err(AppError::bad_request(format!(
+                    "Dataset version '{}' is already retained",
+                    record.id
+                )));
+            }
+            entries.insert(
+                record.id.clone(),
+                DatasetVersionEntry {
+                    record: record.clone(),
+                    source,
+                },
+            );
+            restored.push(record);
+        }
+
+        if let Some(current) = restored.iter().max_by_key(|record| record.created_at) {
+            *self
+                .current_id
+                .write()
+                .map_err(|_| AppError::internal("dataset version selection lock poisoned"))? =
+                current.id.clone();
+        }
+        Ok(restored)
+    }
+
     /// Select an already-retained immutable snapshot as the working dataset.
     /// Version identity stays immutable; the compatibility repository owns the
     /// separate active-session revision used to invalidate live requests.
@@ -422,6 +491,39 @@ impl DatasetVersionRegistry {
     }
 }
 
+fn parquet_source(artifact: &DatasetArtifactDescriptor) -> Result<DatasetVersionSource, AppError> {
+    if artifact.format != "parquet" {
+        return Err(AppError::bad_request(format!(
+            "Unsupported retained artifact format '{}'",
+            artifact.format
+        )));
+    }
+    Ok(DatasetVersionSource::Parquet(artifact.path.clone()))
+}
+
+fn record_from_artifact(
+    artifact: &DatasetArtifactDescriptor,
+    provenance: DatasetArtifactProvenance,
+) -> Result<DatasetVersionRecord, AppError> {
+    if provenance.parent_id.is_none() && provenance.root_id != artifact.version_id {
+        return Err(AppError::bad_request(format!(
+            "Root artifact '{}' must use itself as rootId",
+            artifact.version_id
+        )));
+    }
+    Ok(DatasetVersionRecord {
+        id: artifact.version_id.clone(),
+        root_id: provenance.root_id,
+        parent_id: provenance.parent_id,
+        revision: provenance.revision,
+        dataset_fingerprint: artifact.content_fingerprint.clone(),
+        schema_fingerprint: provenance.schema_fingerprint,
+        source_name: provenance.source_name,
+        materialized_from_plan_hash: provenance.materialized_from_plan_hash,
+        created_at: artifact.created_at,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs::{self, File};
@@ -429,7 +531,7 @@ mod tests {
     use chrono::Utc;
     use polars::prelude::{DataFrame, NamedFrom, ParquetWriter, Series};
 
-    use crate::artifacts::DatasetArtifactDescriptor;
+    use crate::artifacts::{DatasetArtifactDescriptor, DatasetArtifactProvenance};
 
     use super::DatasetVersionRegistry;
 
@@ -545,5 +647,89 @@ mod tests {
         assert_eq!(registry.current().expect("current version").id, retained.id);
 
         fs::remove_dir_all(root).expect("clean retained artifact directory");
+    }
+
+    #[test]
+    fn restores_catalogued_artifacts_with_parent_provenance() {
+        let root = std::env::temp_dir().join(format!(
+            "edatime-restored-versions-{}",
+            Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        fs::create_dir_all(&root).expect("create artifact test directory");
+        let root_path = root.join("artifact-root.parquet");
+        let child_path = root.join("artifact-child.parquet");
+        let mut root_frame = frame(vec![1, 2]);
+        ParquetWriter::new(File::create(&root_path).expect("create root parquet"))
+            .finish(&mut root_frame)
+            .expect("write root parquet");
+        let mut child_frame = frame(vec![2]);
+        ParquetWriter::new(File::create(&child_path).expect("create child parquet"))
+            .finish(&mut child_frame)
+            .expect("write child parquet");
+
+        let schema_fingerprint = DatasetVersionRegistry::new(frame(vec![0]), 0, None)
+            .current()
+            .expect("schema record")
+            .schema_fingerprint;
+        let created_at = Utc::now();
+        let restored = DatasetVersionRegistry::new(frame(vec![0]), 0, None);
+        let records = restored
+            .restore_artifacts(vec![
+                DatasetArtifactDescriptor {
+                    version_id: "artifact-child".to_string(),
+                    path: child_path,
+                    format: "parquet".to_string(),
+                    byte_size: 1,
+                    content_fingerprint: "child-content".to_string(),
+                    created_at: created_at + chrono::Duration::seconds(1),
+                    provenance: Some(DatasetArtifactProvenance {
+                        root_id: "artifact-root".to_string(),
+                        parent_id: Some("artifact-root".to_string()),
+                        revision: 2,
+                        schema_fingerprint: schema_fingerprint.clone(),
+                        source_name: Some("input.csv".to_string()),
+                        materialized_from_plan_hash: Some("plan-1".to_string()),
+                    }),
+                },
+                DatasetArtifactDescriptor {
+                    version_id: "artifact-root".to_string(),
+                    path: root_path,
+                    format: "parquet".to_string(),
+                    byte_size: 1,
+                    content_fingerprint: "root-content".to_string(),
+                    created_at,
+                    provenance: Some(DatasetArtifactProvenance {
+                        root_id: "artifact-root".to_string(),
+                        parent_id: None,
+                        revision: 1,
+                        schema_fingerprint,
+                        source_name: Some("input.csv".to_string()),
+                        materialized_from_plan_hash: None,
+                    }),
+                },
+            ])
+            .expect("restore catalog");
+
+        assert_eq!(records.len(), 2);
+        assert_eq!(restored.current().expect("current").id, "artifact-child");
+        assert_eq!(
+            restored
+                .record("artifact-child")
+                .expect("child record")
+                .parent_id
+                .as_deref(),
+            Some("artifact-root")
+        );
+        assert_eq!(
+            restored
+                .snapshot("artifact-root")
+                .expect("root scan")
+                .collect()
+                .expect("collect root")
+                .height(),
+            2
+        );
+
+        fs::remove_dir_all(root).expect("clean restored artifact directory");
     }
 }
