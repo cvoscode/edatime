@@ -10,6 +10,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
+use crate::handlers::routes::shared::{ExecutionIdentity, add_execution_identity_headers};
 use edatime_query::arrow_export::dataframe_to_parquet;
 use edatime_query::cleaning::{CleaningPlanDto, compile_cleaning_plan, semantic_hash};
 use edatime_store::state::AppState;
@@ -89,22 +90,31 @@ pub struct DatasetVersionSelectRequest {
     pub version_id: String,
 }
 
-fn validate_envelope(state: &AppState, envelope: &PlanRequestEnvelope) -> Result<(DatasetVersionRecord, String), AppError> {
+fn validate_envelope(
+    state: &AppState,
+    envelope: &PlanRequestEnvelope,
+) -> Result<(DatasetVersionRecord, String), AppError> {
     let version = state
         .dataset_versions
         .record(&envelope.expected_source_version_id)
-        .map_err(|_| AppError::stale_plan("Requested cleaning-plan source version is unavailable"))?;
+        .map_err(|_| {
+            AppError::stale_plan("Requested cleaning-plan source version is unavailable")
+        })?;
     if envelope.plan.source_version_id != version.id
         || envelope.expected_source_version_id != version.id
         || envelope.plan.dataset_revision != version.revision
         || envelope.expected_dataset_revision != version.revision
     {
-        return Err(AppError::stale_plan("Cleaning plan baseline no longer matches the requested source version"));
+        return Err(AppError::stale_plan(
+            "Cleaning plan baseline no longer matches the requested source version",
+        ));
     }
     if envelope.plan.dataset_fingerprint.as_deref() != Some(version.dataset_fingerprint.as_str())
         || envelope.plan.schema_fingerprint != version.schema_fingerprint
     {
-        return Err(AppError::stale_plan("Cleaning plan fingerprint no longer matches the requested source version"));
+        return Err(AppError::stale_plan(
+            "Cleaning plan fingerprint no longer matches the requested source version",
+        ));
     }
     let hash = semantic_hash(&envelope.plan).map_err(AppError::from)?;
     // A frontend hash is an optimistic scheduling hint. The backend hash is
@@ -113,7 +123,10 @@ fn validate_envelope(state: &AppState, envelope: &PlanRequestEnvelope) -> Result
     Ok((version, hash))
 }
 
-pub(crate) fn compile_request_frame(state: &AppState, envelope: &PlanRequestEnvelope) -> Result<(DatasetVersionRecord, String, polars::prelude::LazyFrame), AppError> {
+pub(crate) fn compile_request_frame(
+    state: &AppState,
+    envelope: &PlanRequestEnvelope,
+) -> Result<(DatasetVersionRecord, String, polars::prelude::LazyFrame), AppError> {
     let (version, plan_hash) = validate_envelope(state, envelope)?;
     let source = state.dataset_snapshot_for_version(&version.id)?;
     let frame = compile_cleaning_plan(source, &envelope.plan).map_err(AppError::from)?;
@@ -139,17 +152,20 @@ pub async fn preview(
 ) -> Result<Json<CleaningPreviewResponse>, AppError> {
     let (version, plan_hash, frame) = compile_request_frame(&state, &envelope)?;
     let source = state.dataset_snapshot_for_version(&version.id)?;
-    let source_schema = source
-        .clone()
-        .collect_schema()
-        .map_err(|error| AppError::bad_request(format!("Cleaning source schema unavailable: {error}")))?;
+    let source_schema = source.clone().collect_schema().map_err(|error| {
+        AppError::bad_request(format!("Cleaning source schema unavailable: {error}"))
+    })?;
     let rows_before = state
         .query_executor
         .execute_async(source)
         .await
         .map_err(AppError::from)?
         .height();
-    let result = state.query_executor.execute_async(frame).await.map_err(AppError::from)?;
+    let result = state
+        .query_executor
+        .execute_async(frame)
+        .await
+        .map_err(AppError::from)?;
     let rows_after = result.height();
     Ok(Json(CleaningPreviewResponse {
         dataset_revision: version.revision,
@@ -169,34 +185,40 @@ pub async fn export_data(
     Json(request): Json<CleaningDataExportRequest>,
 ) -> Result<Response, AppError> {
     if request.format != "parquet" {
-        return Err(AppError::bad_request("Cleaning data export currently supports format 'parquet' only"));
+        return Err(AppError::bad_request(
+            "Cleaning data export currently supports format 'parquet' only",
+        ));
     }
     let (version, plan_hash, mut frame) = compile_request_frame(&state, &request.context)?;
     if let Some(columns) = request.output_columns.as_ref() {
         if columns.is_empty() {
-            return Err(AppError::bad_request("Cleaning export outputColumns must not be empty when supplied"));
+            return Err(AppError::bad_request(
+                "Cleaning export outputColumns must not be empty when supplied",
+            ));
         }
         frame = frame.select(columns.iter().map(polars::prelude::col).collect::<Vec<_>>());
     }
-    let data = state.query_executor.execute_async(frame).await.map_err(AppError::from)?;
+    let data = state
+        .query_executor
+        .execute_async(frame)
+        .await
+        .map_err(AppError::from)?;
     let bytes = dataframe_to_parquet(data)
         .map_err(|error| AppError::io(format!("Cleaning Parquet serialization failed: {error}")))?;
     let mut response = Response::new(bytes.into());
     let headers = response.headers_mut();
-    headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("application/x-parquet"));
+    headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/x-parquet"),
+    );
     headers.insert(
         header::CONTENT_DISPOSITION,
         HeaderValue::from_static("attachment; filename=edatime_cleaned.parquet"),
     );
-    headers.insert(
-        "x-edatime-source-version",
-        HeaderValue::from_str(&version.id).map_err(|_| AppError::internal("Invalid source version response header"))?,
-    );
-    headers.insert(
-        "x-edatime-plan-hash",
-        HeaderValue::from_str(&plan_hash).map_err(|_| AppError::internal("Invalid plan hash response header"))?,
-    );
-    Ok(response)
+    Ok(add_execution_identity_headers(
+        response,
+        &ExecutionIdentity::from_version(version, Some(plan_hash)),
+    ))
 }
 
 /// Export the backend-validated canonical plan together with the immutable
@@ -220,15 +242,22 @@ pub async fn export_plan(
         plan_hash,
         plan: envelope.plan,
     };
-    let bytes = serde_json::to_vec_pretty(&artifact)
-        .map_err(|error| AppError::internal(format!("Cleaning plan serialization failed: {error}")))?;
+    let bytes = serde_json::to_vec_pretty(&artifact).map_err(|error| {
+        AppError::internal(format!("Cleaning plan serialization failed: {error}"))
+    })?;
     let mut response = Response::new(bytes.into());
-    response.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_static("application/json; charset=utf-8"));
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/json; charset=utf-8"),
+    );
     response.headers_mut().insert(
         header::CONTENT_DISPOSITION,
         HeaderValue::from_static("attachment; filename=edatime_cleaning_plan.json"),
     );
-    Ok(response)
+    Ok(add_execution_identity_headers(
+        response,
+        &ExecutionIdentity::from_version(artifact.source_version, Some(artifact.plan_hash)),
+    ))
 }
 
 /// Explicitly materialize the compiled plan as a new child source version.
@@ -239,7 +268,11 @@ pub async fn apply(
     Json(envelope): Json<PlanRequestEnvelope>,
 ) -> Result<Json<CleaningApplyResponse>, AppError> {
     let (version, plan_hash, frame) = compile_request_frame(&state, &envelope)?;
-    let data = state.query_executor.execute_async(frame).await.map_err(AppError::from)?;
+    let data = state
+        .query_executor
+        .execute_async(frame)
+        .await
+        .map_err(AppError::from)?;
     let child = state
         .materialize_dataset_child(&version.id, data, plan_hash.clone())
         .await?;
@@ -352,8 +385,20 @@ mod tests {
         )
         .await
         .expect("export");
-        assert_eq!(export.headers().get("x-edatime-source-version").expect("source version"), "source-0");
+        assert_eq!(
+            export
+                .headers()
+                .get("x-edatime-source-version")
+                .expect("source version"),
+            "source-0"
+        );
         assert!(export.headers().get("x-edatime-plan-hash").is_some());
+        assert!(
+            export
+                .headers()
+                .get("x-edatime-schema-fingerprint")
+                .is_some()
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -361,7 +406,9 @@ mod tests {
         let state = state();
         let mut request = envelope(&state);
         request.expected_source_version_id = "missing".to_string();
-        let error = validate(State(state), Json(request)).await.expect_err("stale source");
+        let error = validate(State(state), Json(request))
+            .await
+            .expect_err("stale source");
         assert_eq!(error.code, crate::error::ErrorCode::StalePlan);
     }
 
@@ -369,18 +416,46 @@ mod tests {
     async fn apply_creates_a_child_without_losing_the_requested_baseline() {
         let state = state();
         let root = state.current_dataset_version().expect("root");
-        let response = apply(State(state.clone()), Json(envelope(&state))).await.expect("apply").0;
-        assert_eq!(response.source_version.parent_id.as_deref(), Some(root.id.as_str()));
-        assert_eq!(state.dataset_snapshot_for_version(&root.id).expect("root").collect().expect("collect").height(), 3);
-        assert_eq!(state.dataset_snapshot().collect().expect("working").height(), 2);
+        let response = apply(State(state.clone()), Json(envelope(&state)))
+            .await
+            .expect("apply")
+            .0;
+        assert_eq!(
+            response.source_version.parent_id.as_deref(),
+            Some(root.id.as_str())
+        );
+        assert_eq!(
+            state
+                .dataset_snapshot_for_version(&root.id)
+                .expect("root")
+                .collect()
+                .expect("collect")
+                .height(),
+            3
+        );
+        assert_eq!(
+            state
+                .dataset_snapshot()
+                .collect()
+                .expect("working")
+                .height(),
+            2
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn plan_export_carries_the_same_immutable_identity_as_execution() {
         let state = state();
-        let export = export_plan(State(state.clone()), Json(envelope(&state))).await.expect("export");
-        assert_eq!(export.headers().get(header::CONTENT_TYPE).expect("type"), "application/json; charset=utf-8");
-        let body = axum::body::to_bytes(export.into_body(), usize::MAX).await.expect("body");
+        let export = export_plan(State(state.clone()), Json(envelope(&state)))
+            .await
+            .expect("export");
+        assert_eq!(
+            export.headers().get(header::CONTENT_TYPE).expect("type"),
+            "application/json; charset=utf-8"
+        );
+        let body = axum::body::to_bytes(export.into_body(), usize::MAX)
+            .await
+            .expect("body");
         let artifact: serde_json::Value = serde_json::from_slice(&body).expect("json");
         assert_eq!(artifact["sourceVersion"]["id"], "source-0");
         assert!(artifact["planHash"].as_str().is_some());
@@ -391,13 +466,30 @@ mod tests {
     async fn selecting_a_retained_root_restores_its_full_working_frame() {
         let state = state();
         let root = state.current_dataset_version().expect("root");
-        let _ = apply(State(state.clone()), Json(envelope(&state))).await.expect("apply");
+        let _ = apply(State(state.clone()), Json(envelope(&state)))
+            .await
+            .expect("apply");
         let selected = select_version(
             State(state.clone()),
-            Json(DatasetVersionSelectRequest { version_id: root.id.clone() }),
-        ).await.expect("select").0;
+            Json(DatasetVersionSelectRequest {
+                version_id: root.id.clone(),
+            }),
+        )
+        .await
+        .expect("select")
+        .0;
         assert_eq!(selected.id, root.id);
-        assert_eq!(state.dataset_snapshot().collect().expect("working").height(), 3);
-        assert_eq!(state.current_dataset_version().expect("current").id, root.id);
+        assert_eq!(
+            state
+                .dataset_snapshot()
+                .collect()
+                .expect("working")
+                .height(),
+            3
+        );
+        assert_eq!(
+            state.current_dataset_version().expect("current").id,
+            root.id
+        );
     }
 }
