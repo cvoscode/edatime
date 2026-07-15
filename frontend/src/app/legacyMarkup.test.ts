@@ -10,4 +10,13 @@ describe('application markup ownership', () => {
         expect(indexHtml).not.toContain('id="analytics-modal"');
         expect(indexHtml).not.toContain('analytics-done-btn-modal');
     });
+
+    it('keeps the pipeline workbench trigger in the shared app header', () => {
+        const headerStart = indexHtml.indexOf('<header>');
+        const headerEnd = indexHtml.indexOf('</header>', headerStart);
+        const headerMarkup = indexHtml.slice(headerStart, headerEnd);
+
+        expect(headerMarkup).toContain('id="open-cleaning-plan-btn"');
+        expect(indexHtml.match(/id="open-cleaning-plan-btn"/g)).toHaveLength(1);
+    });
 });

@@ -100,8 +100,10 @@ Do not start with allocator, SIMD, PGO, compression, framework replacement, or a
 - `frontend/src/cleaning/panel.ts` is now a Pipeline Workbench: it visualizes
   the canonical plan, edits all v1 stage parameters, enables/disables,
   reorders, removes, previews/applies, and exports backend-plan JSON, graph
-  JSON/SVG, and starter code. Undo/redo, import/rebind, stage-impact
-  comparison, and most preparation operation families remain open.
+  JSON/SVG, and starter code. It is available from the shared header on every
+  page and includes local undo/redo plus same-baseline plan import. Cross-
+  baseline rebind, stage-impact comparison, and most preparation operation
+  families remain open.
 - Executable stage authoring is currently concentrated in Timeseries (`filterModalController.ts`, `adaptiveGesture.ts`, and the plan panel). Scatter, Correlations, FFT, Spectrogram, Causal, and Drift do not yet fulfill the “author from every plot” goal.
 - `frontend/src/services/api/timeseries.ts` sends the canonical plan envelope
   with plan-aware requests; the backend applies it before projection and
@@ -716,8 +718,8 @@ second pipeline model. The graph is a projection of the canonical
 
 2. **Accessible workbench overlay**
    - Replace the compact plan-modal body with a tabbed overlay: **Pipeline**,
-     **Stages**, and **Export**. Keep the existing Plan toolbar trigger and
-     preserve Escape/backdrop/focus-return behavior.
+     **Stages**, and **Export**. Keep the shared-header Plan trigger available
+     on every page and preserve Escape/backdrop/focus-return behavior.
    - Render the graph as semantic SVG: source node, ordered stage nodes,
      working-dataset node, status and stage-count legend. Nodes must also be
      represented in the Stages tab, so graph interaction is never the only
@@ -736,8 +738,8 @@ second pipeline model. The graph is a projection of the canonical
    - The overview reflects plan changes made from Timeseries immediately and
      asks the existing Timeseries owner to refresh only after an executable
      plan change.
-   - Add a compact stage-count/status label to the existing Plan toolbar. Do
-     not add a new page or eagerly load chart libraries for this milestone.
+   - Keep the workbench global rather than adding a dedicated page or eagerly
+     loading chart libraries for this milestone.
    - Export uses the backend canonical plan JSON already available, plus local
      graph JSON/SVG. Generated Python/Rust remain explicitly marked as client
      previews until backend canonical code generation exists.
