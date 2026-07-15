@@ -21,6 +21,9 @@ This directory contains detailed page-by-page documentation for the EdaTime fron
 
 See [architecture.md](architecture.md) for the overall system design, SPA shell, routing, state management, and cross-page communication patterns that apply across all pages.
 
+See [content-identity.md](content-identity.md) for the dataset, cleaning-plan,
+and result-provenance contract used by routes, caches, clients, and exports.
+
 ## Cross-Cutting Concerns
 
 ### Shared Layout Elements
