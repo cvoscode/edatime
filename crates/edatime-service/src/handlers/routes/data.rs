@@ -235,6 +235,10 @@ async fn data_response(
     let mut extra_headers = vec![
         ("x-edatime-empty".to_string(), empty_header.to_string()),
         (
+            "x-edatime-sampling-algorithm".to_string(),
+            "lttb-v1".to_string(),
+        ),
+        (
             "x-edatime-filtered-rows".to_string(),
             filtered_rows.to_string(),
         ),

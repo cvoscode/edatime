@@ -316,6 +316,10 @@ async fn scatter_points_response(
     let mut extra_headers = identity.headers();
     extra_headers.extend([
         (
+            "x-edatime-sampling-algorithm".to_string(),
+            "stride-lttb-pad-v1".to_string(),
+        ),
+        (
             "x-edatime-scatter-total".to_string(),
             total_points.to_string(),
         ),
@@ -546,6 +550,13 @@ mod tests {
                 .get("x-edatime-plan-hash")
                 .and_then(|value| value.to_str().ok()),
             Some("none")
+        );
+        assert_eq!(
+            first
+                .headers()
+                .get("x-edatime-sampling-algorithm")
+                .and_then(|value| value.to_str().ok()),
+            Some("stride-lttb-pad-v1")
         );
         assert!(
             first

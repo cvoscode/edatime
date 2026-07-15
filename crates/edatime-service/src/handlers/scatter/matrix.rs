@@ -276,6 +276,10 @@ async fn scatter_matrix_response(
     })?;
     let mut extra_headers = identity.headers();
     extra_headers.push((
+        "x-edatime-sampling-algorithm".to_string(),
+        "stride-lttb-pad-v1".to_string(),
+    ));
+    extra_headers.push((
         "x-edatime-matrix-cells".to_string(),
         BASE64_STANDARD.encode(header_json),
     ));
@@ -357,6 +361,13 @@ mod tests {
                 .get("x-edatime-plan-hash")
                 .and_then(|value| value.to_str().ok()),
             Some("none")
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("x-edatime-sampling-algorithm")
+                .and_then(|value| value.to_str().ok()),
+            Some("stride-lttb-pad-v1")
         );
         assert!(
             response
