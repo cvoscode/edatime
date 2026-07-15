@@ -204,7 +204,7 @@ pub fn validate_cleaning_plan(plan: &CleaningPlanDto) -> Result<(), AppError> {
         ));
     }
     let mut ids = std::collections::HashSet::new();
-    for stage in &plan.stages {
+    for (index, stage) in plan.stages.iter().enumerate() {
         if stage.id().trim().is_empty() || !ids.insert(stage.id()) {
             return Err(AppError::bad_request(
                 "Cleaning plan stage IDs must be unique and non-empty",
@@ -319,6 +319,16 @@ pub fn validate_cleaning_plan(plan: &CleaningPlanDto) -> Result<(), AppError> {
                     return Err(AppError::bad_request(format!(
                         "Cleaning stage '{}' requires unique non-empty columns and a positive fill limit",
                         base.id
+                    )));
+                }
+                let has_time_sort = plan.stages[..index].iter().any(|prior| matches!(prior,
+                    CleaningStageDto::Sort { columns, .. }
+                    if prior.enabled() && columns.iter().any(|column| column.trim() == plan.time_column.trim())
+                ));
+                if !has_time_sort {
+                    return Err(AppError::bad_request(format!(
+                        "Cleaning stage '{}' requires an earlier enabled stable sort on the time column '{}'; add Sort before ordered null fill",
+                        base.id, plan.time_column
                     )));
                 }
             }
@@ -792,16 +802,29 @@ mod tests {
 
     #[test]
     fn fill_null_stage_respects_direction_and_limit() {
-        let plan = plan(vec![CleaningStageDto::FillNull {
-            base: base("fill"), columns: vec!["value".to_string()],
-            strategy: FillNullDirection::Forward, limit: Some(1),
-        }]);
+        let plan = plan(vec![
+            CleaningStageDto::Sort { base: base("sort"), columns: vec!["ts".to_string()], descending: false, nulls_last: true },
+            CleaningStageDto::FillNull {
+                base: base("fill"), columns: vec!["value".to_string()],
+                strategy: FillNullDirection::Forward, limit: Some(1),
+            },
+        ]);
         let df = DataFrame::new(4, vec![
             Series::new("ts".into(), vec![1_i64, 2, 3, 4]).into(),
             Series::new("value".into(), vec![Some(1.0_f64), None, None, Some(4.0)]).into(),
         ]).expect("frame");
         let result = compile_cleaning_plan(df.lazy(), &plan).expect("compile").collect().expect("collect");
         assert_eq!(result.column("value").expect("value").f64().expect("f64").into_iter().collect::<Vec<_>>(), vec![Some(1.0), Some(1.0), None, Some(4.0)]);
+    }
+
+    #[test]
+    fn ordered_null_fill_requires_a_prior_time_sort() {
+        let plan = plan(vec![CleaningStageDto::FillNull {
+            base: base("fill"), columns: vec!["value".to_string()],
+            strategy: FillNullDirection::Forward, limit: None,
+        }]);
+        let error = validate_cleaning_plan(&plan).expect_err("must reject unordered fill");
+        assert!(error.to_string().contains("requires an earlier enabled stable sort"));
     }
 
     #[test]
