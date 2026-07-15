@@ -35,8 +35,9 @@
   and the registry validates that graph on recovery. Application startup
   attaches the newest valid restored version to the active repository as a
   lazy scan with persisted metadata, without collecting its rows. Ingest,
-  streaming materialization/export, retention, and user-visible storage usage
-  remain open. An operator may now set a managed-artifact aggregate disk cap;
+  streaming materialization/export and retention remain open. The Pipeline
+  Workbench Export tab now reports retained artifact count and managed disk
+  usage/quota on demand. An operator may set a managed-artifact aggregate disk cap;
   a candidate Parquet file is rejected and cleaned up before publication when
   it would exceed that cap. (`f2ed211`,
   `9887e4f`, `6ab6f44`, `7413758`, `7847b46`, `5bfdc39`, `d2dca71`,
