@@ -638,11 +638,40 @@ function parseImportedPlan(text: string, current: CleaningPlan): CleaningPlan {
         throw new Error('The selected plan is missing required metadata.');
     }
     for (const stage of plan.stages) {
-        if (!stage || typeof stage !== 'object'
-            || !['timeRange', 'columnRange', 'adaptiveLine', 'annotation'].includes((stage as CleaningStage).kind)
-            || typeof (stage as CleaningStage).id !== 'string') {
+        if (!isImportableStage(stage)) {
             throw new Error('The selected plan contains an unsupported stage.');
         }
     }
     return plan as CleaningPlan;
+}
+
+function isImportableStage(value: unknown): value is CleaningStage {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    const stage = value as Record<string, unknown>;
+    if (typeof stage.id !== 'string' || !stage.id.trim()
+        || typeof stage.enabled !== 'boolean'
+        || typeof stage.executionClass !== 'string'
+        || typeof stage.scope !== 'string'
+        || typeof stage.sourcePage !== 'string'
+        || typeof stage.label !== 'string'
+        || typeof stage.createdAt !== 'string'
+        || typeof stage.updatedAt !== 'string') return false;
+    const finite = (...values: unknown[]) => values.every((number) => typeof number === 'number' && Number.isFinite(number));
+    switch (stage.kind) {
+        case 'timeRange':
+            return finite(stage.startMs, stage.endMs) && (stage.mode === 'keepInside' || stage.mode === 'dropInside');
+        case 'columnRange':
+            return typeof stage.column === 'string' && !!stage.column.trim()
+                && finite(stage.from, stage.to) && (stage.mode === 'keepInside' || stage.mode === 'dropInside');
+        case 'adaptiveLine':
+            return typeof stage.column === 'string' && !!stage.column.trim()
+                && finite(stage.x1Ms, stage.y1, stage.x2Ms, stage.y2)
+                && stage.x1Ms !== stage.x2Ms
+                && typeof stage.keepAbove === 'boolean'
+                && typeof stage.applyWithinSegmentOnly === 'boolean';
+        case 'annotation':
+            return stage.severity === undefined || stage.severity === 'info' || stage.severity === 'warning' || stage.severity === 'critical';
+        default:
+            return false;
+    }
 }
