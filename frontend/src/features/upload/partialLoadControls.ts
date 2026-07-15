@@ -7,8 +7,6 @@ import type { DatasetMetadata } from '../../types/api.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-export const UI_MAX_UPLOAD_BYTES = 256 * 1024 * 1024;
-
 // ── Time-range inputs ──────────────────────────────────────────────────────
 
 export interface PartialTimeRangeInputs {
@@ -94,10 +92,10 @@ export function validateFileSize(file: File | null): string | null {
     if (!(name.endsWith('.csv') || name.endsWith('.parquet'))) {
         return 'Only CSV and Parquet files are supported.';
     }
-    if (Number(file.size) > UI_MAX_UPLOAD_BYTES) {
-        const maxMb = Math.round(UI_MAX_UPLOAD_BYTES / (1024 * 1024));
-        return `File exceeds ${maxMb} MB upload limit.`;
-    }
+    // Do not duplicate a fixed browser-side size cap here. The server owns
+    // configurable admission and can evolve from resident uploads to
+    // scan-backed streaming without the UI rejecting an otherwise supported
+    // source before it reaches that policy.
     return null;
 }
 

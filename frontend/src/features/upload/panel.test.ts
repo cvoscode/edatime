@@ -659,7 +659,7 @@ describe('initUploadPanel file choose and preview', () => {
         uiState.previewTimeColumn = null;
     });
 
-    it('shows error status for oversized file via file input', async () => {
+    it('forwards a large file to server-side profiling via file input', async () => {
         const tooBigFile = makeOversizedFile('big.csv');
 
         initUploadPanel(vi.fn(), vi.fn(), {
@@ -673,12 +673,11 @@ describe('initUploadPanel file choose and preview', () => {
         // `setUploadPreviewStatus` writes to `#upload-preview-status` (the
         // visible status pill above the profile grid). `#upload-status`
         // only holds the legacy global loading overlay text and is not
-        // touched by the size validation path.
         const previewStatusEl = document.getElementById('upload-preview-status');
-        expect(previewStatusEl?.textContent).toContain('256 MB');
+        expect(previewStatusEl?.textContent).toContain('Profiling file');
     });
 
-    it('shows error status for oversized file via drop', async () => {
+    it('forwards a large file to server-side profiling via drop', async () => {
         const tooBigFile = makeOversizedFile('big.csv');
 
         initUploadPanel(vi.fn(), vi.fn(), {
@@ -698,9 +697,8 @@ describe('initUploadPanel file choose and preview', () => {
         });
         dropZone.dispatchEvent(dropEvent);
         // Same target as the change-event test above — see that test for
-        // why we read `#upload-preview-status`, not `#upload-status`.
         const previewStatusEl = document.getElementById('upload-preview-status');
-        expect(previewStatusEl?.textContent).toContain('256 MB');
+        expect(previewStatusEl?.textContent).toContain('Profiling file');
     });
 
     it('calls previewUpload on valid file selection', async () => {

@@ -29,7 +29,6 @@ import {
     getPartialTimeRangeInputs,
     clearPartialTimeRangeInputs,
     setPartialTimeRangeInputs,
-    UI_MAX_UPLOAD_BYTES,
 } from './partialLoadControls.js';
 import { submitFileUpload } from './fileSource.js';
 import { datasetState, setDatasetRevision, setMetadata } from '../../store/datasetState.js';
