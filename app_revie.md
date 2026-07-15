@@ -13,11 +13,12 @@
   reordering, and exports backend-plan JSON, graph JSON/SVG, and starter
   Python/Rust code. (`ba9a639`, `65e1f67`)
 - **Milestone B in progress:** data, scatter points/matrix, correlations, and
-  correlation matrix responses now carry immutable source version/revision,
-  schema fingerprint, and backend plan hash. The corresponding frontend
-  clients retain this provenance with decoded results. Remaining analytics,
-  drift, and export routes still need the common contract. (`e543078`,
-  `0aaab7f`, `2431453`)
+  correlation matrix, Drift, and export artifacts now carry immutable source
+  version/revision, schema fingerprint, backend plan hash, and versioned
+  sampling metadata where applicable. The corresponding chart/scatter clients
+  retain this provenance with decoded results. Remaining analytics routes need
+  the common contract and client parity. (`e543078`, `0aaab7f`, `2431453`,
+  `f437017`, `3ad00ff`, `2541478`, `961caa4`)
 - **Milestone C started:** retained versions use an Arrow-content-derived
   fingerprint, with a same-shape/different-content regression. Streaming
   hashing, retained-version cache-isolation tests, and the ADR remain open.
@@ -104,8 +105,9 @@ Do not start with allocator, SIMD, PGO, compression, framework replacement, or a
 - Plan-aware execution exists for scatter points/matrix/export, FFT, Spectrogram, Causal, and Drift.
 - `/data`, scatter, and correlation routes are plan-aware and return the
   common immutable source/version/schema/plan identity headers. Rolling bands,
-  anomalies, spectral filtering, Drift, and exports still require complete
-  plan-envelope and response-identity parity.
+  anomalies, and spectral filtering still require complete plan-envelope and
+  response-identity parity; Drift and plan/scatter exports now carry the
+  common identity headers.
 - `crates/edatime-service/src/handlers/routes/data.rs` projects requested columns and time-filters lazily, but then collects every matching row before LTTB. Very wide time windows can therefore allocate in proportion to source rows rather than response rows.
 - Scatter similarly collects the filtered candidate frame before sampling. The response is bounded, but pre-sampling memory is not.
 - `QueryExecutor` uses a shared Rayon pool capped at eight workers and dispatches through `spawn_blocking`, but there is no per-workload semaphore, memory admission, deadline, or cooperative cancellation. Aborting a browser request does not stop an already-running Polars/analytics job.
