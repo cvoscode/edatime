@@ -49,13 +49,52 @@
   gap: 14px;
 }
 
-.cleaning-plan-modal { max-width: 680px; }
+.cleaning-plan-modal { max-width: min(1120px, 100%); }
 .cleaning-plan-status, .cleaning-plan-preview { margin: 0; color: var(--text-dim); font-size: 0.8125rem; }
-.cleaning-plan-stages { display: grid; gap: 8px; max-height: min(42vh, 340px); overflow: auto; }
+.cleaning-plan-stages { display: grid; gap: 8px; max-height: min(30vh, 260px); overflow: auto; }
 .cleaning-plan-stage { display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-md); }
-.cleaning-plan-stage > span { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 0.8125rem; }
+.cleaning-plan-stage.is-selected { border-color: var(--accent); background: var(--accent-dim); }
+.cleaning-plan-stage__summary { flex: 1; min-width: 0; overflow-wrap: anywhere; text-align: left; font-size: 0.8125rem; }
 .cleaning-plan-stage .is-disabled { opacity: 0.55; text-decoration: line-through; }
 .cleaning-plan-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+
+/* ─── Pipeline workbench ─────────────────────────────────────── */
+.pipeline-workbench-modal { max-height: min(88vh, 900px); }
+.pipeline-workbench-modal .modal-body { min-height: 0; }
+.pipeline-workbench__subtitle { display: block; margin-top: 3px; color: var(--text-dim); font-size: 0.75rem; font-weight: 400; }
+.pipeline-workbench__tabs { display: flex; align-items: end; gap: 4px; border-bottom: 1px solid var(--border); }
+.pipeline-workbench__tab { border: 0; border-bottom: 2px solid transparent; padding: 8px 10px; color: var(--text-dim); background: transparent; cursor: pointer; font: inherit; font-size: 0.8125rem; }
+.pipeline-workbench__tab:hover { color: var(--text); background: var(--shell-hover); }
+.pipeline-workbench__tab.is-active { color: var(--text); border-bottom-color: var(--accent); }
+.pipeline-workbench__panel { display: grid; gap: 12px; min-height: 0; }
+.pipeline-workbench__legend { display: flex; flex-wrap: wrap; gap: 10px; color: var(--text-dim); font-size: 0.75rem; }
+.pipeline-workbench__graph-scroll { overflow: auto; padding: 4px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--shell-bg); }
+.pipeline-workbench__hint { margin: 0; color: var(--text-dim); font-size: 0.8125rem; }
+.pipeline-workbench__editor { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--border-hi); border-radius: var(--radius-md); background: var(--shell-hover); }
+.pipeline-workbench__editor h3 { margin: 0; font-size: 0.875rem; }
+.pipeline-workbench__editor-actions, .pipeline-workbench__export-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.pipeline-workbench__checkbox { display: inline-flex; align-items: center; gap: 7px; min-height: var(--ctrl-h); color: var(--text-dim); font-size: 0.8125rem; }
+.pipeline-graph { display: block; min-width: 640px; font-family: ui-sans-serif, system-ui, sans-serif; }
+.pipeline-graph__edge { fill: none; stroke: var(--accent); stroke-width: 2; }
+.pipeline-graph__edge--bypassed { stroke: var(--text-muted); stroke-dasharray: 5 5; }
+.pipeline-graph__edge--annotation { stroke: var(--amber); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.pipeline-graph marker path { fill: var(--accent); }
+.pipeline-graph__node rect { fill: var(--shell-surface-elevated); stroke: var(--shell-border-strong); stroke-width: 1.5; }
+.pipeline-graph__node--source rect { stroke: var(--cyan); }
+.pipeline-graph__node--result rect { stroke: var(--green); }
+.pipeline-graph__node--disabled rect { opacity: 0.55; stroke: var(--text-muted); stroke-dasharray: 5 4; }
+.pipeline-graph__node--annotation rect { fill: var(--amber); fill-opacity: 0.09; stroke: var(--amber); stroke-dasharray: 4 3; }
+.pipeline-graph__node.is-selected rect { stroke: var(--accent); stroke-width: 3; }
+.pipeline-graph__node[role="button"] { cursor: pointer; }
+.pipeline-graph__node:focus rect { stroke: var(--text); stroke-width: 3; outline: none; }
+.pipeline-graph__label { fill: var(--text); font-size: 13px; font-weight: 700; }
+.pipeline-graph__detail { fill: var(--text-dim); font-size: 10px; }
+
+@media (max-width: 680px) {
+  .cleaning-plan-stage { align-items: flex-start; flex-wrap: wrap; }
+  .cleaning-plan-stage__summary { flex-basis: 100%; }
+  .pipeline-workbench-modal { max-height: calc(100vh - 18px); }
+}
 
 .modal-field {
   display: grid;

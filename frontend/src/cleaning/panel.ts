@@ -1,10 +1,19 @@
-import { applyCleaningPlan, exportCleaningPlan, listDatasetVersions, previewCleaningPlan, selectDatasetVersion } from './api.js';
+import {
+    applyCleaningPlan,
+    exportCleaningPlan,
+    listDatasetVersions,
+    previewCleaningPlan,
+    selectDatasetVersion,
+} from './api.js';
+import { generatePythonPolars, generateRustPolars } from './codegen.js';
+import { buildPipelineGraph, renderPipelineGraphSvg, serializePipelineGraph } from './pipelineGraph.js';
+import type { CleaningPlan, CleaningStage } from './types.js';
 import type { CleaningPlanStore } from './store.js';
 import { downloadBlob } from '../utils/dom.js';
-import { generatePythonPolars, generateRustPolars } from './codegen.js';
 
 type PlanPanelStore = Pick<CleaningPlanStore,
-    'getSnapshot' | 'subscribe' | 'addStage' | 'updateStage' | 'removeStage' | 'setStageEnabled'>;
+    'getSnapshot' | 'subscribe' | 'addStage' | 'updateStage' | 'removeStage' | 'setStageEnabled' | 'reorderStage'>;
+type WorkbenchTab = 'pipeline' | 'stages' | 'export';
 
 export interface CleaningPlanPanelDeps {
     planStore: PlanPanelStore;
@@ -21,20 +30,103 @@ function button(label: string, className = 'btn btn-ghost btn-sm'): HTMLButtonEl
     return element;
 }
 
-function stageSummary(stage: NonNullable<ReturnType<PlanPanelStore['getSnapshot']>>['stages'][number]): string {
+function stageSummary(stage: CleaningStage): string {
     switch (stage.kind) {
-        case 'timeRange': return `${stage.mode === 'keepInside' ? 'Keep' : 'Drop'} ${new Date(stage.startMs).toISOString()} – ${new Date(stage.endMs).toISOString()}`;
-        case 'columnRange': return `${stage.mode === 'keepInside' ? 'Keep' : 'Drop'} ${stage.column}: ${stage.from} – ${stage.to}`;
-        case 'adaptiveLine': return `${stage.keepAbove ? 'Keep above' : 'Keep below'} line for ${stage.column}`;
-        case 'annotation': return stage.label;
+        case 'timeRange': return (stage.mode === 'keepInside' ? 'Keep ' : 'Drop ') + new Date(stage.startMs).toISOString() + ' – ' + new Date(stage.endMs).toISOString();
+        case 'columnRange': return (stage.mode === 'keepInside' ? 'Keep ' : 'Drop ') + stage.column + ': ' + stage.from + ' – ' + stage.to;
+        case 'adaptiveLine': return (stage.keepAbove ? 'Keep above' : 'Keep below') + ' line for ' + stage.column;
+        case 'annotation': return stage.note?.trim() || stage.label;
     }
 }
 
+function executable(stage: CleaningStage | undefined): boolean {
+    return !!stage && stage.executionClass !== 'annotation';
+}
+
+function textInput(label: string, value: string, name: string, type = 'text'): HTMLLabelElement {
+    const field = document.createElement('label');
+    field.className = 'modal-field';
+    const caption = document.createElement('span');
+    caption.className = 'modal-label';
+    caption.textContent = label;
+    const input = document.createElement('input');
+    input.className = 'modal-input';
+    input.name = name;
+    input.type = type;
+    input.value = value;
+    if (type === 'number') input.step = 'any';
+    field.append(caption, input);
+    return field;
+}
+
+function selectInput(label: string, value: string, name: string, options: Array<[string, string]>): HTMLLabelElement {
+    const field = document.createElement('label');
+    field.className = 'modal-field';
+    const caption = document.createElement('span');
+    caption.className = 'modal-label';
+    caption.textContent = label;
+    const select = document.createElement('select');
+    select.className = 'modal-select';
+    select.name = name;
+    for (const [optionValue, optionLabel] of options) {
+        const option = document.createElement('option');
+        option.value = optionValue;
+        option.textContent = optionLabel;
+        option.selected = optionValue === value;
+        select.appendChild(option);
+    }
+    field.append(caption, select);
+    return field;
+}
+
+function checkboxInput(label: string, checked: boolean, name: string): HTMLLabelElement {
+    const field = document.createElement('label');
+    field.className = 'pipeline-workbench__checkbox';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.name = name;
+    input.checked = checked;
+    const caption = document.createElement('span');
+    caption.textContent = label;
+    field.append(input, caption);
+    return field;
+}
+
+function readText(form: HTMLFormElement, name: string): string {
+    return (form.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement | null)?.value.trim() ?? '';
+}
+
+function readNumber(form: HTMLFormElement, name: string, label: string): number {
+    const value = Number((form.elements.namedItem(name) as HTMLInputElement).value);
+    if (!Number.isFinite(value)) throw new Error(label + ' must be a finite number.');
+    return value;
+}
+
+function readChecked(form: HTMLFormElement, name: string): boolean {
+    return !!(form.elements.namedItem(name) as HTMLInputElement | null)?.checked;
+}
+
+function updateToolbarSummary(plan: CleaningPlan | null): void {
+    const summary = document.querySelector<HTMLElement>('[data-cleaning-plan-summary]');
+    if (!summary) return;
+    if (!plan) {
+        summary.textContent = 'No source';
+        return;
+    }
+    const count = plan.stages.filter((stage) => executable(stage) && stage.enabled).length;
+    summary.textContent = count === 0 ? 'Source' : String(count) + ' active';
+}
+
+function createTab(label: string, tab: WorkbenchTab): HTMLButtonElement {
+    const element = button(label, 'pipeline-workbench__tab');
+    element.setAttribute('role', 'tab');
+    element.dataset.planTab = tab;
+    return element;
+}
+
 /**
- * Compact, page-independent control surface for the active accumulated plan.
- * It intentionally exposes only reversible operations: preview, JSON export,
- * stage enable/remove, and an explicit "use visible time range" authoring
- * action. Data materialization remains a deliberate server-side action.
+ * Pipeline workbench for the canonical plan store. The SVG is a visual
+ * projection only; every mutation continues through the existing plan store.
  */
 export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void {
     const trigger = document.getElementById('open-cleaning-plan-btn') as HTMLButtonElement | null;
@@ -43,60 +135,299 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop cleaning-plan-backdrop';
     backdrop.hidden = true;
-    backdrop.innerHTML = `
-        <section class="modal cleaning-plan-modal" role="dialog" aria-modal="true" aria-labelledby="cleaning-plan-title">
-          <header class="modal-header"><span class="modal-title" id="cleaning-plan-title">Cleaning plan</span></header>
-          <div class="modal-body">
-            <p class="cleaning-plan-status" data-plan-status></p>
-            <div class="cleaning-plan-stages" data-plan-stages></div>
-            <p class="cleaning-plan-preview" data-plan-preview aria-live="polite"></p>
-            <div class="cleaning-plan-actions" data-plan-actions></div>
-          </div>
-        </section>`;
+    const modal = document.createElement('section');
+    modal.className = 'modal cleaning-plan-modal pipeline-workbench-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', 'cleaning-plan-title');
+    const header = document.createElement('header');
+    header.className = 'modal-header';
+    const titleWrap = document.createElement('div');
+    const title = document.createElement('span');
+    title.className = 'modal-title';
+    title.id = 'cleaning-plan-title';
+    title.textContent = 'Pipeline workbench';
+    const subtitle = document.createElement('span');
+    subtitle.className = 'pipeline-workbench__subtitle';
+    subtitle.textContent = 'Inspect and change the reversible preprocessing pipeline.';
+    titleWrap.append(title, subtitle);
+    const closeButton = button('Close');
+    closeButton.dataset.planClose = 'true';
+    closeButton.setAttribute('aria-label', 'Close pipeline workbench');
+    header.append(titleWrap, closeButton);
+    const body = document.createElement('div');
+    body.className = 'modal-body';
+    const status = document.createElement('p');
+    status.className = 'cleaning-plan-status';
+    const tabsWrap = document.createElement('div');
+    tabsWrap.className = 'pipeline-workbench__tabs';
+    tabsWrap.setAttribute('role', 'tablist');
+    tabsWrap.setAttribute('aria-label', 'Pipeline workbench sections');
+    const pipelineTab = createTab('Pipeline', 'pipeline');
+    const stagesTab = createTab('Stages', 'stages');
+    const exportTab = createTab('Export', 'export');
+    tabsWrap.append(pipelineTab, stagesTab, exportTab);
+    const panel = document.createElement('div');
+    panel.className = 'pipeline-workbench__panel';
+    const preview = document.createElement('p');
+    preview.className = 'cleaning-plan-preview';
+    preview.dataset.planPreview = 'true';
+    preview.setAttribute('aria-live', 'polite');
+    const actions = document.createElement('div');
+    actions.className = 'cleaning-plan-actions';
+    body.append(status, tabsWrap, panel, preview, actions);
+    modal.append(header, body);
+    backdrop.appendChild(modal);
     document.body.appendChild(backdrop);
 
-    const status = backdrop.querySelector<HTMLElement>('[data-plan-status]')!;
-    const stages = backdrop.querySelector<HTMLElement>('[data-plan-stages]')!;
-    const preview = backdrop.querySelector<HTMLElement>('[data-plan-preview]')!;
-    const actions = backdrop.querySelector<HTMLElement>('[data-plan-actions]')!;
+    const tabs = [pipelineTab, stagesTab, exportTab];
+    let activeTab: WorkbenchTab = 'pipeline';
+    let selectedStageId: string | null = null;
 
-    const notify = () => deps.onPlanChanged?.();
-    const render = () => {
-        const plan = deps.planStore.getSnapshot();
-        stages.replaceChildren();
-        actions.replaceChildren();
-        preview.textContent = '';
-        if (!plan) {
-            status.textContent = 'Load a dataset to start an accumulated cleaning plan.';
-            return;
+    const notify = (stage?: CleaningStage) => {
+        if (stage === undefined || executable(stage)) deps.onPlanChanged?.();
+    };
+    const renderTabs = () => {
+        for (const tab of tabs) {
+            const selected = tab.dataset.planTab === activeTab;
+            tab.setAttribute('aria-selected', String(selected));
+            tab.classList.toggle('is-active', selected);
         }
-        status.textContent = `${plan.stages.filter((stage) => stage.enabled).length} active stage${plan.stages.filter((stage) => stage.enabled).length === 1 ? '' : 's'} · source ${plan.sourceVersionId}`;
+    };
+    const setActiveTab = (tab: WorkbenchTab) => {
+        activeTab = tab;
+        render();
+    };
+    const selectStage = (stageId: string) => {
+        selectedStageId = stageId;
+        activeTab = 'stages';
+        render();
+    };
+    const renderPipeline = (plan: CleaningPlan) => {
+        panel.replaceChildren();
+        const legend = document.createElement('div');
+        legend.className = 'pipeline-workbench__legend';
+        legend.textContent = 'Active stages transform row membership. Disabled stages are bypassed. Annotations document the pipeline.';
+        const scroll = document.createElement('div');
+        scroll.className = 'pipeline-workbench__graph-scroll';
+        scroll.innerHTML = renderPipelineGraphSvg(buildPipelineGraph(plan), { selectedStageId });
+        const hint = document.createElement('p');
+        hint.className = 'pipeline-workbench__hint';
+        hint.textContent = 'Select a stage in the graph to edit it. The graph never changes data directly.';
+        const onSelect = (event: Event) => {
+            const stageId = (event.target as Element | null)?.closest<SVGGElement>('[data-stage-id]')?.dataset.stageId;
+            if (stageId) selectStage(stageId);
+        };
+        scroll.addEventListener('click', onSelect);
+        scroll.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
+            onSelect(event);
+        });
+        panel.append(legend, scroll, hint);
+    };
+    const saveStage = (stage: CleaningStage, form: HTMLFormElement) => {
+        const common = {
+            label: readText(form, 'label') || stage.kind,
+            note: readText(form, 'note') || undefined,
+            enabled: readChecked(form, 'enabled'),
+        };
+        let patch: Partial<CleaningStage>;
+        if (stage.kind === 'timeRange') {
+            patch = {
+                ...common,
+                startMs: readNumber(form, 'startMs', 'Start'),
+                endMs: readNumber(form, 'endMs', 'End'),
+                mode: readText(form, 'mode') as 'keepInside' | 'dropInside',
+            } as Partial<CleaningStage>;
+        } else if (stage.kind === 'columnRange') {
+            patch = {
+                ...common,
+                column: readText(form, 'column'),
+                from: readNumber(form, 'from', 'From'),
+                to: readNumber(form, 'to', 'To'),
+                mode: readText(form, 'mode') as 'keepInside' | 'dropInside',
+            } as Partial<CleaningStage>;
+        } else if (stage.kind === 'adaptiveLine') {
+            const x1Ms = readNumber(form, 'x1Ms', 'X1');
+            const x2Ms = readNumber(form, 'x2Ms', 'X2');
+            if (x1Ms === x2Ms) throw new Error('Adaptive line X coordinates must differ.');
+            patch = {
+                ...common,
+                column: readText(form, 'column'),
+                x1Ms,
+                y1: readNumber(form, 'y1', 'Y1'),
+                x2Ms,
+                y2: readNumber(form, 'y2', 'Y2'),
+                keepAbove: readChecked(form, 'keepAbove'),
+                applyWithinSegmentOnly: readChecked(form, 'applyWithinSegmentOnly'),
+            } as Partial<CleaningStage>;
+        } else {
+            patch = {
+                ...common,
+                severity: readText(form, 'severity') as 'info' | 'warning' | 'critical',
+            } as Partial<CleaningStage>;
+        }
+        deps.planStore.updateStage(stage.id, patch);
+        notify(stage);
+        preview.textContent = 'Saved ' + (stage.label || stage.kind) + '.';
+    };
+    const renderEditor = (stage: CleaningStage) => {
+        const form = document.createElement('form');
+        form.className = 'pipeline-workbench__editor';
+        const heading = document.createElement('h3');
+        heading.textContent = 'Edit ' + stage.kind;
+        const general = document.createElement('div');
+        general.className = 'modal-grid';
+        general.append(textInput('Label', stage.label, 'label'), checkboxInput('Enabled', stage.enabled, 'enabled'));
+        const note = document.createElement('label');
+        note.className = 'modal-field';
+        const noteLabel = document.createElement('span');
+        noteLabel.className = 'modal-label';
+        noteLabel.textContent = 'Note';
+        const noteText = document.createElement('textarea');
+        noteText.className = 'modal-input';
+        noteText.name = 'note';
+        noteText.rows = 2;
+        noteText.value = stage.note ?? '';
+        note.append(noteLabel, noteText);
+        const fields = document.createElement('div');
+        fields.className = 'modal-grid';
+        if (stage.kind === 'timeRange') {
+            fields.append(
+                textInput('Start (ms)', String(stage.startMs), 'startMs', 'number'),
+                textInput('End (ms)', String(stage.endMs), 'endMs', 'number'),
+                selectInput('Mode', stage.mode, 'mode', [['keepInside', 'Keep inside'], ['dropInside', 'Drop inside']]),
+            );
+        } else if (stage.kind === 'columnRange') {
+            fields.append(
+                textInput('Column', stage.column, 'column'),
+                textInput('From', String(stage.from), 'from', 'number'),
+                textInput('To', String(stage.to), 'to', 'number'),
+                selectInput('Mode', stage.mode, 'mode', [['keepInside', 'Keep inside'], ['dropInside', 'Drop inside']]),
+            );
+        } else if (stage.kind === 'adaptiveLine') {
+            fields.append(
+                textInput('Column', stage.column, 'column'),
+                textInput('X1 (ms)', String(stage.x1Ms), 'x1Ms', 'number'),
+                textInput('Y1', String(stage.y1), 'y1', 'number'),
+                textInput('X2 (ms)', String(stage.x2Ms), 'x2Ms', 'number'),
+                textInput('Y2', String(stage.y2), 'y2', 'number'),
+                checkboxInput('Keep above line', stage.keepAbove, 'keepAbove'),
+                checkboxInput('Only within segment', stage.applyWithinSegmentOnly, 'applyWithinSegmentOnly'),
+            );
+        } else {
+            fields.append(selectInput('Severity', stage.severity ?? 'info', 'severity', [
+                ['info', 'Info'], ['warning', 'Warning'], ['critical', 'Critical'],
+            ]));
+        }
+        const editorActions = document.createElement('div');
+        editorActions.className = 'pipeline-workbench__editor-actions';
+        const save = button('Save stage', 'btn btn-primary btn-sm');
+        save.type = 'submit';
+        const clear = button('Clear selection');
+        clear.addEventListener('click', () => {
+            selectedStageId = null;
+            render();
+        });
+        editorActions.append(save, clear);
+        form.append(heading, general, note, fields, editorActions);
+        form.addEventListener('submit', (event) => {
+            event.preventDefault();
+            try {
+                saveStage(stage, form);
+            } catch (error) {
+                preview.textContent = error instanceof Error ? error.message : 'Could not save this stage.';
+            }
+        });
+        panel.appendChild(form);
+    };
+    const renderStages = (plan: CleaningPlan) => {
+        panel.replaceChildren();
+        const list = document.createElement('div');
+        list.className = 'cleaning-plan-stages';
         if (plan.stages.length === 0) {
             const empty = document.createElement('p');
-            empty.textContent = 'No transforms yet. Filters created from plots accumulate here.';
-            stages.appendChild(empty);
-        } else {
-            for (const stage of plan.stages) {
-                const row = document.createElement('div');
-                row.className = 'cleaning-plan-stage';
-                const description = document.createElement('span');
-                description.textContent = stageSummary(stage);
-                if (!stage.enabled) description.classList.add('is-disabled');
-                const toggle = button(stage.enabled ? 'Disable' : 'Enable');
-                toggle.addEventListener('click', () => {
-                    deps.planStore.setStageEnabled(stage.id, !stage.enabled);
-                    notify();
-                });
-                const remove = button('Remove');
-                remove.addEventListener('click', () => {
-                    deps.planStore.removeStage(stage.id);
-                    notify();
-                });
-                row.append(description, toggle, remove);
-                stages.appendChild(row);
-            }
+            empty.className = 'pipeline-workbench__hint';
+            empty.textContent = 'No transforms yet. Add a visible time range or create a stage from a plot.';
+            list.appendChild(empty);
         }
-
+        for (const [index, stage] of plan.stages.entries()) {
+            const row = document.createElement('div');
+            row.className = 'cleaning-plan-stage';
+            row.classList.toggle('is-selected', stage.id === selectedStageId);
+            const description = button(String(index + 1) + '. ' + (stage.label || stage.kind) + ' — ' + stageSummary(stage), 'cleaning-plan-stage__summary');
+            description.setAttribute('aria-pressed', String(stage.id === selectedStageId));
+            description.classList.toggle('is-disabled', !stage.enabled);
+            description.addEventListener('click', () => selectStage(stage.id));
+            const toggle = button(stage.enabled ? 'Disable' : 'Enable');
+            toggle.addEventListener('click', () => {
+                deps.planStore.setStageEnabled(stage.id, !stage.enabled);
+                notify(stage);
+            });
+            const up = button('Move up');
+            up.disabled = index === 0;
+            up.addEventListener('click', () => {
+                deps.planStore.reorderStage(stage.id, index - 1);
+                notify(stage);
+            });
+            const down = button('Move down');
+            down.disabled = index === plan.stages.length - 1;
+            down.addEventListener('click', () => {
+                deps.planStore.reorderStage(stage.id, index + 1);
+                notify(stage);
+            });
+            const remove = button('Remove');
+            remove.addEventListener('click', () => {
+                deps.planStore.removeStage(stage.id);
+                if (selectedStageId === stage.id) selectedStageId = null;
+                notify(stage);
+            });
+            row.append(description, toggle, up, down, remove);
+            list.appendChild(row);
+        }
+        panel.appendChild(list);
+        const selected = plan.stages.find((stage) => stage.id === selectedStageId);
+        if (selected) renderEditor(selected);
+    };
+    const exportText = (content: string, filename: string, type: string) => {
+        downloadBlob(new Blob([content], { type }), filename);
+    };
+    const renderExport = (plan: CleaningPlan) => {
+        panel.replaceChildren();
+        const copy = document.createElement('p');
+        copy.className = 'pipeline-workbench__hint';
+        copy.textContent = 'Export the backend-validated plan for reproducibility, or export this visual projection for review.';
+        const controls = document.createElement('div');
+        controls.className = 'pipeline-workbench__export-actions';
+        const planExport = button('Export plan JSON');
+        planExport.addEventListener('click', async () => {
+            planExport.disabled = true;
+            try {
+                downloadBlob(await exportCleaningPlan(plan), 'edatime_cleaning_plan.json');
+            } catch (error) {
+                preview.textContent = error instanceof Error ? error.message : 'Could not export this plan.';
+            } finally {
+                planExport.disabled = false;
+            }
+        });
+        const graphExport = button('Export graph JSON');
+        graphExport.addEventListener('click', () => {
+            exportText(serializePipelineGraph(buildPipelineGraph(plan)), 'edatime_pipeline_graph.json', 'application/json;charset=utf-8');
+        });
+        const svgExport = button('Export graph SVG');
+        svgExport.addEventListener('click', () => {
+            exportText(renderPipelineGraphSvg(buildPipelineGraph(plan)), 'edatime_pipeline_graph.svg', 'image/svg+xml;charset=utf-8');
+        });
+        const pythonExport = button('Python Polars');
+        pythonExport.addEventListener('click', () => exportText(generatePythonPolars(plan), 'apply_edatime_plan.py', 'text/x-python;charset=utf-8'));
+        const rustExport = button('Rust Polars');
+        rustExport.addEventListener('click', () => exportText(generateRustPolars(plan), 'apply_edatime_plan.rs', 'text/rust;charset=utf-8'));
+        controls.append(planExport, graphExport, svgExport, pythonExport, rustExport);
+        panel.append(copy, controls);
+    };
+    const renderActions = (plan: CleaningPlan) => {
+        actions.replaceChildren();
         const addViewport = button('Add visible time range');
         addViewport.addEventListener('click', () => {
             const viewport = deps.getViewport();
@@ -110,48 +441,27 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             if (existing) {
                 deps.planStore.updateStage(existing.id, {
                     startMs: Math.min(startMs, endMs), endMs: Math.max(startMs, endMs), enabled: true,
-                } as never);
+                } as Partial<CleaningStage>);
+                notify(existing);
             } else {
                 deps.planStore.addStage({
                     kind: 'timeRange', executionClass: 'polarsExpression', scope: 'row', enabled: true,
                     sourcePage: 'timeseries', label: 'Keep visible time range',
                     startMs: Math.min(startMs, endMs), endMs: Math.max(startMs, endMs), mode: 'keepInside',
                 });
+                notify();
             }
-            notify();
+            setActiveTab('stages');
         });
         const previewButton = button('Preview');
         previewButton.addEventListener('click', async () => {
             preview.textContent = 'Calculating preview…';
             try {
                 const result = await previewCleaningPlan(deps.planStore.getSnapshot()!);
-                preview.textContent = `${result.rowsAfter.toLocaleString()} of ${result.rowsBefore.toLocaleString()} rows remain (${result.rowsRemoved.toLocaleString()} removed).`;
+                preview.textContent = String(result.rowsAfter.toLocaleString()) + ' of ' + String(result.rowsBefore.toLocaleString()) + ' rows remain (' + String(result.rowsRemoved.toLocaleString()) + ' removed).';
             } catch (error) {
                 preview.textContent = error instanceof Error ? error.message : 'Could not preview this plan.';
             }
-        });
-        const exportPlan = button('Export plan JSON');
-        exportPlan.addEventListener('click', async () => {
-            const current = deps.planStore.getSnapshot();
-            if (!current) return;
-            exportPlan.disabled = true;
-            try {
-                downloadBlob(await exportCleaningPlan(current), 'edatime_cleaning_plan.json');
-            } catch (error) {
-                preview.textContent = error instanceof Error ? error.message : 'Could not export this plan.';
-            } finally {
-                exportPlan.disabled = false;
-            }
-        });
-        const exportPython = button('Python Polars');
-        exportPython.addEventListener('click', () => {
-            const current = deps.planStore.getSnapshot();
-            if (current) downloadBlob(new Blob([generatePythonPolars(current)], { type: 'text/x-python;charset=utf-8' }), 'apply_edatime_plan.py');
-        });
-        const exportRust = button('Rust Polars');
-        exportRust.addEventListener('click', () => {
-            const current = deps.planStore.getSnapshot();
-            if (current) downloadBlob(new Blob([generateRustPolars(current)], { type: 'text/rust;charset=utf-8' }), 'apply_edatime_plan.rs');
         });
         const apply = button('Apply as new dataset', 'btn btn-primary btn-sm');
         apply.addEventListener('click', async () => {
@@ -161,7 +471,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             preview.textContent = 'Materializing a new dataset version…';
             try {
                 const result = await applyCleaningPlan(current);
-                preview.textContent = `Created ${result.sourceVersion.id} from ${current.sourceVersionId}.`;
+                preview.textContent = 'Created ' + result.sourceVersion.id + ' from ' + current.sourceVersionId + '.';
                 await deps.onPlanApplied?.();
             } catch (error) {
                 preview.textContent = error instanceof Error ? error.message : 'Could not materialize this plan.';
@@ -178,7 +488,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
                 const root = versions.find((version) => version.id === version.rootId);
                 if (!root) throw new Error('The original source version is no longer available.');
                 await selectDatasetVersion(root.id);
-                preview.textContent = `Restored ${root.id}.`;
+                preview.textContent = 'Restored ' + root.id + '.';
                 await deps.onPlanApplied?.();
             } catch (error) {
                 preview.textContent = error instanceof Error ? error.message : 'Could not restore the original dataset.';
@@ -186,20 +496,52 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
                 resetOriginal.disabled = false;
             }
         });
-        const close = button('Done', 'btn btn-primary btn-sm');
-        close.addEventListener('click', () => { backdrop.hidden = true; trigger.focus(); });
-        actions.append(addViewport, previewButton, exportPlan, exportPython, exportRust, apply, resetOriginal, close);
+        actions.append(addViewport, previewButton, apply, resetOriginal);
     };
-
-    const open = () => { render(); backdrop.hidden = false; };
-    const closeOnBackdrop = (event: MouseEvent) => { if (event.target === backdrop) backdrop.hidden = true; };
-    const closeOnEscape = (event: KeyboardEvent) => { if (!backdrop.hidden && event.key === 'Escape') backdrop.hidden = true; };
+    const render = () => {
+        const plan = deps.planStore.getSnapshot();
+        renderTabs();
+        preview.textContent = '';
+        updateToolbarSummary(plan);
+        if (!plan) {
+            status.textContent = 'Load a dataset to start an accumulated cleaning plan.';
+            panel.replaceChildren();
+            actions.replaceChildren();
+            return;
+        }
+        const activeCount = plan.stages.filter((stage) => executable(stage) && stage.enabled).length;
+        status.textContent = String(activeCount) + ' active executable stage' + (activeCount === 1 ? '' : 's') + ' · source ' + plan.sourceVersionId + ' · revision ' + plan.datasetRevision;
+        if (activeTab === 'pipeline') renderPipeline(plan);
+        else if (activeTab === 'stages') renderStages(plan);
+        else renderExport(plan);
+        renderActions(plan);
+    };
+    const close = () => {
+        backdrop.hidden = true;
+        trigger.focus();
+    };
+    const open = () => {
+        selectedStageId = null;
+        activeTab = 'pipeline';
+        render();
+        backdrop.hidden = false;
+        pipelineTab.focus();
+    };
+    const closeOnBackdrop = (event: MouseEvent) => { if (event.target === backdrop) close(); };
+    const closeOnEscape = (event: KeyboardEvent) => { if (!backdrop.hidden && event.key === 'Escape') close(); };
     trigger.addEventListener('click', open);
+    closeButton.addEventListener('click', close);
+    for (const tab of tabs) tab.addEventListener('click', () => setActiveTab(tab.dataset.planTab as WorkbenchTab));
     backdrop.addEventListener('click', closeOnBackdrop);
     document.addEventListener('keydown', closeOnEscape);
-    const unsubscribe = deps.planStore.subscribe(() => { if (!backdrop.hidden) render(); });
+    updateToolbarSummary(deps.planStore.getSnapshot());
+    const unsubscribe = deps.planStore.subscribe(() => {
+        updateToolbarSummary(deps.planStore.getSnapshot());
+        if (!backdrop.hidden) render();
+    });
     return () => {
         trigger.removeEventListener('click', open);
+        closeButton.removeEventListener('click', close);
         backdrop.removeEventListener('click', closeOnBackdrop);
         document.removeEventListener('keydown', closeOnEscape);
         unsubscribe();

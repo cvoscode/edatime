@@ -138,6 +138,18 @@ test.describe('Audit Verification Tests', () => {
     await expect(scatterMatrix).toBeVisible();
   });
 
+  test('pipeline workbench visualizes and exposes exports for the current plan', async ({ page }) => {
+    await openPage(page, 'timeseries');
+
+    await page.locator('#open-cleaning-plan-btn').click();
+    await expect(page.locator('#cleaning-plan-title')).toHaveText('Pipeline workbench');
+    await expect(page.locator('.pipeline-graph')).toBeVisible();
+
+    await page.getByRole('tab', { name: 'Export' }).click();
+    await expect(page.getByRole('button', { name: 'Export graph JSON' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Export graph SVG' })).toBeVisible();
+  });
+
   test('API response times are acceptable', async ({ page }) => {
     // Navigate to scatter page
     await openPage(page, 'scatter');
