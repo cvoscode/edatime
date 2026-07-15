@@ -68,6 +68,9 @@ function stageImpactSummary(stage: CleaningStage, impact: CleaningStageImpact | 
     if (!impact) return 'Preview to calculate row impact.';
     if (!stage.enabled) return 'Disabled — not run in this preview.';
     if (!impact.executed) return 'Annotation — no row membership change.';
+    if (stage.kind === 'sort') return 'Executed — stable row order changed; row membership unchanged.';
+    if (stage.kind === 'fillNull') return 'Executed — null values may change; row membership unchanged.';
+    if (stage.kind === 'columnSelect') return 'Executed — schema may change; row membership unchanged.';
     return String(impact.rowsAfter.toLocaleString()) + ' of ' + String(impact.rowsBefore.toLocaleString())
         + ' rows after this stage · ' + String(impact.rowsRemoved.toLocaleString()) + ' removed.';
 }

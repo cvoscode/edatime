@@ -113,6 +113,19 @@ describe('cleaning plan panel', () => {
             .toContain('61 of 100 rows after this stage · 39 removed.');
     });
 
+    it('describes non-membership stage effects without implying row removal', async () => {
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        const stage = planStore.addStage({ kind: 'sort', executionClass: 'polarsExpression', scope: 'order', enabled: true, sourcePage: 'manual', label: 'Order time', columns: ['ts'], descending: false, nullsLast: true });
+        previewMock.mockResolvedValue({ rowsBefore: 3, rowsAfter: 3, rowsRemoved: 0, columnsBefore: 2, columnsAfter: 2, warnings: [], stageImpacts: [{ stageId: stage.id, executed: true, rowsBefore: 3, rowsAfter: 3, rowsRemoved: 0 }] });
+        mountCleaningPlanPanel({ planStore, getViewport: () => null });
+        document.getElementById('open-cleaning-plan-btn')!.click();
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Preview')!.click();
+        await Promise.resolve(); await Promise.resolve();
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Stages')!.click();
+        expect(document.querySelector('.cleaning-plan-stage__impact')?.textContent).toContain('stable row order changed');
+    });
+
     it('only materializes when the user explicitly requests a new dataset version', async () => {
         const planStore = createCleaningPlanStore();
         planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
