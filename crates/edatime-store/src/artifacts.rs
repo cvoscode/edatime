@@ -3,6 +3,7 @@
 use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, Utc};
+use polars::prelude::{DataFrame, ParquetWriter};
 use serde::{Deserialize, Serialize};
 
 use edatime_core::error::AppError;
@@ -60,9 +61,71 @@ impl DatasetArtifactStore {
             .map_err(|e| AppError::Io(format!("Publish artifact catalog: {e}")))
     }
 
+    /// Write a complete immutable frame to a managed Parquet file, then make
+    /// it visible through the catalog. The catalog is the publish boundary;
+    /// an interrupted write can leave only an ignored temporary file.
+    pub fn publish_parquet(
+        &self,
+        version_id: String,
+        content_fingerprint: String,
+        created_at: DateTime<Utc>,
+        mut frame: DataFrame,
+    ) -> Result<DatasetArtifactDescriptor, AppError> {
+        let file_name = artifact_file_name(&version_id)?;
+        std::fs::create_dir_all(&self.root)
+            .map_err(|e| AppError::Io(format!("Create artifact directory: {e}")))?;
+        let path = self.root.join(&file_name);
+        if path.exists() {
+            return Err(AppError::bad_request(format!(
+                "Artifact for dataset version '{version_id}' already exists"
+            )));
+        }
+        let temp = self.root.join(format!("{file_name}.tmp"));
+        let file = std::fs::File::create(&temp)
+            .map_err(|e| AppError::Io(format!("Create Parquet artifact: {e}")))?;
+        if let Err(error) = ParquetWriter::new(file).finish(&mut frame) {
+            let _ = std::fs::remove_file(&temp);
+            return Err(AppError::internal(format!(
+                "Write Parquet artifact: {error}"
+            )));
+        }
+        if let Err(error) = std::fs::rename(&temp, &path) {
+            let _ = std::fs::remove_file(&temp);
+            return Err(AppError::Io(format!("Finalize Parquet artifact: {error}")));
+        }
+        let descriptor = DatasetArtifactDescriptor {
+            version_id,
+            path,
+            format: "parquet".to_string(),
+            byte_size: std::fs::metadata(self.root.join(&file_name))
+                .map_err(|e| AppError::Io(format!("Read Parquet artifact size: {e}")))?
+                .len(),
+            content_fingerprint,
+            created_at,
+        };
+        if let Err(error) = self.publish(descriptor.clone()) {
+            let _ = std::fs::remove_file(&descriptor.path);
+            return Err(error);
+        }
+        Ok(descriptor)
+    }
+
     pub fn root(&self) -> &Path {
         &self.root
     }
+}
+
+fn artifact_file_name(version_id: &str) -> Result<String, AppError> {
+    if version_id.is_empty()
+        || !version_id.chars().all(|character| {
+            character.is_ascii_alphanumeric() || character == '-' || character == '_'
+        })
+    {
+        return Err(AppError::bad_request(
+            "Dataset version IDs for managed artifacts may contain only letters, digits, '-' and '_'",
+        ));
+    }
+    Ok(format!("{version_id}.parquet"))
 }
 
 #[cfg(test)]
@@ -72,6 +135,7 @@ mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     use chrono::Utc;
+    use polars::prelude::{DataFrame, NamedFrom, Series};
 
     use super::{DatasetArtifactDescriptor, DatasetArtifactStore};
 
@@ -94,6 +158,14 @@ mod tests {
             content_fingerprint: format!("fingerprint-{version_id}-{byte_size}"),
             created_at: Utc::now(),
         }
+    }
+
+    fn frame(values: Vec<i64>) -> DataFrame {
+        DataFrame::new(
+            values.len(),
+            vec![Series::new("value".into(), values).into()],
+        )
+        .expect("frame")
     }
 
     #[test]
@@ -125,6 +197,28 @@ mod tests {
             vec![replacement]
         );
         assert!(!root.join("catalog.json.tmp").exists());
+
+        fs::remove_dir_all(root).expect("clean test artifact directory");
+    }
+
+    #[test]
+    fn publishing_parquet_writes_the_artifact_before_catalog_visibility() {
+        let root = test_root();
+        let store = DatasetArtifactStore::new(&root);
+
+        let published = store
+            .publish_parquet(
+                "source-8".to_string(),
+                "content-8".to_string(),
+                Utc::now(),
+                frame(vec![1, 2, 3]),
+            )
+            .expect("publish parquet artifact");
+
+        assert!(published.path.exists());
+        assert!(published.byte_size > 0);
+        assert_eq!(store.load_catalog().expect("load catalog"), vec![published]);
+        assert!(!root.join("source-8.parquet.tmp").exists());
 
         fs::remove_dir_all(root).expect("clean test artifact directory");
     }
