@@ -442,6 +442,19 @@ The Prepare page should replace the plan modal as the main editing surface while
 
 Every stage needs explicit null semantics, group scope, ordering requirements, schema effect, portability class, preview cost, and export/codegen support. Do not add an operation to the UI until Rust execution, JSON fixtures, preview, export, and generated-code parity exist.
 
+#### Next temporal slice: fixed-duration resampling contract
+
+The first resampling stage must remain deliberately narrow until panel-series
+identity exists: it operates globally, requires an earlier enabled ascending
+stable sort on the canonical time column, and emits one row per non-empty fixed
+duration bucket. The plan records `every`, explicit value-column aggregation
+(`mean`, `sum`, `min`, `max`, or `last`), and uses the bucket start as the
+canonical time value. It must reject grouping keys, empty-bucket synthesis,
+interpolation, implicit aggregate selection, timezone conversion, and any
+operation that would guess a cadence. This gives preview/apply/export/codegen
+one portable meaning; grouped resampling and gap materialization follow only
+after `seriesKeys` and profile-derived cadence are available.
+
 ### P2.2 — Make Every Plot Author Useful Stages
 
 | Page | First executable authoring actions | State that must remain analysis-only |
