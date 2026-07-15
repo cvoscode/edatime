@@ -70,6 +70,14 @@ describe('pipeline graph', () => {
         });
     });
 
+    it('makes ordered null-fill prerequisites visible in graph labels', () => {
+        const graph = buildPipelineGraph({
+            ...plan(),
+            stages: [{ id: 'fill', kind: 'fillNull', executionClass: 'polarsExpression', scope: 'row', enabled: true, sourcePage: 'manual', label: 'Fill values', createdAt: 'now', updatedAt: 'now', columns: ['value'], strategy: 'forward', limit: null }],
+        });
+        expect(graph.nodes.map((node) => node.detail).join(' ')).toContain('after time sort');
+    });
+
     it('renders escaped SVG with a selected stage marker', () => {
         const svg = renderPipelineGraphSvg(buildPipelineGraph(plan()), { selectedStageId: 'range' });
 
