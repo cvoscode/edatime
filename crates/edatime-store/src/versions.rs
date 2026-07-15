@@ -83,7 +83,10 @@ fn fnv1a_bytes(input: &[u8]) -> String {
     format!("fnv1a-{hash:016x}")
 }
 
-fn fingerprints(df: &DataFrame) -> (String, String) {
+/// Return the stable content and schema identities used by dataset versions.
+/// Artifact publishers use this before the version is registered so a durable
+/// file and its registry record share exactly one content identity.
+pub fn fingerprints_for_frame(df: &DataFrame) -> (String, String) {
     let schema = df.schema();
     let columns = schema
         .iter_fields()
@@ -126,7 +129,7 @@ fn schema_fingerprint(mut frame: LazyFrame) -> Result<String, AppError> {
 
 impl DatasetVersionRegistry {
     pub fn new(initial: DataFrame, revision: u64, source_name: Option<String>) -> Self {
-        let (dataset_fingerprint, schema_fingerprint) = fingerprints(&initial);
+        let (dataset_fingerprint, schema_fingerprint) = fingerprints_for_frame(&initial);
         let id = "source-0".to_string();
         let record = DatasetVersionRecord {
             id: id.clone(),
@@ -173,13 +176,15 @@ impl DatasetVersionRegistry {
     }
 
     pub fn snapshot(&self, id: &str) -> Result<LazyFrame, AppError> {
-        self.entries
+        let source = self
+            .entries
             .read()
             .map_err(|_| AppError::internal("dataset version registry lock poisoned"))?
             .get(id)
             .ok_or_else(|| AppError::NotFound(format!("Unknown dataset version '{id}'")))?
             .source
-            .snapshot()
+            .clone();
+        source.snapshot()
     }
 
     pub fn list(&self) -> Result<Vec<DatasetVersionRecord>, AppError> {
@@ -198,9 +203,8 @@ impl DatasetVersionRegistry {
         revision: u64,
         source_name: Option<String>,
     ) -> Result<DatasetVersionRecord, AppError> {
-        let serial = self.next_id.fetch_add(1, Ordering::Relaxed);
-        let id = format!("source-{serial}");
-        let (dataset_fingerprint, schema_fingerprint) = fingerprints(&frame);
+        let id = self.allocate_version_id();
+        let (dataset_fingerprint, schema_fingerprint) = fingerprints_for_frame(&frame);
         let record = DatasetVersionRecord {
             id: id.clone(),
             root_id: id.clone(),
@@ -237,9 +241,8 @@ impl DatasetVersionRegistry {
         plan_hash: String,
     ) -> Result<DatasetVersionRecord, AppError> {
         let parent = self.record(parent_id)?;
-        let serial = self.next_id.fetch_add(1, Ordering::Relaxed);
-        let id = format!("source-{serial}");
-        let (dataset_fingerprint, schema_fingerprint) = fingerprints(&frame);
+        let id = self.allocate_version_id();
+        let (dataset_fingerprint, schema_fingerprint) = fingerprints_for_frame(&frame);
         let record = DatasetVersionRecord {
             id: id.clone(),
             root_id: parent.root_id,
@@ -268,6 +271,25 @@ impl DatasetVersionRegistry {
         Ok(record)
     }
 
+    /// Reserve a deterministic ID for a new source. Callers that publish a
+    /// durable artifact before registration use this so the file and version
+    /// record cannot disagree about their identity.
+    pub fn allocate_version_id(&self) -> String {
+        let serial = self.next_id.fetch_add(1, Ordering::Relaxed);
+        format!("source-{serial}")
+    }
+
+    /// Allocate a collision-resistant ID for an artifact that can outlive this
+    /// process. The in-memory serial alone restarts at `source-1`, so it is
+    /// intentionally not used for durable files.
+    pub fn allocate_artifact_version_id(&self) -> String {
+        let serial = self.next_id.fetch_add(1, Ordering::Relaxed);
+        format!(
+            "artifact-{}-{serial}",
+            Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        )
+    }
+
     /// Register an immutable Parquet artifact without collecting it into the
     /// resident repository. Its content identity comes from ingestion; only
     /// its schema is inspected to preserve the normal version contract.
@@ -294,6 +316,62 @@ impl DatasetVersionRegistry {
             schema_fingerprint,
             source_name,
             materialized_from_plan_hash: None,
+            created_at: artifact.created_at,
+        };
+        let mut entries = self
+            .entries
+            .write()
+            .map_err(|_| AppError::internal("dataset version registry lock poisoned"))?;
+        if entries.contains_key(&record.id) {
+            return Err(AppError::bad_request(format!(
+                "Dataset version '{}' is already retained",
+                record.id
+            )));
+        }
+        entries.insert(
+            record.id.clone(),
+            DatasetVersionEntry {
+                record: record.clone(),
+                source,
+            },
+        );
+        drop(entries);
+        *self
+            .current_id
+            .write()
+            .map_err(|_| AppError::internal("dataset version selection lock poisoned"))? =
+            record.id.clone();
+        Ok(record)
+    }
+
+    /// Register a materialized child backed by an already-published immutable
+    /// Parquet artifact. This preserves the parent's root/provenance while
+    /// avoiding a second resident version frame.
+    pub fn register_child_artifact(
+        &self,
+        parent_id: &str,
+        artifact: DatasetArtifactDescriptor,
+        revision: u64,
+        plan_hash: String,
+    ) -> Result<DatasetVersionRecord, AppError> {
+        if artifact.format != "parquet" {
+            return Err(AppError::bad_request(format!(
+                "Unsupported retained artifact format '{}'",
+                artifact.format
+            )));
+        }
+        let parent = self.record(parent_id)?;
+        let source = DatasetVersionSource::Parquet(artifact.path);
+        let schema_fingerprint = schema_fingerprint(source.snapshot()?)?;
+        let record = DatasetVersionRecord {
+            id: artifact.version_id,
+            root_id: parent.root_id,
+            parent_id: Some(parent.id),
+            revision,
+            dataset_fingerprint: artifact.content_fingerprint,
+            schema_fingerprint,
+            source_name: parent.source_name,
+            materialized_from_plan_hash: Some(plan_hash),
             created_at: artifact.created_at,
         };
         let mut entries = self

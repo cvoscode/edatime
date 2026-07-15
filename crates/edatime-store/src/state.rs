@@ -2,13 +2,15 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::Mutex;
 
+use chrono::Utc;
 use polars::prelude::{DataFrame, LazyFrame, SchemaExt};
 use tokio::sync::RwLock;
 
+use crate::artifacts::DatasetArtifactStore;
 use crate::cache::{CorrelationMatrixCacheEntry, ResponseCache};
 use crate::db::DbPool;
 use crate::repository::{DataRepository, InMemoryDataRepository};
-use crate::versions::{DatasetVersionRecord, DatasetVersionRegistry};
+use crate::versions::{DatasetVersionRecord, DatasetVersionRegistry, fingerprints_for_frame};
 use edatime_core::config::AppConfig;
 use edatime_core::error::AppError;
 use edatime_core::metrics::AppMetrics;
@@ -28,6 +30,7 @@ pub struct DbConnectionInfo {
 pub struct AppState {
     pub repository: Arc<dyn DataRepository>,
     pub dataset_versions: Arc<DatasetVersionRegistry>,
+    pub artifact_store: Option<Arc<DatasetArtifactStore>>,
     pub query_executor: Arc<QueryExecutor>,
     pub cache: Arc<ResponseCache>,
     pub metrics: Arc<AppMetrics>,
@@ -44,6 +47,7 @@ impl Clone for AppState {
         Self {
             repository: Arc::clone(&self.repository),
             dataset_versions: Arc::clone(&self.dataset_versions),
+            artifact_store: self.artifact_store.clone(),
             query_executor: Arc::clone(&self.query_executor),
             cache: Arc::clone(&self.cache),
             metrics: Arc::clone(&self.metrics),
@@ -61,6 +65,11 @@ impl AppState {
     pub fn new(df: DataFrame, config: AppConfig) -> Self {
         let dataset_versions = Arc::new(DatasetVersionRegistry::new(df.clone(), 0, None));
         let repository = Arc::new(InMemoryDataRepository::new(df));
+        let artifact_store = config
+            .data
+            .artifact_dir
+            .as_ref()
+            .map(|path| Arc::new(DatasetArtifactStore::new(path)));
         let cache = Arc::new(ResponseCache::new(crate::cache::CacheConfig {
             ttl: std::time::Duration::from_secs(config.cache.ttl_seconds.max(1)),
             max_entries: config.cache.max_entries.max(1),
@@ -77,6 +86,7 @@ impl AppState {
         Self {
             repository,
             dataset_versions,
+            artifact_store,
             query_executor,
             cache,
             metrics,
@@ -144,10 +154,30 @@ impl AppState {
     }
 
     pub async fn replace_dataset(&self, df: DataFrame) -> Result<u64, AppError> {
-        let rev = self.repository.replace_from_dataframe(df.clone())?;
-        self.dataset_versions
-            .register_root(df, rev, None)
-            .map_err(AppError::from)?;
+        let rev = if let Some(store) = &self.artifact_store {
+            let version_id = self.dataset_versions.allocate_artifact_version_id();
+            let (content_fingerprint, _) = fingerprints_for_frame(&df);
+            let store = Arc::clone(store);
+            let artifact_frame = df.clone();
+            let descriptor = tokio::task::spawn_blocking(move || {
+                store.publish_parquet(version_id, content_fingerprint, Utc::now(), artifact_frame)
+            })
+            .await
+            .map_err(|error| {
+                AppError::internal(format!("Failed to join artifact write: {error}"))
+            })??;
+            let rev = self.repository.replace_from_dataframe(df)?;
+            self.dataset_versions
+                .register_root_artifact(descriptor, rev, None)
+                .map_err(AppError::from)?;
+            rev
+        } else {
+            let rev = self.repository.replace_from_dataframe(df.clone())?;
+            self.dataset_versions
+                .register_root(df, rev, None)
+                .map_err(AppError::from)?;
+            rev
+        };
         // Invalidate cached responses so stale data is never served after upload.
         self.cache.invalidate_all().await;
         self.clear_correlation_matrix_cache();
@@ -168,11 +198,28 @@ impl AppState {
             .dataset_versions
             .record(parent_id)
             .map_err(AppError::from)?;
-        let revision = self.repository.replace_from_dataframe(df.clone())?;
-        let record = self
-            .dataset_versions
-            .register_child(parent_id, df, revision, plan_hash)
-            .map_err(AppError::from)?;
+        let record = if let Some(store) = &self.artifact_store {
+            let version_id = self.dataset_versions.allocate_artifact_version_id();
+            let (content_fingerprint, _) = fingerprints_for_frame(&df);
+            let store = Arc::clone(store);
+            let artifact_frame = df.clone();
+            let descriptor = tokio::task::spawn_blocking(move || {
+                store.publish_parquet(version_id, content_fingerprint, Utc::now(), artifact_frame)
+            })
+            .await
+            .map_err(|error| {
+                AppError::internal(format!("Failed to join artifact write: {error}"))
+            })??;
+            let revision = self.repository.replace_from_dataframe(df)?;
+            self.dataset_versions
+                .register_child_artifact(parent_id, descriptor, revision, plan_hash)
+                .map_err(AppError::from)?
+        } else {
+            let revision = self.repository.replace_from_dataframe(df.clone())?;
+            self.dataset_versions
+                .register_child(parent_id, df, revision, plan_hash)
+                .map_err(AppError::from)?
+        };
         self.cache.invalidate_all().await;
         self.clear_correlation_matrix_cache();
         Ok(record)
@@ -305,5 +352,70 @@ impl AppState {
 impl Default for AppState {
     fn default() -> Self {
         Self::new(DataFrame::default(), AppConfig::default())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use chrono::Utc;
+    use polars::prelude::{DataFrame, NamedFrom, Series};
+
+    use super::AppState;
+    use edatime_core::config::AppConfig;
+
+    fn frame(values: Vec<i64>) -> DataFrame {
+        DataFrame::new(
+            values.len(),
+            vec![Series::new("value".into(), values).into()],
+        )
+        .expect("frame")
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn configured_artifact_storage_publishes_root_and_child_versions() {
+        let artifact_dir = std::env::temp_dir().join(format!(
+            "edatime-state-artifacts-{}",
+            Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        let mut config = AppConfig::default();
+        config.data.artifact_dir = Some(artifact_dir.clone());
+        let state = AppState::new(frame(vec![0]), config);
+
+        state
+            .replace_dataset(frame(vec![1, 2]))
+            .await
+            .expect("persist root");
+        let root = state.current_dataset_version().expect("root record");
+        assert!(root.id.starts_with("artifact-"));
+        let root_scan = state
+            .dataset_snapshot_for_version(&root.id)
+            .expect("root scan");
+        let root_height = tokio::task::spawn_blocking(move || {
+            root_scan.collect().expect("collect root scan").height()
+        })
+        .await
+        .expect("join root scan");
+        assert_eq!(root_height, 2);
+
+        let child = state
+            .materialize_dataset_child(&root.id, frame(vec![2]), "plan-1".to_string())
+            .await
+            .expect("persist child");
+        assert_eq!(child.parent_id.as_deref(), Some(root.id.as_str()));
+        assert!(child.id.starts_with("artifact-"));
+        assert_eq!(
+            state
+                .artifact_store
+                .as_ref()
+                .expect("configured artifact store")
+                .load_catalog()
+                .expect("catalog")
+                .len(),
+            2
+        );
+
+        fs::remove_dir_all(artifact_dir).expect("clean artifact test directory");
     }
 }
