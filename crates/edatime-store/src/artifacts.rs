@@ -33,6 +33,8 @@ pub struct DatasetArtifactProvenance {
     pub schema_fingerprint: String,
     pub source_name: Option<String>,
     pub materialized_from_plan_hash: Option<String>,
+    pub row_count: usize,
+    pub column_names: Vec<String>,
 }
 
 /// Small atomic JSON catalog used as the durable boundary before the version

@@ -128,6 +128,15 @@ fn schema_fingerprint(mut frame: LazyFrame) -> Result<String, AppError> {
 }
 
 impl DatasetVersionRegistry {
+    /// Empty registry used while restoring an artifact catalog at startup.
+    pub fn empty() -> Self {
+        Self {
+            entries: Arc::new(RwLock::new(BTreeMap::new())),
+            current_id: Arc::new(RwLock::new(String::new())),
+            next_id: Arc::new(AtomicU64::new(1)),
+        }
+    }
+
     pub fn new(initial: DataFrame, revision: u64, source_name: Option<String>) -> Self {
         let (dataset_fingerprint, schema_fingerprint) = fingerprints_for_frame(&initial);
         let id = "source-0".to_string();
@@ -689,6 +698,8 @@ mod tests {
                         schema_fingerprint: schema_fingerprint.clone(),
                         source_name: Some("input.csv".to_string()),
                         materialized_from_plan_hash: Some("plan-1".to_string()),
+                        row_count: 1,
+                        column_names: vec!["value".to_string()],
                     }),
                 },
                 DatasetArtifactDescriptor {
@@ -705,6 +716,8 @@ mod tests {
                         schema_fingerprint,
                         source_name: Some("input.csv".to_string()),
                         materialized_from_plan_hash: None,
+                        row_count: 2,
+                        column_names: vec!["value".to_string()],
                     }),
                 },
             ])

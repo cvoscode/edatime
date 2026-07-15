@@ -103,6 +103,9 @@ pub trait DataRepository: Send + Sync {
     /// Replace the dataset — blocks until write lock acquired.
     /// Returns the new revision number, or `Err` if a write lock was poisoned.
     fn replace_from_dataframe(&self, df: DataFrame) -> Result<u64, AppError>;
+    /// Replace the active source with a lazy scan and persisted metadata
+    /// without collecting its rows into memory.
+    fn replace_from_lazyframe(&self, frame: LazyFrame, meta: DatasetMeta) -> Result<u64, AppError>;
 }
 
 impl DataRepository for InMemoryDataRepository {
@@ -160,6 +163,24 @@ impl DataRepository for InMemoryDataRepository {
             .write()
             .map_err(|_| AppError::internal("dataset write lock poisoned"))?;
         *guard = lf;
+        drop(guard);
+
+        let mut meta_guard = self
+            .meta
+            .write()
+            .map_err(|_| AppError::internal("dataset meta write lock poisoned"))?;
+        *meta_guard = meta;
+        drop(meta_guard);
+
+        Ok(self.bump_revision())
+    }
+
+    fn replace_from_lazyframe(&self, frame: LazyFrame, meta: DatasetMeta) -> Result<u64, AppError> {
+        let mut guard = self
+            .lf
+            .write()
+            .map_err(|_| AppError::internal("dataset write lock poisoned"))?;
+        *guard = frame;
         drop(guard);
 
         let mut meta_guard = self

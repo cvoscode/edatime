@@ -9,7 +9,7 @@ use tokio::sync::RwLock;
 use crate::artifacts::{DatasetArtifactProvenance, DatasetArtifactStore};
 use crate::cache::{CorrelationMatrixCacheEntry, ResponseCache};
 use crate::db::DbPool;
-use crate::repository::{DataRepository, InMemoryDataRepository};
+use crate::repository::{DataRepository, DatasetMeta, InMemoryDataRepository};
 use crate::versions::{DatasetVersionRecord, DatasetVersionRegistry, fingerprints_for_frame};
 use edatime_core::config::AppConfig;
 use edatime_core::error::AppError;
@@ -63,13 +63,61 @@ impl Clone for AppState {
 
 impl AppState {
     pub fn new(df: DataFrame, config: AppConfig) -> Self {
-        let dataset_versions = Arc::new(DatasetVersionRegistry::new(df.clone(), 0, None));
+        let can_restore_catalog = df.width() == 0 && df.height() == 0;
+        let mut dataset_versions = Arc::new(DatasetVersionRegistry::new(df.clone(), 0, None));
         let repository = Arc::new(InMemoryDataRepository::new(df));
         let artifact_store = config
             .data
             .artifact_dir
             .as_ref()
             .map(|path| Arc::new(DatasetArtifactStore::new(path)));
+        if can_restore_catalog && let Some(store) = &artifact_store {
+            match store.load_catalog() {
+                Ok(catalog) if !catalog.is_empty() => {
+                    let restored = Arc::new(DatasetVersionRegistry::empty());
+                    match restored.restore_artifacts(catalog.clone()) {
+                        Ok(_) => {
+                            let current = restored.current();
+                            let descriptor = current.as_ref().ok().and_then(|record| {
+                                catalog.iter().find(|entry| entry.version_id == record.id)
+                            });
+                            let attached = current.and_then(|record| {
+                                let provenance = descriptor
+                                    .and_then(|entry| entry.provenance.as_ref())
+                                    .ok_or_else(|| {
+                                        AppError::internal(
+                                            "Restored artifact unexpectedly has no provenance",
+                                        )
+                                    })?;
+                                repository.replace_from_lazyframe(
+                                    restored.snapshot(&record.id)?,
+                                    DatasetMeta {
+                                        row_count: provenance.row_count,
+                                        column_names: provenance.column_names.clone(),
+                                        time_column: None,
+                                    },
+                                )?;
+                                Ok::<_, AppError>(())
+                            });
+                            if let Err(error) = attached {
+                                tracing::warn!(
+                                    "Could not attach restored artifact catalog: {error}"
+                                );
+                            } else {
+                                dataset_versions = restored;
+                                tracing::info!(
+                                    "Restored {} retained dataset versions",
+                                    catalog.len()
+                                );
+                            }
+                        }
+                        Err(error) => tracing::warn!("Could not restore artifact catalog: {error}"),
+                    }
+                }
+                Ok(_) => {}
+                Err(error) => tracing::warn!("Could not read artifact catalog: {error}"),
+            }
+        }
         let cache = Arc::new(ResponseCache::new(crate::cache::CacheConfig {
             ttl: std::time::Duration::from_secs(config.cache.ttl_seconds.max(1)),
             max_entries: config.cache.max_entries.max(1),
@@ -157,6 +205,7 @@ impl AppState {
         let rev = if let Some(store) = &self.artifact_store {
             let version_id = self.dataset_versions.allocate_artifact_version_id();
             let (content_fingerprint, _) = fingerprints_for_frame(&df);
+            let (row_count, column_names) = frame_metadata(&df);
             let store = Arc::clone(store);
             let writer_store = Arc::clone(&store);
             let artifact_frame = df.clone();
@@ -177,7 +226,7 @@ impl AppState {
                 .dataset_versions
                 .register_root_artifact(descriptor.clone(), rev, None)
                 .map_err(AppError::from)?;
-            descriptor.provenance = Some(provenance_from_record(&record));
+            descriptor.provenance = Some(provenance_from_record(&record, row_count, column_names));
             store.publish(descriptor)?;
             rev
         } else {
@@ -210,6 +259,7 @@ impl AppState {
         let record = if let Some(store) = &self.artifact_store {
             let version_id = self.dataset_versions.allocate_artifact_version_id();
             let (content_fingerprint, _) = fingerprints_for_frame(&df);
+            let (row_count, column_names) = frame_metadata(&df);
             let store = Arc::clone(store);
             let writer_store = Arc::clone(&store);
             let artifact_frame = df.clone();
@@ -230,7 +280,7 @@ impl AppState {
                 .dataset_versions
                 .register_child_artifact(parent_id, descriptor.clone(), revision, plan_hash)
                 .map_err(AppError::from)?;
-            descriptor.provenance = Some(provenance_from_record(&record));
+            descriptor.provenance = Some(provenance_from_record(&record, row_count, column_names));
             store.publish(descriptor)?;
             record
         } else {
@@ -374,7 +424,11 @@ impl Default for AppState {
     }
 }
 
-fn provenance_from_record(record: &DatasetVersionRecord) -> DatasetArtifactProvenance {
+fn provenance_from_record(
+    record: &DatasetVersionRecord,
+    row_count: usize,
+    column_names: Vec<String>,
+) -> DatasetArtifactProvenance {
     DatasetArtifactProvenance {
         root_id: record.root_id.clone(),
         parent_id: record.parent_id.clone(),
@@ -382,7 +436,20 @@ fn provenance_from_record(record: &DatasetVersionRecord) -> DatasetArtifactProve
         schema_fingerprint: record.schema_fingerprint.clone(),
         source_name: record.source_name.clone(),
         materialized_from_plan_hash: record.materialized_from_plan_hash.clone(),
+        row_count,
+        column_names,
     }
+}
+
+fn frame_metadata(frame: &DataFrame) -> (usize, Vec<String>) {
+    (
+        frame.height(),
+        frame
+            .get_column_names()
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
+    )
 }
 
 #[cfg(test)]
@@ -413,7 +480,7 @@ mod tests {
         ));
         let mut config = AppConfig::default();
         config.data.artifact_dir = Some(artifact_dir.clone());
-        let state = AppState::new(frame(vec![0]), config);
+        let state = AppState::new(frame(vec![0]), config.clone());
 
         state
             .replace_dataset(frame(vec![1, 2]))
@@ -458,6 +525,33 @@ mod tests {
             &child,
             Some(root.id.as_str()),
         );
+
+        let restored = AppState::new(DataFrame::default(), config);
+        assert_eq!(
+            restored
+                .current_dataset_version()
+                .expect("restored current version")
+                .id,
+            child.id
+        );
+        assert_eq!(
+            restored
+                .dataset_versions()
+                .expect("restored versions")
+                .len(),
+            2
+        );
+        assert_eq!(restored.dataset_rows().await, 1);
+        let restored_scan = restored.dataset_snapshot();
+        let restored_height = tokio::task::spawn_blocking(move || {
+            restored_scan
+                .collect()
+                .expect("collect restored scan")
+                .height()
+        })
+        .await
+        .expect("join restored scan");
+        assert_eq!(restored_height, 1);
 
         fs::remove_dir_all(artifact_dir).expect("clean artifact test directory");
     }
