@@ -35,9 +35,12 @@
   and the registry validates that graph on recovery. Application startup
   attaches the newest valid restored version to the active repository as a
   lazy scan with persisted metadata, without collecting its rows. Ingest,
-  quota, retention, and streaming materialization/export remain open. (`f2ed211`,
+  streaming materialization/export, retention, and user-visible storage usage
+  remain open. An operator may now set a managed-artifact aggregate disk cap;
+  a candidate Parquet file is rejected and cleaned up before publication when
+  it would exceed that cap. (`f2ed211`,
   `9887e4f`, `6ab6f44`, `7413758`, `7847b46`, `5bfdc39`, `d2dca71`,
-  `7c31697`, `84fd48f`)
+  `7c31697`, `84fd48f`, `5d6e19f`)
 
 ## 1. Goal
 
