@@ -35,7 +35,6 @@ import { markAppReady, resetAppReady } from './app/bootState.js';
 import { upgradeSelects } from './ui/primitives/Dropdown.js';
 import { upgradeFlexibleNumberInputs } from './ui/primitives/FlexibleNumberInput.js';
 import { createFeatureRegistry } from './app/featureRegistry.js';
-import { loadPageDescriptors } from './app/pageModules.js';
 import {
     ensureChartModules as ensureChartBootstrapModules,
     ensureDataModules as ensureBootstrapDataModules,
@@ -199,9 +198,11 @@ export function createApp(): AppRoot {
             workspace,
         });
 
-        // Register lazy-loaded page modules. Each descriptor resolves its own
-        // heavy dependencies via dynamic import; app.ts only passes the small
-        // runtime helpers each page needs.
+        // Descriptor registration is independent of the primary shell and is
+        // itself deferred so every advanced page factory stays outside the
+        // initial app bundle. The shell starts first to preserve the existing
+        // fast startup contract; a page transition waits on its descriptor.
+        const { loadPageDescriptors } = await import('./app/pageModules.js');
         await loadPageDescriptors(featureRegistry, {
             getRenderTimeseries: () => timeseriesModule.renderCurrentData(),
             showPage,

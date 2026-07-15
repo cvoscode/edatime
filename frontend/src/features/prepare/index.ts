@@ -1,6 +1,7 @@
 import { buildPipelineGraph, renderPipelineGraphSvg } from '../../cleaning/pipelineGraph.js';
 import { cleaningPlanStore } from '../../cleaning/store.js';
 import type { CleaningPlan } from '../../cleaning/types.js';
+import '../../../css/modules/prepare.css';
 
 function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string): HTMLElementTagNameMap[K] {
     const element = document.createElement(tag);

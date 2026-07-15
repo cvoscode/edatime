@@ -45,7 +45,7 @@ describe('page module descriptors', () => {
         ]);
     });
 
-    it('loads Prepare lazily and preloads only its page stylesheet', async () => {
+    it('loads Prepare only when its route is first initialized', async () => {
         const deps = createDeps();
         const register = vi.fn();
         await loadPageDescriptors({ register } as unknown as FeatureRegistry, deps);
@@ -54,7 +54,6 @@ describe('page module descriptors', () => {
         expect(mocks.initPreparePage).not.toHaveBeenCalled();
         await prepare!.init();
 
-        expect(mocks.ensureStyleModule).toHaveBeenCalledWith('prepare');
         expect(mocks.initPreparePage).toHaveBeenCalledTimes(1);
     });
 
