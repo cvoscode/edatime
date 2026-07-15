@@ -5,6 +5,7 @@ use std::sync::Arc;
 use axum::{
     Json,
     extract::{Query, State},
+    response::{IntoResponse, Response},
 };
 use rayon::prelude::*;
 use serde::Deserialize;
@@ -18,6 +19,9 @@ use polars::prelude::LazyFrame;
 
 use super::collect::series_to_scatter_values;
 use super::{CorrelationItem, SuggestionItem, numeric_columns};
+use crate::handlers::routes::shared::{
+    ExecutionIdentity, add_execution_identity_headers, current_execution_identity,
+};
 
 #[derive(Debug, Clone, Copy, Deserialize, serde::Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -97,38 +101,48 @@ pub struct TopPairItem {
     pub count: usize,
 }
 
+fn json_with_execution_identity<T: serde::Serialize>(
+    value: T,
+    identity: &ExecutionIdentity,
+) -> Response {
+    add_execution_identity_headers(Json(value).into_response(), identity)
+}
+
 #[tracing::instrument(skip(state))]
 pub async fn get_scatter_correlations(
     State(state): State<AppState>,
     Query(params): Query<ScatterCorrelationsQuery>,
-) -> Result<Json<ScatterCorrelationsResponse>, AppError> {
+) -> Result<Response, AppError> {
     tracing::info!(
         "get_scatter_correlations called with base={:?}, threshold={:?}",
         params.base,
         params.threshold
     );
 
-    let (lf, plan_hash) = correlation_frame_with_plan(&state, params.cleaning_plan.as_deref())?;
+    let (lf, identity) = correlation_frame_with_plan(&state, params.cleaning_plan.as_deref())?;
 
     let threshold = params.threshold.unwrap_or(0.7).clamp(0.0, 1.0);
     let requested_base = params.base.clone();
     let mode = params.mode.unwrap_or(CorrelationMode::PearsonRaw);
     let mode_telemetry = mode.telemetry_mode();
-    let revision = state.dataset_revision();
+    let revision = identity.source_revision;
     let metrics = Arc::clone(&state.metrics);
 
-    if plan_hash.is_none()
+    if identity.plan_hash.is_none()
         && let Some(entry) = state.cached_correlation_matrix(revision)
     {
         let numeric_columns = entry.columns.len() as u64;
         metrics.record_correlation_request(true, mode_telemetry);
         metrics.record_correlation_input(numeric_columns, 0);
-        return Ok(Json(build_scatter_correlations_from_cached_matrix(
-            entry,
-            requested_base.as_deref(),
-            threshold,
-            mode,
-        )?));
+        return Ok(json_with_execution_identity(
+            build_scatter_correlations_from_cached_matrix(
+                entry,
+                requested_base.as_deref(),
+                threshold,
+                mode,
+            )?,
+            &identity,
+        ));
     }
 
     metrics.record_correlation_request(false, mode_telemetry);
@@ -148,15 +162,18 @@ pub async fn get_scatter_correlations(
     .map_err(|e| {
         AppError::internal(format!("Failed to join scatter correlation task: {:?}", e))
     })??;
-    if plan_hash.is_none() {
+    if identity.plan_hash.is_none() {
         state.store_correlation_matrix_if_current(revision, data.clone().into_cache());
     }
-    Ok(Json(build_scatter_correlations_from_matrix_data(
-        &data,
-        requested_base.as_deref(),
-        threshold,
-        mode,
-    )?))
+    Ok(json_with_execution_identity(
+        build_scatter_correlations_from_matrix_data(
+            &data,
+            requested_base.as_deref(),
+            threshold,
+            mode,
+        )?,
+        &identity,
+    ))
 }
 
 // ── Full NxN Correlation Matrix ────────────────────────────────────────────
@@ -188,18 +205,21 @@ pub struct CorrelationMatrixQuery {
 fn correlation_frame_with_plan(
     state: &AppState,
     cleaning_plan: Option<&str>,
-) -> Result<(LazyFrame, Option<String>), AppError> {
+) -> Result<(LazyFrame, ExecutionIdentity), AppError> {
     match cleaning_plan.filter(|raw| !raw.trim().is_empty()) {
         Some(raw) => {
             let envelope: crate::handlers::routes::cleaning::PlanRequestEnvelope =
                 serde_json::from_str(raw).map_err(|error| {
                     AppError::bad_request(format!("Invalid cleaning plan envelope: {error}"))
                 })?;
-            let (_version, plan_hash, frame) =
+            let (version, plan_hash, frame) =
                 crate::handlers::routes::cleaning::compile_request_frame(state, &envelope)?;
-            Ok((frame, Some(plan_hash)))
+            Ok((
+                frame,
+                ExecutionIdentity::from_version(version, Some(plan_hash)),
+            ))
         }
-        None => Ok((state.dataset_snapshot(), None)),
+        None => Ok((state.dataset_snapshot(), current_execution_identity(state)?)),
     }
 }
 
@@ -768,12 +788,12 @@ pub fn spawn_correlation_matrix_warmup(state: AppState) -> tokio::task::JoinHand
 pub async fn get_correlation_matrix(
     State(state): State<AppState>,
     Query(params): Query<CorrelationMatrixQuery>,
-) -> Result<Json<CorrelationMatrixResponse>, AppError> {
+) -> Result<Response, AppError> {
     let mode = params.mode;
-    let (lf, plan_hash) = correlation_frame_with_plan(&state, params.cleaning_plan.as_deref())?;
-    let revision = state.dataset_revision();
+    let (lf, identity) = correlation_frame_with_plan(&state, params.cleaning_plan.as_deref())?;
+    let revision = identity.source_revision;
     let metrics = Arc::clone(&state.metrics);
-    if plan_hash.is_none()
+    if identity.plan_hash.is_none()
         && let Some(entry) = state.cached_correlation_matrix(revision)
     {
         let numeric_columns = entry.columns.len() as u64;
@@ -785,10 +805,13 @@ pub async fn get_correlation_matrix(
             .unwrap_or(CorrelationTelemetryMode::AllModes);
         metrics.record_correlation_request(true, mode_telemetry);
         metrics.record_correlation_input(numeric_columns, 0);
-        return Ok(Json(match mode {
-            Some(mode) => data.to_response_for_mode(mode),
-            None => data.to_response(),
-        }));
+        return Ok(json_with_execution_identity(
+            match mode {
+                Some(mode) => data.to_response_for_mode(mode),
+                None => data.to_response(),
+            },
+            &identity,
+        ));
     }
 
     if let Some(mode) = mode {
@@ -810,7 +833,7 @@ pub async fn get_correlation_matrix(
         .map_err(|e| {
             AppError::internal(format!("Failed to join correlation matrix task: {:?}", e))
         })??;
-        return Ok(Json(response));
+        return Ok(json_with_execution_identity(response, &identity));
     }
 
     metrics.record_correlation_request(false, CorrelationTelemetryMode::AllModes);
@@ -830,10 +853,10 @@ pub async fn get_correlation_matrix(
     .map_err(|e| {
         AppError::internal(format!("Failed to join correlation matrix task: {:?}", e))
     })??;
-    if plan_hash.is_none() {
+    if identity.plan_hash.is_none() {
         state.store_correlation_matrix_if_current(revision, data.clone().into_cache());
     }
-    Ok(Json(data.to_response()))
+    Ok(json_with_execution_identity(data.to_response(), &identity))
 }
 
 #[cfg(test)]
@@ -1264,8 +1287,19 @@ mod tests {
         .await
         .expect("scatter correlations request should succeed");
 
-        assert_eq!(response.0.base_column, "a");
-        assert_eq!(response.0.mode, CorrelationMode::SpearmanDiff);
+        assert_eq!(
+            response
+                .headers()
+                .get("x-edatime-source-version")
+                .and_then(|value| value.to_str().ok()),
+            Some("source-0")
+        );
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("response body");
+        let response: serde_json::Value = serde_json::from_slice(&body).expect("response JSON");
+        assert_eq!(response["base_column"], "a");
+        assert_eq!(response["mode"], "spearman_diff");
         let cached = state
             .cached_correlation_matrix(revision)
             .expect("cold miss should populate the shared matrix cache");
@@ -1333,13 +1367,24 @@ mod tests {
         .await
         .expect("planned correlations request should succeed");
 
-        let b = response
-            .0
-            .correlations
+        assert!(
+            response
+                .headers()
+                .get("x-edatime-plan-hash")
+                .and_then(|value| value.to_str().ok())
+                .is_some_and(|value| value != "none")
+        );
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("response body");
+        let response: serde_json::Value = serde_json::from_slice(&body).expect("response JSON");
+        let b = response["correlations"]
+            .as_array()
+            .expect("correlations")
             .iter()
-            .find(|item| item.column == "b")
+            .find(|item| item["column"] == "b")
             .expect("b correlation");
-        assert_eq!(b.count, 2);
+        assert_eq!(b["count"], 2);
         assert!(
             state.cached_correlation_matrix(revision).is_none(),
             "a plan-specific matrix must not be stored under the active dataset revision"

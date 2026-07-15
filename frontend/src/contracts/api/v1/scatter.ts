@@ -70,4 +70,5 @@ export interface ScatterCorrelationsResponse {
     correlations: CorrelationItem[];
     suggestions: CorrelationSuggestion[];
     top_pairs?: TopPairItem[];
+    executionIdentity?: ExecutionIdentity;
 }

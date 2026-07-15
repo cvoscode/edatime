@@ -78,6 +78,42 @@ pub fn current_execution_identity(state: &AppState) -> Result<ExecutionIdentity,
     ))
 }
 
+/// Attach immutable result provenance to a direct Axum response. Cached Arrow
+/// responses use `ExecutionIdentity::headers()` before insertion; JSON routes
+/// use this helper after serializing their body.
+pub fn add_execution_identity_headers<B>(
+    mut response: Response<B>,
+    identity: &ExecutionIdentity,
+) -> Response<B> {
+    for (name, value) in identity.headers() {
+        let Ok(value) = HeaderValue::from_str(&value) else {
+            continue;
+        };
+        match name.as_str() {
+            "x-edatime-source-version" => {
+                response
+                    .headers_mut()
+                    .insert("x-edatime-source-version", value);
+            }
+            "x-edatime-source-revision" => {
+                response
+                    .headers_mut()
+                    .insert("x-edatime-source-revision", value);
+            }
+            "x-edatime-schema-fingerprint" => {
+                response
+                    .headers_mut()
+                    .insert("x-edatime-schema-fingerprint", value);
+            }
+            "x-edatime-plan-hash" => {
+                response.headers_mut().insert("x-edatime-plan-hash", value);
+            }
+            _ => unreachable!("ExecutionIdentity only creates fixed header names"),
+        }
+    }
+    response
+}
+
 /// Add the standard edatime headers (`x-edatime-downsampled`, `x-edatime-returned-rows`,
 /// `x-edatime-target-points`) to a response. Both `pipeline.rs` and `cache.rs` use this.
 pub fn add_edatime_headers<B>(mut response: Response<B>, meta: &ResponseMeta) -> Response<B> {

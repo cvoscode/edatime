@@ -11,7 +11,6 @@ import type {
 } from '../../contracts/api/v1/scatter.js';
 import {
     assertDatasetRequestScopeActive,
-    getJson,
     captureDatasetRequestScope,
     ensureArrowParser,
     assertScatterPoints,
@@ -358,7 +357,13 @@ export async function fetchScatterCorrelations(
         params.set('cleaning_plan', JSON.stringify(buildPlanRequestSnapshot(plan)));
     }
     const url = withApiQuery(apiV1Routes.scatter.correlations, params);
-    const data = await getJson<unknown>(url, 'Scatter correlations');
+    const requestScope = captureDatasetRequestScope();
+    const res = await globalThis.fetch(url, { cache: 'no-store' });
+    assertDatasetRequestScopeActive(requestScope);
+    if (!res.ok) throw await readApiError(res, 'Scatter correlations');
+    const executionIdentity = readExecutionIdentity(res.headers);
+    const data = await res.json();
+    assertDatasetRequestScopeActive(requestScope);
     assertScatterCorrelations(data);
-    return data;
+    return { ...data, executionIdentity };
 }

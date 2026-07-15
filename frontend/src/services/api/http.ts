@@ -51,11 +51,11 @@ interface ArrowColumn {
 }
 
 /** Decode the immutable result provenance contract shared by plan-aware routes. */
-function readExecutionIdentity(headers: Headers): ExecutionIdentity | undefined {
-    const sourceVersionId = headers.get('x-edatime-source-version')?.trim();
-    const sourceRevision = Number(headers.get('x-edatime-source-revision'));
-    const schemaFingerprint = headers.get('x-edatime-schema-fingerprint')?.trim();
-    const planHash = headers.get('x-edatime-plan-hash')?.trim();
+function readExecutionIdentity(headers: Pick<Headers, 'get'> | null | undefined): ExecutionIdentity | undefined {
+    const sourceVersionId = headers?.get('x-edatime-source-version')?.trim();
+    const sourceRevision = Number(headers?.get('x-edatime-source-revision'));
+    const schemaFingerprint = headers?.get('x-edatime-schema-fingerprint')?.trim();
+    const planHash = headers?.get('x-edatime-plan-hash')?.trim();
     if (!sourceVersionId || !Number.isSafeInteger(sourceRevision) || sourceRevision < 0
         || !schemaFingerprint || !planHash) {
         return undefined;

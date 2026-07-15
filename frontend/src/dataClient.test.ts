@@ -481,6 +481,12 @@ describe('API client fetch helpers', () => {
 
             mockFetch.mockResolvedValueOnce({
                 ok: true,
+                headers: new Map([
+                    ['x-edatime-source-version', 'source-0'],
+                    ['x-edatime-source-revision', '7'],
+                    ['x-edatime-schema-fingerprint', 'fnv1a-deadbeef'],
+                    ['x-edatime-plan-hash', 'none'],
+                ]),
                 json: () => Promise.resolve({
                     mode: 'kendall_diff',
                     base_column: 'col_a',
@@ -497,6 +503,12 @@ describe('API client fetch helpers', () => {
             expect(result.correlations).toHaveLength(1);
             expect(result.mode).toBe('kendall_diff');
             expect(result.correlations[0].value).toBe(0.95);
+            expect(result.executionIdentity).toEqual({
+                sourceVersionId: 'source-0',
+                sourceRevision: 7,
+                schemaFingerprint: 'fnv1a-deadbeef',
+                planHash: 'none',
+            });
         });
 
         it('passes the configured threshold and mode in the query string', async () => {
