@@ -25,7 +25,7 @@ pub use collect::{
 // Re-export route handlers for the router.
 pub use correlations::{
     get_correlation_matrix, get_scatter_correlations, post_correlation_matrix,
-    spawn_correlation_matrix_warmup,
+    post_scatter_correlations, spawn_correlation_matrix_warmup,
 };
 // Phase 0.2: re-export the inner matrix computation under a
 // `_bench_target` suffix so the Criterion bench under

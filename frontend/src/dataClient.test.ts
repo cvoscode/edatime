@@ -567,13 +567,14 @@ describe('API client fetch helpers', () => {
             try {
                 await fetchScatterCorrelations('col_a', 0.5, 'pearson_raw');
 
-                const requestUrl = new URL(String(mockFetch.mock.calls[0]?.[0]), 'http://localhost');
-                const envelope = JSON.parse(String(requestUrl.searchParams.get('cleaning_plan')));
+                const request = mockFetch.mock.calls[0]?.[1] as RequestInit | undefined;
+                const envelope = JSON.parse(String(request?.body ?? '{}')).cleaning_plan;
                 expect(envelope).toMatchObject({
                     expectedSourceVersionId: 'source-9',
                     expectedDatasetRevision: 9,
                     plan: { stages: [{ kind: 'columnRange' }] },
                 });
+                expect(request).toMatchObject({ method: 'POST' });
             } finally {
                 cleaningPlanStore.clear();
             }

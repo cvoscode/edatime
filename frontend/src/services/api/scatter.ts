@@ -347,18 +347,22 @@ export async function fetchScatterCorrelations(
     threshold = 0.7,
     mode: CorrelationMetric = 'pearson_raw',
 ): Promise<ScatterCorrelationsResponse> {
-    const params = new URLSearchParams({ threshold: String(threshold) });
-    if (base !== null && base !== undefined && String(base).trim() !== '') {
-        params.set('base', String(base));
-    }
-    params.set('mode', mode);
     const plan = cleaningPlanStore.getSnapshot();
-    if (plan?.stages.some((stage) => stage.enabled)) {
-        params.set('cleaning_plan', JSON.stringify(buildPlanRequestSnapshot(plan)));
-    }
-    const url = withApiQuery(apiV1Routes.scatter.correlations, params);
+    const activePlan = plan?.stages.some((stage) => stage.enabled)
+        ? buildPlanRequestSnapshot(plan)
+        : null;
+    const params = new URLSearchParams({ threshold: String(threshold) });
+    if (base !== null && base !== undefined && String(base).trim() !== '') params.set('base', String(base));
+    params.set('mode', mode);
+    const url = activePlan
+        ? apiV1Routes.scatter.correlations
+        : withApiQuery(apiV1Routes.scatter.correlations, params);
     const requestScope = captureDatasetRequestScope();
-    const res = await globalThis.fetch(url, { cache: 'no-store' });
+    const res = await globalThis.fetch(url, activePlan
+        ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+            base: base?.trim() || undefined, threshold, mode, cleaning_plan: activePlan,
+        }), cache: 'no-store' }
+        : { cache: 'no-store' });
     assertDatasetRequestScopeActive(requestScope);
     if (!res.ok) throw await readApiError(res, 'Scatter correlations');
     const executionIdentity = readExecutionIdentity(res.headers);

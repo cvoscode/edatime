@@ -177,6 +177,25 @@ pub async fn get_scatter_correlations(
     ))
 }
 
+pub async fn post_scatter_correlations(
+    State(state): State<AppState>,
+    Json(mut body): Json<Value>,
+) -> Result<Response, AppError> {
+    if let Some(plan) = body.get_mut("cleaning_plan") {
+        let envelope: crate::handlers::routes::cleaning::PlanRequestEnvelope =
+            serde_json::from_value(std::mem::take(plan)).map_err(|error| {
+                AppError::bad_request(format!("Invalid cleaning plan envelope: {error}"))
+            })?;
+        *plan = Value::String(serde_json::to_string(&envelope).map_err(|error| {
+            AppError::internal(format!("Serialize cleaning plan envelope: {error}"))
+        })?);
+    }
+    let params = serde_json::from_value::<ScatterCorrelationsQuery>(body).map_err(|error| {
+        AppError::bad_request(format!("Invalid scatter correlation request: {error}"))
+    })?;
+    get_scatter_correlations(State(state), Query(params)).await
+}
+
 // ── Full NxN Correlation Matrix ────────────────────────────────────────────
 
 #[derive(Debug, serde::Serialize)]

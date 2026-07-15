@@ -46,7 +46,7 @@ pub fn api_router() -> Router<AppState> {
         )
         .route(
             "/scatter/correlations",
-            get(scatter::get_scatter_correlations),
+            get(scatter::get_scatter_correlations).post(scatter::post_scatter_correlations),
         )
         .route(
             "/scatter/correlations/matrix",
