@@ -56,6 +56,9 @@ complete.
   active session revision so a plan remains anchored to its true baseline.
 - Plan-aware timeseries results include source-version, dataset-revision, and
   backend plan-hash headers, and their cache key includes all three identities.
+- The Pipeline Workbench now treats every explicit `Add visible time range`
+  action as append-only. Editing/replacing a prior stage is available only via
+  its named stage editor, preserving saved order and audit history.
 
 ### Highest-Priority Remaining Query-Plan Work
 
