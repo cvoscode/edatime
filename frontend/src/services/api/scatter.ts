@@ -20,6 +20,7 @@ import {
     readApiError,
     type ArrowColumn,
     type ApiRequestOptions,
+    readExecutionIdentity,
 } from './http.js';
 import { cleaningPlanStore } from '../../cleaning/store.js';
 import { buildPlanRequestSnapshot } from '../../cleaning/compiler.js';
@@ -102,6 +103,7 @@ export async function fetchScatterPoints(
     }
 
     const ct = res.headers.get('Content-Type') ?? '';
+    const executionIdentity = readExecutionIdentity(res.headers);
     if (ct.includes('apache-arrow') || ct.includes('arrow.stream')) {
         // Arrow IPC response: x, y, color columns → ScatterPointsResponse
         const buffer = await res.arrayBuffer();
@@ -161,6 +163,7 @@ export async function fetchScatterPoints(
             color_min: color_min !== null ? Number(color_min) : null,
             color_max: color_max !== null ? Number(color_max) : null,
             color_cardinality,
+            executionIdentity,
         };
     }
 
@@ -168,7 +171,7 @@ export async function fetchScatterPoints(
     const data = await res.json();
     assertDatasetRequestScopeActive(requestScope);
     assertScatterPoints(data);
-    return data;
+    return { ...data, executionIdentity };
 }
 
 interface ScatterMatrixCellHeader {
@@ -274,6 +277,7 @@ export async function fetchScatterMatrix(
     }
 
     const ct = res.headers.get('Content-Type') ?? '';
+    const executionIdentity = readExecutionIdentity(res.headers);
     if (!(ct.includes('apache-arrow') || ct.includes('arrow.stream'))) {
         throw new Error('Scatter matrix response must be Arrow IPC');
     }
@@ -336,7 +340,7 @@ export async function fetchScatterMatrix(
         cells.set(cellId, current);
     }
 
-    return { cells };
+    return { cells, executionIdentity };
 }
 
 export async function fetchScatterCorrelations(

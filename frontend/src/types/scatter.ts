@@ -12,6 +12,7 @@ export type {
 
 export interface ScatterMatrixResponse {
     cells: Map<string, MatrixCellData>;
+    executionIdentity?: import('../contracts/api/v1/scatter.js').ExecutionIdentity;
 }
 
 export interface ScatterPairStats {

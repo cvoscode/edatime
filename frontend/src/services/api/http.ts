@@ -1,6 +1,6 @@
 import { DEBUG, dbg } from '../../debug.js';
 import type { ScatterPointsResponse, ScatterCorrelationsResponse } from '../../types/scatter.js';
-import type { DatasetMetadata } from '../../types/api.js';
+import type { DatasetMetadata, ExecutionIdentity } from '../../types/api.js';
 import {
     assertDatasetRequestScopeActive,
     captureDatasetRequestScope,
@@ -48,6 +48,19 @@ interface ArrowTable {
 
 interface ArrowColumn {
     get(index: number): unknown;
+}
+
+/** Decode the immutable result provenance contract shared by plan-aware routes. */
+function readExecutionIdentity(headers: Headers): ExecutionIdentity | undefined {
+    const sourceVersionId = headers.get('x-edatime-source-version')?.trim();
+    const sourceRevision = Number(headers.get('x-edatime-source-revision'));
+    const schemaFingerprint = headers.get('x-edatime-schema-fingerprint')?.trim();
+    const planHash = headers.get('x-edatime-plan-hash')?.trim();
+    if (!sourceVersionId || !Number.isSafeInteger(sourceRevision) || sourceRevision < 0
+        || !schemaFingerprint || !planHash) {
+        return undefined;
+    }
+    return { sourceVersionId, sourceRevision, schemaFingerprint, planHash };
 }
 
 let tableFromIPCFn: TableFromIPCFn | null = null;
@@ -347,6 +360,7 @@ export {
     assertScatterCorrelations,
     resolveTimestampColumnName,
     toEpochMs,
+    readExecutionIdentity,
     type ArrowTable,
     type ArrowColumn,
 };

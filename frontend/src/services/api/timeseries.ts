@@ -6,6 +6,7 @@ import {
     ensureArrowParser,
     resolveTimestampColumnName,
     toEpochMs,
+    readExecutionIdentity,
     dbg,
     DEBUG,
 } from './http.js';
@@ -79,6 +80,7 @@ export async function fetchData(
     const returnedRowsHeader = res.headers.get('x-edatime-returned-rows');
     const targetPointsHeader = res.headers.get('x-edatime-target-points');
     const timeColumnHeader = res.headers.get('x-edatime-time-column');
+    const executionIdentity = readExecutionIdentity(res.headers);
 
     const hasDownsampleHeader = downsampledHeader === '0' || downsampledHeader === '1';
     let isDownsampled = downsampledHeader === '1';
@@ -148,6 +150,7 @@ export async function fetchData(
             downsampleKnown: hasDownsampleHeader,
             returnedRows: Number.isFinite(returnedRows) ? returnedRows : len,
             targetPoints: Number.isFinite(targetPoints) ? targetPoints : width * 2,
+            executionIdentity,
         },
     };
 

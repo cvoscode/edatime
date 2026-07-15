@@ -19,6 +19,21 @@ export interface DataFetchMeta {
     downsampleKnown: boolean;
     returnedRows: number;
     targetPoints: number;
+    /** Immutable backend provenance for this decoded result, when supplied. */
+    executionIdentity?: ExecutionIdentity;
+}
+
+/**
+ * Backend-issued identity of the immutable dataset snapshot and pipeline that
+ * produced a result. It lets the UI keep result provenance alongside decoded
+ * Arrow data instead of assuming the currently active dataset did the work.
+ */
+export interface ExecutionIdentity {
+    sourceVersionId: string;
+    sourceRevision: number;
+    schemaFingerprint: string;
+    /** `none` means the unchanged source snapshot. */
+    planHash: string;
 }
 
 export interface FetchedWindow {

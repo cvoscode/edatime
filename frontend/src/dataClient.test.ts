@@ -160,6 +160,10 @@ describe('API client fetch helpers', () => {
                     ['x-edatime-returned-rows', '3'],
                     ['x-edatime-target-points', '1000'],
                     ['x-edatime-time-column', 'event_time'],
+                    ['x-edatime-source-version', 'source-0'],
+                    ['x-edatime-source-revision', '7'],
+                    ['x-edatime-schema-fingerprint', 'fnv1a-deadbeef'],
+                    ['x-edatime-plan-hash', 'plan-123'],
                 ]),
                 arrayBuffer: () => Promise.resolve(new ArrayBuffer(100)),
             });
@@ -168,6 +172,12 @@ describe('API client fetch helpers', () => {
 
             expect(Array.from(result.ts)).toEqual([1704067200000, 1704153600000, 1704240000000]);
             expect(Array.from(result.values.value)).toEqual([1, 2, 3]);
+            expect(result._meta.executionIdentity).toEqual({
+                sourceVersionId: 'source-0',
+                sourceRevision: 7,
+                schemaFingerprint: 'fnv1a-deadbeef',
+                planHash: 'plan-123',
+            });
         });
 
         it('constructs correct URL with parameters', async () => {
@@ -655,6 +665,10 @@ describe('API client fetch helpers', () => {
                     ['x-edatime-scatter-returned', '2'],
                     ['x-edatime-color-min', '0.1'],
                     ['x-edatime-color-max', '0.9'],
+                    ['x-edatime-source-version', 'source-0'],
+                    ['x-edatime-source-revision', '7'],
+                    ['x-edatime-schema-fingerprint', 'fnv1a-deadbeef'],
+                    ['x-edatime-plan-hash', 'none'],
                 ]),
                 arrayBuffer: () => Promise.resolve(new ArrayBuffer(128)),
             });
@@ -664,6 +678,12 @@ describe('API client fetch helpers', () => {
             expect(result.points).toEqual([[1.5, 10.0], [2.5, 20.0]]);
             expect(result.total_points).toBe(70000);
             expect(result.color_values).toEqual([0.1, 0.9]);
+            expect(result.executionIdentity).toEqual({
+                sourceVersionId: 'source-0',
+                sourceRevision: 7,
+                schemaFingerprint: 'fnv1a-deadbeef',
+                planHash: 'none',
+            });
         });
     });
 

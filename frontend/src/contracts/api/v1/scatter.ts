@@ -10,6 +10,13 @@ export const CORRELATION_METRICS = [
 
 export type CorrelationMetric = typeof CORRELATION_METRICS[number];
 
+export interface ExecutionIdentity {
+    sourceVersionId: string;
+    sourceRevision: number;
+    schemaFingerprint: string;
+    planHash: string;
+}
+
 export interface ColorCardinality {
     requested: number;
     used: number;
@@ -28,6 +35,7 @@ export interface ScatterPointsResponse {
     color_min: number | null;
     color_max: number | null;
     color_cardinality?: ColorCardinality | null;
+    executionIdentity?: ExecutionIdentity;
 }
 
 export interface ScatterMatrixPair {
