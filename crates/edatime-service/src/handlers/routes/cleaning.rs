@@ -13,6 +13,7 @@ use crate::error::AppError;
 use crate::handlers::routes::shared::{ExecutionIdentity, add_execution_identity_headers};
 use edatime_query::arrow_export::dataframe_to_parquet;
 use edatime_query::cleaning::{CleaningPlanDto, compile_cleaning_plan, semantic_hash};
+use edatime_store::artifacts::ArtifactStorageUsage;
 use edatime_store::state::AppState;
 use edatime_store::versions::DatasetVersionRecord;
 
@@ -291,6 +292,12 @@ pub async fn list_versions(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<DatasetVersionRecord>>, AppError> {
     Ok(Json(state.dataset_versions()?))
+}
+
+pub async fn get_storage_usage(
+    State(state): State<AppState>,
+) -> Result<Json<ArtifactStorageUsage>, AppError> {
+    Ok(Json(state.artifact_storage_usage()?))
 }
 
 /// Explicitly select a retained version. Preview and export never change the

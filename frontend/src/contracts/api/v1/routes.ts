@@ -19,6 +19,7 @@ export const apiV1Routes = {
         exportPlan: '/api/v1/cleaning/export/plan',
         versions: '/api/v1/datasets/versions',
         selectVersion: '/api/v1/datasets/versions/select',
+        storage: '/api/v1/datasets/storage',
     },
     upload: '/api/v1/upload',
     uploadPreview: '/api/v1/upload/preview',

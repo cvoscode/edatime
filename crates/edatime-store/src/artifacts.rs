@@ -37,6 +37,15 @@ pub struct DatasetArtifactProvenance {
     pub column_names: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ArtifactStorageUsage {
+    pub enabled: bool,
+    pub artifact_count: usize,
+    pub used_bytes: u64,
+    pub max_bytes: Option<u64>,
+}
+
 /// Small atomic JSON catalog used as the durable boundary before the version
 /// registry begins resolving lazy scans from artifacts.
 #[derive(Debug, Clone)]
@@ -164,6 +173,16 @@ impl DatasetArtifactStore {
 
     pub fn max_bytes(&self) -> Option<u64> {
         self.max_bytes
+    }
+
+    pub fn usage(&self) -> Result<ArtifactStorageUsage, AppError> {
+        let catalog = self.load_catalog()?;
+        Ok(ArtifactStorageUsage {
+            enabled: true,
+            artifact_count: catalog.len(),
+            used_bytes: catalog.iter().map(|entry| entry.byte_size).sum(),
+            max_bytes: self.max_bytes,
+        })
     }
 
     fn ensure_capacity(&self, version_id: &str, pending_bytes: u64) -> Result<(), AppError> {
@@ -313,6 +332,27 @@ mod tests {
         assert!(store.load_catalog().expect("catalog").is_empty());
         assert!(!root.join("source-9.parquet").exists());
         assert!(!root.join("source-9.parquet.tmp").exists());
+
+        fs::remove_dir_all(root).expect("clean test artifact directory");
+    }
+
+    #[test]
+    fn usage_reports_catalogued_artifact_bytes_and_quota() {
+        let root = test_root();
+        let store = DatasetArtifactStore::with_max_bytes(&root, Some(10_000));
+        store
+            .publish(descriptor("source-10", 123))
+            .expect("publish descriptor");
+
+        assert_eq!(
+            store.usage().expect("usage"),
+            ArtifactStorageUsage {
+                enabled: true,
+                artifact_count: 1,
+                used_bytes: 123,
+                max_bytes: Some(10_000),
+            }
+        );
 
         fs::remove_dir_all(root).expect("clean test artifact directory");
     }

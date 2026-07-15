@@ -16,6 +16,13 @@ export interface DatasetVersionRecord {
     createdAt: string;
 }
 
+export interface ArtifactStorageUsage {
+    enabled: boolean;
+    artifactCount: number;
+    usedBytes: number;
+    maxBytes: number | null;
+}
+
 export interface CleaningValidationResponse {
     sourceVersion: DatasetVersionRecord;
     datasetRevision: number;
@@ -108,4 +115,8 @@ export function selectDatasetVersion(
     options?: ApiRequestOptions,
 ): Promise<DatasetVersionRecord> {
     return postJson(apiV1Routes.cleaning.selectVersion, { versionId }, 'Dataset version selection', options);
+}
+
+export function getArtifactStorageUsage(options?: ApiRequestOptions): Promise<ArtifactStorageUsage> {
+    return getJson(apiV1Routes.cleaning.storage, 'Artifact storage usage', options);
 }

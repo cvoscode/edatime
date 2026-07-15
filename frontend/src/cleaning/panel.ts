@@ -1,6 +1,7 @@
 import {
     applyCleaningPlan,
     exportCleaningPlan,
+    getArtifactStorageUsage,
     listDatasetVersions,
     previewCleaningPlan,
     selectDatasetVersion,
@@ -423,8 +424,28 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         pythonExport.addEventListener('click', () => exportText(generatePythonPolars(plan), 'apply_edatime_plan.py', 'text/x-python;charset=utf-8'));
         const rustExport = button('Rust Polars');
         rustExport.addEventListener('click', () => exportText(generateRustPolars(plan), 'apply_edatime_plan.rs', 'text/rust;charset=utf-8'));
-        controls.append(planExport, graphExport, svgExport, pythonExport, rustExport);
-        panel.append(copy, controls);
+        const storage = document.createElement('p');
+        storage.className = 'pipeline-workbench__hint';
+        storage.textContent = 'Managed artifact storage is not loaded.';
+        const refreshStorage = button('Refresh storage usage');
+        refreshStorage.addEventListener('click', async () => {
+            refreshStorage.disabled = true;
+            try {
+                const usage = await getArtifactStorageUsage();
+                if (!usage.enabled) {
+                    storage.textContent = 'Managed artifact storage is disabled for this server.';
+                } else {
+                    const quota = usage.maxBytes == null ? 'no quota' : formatBytes(usage.maxBytes) + ' quota';
+                    storage.textContent = String(usage.artifactCount) + ' retained artifact' + (usage.artifactCount === 1 ? '' : 's') + ' · ' + formatBytes(usage.usedBytes) + ' used · ' + quota + '.';
+                }
+            } catch (error) {
+                storage.textContent = error instanceof Error ? error.message : 'Could not load managed storage usage.';
+            } finally {
+                refreshStorage.disabled = false;
+            }
+        });
+        controls.append(planExport, graphExport, svgExport, pythonExport, rustExport, refreshStorage);
+        panel.append(copy, controls, storage);
     };
     const renderActions = (plan: CleaningPlan) => {
         actions.replaceChildren();
@@ -559,4 +580,16 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         unsubscribe();
         backdrop.remove();
     };
+}
+
+function formatBytes(bytes: number): string {
+    if (bytes < 1024) return String(bytes) + ' B';
+    const units = ['KiB', 'MiB', 'GiB', 'TiB'];
+    let value = bytes;
+    let unit = -1;
+    do {
+        value /= 1024;
+        unit += 1;
+    } while (value >= 1024 && unit < units.length - 1);
+    return value.toFixed(value >= 10 ? 0 : 1) + ' ' + units[unit];
 }

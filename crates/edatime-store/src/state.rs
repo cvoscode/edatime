@@ -6,7 +6,7 @@ use chrono::Utc;
 use polars::prelude::{DataFrame, LazyFrame, SchemaExt};
 use tokio::sync::RwLock;
 
-use crate::artifacts::{DatasetArtifactProvenance, DatasetArtifactStore};
+use crate::artifacts::{ArtifactStorageUsage, DatasetArtifactProvenance, DatasetArtifactStore};
 use crate::cache::{CorrelationMatrixCacheEntry, ResponseCache};
 use crate::db::DbPool;
 use crate::repository::{DataRepository, DatasetMeta, InMemoryDataRepository};
@@ -171,6 +171,18 @@ impl AppState {
 
     pub fn dataset_versions(&self) -> Result<Vec<DatasetVersionRecord>, AppError> {
         self.dataset_versions.list().map_err(AppError::from)
+    }
+
+    pub fn artifact_storage_usage(&self) -> Result<ArtifactStorageUsage, AppError> {
+        match &self.artifact_store {
+            Some(store) => store.usage(),
+            None => Ok(ArtifactStorageUsage {
+                enabled: false,
+                artifact_count: 0,
+                used_bytes: 0,
+                max_bytes: None,
+            }),
+        }
     }
 
     /// Clone only the requested columns from the shared frame.

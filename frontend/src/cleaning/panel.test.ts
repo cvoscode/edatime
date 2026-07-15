@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { previewMock, applyMock, exportPlanMock, listVersionsMock, selectVersionMock, downloadBlobMock } = vi.hoisted(() => ({
+const { previewMock, applyMock, exportPlanMock, listVersionsMock, selectVersionMock, storageUsageMock, downloadBlobMock } = vi.hoisted(() => ({
     previewMock: vi.fn(),
     applyMock: vi.fn(),
     exportPlanMock: vi.fn(),
     listVersionsMock: vi.fn(),
     selectVersionMock: vi.fn(),
+    storageUsageMock: vi.fn(),
     downloadBlobMock: vi.fn(),
 }));
 
@@ -15,6 +16,7 @@ vi.mock('./api.js', () => ({
     exportCleaningPlan: exportPlanMock,
     listDatasetVersions: listVersionsMock,
     selectDatasetVersion: selectVersionMock,
+    getArtifactStorageUsage: storageUsageMock,
 }));
 vi.mock('../utils/dom.js', () => ({ downloadBlob: downloadBlobMock }));
 
@@ -29,6 +31,7 @@ describe('cleaning plan panel', () => {
         exportPlanMock.mockReset();
         listVersionsMock.mockReset();
         selectVersionMock.mockReset();
+        storageUsageMock.mockReset();
         downloadBlobMock.mockReset();
     });
 
@@ -149,6 +152,21 @@ describe('cleaning plan panel', () => {
 
         expect(downloadBlobMock).toHaveBeenNthCalledWith(1, expect.any(Blob), 'edatime_pipeline_graph.json');
         expect(downloadBlobMock).toHaveBeenNthCalledWith(2, expect.any(Blob), 'edatime_pipeline_graph.svg');
+    });
+
+    it('shows managed artifact storage usage in the export tab', async () => {
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        storageUsageMock.mockResolvedValue({ enabled: true, artifactCount: 2, usedBytes: 1_572_864, maxBytes: 10_485_760 });
+        mountCleaningPlanPanel({ planStore, getViewport: () => null });
+
+        document.getElementById('open-cleaning-plan-btn')!.click();
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Export')!.click();
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Refresh storage usage')!.click();
+        await Promise.resolve();
+
+        expect(storageUsageMock).toHaveBeenCalledTimes(1);
+        expect(document.querySelector('.pipeline-workbench__hint:last-child')?.textContent).toContain('2 retained artifacts · 1.5 MiB used · 10 MiB quota');
     });
 
     it('supports keyboard-accessible stage reordering from the Stages tab', () => {
