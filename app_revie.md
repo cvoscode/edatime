@@ -15,8 +15,8 @@
 - **Milestone F started:** a lazy, hash-routable **Prepare** destination now
   presents the canonical source → stages → result graph and live source
   identity. It provides page-native ordered-stage enable/disable, reordering,
-  removal, undo/redo, missing-value/duplicate-resolution/column-selection
-  authoring, then hands off to
+  removal, undo/redo, missing-value/duplicate-resolution/column-selection,
+  stable-sort, and bounded ordered-null-fill authoring, then hands off to
   the shared Pipeline Workbench for detailed field editing, previewing, exporting, and
   materialization while the quality workflow remains in progress.
 - **Milestone B in progress:** data, scatter points/matrix, correlations, and
