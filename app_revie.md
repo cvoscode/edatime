@@ -1,10 +1,27 @@
 # EdaTime Application Review and Improvement Plan
 
-**Status:** implementation roadmap based on the live checkout
+**Status:** implementation roadmap; Milestone A is complete and Milestones B/C have active, committed slices
 
 **Reviewed:** 2026-07-15
 
 **Scope:** frontend, Rust backend, ingestion, query execution, preprocessing, analytics, export, and the data-scientist workflow
+
+## Implementation Progress
+
+- **Milestone A complete:** an editable Pipeline Workbench now derives a safe
+  graph from the canonical cleaning plan, exposes all v1 stage editors and
+  reordering, and exports backend-plan JSON, graph JSON/SVG, and starter
+  Python/Rust code. (`ba9a639`, `65e1f67`)
+- **Milestone B in progress:** data, scatter points/matrix, correlations, and
+  correlation matrix responses now carry immutable source version/revision,
+  schema fingerprint, and backend plan hash. The corresponding frontend
+  clients retain this provenance with decoded results. Remaining analytics,
+  drift, and export routes still need the common contract. (`e543078`,
+  `0aaab7f`, `2431453`)
+- **Milestone C started:** retained versions use an Arrow-content-derived
+  fingerprint, with a same-shape/different-content regression. Streaming
+  hashing, retained-version cache-isolation tests, and the ADR remain open.
+  (`72e187e`)
 
 ## 1. Goal
 
@@ -60,10 +77,15 @@ Do not start with allocator, SIMD, PGO, compression, framework replacement, or a
 - `frontend/src/contracts/api/v1/` owns frontend route/DTO mirrors; this should remain the only frontend wire-contract surface.
 - `frontend/src/cleaning/` provides a plan store, request envelope, preview/apply/export calls, a compact plan modal, local code generation, and compatibility lowering.
 - `frontend/src/cleaning/types.ts` currently exposes only four stage kinds: `timeRange`, `columnRange`, `adaptiveLine`, and `annotation`.
-- `frontend/src/cleaning/panel.ts` can add a visible time range, preview, enable/disable, remove, apply, select a retained version, and export. It cannot yet edit arbitrary stage parameters, reorder stages, undo/redo, import a plan, compare stage-level impact, or create most preparation operations.
+- `frontend/src/cleaning/panel.ts` is now a Pipeline Workbench: it visualizes
+  the canonical plan, edits all v1 stage parameters, enables/disables,
+  reorders, removes, previews/applies, and exports backend-plan JSON, graph
+  JSON/SVG, and starter code. Undo/redo, import/rebind, stage-impact
+  comparison, and most preparation operation families remain open.
 - Executable stage authoring is currently concentrated in Timeseries (`filterModalController.ts`, `adaptiveGesture.ts`, and the plan panel). Scatter, Correlations, FFT, Spectrogram, Causal, and Drift do not yet fulfill the “author from every plot” goal.
-- `frontend/src/services/api/timeseries.ts` sends only viewport, width, selected columns, color, and lookaround. It does not send a cleaning-plan request envelope.
-- `frontend/src/features/timeseries/timeseriesRenderModel.ts` applies numeric and adaptive-line filters to the already-downsampled browser response. This can display a different sample from a server-side plan execution and makes filtered-row counts misleading.
+- `frontend/src/services/api/timeseries.ts` sends the canonical plan envelope
+  with plan-aware requests; the backend applies it before projection and
+  reduction. The result keeps immutable execution provenance in `_meta`.
 - `frontend/src/features/home/guidedWorkflow.ts` guides Upload → Timeseries → Correlations → Scatter → Causal. It does not finish with quality review, preparation, validation, or export.
 - Upload validation has a hard-coded 256 MiB frontend limit in `features/upload/partialLoadControls.ts`, independent of server configuration.
 - Arrow decoding is bounded for normal chart routes, but it copies Arrow columns into JavaScript typed arrays. Response budgets must therefore remain strict even after the backend becomes out-of-core.
@@ -73,12 +95,17 @@ Do not start with allocator, SIMD, PGO, compression, framework replacement, or a
 - `crates/edatime-ingest/src/ingest.rs` starts with lazy CSV/Parquet scans but sorts and performs a final `collect()`, returning a fully resident `DataFrame`.
 - `crates/edatime-store/src/repository.rs` stores one replaceable in-memory `LazyFrame` backed by a `DataFrame`.
 - `crates/edatime-store/src/versions.rs` retains every root/materialized version as a `LazyFrame` derived from an in-memory frame. There is no retention limit, eviction policy, persistent artifact catalog, or restart recovery.
-- Dataset fingerprints currently hash row count and schema text, not source contents. Different datasets with the same shape and schema receive the same dataset fingerprint.
+- Dataset fingerprints are currently derived from canonical Arrow content
+  (schema, row order, nulls, and values); they are still resident-frame hashes
+  rather than streaming ingest hashes.
 - `crates/edatime-query/src/cleaning.rs` validates and compiles the four v1 stage kinds. Its backend semantic hash uses Rust debug formatting for stages, so labels, IDs, notes, and timestamps can affect a hash that is documented as executable-only. It is not the same canonical representation used by the frontend optimistic hash.
 - `crates/edatime-service/src/handlers/routes/cleaning.rs` correctly validates source/version/schema identity, but preview collects the source and result, apply collects the full result, and data export collects then serializes the full result into a byte vector.
 - The `expectedPlanHash` field is intentionally not trusted by the backend. That is acceptable only if it remains explicitly an optimistic client hint; cache and result identity must always use the backend hash.
 - Plan-aware execution exists for scatter points/matrix/export, FFT, Spectrogram, Causal, and Drift.
-- `GET /data`, correlations, rolling bands, anomalies, and spectral filtering are not plan-aware. Several plan-aware responses also do not return a common `{sourceVersionId, datasetRevision, planHash}` result identity.
+- `/data`, scatter, and correlation routes are plan-aware and return the
+  common immutable source/version/schema/plan identity headers. Rolling bands,
+  anomalies, spectral filtering, Drift, and exports still require complete
+  plan-envelope and response-identity parity.
 - `crates/edatime-service/src/handlers/routes/data.rs` projects requested columns and time-filters lazily, but then collects every matching row before LTTB. Very wide time windows can therefore allocate in proportion to source rows rather than response rows.
 - Scatter similarly collects the filtered candidate frame before sampling. The response is bounded, but pre-sampling memory is not.
 - `QueryExecutor` uses a shared Rayon pool capped at eight workers and dispatches through `spawn_blocking`, but there is no per-workload semaphore, memory admission, deadline, or cooperative cancellation. Aborting a browser request does not stop an already-running Polars/analytics job.
