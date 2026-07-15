@@ -55,6 +55,14 @@ describe('cleaning plan panel', () => {
         expect(downloadBlobMock).toHaveBeenCalledWith(expect.any(Blob), 'edatime_cleaning_plan.json');
     });
 
+    it('describes row, value, schema, and ordering semantics in the graph legend', () => {
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        mountCleaningPlanPanel({ planStore, getViewport: () => null });
+        document.getElementById('open-cleaning-plan-btn')!.click();
+        expect(document.querySelector('.pipeline-workbench__legend')?.textContent).toContain('alter values or schema');
+    });
+
     it('appends each explicit visible-range action instead of rewriting prior pipeline history', () => {
         const planStore = createCleaningPlanStore();
         planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });

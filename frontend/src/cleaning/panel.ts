@@ -240,7 +240,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         panel.replaceChildren();
         const legend = document.createElement('div');
         legend.className = 'pipeline-workbench__legend';
-        legend.textContent = 'Active stages transform row membership. Disabled stages are bypassed. Annotations document the pipeline.';
+        legend.textContent = 'Active stages can filter rows, alter values or schema, or establish row order. Disabled stages are bypassed. Annotations document the pipeline.';
         const scroll = document.createElement('div');
         scroll.className = 'pipeline-workbench__graph-scroll';
         scroll.innerHTML = renderPipelineGraphSvg(buildPipelineGraph(plan), { selectedStageId });
