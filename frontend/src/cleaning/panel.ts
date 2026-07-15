@@ -38,6 +38,7 @@ function stageSummary(stage: CleaningStage): string {
         case 'columnRange': return (stage.mode === 'keepInside' ? 'Keep ' : 'Drop ') + stage.column + ': ' + stage.from + ' – ' + stage.to;
         case 'adaptiveLine': return (stage.keepAbove ? 'Keep above' : 'Keep below') + ' line for ' + stage.column;
         case 'missingValue': return 'Drop ' + (stage.dropNulls ? 'null' : '') + (stage.dropNulls && stage.dropNonFinite ? ' and ' : '') + (stage.dropNonFinite ? 'non-finite' : '') + ' rows for ' + stage.column;
+        case 'deduplicate': return 'Keep ' + stage.keep + ' row by ' + stage.columns.join(', ');
         case 'annotation': return stage.note?.trim() || stage.label;
     }
 }
@@ -276,6 +277,10 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
                 dropNulls: readChecked(form, 'dropNulls'),
                 dropNonFinite: readChecked(form, 'dropNonFinite'),
             } as Partial<CleaningStage>;
+        } else if (stage.kind === 'deduplicate') {
+            const columns = readText(form, 'columns').split(',').map((column) => column.trim()).filter(Boolean);
+            if (columns.length === 0 || new Set(columns).size !== columns.length) throw new Error('Duplicate resolution needs unique key columns.');
+            patch = { ...common, columns, keep: readText(form, 'keep') as 'first' | 'last' } as Partial<CleaningStage>;
         } else if (stage.kind === 'adaptiveLine') {
             const x1Ms = readNumber(form, 'x1Ms', 'X1');
             const x2Ms = readNumber(form, 'x2Ms', 'X2');
@@ -339,6 +344,11 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
                 textInput('Column', stage.column, 'column'),
                 checkboxInput('Drop null rows', stage.dropNulls, 'dropNulls'),
                 checkboxInput('Drop non-finite rows', stage.dropNonFinite, 'dropNonFinite'),
+            );
+        } else if (stage.kind === 'deduplicate') {
+            fields.append(
+                textInput('Key columns (comma-separated)', stage.columns.join(', '), 'columns'),
+                selectInput('Keep', stage.keep, 'keep', [['first', 'First row'], ['last', 'Last row']]),
             );
         } else if (stage.kind === 'adaptiveLine') {
             fields.append(
@@ -415,6 +425,36 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             });
             notify();
         });
+        const addDeduplicateForm = document.createElement('form');
+        addDeduplicateForm.className = 'pipeline-workbench__add-stage';
+        const deduplicateHeading = document.createElement('h3');
+        deduplicateHeading.textContent = 'Add duplicate resolution';
+        const deduplicateFields = document.createElement('div');
+        deduplicateFields.className = 'modal-grid';
+        deduplicateFields.append(
+            textInput('Key columns (comma-separated)', '', 'deduplicateColumns'),
+            selectInput('Keep', 'first', 'deduplicateKeep', [['first', 'First row'], ['last', 'Last row']]),
+        );
+        const deduplicateActions = document.createElement('div');
+        deduplicateActions.className = 'pipeline-workbench__editor-actions';
+        const addDeduplicate = button('Resolve duplicates', 'btn btn-primary btn-sm');
+        addDeduplicate.type = 'submit';
+        deduplicateActions.appendChild(addDeduplicate);
+        addDeduplicateForm.append(deduplicateHeading, deduplicateFields, deduplicateActions);
+        addDeduplicateForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const columns = readText(addDeduplicateForm, 'deduplicateColumns').split(',').map((column) => column.trim()).filter(Boolean);
+            if (columns.length === 0 || new Set(columns).size !== columns.length) {
+                preview.textContent = 'Choose one or more unique key columns for duplicate resolution.';
+                return;
+            }
+            const keep = readText(addDeduplicateForm, 'deduplicateKeep') as 'first' | 'last';
+            deps.planStore.addStage({
+                kind: 'deduplicate', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+                sourcePage: 'manual', label: 'Keep ' + keep + ' row by ' + columns.join(', '), columns, keep,
+            });
+            notify();
+        });
         const list = document.createElement('div');
         list.className = 'cleaning-plan-stages';
         if (plan.stages.length === 0) {
@@ -463,7 +503,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             row.append(description, impact, toggle, up, down, remove);
             list.appendChild(row);
         }
-        panel.append(addMissingForm, list);
+        panel.append(addMissingForm, addDeduplicateForm, list);
         const selected = plan.stages.find((stage) => stage.id === selectedStageId);
         if (selected) renderEditor(selected);
     };
@@ -779,6 +819,11 @@ function isImportableStage(value: unknown): value is CleaningStage {
                 && typeof stage.dropNulls === 'boolean'
                 && typeof stage.dropNonFinite === 'boolean'
                 && (stage.dropNulls || stage.dropNonFinite);
+        case 'deduplicate':
+            return Array.isArray(stage.columns) && stage.columns.length > 0
+                && stage.columns.every((column) => typeof column === 'string' && !!column.trim())
+                && new Set(stage.columns).size === stage.columns.length
+                && (stage.keep === 'first' || stage.keep === 'last');
         case 'annotation':
             return stage.severity === undefined || stage.severity === 'info' || stage.severity === 'warning' || stage.severity === 'critical';
         default:

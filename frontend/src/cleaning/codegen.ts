@@ -22,6 +22,8 @@ export function generatePythonPolars(plan: CleaningPlan): string {
                 ? `${value}.is_not_null() & ${value}.is_finite()`
                 : stage.dropNulls ? `${value}.is_not_null()` : `${value}.is_null() | ${value}.is_finite()`;
             lines.push(`    lf = lf.filter(${predicate})`);
+        } else if (stage.kind === 'deduplicate') {
+            lines.push(`    lf = lf.unique(subset=[${stage.columns.map(quote).join(', ')}], keep=${quote(stage.keep)}, maintain_order=True)`);
         } else {
             const slope = (stage.y2 - stage.y1) / (stage.x2Ms - stage.x1Ms);
             const compare = `pl.col(${quote(stage.column)}) ${stage.keepAbove ? '>=' : '<='} (${numeric(stage.y1)} + ((pl.col(${quote(plan.timeColumn)}) - ${numeric(stage.x1Ms)}) * ${numeric(slope)}))`;
@@ -51,6 +53,8 @@ export function generateRustPolars(plan: CleaningPlan): string {
                 ? `${value}.is_not_null().and(${value}.is_finite())`
                 : stage.dropNulls ? `${value}.is_not_null()` : `${value}.is_null().or(${value}.is_finite())`;
             lines.push(`    lf = lf.filter(${predicate});`);
+        } else if (stage.kind === 'deduplicate') {
+            lines.push(`    lf = lf.unique_stable_generic(Some(vec![${stage.columns.map((column) => `col(${quote(column)})`).join(', ')}]), UniqueKeepStrategy::${stage.keep === 'first' ? 'First' : 'Last'});`);
         } else {
             lines.push(`    // Adaptive line stage ${quote(stage.id)}: use the same time-unit conversion as your input frame.`);
         }

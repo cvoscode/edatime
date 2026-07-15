@@ -5,7 +5,7 @@
  * may create stages, but never own the execution semantics themselves.
  */
 
-export type CleaningStageKind = 'timeRange' | 'columnRange' | 'adaptiveLine' | 'missingValue' | 'annotation';
+export type CleaningStageKind = 'timeRange' | 'columnRange' | 'adaptiveLine' | 'missingValue' | 'deduplicate' | 'annotation';
 export type StageExecutionClass = 'polarsExpression' | 'annotation';
 export type StageScope = 'row' | 'annotation';
 export type SourcePage = 'timeseries' | 'scatter' | 'correlation' | 'fft' | 'spectrogram' | 'causal' | 'drift' | 'manual' | 'import';
@@ -89,6 +89,15 @@ export interface MissingValueStage extends CleaningStageBase {
     dropNonFinite: boolean;
 }
 
+/** Stable duplicate resolution over an explicit, ordered key-column subset. */
+export interface DeduplicateStage extends CleaningStageBase {
+    kind: 'deduplicate';
+    executionClass: 'polarsExpression';
+    scope: 'row';
+    columns: string[];
+    keep: 'first' | 'last';
+}
+
 export interface AnnotationStage extends CleaningStageBase {
     kind: 'annotation';
     executionClass: 'annotation';
@@ -96,12 +105,13 @@ export interface AnnotationStage extends CleaningStageBase {
     severity?: 'info' | 'warning' | 'critical';
 }
 
-export type CleaningStage = TimeRangeStage | ColumnRangeStage | AdaptiveLineStage | MissingValueStage | AnnotationStage;
+export type CleaningStage = TimeRangeStage | ColumnRangeStage | AdaptiveLineStage | MissingValueStage | DeduplicateStage | AnnotationStage;
 
 export type CleaningStageInput = Omit<TimeRangeStage, 'id' | 'createdAt' | 'updatedAt'>
     | Omit<ColumnRangeStage, 'id' | 'createdAt' | 'updatedAt'>
     | Omit<AdaptiveLineStage, 'id' | 'createdAt' | 'updatedAt'>
     | Omit<MissingValueStage, 'id' | 'createdAt' | 'updatedAt'>
+    | Omit<DeduplicateStage, 'id' | 'createdAt' | 'updatedAt'>
     | Omit<AnnotationStage, 'id' | 'createdAt' | 'updatedAt'>;
 
 export interface PlanRequestSnapshot {

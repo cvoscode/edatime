@@ -82,6 +82,12 @@ pub enum CleaningStageDto {
         drop_nulls: bool,
         drop_non_finite: bool,
     },
+    Deduplicate {
+        #[serde(flatten)]
+        base: CleaningStageBaseDto,
+        columns: Vec<String>,
+        keep: DuplicateKeep,
+    },
     Annotation {
         #[serde(flatten)]
         base: CleaningStageBaseDto,
@@ -97,6 +103,7 @@ impl CleaningStageDto {
             | Self::ColumnRange { base, .. }
             | Self::AdaptiveLine { base, .. }
             | Self::MissingValue { base, .. }
+            | Self::Deduplicate { base, .. }
             | Self::Annotation { base, .. } => &base.id,
         }
     }
@@ -107,6 +114,7 @@ impl CleaningStageDto {
             | Self::ColumnRange { base, .. }
             | Self::AdaptiveLine { base, .. }
             | Self::MissingValue { base, .. }
+            | Self::Deduplicate { base, .. }
             | Self::Annotation { base, .. } => base.enabled,
         }
     }
@@ -124,6 +132,13 @@ pub enum TimeRangeMode {
 pub enum RangeMode {
     KeepInside,
     DropInside,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum DuplicateKeep {
+    First,
+    Last,
 }
 
 fn ensure_finite(stage_id: &str, field: &str, value: f64) -> Result<(), AppError> {
@@ -217,6 +232,21 @@ pub fn validate_cleaning_plan(plan: &CleaningPlanDto) -> Result<(), AppError> {
                     )));
                 }
             }
+            CleaningStageDto::Deduplicate { base, columns, .. } => {
+                if columns.is_empty()
+                    || columns.iter().any(|column| column.trim().is_empty())
+                    || columns.len()
+                        != columns
+                            .iter()
+                            .collect::<std::collections::HashSet<_>>()
+                            .len()
+                {
+                    return Err(AppError::bad_request(format!(
+                        "Cleaning stage '{}' requires unique non-empty key columns",
+                        base.id
+                    )));
+                }
+            }
             CleaningStageDto::Annotation { .. } => {}
         }
     }
@@ -296,6 +326,16 @@ pub fn compile_cleaning_plan(
                 };
                 lf.filter(predicate)
             }
+            CleaningStageDto::Deduplicate { columns, keep, .. } => {
+                let strategy = match keep {
+                    DuplicateKeep::First => polars::prelude::UniqueKeepStrategy::First,
+                    DuplicateKeep::Last => polars::prelude::UniqueKeepStrategy::Last,
+                };
+                lf.unique_stable_generic(
+                    Some(columns.iter().map(polars::prelude::col).collect()),
+                    strategy,
+                )
+            }
             CleaningStageDto::Annotation { .. } => lf,
         };
     }
@@ -373,6 +413,11 @@ fn semantic_stage_value(stage: &CleaningStageDto) -> Option<serde_json::Value> {
             "column": column.trim(),
             "dropNulls": drop_nulls,
             "dropNonFinite": drop_non_finite,
+        })),
+        CleaningStageDto::Deduplicate { columns, keep, .. } => Some(serde_json::json!({
+            "kind": "deduplicate",
+            "columns": columns.iter().map(|column| column.trim()).collect::<Vec<_>>(),
+            "keep": keep,
         })),
         CleaningStageDto::Annotation { .. } => None,
     }
@@ -533,6 +578,37 @@ mod tests {
             .collect()
             .expect("collect");
         assert_eq!(result.height(), 2);
+    }
+
+    #[test]
+    fn deduplicate_stage_keeps_last_row_and_preserves_kept_row_order() {
+        let plan = plan(vec![CleaningStageDto::Deduplicate {
+            base: base("duplicates"),
+            columns: vec!["key".to_string()],
+            keep: DuplicateKeep::Last,
+        }]);
+        let df = DataFrame::new(
+            3,
+            vec![
+                Series::new("ts".into(), vec![1_i64, 2, 3]).into(),
+                Series::new("key".into(), vec!["a", "a", "b"]).into(),
+            ],
+        )
+        .expect("frame");
+        let result = compile_cleaning_plan(df.lazy(), &plan)
+            .expect("compile")
+            .collect()
+            .expect("collect");
+        assert_eq!(
+            result
+                .column("ts")
+                .expect("ts")
+                .i64()
+                .expect("i64")
+                .into_no_null_iter()
+                .collect::<Vec<_>>(),
+            vec![2, 3]
+        );
     }
 
     #[test]

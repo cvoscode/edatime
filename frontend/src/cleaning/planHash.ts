@@ -51,6 +51,8 @@ function stageSemanticValue(stage: CleaningStage): Record<string, unknown> | nul
                 dropNulls: stage.dropNulls,
                 dropNonFinite: stage.dropNonFinite,
             };
+        case 'deduplicate':
+            return { kind: stage.kind, columns: stage.columns.map((column) => column.trim()), keep: stage.keep };
         default: {
             const exhaustive: never = stage;
             return exhaustive;

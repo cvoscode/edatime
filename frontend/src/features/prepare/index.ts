@@ -19,6 +19,7 @@ function stageSummary(stage: CleaningPlan['stages'][number]): string {
         case 'columnRange': return (stage.mode === 'keepInside' ? 'Keep' : 'Drop') + ' ' + stage.column + ' values';
         case 'adaptiveLine': return (stage.keepAbove ? 'Keep above' : 'Keep below') + ' line for ' + stage.column;
         case 'missingValue': return 'Drop ' + (stage.dropNulls ? 'null' : '') + (stage.dropNulls && stage.dropNonFinite ? ' and ' : '') + (stage.dropNonFinite ? 'non-finite' : '') + ' ' + stage.column + ' rows';
+        case 'deduplicate': return 'Keep ' + stage.keep + ' row by ' + stage.columns.join(', ');
         case 'annotation': return 'Annotation';
     }
 }
@@ -131,6 +132,42 @@ function renderPrepareWorkspace(root: HTMLElement, plan: CleaningPlan | null, de
         });
         deps.onPlanChanged?.();
     });
+    const addDeduplicate = createElement('form', 'prepare-workspace__policy-form');
+    const deduplicateTitle = createElement('h3');
+    deduplicateTitle.textContent = 'Add duplicate resolution';
+    const deduplicateColumns = createElement('input', 'modal-input');
+    deduplicateColumns.name = 'columns';
+    deduplicateColumns.placeholder = 'Key columns, comma-separated';
+    deduplicateColumns.required = true;
+    deduplicateColumns.setAttribute('aria-label', 'Duplicate-resolution key columns');
+    const keep = createElement('select', 'modal-select');
+    keep.name = 'keep';
+    const keepFirst = createElement('option');
+    keepFirst.value = 'first';
+    keepFirst.textContent = 'Keep first row';
+    const keepLast = createElement('option');
+    keepLast.value = 'last';
+    keepLast.textContent = 'Keep last row';
+    keep.append(keepFirst, keepLast);
+    const deduplicateSubmit = actionButton('Resolve duplicates', () => {});
+    deduplicateSubmit.type = 'submit';
+    const deduplicateStatus = createElement('p', 'prepare-workspace__policy-status');
+    deduplicateStatus.setAttribute('aria-live', 'polite');
+    addDeduplicate.append(deduplicateTitle, deduplicateColumns, keep, deduplicateSubmit, deduplicateStatus);
+    addDeduplicate.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const columns = deduplicateColumns.value.split(',').map((column) => column.trim()).filter(Boolean);
+        if (columns.length === 0 || new Set(columns).size !== columns.length) {
+            deduplicateStatus.textContent = 'Choose one or more unique key columns.';
+            return;
+        }
+        const resolution = keep.value as 'first' | 'last';
+        cleaningPlanStore.addStage({
+            kind: 'deduplicate', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+            sourcePage: 'manual', label: 'Keep ' + resolution + ' row by ' + columns.join(', '), columns, keep: resolution,
+        });
+        deps.onPlanChanged?.();
+    });
     const list = createElement('ol', 'prepare-workspace__stage-list');
     if (plan.stages.length === 0) {
         const empty = createElement('li', 'prepare-workspace__empty');
@@ -167,7 +204,7 @@ function renderPrepareWorkspace(root: HTMLElement, plan: CleaningPlan | null, de
         item.append(summary, controls);
         list.append(item);
     }
-    stagesSection.append(stageTitle, stageCopy, history, addPolicy, list);
+    stagesSection.append(stageTitle, stageCopy, history, addPolicy, addDeduplicate, list);
     root.append(header, identity, graphSection, stagesSection);
 }
 

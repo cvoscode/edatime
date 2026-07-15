@@ -80,4 +80,20 @@ describe('Prepare page', () => {
         expect(onPlanChanged).toHaveBeenCalledTimes(1);
         dispose();
     });
+
+    it('creates stable duplicate resolution from explicit key columns', () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        const dispose = initPreparePage();
+        const forms = document.querySelectorAll<HTMLFormElement>('form.prepare-workspace__policy-form');
+        const form = forms[1];
+        (form.elements.namedItem('columns') as HTMLInputElement).value = 'device, ts';
+        (form.elements.namedItem('keep') as HTMLSelectElement).value = 'last';
+
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+
+        expect(cleaningPlanStore.getSnapshot()!.stages).toMatchObject([{
+            kind: 'deduplicate', columns: ['device', 'ts'], keep: 'last',
+        }]);
+        dispose();
+    });
 });
