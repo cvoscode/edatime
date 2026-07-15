@@ -6,11 +6,11 @@
  * older frontend after a rebuild.
  *
  * The cache name is interpolated at build time by `scripts/build-frontend.mjs`
- * from a content hash of the Vite manifest. The literal token is `02962689fad4f4f9-202607152137`;
+ * from a content hash of the Vite manifest. The literal token is `8dbfe183eb75c55d-202607152154`;
  * if you see it in a deployed sw.js, the build pipeline did not run.
  */
 
-const CACHE_NAME = `edatime-runtime-02962689fad4f4f9-202607152137`;
+const CACHE_NAME = `edatime-runtime-8dbfe183eb75c55d-202607152154`;
 
 self.addEventListener('install', (event) => {
   event.waitUntil(self.skipWaiting());
