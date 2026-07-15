@@ -71,8 +71,8 @@
 .pipeline-workbench__legend { display: flex; flex-wrap: wrap; gap: 10px; color: var(--text-dim); font-size: 0.75rem; }
 .pipeline-workbench__graph-scroll { overflow: auto; padding: 4px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--shell-bg); }
 .pipeline-workbench__hint { margin: 0; color: var(--text-dim); font-size: 0.8125rem; }
-.pipeline-workbench__editor { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--border-hi); border-radius: var(--radius-md); background: var(--shell-hover); }
-.pipeline-workbench__editor h3 { margin: 0; font-size: 0.875rem; }
+.pipeline-workbench__editor, .pipeline-workbench__add-stage { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--border-hi); border-radius: var(--radius-md); background: var(--shell-hover); }
+.pipeline-workbench__editor h3, .pipeline-workbench__add-stage h3 { margin: 0; font-size: 0.875rem; }
 .pipeline-workbench__editor-actions, .pipeline-workbench__export-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .pipeline-workbench__checkbox { display: inline-flex; align-items: center; gap: 7px; min-height: var(--ctrl-h); color: var(--text-dim); font-size: 0.8125rem; }
 .pipeline-graph { display: block; min-width: 640px; font-family: ui-sans-serif, system-ui, sans-serif; }

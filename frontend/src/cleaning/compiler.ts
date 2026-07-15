@@ -81,7 +81,9 @@ export function compileCleaningPlanForLegacyFilters(plan: CleaningPlan): Compile
                 y2: stage.y2,
                 keepAbove: stage.keepAbove,
             });
+            continue;
         }
+        unsupportedForLegacyFilters.push(stage);
     }
 
     if (start != null && end != null && start > end) {

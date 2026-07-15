@@ -5,7 +5,7 @@
  * may create stages, but never own the execution semantics themselves.
  */
 
-export type CleaningStageKind = 'timeRange' | 'columnRange' | 'adaptiveLine' | 'annotation';
+export type CleaningStageKind = 'timeRange' | 'columnRange' | 'adaptiveLine' | 'missingValue' | 'annotation';
 export type StageExecutionClass = 'polarsExpression' | 'annotation';
 export type StageScope = 'row' | 'annotation';
 export type SourcePage = 'timeseries' | 'scatter' | 'correlation' | 'fft' | 'spectrogram' | 'causal' | 'drift' | 'manual' | 'import';
@@ -79,6 +79,16 @@ export interface AdaptiveLineStage extends CleaningStageBase {
     applyWithinSegmentOnly: boolean;
 }
 
+/** Row-membership policy for a single numeric column's null/non-finite values. */
+export interface MissingValueStage extends CleaningStageBase {
+    kind: 'missingValue';
+    executionClass: 'polarsExpression';
+    scope: 'row';
+    column: string;
+    dropNulls: boolean;
+    dropNonFinite: boolean;
+}
+
 export interface AnnotationStage extends CleaningStageBase {
     kind: 'annotation';
     executionClass: 'annotation';
@@ -86,11 +96,12 @@ export interface AnnotationStage extends CleaningStageBase {
     severity?: 'info' | 'warning' | 'critical';
 }
 
-export type CleaningStage = TimeRangeStage | ColumnRangeStage | AdaptiveLineStage | AnnotationStage;
+export type CleaningStage = TimeRangeStage | ColumnRangeStage | AdaptiveLineStage | MissingValueStage | AnnotationStage;
 
 export type CleaningStageInput = Omit<TimeRangeStage, 'id' | 'createdAt' | 'updatedAt'>
     | Omit<ColumnRangeStage, 'id' | 'createdAt' | 'updatedAt'>
     | Omit<AdaptiveLineStage, 'id' | 'createdAt' | 'updatedAt'>
+    | Omit<MissingValueStage, 'id' | 'createdAt' | 'updatedAt'>
     | Omit<AnnotationStage, 'id' | 'createdAt' | 'updatedAt'>;
 
 export interface PlanRequestSnapshot {

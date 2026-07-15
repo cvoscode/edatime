@@ -28,7 +28,7 @@ complete.
 
 | Area | Current status | Evidence / remaining gap |
 | --- | --- | --- |
-| Portable plan core | Implemented for `timeRange`, `columnRange`, `adaptiveLine`, and `annotation` | Shared TypeScript store/compiler and Rust DTO/compiler exist; advanced row, column, transform, drift, and frequency stages remain |
+| Portable plan core | Implemented for `timeRange`, `columnRange`, `adaptiveLine`, column-scoped `missingValue`, and `annotation` | Shared TypeScript store/compiler and Rust DTO/compiler exist; advanced row, column, transform, drift, and frequency stages remain |
 | Reversible baseline | Implemented in memory | Immutable root/child snapshots, explicit materialize/apply, version listing, and version selection exist; persistence and spill/out-of-core version storage remain |
 | Validation and preview | Implemented for the portable v1 stages | Backend validates source identity and compiles from the retained source snapshot |
 | Dataset and plan export | Partial | Full plan-aware Parquet and canonical JSON export exist; the workbench imports JSON plans bound to the active baseline; CSV, ZIP reproducibility bundle, checksums, source inclusion, and cross-baseline rebind remain |

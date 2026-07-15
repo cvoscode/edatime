@@ -102,7 +102,9 @@ Do not start with allocator, SIMD, PGO, compression, framework replacement, or a
 - `frontend/src/app/featureRegistry.ts` already lazy-loads feature modules and disposes them across dataset sessions.
 - `frontend/src/contracts/api/v1/` owns frontend route/DTO mirrors; this should remain the only frontend wire-contract surface.
 - `frontend/src/cleaning/` provides a plan store, request envelope, preview/apply/export calls, a compact plan modal, local code generation, and compatibility lowering.
-- `frontend/src/cleaning/types.ts` currently exposes only four stage kinds: `timeRange`, `columnRange`, `adaptiveLine`, and `annotation`.
+- `frontend/src/cleaning/types.ts` exposes portable `timeRange`, `columnRange`,
+  `adaptiveLine`, column-scoped `missingValue`, and `annotation` stages. More
+  schema, temporal, robust-cleaning, and modeling stage families remain open.
 - `frontend/src/cleaning/panel.ts` is now a Pipeline Workbench: it visualizes
   the canonical plan, edits all v1 stage parameters, enables/disables,
   reorders, removes, previews/applies, and exports backend-plan JSON, graph
@@ -134,7 +136,9 @@ Do not start with allocator, SIMD, PGO, compression, framework replacement, or a
 - Dataset fingerprints are currently derived from canonical Arrow content
   (schema, row order, nulls, and values); they are still resident-frame hashes
   rather than streaming ingest hashes.
-- `crates/edatime-query/src/cleaning.rs` validates and compiles the four v1 stage kinds. Its backend semantic hash uses Rust debug formatting for stages, so labels, IDs, notes, and timestamps can affect a hash that is documented as executable-only. It is not the same canonical representation used by the frontend optimistic hash.
+- `crates/edatime-query/src/cleaning.rs` validates and compiles the five v1
+  portable stage kinds. Its semantic hash uses executable canonical content;
+  labels, IDs, notes, and timestamps do not affect server execution identity.
 - `crates/edatime-service/src/handlers/routes/cleaning.rs` correctly validates source/version/schema identity, but preview collects the source and result, apply collects the full result, and data export collects then serializes the full result into a byte vector.
 - The `expectedPlanHash` field is intentionally not trusted by the backend. That is acceptable only if it remains explicitly an optimistic client hint; cache and result identity must always use the backend hash.
 - Plan-aware execution exists for scatter points/matrix/export, FFT, Spectrogram, Causal, and Drift.

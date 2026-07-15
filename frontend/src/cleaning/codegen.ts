@@ -16,6 +16,12 @@ export function generatePythonPolars(plan: CleaningPlan): string {
         } else if (stage.kind === 'columnRange') {
             const predicate = `(pl.col(${quote(stage.column)}) >= ${numeric(Math.min(stage.from, stage.to))}) & (pl.col(${quote(stage.column)}) <= ${numeric(Math.max(stage.from, stage.to))})`;
             lines.push(`    lf = lf.filter(${stage.mode === 'keepInside' ? predicate : `(${predicate}).not() | (${predicate}).is_null()`})`);
+        } else if (stage.kind === 'missingValue') {
+            const value = `pl.col(${quote(stage.column)})`;
+            const predicate = stage.dropNulls && stage.dropNonFinite
+                ? `${value}.is_not_null() & ${value}.is_finite()`
+                : stage.dropNulls ? `${value}.is_not_null()` : `${value}.is_null() | ${value}.is_finite()`;
+            lines.push(`    lf = lf.filter(${predicate})`);
         } else {
             const slope = (stage.y2 - stage.y1) / (stage.x2Ms - stage.x1Ms);
             const compare = `pl.col(${quote(stage.column)}) ${stage.keepAbove ? '>=' : '<='} (${numeric(stage.y1)} + ((pl.col(${quote(plan.timeColumn)}) - ${numeric(stage.x1Ms)}) * ${numeric(slope)}))`;
@@ -39,6 +45,12 @@ export function generateRustPolars(plan: CleaningPlan): string {
         } else if (stage.kind === 'columnRange') {
             const predicate = `col(${quote(stage.column)}).cast(DataType::Float64).gt_eq(lit(${numeric(Math.min(stage.from, stage.to))})).and(col(${quote(stage.column)}).cast(DataType::Float64).lt_eq(lit(${numeric(Math.max(stage.from, stage.to))})))`;
             lines.push(`    lf = lf.filter(${stage.mode === 'keepInside' ? predicate : `${predicate}.is_null().or(${predicate}.not())`});`);
+        } else if (stage.kind === 'missingValue') {
+            const value = `col(${quote(stage.column)})`;
+            const predicate = stage.dropNulls && stage.dropNonFinite
+                ? `${value}.is_not_null().and(${value}.is_finite())`
+                : stage.dropNulls ? `${value}.is_not_null()` : `${value}.is_null().or(${value}.is_finite())`;
+            lines.push(`    lf = lf.filter(${predicate});`);
         } else {
             lines.push(`    // Adaptive line stage ${quote(stage.id)}: use the same time-unit conversion as your input frame.`);
         }

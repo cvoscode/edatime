@@ -11,4 +11,16 @@ describe('cleaning code generation', () => {
         expect(generatePythonPolars(plan)).not.toContain('note');
         expect(generateRustPolars(plan)).toContain('is_null().or');
     });
+
+    it('emits null and non-finite row policies in both portable code targets', () => {
+        const plan = createEmptyCleaningPlan({ sourceVersionId: 'source-1', datasetRevision: 1, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        plan.stages.push({
+            id: 'missing', kind: 'missingValue', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+            sourcePage: 'manual', label: 'Drop missing value rows', createdAt: 'now', updatedAt: 'now',
+            column: 'value', dropNulls: true, dropNonFinite: true,
+        });
+
+        expect(generatePythonPolars(plan)).toContain('pl.col("value").is_not_null() & pl.col("value").is_finite()');
+        expect(generateRustPolars(plan)).toContain('col("value").is_not_null().and(col("value").is_finite())');
+    });
 });

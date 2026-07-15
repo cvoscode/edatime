@@ -256,6 +256,22 @@ describe('cleaning plan panel', () => {
         expect(planStore.getSnapshot()!.stages.map((stage) => stage.id)).toEqual([second.id, first.id]);
     });
 
+    it('creates a valid missing-value policy from the Stages tab', () => {
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        mountCleaningPlanPanel({ planStore, getViewport: () => null });
+
+        document.getElementById('open-cleaning-plan-btn')!.click();
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Stages')!.click();
+        const form = document.querySelector('form.pipeline-workbench__add-stage') as HTMLFormElement;
+        (form.elements.namedItem('missingValueColumn') as HTMLInputElement).value = 'value';
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+
+        expect(planStore.getSnapshot()!.stages).toMatchObject([{
+            kind: 'missingValue', column: 'value', dropNulls: true, dropNonFinite: true,
+        }]);
+    });
+
     it('keeps keyboard focus inside the workbench overlay and restores the trigger on close', () => {
         const planStore = createCleaningPlanStore();
         planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });

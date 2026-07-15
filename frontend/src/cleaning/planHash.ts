@@ -44,6 +44,13 @@ function stageSemanticValue(stage: CleaningStage): Record<string, unknown> | nul
                 keepAbove: stage.keepAbove,
                 applyWithinSegmentOnly: stage.applyWithinSegmentOnly,
             };
+        case 'missingValue':
+            return {
+                kind: stage.kind,
+                column: stage.column.trim(),
+                dropNulls: stage.dropNulls,
+                dropNonFinite: stage.dropNonFinite,
+            };
         default: {
             const exhaustive: never = stage;
             return exhaustive;

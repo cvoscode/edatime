@@ -37,6 +37,7 @@ function stageSummary(stage: CleaningStage): string {
         case 'timeRange': return (stage.mode === 'keepInside' ? 'Keep ' : 'Drop ') + new Date(stage.startMs).toISOString() + ' – ' + new Date(stage.endMs).toISOString();
         case 'columnRange': return (stage.mode === 'keepInside' ? 'Keep ' : 'Drop ') + stage.column + ': ' + stage.from + ' – ' + stage.to;
         case 'adaptiveLine': return (stage.keepAbove ? 'Keep above' : 'Keep below') + ' line for ' + stage.column;
+        case 'missingValue': return 'Drop ' + (stage.dropNulls ? 'null' : '') + (stage.dropNulls && stage.dropNonFinite ? ' and ' : '') + (stage.dropNonFinite ? 'non-finite' : '') + ' rows for ' + stage.column;
         case 'annotation': return stage.note?.trim() || stage.label;
     }
 }
@@ -268,6 +269,13 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
                 to: readNumber(form, 'to', 'To'),
                 mode: readText(form, 'mode') as 'keepInside' | 'dropInside',
             } as Partial<CleaningStage>;
+        } else if (stage.kind === 'missingValue') {
+            patch = {
+                ...common,
+                column: readText(form, 'column'),
+                dropNulls: readChecked(form, 'dropNulls'),
+                dropNonFinite: readChecked(form, 'dropNonFinite'),
+            } as Partial<CleaningStage>;
         } else if (stage.kind === 'adaptiveLine') {
             const x1Ms = readNumber(form, 'x1Ms', 'X1');
             const x2Ms = readNumber(form, 'x2Ms', 'X2');
@@ -326,6 +334,12 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
                 textInput('To', String(stage.to), 'to', 'number'),
                 selectInput('Mode', stage.mode, 'mode', [['keepInside', 'Keep inside'], ['dropInside', 'Drop inside']]),
             );
+        } else if (stage.kind === 'missingValue') {
+            fields.append(
+                textInput('Column', stage.column, 'column'),
+                checkboxInput('Drop null rows', stage.dropNulls, 'dropNulls'),
+                checkboxInput('Drop non-finite rows', stage.dropNonFinite, 'dropNonFinite'),
+            );
         } else if (stage.kind === 'adaptiveLine') {
             fields.append(
                 textInput('Column', stage.column, 'column'),
@@ -364,6 +378,43 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
     };
     const renderStages = (plan: CleaningPlan) => {
         panel.replaceChildren();
+        const addMissingForm = document.createElement('form');
+        addMissingForm.className = 'pipeline-workbench__add-stage';
+        const addHeading = document.createElement('h3');
+        addHeading.textContent = 'Add missing-value policy';
+        const addFields = document.createElement('div');
+        addFields.className = 'modal-grid';
+        addFields.append(
+            textInput('Numeric column', '', 'missingValueColumn'),
+            checkboxInput('Drop null rows', true, 'missingValueDropNulls'),
+            checkboxInput('Drop non-finite rows', true, 'missingValueDropNonFinite'),
+        );
+        const addActions = document.createElement('div');
+        addActions.className = 'pipeline-workbench__editor-actions';
+        const addMissing = button('Add policy', 'btn btn-primary btn-sm');
+        addMissing.type = 'submit';
+        addActions.appendChild(addMissing);
+        addMissingForm.append(addHeading, addFields, addActions);
+        addMissingForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const column = readText(addMissingForm, 'missingValueColumn');
+            const dropNulls = readChecked(addMissingForm, 'missingValueDropNulls');
+            const dropNonFinite = readChecked(addMissingForm, 'missingValueDropNonFinite');
+            if (!column) {
+                preview.textContent = 'Choose a numeric column for the missing-value policy.';
+                return;
+            }
+            if (!dropNulls && !dropNonFinite) {
+                preview.textContent = 'Choose null removal, non-finite removal, or both.';
+                return;
+            }
+            deps.planStore.addStage({
+                kind: 'missingValue', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+                sourcePage: 'manual', label: 'Drop missing values from ' + column,
+                column, dropNulls, dropNonFinite,
+            });
+            notify();
+        });
         const list = document.createElement('div');
         list.className = 'cleaning-plan-stages';
         if (plan.stages.length === 0) {
@@ -412,7 +463,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             row.append(description, impact, toggle, up, down, remove);
             list.appendChild(row);
         }
-        panel.appendChild(list);
+        panel.append(addMissingForm, list);
         const selected = plan.stages.find((stage) => stage.id === selectedStageId);
         if (selected) renderEditor(selected);
     };
@@ -723,6 +774,11 @@ function isImportableStage(value: unknown): value is CleaningStage {
                 && stage.x1Ms !== stage.x2Ms
                 && typeof stage.keepAbove === 'boolean'
                 && typeof stage.applyWithinSegmentOnly === 'boolean';
+        case 'missingValue':
+            return typeof stage.column === 'string' && !!stage.column.trim()
+                && typeof stage.dropNulls === 'boolean'
+                && typeof stage.dropNonFinite === 'boolean'
+                && (stage.dropNulls || stage.dropNonFinite);
         case 'annotation':
             return stage.severity === undefined || stage.severity === 'info' || stage.severity === 'warning' || stage.severity === 'critical';
         default:

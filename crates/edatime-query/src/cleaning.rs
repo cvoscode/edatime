@@ -75,6 +75,13 @@ pub enum CleaningStageDto {
         keep_above: bool,
         apply_within_segment_only: bool,
     },
+    MissingValue {
+        #[serde(flatten)]
+        base: CleaningStageBaseDto,
+        column: String,
+        drop_nulls: bool,
+        drop_non_finite: bool,
+    },
     Annotation {
         #[serde(flatten)]
         base: CleaningStageBaseDto,
@@ -89,6 +96,7 @@ impl CleaningStageDto {
             Self::TimeRange { base, .. }
             | Self::ColumnRange { base, .. }
             | Self::AdaptiveLine { base, .. }
+            | Self::MissingValue { base, .. }
             | Self::Annotation { base, .. } => &base.id,
         }
     }
@@ -98,6 +106,7 @@ impl CleaningStageDto {
             Self::TimeRange { base, .. }
             | Self::ColumnRange { base, .. }
             | Self::AdaptiveLine { base, .. }
+            | Self::MissingValue { base, .. }
             | Self::Annotation { base, .. } => base.enabled,
         }
     }
@@ -195,6 +204,19 @@ pub fn validate_cleaning_plan(plan: &CleaningPlanDto) -> Result<(), AppError> {
                 ensure_finite(&base.id, "x2Ms", *x2_ms)?;
                 ensure_finite(&base.id, "y2", *y2)?;
             }
+            CleaningStageDto::MissingValue {
+                base,
+                column,
+                drop_nulls,
+                drop_non_finite,
+            } => {
+                if column.trim().is_empty() || (!drop_nulls && !drop_non_finite) {
+                    return Err(AppError::bad_request(format!(
+                        "Cleaning stage '{}' requires a column and at least one removal policy",
+                        base.id
+                    )));
+                }
+            }
             CleaningStageDto::Annotation { .. } => {}
         }
     }
@@ -258,6 +280,21 @@ pub fn compile_cleaning_plan(
                     keep_above: *keep_above,
                 };
                 apply_line_stage(lf, &plan.time_column, &filter, *apply_within_segment_only)?
+            }
+            CleaningStageDto::MissingValue {
+                column,
+                drop_nulls,
+                drop_non_finite,
+                ..
+            } => {
+                let value = polars::prelude::col(column);
+                let predicate = match (*drop_nulls, *drop_non_finite) {
+                    (true, true) => value.clone().is_not_null().and(value.is_finite()),
+                    (true, false) => value.is_not_null(),
+                    (false, true) => value.clone().is_null().or(value.is_finite()),
+                    (false, false) => unreachable!("validated missing-value policy"),
+                };
+                lf.filter(predicate)
             }
             CleaningStageDto::Annotation { .. } => lf,
         };
@@ -325,6 +362,17 @@ fn semantic_stage_value(stage: &CleaningStageDto) -> Option<serde_json::Value> {
             "y2": canonical_number(*y2),
             "keepAbove": keep_above,
             "applyWithinSegmentOnly": apply_within_segment_only,
+        })),
+        CleaningStageDto::MissingValue {
+            column,
+            drop_nulls,
+            drop_non_finite,
+            ..
+        } => Some(serde_json::json!({
+            "kind": "missingValue",
+            "column": column.trim(),
+            "dropNulls": drop_nulls,
+            "dropNonFinite": drop_non_finite,
         })),
         CleaningStageDto::Annotation { .. } => None,
     }
@@ -452,6 +500,39 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![3, 4]
         );
+    }
+
+    #[test]
+    fn missing_value_stage_drops_null_and_non_finite_rows() {
+        let plan = plan(vec![CleaningStageDto::MissingValue {
+            base: base("missing"),
+            column: "value".to_string(),
+            drop_nulls: true,
+            drop_non_finite: true,
+        }]);
+        let df = DataFrame::new(
+            5,
+            vec![
+                Series::new("ts".into(), vec![1_i64, 2, 3, 4, 5]).into(),
+                Series::new(
+                    "value".into(),
+                    vec![
+                        Some(1.0_f64),
+                        None,
+                        Some(f64::NAN),
+                        Some(f64::INFINITY),
+                        Some(2.0),
+                    ],
+                )
+                .into(),
+            ],
+        )
+        .expect("frame");
+        let result = compile_cleaning_plan(df.lazy(), &plan)
+            .expect("compile")
+            .collect()
+            .expect("collect");
+        assert_eq!(result.height(), 2);
     }
 
     #[test]
