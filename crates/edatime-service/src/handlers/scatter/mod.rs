@@ -24,7 +24,8 @@ pub use collect::{
 
 // Re-export route handlers for the router.
 pub use correlations::{
-    get_correlation_matrix, get_scatter_correlations, spawn_correlation_matrix_warmup,
+    get_correlation_matrix, get_scatter_correlations, post_correlation_matrix,
+    spawn_correlation_matrix_warmup,
 };
 // Phase 0.2: re-export the inner matrix computation under a
 // `_bench_target` suffix so the Criterion bench under
@@ -35,9 +36,9 @@ pub use correlations::{
 // `CorrelationMatrixData` return type is re-exported alongside it so
 // the same `#[doc(hidden)]` audit reasoning applies.
 #[doc(hidden)]
-pub use correlations::compute_correlation_matrix as compute_correlation_matrix_bench_target;
-#[doc(hidden)]
 pub use correlations::CorrelationMatrixData as CorrelationMatrixDataBenchTarget;
+#[doc(hidden)]
+pub use correlations::compute_correlation_matrix as compute_correlation_matrix_bench_target;
 pub use export::post_scatter_export_parquet;
 pub use matrix::post_scatter_matrix;
 pub use points::{get_scatter_points, post_scatter_points};

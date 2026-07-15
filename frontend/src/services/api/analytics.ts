@@ -199,11 +199,15 @@ export async function postTransform(
 // ── Correlation Matrix ───────────────────────────────────────────────────────
 
 export async function fetchCorrelationMatrix(): Promise<CorrelationMatrixResponse> {
-    const params = new URLSearchParams();
-    appendCleaningPlan(params);
-    const url = params.size > 0
-        ? withApiQuery(apiV1Routes.scatter.correlationMatrix, params)
-        : apiV1Routes.scatter.correlationMatrix;
+    const plan = activeCleaningPlan();
+    if (plan) {
+        return postJson<CorrelationMatrixResponse>(
+            apiV1Routes.scatter.correlationMatrix,
+            { cleaning_plan: plan },
+            'Correlation matrix',
+        );
+    }
+    const url = apiV1Routes.scatter.correlationMatrix;
     return getJson<CorrelationMatrixResponse>(url, 'Correlation matrix');
 }
 

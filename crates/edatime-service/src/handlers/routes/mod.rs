@@ -50,7 +50,7 @@ pub fn api_router() -> Router<AppState> {
         )
         .route(
             "/scatter/correlations/matrix",
-            get(scatter::get_correlation_matrix),
+            get(scatter::get_correlation_matrix).post(scatter::post_correlation_matrix),
         )
         .route("/upload", post(upload::upload_data))
         .route("/upload/preview", post(upload::preview_upload_data))

@@ -9,6 +9,7 @@ use axum::{
 };
 use rayon::prelude::*;
 use serde::Deserialize;
+use serde_json::Value;
 
 use crate::error::AppError;
 use edatime_core::metrics::{AppMetrics, CorrelationStage, CorrelationTelemetryMode, CpuStage};
@@ -857,6 +858,27 @@ pub async fn get_correlation_matrix(
         state.store_correlation_matrix_if_current(revision, data.clone().into_cache());
     }
     Ok(json_with_execution_identity(data.to_response(), &identity))
+}
+
+/// POST counterpart for plan-aware correlation matrix requests. It accepts a
+/// typed plan envelope so large plans never need to fit in a query string.
+pub async fn post_correlation_matrix(
+    State(state): State<AppState>,
+    Json(mut body): Json<Value>,
+) -> Result<Response, AppError> {
+    if let Some(plan) = body.get_mut("cleaning_plan") {
+        let envelope: crate::handlers::routes::cleaning::PlanRequestEnvelope =
+            serde_json::from_value(std::mem::take(plan)).map_err(|error| {
+                AppError::bad_request(format!("Invalid cleaning plan envelope: {error}"))
+            })?;
+        *plan = Value::String(serde_json::to_string(&envelope).map_err(|error| {
+            AppError::internal(format!("Serialize cleaning plan envelope: {error}"))
+        })?);
+    }
+    let params = serde_json::from_value::<CorrelationMatrixQuery>(body).map_err(|error| {
+        AppError::bad_request(format!("Invalid correlation matrix request: {error}"))
+    })?;
+    get_correlation_matrix(State(state), Query(params)).await
 }
 
 #[cfg(test)]
