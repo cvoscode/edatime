@@ -135,7 +135,12 @@ impl AppState {
         // efficiency. Phase 0.1: attach the metrics handle so every
         // `execute_async` call records `Query` CPU admission lifecycle.
         let query_executor = Arc::new(
-            QueryExecutor::new(ExecutionContext::Streaming).with_metrics(Arc::clone(&metrics)),
+            QueryExecutor::new(ExecutionContext::Streaming)
+                .with_metrics(Arc::clone(&metrics))
+                .with_admission(
+                    config.query.max_interactive_concurrency,
+                    config.query.max_background_concurrency,
+                ),
         );
         Self {
             repository,

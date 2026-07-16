@@ -39,3 +39,11 @@
 # max_artifact_bytes = 21474836480 # 20 GiB aggregate managed-artifact cap
 # max_artifact_versions = 12 # optional lineage-safe retained-version cap
 # require_sorted_scan_backed = true # verify order; false opts into Polars streaming sort
+
+# Admission for executor-owned LazyFrame work. Interactive collection and
+# sink-backed materialization/export have separate lanes so a long write does
+# not consume every viewport-query slot. Zero/invalid values are ignored.
+#
+# [query]
+# max_interactive_concurrency = 4
+# max_background_concurrency = 1

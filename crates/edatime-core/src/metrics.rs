@@ -20,6 +20,7 @@ use serde::Serialize;
 #[serde(rename_all = "snake_case")]
 pub enum CpuStage {
     Query,
+    Materialization,
     Scatter,
     Correlations,
     Analytics,
@@ -60,6 +61,7 @@ pub enum CorrelationTelemetryMode {
 fn cpu_stage_label(stage: CpuStage) -> &'static str {
     match stage {
         CpuStage::Query => "query",
+        CpuStage::Materialization => "materialization",
         CpuStage::Scatter => "scatter",
         CpuStage::Correlations => "correlations",
         CpuStage::Analytics => "analytics",
@@ -618,12 +620,15 @@ mod metrics_stage_tests {
         m.record_cpu_completed(CpuStage::Scatter);
         m.record_cpu_submit(CpuStage::Correlations);
         m.record_cpu_started(CpuStage::Correlations, 800);
+        m.record_cpu_submit(CpuStage::Materialization);
+        m.record_cpu_started(CpuStage::Materialization, 200);
+        m.record_cpu_completed(CpuStage::Materialization);
 
         let snap = m.snapshot(0, 0);
-        assert_eq!(snap.cpu_admission.submitted_total, 2);
-        assert_eq!(snap.cpu_admission.started_total, 2);
-        assert_eq!(snap.cpu_admission.completed_total, 1);
-        assert_eq!(snap.cpu_admission.queue_wait_ns_total, 1_300);
+        assert_eq!(snap.cpu_admission.submitted_total, 3);
+        assert_eq!(snap.cpu_admission.started_total, 3);
+        assert_eq!(snap.cpu_admission.completed_total, 2);
+        assert_eq!(snap.cpu_admission.queue_wait_ns_total, 1_500);
         let scatter = snap
             .cpu_admission
             .by_stage
@@ -641,6 +646,13 @@ mod metrics_stage_tests {
         assert_eq!(corr.submitted, 1);
         assert_eq!(corr.completed, 0);
         assert_eq!(corr.queue_wait_ns, 800);
+        let materialization = snap
+            .cpu_admission
+            .by_stage
+            .get("materialization")
+            .expect("materialization stage entry");
+        assert_eq!(materialization.completed, 1);
+        assert_eq!(materialization.queue_wait_ns, 200);
     }
 
     #[test]

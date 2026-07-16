@@ -102,6 +102,10 @@ artifact_dir = "./edatime-artifacts" # optional durable Parquet versions
 max_artifact_bytes = 21474836480      # optional 20 GiB managed-artifact cap
 max_artifact_versions = 12             # optional lineage-safe version cap
 require_sorted_scan_backed = true      # false opts into Polars streaming sort
+
+[query]
+max_interactive_concurrency = 4 # interactive LazyFrame collections
+max_background_concurrency = 1  # sink-backed materialization/export work
 ```
 
 **Environment variable overrides** (take precedence over the config file):
@@ -115,6 +119,8 @@ require_sorted_scan_backed = true      # false opts into Polars streaming sort
 | `EDATIME_RATE_LIMIT_MAX_REQUESTS` | `100` | Max requests per client per window |
 | `EDATIME_MAX_UPLOAD_BYTES` | `268435456` | Max upload file size (256 MB) |
 | `EDATIME_ARTIFACT_DIR` | *(unset)* | Managed directory for durable Parquet versions |
+| `EDATIME_MAX_INTERACTIVE_QUERIES` | `4` | Concurrent interactive query collections admitted by the shared executor |
+| `EDATIME_MAX_BACKGROUND_JOBS` | `1` | Concurrent sink-backed materialization/export operations admitted by the shared executor |
 | `EDATIME_MAX_ARTIFACT_BYTES` | *(unset)* | Aggregate managed-artifact disk cap |
 | `EDATIME_MAX_ARTIFACT_VERSIONS` | *(unset)* | Lineage-safe cap for retained managed versions |
 | `EDATIME_REQUIRE_SORTED_SCAN_BACKED` | `true` | Verify ordered timestamps before scan-backed ingest |

@@ -8,9 +8,42 @@ use edatime_core::types::LazyFrame;
 use rayon::ThreadPool;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 const DEFAULT_QUERY_WORKER_CAP: usize = 8;
 const QUERY_THREADS_ENV: &str = "EDATIME_QUERY_THREADS";
+
+/// Bounded admission lanes for executor-owned work. Interactive collections
+/// and sink-backed materialization/export intentionally do not compete for the
+/// same permit: a long durable write must not consume every viewport slot.
+#[derive(Clone)]
+struct QueryAdmission {
+    interactive: Arc<Semaphore>,
+    background: Arc<Semaphore>,
+}
+
+impl QueryAdmission {
+    fn new(max_interactive: usize, max_background: usize) -> Self {
+        Self {
+            interactive: Arc::new(Semaphore::new(max_interactive.max(1))),
+            background: Arc::new(Semaphore::new(max_background.max(1))),
+        }
+    }
+
+    async fn acquire_interactive(&self) -> Result<OwnedSemaphorePermit, AppError> {
+        Arc::clone(&self.interactive)
+            .acquire_owned()
+            .await
+            .map_err(|_| AppError::internal("Interactive query admission closed"))
+    }
+
+    async fn acquire_background(&self) -> Result<OwnedSemaphorePermit, AppError> {
+        Arc::clone(&self.background)
+            .acquire_owned()
+            .await
+            .map_err(|_| AppError::internal("Background query admission closed"))
+    }
+}
 
 #[derive(Clone)]
 pub enum ExecutionContext {
@@ -27,6 +60,9 @@ pub struct QueryExecutor {
     /// the executor usable from tests or embedded callers without the
     /// full metrics stack.
     metrics: Option<Arc<AppMetrics>>,
+    /// Optional bounded lanes configured by `AppState`. Tests and embedded
+    /// callers retain the previous unbounded behavior unless they opt in.
+    admission: Option<QueryAdmission>,
 }
 
 impl QueryExecutor {
@@ -35,6 +71,7 @@ impl QueryExecutor {
             ctx,
             thread_pool: build_default_pool(),
             metrics: None,
+            admission: None,
         }
     }
 
@@ -45,6 +82,14 @@ impl QueryExecutor {
         self
     }
 
+    /// Bound executor-owned interactive collection separately from durable
+    /// materialization/export work. Zero is clamped to one at this boundary so
+    /// an invalid deployment value cannot permanently deadlock a workload.
+    pub fn with_admission(mut self, max_interactive: usize, max_background: usize) -> Self {
+        self.admission = Some(QueryAdmission::new(max_interactive, max_background));
+        self
+    }
+
     pub async fn execute_async(
         &self,
         lf: LazyFrame,
@@ -52,11 +97,20 @@ impl QueryExecutor {
         let pool = Arc::clone(&self.thread_pool);
         let ctx = self.ctx.clone();
         let metrics = self.metrics.clone();
+        let admission = self.admission.clone();
         let queue_start = std::time::Instant::now();
         if let Some(metrics) = metrics.as_ref() {
             metrics.record_cpu_submit(CpuStage::Query);
         }
+        // Move the permit into the blocking task. Dropping an HTTP future does
+        // not cancel Tokio's blocking task, so the permit remains held until
+        // Polars has safely finished and cannot admit an unbounded replacement.
+        let permit = match admission {
+            Some(admission) => Some(admission.acquire_interactive().await?),
+            None => None,
+        };
         tokio::task::spawn_blocking(move || {
+            let _permit = permit;
             if let Some(metrics) = metrics.as_ref() {
                 let queue_wait_ns = queue_start.elapsed().as_nanos() as u64;
                 metrics.record_cpu_started(CpuStage::Query, queue_wait_ns);
@@ -94,15 +148,38 @@ impl QueryExecutor {
             )
             .map_err(|error| AppError::Query(format!("Build Parquet sink: {error}")))?;
         let pool = Arc::clone(&self.thread_pool);
+        let metrics = self.metrics.clone();
+        let admission = self.admission.clone();
+        let queue_start = std::time::Instant::now();
+        if let Some(metrics) = metrics.as_ref() {
+            metrics.record_cpu_submit(CpuStage::Materialization);
+        }
+        let permit = match admission {
+            Some(admission) => Some(admission.acquire_background().await?),
+            None => None,
+        };
         tokio::task::spawn_blocking(move || {
+            let _permit = permit;
+            if let Some(metrics) = metrics.as_ref() {
+                metrics.record_cpu_started(
+                    CpuStage::Materialization,
+                    queue_start.elapsed().as_nanos() as u64,
+                );
+            }
             // Polars' file sink owns an async IO runtime internally. Run it on
             // a plain child thread so it is not nested inside Tokio's runtime
             // context inherited by `spawn_blocking`.
-            std::thread::spawn(move || pool.install(|| sink.with_new_streaming(true).collect()))
-                .join()
-                .map_err(|_| AppError::internal("Parquet sink thread panicked"))?
-                .map(|_| ())
-                .map_err(|error| AppError::Query(format!("Write Parquet sink: {error}")))
+            let result = std::thread::spawn(move || {
+                pool.install(|| sink.with_new_streaming(true).collect())
+            })
+            .join()
+            .map_err(|_| AppError::internal("Parquet sink thread panicked"))?
+            .map(|_| ())
+            .map_err(|error| AppError::Query(format!("Write Parquet sink: {error}")));
+            if let Some(metrics) = metrics.as_ref() {
+                metrics.record_cpu_completed(CpuStage::Materialization);
+            }
+            result
         })
         .await
         .map_err(|error| AppError::internal(format!("Join Parquet sink: {error}")))?
@@ -178,7 +255,7 @@ fn configured_worker_count(configured: Option<&str>, available: usize) -> usize 
 
 #[cfg(test)]
 mod tests {
-    use super::configured_worker_count;
+    use super::{QueryAdmission, configured_worker_count};
 
     #[test]
     fn query_worker_count_is_capped_by_available_parallelism() {
@@ -186,5 +263,26 @@ mod tests {
         assert_eq!(configured_worker_count(Some("0"), 6), 6);
         assert_eq!(configured_worker_count(Some("invalid"), 16), 8);
         assert_eq!(configured_worker_count(None, 2), 2);
+    }
+
+    #[tokio::test]
+    async fn admission_has_independent_bounded_interactive_and_background_lanes() {
+        let admission = QueryAdmission::new(0, 0);
+        let interactive = admission
+            .acquire_interactive()
+            .await
+            .expect("interactive permit");
+        assert!(admission.interactive.clone().try_acquire_owned().is_err());
+
+        let background = admission
+            .acquire_background()
+            .await
+            .expect("background permit");
+        assert!(admission.background.clone().try_acquire_owned().is_err());
+
+        drop(interactive);
+        assert!(admission.interactive.clone().try_acquire_owned().is_ok());
+        drop(background);
+        assert!(admission.background.clone().try_acquire_owned().is_ok());
     }
 }

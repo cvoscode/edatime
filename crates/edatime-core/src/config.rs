@@ -104,11 +104,19 @@ pub struct DatabaseSettings {
 #[serde(default)]
 pub struct QuerySettings {
     pub max_stored: usize,
+    /// Maximum concurrent interactive `QueryExecutor::execute_async` calls.
+    pub max_interactive_concurrency: usize,
+    /// Maximum concurrent sink-backed materialization/export calls.
+    pub max_background_concurrency: usize,
 }
 
 impl Default for QuerySettings {
     fn default() -> Self {
-        Self { max_stored: 512 }
+        Self {
+            max_stored: 512,
+            max_interactive_concurrency: 4,
+            max_background_concurrency: 1,
+        }
     }
 }
 
@@ -278,6 +286,18 @@ impl AppConfig {
             && let Ok(require_sorted) = require_sorted.parse::<bool>()
         {
             self.data.require_sorted_scan_backed = require_sorted;
+        }
+        if let Ok(max_interactive) = env::var("EDATIME_MAX_INTERACTIVE_QUERIES")
+            && let Ok(max_interactive) = max_interactive.parse::<usize>()
+            && max_interactive > 0
+        {
+            self.query.max_interactive_concurrency = max_interactive;
+        }
+        if let Ok(max_background) = env::var("EDATIME_MAX_BACKGROUND_JOBS")
+            && let Ok(max_background) = max_background.parse::<usize>()
+            && max_background > 0
+        {
+            self.query.max_background_concurrency = max_background;
         }
         if let Ok(min_width) = env::var("EDATIME_MIN_VIEWPORT_WIDTH")
             && let Ok(min_width) = min_width.parse::<usize>()
@@ -477,6 +497,31 @@ mod tests {
             None => unsafe {
                 env::remove_var("EDATIME_REQUIRE_SORTED_SCAN_BACKED");
             },
+        }
+    }
+
+    #[test]
+    fn query_admission_limits_can_be_overridden_from_env() {
+        let _guard = env_lock().lock().expect("env lock should not be poisoned");
+        let previous_interactive = env::var("EDATIME_MAX_INTERACTIVE_QUERIES").ok();
+        let previous_background = env::var("EDATIME_MAX_BACKGROUND_JOBS").ok();
+        unsafe {
+            env::set_var("EDATIME_MAX_INTERACTIVE_QUERIES", "7");
+            env::set_var("EDATIME_MAX_BACKGROUND_JOBS", "2");
+        }
+
+        let mut config = AppConfig::default();
+        config.apply_env_overrides();
+        assert_eq!(config.query.max_interactive_concurrency, 7);
+        assert_eq!(config.query.max_background_concurrency, 2);
+
+        match previous_interactive {
+            Some(value) => unsafe { env::set_var("EDATIME_MAX_INTERACTIVE_QUERIES", value) },
+            None => unsafe { env::remove_var("EDATIME_MAX_INTERACTIVE_QUERIES") },
+        }
+        match previous_background {
+            Some(value) => unsafe { env::set_var("EDATIME_MAX_BACKGROUND_JOBS", value) },
+            None => unsafe { env::remove_var("EDATIME_MAX_BACKGROUND_JOBS") },
         }
     }
 }
