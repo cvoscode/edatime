@@ -1,6 +1,6 @@
 # EdaTime Application Review and Improvement Plan
 
-**Status:** implementation roadmap; Milestone A is complete and Milestones B/C/D have active, committed slices
+**Status:** implementation roadmap; Milestone A is complete and Milestones B/C/D/E have active, committed slices
 
 **Reviewed:** 2026-07-15
 
@@ -69,6 +69,15 @@
   `9887e4f`, `6ab6f44`, `7413758`, `7847b46`, `5bfdc39`, `d2dca71`,
   `7c31697`, `84fd48f`, `5d6e19f`, `f5b9e66`, `349c56f`, `19836bf`,
   `8f5ba28`, `06babb4`, `748dce3`, `7e73748`, `f965d93`)
+- **Milestone E started:** executor-owned interactive LazyFrame collection
+  and sink-backed materialization/export now use separately configurable,
+  bounded admission lanes. Their queue wait and lifecycle are observable under
+  the `query` and `materialization` CPU stages, and a permit remains owned by
+  the blocking task when a request future is dropped. This prevents a long
+  durable sink from consuming viewport-query slots, but it is intentionally an
+  executor foundation only: scatter/correlation/analytics handlers, resource
+  estimates/deadlines, cancellation, and the observable job API remain open.
+  (`a338f28`)
 
 ## 1. Goal
 
@@ -870,13 +879,20 @@ interruption tests prove catalog recovery and atomicity.
 
 ### Milestone E — Admission, Jobs, and Bounded Overview Queries
 
-1. Add a scheduler with workload permits, work/memory estimates, deadlines,
-   and structured `job_required` decisions.
-2. Move ingest normalization, exact profile, full export/materialization, and
+1. **Completed executor foundation:** `AppState` configures separate bounded
+   permits for interactive `QueryExecutor::execute_async` collections and
+   sink-backed materialization/export. Permit wait is reported in existing
+   low-cardinality CPU-admission telemetry, and permits move into the blocking
+   task so client-future drop cannot admit a replacement before Polars exits.
+   This intentionally does not yet govern direct scatter/correlation/analytics
+   task spawns. (`a338f28`)
+2. Extend that foundation into a scheduler with workload permits, work/memory
+   estimates, deadlines, and structured `job_required` decisions.
+3. Move ingest normalization, exact profile, full export/materialization, and
    exact wide analytics into observable/cancellable jobs.
-3. Replace collect-then-reduce Timeseries and Scatter overview paths with
+4. Replace collect-then-reduce Timeseries and Scatter overview paths with
    bounded candidate envelopes/reservoir sampling after plan predicates.
-4. Surface queue/progress/cancellation and sampled/exact metadata in the UI.
+5. Surface queue/progress/cancellation and sampled/exact metadata in the UI.
 
 **Gate:** cancellation releases permits and temp files; one background job
 cannot block viewport interactions; peak memory follows configured candidate
