@@ -599,8 +599,18 @@ collects the exact pre- and post-plan frames and exports source/root identity,
 canonical plan/hash, dataset/schema/plan checksums, exact row/column counts,
 time coverage, and null/non-finite totals. The overlay exposes this as a
 handoff-manifest download. Approximation history, application/dependency
-versions, split definitions, per-group policy, and a multi-artifact bundle
-remain future slices. (`7b08539`, `5df3a5c`)
+versions, per-group policy, and a multi-artifact bundle remain future slices.
+(`7b08539`, `5df3a5c`)
+
+**Chronological split slice:** a `chronologicalSplit` stage now labels the
+canonical time axis as `train`, `embargo`, `validation`, `embargo`, and `test`
+using explicit epoch-millisecond boundaries, with null time values labelled
+`unassigned`. It neither fits transformations nor changes row membership. The
+Pipeline Workbench authors and edits the stage, the graph exposes it as a
+schema-changing node, and the backend compiler/semantic hash execute the same
+contract. Code export explicitly rejects it until cross-runtime temporal-unit
+parity is generated. Per-group splitting and leakage warnings remain future
+slices. (`2232e94`, `d77ffae`, `d752820`)
 
 Add an export manifest containing:
 
