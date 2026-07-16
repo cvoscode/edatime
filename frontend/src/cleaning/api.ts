@@ -126,6 +126,20 @@ export function exportCleaningPlan(
     return postBlob(apiV1Routes.cleaning.exportPlan, envelope(plan), 'Cleaning plan export', options);
 }
 
+/** Backend-generated source code from the validated canonical plan. */
+export function exportCleaningCode(
+    plan: CleaningPlan,
+    language: 'python' | 'rust',
+    options?: ApiRequestOptions,
+): Promise<Blob> {
+    return postBlob(
+        apiV1Routes.cleaning.exportCode,
+        { ...envelope(plan), language },
+        'Cleaning code export',
+        options,
+    );
+}
+
 export function listDatasetVersions(options?: ApiRequestOptions): Promise<DatasetVersionRecord[]> {
     // Versions are dataset-scoped by design: a replacement invalidates this
     // selection list along with all other dataset-derived responses.

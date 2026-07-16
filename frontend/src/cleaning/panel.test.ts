@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { previewMock, applyMock, exportPlanMock, listVersionsMock, selectVersionMock, storageUsageMock, sessionJobsMock, cancelSessionJobMock, downloadBlobMock } = vi.hoisted(() => ({
+const { previewMock, applyMock, exportPlanMock, exportCodeMock, listVersionsMock, selectVersionMock, storageUsageMock, sessionJobsMock, cancelSessionJobMock, downloadBlobMock } = vi.hoisted(() => ({
     previewMock: vi.fn(),
     applyMock: vi.fn(),
     exportPlanMock: vi.fn(),
+    exportCodeMock: vi.fn(),
     listVersionsMock: vi.fn(),
     selectVersionMock: vi.fn(),
     storageUsageMock: vi.fn(),
@@ -16,6 +17,7 @@ vi.mock('./api.js', () => ({
     previewCleaningPlan: previewMock,
     applyCleaningPlan: applyMock,
     exportCleaningPlan: exportPlanMock,
+    exportCleaningCode: exportCodeMock,
     listDatasetVersions: listVersionsMock,
     selectDatasetVersion: selectVersionMock,
     getArtifactStorageUsage: storageUsageMock,
@@ -33,6 +35,7 @@ describe('cleaning plan panel', () => {
         previewMock.mockReset();
         applyMock.mockReset();
         exportPlanMock.mockReset();
+        exportCodeMock.mockReset();
         listVersionsMock.mockReset();
         selectVersionMock.mockReset();
         storageUsageMock.mockReset();
@@ -59,6 +62,25 @@ describe('cleaning plan panel', () => {
         await Promise.resolve();
         expect(exportPlanMock).toHaveBeenCalledWith(planStore.getSnapshot());
         expect(downloadBlobMock).toHaveBeenCalledWith(expect.any(Blob), 'edatime_cleaning_plan.json');
+    });
+
+    it('exports backend-canonical Python and Rust code from the current plan', async () => {
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        exportCodeMock.mockResolvedValue(new Blob(['canonical-code']));
+        mountCleaningPlanPanel({ planStore, getViewport: () => null });
+
+        document.getElementById('open-cleaning-plan-btn')!.click();
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Export')!.click();
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Export canonical Python')!.click();
+        await Promise.resolve();
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Export canonical Rust')!.click();
+        await Promise.resolve();
+
+        expect(exportCodeMock).toHaveBeenNthCalledWith(1, planStore.getSnapshot(), 'python');
+        expect(exportCodeMock).toHaveBeenNthCalledWith(2, planStore.getSnapshot(), 'rust');
+        expect(downloadBlobMock).toHaveBeenCalledWith(expect.any(Blob), 'apply_edatime_plan.py');
+        expect(downloadBlobMock).toHaveBeenCalledWith(expect.any(Blob), 'apply_edatime_plan.rs');
     });
 
     it('describes row, value, schema, and ordering semantics in the graph legend', () => {
@@ -202,7 +224,7 @@ describe('cleaning plan panel', () => {
         document.getElementById('open-cleaning-plan-btn')!.click();
         Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Export')!.click();
         expect(Array.from(document.querySelectorAll('.pipeline-workbench__hint')).some((hint) =>
-            hint.textContent?.includes('Python and Rust files are client-side starter previews'),
+            hint.textContent?.includes('backend-generated Python or Rust application code'),
         )).toBe(true);
         Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Export graph JSON')!.click();
         Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Export graph SVG')!.click();

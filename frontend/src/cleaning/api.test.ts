@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { __resetApiRequestStateForTests } from '../services/api/http.js';
-import { applyCleaningPlan, exportCleaningData, exportCleaningPlan, previewCleaningPlan, selectDatasetVersion, validateCleaningPlan } from './api.js';
+import { applyCleaningPlan, exportCleaningCode, exportCleaningData, exportCleaningPlan, previewCleaningPlan, selectDatasetVersion, validateCleaningPlan } from './api.js';
 import type { CleaningPlan } from './types.js';
 
 function plan(): CleaningPlan {
@@ -88,6 +88,15 @@ describe('cleaning API', () => {
         await exportCleaningPlan(plan());
         expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/cleaning/export/plan');
         expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({ expectedSourceVersionId: 'source-0' });
+    });
+
+    it('requests backend-canonical code with the guarded plan envelope', async () => {
+        fetchMock.mockResolvedValueOnce({ ok: true, status: 200, blob: vi.fn().mockResolvedValue(new Blob(['code'])) });
+        await exportCleaningCode(plan(), 'python');
+        expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/cleaning/export/code');
+        expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
+            language: 'python', expectedSourceVersionId: 'source-0',
+        });
     });
 
     it('selects a retained version through the dedicated explicit endpoint', async () => {

@@ -21,6 +21,7 @@ export const apiV1Routes = {
         apply: '/api/v1/cleaning/apply',
         exportData: '/api/v1/cleaning/export/data',
         exportPlan: '/api/v1/cleaning/export/plan',
+        exportCode: '/api/v1/cleaning/export/code',
         versions: '/api/v1/datasets/versions',
         selectVersion: '/api/v1/datasets/versions/select',
         storage: '/api/v1/datasets/storage',

@@ -13,7 +13,8 @@ use crate::error::AppError;
 use crate::handlers::routes::shared::{ExecutionIdentity, add_execution_identity_headers};
 use crate::streaming_export::lazy_parquet_response;
 use edatime_query::cleaning::{
-    CleaningPlanDto, CleaningStageDto, compile_cleaning_plan, semantic_hash,
+    CleaningPlanDto, CleaningStageDto, ColumnSelectMode, DuplicateKeep, FillNullDirection,
+    RangeMode, ResampleAggregationMethod, TimeRangeMode, compile_cleaning_plan, semantic_hash,
 };
 use edatime_store::artifacts::ArtifactStorageUsage;
 use edatime_store::jobs::JobKind;
@@ -40,8 +41,422 @@ pub struct CleaningDataExportRequest {
     pub output_columns: Option<Vec<String>>,
 }
 
+/// A backend-owned source-code export. The plan envelope is validated and
+/// compiled before code is produced, preventing a browser-only plan snapshot
+/// from being handed off as executable provenance.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CleaningCodeExportRequest {
+    #[serde(flatten)]
+    pub context: PlanRequestEnvelope,
+    pub language: CleaningCodeLanguage,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CleaningCodeLanguage {
+    Python,
+    Rust,
+}
+
 fn default_export_format() -> String {
     "parquet".to_string()
+}
+
+fn code_quote(value: &str) -> String {
+    // JSON strings are valid quoted literals in both generated Python and
+    // Rust source, and keep arbitrary column names from escaping the script.
+    serde_json::to_string(value).expect("string serialization cannot fail")
+}
+
+fn code_number(value: f64) -> String {
+    if value == 0.0 {
+        "0.0".to_string()
+    } else {
+        value.to_string()
+    }
+}
+
+fn validate_codegen_support(plan: &CleaningPlanDto) -> Result<(), AppError> {
+    if plan
+        .stages
+        .iter()
+        .any(|stage| stage.enabled() && matches!(stage, CleaningStageDto::AdaptiveLine { .. }))
+    {
+        return Err(AppError::bad_request(
+            "Backend code export does not yet support adaptive-line stages; export the canonical plan JSON or remove that stage before requesting code",
+        ));
+    }
+    Ok(())
+}
+
+fn python_predicate(column: &str, from: f64, to: f64) -> String {
+    format!(
+        "(pl.col({}).cast(pl.Float64) >= {}) & (pl.col({}).cast(pl.Float64) <= {})",
+        code_quote(column),
+        code_number(from.min(to)),
+        code_quote(column),
+        code_number(from.max(to)),
+    )
+}
+
+fn generate_python_polars(
+    plan: &CleaningPlanDto,
+    version: &DatasetVersionRecord,
+    hash: &str,
+) -> String {
+    let mut lines = vec![
+        "# EdaTime backend-generated canonical plan artifact (v1).".to_string(),
+        format!(
+            "# source version: {} @ revision {}",
+            version.id, version.revision
+        ),
+        format!("# plan hash: {hash}"),
+        "# Requires a Polars runtime compatible with the generated v1 operators.".to_string(),
+        String::new(),
+        "import polars as pl".to_string(),
+        String::new(),
+        "def apply_edatime_plan(lf: pl.LazyFrame) -> pl.LazyFrame:".to_string(),
+    ];
+    let mut executable = false;
+    for stage in &plan.stages {
+        if !stage.enabled() || matches!(stage, CleaningStageDto::Annotation { .. }) {
+            continue;
+        }
+        executable = true;
+        match stage {
+            CleaningStageDto::TimeRange {
+                start_ms,
+                end_ms,
+                mode,
+                ..
+            } => {
+                let predicate = python_predicate(&plan.time_column, *start_ms, *end_ms);
+                let expression = if *mode == TimeRangeMode::KeepInside {
+                    predicate
+                } else {
+                    format!("({predicate}).not() | ({predicate}).is_null()")
+                };
+                lines.push(format!("    lf = lf.filter({expression})"));
+            }
+            CleaningStageDto::ColumnRange {
+                column,
+                from,
+                to,
+                mode,
+                ..
+            } => {
+                let predicate = python_predicate(column, *from, *to);
+                let expression = if *mode == RangeMode::KeepInside {
+                    predicate
+                } else {
+                    format!("({predicate}).not() | ({predicate}).is_null()")
+                };
+                lines.push(format!("    lf = lf.filter({expression})"));
+            }
+            CleaningStageDto::MissingValue {
+                column,
+                drop_nulls,
+                drop_non_finite,
+                ..
+            } => {
+                let value = format!("pl.col({})", code_quote(column));
+                let predicate = match (*drop_nulls, *drop_non_finite) {
+                    (true, true) => format!("{value}.is_not_null() & {value}.is_finite()"),
+                    (true, false) => format!("{value}.is_not_null()"),
+                    (false, true) => format!("{value}.is_null() | {value}.is_finite()"),
+                    (false, false) => unreachable!("validated plan"),
+                };
+                lines.push(format!("    lf = lf.filter({predicate})"));
+            }
+            CleaningStageDto::Deduplicate { columns, keep, .. } => {
+                let columns = columns
+                    .iter()
+                    .map(|column| code_quote(column))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let keep = if *keep == DuplicateKeep::First {
+                    "first"
+                } else {
+                    "last"
+                };
+                lines.push(format!(
+                    "    lf = lf.unique(subset=[{columns}], keep={keep:?}, maintain_order=True)"
+                ));
+            }
+            CleaningStageDto::ColumnSelect { columns, mode, .. } => {
+                let columns = columns
+                    .iter()
+                    .map(|column| code_quote(column))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                if *mode == ColumnSelectMode::Keep {
+                    lines.push(format!(
+                        "    lf = lf.select([pl.col(column) for column in [{columns}]])"
+                    ));
+                } else {
+                    lines.push(format!("    lf = lf.drop([{columns}])"));
+                }
+            }
+            CleaningStageDto::Sort {
+                columns,
+                descending,
+                nulls_last,
+                ..
+            } => {
+                let columns = columns
+                    .iter()
+                    .map(|column| code_quote(column))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                lines.push(format!("    lf = lf.sort(by=[{columns}], descending={}, nulls_last={}, maintain_order=True)", if *descending { "True" } else { "False" }, if *nulls_last { "True" } else { "False" }));
+            }
+            CleaningStageDto::FillNull {
+                columns,
+                strategy,
+                limit,
+                ..
+            } => {
+                let strategy = if *strategy == FillNullDirection::Forward {
+                    "forward"
+                } else {
+                    "backward"
+                };
+                let limit = limit.map_or("None".to_string(), |value| value.to_string());
+                let expressions = columns
+                    .iter()
+                    .map(|column| {
+                        format!(
+                            "pl.col({}).fill_null(strategy={strategy:?}, limit={limit})",
+                            code_quote(column)
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                lines.push(
+                    "    # Requires an earlier stable sort on the canonical time column."
+                        .to_string(),
+                );
+                lines.push(format!("    lf = lf.with_columns([{expressions}])"));
+            }
+            CleaningStageDto::Resample {
+                every,
+                aggregations,
+                ..
+            } => {
+                let aggregations = aggregations
+                    .iter()
+                    .map(|aggregation| {
+                        let method = match aggregation.method {
+                            ResampleAggregationMethod::Mean => "mean",
+                            ResampleAggregationMethod::Sum => "sum",
+                            ResampleAggregationMethod::Min => "min",
+                            ResampleAggregationMethod::Max => "max",
+                            ResampleAggregationMethod::Last => "last",
+                        };
+                        format!(
+                            "pl.col({}).{}().alias({})",
+                            code_quote(&aggregation.column),
+                            method,
+                            code_quote(&aggregation.column)
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                lines.push(
+                    "    # Global fixed-duration buckets; empty buckets are not synthesized."
+                        .to_string(),
+                );
+                lines.push(format!("    lf = lf.group_by_dynamic({}, every={}, period={}, closed=\"left\", label=\"left\", start_by=\"window\").agg([{aggregations}])", code_quote(&plan.time_column), code_quote(every), code_quote(every)));
+            }
+            CleaningStageDto::AdaptiveLine { .. } => unreachable!("validated codegen support"),
+            CleaningStageDto::Annotation { .. } => {}
+        }
+    }
+    lines.push(if executable {
+        "    return lf".to_string()
+    } else {
+        "    return lf  # no enabled executable stages".to_string()
+    });
+    format!("{}\n", lines.join("\n"))
+}
+
+fn generate_rust_polars(
+    plan: &CleaningPlanDto,
+    version: &DatasetVersionRecord,
+    hash: &str,
+) -> String {
+    let mut lines = vec![
+        "// EdaTime backend-generated canonical plan artifact (v1).".to_string(),
+        format!(
+            "// source version: {} @ revision {}",
+            version.id, version.revision
+        ),
+        format!("// plan hash: {hash}"),
+        "use polars::prelude::*;".to_string(),
+        String::new(),
+        "pub fn apply_edatime_plan(mut lf: LazyFrame) -> PolarsResult<LazyFrame> {".to_string(),
+    ];
+    for stage in &plan.stages {
+        if !stage.enabled() || matches!(stage, CleaningStageDto::Annotation { .. }) {
+            continue;
+        }
+        match stage {
+            CleaningStageDto::TimeRange {
+                start_ms,
+                end_ms,
+                mode,
+                ..
+            } => {
+                let predicate = format!(
+                    "col({}).cast(DataType::Float64).gt_eq(lit({})).and(col({}).cast(DataType::Float64).lt_eq(lit({})))",
+                    code_quote(&plan.time_column),
+                    code_number(start_ms.min(*end_ms)),
+                    code_quote(&plan.time_column),
+                    code_number(start_ms.max(*end_ms))
+                );
+                let expression = if *mode == TimeRangeMode::KeepInside {
+                    predicate
+                } else {
+                    format!("{predicate}.is_null().or({predicate}.not())")
+                };
+                lines.push(format!("    lf = lf.filter({expression});"));
+            }
+            CleaningStageDto::ColumnRange {
+                column,
+                from,
+                to,
+                mode,
+                ..
+            } => {
+                let predicate = format!(
+                    "col({}).cast(DataType::Float64).gt_eq(lit({})).and(col({}).cast(DataType::Float64).lt_eq(lit({})))",
+                    code_quote(column),
+                    code_number(from.min(*to)),
+                    code_quote(column),
+                    code_number(from.max(*to))
+                );
+                let expression = if *mode == RangeMode::KeepInside {
+                    predicate
+                } else {
+                    format!("{predicate}.is_null().or({predicate}.not())")
+                };
+                lines.push(format!("    lf = lf.filter({expression});"));
+            }
+            CleaningStageDto::MissingValue {
+                column,
+                drop_nulls,
+                drop_non_finite,
+                ..
+            } => {
+                let value = format!("col({})", code_quote(column));
+                let predicate = match (*drop_nulls, *drop_non_finite) {
+                    (true, true) => format!("{value}.is_not_null().and({value}.is_finite())"),
+                    (true, false) => format!("{value}.is_not_null()"),
+                    (false, true) => format!("{value}.is_null().or({value}.is_finite())"),
+                    (false, false) => unreachable!("validated plan"),
+                };
+                lines.push(format!("    lf = lf.filter({predicate});"));
+            }
+            CleaningStageDto::Deduplicate { columns, keep, .. } => {
+                let columns = columns
+                    .iter()
+                    .map(|column| format!("col({})", code_quote(column)))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let keep = if *keep == DuplicateKeep::First {
+                    "First"
+                } else {
+                    "Last"
+                };
+                lines.push(format!("    lf = lf.unique_stable_generic(Some(vec![{columns}]), UniqueKeepStrategy::{keep});"));
+            }
+            CleaningStageDto::ColumnSelect { columns, mode, .. } => {
+                let columns = columns
+                    .iter()
+                    .map(|column| code_quote(column))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                if *mode == ColumnSelectMode::Keep {
+                    lines.push(format!(
+                        "    lf = lf.select(vec![{0}]);",
+                        columns
+                            .split(", ")
+                            .map(|column| format!("col({column})"))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ));
+                } else {
+                    lines.push(format!(
+                        "    lf = lf.drop(by_name([{columns}], true, false));"
+                    ));
+                }
+            }
+            CleaningStageDto::Sort {
+                columns,
+                descending,
+                nulls_last,
+                ..
+            } => {
+                let columns = columns
+                    .iter()
+                    .map(|column| code_quote(column))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                lines.push(format!("    lf = lf.sort(vec![{columns}], SortMultipleOptions::default().with_order_descending({descending}).with_nulls_last({nulls_last}).with_maintain_order(true));"));
+            }
+            CleaningStageDto::FillNull {
+                columns,
+                strategy,
+                limit,
+                ..
+            } => {
+                let strategy = if *strategy == FillNullDirection::Forward {
+                    "Forward"
+                } else {
+                    "Backward"
+                };
+                let limit = limit.map_or("None".to_string(), |value| format!("Some({value})"));
+                let expressions = columns.iter().map(|column| format!("col({}).fill_null_with_strategy(FillNullStrategy::{strategy}({limit}))", code_quote(column))).collect::<Vec<_>>().join(", ");
+                lines.push(format!("    lf = lf.with_columns(vec![{expressions}]);"));
+            }
+            CleaningStageDto::Resample {
+                every,
+                aggregations,
+                ..
+            } => {
+                let aggregations = aggregations
+                    .iter()
+                    .map(|aggregation| {
+                        let method = match aggregation.method {
+                            ResampleAggregationMethod::Mean => "mean",
+                            ResampleAggregationMethod::Sum => "sum",
+                            ResampleAggregationMethod::Min => "min",
+                            ResampleAggregationMethod::Max => "max",
+                            ResampleAggregationMethod::Last => "last",
+                        };
+                        format!(
+                            "col({}).{}().alias({})",
+                            code_quote(&aggregation.column),
+                            method,
+                            code_quote(&aggregation.column)
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                lines.push(format!(
+                    "    let every = Duration::try_parse({})?;",
+                    code_quote(every)
+                ));
+                lines.push(format!("    lf = lf.group_by_dynamic(col({}), [], DynamicGroupOptions {{ every, period: every, offset: Duration::try_parse(\"0ns\")?, closed_window: ClosedWindow::Left, label: Label::Left, start_by: StartBy::WindowBound, ..Default::default() }}).agg([{aggregations}]);", code_quote(&plan.time_column)));
+            }
+            CleaningStageDto::AdaptiveLine { .. } => unreachable!("validated codegen support"),
+            CleaningStageDto::Annotation { .. } => {}
+        }
+    }
+    lines.push("    Ok(lf)".to_string());
+    lines.push("}".to_string());
+    format!("{}\n", lines.join("\n"))
 }
 
 #[derive(Debug, Serialize)]
@@ -299,6 +714,40 @@ pub async fn export_plan(
     ))
 }
 
+/// Export v1 Python or Rust application code generated by the same backend
+/// that validates and compiles the canonical plan.
+pub async fn export_code(
+    State(state): State<AppState>,
+    Json(request): Json<CleaningCodeExportRequest>,
+) -> Result<Response, AppError> {
+    let (version, plan_hash, _frame) = compile_request_frame(&state, &request.context)?;
+    validate_codegen_support(&request.context.plan)?;
+    let (content, disposition, content_type) = match request.language {
+        CleaningCodeLanguage::Python => (
+            generate_python_polars(&request.context.plan, &version, &plan_hash),
+            "attachment; filename=apply_edatime_plan.py",
+            "text/x-python; charset=utf-8",
+        ),
+        CleaningCodeLanguage::Rust => (
+            generate_rust_polars(&request.context.plan, &version, &plan_hash),
+            "attachment; filename=apply_edatime_plan.rs",
+            "text/rust; charset=utf-8",
+        ),
+    };
+    let mut response = Response::new(content.into());
+    response
+        .headers_mut()
+        .insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
+    response.headers_mut().insert(
+        header::CONTENT_DISPOSITION,
+        HeaderValue::from_static(disposition),
+    );
+    Ok(add_execution_identity_headers(
+        response,
+        &ExecutionIdentity::from_version(version, Some(plan_hash)),
+    ))
+}
+
 /// Explicitly materialize the compiled plan as a new child source version.
 /// Export and preview never call this route, so the immutable baseline stays
 /// available until the user deliberately chooses this transition.
@@ -335,10 +784,7 @@ pub async fn apply(
                     "Materialization job cancelled before collection",
                 ));
             }
-            let data = state
-                .query_executor
-                .execute_async(frame)
-                .await?;
+            let data = state.query_executor.execute_async(frame).await?;
             if job.is_cancelled() {
                 return Err(edatime_core::error::AppError::bad_request(
                     "Materialization job cancelled before publication",
@@ -650,6 +1096,37 @@ mod tests {
         assert_eq!(artifact["sourceVersion"]["id"], "source-0");
         assert!(artifact["planHash"].as_str().is_some());
         assert_eq!(artifact["plan"]["sourceVersionId"], "source-0");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn code_export_is_backend_validated_and_source_bound() {
+        let state = state();
+        let export = export_code(
+            State(state.clone()),
+            Json(CleaningCodeExportRequest {
+                context: envelope(&state),
+                language: CleaningCodeLanguage::Python,
+            }),
+        )
+        .await
+        .expect("export");
+        assert_eq!(
+            export.headers().get(header::CONTENT_TYPE).expect("type"),
+            "text/x-python; charset=utf-8"
+        );
+        assert_eq!(
+            export
+                .headers()
+                .get("x-edatime-source-version")
+                .expect("source"),
+            "source-0"
+        );
+        let body = axum::body::to_bytes(export.into_body(), usize::MAX)
+            .await
+            .expect("body");
+        let code = String::from_utf8(body.to_vec()).expect("utf8");
+        assert!(code.contains("EdaTime backend-generated canonical plan artifact"));
+        assert!(code.contains("pl.col(\"value\")"));
     }
 
     #[tokio::test(flavor = "multi_thread")]

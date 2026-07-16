@@ -1,6 +1,7 @@
 import {
     applyCleaningPlan,
     cancelSessionJob,
+    exportCleaningCode,
     exportCleaningPlan,
     getArtifactStorageUsage,
     listSessionJobs,
@@ -9,7 +10,6 @@ import {
     selectDatasetVersion,
 } from './api.js';
 import type { CleaningPreviewResponse, CleaningStageImpact } from './api.js';
-import { generatePythonPolars, generateRustPolars } from './codegen.js';
 import { buildPipelineGraph, renderPipelineGraphSvg, serializePipelineGraph } from './pipelineGraph.js';
 import { formatResampleAggregations, hasAscendingTimeSortBefore, normalizeFixedDuration, parseResampleAggregations } from './resample.js';
 import type { CleaningPlan, CleaningStage } from './types.js';
@@ -723,7 +723,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         panel.replaceChildren();
         const copy = document.createElement('p');
         copy.className = 'pipeline-workbench__hint';
-        copy.textContent = 'Export the backend-validated plan for reproducibility, or export this visual projection for review. Python and Rust files are client-side starter previews; revalidate them against the backend-exported canonical plan before execution.';
+        copy.textContent = 'Export the backend-validated plan for reproducibility, backend-generated Python or Rust application code for supported v1 stages, or this visual projection for review.';
         const controls = document.createElement('div');
         controls.className = 'pipeline-workbench__export-actions';
         const planExport = button('Export plan JSON');
@@ -745,10 +745,20 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         svgExport.addEventListener('click', () => {
             exportText(renderPipelineGraphSvg(buildPipelineGraph(plan)), 'edatime_pipeline_graph.svg', 'image/svg+xml;charset=utf-8');
         });
-        const pythonExport = button('Python Polars');
-        pythonExport.addEventListener('click', () => exportText(generatePythonPolars(plan), 'apply_edatime_plan.py', 'text/x-python;charset=utf-8'));
-        const rustExport = button('Rust Polars');
-        rustExport.addEventListener('click', () => exportText(generateRustPolars(plan), 'apply_edatime_plan.rs', 'text/rust;charset=utf-8'));
+        const pythonExport = button('Export canonical Python');
+        pythonExport.addEventListener('click', async () => {
+            pythonExport.disabled = true;
+            try { downloadBlob(await exportCleaningCode(plan, 'python'), 'apply_edatime_plan.py'); }
+            catch (error) { preview.textContent = error instanceof Error ? error.message : 'Could not export canonical Python code.'; }
+            finally { pythonExport.disabled = false; }
+        });
+        const rustExport = button('Export canonical Rust');
+        rustExport.addEventListener('click', async () => {
+            rustExport.disabled = true;
+            try { downloadBlob(await exportCleaningCode(plan, 'rust'), 'apply_edatime_plan.rs'); }
+            catch (error) { preview.textContent = error instanceof Error ? error.message : 'Could not export canonical Rust code.'; }
+            finally { rustExport.disabled = false; }
+        });
         const importInput = document.createElement('input');
         importInput.type = 'file';
         importInput.accept = 'application/json,.json';
