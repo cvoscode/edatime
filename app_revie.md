@@ -923,6 +923,41 @@ interruption tests prove catalog recovery and atomicity.
 cannot block viewport interactions; peak memory follows configured candidate
 budgets on long/wide fixtures.
 
+#### Bounded overview implementation contract
+
+The current Timeseries endpoint still performs its canonical plan, time
+predicate, and projection lazily, but then collects every matching row before
+running LTTB. The next implementation slice must replace that single large
+collection with the following exact pipeline:
+
+1. Resolve the immutable source/plan identity, validate selected numeric and
+   optional colour columns, then push time predicate and projection into the
+   lazy scan exactly as today.
+2. Run a scalar streaming `len()` plan to report the filtered candidate count;
+   this is the only full-range result allowed before deciding whether to use an
+   exact small response or the bounded overview path.
+3. When the count is at or below `width * 2 * 4`, collect the existing exact
+   candidate frame and retain current LTTB output semantics.
+4. Above that cap, derive a fixed-duration bucket width from the requested
+   time range and the candidate budget. A lazy dynamic group must emit,
+   per selected numeric series, the first, last, finite minimum, and finite
+   maximum values with their source timestamps. Optional colour/size channels
+   must remain row-aligned with the emitted source rows; never attach a value
+   from an unrelated extremum.
+5. Collect only that envelope, sort by source timestamp deterministically, and
+   run the existing LTTB reducer only if the envelope remains above the final
+   response target. Return `filtered_rows`, `candidate_rows`, `returned_rows`,
+   a versioned sampling algorithm label, and an explicit approximate flag.
+6. Add long, sparse, non-finite, duplicate-timestamp, multi-series, and
+   colour/size-alignment regressions. The acceptance assertion is that peak
+   candidate memory follows the configurable envelope budget while first/last
+   and finite bucket extrema survive.
+
+Scatter follows separately: after all membership-changing predicates, use a
+deterministic source-version/plan/axes-seeded reservoir for point mode and a
+bounded bin aggregate for density mode. Do not reuse a time-series envelope for
+arbitrary X/Y scatter geometry.
+
 ### Milestone F — Profile, Prepare, and Modeling Handoff
 
 1. Add progressive schema/time-quality/column-quality profiling with cached
