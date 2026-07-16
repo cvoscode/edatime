@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { initAdaptiveFilterGesture } from './adaptiveGesture.js';
 import { setChartInstance } from '../../store/chartState.js';
+import { setNumericCols } from '../../store/datasetState.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 import { createCleaningPlanStore } from '../../cleaning/store.js';
 
@@ -117,5 +118,32 @@ describe('adaptive filter gesture', () => {
         expect(renderCurrentData).toHaveBeenCalledTimes(1);
         expect(buildColumnToggles).toHaveBeenCalledTimes(1);
         expect((window as any).__edatime).toBeUndefined();
+    });
+
+    it('uses the same stable dataset palette indices as the trace chips in the picker', () => {
+        setNumericCols(['HUFL', 'HULL', 'MUFL', 'MULL', 'LUFL', 'LULL', 'OT']);
+        const workspace = createWorkspaceStore();
+        // This intentionally differs from dataset order: the old picker used
+        // these transient positions and colored OT green and MUFL red.
+        workspace.setSelection(['HUFL', 'HULL', 'OT', 'MUFL']);
+        initAdaptiveFilterGesture({
+            workspace,
+            buildColumnToggles: vi.fn(),
+            buildRangeControls: vi.fn(),
+            renderCurrentData: vi.fn(),
+            getCurrentData: () => currentData,
+            updateAnalysisYRange: vi.fn(),
+        } as any);
+        const chart = document.getElementById('main-chart')!;
+
+        chart.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true, button: 0 }));
+        chart.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true, button: 0 }));
+        window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Control' }));
+
+        const option = (column: string) => Array.from(document.querySelectorAll<HTMLButtonElement>('.adaptive-trace-picker__option'))
+            .find((button) => button.textContent === column)!;
+        expect(option('HUFL').style.getPropertyValue('--pick-accent')).toBe('#1f77b4');
+        expect(option('MUFL').style.getPropertyValue('--pick-accent')).toBe('#2ca02c');
+        expect(option('OT').style.getPropertyValue('--pick-accent')).toBe('#e377c2');
     });
 });

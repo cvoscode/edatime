@@ -13,6 +13,7 @@ import {
     uiState,
 } from '../../store/uiState.js';
 import { chartState } from '../../store/chartState.js';
+import { datasetState } from '../../store/datasetState.js';
 import type { DataObject } from '../../types/api.js';
 import type { AdaptiveLineFilter } from '../../types/store.js';
 import type { WorkspaceStore, WorkspaceSnapshot } from '../../contracts/workspace.js';
@@ -149,8 +150,13 @@ export function initAdaptiveFilterGesture(
         label.textContent = 'Filter which trace?';
         picker.appendChild(label);
 
-        cols.forEach((col, idx) => {
-            const color = getSeriesColor(col, idx);
+        cols.forEach((col, selectionIndex) => {
+            // Chips and chart series use the stable dataset column order, not
+            // the transient order in which a user selected visible traces.
+            // Keeping that ordinal here prevents OT/MUFL from borrowing each
+            // other's colors in the adaptive-filter picker.
+            const datasetIndex = datasetState.numericCols.indexOf(col);
+            const color = getSeriesColor(col, datasetIndex >= 0 ? datasetIndex : selectionIndex);
             const isCurrentTarget = col === uiState.adaptiveFilterColumn;
             const btn = document.createElement('button');
             btn.className = 'adaptive-trace-picker__option' + (isCurrentTarget ? ' current' : '');
