@@ -65,6 +65,8 @@ function stageSemanticValue(stage: CleaningStage): Record<string, unknown> | nul
                 every: stage.every.trim(),
                 aggregations: stage.aggregations.map(({ column, method }) => ({ column: column.trim(), method })),
             };
+        case 'chronologicalSplit':
+            return { kind: stage.kind, trainEndMs: finite(stage.trainEndMs), validationEndMs: finite(stage.validationEndMs), embargoMs: finite(stage.embargoMs), outputColumn: stage.outputColumn.trim() };
         default: {
             const exhaustive: never = stage;
             return exhaustive;

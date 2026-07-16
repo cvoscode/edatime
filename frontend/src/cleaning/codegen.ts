@@ -43,6 +43,9 @@ export function generatePythonPolars(plan: CleaningPlan): string {
         } else if (stage.kind === 'resample') {
             lines.push('    # Global fixed-duration buckets; empty buckets are not synthesized.');
             lines.push(`    lf = lf.group_by_dynamic(${quote(plan.timeColumn)}, every=${quote(stage.every)}, period=${quote(stage.every)}, closed="left", label="left", start_by="window").agg([${stage.aggregations.map(({ column, method }) => `pl.col(${quote(column)}).${method}().alias(${quote(column)})`).join(', ')}])`);
+        } else if (stage.kind === 'chronologicalSplit') {
+            lines.push(`    # Chronological train / embargo / validation / embargo / test labels.`);
+            lines.push(`    lf = lf.with_columns(pl.when(pl.col(${quote(plan.timeColumn)}).is_null()).then(pl.lit("unassigned")).when(pl.col(${quote(plan.timeColumn)}) <= ${numeric(stage.trainEndMs)}).then(pl.lit("train")).when(pl.col(${quote(plan.timeColumn)}) <= ${numeric(stage.trainEndMs + stage.embargoMs)}).then(pl.lit("embargo")).when(pl.col(${quote(plan.timeColumn)}) <= ${numeric(stage.validationEndMs)}).then(pl.lit("validation")).when(pl.col(${quote(plan.timeColumn)}) <= ${numeric(stage.validationEndMs + stage.embargoMs)}).then(pl.lit("embargo")).otherwise(pl.lit("test")).alias(${quote(stage.outputColumn)}))`);
         } else {
             const slope = (stage.y2 - stage.y1) / (stage.x2Ms - stage.x1Ms);
             const compare = `pl.col(${quote(stage.column)}) ${stage.keepAbove ? '>=' : '<='} (${numeric(stage.y1)} + ((pl.col(${quote(plan.timeColumn)}) - ${numeric(stage.x1Ms)}) * ${numeric(slope)}))`;
@@ -96,6 +99,8 @@ export function generateRustPolars(plan: CleaningPlan): string {
             lines.push('    // Global fixed-duration buckets; empty buckets are not synthesized.');
             lines.push(`    let every = Duration::try_parse(${quote(stage.every)})?;`);
             lines.push(`    lf = lf.group_by_dynamic(col(${quote(plan.timeColumn)}), [], DynamicGroupOptions { every, period: every, offset: Duration::try_parse("0ns")?, closed_window: ClosedWindow::Left, label: Label::Left, start_by: StartBy::WindowBound, ..Default::default() }).agg([${aggregations}]);`);
+        } else if (stage.kind === 'chronologicalSplit') {
+            lines.push(`    lf = lf.with_columns(vec![when(col(${quote(plan.timeColumn)}).is_null()).then(lit("unassigned")).when(col(${quote(plan.timeColumn)}).lt_eq(lit(${numeric(stage.trainEndMs)}))).then(lit("train")).when(col(${quote(plan.timeColumn)}).lt_eq(lit(${numeric(stage.trainEndMs + stage.embargoMs)}))).then(lit("embargo")).when(col(${quote(plan.timeColumn)}).lt_eq(lit(${numeric(stage.validationEndMs)}))).then(lit("validation")).when(col(${quote(plan.timeColumn)}).lt_eq(lit(${numeric(stage.validationEndMs + stage.embargoMs)}))).then(lit("embargo")).otherwise(lit("test")).alias(${quote(stage.outputColumn)})]);`);
         } else {
             lines.push(`    // Adaptive line stage ${quote(stage.id)}: use the same time-unit conversion as your input frame.`);
         }

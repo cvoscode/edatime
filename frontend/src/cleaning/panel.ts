@@ -46,6 +46,9 @@ function stageSummary(stage: CleaningStage): string {
         case 'columnSelect': return (stage.mode === 'keep' ? 'Keep only ' : 'Drop ') + 'columns: ' + stage.columns.join(', ');
         case 'sort': return 'Stable ' + (stage.descending ? 'descending' : 'ascending') + ' sort by ' + stage.columns.join(', ');
         case 'fillNull': return (stage.strategy === 'forward' ? 'Forward' : 'Backward') + ' fill nulls in ' + stage.columns.join(', ');
+        case 'resample': return 'Resample every ' + stage.every;
+        case 'chronologicalSplit': return 'Chronological train / validation / test labels in ' + stage.outputColumn;
+        case 'annotation': return stage.note?.trim() || stage.label;
         case 'resample': return 'Resample every ' + stage.every + ': ' + stage.aggregations.map(({ column, method }) => column + ' ' + method).join(', ');
         case 'annotation': return stage.note?.trim() || stage.label;
     }
@@ -422,6 +425,13 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             fields.append(
                 textInput('Fixed interval (for example 15m)', stage.every, 'every'),
                 textInput('Aggregations (column:method, comma-separated)', formatResampleAggregations(stage.aggregations), 'aggregations'),
+            );
+        } else if (stage.kind === 'chronologicalSplit') {
+            fields.append(
+                textInput('Train end (epoch ms)', String(stage.trainEndMs), 'trainEndMs', 'number'),
+                textInput('Validation end (epoch ms)', String(stage.validationEndMs), 'validationEndMs', 'number'),
+                textInput('Embargo (ms)', String(stage.embargoMs), 'embargoMs', 'number'),
+                textInput('Split output column', stage.outputColumn, 'outputColumn'),
             );
         } else if (stage.kind === 'adaptiveLine') {
             fields.append(

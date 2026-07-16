@@ -3,7 +3,7 @@
 use polars::prelude::LazyFrame;
 use serde::{Deserialize, Serialize};
 
-use edatime_core::error::AppError;
+use edatime_core::{error::AppError, temporal};
 
 use crate::filters::{
     LineFilter, RangeFilter, apply_line_stage, apply_range_stage, apply_time_range_stage,
@@ -114,6 +114,15 @@ pub enum CleaningStageDto {
         every: String,
         aggregations: Vec<ResampleAggregationDto>,
     },
+    ChronologicalSplit {
+        #[serde(flatten)]
+        base: CleaningStageBaseDto,
+        train_end_ms: f64,
+        validation_end_ms: f64,
+        #[serde(default)]
+        embargo_ms: f64,
+        output_column: String,
+    },
     Annotation {
         #[serde(flatten)]
         base: CleaningStageBaseDto,
@@ -134,6 +143,7 @@ impl CleaningStageDto {
             | Self::Sort { base, .. }
             | Self::FillNull { base, .. }
             | Self::Resample { base, .. }
+            | Self::ChronologicalSplit { base, .. }
             | Self::Annotation { base, .. } => &base.id,
         }
     }
@@ -149,6 +159,7 @@ impl CleaningStageDto {
             | Self::Sort { base, .. }
             | Self::FillNull { base, .. }
             | Self::Resample { base, .. }
+            | Self::ChronologicalSplit { base, .. }
             | Self::Annotation { base, .. } => base.enabled,
         }
     }
@@ -184,7 +195,10 @@ pub enum ColumnSelectMode {
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub enum FillNullDirection { Forward, Backward }
+pub enum FillNullDirection {
+    Forward,
+    Backward,
+}
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -195,22 +209,35 @@ pub struct ResampleAggregationDto {
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub enum ResampleAggregationMethod { Mean, Sum, Min, Max, Last }
+pub enum ResampleAggregationMethod {
+    Mean,
+    Sum,
+    Min,
+    Max,
+    Last,
+}
 
-fn parse_fixed_duration(stage_id: &str, every: &str) -> Result<polars::prelude::Duration, AppError> {
+fn parse_fixed_duration(
+    stage_id: &str,
+    every: &str,
+) -> Result<polars::prelude::Duration, AppError> {
     let value = every.trim();
     let digit_count = value.bytes().take_while(u8::is_ascii_digit).count();
     let (quantity, unit) = value.split_at(digit_count);
     let valid_unit = matches!(unit, "ns" | "us" | "ms" | "s" | "m" | "h");
     let valid_quantity = !quantity.is_empty()
-        && quantity.parse::<u64>().is_ok_and(|quantity| quantity > 0 && quantity <= i64::MAX as u64);
+        && quantity
+            .parse::<u64>()
+            .is_ok_and(|quantity| quantity > 0 && quantity <= i64::MAX as u64);
     if digit_count == value.len() || !valid_unit || !valid_quantity {
         return Err(AppError::bad_request(format!(
             "Cleaning stage '{stage_id}' requires a positive fixed duration such as '15m'; supported units are ns, us, ms, s, m, and h"
         )));
     }
     polars::prelude::Duration::try_parse(value).map_err(|error| {
-        AppError::bad_request(format!("Cleaning stage '{stage_id}' has invalid duration '{value}': {error}"))
+        AppError::bad_request(format!(
+            "Cleaning stage '{stage_id}' has invalid duration '{value}': {error}"
+        ))
     })
 }
 
@@ -338,7 +365,11 @@ pub fn validate_cleaning_plan(plan: &CleaningPlanDto) -> Result<(), AppError> {
             CleaningStageDto::Sort { base, columns, .. } => {
                 if columns.is_empty()
                     || columns.iter().any(|column| column.trim().is_empty())
-                    || columns.len() != columns.iter().collect::<std::collections::HashSet<_>>().len()
+                    || columns.len()
+                        != columns
+                            .iter()
+                            .collect::<std::collections::HashSet<_>>()
+                            .len()
                 {
                     return Err(AppError::bad_request(format!(
                         "Cleaning stage '{}' requires unique non-empty sort columns",
@@ -346,10 +377,19 @@ pub fn validate_cleaning_plan(plan: &CleaningPlanDto) -> Result<(), AppError> {
                     )));
                 }
             }
-            CleaningStageDto::FillNull { base, columns, limit, .. } => {
+            CleaningStageDto::FillNull {
+                base,
+                columns,
+                limit,
+                ..
+            } => {
                 if columns.is_empty()
                     || columns.iter().any(|column| column.trim().is_empty())
-                    || columns.len() != columns.iter().collect::<std::collections::HashSet<_>>().len()
+                    || columns.len()
+                        != columns
+                            .iter()
+                            .collect::<std::collections::HashSet<_>>()
+                            .len()
                     || matches!(limit, Some(0))
                 {
                     return Err(AppError::bad_request(format!(
@@ -368,12 +408,25 @@ pub fn validate_cleaning_plan(plan: &CleaningPlanDto) -> Result<(), AppError> {
                     )));
                 }
             }
-            CleaningStageDto::Resample { base, every, aggregations } => {
+            CleaningStageDto::Resample {
+                base,
+                every,
+                aggregations,
+            } => {
                 parse_fixed_duration(&base.id, every)?;
-                let columns = aggregations.iter().map(|aggregation| aggregation.column.trim()).collect::<Vec<_>>();
+                let columns = aggregations
+                    .iter()
+                    .map(|aggregation| aggregation.column.trim())
+                    .collect::<Vec<_>>();
                 if aggregations.is_empty()
-                    || columns.iter().any(|column| column.is_empty() || *column == plan.time_column.trim())
-                    || columns.len() != columns.iter().collect::<std::collections::HashSet<_>>().len()
+                    || columns
+                        .iter()
+                        .any(|column| column.is_empty() || *column == plan.time_column.trim())
+                    || columns.len()
+                        != columns
+                            .iter()
+                            .collect::<std::collections::HashSet<_>>()
+                            .len()
                 {
                     return Err(AppError::bad_request(format!(
                         "Cleaning stage '{}' requires unique non-time value columns with explicit aggregations",
@@ -391,6 +444,26 @@ pub fn validate_cleaning_plan(plan: &CleaningPlanDto) -> Result<(), AppError> {
                     return Err(AppError::bad_request(format!(
                         "Cleaning stage '{}' requires the latest earlier enabled sort to be ascending with time column '{}' first",
                         base.id, plan.time_column
+                    )));
+                }
+            }
+            CleaningStageDto::ChronologicalSplit {
+                base,
+                train_end_ms,
+                validation_end_ms,
+                embargo_ms,
+                output_column,
+            } => {
+                ensure_finite(&base.id, "trainEndMs", *train_end_ms)?;
+                ensure_finite(&base.id, "validationEndMs", *validation_end_ms)?;
+                ensure_finite(&base.id, "embargoMs", *embargo_ms)?;
+                if train_end_ms >= validation_end_ms
+                    || *embargo_ms < 0.0
+                    || output_column.trim().is_empty()
+                {
+                    return Err(AppError::bad_request(format!(
+                        "Cleaning stage '{}' requires trainEndMs before validationEndMs, a non-negative embargoMs, and an output column",
+                        base.id
                     )));
                 }
             }
@@ -484,51 +557,119 @@ pub fn compile_cleaning_plan(
                 )
             }
             CleaningStageDto::ColumnSelect { columns, mode, .. } => match mode {
-                ColumnSelectMode::Keep => lf.select(columns.iter().map(polars::prelude::col).collect::<Vec<_>>()),
+                ColumnSelectMode::Keep => {
+                    lf.select(columns.iter().map(polars::prelude::col).collect::<Vec<_>>())
+                }
                 ColumnSelectMode::Drop => lf.drop(polars::prelude::by_name(columns, true, false)),
             },
-            CleaningStageDto::Sort { columns, descending, nulls_last, .. } => lf.sort(
+            CleaningStageDto::Sort {
+                columns,
+                descending,
+                nulls_last,
+                ..
+            } => lf.sort(
                 columns.iter().map(String::as_str).collect::<Vec<_>>(),
                 polars::prelude::SortMultipleOptions::default()
                     .with_order_descending(*descending)
                     .with_nulls_last(*nulls_last)
                     .with_maintain_order(true),
             ),
-            CleaningStageDto::FillNull { columns, strategy, limit, .. } => {
+            CleaningStageDto::FillNull {
+                columns,
+                strategy,
+                limit,
+                ..
+            } => {
                 let strategy = match strategy {
-                    FillNullDirection::Forward => polars::prelude::FillNullStrategy::Forward(*limit),
-                    FillNullDirection::Backward => polars::prelude::FillNullStrategy::Backward(*limit),
+                    FillNullDirection::Forward => {
+                        polars::prelude::FillNullStrategy::Forward(*limit)
+                    }
+                    FillNullDirection::Backward => {
+                        polars::prelude::FillNullStrategy::Backward(*limit)
+                    }
                 };
-                lf.with_columns(columns.iter().map(|column| {
-                    polars::prelude::col(column).fill_null_with_strategy(strategy)
-                }).collect::<Vec<_>>())
+                lf.with_columns(
+                    columns
+                        .iter()
+                        .map(|column| {
+                            polars::prelude::col(column).fill_null_with_strategy(strategy)
+                        })
+                        .collect::<Vec<_>>(),
+                )
             }
-            CleaningStageDto::Resample { every, aggregations, .. } => {
+            CleaningStageDto::Resample {
+                every,
+                aggregations,
+                ..
+            } => {
                 let every = parse_fixed_duration(stage.id(), every)?;
-                let expressions = aggregations.iter().map(|aggregation| {
-                    let value = polars::prelude::col(&aggregation.column);
-                    match aggregation.method {
-                        ResampleAggregationMethod::Mean => value.mean(),
-                        ResampleAggregationMethod::Sum => value.sum(),
-                        ResampleAggregationMethod::Min => value.min(),
-                        ResampleAggregationMethod::Max => value.max(),
-                        ResampleAggregationMethod::Last => value.last(),
-                    }.alias(&aggregation.column)
-                }).collect::<Vec<_>>();
+                let expressions = aggregations
+                    .iter()
+                    .map(|aggregation| {
+                        let value = polars::prelude::col(&aggregation.column);
+                        match aggregation.method {
+                            ResampleAggregationMethod::Mean => value.mean(),
+                            ResampleAggregationMethod::Sum => value.sum(),
+                            ResampleAggregationMethod::Min => value.min(),
+                            ResampleAggregationMethod::Max => value.max(),
+                            ResampleAggregationMethod::Last => value.last(),
+                        }
+                        .alias(&aggregation.column)
+                    })
+                    .collect::<Vec<_>>();
                 lf.group_by_dynamic(
                     polars::prelude::col(&plan.time_column),
                     [],
                     polars::prelude::DynamicGroupOptions {
                         every,
                         period: every,
-                        offset: polars::prelude::Duration::try_parse("0ns").expect("zero fixed duration is valid"),
+                        offset: polars::prelude::Duration::try_parse("0ns")
+                            .expect("zero fixed duration is valid"),
                         label: polars::prelude::Label::Left,
                         include_boundaries: false,
                         closed_window: polars::prelude::ClosedWindow::Left,
                         start_by: polars::prelude::StartBy::WindowBound,
                         ..Default::default()
                     },
-                ).agg(expressions)
+                )
+                .agg(expressions)
+            }
+            CleaningStageDto::ChronologicalSplit {
+                train_end_ms,
+                validation_end_ms,
+                embargo_ms,
+                output_column,
+                ..
+            } => {
+                let schema = lf.clone().collect_schema().map_err(|error| {
+                    AppError::bad_request(format!("Failed to inspect split time column: {error}"))
+                })?;
+                let dtype = schema.get(&plan.time_column).ok_or_else(|| {
+                    AppError::bad_request(format!(
+                        "Missing time column '{}' for chronological split",
+                        plan.time_column
+                    ))
+                })?;
+                let train_end = temporal::epoch_ms_to_native(*train_end_ms, dtype, true)?;
+                let validation_end = temporal::epoch_ms_to_native(*validation_end_ms, dtype, true)?;
+                let train_embargo_end =
+                    temporal::epoch_ms_to_native(*train_end_ms + *embargo_ms, dtype, true)?;
+                let validation_embargo_end =
+                    temporal::epoch_ms_to_native(*validation_end_ms + *embargo_ms, dtype, true)?;
+                let time =
+                    polars::prelude::col(&plan.time_column).cast(polars::prelude::DataType::Int64);
+                lf.with_columns([polars::prelude::when(time.clone().is_null())
+                    .then(polars::prelude::lit("unassigned"))
+                    .when(time.clone().lt_eq(polars::prelude::lit(train_end)))
+                    .then(polars::prelude::lit("train"))
+                    .when(time.clone().lt_eq(polars::prelude::lit(train_embargo_end)))
+                    .then(polars::prelude::lit("embargo"))
+                    .when(time.clone().lt_eq(polars::prelude::lit(validation_end)))
+                    .then(polars::prelude::lit("validation"))
+                    .when(time.lt_eq(polars::prelude::lit(validation_embargo_end)))
+                    .then(polars::prelude::lit("embargo"))
+                    .otherwise(polars::prelude::lit("test"))
+                    .alias(output_column)])
             }
             CleaningStageDto::Annotation { .. } => lf,
         };
@@ -618,25 +759,52 @@ fn semantic_stage_value(stage: &CleaningStageDto) -> Option<serde_json::Value> {
             "columns": columns.iter().map(|column| column.trim()).collect::<Vec<_>>(),
             "mode": mode,
         })),
-        CleaningStageDto::Sort { columns, descending, nulls_last, .. } => Some(serde_json::json!({
+        CleaningStageDto::Sort {
+            columns,
+            descending,
+            nulls_last,
+            ..
+        } => Some(serde_json::json!({
             "kind": "sort",
             "columns": columns.iter().map(|column| column.trim()).collect::<Vec<_>>(),
             "descending": descending,
             "nullsLast": nulls_last,
         })),
-        CleaningStageDto::FillNull { columns, strategy, limit, .. } => Some(serde_json::json!({
+        CleaningStageDto::FillNull {
+            columns,
+            strategy,
+            limit,
+            ..
+        } => Some(serde_json::json!({
             "kind": "fillNull",
             "columns": columns.iter().map(|column| column.trim()).collect::<Vec<_>>(),
             "strategy": strategy,
             "limit": limit,
         })),
-        CleaningStageDto::Resample { every, aggregations, .. } => Some(serde_json::json!({
+        CleaningStageDto::Resample {
+            every,
+            aggregations,
+            ..
+        } => Some(serde_json::json!({
             "kind": "resample",
             "every": every.trim(),
             "aggregations": aggregations.iter().map(|aggregation| serde_json::json!({
                 "column": aggregation.column.trim(),
                 "method": aggregation.method,
             })).collect::<Vec<_>>(),
+        })),
+        CleaningStageDto::ChronologicalSplit {
+            train_end_ms,
+            validation_end_ms,
+            embargo_ms,
+            output_column,
+            ..
+        } => Some(serde_json::json!({
+            "kind": "chronologicalSplit",
+            "trainEndMs": canonical_number(*train_end_ms),
+            "validationEndMs": canonical_number(*validation_end_ms),
+            "embargoMs": canonical_number(*embargo_ms),
+            "outputColumn": output_column.trim(),
         })),
         CleaningStageDto::Annotation { .. } => None,
     }
@@ -892,7 +1060,13 @@ mod tests {
             .collect()
             .expect("collect");
         assert_eq!(
-            result.column("ts").expect("ts").i64().expect("i64").into_no_null_iter().collect::<Vec<_>>(),
+            result
+                .column("ts")
+                .expect("ts")
+                .i64()
+                .expect("i64")
+                .into_no_null_iter()
+                .collect::<Vec<_>>(),
             vec![20, 30, 10, 40]
         );
     }
@@ -900,72 +1074,184 @@ mod tests {
     #[test]
     fn fill_null_stage_respects_direction_and_limit() {
         let plan = plan(vec![
-            CleaningStageDto::Sort { base: base("sort"), columns: vec!["ts".to_string()], descending: false, nulls_last: true },
+            CleaningStageDto::Sort {
+                base: base("sort"),
+                columns: vec!["ts".to_string()],
+                descending: false,
+                nulls_last: true,
+            },
             CleaningStageDto::FillNull {
-                base: base("fill"), columns: vec!["value".to_string()],
-                strategy: FillNullDirection::Forward, limit: Some(1),
+                base: base("fill"),
+                columns: vec!["value".to_string()],
+                strategy: FillNullDirection::Forward,
+                limit: Some(1),
             },
         ]);
-        let df = DataFrame::new(4, vec![
-            Series::new("ts".into(), vec![1_i64, 2, 3, 4]).into(),
-            Series::new("value".into(), vec![Some(1.0_f64), None, None, Some(4.0)]).into(),
-        ]).expect("frame");
-        let result = compile_cleaning_plan(df.lazy(), &plan).expect("compile").collect().expect("collect");
-        assert_eq!(result.column("value").expect("value").f64().expect("f64").into_iter().collect::<Vec<_>>(), vec![Some(1.0), Some(1.0), None, Some(4.0)]);
+        let df = DataFrame::new(
+            4,
+            vec![
+                Series::new("ts".into(), vec![1_i64, 2, 3, 4]).into(),
+                Series::new("value".into(), vec![Some(1.0_f64), None, None, Some(4.0)]).into(),
+            ],
+        )
+        .expect("frame");
+        let result = compile_cleaning_plan(df.lazy(), &plan)
+            .expect("compile")
+            .collect()
+            .expect("collect");
+        assert_eq!(
+            result
+                .column("value")
+                .expect("value")
+                .f64()
+                .expect("f64")
+                .into_iter()
+                .collect::<Vec<_>>(),
+            vec![Some(1.0), Some(1.0), None, Some(4.0)]
+        );
     }
 
     #[test]
     fn ordered_null_fill_requires_a_prior_time_sort() {
         let plan = plan(vec![CleaningStageDto::FillNull {
-            base: base("fill"), columns: vec!["value".to_string()],
-            strategy: FillNullDirection::Forward, limit: None,
+            base: base("fill"),
+            columns: vec!["value".to_string()],
+            strategy: FillNullDirection::Forward,
+            limit: None,
         }]);
         let error = validate_cleaning_plan(&plan).expect_err("must reject unordered fill");
-        assert!(error.to_string().contains("requires an earlier enabled stable sort"));
+        assert!(
+            error
+                .to_string()
+                .contains("requires an earlier enabled stable sort")
+        );
     }
 
     #[test]
     fn resample_stage_emits_left_labeled_non_empty_fixed_buckets() {
         let plan = plan(vec![
-            CleaningStageDto::Sort { base: base("sort"), columns: vec!["ts".to_string()], descending: false, nulls_last: true },
+            CleaningStageDto::Sort {
+                base: base("sort"),
+                columns: vec!["ts".to_string()],
+                descending: false,
+                nulls_last: true,
+            },
             CleaningStageDto::Resample {
-                base: base("resample"), every: "1m".to_string(),
+                base: base("resample"),
+                every: "1m".to_string(),
                 aggregations: vec![
-                    ResampleAggregationDto { column: "value".to_string(), method: ResampleAggregationMethod::Mean },
-                    ResampleAggregationDto { column: "volume".to_string(), method: ResampleAggregationMethod::Sum },
+                    ResampleAggregationDto {
+                        column: "value".to_string(),
+                        method: ResampleAggregationMethod::Mean,
+                    },
+                    ResampleAggregationDto {
+                        column: "volume".to_string(),
+                        method: ResampleAggregationMethod::Sum,
+                    },
                 ],
             },
         ]);
         let timestamps = Series::new("ts".into(), vec![0_i64, 30_000, 60_000, 90_000, 180_000])
-            .cast(&DataType::Datetime(TimeUnit::Milliseconds, None)).expect("datetime");
-        let df = DataFrame::new(5, vec![
-            timestamps.into(),
-            Series::new("value".into(), vec![1.0_f64, 3.0, 5.0, 7.0, 9.0]).into(),
-            Series::new("volume".into(), vec![1_i64, 2, 3, 4, 5]).into(),
-        ]).expect("frame");
+            .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))
+            .expect("datetime");
+        let df = DataFrame::new(
+            5,
+            vec![
+                timestamps.into(),
+                Series::new("value".into(), vec![1.0_f64, 3.0, 5.0, 7.0, 9.0]).into(),
+                Series::new("volume".into(), vec![1_i64, 2, 3, 4, 5]).into(),
+            ],
+        )
+        .expect("frame");
 
-        let result = compile_cleaning_plan(df.lazy(), &plan).expect("compile").collect().expect("collect");
+        let result = compile_cleaning_plan(df.lazy(), &plan)
+            .expect("compile")
+            .collect()
+            .expect("collect");
 
-        assert_eq!(result.height(), 3, "the empty 2-minute bucket must not be synthesized");
-        assert_eq!(result.column("ts").expect("ts").datetime().expect("datetime").physical().into_no_null_iter().collect::<Vec<_>>(), vec![0, 60_000, 180_000]);
-        assert_eq!(result.column("value").expect("value").f64().expect("f64").into_no_null_iter().collect::<Vec<_>>(), vec![2.0, 6.0, 9.0]);
-        assert_eq!(result.column("volume").expect("volume").i64().expect("i64").into_no_null_iter().collect::<Vec<_>>(), vec![3, 7, 5]);
+        assert_eq!(
+            result.height(),
+            3,
+            "the empty 2-minute bucket must not be synthesized"
+        );
+        assert_eq!(
+            result
+                .column("ts")
+                .expect("ts")
+                .datetime()
+                .expect("datetime")
+                .physical()
+                .into_no_null_iter()
+                .collect::<Vec<_>>(),
+            vec![0, 60_000, 180_000]
+        );
+        assert_eq!(
+            result
+                .column("value")
+                .expect("value")
+                .f64()
+                .expect("f64")
+                .into_no_null_iter()
+                .collect::<Vec<_>>(),
+            vec![2.0, 6.0, 9.0]
+        );
+        assert_eq!(
+            result
+                .column("volume")
+                .expect("volume")
+                .i64()
+                .expect("i64")
+                .into_no_null_iter()
+                .collect::<Vec<_>>(),
+            vec![3, 7, 5]
+        );
     }
 
     #[test]
     fn resample_stage_rejects_calendar_or_unordered_contracts() {
-        let aggregation = vec![ResampleAggregationDto { column: "value".to_string(), method: ResampleAggregationMethod::Last }];
+        let aggregation = vec![ResampleAggregationDto {
+            column: "value".to_string(),
+            method: ResampleAggregationMethod::Last,
+        }];
         let calendar = plan(vec![
-            CleaningStageDto::Sort { base: base("sort"), columns: vec!["ts".to_string()], descending: false, nulls_last: true },
-            CleaningStageDto::Resample { base: base("resample"), every: "1d".to_string(), aggregations: aggregation.clone() },
+            CleaningStageDto::Sort {
+                base: base("sort"),
+                columns: vec!["ts".to_string()],
+                descending: false,
+                nulls_last: true,
+            },
+            CleaningStageDto::Resample {
+                base: base("resample"),
+                every: "1d".to_string(),
+                aggregations: aggregation.clone(),
+            },
         ]);
-        assert!(validate_cleaning_plan(&calendar).expect_err("calendar duration").to_string().contains("positive fixed duration"));
+        assert!(
+            validate_cleaning_plan(&calendar)
+                .expect_err("calendar duration")
+                .to_string()
+                .contains("positive fixed duration")
+        );
 
         let descending = plan(vec![
-            CleaningStageDto::Sort { base: base("sort"), columns: vec!["ts".to_string()], descending: true, nulls_last: true },
-            CleaningStageDto::Resample { base: base("resample"), every: "1h".to_string(), aggregations: aggregation },
+            CleaningStageDto::Sort {
+                base: base("sort"),
+                columns: vec!["ts".to_string()],
+                descending: true,
+                nulls_last: true,
+            },
+            CleaningStageDto::Resample {
+                base: base("resample"),
+                every: "1h".to_string(),
+                aggregations: aggregation,
+            },
         ]);
-        assert!(validate_cleaning_plan(&descending).expect_err("descending sort").to_string().contains("ascending with time column"));
+        assert!(
+            validate_cleaning_plan(&descending)
+                .expect_err("descending sort")
+                .to_string()
+                .contains("ascending with time column")
+        );
     }
 
     #[test]
@@ -1109,5 +1395,56 @@ mod tests {
             *to = 3.0;
         }
         assert_ne!(semantic_hash(&original).expect("changed hash"), expected);
+    }
+
+    #[test]
+    fn chronological_split_labels_train_validation_test_and_embargo() {
+        let df = DataFrame::new(
+            6,
+            vec![
+                Series::new(
+                    "ts".into(),
+                    vec![
+                        Some(1_000_i64),
+                        Some(2_000),
+                        Some(3_000),
+                        Some(4_000),
+                        Some(5_000),
+                        None,
+                    ],
+                )
+                .into(),
+                Series::new("value".into(), vec![1.0_f64; 6]).into(),
+            ],
+        )
+        .expect("frame");
+        let plan = plan(vec![CleaningStageDto::ChronologicalSplit {
+            base: base("split"),
+            train_end_ms: 1_000.0,
+            validation_end_ms: 3_000.0,
+            embargo_ms: 1_000.0,
+            output_column: "split".to_string(),
+        }]);
+        let output = compile_cleaning_plan(df.lazy(), &plan)
+            .expect("compile")
+            .collect()
+            .expect("collect");
+        assert_eq!(
+            output
+                .column("split")
+                .expect("split")
+                .str()
+                .expect("str")
+                .into_iter()
+                .collect::<Vec<_>>(),
+            vec![
+                Some("train"),
+                Some("embargo"),
+                Some("validation"),
+                Some("embargo"),
+                Some("test"),
+                Some("unassigned")
+            ]
+        );
     }
 }

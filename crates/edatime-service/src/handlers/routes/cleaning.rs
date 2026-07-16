@@ -113,10 +113,10 @@ fn validate_codegen_support(plan: &CleaningPlanDto) -> Result<(), AppError> {
     if plan
         .stages
         .iter()
-        .any(|stage| stage.enabled() && matches!(stage, CleaningStageDto::AdaptiveLine { .. }))
+        .any(|stage| stage.enabled() && matches!(stage, CleaningStageDto::AdaptiveLine { .. } | CleaningStageDto::ChronologicalSplit { .. }))
     {
         return Err(AppError::bad_request(
-            "Backend code export does not yet support adaptive-line stages; export the canonical plan JSON or remove that stage before requesting code",
+            "Backend code export does not yet support adaptive-line or chronological-split stages; export the canonical plan JSON or remove that stage before requesting code",
         ));
     }
     Ok(())
@@ -301,7 +301,7 @@ fn generate_python_polars(
                 );
                 lines.push(format!("    lf = lf.group_by_dynamic({}, every={}, period={}, closed=\"left\", label=\"left\", start_by=\"window\").agg([{aggregations}])", code_quote(&plan.time_column), code_quote(every), code_quote(every)));
             }
-            CleaningStageDto::AdaptiveLine { .. } => unreachable!("validated codegen support"),
+            CleaningStageDto::AdaptiveLine { .. } | CleaningStageDto::ChronologicalSplit { .. } => unreachable!("validated codegen support"),
             CleaningStageDto::Annotation { .. } => {}
         }
     }
@@ -482,7 +482,7 @@ fn generate_rust_polars(
                 ));
                 lines.push(format!("    lf = lf.group_by_dynamic(col({}), [], DynamicGroupOptions {{ every, period: every, offset: Duration::try_parse(\"0ns\")?, closed_window: ClosedWindow::Left, label: Label::Left, start_by: StartBy::WindowBound, ..Default::default() }}).agg([{aggregations}]);", code_quote(&plan.time_column)));
             }
-            CleaningStageDto::AdaptiveLine { .. } => unreachable!("validated codegen support"),
+            CleaningStageDto::AdaptiveLine { .. } | CleaningStageDto::ChronologicalSplit { .. } => unreachable!("validated codegen support"),
             CleaningStageDto::Annotation { .. } => {}
         }
     }

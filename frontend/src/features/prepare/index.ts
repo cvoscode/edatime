@@ -38,6 +38,9 @@ function stageSummary(stage: CleaningPlan['stages'][number]): string {
         case 'columnSelect': return (stage.mode === 'keep' ? 'Keep only ' : 'Drop ') + 'columns: ' + stage.columns.join(', ');
         case 'sort': return 'Stable ' + (stage.descending ? 'descending' : 'ascending') + ' sort by ' + stage.columns.join(', ');
         case 'fillNull': return (stage.strategy === 'forward' ? 'Forward' : 'Backward') + ' fill nulls in ' + stage.columns.join(', ');
+        case 'resample': return 'Resample every ' + stage.every;
+        case 'chronologicalSplit': return 'Chronological split into ' + stage.outputColumn;
+        case 'annotation': return stage.note?.trim() || stage.label;
         case 'resample': return 'Resample every ' + stage.every + ': ' + stage.aggregations.map(({ column, method }) => column + ' ' + method).join(', ');
         case 'annotation': return 'Annotation';
     }

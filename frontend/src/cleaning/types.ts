@@ -5,7 +5,7 @@
  * may create stages, but never own the execution semantics themselves.
  */
 
-export type CleaningStageKind = 'timeRange' | 'columnRange' | 'adaptiveLine' | 'missingValue' | 'deduplicate' | 'columnSelect' | 'sort' | 'fillNull' | 'resample' | 'annotation';
+export type CleaningStageKind = 'timeRange' | 'columnRange' | 'adaptiveLine' | 'missingValue' | 'deduplicate' | 'columnSelect' | 'sort' | 'fillNull' | 'resample' | 'chronologicalSplit' | 'annotation';
 export type StageExecutionClass = 'polarsExpression' | 'annotation';
 export type StageScope = 'row' | 'schema' | 'order' | 'annotation';
 export type SourcePage = 'timeseries' | 'scatter' | 'correlation' | 'fft' | 'spectrogram' | 'causal' | 'drift' | 'manual' | 'import';
@@ -143,6 +143,17 @@ export interface ResampleStage extends CleaningStageBase {
     aggregations: ResampleAggregation[];
 }
 
+/** Global chronological labels; group-specific policy follows `seriesKeys`. */
+export interface ChronologicalSplitStage extends CleaningStageBase {
+    kind: 'chronologicalSplit';
+    executionClass: 'polarsExpression';
+    scope: 'schema';
+    trainEndMs: number;
+    validationEndMs: number;
+    embargoMs: number;
+    outputColumn: string;
+}
+
 export interface AnnotationStage extends CleaningStageBase {
     kind: 'annotation';
     executionClass: 'annotation';
@@ -150,7 +161,7 @@ export interface AnnotationStage extends CleaningStageBase {
     severity?: 'info' | 'warning' | 'critical';
 }
 
-export type CleaningStage = TimeRangeStage | ColumnRangeStage | AdaptiveLineStage | MissingValueStage | DeduplicateStage | ColumnSelectStage | SortStage | FillNullStage | ResampleStage | AnnotationStage;
+export type CleaningStage = TimeRangeStage | ColumnRangeStage | AdaptiveLineStage | MissingValueStage | DeduplicateStage | ColumnSelectStage | SortStage | FillNullStage | ResampleStage | ChronologicalSplitStage | AnnotationStage;
 
 export type CleaningStageInput = Omit<TimeRangeStage, 'id' | 'createdAt' | 'updatedAt'>
     | Omit<ColumnRangeStage, 'id' | 'createdAt' | 'updatedAt'>
@@ -161,6 +172,7 @@ export type CleaningStageInput = Omit<TimeRangeStage, 'id' | 'createdAt' | 'upda
     | Omit<SortStage, 'id' | 'createdAt' | 'updatedAt'>
     | Omit<FillNullStage, 'id' | 'createdAt' | 'updatedAt'>
     | Omit<ResampleStage, 'id' | 'createdAt' | 'updatedAt'>
+    | Omit<ChronologicalSplitStage, 'id' | 'createdAt' | 'updatedAt'>
     | Omit<AnnotationStage, 'id' | 'createdAt' | 'updatedAt'>;
 
 export interface PlanRequestSnapshot {
