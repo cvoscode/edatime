@@ -53,6 +53,10 @@ describe('analytics api helpers', () => {
         __resetApiRequestStateForTests();
         fetchMock.mockReset();
         vi.stubGlobal('fetch', fetchMock);
+        cleaningPlanStore.resetForDataset({
+            sourceVersionId: 'source-baseline', datasetRevision: 1,
+            datasetFingerprint: 'dataset-baseline', schemaFingerprint: 'schema-baseline', timeColumn: 'ts',
+        });
     });
 
     afterEach(() => {
@@ -71,12 +75,11 @@ describe('analytics api helpers', () => {
             25,
         );
 
-        const requestUrl = new URL(String(fetchMock.mock.calls[0]?.[0]), 'http://localhost');
-        expect(requestUrl.pathname).toBe('/api/v1/analytics/rolling');
-        expect(requestUrl.searchParams.get('start')).toBe('2025-01-01T00:00:00.000Z');
-        expect(requestUrl.searchParams.get('end')).toBe('2025-01-02T00:00:00.000Z');
-        expect(requestUrl.searchParams.get('columns')).toBe('value,temp');
-        expect(requestUrl.searchParams.get('window')).toBe('25');
+        expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/analytics/rolling');
+        expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: 'POST' });
+        expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
+            start: '2025-01-01T00:00:00.000Z', end: '2025-01-02T00:00:00.000Z', columns: 'value,temp', window: 25,
+        });
     });
 
     it('fetchAnomalies preserves threshold omission when none is provided', async () => {
@@ -89,10 +92,10 @@ describe('analytics api helpers', () => {
             'mad',
         );
 
-        const requestUrl = new URL(String(fetchMock.mock.calls[0]?.[0]), 'http://localhost');
-        expect(requestUrl.pathname).toBe('/api/v1/analytics/anomalies');
-        expect(requestUrl.searchParams.get('method')).toBe('mad');
-        expect(requestUrl.searchParams.get('threshold')).toBeNull();
+        expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/analytics/anomalies');
+        const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+        expect(body.method).toBe('mad');
+        expect(body.threshold).toBeUndefined();
     });
 
     it('adds the active cleaning plan to rolling, anomaly, spectral-filter, and correlation requests', async () => {
@@ -128,10 +131,7 @@ describe('analytics api helpers', () => {
 
         for (const [index, call] of fetchMock.mock.calls.entries()) {
             const request = call[1] as RequestInit | undefined;
-            const url = new URL(String(call[0]), 'http://localhost');
-            const envelope = index < 4
-                ? JSON.parse(String(request?.body ?? '{}')).cleaning_plan
-                : JSON.parse(String(url.searchParams.get('cleaning_plan')));
+            const envelope = JSON.parse(String(request?.body ?? '{}')).cleaning_plan;
             expect(envelope).toMatchObject({
                 expectedSourceVersionId: 'source-3',
                 expectedDatasetRevision: 3,
@@ -167,7 +167,7 @@ describe('analytics api helpers', () => {
         expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ signal: controller.signal });
     });
 
-    it('allows unscoped analytics GET requests to survive dataset invalidation', async () => {
+    it('allows unscoped analytics POST requests to survive dataset invalidation', async () => {
         const deferred = createDeferredResponse();
         fetchMock.mockReturnValueOnce(deferred.promise);
 
@@ -179,7 +179,7 @@ describe('analytics api helpers', () => {
         await expect(request).resolves.toEqual({ bands: [] });
     });
 
-    it('fetchFft forwards max_points through the query string', async () => {
+    it('fetchFft forwards max_points in its plan-aware body', async () => {
         fetchMock.mockResolvedValueOnce(jsonResponse({ sample_count: 0, results: [] }));
 
         await fetchFft(
@@ -189,9 +189,8 @@ describe('analytics api helpers', () => {
             4096,
         );
 
-        const requestUrl = new URL(String(fetchMock.mock.calls[0]?.[0]), 'http://localhost');
-        expect(requestUrl.pathname).toBe('/api/v1/analytics/fft');
-        expect(requestUrl.searchParams.get('max_points')).toBe('4096');
+        expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/analytics/fft');
+        expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)).max_points).toBe(4096);
     });
 
     it('fetchSpectrogram includes hop size and valid scale options only', async () => {
@@ -211,14 +210,9 @@ describe('analytics api helpers', () => {
             { normalize: 'zscore', clip: 'percentile', clipParam: Number.NaN },
         );
 
-        const requestUrl = new URL(String(fetchMock.mock.calls[0]?.[0]), 'http://localhost');
-        expect(requestUrl.pathname).toBe('/api/v1/analytics/spectrogram');
-        expect(requestUrl.searchParams.get('window_size')).toBe('320');
-        expect(requestUrl.searchParams.get('hop_size')).toBe('48');
-        expect(requestUrl.searchParams.get('max_points')).toBe('4096');
-        expect(requestUrl.searchParams.get('normalize')).toBe('zscore');
-        expect(requestUrl.searchParams.get('clip')).toBe('percentile');
-        expect(requestUrl.searchParams.get('clip_param')).toBeNull();
+        const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+        expect(body).toMatchObject({ window_size: 320, hop_size: 48, max_points: 4096, normalize: 'zscore', clip: 'percentile' });
+        expect(body.clip_param).toBeUndefined();
     });
 
     it('fetchSpectrogram preserves finite clip parameters including zero', async () => {
@@ -238,8 +232,7 @@ describe('analytics api helpers', () => {
             { clip: 'percentile', clipParam: 0 },
         );
 
-        const requestUrl = new URL(String(fetchMock.mock.calls[0]?.[0]), 'http://localhost');
-        expect(requestUrl.searchParams.get('clip_param')).toBe('0');
+        expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)).clip_param).toBe(0);
     });
 
     it('fetchCausalGraph posts the current causal payload shape', async () => {
@@ -270,7 +263,7 @@ describe('analytics api helpers', () => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
         });
-        expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+        expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
             columns: 'a,b',
             tau_max: 5,
             alpha: 0.1,
@@ -283,7 +276,7 @@ describe('analytics api helpers', () => {
         });
     });
 
-    it('fetchCorrelationMatrix and fetchSpectralFilter keep their current GET routes', async () => {
+    it('fetchCorrelationMatrix and fetchSpectralFilter use plan-aware POST routes', async () => {
         fetchMock
             .mockResolvedValueOnce(jsonResponse({ columns: [] }))
             .mockResolvedValueOnce(jsonResponse({ column: 'value', ts: [], values: [], filter_type: 'bandpass' }));
@@ -297,10 +290,10 @@ describe('analytics api helpers', () => {
         }));
 
         expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/scatter/correlations/matrix');
-
-        const requestUrl = new URL(String(fetchMock.mock.calls[1]?.[0]), 'http://localhost');
-        expect(requestUrl.pathname).toBe('/api/v1/analytics/spectral-filter');
-        expect(requestUrl.searchParams.get('column')).toBe('value');
-        expect(requestUrl.searchParams.get('filter_type')).toBe('bandpass');
+        expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: 'POST' });
+        expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/v1/analytics/spectral-filter');
+        const body = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+        expect(body.column).toBe('value');
+        expect(body.filter_type).toBe('bandpass');
     });
 });

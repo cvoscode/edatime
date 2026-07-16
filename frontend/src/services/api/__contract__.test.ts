@@ -264,6 +264,7 @@ describe('contract: every endpoint targets /api/v1', () => {
     it('analytics module targets /api/v1', async () => {
         const spy = installFetchSpy();
         try {
+            const { cleaningPlanStore } = await import('../../cleaning/store.js');
             const {
                 fetchRollingBands,
                 fetchAnomalies,
@@ -273,6 +274,10 @@ describe('contract: every endpoint targets /api/v1', () => {
                 fetchCorrelationMatrix,
                 fetchSpectralFilter,
             } = await import('./analytics.js');
+            cleaningPlanStore.resetForDataset({
+                sourceVersionId: 'source-analytics', datasetRevision: 1,
+                datasetFingerprint: 'dataset-analytics', schemaFingerprint: 'schema-analytics', timeColumn: 'ts',
+            });
             await fetchRollingBands(ISO, ISO, 'value', 50);
             await fetchAnomalies(ISO, ISO, 'value', 'zscore', 3);
             await fetchFft(ISO, ISO, 'value', 1024);
@@ -284,13 +289,15 @@ describe('contract: every endpoint targets /api/v1', () => {
                 window_size: '64', hop_size: '32', max_points: '1024',
             }));
             const urls = spy.calls.map((c) => c.url);
-            expect(urls[0]).toContain('/api/v1/analytics/rolling?');
-            expect(urls[1]).toContain('/api/v1/analytics/anomalies?');
-            expect(urls[2]).toContain('/api/v1/analytics/fft?');
-            expect(urls[3]).toContain('/api/v1/analytics/spectrogram?');
+            expect(urls[0]).toBe('/api/v1/analytics/rolling');
+            expect(urls[1]).toBe('/api/v1/analytics/anomalies');
+            expect(urls[2]).toBe('/api/v1/analytics/fft');
+            expect(urls[3]).toBe('/api/v1/analytics/spectrogram');
             expect(urls[4]).toBe('/api/v1/analytics/causal');
             expect(urls[5]).toBe('/api/v1/scatter/correlations/matrix');
-            expect(urls[6]).toContain('/api/v1/analytics/spectral-filter?');
+            expect(urls[6]).toBe('/api/v1/analytics/spectral-filter');
+            for (const call of spy.calls) expect(call.init).toMatchObject({ method: 'POST' });
+            cleaningPlanStore.clear();
         } finally {
             spy.restore();
         }

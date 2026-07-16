@@ -39,20 +39,18 @@ fn analytics_response<T: serde::Serialize>(value: T, identity: &ExecutionIdentit
     add_execution_identity_headers(Json(value).into_response(), identity)
 }
 
-/// Decode a POST analytics body while requiring a real plan envelope instead
-/// of URL-encoded JSON. The existing GET query structs keep the serialized
-/// envelope string for backwards compatibility; all execution still runs
-/// through the same validated preamble.
+/// Decode a POST analytics body and require its canonical plan envelope.
 fn decode_plan_aware_post<T: DeserializeOwned>(mut value: Value) -> Result<T, AppError> {
-    if let Some(plan) = value.get_mut("cleaning_plan") {
-        let envelope: crate::handlers::routes::cleaning::PlanRequestEnvelope =
-            serde_json::from_value(std::mem::take(plan)).map_err(|error| {
-                AppError::bad_request(format!("Invalid cleaning plan envelope: {error}"))
-            })?;
-        *plan = Value::String(serde_json::to_string(&envelope).map_err(|error| {
-            AppError::internal(format!("Serialize cleaning plan envelope: {error}"))
-        })?);
-    }
+    let plan = value
+        .get_mut("cleaning_plan")
+        .ok_or_else(|| AppError::bad_request("Analytics requests require a cleaning plan"))?;
+    let envelope: crate::handlers::routes::cleaning::PlanRequestEnvelope =
+        serde_json::from_value(std::mem::take(plan)).map_err(|error| {
+            AppError::bad_request(format!("Invalid cleaning plan envelope: {error}"))
+        })?;
+    *plan = Value::String(serde_json::to_string(&envelope).map_err(|error| {
+        AppError::internal(format!("Serialize cleaning plan envelope: {error}"))
+    })?);
     serde_json::from_value(value)
         .map_err(|error| AppError::bad_request(format!("Invalid analytics request: {error}")))
 }

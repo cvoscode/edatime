@@ -99,23 +99,11 @@ pub fn api_router() -> Router<AppState> {
 
 fn analytics_router() -> Router<AppState> {
     Router::new()
-        .route(
-            "/rolling",
-            get(analytics::get_rolling).post(analytics::post_rolling),
-        )
-        .route(
-            "/anomalies",
-            get(analytics::get_anomalies).post(analytics::post_anomalies),
-        )
-        .route("/fft", get(analytics::get_fft).post(analytics::post_fft))
-        .route(
-            "/spectrogram",
-            get(analytics::get_spectrogram).post(analytics::post_spectrogram),
-        )
-        .route(
-            "/spectral-filter",
-            get(analytics::get_spectral_filter).post(analytics::post_spectral_filter),
-        )
+        .route("/rolling", post(analytics::post_rolling))
+        .route("/anomalies", post(analytics::post_anomalies))
+        .route("/fft", post(analytics::post_fft))
+        .route("/spectrogram", post(analytics::post_spectrogram))
+        .route("/spectral-filter", post(analytics::post_spectral_filter))
         .route("/causal", post(analytics::post_causal_graph))
 }
 
