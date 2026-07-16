@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { previewMock, applyMock, exportPlanMock, exportCodeMock, listVersionsMock, selectVersionMock, storageUsageMock, sessionJobsMock, cancelSessionJobMock, downloadBlobMock } = vi.hoisted(() => ({
+const { previewMock, applyMock, exportPlanMock, exportCodeMock, exportManifestMock, listVersionsMock, selectVersionMock, storageUsageMock, sessionJobsMock, cancelSessionJobMock, downloadBlobMock } = vi.hoisted(() => ({
     previewMock: vi.fn(),
     applyMock: vi.fn(),
     exportPlanMock: vi.fn(),
     exportCodeMock: vi.fn(),
+    exportManifestMock: vi.fn(),
     listVersionsMock: vi.fn(),
     selectVersionMock: vi.fn(),
     storageUsageMock: vi.fn(),
@@ -18,6 +19,7 @@ vi.mock('./api.js', () => ({
     applyCleaningPlan: applyMock,
     exportCleaningPlan: exportPlanMock,
     exportCleaningCode: exportCodeMock,
+    exportCleaningManifest: exportManifestMock,
     listDatasetVersions: listVersionsMock,
     selectDatasetVersion: selectVersionMock,
     getArtifactStorageUsage: storageUsageMock,
@@ -36,6 +38,7 @@ describe('cleaning plan panel', () => {
         applyMock.mockReset();
         exportPlanMock.mockReset();
         exportCodeMock.mockReset();
+        exportManifestMock.mockReset();
         listVersionsMock.mockReset();
         selectVersionMock.mockReset();
         storageUsageMock.mockReset();
@@ -81,6 +84,21 @@ describe('cleaning plan panel', () => {
         expect(exportCodeMock).toHaveBeenNthCalledWith(2, planStore.getSnapshot(), 'rust');
         expect(downloadBlobMock).toHaveBeenCalledWith(expect.any(Blob), 'apply_edatime_plan.py');
         expect(downloadBlobMock).toHaveBeenCalledWith(expect.any(Blob), 'apply_edatime_plan.rs');
+    });
+
+    it('exports the exact source-bound handoff manifest from the Export tab', async () => {
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        exportManifestMock.mockResolvedValue(new Blob(['manifest']));
+        mountCleaningPlanPanel({ planStore, getViewport: () => null });
+
+        document.getElementById('open-cleaning-plan-btn')!.click();
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Export')!.click();
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Export handoff manifest')!.click();
+        await Promise.resolve();
+
+        expect(exportManifestMock).toHaveBeenCalledWith(planStore.getSnapshot());
+        expect(downloadBlobMock).toHaveBeenCalledWith(expect.any(Blob), 'edatime_handoff_manifest.json');
     });
 
     it('describes row, value, schema, and ordering semantics in the graph legend', () => {

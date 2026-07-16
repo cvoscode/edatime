@@ -2,6 +2,7 @@ import {
     applyCleaningPlan,
     cancelSessionJob,
     exportCleaningCode,
+    exportCleaningManifest,
     exportCleaningPlan,
     getArtifactStorageUsage,
     listSessionJobs,
@@ -737,6 +738,13 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
                 planExport.disabled = false;
             }
         });
+        const manifestExport = button('Export handoff manifest');
+        manifestExport.addEventListener('click', async () => {
+            manifestExport.disabled = true;
+            try { downloadBlob(await exportCleaningManifest(plan), 'edatime_handoff_manifest.json'); }
+            catch (error) { preview.textContent = error instanceof Error ? error.message : 'Could not export the handoff manifest.'; }
+            finally { manifestExport.disabled = false; }
+        });
         const graphExport = button('Export graph JSON');
         graphExport.addEventListener('click', () => {
             exportText(serializePipelineGraph(buildPipelineGraph(plan)), 'edatime_pipeline_graph.json', 'application/json;charset=utf-8');
@@ -843,7 +851,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
                 refreshJobs.disabled = false;
             }
         });
-        controls.append(planExport, graphExport, svgExport, pythonExport, rustExport, importPlan, importInput, refreshStorage, refreshJobs);
+        controls.append(planExport, manifestExport, graphExport, svgExport, pythonExport, rustExport, importPlan, importInput, refreshStorage, refreshJobs);
         panel.append(copy, controls, storage, jobs);
     };
     const renderActions = (plan: CleaningPlan) => {

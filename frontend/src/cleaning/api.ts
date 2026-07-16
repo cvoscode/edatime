@@ -140,6 +140,19 @@ export function exportCleaningCode(
     );
 }
 
+/** Exact before/after audit and provenance manifest for a canonical plan. */
+export function exportCleaningManifest(
+    plan: CleaningPlan,
+    options?: ApiRequestOptions,
+): Promise<Blob> {
+    return postBlob(
+        apiV1Routes.cleaning.exportManifest,
+        envelope(plan),
+        'Cleaning handoff manifest export',
+        options,
+    );
+}
+
 export function listDatasetVersions(options?: ApiRequestOptions): Promise<DatasetVersionRecord[]> {
     // Versions are dataset-scoped by design: a replacement invalidates this
     // selection list along with all other dataset-derived responses.
