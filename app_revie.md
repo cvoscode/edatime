@@ -19,7 +19,10 @@
   stable-sort, bounded ordered-null-fill, and explicit fixed-duration
   resampling authoring, then hands off to
   the shared Pipeline Workbench for detailed field editing, previewing, exporting, and
-  materialization while the quality workflow remains in progress.
+  materialization. Prepare now also surfaces exact null-count findings from the
+  canonical source metadata and turns each into a deduplicated, reversible
+  missing-value policy stage; progressive time/duplicate/distribution profiling
+  remains in progress. (`2f3f3d7`)
 - **Milestone B in progress:** data, scatter points/matrix, correlations, and
   correlation matrix, Drift, and export artifacts now carry immutable source
   version/revision, schema fingerprint, backend plan hash, and versioned
