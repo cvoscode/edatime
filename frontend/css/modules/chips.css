@@ -724,8 +724,6 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  /* Nudge so the popup doesn't go offscreen */
-  transform: translate(4px, 4px);
 }
 
 .adaptive-trace-picker__label {
@@ -735,6 +733,13 @@
   color: var(--text-muted, #788bae);
   text-transform: uppercase;
   padding: 4px 6px 2px;
+}
+
+.adaptive-trace-picker__suggestion {
+  margin: 0;
+  padding: 1px 6px 5px;
+  color: var(--text-dim, #9fb1d1);
+  font-size: 0.72rem;
 }
 
 .adaptive-trace-picker__option {

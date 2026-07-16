@@ -19,12 +19,34 @@ import type { AdaptiveLineFilter } from '../../types/store.js';
 import type { WorkspaceStore, WorkspaceSnapshot } from '../../contracts/workspace.js';
 import type { CleaningPlanStore } from '../../cleaning/store.js';
 
+/** Keep the adaptive picker inside the visible viewport, preferring the click's lower-right side. */
+export function positionAdaptivePicker(
+    anchor: { x: number; y: number },
+    picker: { width: number; height: number },
+    viewport: { width: number; height: number },
+): { left: number; top: number } {
+    const padding = 12;
+    const gap = 8;
+    const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(value, Math.max(min, max)));
+    const left = anchor.x + picker.width + gap > viewport.width - padding
+        ? anchor.x - picker.width - gap
+        : anchor.x + gap;
+    const top = anchor.y + picker.height + gap > viewport.height - padding
+        ? anchor.y - picker.height - gap
+        : anchor.y + gap;
+    return {
+        left: clamp(left, padding, viewport.width - picker.width - padding),
+        top: clamp(top, padding, viewport.height - picker.height - padding),
+    };
+}
+
 export function buildAdaptiveFilterFromPoints(
     data: DataObject | null,
     column: string,
     firstPoint: { x: number; y: number },
     secondPoint: { x: number; y: number },
     intent: Pick<WorkspaceSnapshot, 'selection' | 'filters'>,
+    keepAboveOverride?: boolean,
 ): AdaptiveLineFilter | null {
     if (!column || !firstPoint || !secondPoint) return null;
     if (!data) return null;
@@ -58,7 +80,7 @@ export function buildAdaptiveFilterFromPoints(
         id: `adaptive-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         column,
         x1, y1, x2, y2,
-        keepAbove: above > below,
+        keepAbove: keepAboveOverride ?? above > below,
     };
 }
 
@@ -81,8 +103,40 @@ export function initAdaptiveFilterGesture(
     let _secondPoint: { x: number; y: number } | null = null;
     let _lastClickX = 0;
     let _lastClickY = 0;
+    let removeOutsidePickerListener: (() => void) | null = null;
 
-    const dismissPicker = () => { _activePicker?.remove(); _activePicker = null; };
+    const dismissPicker = () => {
+        removeOutsidePickerListener?.();
+        removeOutsidePickerListener = null;
+        _activePicker?.remove();
+        _activePicker = null;
+    };
+
+    const colorForColumn = (column: string, selectionIndex: number): string => {
+        const datasetIndex = datasetState.numericCols.indexOf(column);
+        return getSeriesColor(column, datasetIndex >= 0 ? datasetIndex : selectionIndex);
+    };
+
+    const openPicker = (picker: HTMLElement) => {
+        dismissPicker();
+        picker.style.left = '0px';
+        picker.style.top = '0px';
+        document.body.appendChild(picker);
+        const rect = picker.getBoundingClientRect();
+        const position = positionAdaptivePicker(
+            { x: _lastClickX, y: _lastClickY },
+            { width: rect.width, height: rect.height },
+            { width: window.innerWidth, height: window.innerHeight },
+        );
+        picker.style.left = `${position.left}px`;
+        picker.style.top = `${position.top}px`;
+        _activePicker = picker;
+        const onOutside = (event: MouseEvent) => {
+            if (!picker.contains(event.target as Node)) dismissPicker();
+        };
+        document.addEventListener('click', onOutside, true);
+        removeOutsidePickerListener = () => document.removeEventListener('click', onOutside, true);
+    };
 
     const cancelPending = () => {
         _firstPoint = null;
@@ -102,10 +156,10 @@ export function initAdaptiveFilterGesture(
         chartState.chart?.requestOverlayRender?.();
     };
 
-    const applyFilterForColumn = (column: string, p1: { x: number; y: number }, p2: { x: number; y: number }) => {
+    const applyFilterForColumn = (column: string, p1: { x: number; y: number }, p2: { x: number; y: number }, keepAbove: boolean) => {
         setAdaptiveFilterColumn(column);
         const snapshot = deps.workspace.getSnapshot();
-        const filter = buildAdaptiveFilterFromPoints(deps.getCurrentData(), column, p1, p2, snapshot);
+        const filter = buildAdaptiveFilterFromPoints(deps.getCurrentData(), column, p1, p2, snapshot, keepAbove);
         if (!filter) return;
         if (deps.cleaningPlanStore?.getSnapshot()) {
             deps.cleaningPlanStore.addStage({
@@ -134,16 +188,41 @@ export function initAdaptiveFilterGesture(
         deps.buildColumnToggles();
     };
 
+    const showDirectionPicker = (column: string, selectionIndex: number, p1: { x: number; y: number }, p2: { x: number; y: number }) => {
+        const recommendation = buildAdaptiveFilterFromPoints(deps.getCurrentData(), column, p1, p2, deps.workspace.getSnapshot());
+        if (!recommendation) return;
+        const picker = document.createElement('div');
+        picker.className = 'adaptive-trace-picker adaptive-trace-picker--direction';
+        const label = document.createElement('div');
+        label.className = 'adaptive-trace-picker__label';
+        label.textContent = `Filter ${column}: keep which side?`;
+        const suggestion = document.createElement('p');
+        suggestion.className = 'adaptive-trace-picker__suggestion';
+        suggestion.textContent = `Suggested: keep ${recommendation.keepAbove ? 'above' : 'below'} the line`;
+        picker.append(label, suggestion);
+        for (const option of [{ keepAbove: true, label: 'Keep above' }, { keepAbove: false, label: 'Keep below' }]) {
+            const button = document.createElement('button');
+            button.className = 'adaptive-trace-picker__option' + (option.keepAbove === recommendation.keepAbove ? ' current' : '');
+            button.type = 'button';
+            button.style.setProperty('--pick-accent', colorForColumn(column, selectionIndex));
+            button.textContent = option.label;
+            button.addEventListener('click', (event) => {
+                event.stopPropagation();
+                dismissPicker();
+                applyFilterForColumn(column, p1, p2, option.keepAbove);
+            });
+            picker.appendChild(button);
+        }
+        openPicker(picker);
+    };
+
     const showTracePicker = (p1: { x: number; y: number }, p2: { x: number; y: number }) => {
         const cols = deps.workspace.getSnapshot().selection.columns;
         if (!cols?.length) return;
-        if (cols.length === 1) { applyFilterForColumn(cols[0], p1, p2); return; }
+        if (cols.length === 1) { showDirectionPicker(cols[0], 0, p1, p2); return; }
 
-        dismissPicker();
         const picker = document.createElement('div');
         picker.className = 'adaptive-trace-picker';
-        picker.style.left = `${_lastClickX}px`;
-        picker.style.top = `${_lastClickY}px`;
 
         const label = document.createElement('div');
         label.className = 'adaptive-trace-picker__label';
@@ -151,12 +230,7 @@ export function initAdaptiveFilterGesture(
         picker.appendChild(label);
 
         cols.forEach((col, selectionIndex) => {
-            // Chips and chart series use the stable dataset column order, not
-            // the transient order in which a user selected visible traces.
-            // Keeping that ordinal here prevents OT/MUFL from borrowing each
-            // other's colors in the adaptive-filter picker.
-            const datasetIndex = datasetState.numericCols.indexOf(col);
-            const color = getSeriesColor(col, datasetIndex >= 0 ? datasetIndex : selectionIndex);
+            const color = colorForColumn(col, selectionIndex);
             const isCurrentTarget = col === uiState.adaptiveFilterColumn;
             const btn = document.createElement('button');
             btn.className = 'adaptive-trace-picker__option' + (isCurrentTarget ? ' current' : '');
@@ -166,21 +240,12 @@ export function initAdaptiveFilterGesture(
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 dismissPicker();
-                applyFilterForColumn(col, p1, p2);
+                showDirectionPicker(col, selectionIndex, p1, p2);
             });
             picker.appendChild(btn);
         });
 
-        document.body.appendChild(picker);
-        _activePicker = picker;
-
-        const onOutside = (e: MouseEvent) => {
-            if (!picker.contains(e.target as Node)) {
-                dismissPicker();
-                document.removeEventListener('click', onOutside, true);
-            }
-        };
-        document.addEventListener('click', onOutside, true);
+        openPicker(picker);
     };
 
     const clickHandler = (event: MouseEvent) => {

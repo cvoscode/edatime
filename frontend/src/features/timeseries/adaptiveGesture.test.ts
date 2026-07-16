@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { initAdaptiveFilterGesture } from './adaptiveGesture.js';
+import { initAdaptiveFilterGesture, positionAdaptivePicker } from './adaptiveGesture.js';
 import { setChartInstance } from '../../store/chartState.js';
 import { setNumericCols } from '../../store/datasetState.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
@@ -23,6 +23,11 @@ describe('adaptive filter gesture', () => {
         } as any);
     });
 
+    const chooseFilterSide = (label = 'Keep above') => {
+        Array.from(document.querySelectorAll<HTMLButtonElement>('.adaptive-trace-picker__option'))
+            .find((button) => button.textContent === label)!.click();
+    };
+
     it('publishes a completed adaptive line to workspace filters', () => {
         const workspace = createWorkspaceStore();
         workspace.setSelection(['value']);
@@ -40,8 +45,11 @@ describe('adaptive filter gesture', () => {
         chart.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true, button: 0 }));
         window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Control' }));
 
+        expect(document.querySelector('.adaptive-trace-picker__suggestion')?.textContent).toContain('Suggested: keep above');
+        chooseFilterSide('Keep below');
+
         expect(workspace.getSnapshot().filters.adaptiveLines).toHaveLength(1);
-        expect(workspace.getSnapshot().filters.adaptiveLines[0]).toMatchObject({ column: 'value', x1: 0, x2: 10 });
+        expect(workspace.getSnapshot().filters.adaptiveLines[0]).toMatchObject({ column: 'value', x1: 0, x2: 10, keepAbove: false });
     });
 
     it('builds the adaptive line from workspace filter intent', () => {
@@ -62,6 +70,7 @@ describe('adaptive filter gesture', () => {
         chart.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true, button: 0 }));
         chart.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true, button: 0 }));
         window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Control' }));
+        chooseFilterSide();
 
         expect(workspace.getSnapshot().filters.adaptiveLines).toHaveLength(1);
     });
@@ -85,9 +94,10 @@ describe('adaptive filter gesture', () => {
         chart.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true, button: 0 }));
         chart.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true, button: 0 }));
         window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Control' }));
+        chooseFilterSide('Keep below');
 
         expect(planStore.getSnapshot()!.stages).toMatchObject([{
-            kind: 'adaptiveLine', column: 'value', x1Ms: 0, x2Ms: 10, applyWithinSegmentOnly: true,
+            kind: 'adaptiveLine', column: 'value', x1Ms: 0, x2Ms: 10, keepAbove: false, applyWithinSegmentOnly: true,
         }]);
         expect(workspace.getSnapshot().filters.adaptiveLines).toEqual([]);
     });
@@ -113,6 +123,7 @@ describe('adaptive filter gesture', () => {
         chart.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true, button: 0 }));
         chart.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true, button: 0 }));
         window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Control' }));
+        chooseFilterSide();
 
         expect(buildRangeControls).toHaveBeenCalledTimes(1);
         expect(renderCurrentData).toHaveBeenCalledTimes(1);
@@ -145,5 +156,14 @@ describe('adaptive filter gesture', () => {
         expect(option('HUFL').style.getPropertyValue('--pick-accent')).toBe('#1f77b4');
         expect(option('MUFL').style.getPropertyValue('--pick-accent')).toBe('#2ca02c');
         expect(option('OT').style.getPropertyValue('--pick-accent')).toBe('#e377c2');
+    });
+
+    it('flips and clamps the picker so it remains reachable at chart edges', () => {
+        expect(positionAdaptivePicker(
+            { x: 700, y: 500 }, { width: 240, height: 260 }, { width: 720, height: 540 },
+        )).toEqual({ left: 452, top: 232 });
+        expect(positionAdaptivePicker(
+            { x: 0, y: 0 }, { width: 240, height: 260 }, { width: 720, height: 540 },
+        )).toEqual({ left: 12, top: 12 });
     });
 });
