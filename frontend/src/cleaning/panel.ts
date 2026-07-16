@@ -9,6 +9,7 @@ import {
 import type { CleaningPreviewResponse, CleaningStageImpact } from './api.js';
 import { generatePythonPolars, generateRustPolars } from './codegen.js';
 import { buildPipelineGraph, renderPipelineGraphSvg, serializePipelineGraph } from './pipelineGraph.js';
+import { formatResampleAggregations, hasAscendingTimeSortBefore, normalizeFixedDuration, parseResampleAggregations } from './resample.js';
 import type { CleaningPlan, CleaningStage } from './types.js';
 import type { CleaningPlanStore } from './store.js';
 import { downloadBlob } from '../utils/dom.js';
@@ -54,6 +55,12 @@ function executable(stage: CleaningStage | undefined): boolean {
 function hasEnabledTimeSort(plan: CleaningPlan): boolean {
     return plan.stages.some((stage) => stage.enabled && stage.kind === 'sort'
         && stage.columns.some((column) => column.trim() === plan.timeColumn.trim()));
+}
+
+function resampleOrderingError(plan: CleaningPlan): string | null {
+    const invalid = plan.stages.findIndex((stage, index) => stage.enabled && stage.kind === 'resample'
+        && !hasAscendingTimeSortBefore(plan, index));
+    return invalid < 0 ? null : 'Resampling requires the latest earlier enabled sort to be ascending with the time column first.';
 }
 
 function previewSummary(result: CleaningPreviewResponse): string {
@@ -309,16 +316,15 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             if (columns.length === 0 || new Set(columns).size !== columns.length || (limit != null && (!Number.isInteger(limit) || limit <= 0))) throw new Error('Fill needs unique columns and an optional positive integer limit.');
             patch = { ...common, columns, strategy: readText(form, 'strategy') as 'forward' | 'backward', limit } as Partial<CleaningStage>;
         } else if (stage.kind === 'resample') {
-            const aggregations = readText(form, 'aggregations').split(',').map((entry) => {
-                const [column = '', method = ''] = entry.trim().split(/\s+/);
-                return { column, method };
-            });
-            if (!/^\d+(?:ns|us|ms|s|m|h)$/.test(readText(form, 'every'))
-                || aggregations.length === 0
-                || aggregations.some(({ column, method }) => !column || !['mean', 'sum', 'min', 'max', 'last'].includes(method))) {
-                throw new Error('Resampling needs a positive fixed duration and entries such as value mean, volume sum.');
+            const plan = deps.planStore.getSnapshot();
+            const index = plan?.stages.findIndex((candidate) => candidate.id === stage.id) ?? -1;
+            const every = normalizeFixedDuration(readText(form, 'every'));
+            const aggregations = parseResampleAggregations(readText(form, 'aggregations'), plan?.timeColumn ?? '');
+            if (!every || !aggregations) throw new Error('Use a positive fixed interval and unique entries such as value:mean, volume:sum.');
+            if (common.enabled && (!plan || index < 0 || !hasAscendingTimeSortBefore(plan, index))) {
+                throw new Error('Resampling requires the latest earlier enabled sort to be ascending with the time column first.');
             }
-            patch = { ...common, every: readText(form, 'every'), aggregations } as Partial<CleaningStage>;
+            patch = { ...common, every, aggregations } as Partial<CleaningStage>;
         } else if (stage.kind === 'adaptiveLine') {
             const x1Ms = readNumber(form, 'x1Ms', 'X1');
             const x2Ms = readNumber(form, 'x2Ms', 'X2');
@@ -338,6 +344,14 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
                 ...common,
                 severity: readText(form, 'severity') as 'info' | 'warning' | 'critical',
             } as Partial<CleaningStage>;
+        }
+        const plan = deps.planStore.getSnapshot();
+        if (plan) {
+            const stages = plan.stages.map((candidate) => candidate.id === stage.id
+                ? { ...candidate, ...patch, id: candidate.id, kind: candidate.kind } as CleaningStage
+                : candidate);
+            const error = resampleOrderingError({ ...plan, stages });
+            if (error) throw new Error(error);
         }
         deps.planStore.updateStage(stage.id, patch);
         notify(stage);
@@ -404,7 +418,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         } else if (stage.kind === 'resample') {
             fields.append(
                 textInput('Fixed interval (for example 15m)', stage.every, 'every'),
-                textInput('Aggregations (column method, comma-separated)', stage.aggregations.map(({ column, method }) => `${column} ${method}`).join(', '), 'aggregations'),
+                textInput('Aggregations (column:method, comma-separated)', formatResampleAggregations(stage.aggregations), 'aggregations'),
             );
         } else if (stage.kind === 'adaptiveLine') {
             fields.append(
@@ -598,6 +612,40 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             deps.planStore.addStage({ kind: 'fillNull', executionClass: 'polarsExpression', scope: 'row', enabled: true, sourcePage: 'manual', label: (strategy === 'forward' ? 'Forward' : 'Backward') + ' fill nulls in ' + columns.join(', '), columns, strategy, limit });
             notify();
         });
+        const addResampleForm = document.createElement('form');
+        addResampleForm.className = 'pipeline-workbench__add-stage';
+        const resampleHeading = document.createElement('h3');
+        resampleHeading.textContent = 'Add fixed-duration resampling';
+        const resampleFields = document.createElement('div');
+        resampleFields.className = 'modal-grid';
+        resampleFields.append(
+            textInput('Fixed interval (for example 15m)', '', 'resampleEvery'),
+            textInput('Aggregations (column:method, comma-separated)', '', 'resampleAggregations'),
+        );
+        const resampleActions = document.createElement('div');
+        resampleActions.className = 'pipeline-workbench__editor-actions';
+        const addResample = button('Add resampling', 'btn btn-primary btn-sm');
+        addResample.type = 'submit';
+        resampleActions.appendChild(addResample);
+        addResampleForm.append(resampleHeading, resampleFields, resampleActions);
+        addResampleForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const every = normalizeFixedDuration(readText(addResampleForm, 'resampleEvery'));
+            const aggregations = parseResampleAggregations(readText(addResampleForm, 'resampleAggregations'), plan.timeColumn);
+            if (!hasAscendingTimeSortBefore(plan)) {
+                preview.textContent = 'Add an ascending stable sort with the time column first before resampling.';
+                return;
+            }
+            if (!every || !aggregations) {
+                preview.textContent = 'Use a positive fixed interval and unique entries such as value:mean, volume:sum.';
+                return;
+            }
+            deps.planStore.addStage({
+                kind: 'resample', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+                sourcePage: 'manual', label: 'Resample every ' + every, every, aggregations,
+            });
+            notify();
+        });
         const list = document.createElement('div');
         list.className = 'cleaning-plan-stages';
         if (plan.stages.length === 0) {
@@ -622,23 +670,39 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             impact.textContent = stageImpactSummary(stage, impacts.get(stage.id));
             const toggle = button(stage.enabled ? 'Disable' : 'Enable');
             toggle.addEventListener('click', () => {
+                const stages = plan.stages.map((candidate) => candidate.id === stage.id
+                    ? { ...candidate, enabled: !stage.enabled } as CleaningStage
+                    : candidate);
+                const error = resampleOrderingError({ ...plan, stages });
+                if (error) { preview.textContent = error; return; }
                 deps.planStore.setStageEnabled(stage.id, !stage.enabled);
                 notify(stage);
             });
             const up = button('Move up');
             up.disabled = index === 0;
             up.addEventListener('click', () => {
+                const stages = [...plan.stages];
+                stages.splice(index - 1, 0, stages.splice(index, 1)[0]);
+                const error = resampleOrderingError({ ...plan, stages });
+                if (error) { preview.textContent = error; return; }
                 deps.planStore.reorderStage(stage.id, index - 1);
                 notify(stage);
             });
             const down = button('Move down');
             down.disabled = index === plan.stages.length - 1;
             down.addEventListener('click', () => {
+                const stages = [...plan.stages];
+                stages.splice(index + 1, 0, stages.splice(index, 1)[0]);
+                const error = resampleOrderingError({ ...plan, stages });
+                if (error) { preview.textContent = error; return; }
                 deps.planStore.reorderStage(stage.id, index + 1);
                 notify(stage);
             });
             const remove = button('Remove');
             remove.addEventListener('click', () => {
+                const stages = plan.stages.filter((candidate) => candidate.id !== stage.id);
+                const error = resampleOrderingError({ ...plan, stages });
+                if (error) { preview.textContent = error; return; }
                 deps.planStore.removeStage(stage.id);
                 if (selectedStageId === stage.id) selectedStageId = null;
                 notify(stage);
@@ -646,7 +710,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             row.append(description, impact, toggle, up, down, remove);
             list.appendChild(row);
         }
-        panel.append(addMissingForm, addDeduplicateForm, addColumnSelectForm, addSortForm, addFillForm, list);
+        panel.append(addMissingForm, addDeduplicateForm, addColumnSelectForm, addSortForm, addFillForm, addResampleForm, list);
         const selected = plan.stages.find((stage) => stage.id === selectedStageId);
         if (selected) renderEditor(selected);
     };
@@ -931,10 +995,20 @@ function parseImportedPlan(text: string, current: CleaningPlan): CleaningPlan {
         }
     }
     for (const [index, stage] of plan.stages.entries()) {
-        if (stage.kind !== 'fillNull' || !stage.enabled) continue;
-        const hasTimeSort = plan.stages.slice(0, index).some((prior) => prior.enabled && prior.kind === 'sort'
-            && prior.columns.some((column) => column.trim() === current.timeColumn.trim()));
-        if (!hasTimeSort) throw new Error('Ordered null fill requires an earlier enabled stable sort on the time column.');
+        if (!stage.enabled) continue;
+        if (stage.kind === 'fillNull') {
+            const hasTimeSort = plan.stages.slice(0, index).some((prior) => prior.enabled && prior.kind === 'sort'
+                && prior.columns.some((column) => column.trim() === current.timeColumn.trim()));
+            if (!hasTimeSort) throw new Error('Ordered null fill requires an earlier enabled stable sort on the time column.');
+        }
+        if (stage.kind === 'resample') {
+            if (!hasAscendingTimeSortBefore(plan as CleaningPlan, index)) {
+                throw new Error('Resampling requires the latest earlier enabled sort to be ascending with the time column first.');
+            }
+            if (stage.aggregations.some(({ column }) => column.trim() === current.timeColumn.trim())) {
+                throw new Error('Resampling cannot aggregate the canonical time column.');
+            }
+        }
     }
     return plan as CleaningPlan;
 }
@@ -990,12 +1064,17 @@ function isImportableStage(value: unknown): value is CleaningStage {
                 && (stage.strategy === 'forward' || stage.strategy === 'backward')
                 && (stage.limit === null || (typeof stage.limit === 'number' && Number.isInteger(stage.limit) && stage.limit > 0));
         case 'resample':
-            return typeof stage.every === 'string' && /^\d+(?:ns|us|ms|s|m|h)$/.test(stage.every)
-                && Array.isArray(stage.aggregations) && stage.aggregations.length > 0
-                && stage.aggregations.every((aggregation) => !!aggregation && typeof aggregation === 'object'
-                    && typeof (aggregation as Record<string, unknown>).column === 'string'
-                    && !!((aggregation as Record<string, unknown>).column as string).trim()
-                    && ['mean', 'sum', 'min', 'max', 'last'].includes(String((aggregation as Record<string, unknown>).method)));
+            if (typeof stage.every !== 'string' || !normalizeFixedDuration(stage.every)) return false;
+            if (!Array.isArray(stage.aggregations) || stage.aggregations.length === 0) return false;
+            const columns = stage.aggregations.map((aggregation) => {
+                if (!aggregation || typeof aggregation !== 'object') return null;
+                const value = aggregation as Record<string, unknown>;
+                if (typeof value.column !== 'string' || !value.column.trim()
+                    || !['mean', 'sum', 'min', 'max', 'last'].includes(String(value.method))) return null;
+                return value.column.trim();
+            });
+            return columns.every((column): column is string => column !== null)
+                && new Set(columns).size === columns.length;
         case 'annotation':
             return stage.severity === undefined || stage.severity === 'info' || stage.severity === 'warning' || stage.severity === 'critical';
         default:

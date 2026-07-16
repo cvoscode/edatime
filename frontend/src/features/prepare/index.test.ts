@@ -122,4 +122,37 @@ describe('Prepare page', () => {
         expect(form.textContent).toContain('stable sort on the time column');
         dispose();
     });
+
+    it('authors explicit fixed-duration resampling after an ascending time sort', () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        cleaningPlanStore.addStage({ kind: 'sort', executionClass: 'polarsExpression', scope: 'order', enabled: true, sourcePage: 'manual', label: 'sort', columns: ['ts'], descending: false, nullsLast: true });
+        const onPlanChanged = vi.fn();
+        const dispose = initPreparePage({ onPlanChanged });
+        const form = document.querySelectorAll<HTMLFormElement>('form.prepare-workspace__policy-form')[5];
+        (form.elements.namedItem('every') as HTMLInputElement).value = '15m';
+        (form.elements.namedItem('aggregations') as HTMLInputElement).value = 'value:mean, volume:sum';
+
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+
+        expect(cleaningPlanStore.getSnapshot()!.stages[1]).toMatchObject({
+            kind: 'resample', every: '15m',
+            aggregations: [{ column: 'value', method: 'mean' }, { column: 'volume', method: 'sum' }],
+        });
+        expect(onPlanChanged).toHaveBeenCalledTimes(1);
+        dispose();
+    });
+
+    it('rejects resampling without the required ascending time sort', () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        const dispose = initPreparePage();
+        const form = document.querySelectorAll<HTMLFormElement>('form.prepare-workspace__policy-form')[5];
+        (form.elements.namedItem('every') as HTMLInputElement).value = '1h';
+        (form.elements.namedItem('aggregations') as HTMLInputElement).value = 'value:last';
+
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+
+        expect(cleaningPlanStore.getSnapshot()!.stages).toHaveLength(0);
+        expect(form.textContent).toContain('ascending stable sort');
+        dispose();
+    });
 });

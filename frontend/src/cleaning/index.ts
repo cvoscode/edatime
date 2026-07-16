@@ -8,3 +8,4 @@ export * from './compatibility.js';
 export * from './panel.js';
 export * from './codegen.js';
 export * from './pipelineGraph.js';
+export * from './resample.js';

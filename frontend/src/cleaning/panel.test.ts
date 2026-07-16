@@ -270,6 +270,20 @@ describe('cleaning plan panel', () => {
         expect(document.querySelector('[data-plan-preview]')?.textContent).toContain('requires an earlier enabled stable sort');
     });
 
+    it('rejects imported resampling without its ascending time-sort contract', async () => {
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        const imported = { ...planStore.getSnapshot()!, stages: [{ id: 'resample', kind: 'resample', executionClass: 'polarsExpression', scope: 'row', enabled: true, sourcePage: 'manual', label: 'Resample', createdAt: 'now', updatedAt: 'now', every: '15m', aggregations: [{ column: 'value', method: 'mean' }] }] };
+        mountCleaningPlanPanel({ planStore, getViewport: () => null });
+        document.getElementById('open-cleaning-plan-btn')!.click();
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Export')!.click();
+        const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+        Object.defineProperty(input, 'files', { value: [new File([JSON.stringify(imported)], 'unordered-resample.json')] });
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        await Promise.resolve(); await Promise.resolve();
+        expect(document.querySelector('[data-plan-preview]')?.textContent).toContain('ascending with the time column first');
+    });
+
     it('supports keyboard-accessible stage reordering from the Stages tab', () => {
         const planStore = createCleaningPlanStore();
         planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
@@ -339,6 +353,44 @@ describe('cleaning plan panel', () => {
         (editor.elements.namedItem('mode') as HTMLSelectElement).value = 'drop';
         editor.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
         expect(planStore.getSnapshot()!.stages[0]).toMatchObject({ kind: 'columnSelect', mode: 'drop' });
+    });
+
+    it('authors and edits explicit fixed-duration resampling after a time sort', () => {
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        planStore.addStage({ kind: 'sort', executionClass: 'polarsExpression', scope: 'order', enabled: true, sourcePage: 'manual', label: 'sort', columns: ['ts'], descending: false, nullsLast: true });
+        mountCleaningPlanPanel({ planStore, getViewport: () => null });
+
+        document.getElementById('open-cleaning-plan-btn')!.click();
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Stages')!.click();
+        const form = document.querySelectorAll<HTMLFormElement>('form.pipeline-workbench__add-stage')[5];
+        (form.elements.namedItem('resampleEvery') as HTMLInputElement).value = '15m';
+        (form.elements.namedItem('resampleAggregations') as HTMLInputElement).value = 'value:mean, volume:sum';
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+
+        expect(planStore.getSnapshot()!.stages[1]).toMatchObject({ kind: 'resample', every: '15m', aggregations: [{ column: 'value', method: 'mean' }, { column: 'volume', method: 'sum' }] });
+        Array.from(document.querySelectorAll('.cleaning-plan-stage__summary'))[1].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        const editor = document.querySelector<HTMLFormElement>('form.pipeline-workbench__editor')!;
+        (editor.elements.namedItem('every') as HTMLInputElement).value = '1h';
+        (editor.elements.namedItem('aggregations') as HTMLInputElement).value = 'value:max';
+        editor.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        expect(planStore.getSnapshot()!.stages[1]).toMatchObject({ kind: 'resample', every: '1h', aggregations: [{ column: 'value', method: 'max' }] });
+    });
+
+    it('rejects resampling authoring without the ascending time-sort prerequisite', () => {
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        mountCleaningPlanPanel({ planStore, getViewport: () => null });
+        document.getElementById('open-cleaning-plan-btn')!.click();
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Stages')!.click();
+        const form = document.querySelectorAll<HTMLFormElement>('form.pipeline-workbench__add-stage')[5];
+        (form.elements.namedItem('resampleEvery') as HTMLInputElement).value = '1h';
+        (form.elements.namedItem('resampleAggregations') as HTMLInputElement).value = 'value:last';
+
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+
+        expect(planStore.getSnapshot()!.stages).toHaveLength(0);
+        expect(document.querySelector('[data-plan-preview]')?.textContent).toContain('ascending stable sort');
     });
 
     it('keeps keyboard focus inside the workbench overlay and restores the trigger on close', () => {

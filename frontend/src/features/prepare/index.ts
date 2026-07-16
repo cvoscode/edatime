@@ -1,4 +1,5 @@
 import { buildPipelineGraph, renderPipelineGraphSvg } from '../../cleaning/pipelineGraph.js';
+import { hasAscendingTimeSortBefore, normalizeFixedDuration, parseResampleAggregations } from '../../cleaning/resample.js';
 import { cleaningPlanStore } from '../../cleaning/store.js';
 import type { CleaningPlan } from '../../cleaning/types.js';
 import '../../../css/modules/prepare.css';
@@ -52,6 +53,12 @@ function checkbox(label: string, name: string, checked: boolean): HTMLLabelEleme
 function hasEnabledTimeSort(plan: CleaningPlan): boolean {
     return plan.stages.some((stage) => stage.enabled && stage.kind === 'sort'
         && stage.columns.some((column) => column.trim() === plan.timeColumn.trim()));
+}
+
+function resampleOrderingError(plan: CleaningPlan): string | null {
+    const invalid = plan.stages.findIndex((stage, index) => stage.enabled && stage.kind === 'resample'
+        && !hasAscendingTimeSortBefore(plan, index));
+    return invalid < 0 ? null : 'Resampling requires the latest earlier enabled sort to be ascending with the time column first.';
 }
 
 function renderPrepareWorkspace(root: HTMLElement, plan: CleaningPlan | null, deps: PreparePageDeps): void {
@@ -254,6 +261,22 @@ function renderPrepareWorkspace(root: HTMLElement, plan: CleaningPlan | null, de
     const fillStatus = createElement('p', 'prepare-workspace__policy-status'); fillStatus.setAttribute('aria-live', 'polite');
     addFill.append(fillTitle, fillColumns, fillStrategy, fillLimit, fillSubmit, fillStatus);
     addFill.addEventListener('submit', (event) => { event.preventDefault(); const columns = fillColumns.value.split(',').map((column) => column.trim()).filter(Boolean); const limit = fillLimit.value ? Number(fillLimit.value) : null; if (!hasEnabledTimeSort(plan)) { fillStatus.textContent = 'Add and enable a stable sort on the time column before ordered null fill.'; return; } if (columns.length === 0 || new Set(columns).size !== columns.length || (limit != null && (!Number.isInteger(limit) || limit <= 0))) { fillStatus.textContent = 'Choose unique columns and an optional positive integer limit.'; return; } const strategy = fillStrategy.value as 'forward' | 'backward'; cleaningPlanStore.addStage({ kind: 'fillNull', executionClass: 'polarsExpression', scope: 'row', enabled: true, sourcePage: 'manual', label: (strategy === 'forward' ? 'Forward' : 'Backward') + ' fill nulls in ' + columns.join(', '), columns, strategy, limit }); deps.onPlanChanged?.(); });
+    const addResample = createElement('form', 'prepare-workspace__policy-form');
+    const resampleTitle = createElement('h3'); resampleTitle.textContent = 'Add fixed-duration resampling';
+    const resampleEvery = createElement('input', 'modal-input'); resampleEvery.name = 'every'; resampleEvery.placeholder = 'Fixed interval, for example 15m'; resampleEvery.required = true;
+    const resampleAggregations = createElement('input', 'modal-input'); resampleAggregations.name = 'aggregations'; resampleAggregations.placeholder = 'value:mean, volume:sum'; resampleAggregations.required = true;
+    const resampleSubmit = actionButton('Add resampling', () => {}); resampleSubmit.type = 'submit';
+    const resampleStatus = createElement('p', 'prepare-workspace__policy-status'); resampleStatus.setAttribute('aria-live', 'polite');
+    addResample.append(resampleTitle, resampleEvery, resampleAggregations, resampleSubmit, resampleStatus);
+    addResample.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const every = normalizeFixedDuration(resampleEvery.value);
+        const aggregations = parseResampleAggregations(resampleAggregations.value, plan.timeColumn);
+        if (!hasAscendingTimeSortBefore(plan)) { resampleStatus.textContent = 'Add an ascending stable sort with the time column first before resampling.'; return; }
+        if (!every || !aggregations) { resampleStatus.textContent = 'Use a positive fixed interval and unique entries such as value:mean, volume:sum.'; return; }
+        cleaningPlanStore.addStage({ kind: 'resample', executionClass: 'polarsExpression', scope: 'row', enabled: true, sourcePage: 'manual', label: 'Resample every ' + every, every, aggregations });
+        deps.onPlanChanged?.();
+    });
     const list = createElement('ol', 'prepare-workspace__stage-list');
     if (plan.stages.length === 0) {
         const empty = createElement('li', 'prepare-workspace__empty');
@@ -271,18 +294,34 @@ function renderPrepareWorkspace(root: HTMLElement, plan: CleaningPlan | null, de
         const controls = createElement('div', 'prepare-workspace__stage-controls');
         controls.append(
             actionButton(stage.enabled ? 'Disable' : 'Enable', () => {
+                const stages = plan.stages.map((candidate) => candidate.id === stage.id
+                    ? { ...candidate, enabled: !stage.enabled } as CleaningPlan['stages'][number]
+                    : candidate);
+                const error = resampleOrderingError({ ...plan, stages });
+                if (error) { resampleStatus.textContent = error; return; }
                 cleaningPlanStore.setStageEnabled(stage.id, !stage.enabled);
                 deps.onPlanChanged?.();
             }),
             actionButton('Up', () => {
+                const stages = [...plan.stages];
+                stages.splice(index - 1, 0, stages.splice(index, 1)[0]);
+                const error = resampleOrderingError({ ...plan, stages });
+                if (error) { resampleStatus.textContent = error; return; }
                 cleaningPlanStore.reorderStage(stage.id, index - 1);
                 deps.onPlanChanged?.();
             }, index === 0),
             actionButton('Down', () => {
+                const stages = [...plan.stages];
+                stages.splice(index + 1, 0, stages.splice(index, 1)[0]);
+                const error = resampleOrderingError({ ...plan, stages });
+                if (error) { resampleStatus.textContent = error; return; }
                 cleaningPlanStore.reorderStage(stage.id, index + 1);
                 deps.onPlanChanged?.();
             }, index === plan.stages.length - 1),
             actionButton('Remove', () => {
+                const stages = plan.stages.filter((candidate) => candidate.id !== stage.id);
+                const error = resampleOrderingError({ ...plan, stages });
+                if (error) { resampleStatus.textContent = error; return; }
                 cleaningPlanStore.removeStage(stage.id);
                 deps.onPlanChanged?.();
             }),
@@ -290,7 +329,7 @@ function renderPrepareWorkspace(root: HTMLElement, plan: CleaningPlan | null, de
         item.append(summary, controls);
         list.append(item);
     }
-    stagesSection.append(stageTitle, stageCopy, history, addPolicy, addDeduplicate, addColumnSelect, addSort, addFill, list);
+    stagesSection.append(stageTitle, stageCopy, history, addPolicy, addDeduplicate, addColumnSelect, addSort, addFill, addResample, list);
     root.append(header, identity, graphSection, stagesSection);
 }
 
