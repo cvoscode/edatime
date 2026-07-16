@@ -85,11 +85,13 @@
   synchronous apply response returns `jobId`, materialization updates the
   record at its owned publish boundary, failures are retained, and read-only
   session inspection is available at `GET /api/v1/jobs` and
-  `GET /api/v1/jobs/{id}`. Cancellation stays deferred until the underlying
-  Polars boundary can honor it safely. The Pipeline Workbench Export tab now
+  `GET /api/v1/jobs/{id}`. `DELETE /api/v1/jobs/{id}` now signals a live
+  materialization job; Polars collection itself remains non-preemptive, but
+  cancellation is checked at every owned publish boundary and removes an
+  unpublished temporary artifact. The Pipeline Workbench Export tab now
   shows the returned materialization job ID and can refresh the five most
   recent materialization states without adding a second workflow surface.
-  (`a338f28`, `1a3f266`, `b4b6fe3`, `3c4d506`)
+  (`a338f28`, `1a3f266`, `b4b6fe3`, `3c4d506`, `6412a2d`)
 
 ## 1. Goal
 
@@ -903,10 +905,12 @@ interruption tests prove catalog recovery and atomicity.
    messages, and cooperative cancellation handles. It is not yet durable or
    public because no workload has been moved into it. Managed plan
    materialization now records its first real session job and exposes read-only
-   status endpoints; cancellation remains deliberately unavailable until the
-   execution boundary is cooperative. The existing Pipeline Workbench Export
+   status endpoints; materialization cancellation is cooperative at safe
+   pre-publication boundaries rather than pretending to interrupt a Polars
+   sink. The existing Pipeline Workbench Export
    tab displays recent materialization records and apply confirmations carry
-   their job ID. (`1a3f266`, `b4b6fe3`, `3c4d506`)
+   their job ID, lists live records, and exposes cancellation only for live
+   materialization work. (`1a3f266`, `b4b6fe3`, `3c4d506`, `6412a2d`)
 3. Extend those foundations into a scheduler with workload permits, work/memory
    estimates, deadlines, and structured `job_required` decisions.
 4. Move ingest normalization, exact profile, full export/materialization, and
