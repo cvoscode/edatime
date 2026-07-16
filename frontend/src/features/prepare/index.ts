@@ -3,10 +3,14 @@ import { hasAscendingTimeSortBefore, normalizeFixedDuration, parseResampleAggreg
 import { cleaningPlanStore } from '../../cleaning/store.js';
 import type { CleaningPlan } from '../../cleaning/types.js';
 import { datasetState } from '../../store/datasetState.js';
+import { fetchDatasetProfile, startDatasetProfile } from '../../services/api/profile.js';
+import type { DatasetMetadata, DatasetProfileResponse } from '../../contracts/api/v1/dataset.js';
 import '../../../css/modules/prepare.css';
 
 export interface PreparePageDeps {
     onPlanChanged?: () => void;
+    startProfile?: () => Promise<DatasetProfileResponse>;
+    getProfile?: () => Promise<DatasetProfileResponse>;
 }
 
 function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string): HTMLElementTagNameMap[K] {
@@ -71,21 +75,38 @@ function hasMissingValuePolicy(plan: CleaningPlan, column: string): boolean {
 }
 
 /**
- * Surface only findings the current exact metadata can prove. More expensive
- * cadence, duplicate, and distribution findings belong to the progressive
- * profile job rather than being guessed in this immediate Prepare surface.
+ * Surface immediate metadata findings first. More expensive cadence, duplicate,
+ * and distribution findings belong to the progressive profile job rather than
+ * being guessed in this Prepare surface.
  */
-function renderQualityFindings(plan: CleaningPlan, deps: PreparePageDeps): HTMLElement {
+function renderQualityFindings(
+    plan: CleaningPlan,
+    deps: PreparePageDeps,
+    profileMetadata: DatasetMetadata | null,
+    profileStatus: DatasetProfileResponse['status'],
+    requestProfile: () => void,
+): HTMLElement {
     const section = createElement('section', 'prepare-workspace__quality');
     const title = createElement('h2');
     title.textContent = 'Quality findings';
     const copy = createElement('p', 'prepare-workspace__copy');
-    copy.textContent = 'These exact source-profile findings can be turned into reversible stages. Review the proposed action before previewing or materializing.';
-    const findings = (datasetState.metadata?.column_profiles ?? [])
+    copy.textContent = profileStatus === 'ready'
+        ? 'Exact background-profile findings can be turned into reversible stages. Review the proposed action before previewing or materializing.'
+        : profileStatus === 'queued' || profileStatus === 'running' || profileStatus === 'cancelling'
+            ? 'Immediate source findings are shown while the exact background quality report runs.'
+            : 'Immediate source-profile findings can be turned into reversible stages. Build the exact quality report for a cached, versioned follow-up.';
+    const findings = (profileMetadata?.column_profiles ?? datasetState.metadata?.column_profiles ?? [])
         .filter((profile) => Number(profile?.null_count) > 0)
         .sort((left, right) => Number(right.null_count) - Number(left.null_count)
             || String(left.name).localeCompare(String(right.name)));
     const list = createElement('ul', 'prepare-workspace__quality-list');
+
+    const profileAction = actionButton(
+        profileStatus === 'ready' ? 'Exact quality report ready' : profileStatus === 'queued' || profileStatus === 'running' || profileStatus === 'cancelling' ? 'Building exact quality report…' : 'Build exact quality report',
+        requestProfile,
+        profileStatus === 'ready' || profileStatus === 'queued' || profileStatus === 'running' || profileStatus === 'cancelling',
+    );
+    profileAction.classList.add('prepare-workspace__quality-action');
 
     if (findings.length === 0) {
         const empty = createElement('li', 'prepare-workspace__quality-empty');
@@ -123,11 +144,18 @@ function renderQualityFindings(plan: CleaningPlan, deps: PreparePageDeps): HTMLE
         item.append(summary, add);
         list.append(item);
     }
-    section.append(title, copy, list);
+    section.append(title, copy, profileAction, list);
     return section;
 }
 
-function renderPrepareWorkspace(root: HTMLElement, plan: CleaningPlan | null, deps: PreparePageDeps): void {
+function renderPrepareWorkspace(
+    root: HTMLElement,
+    plan: CleaningPlan | null,
+    deps: PreparePageDeps,
+    profileMetadata: DatasetMetadata | null,
+    profileStatus: DatasetProfileResponse['status'],
+    requestProfile: () => void,
+): void {
     root.replaceChildren();
     const header = createElement('div', 'prepare-workspace__header');
     const heading = createElement('div');
@@ -155,7 +183,7 @@ function renderPrepareWorkspace(root: HTMLElement, plan: CleaningPlan | null, de
         + ' · ' + String(activeStages) + ' active executable stage' + (activeStages === 1 ? '' : 's')
         + ' · ' + (cleaningPlanStore.isDirty() ? 'unmaterialized changes' : 'source baseline');
 
-    const qualitySection = renderQualityFindings(plan, deps);
+    const qualitySection = renderQualityFindings(plan, deps, profileMetadata, profileStatus, requestProfile);
 
     const graphSection = createElement('section', 'prepare-workspace__graph');
     const graphTitle = createElement('h2');
@@ -405,7 +433,52 @@ function renderPrepareWorkspace(root: HTMLElement, plan: CleaningPlan | null, de
 export function initPreparePage(deps: PreparePageDeps = {}): () => void {
     const root = document.getElementById('prepare-workspace');
     if (!root) return () => {};
-    const render = () => renderPrepareWorkspace(root, cleaningPlanStore.getSnapshot(), deps);
+    let disposed = false;
+    let profileMetadata: DatasetMetadata | null = null;
+    let profileStatus: DatasetProfileResponse['status'] = 'not_started';
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
+    const render = () => renderPrepareWorkspace(
+        root,
+        cleaningPlanStore.getSnapshot(),
+        deps,
+        profileMetadata,
+        profileStatus,
+        requestProfile,
+    );
+    const acceptProfile = (response: DatasetProfileResponse) => {
+        const plan = cleaningPlanStore.getSnapshot();
+        if (!plan || response.sourceVersion?.id !== plan.sourceVersionId) return false;
+        profileStatus = response.status;
+        if (response.metadata) profileMetadata = response.metadata;
+        render();
+        return response.status === 'queued' || response.status === 'running' || response.status === 'cancelling';
+    };
+    const pollProfile = () => {
+        pollTimer = setTimeout(async () => {
+            if (disposed) return;
+            try {
+                if (acceptProfile(await (deps.getProfile ?? fetchDatasetProfile)())) pollProfile();
+            } catch {
+                profileStatus = 'failed';
+                render();
+            }
+        }, 500);
+    };
+    function requestProfile(): void {
+        void (async () => {
+            try {
+                if (acceptProfile(await (deps.startProfile ?? startDatasetProfile)())) pollProfile();
+            } catch {
+                profileStatus = 'failed';
+                render();
+            }
+        })();
+    }
     render();
-    return cleaningPlanStore.subscribe(render);
+    const unsubscribe = cleaningPlanStore.subscribe(render);
+    return () => {
+        disposed = true;
+        if (pollTimer != null) clearTimeout(pollTimer);
+        unsubscribe();
+    };
 }

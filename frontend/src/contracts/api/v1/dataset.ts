@@ -47,3 +47,21 @@ export interface DatasetMetadata {
     time_range: TimeRange | null;
     column_profiles: ColumnProfile[];
 }
+
+/** Exact background-profile state for the selected immutable source. */
+export interface DatasetProfileResponse {
+    algorithmVersion: string;
+    sourceVersion: {
+        id: string;
+        revision: number;
+        datasetFingerprint: string;
+    };
+    status: 'not_started' | 'queued' | 'running' | 'cancelling' | 'cancelled' | 'failed' | 'ready';
+    job: {
+        id: string;
+        status: string;
+        progressPercent: number | null;
+        message: string | null;
+    } | null;
+    metadata: DatasetMetadata | null;
+}

@@ -36,6 +36,10 @@ pub fn api_router() -> Router<AppState> {
         .route("/datasets/versions/select", post(cleaning::select_version))
         .route("/datasets/storage", get(cleaning::get_storage_usage))
         .route("/metadata", get(metadata::get_metadata))
+        .route(
+            "/profile",
+            get(metadata::get_profile).post(metadata::start_profile),
+        )
         .route("/metrics", get(metrics::get_metrics))
         .route("/jobs", get(jobs::list_jobs))
         .route("/jobs/{id}", get(jobs::get_job).delete(jobs::cancel_job))

@@ -10,7 +10,23 @@ use serde::Serialize;
 use crate::error::AppError;
 use edatime_core::stats;
 use edatime_core::temporal;
-use edatime_store::state::AppState;
+use edatime_store::{
+    jobs::{JobKind, JobRecord, JobStatus},
+    state::{AppState, ProfileCacheEntry},
+    versions::DatasetVersionRecord,
+};
+
+const PROFILE_ALGORITHM_VERSION: &str = "exact-v1";
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileResponse {
+    pub algorithm_version: String,
+    pub source_version: DatasetVersionRecord,
+    pub status: String,
+    pub job: Option<JobRecord>,
+    pub metadata: Option<serde_json::Value>,
+}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DatasetMetadata {
@@ -559,10 +575,175 @@ pub async fn get_metadata(
     Ok(Json(metadata))
 }
 
+fn profile_cache_key(version: &DatasetVersionRecord) -> String {
+    format!(
+        "{PROFILE_ALGORITHM_VERSION}:{}:{}:{}",
+        version.id, version.revision, version.dataset_fingerprint
+    )
+}
+
+fn profile_response(state: &AppState) -> Result<ProfileResponse, AppError> {
+    let version = state.current_dataset_version()?;
+    let entry = state.cached_profile(&profile_cache_key(&version));
+    let job = entry
+        .as_ref()
+        .and_then(|entry| state.jobs.record(&entry.job_id));
+    let status = match (
+        entry.as_ref().and_then(|entry| entry.result.as_ref()),
+        job.as_ref(),
+    ) {
+        (Some(_), _) => "ready",
+        (None, Some(job)) if job.status == JobStatus::Queued => "queued",
+        (None, Some(job)) if job.status == JobStatus::Running => "running",
+        (None, Some(job)) if job.status == JobStatus::Cancelling => "cancelling",
+        (None, Some(job)) if job.status == JobStatus::Cancelled => "cancelled",
+        (None, Some(job)) if job.status == JobStatus::Failed => "failed",
+        _ => "not_started",
+    };
+    Ok(ProfileResponse {
+        algorithm_version: PROFILE_ALGORITHM_VERSION.to_string(),
+        source_version: version,
+        status: status.to_string(),
+        job,
+        metadata: entry.and_then(|entry| entry.result),
+    })
+}
+
+/// Report the exact profile cache state for the selected immutable source.
+/// Metadata remains available to existing consumers while this dedicated
+/// endpoint distinguishes a complete exact report from an in-flight job.
+pub async fn get_profile(State(state): State<AppState>) -> Result<Json<ProfileResponse>, AppError> {
+    Ok(Json(profile_response(&state)?))
+}
+
+/// Start (or reuse) an admitted exact profile job for the active source. The
+/// job publishes only a fully computed result, so callers never confuse a
+/// partial aggregate with an exact quality finding.
+pub async fn start_profile(
+    State(state): State<AppState>,
+) -> Result<Json<ProfileResponse>, AppError> {
+    let version = state.current_dataset_version()?;
+    let key = profile_cache_key(&version);
+    if let Some(entry) = state.cached_profile(&key) {
+        let active = state.jobs.record(&entry.job_id).is_some_and(|job| {
+            matches!(
+                job.status,
+                JobStatus::Queued | JobStatus::Running | JobStatus::Cancelling
+            )
+        });
+        if entry.result.is_some() || active {
+            return Ok(Json(profile_response(&state)?));
+        }
+    }
+    // Capture the immutable source before publishing a job. A failed lookup is
+    // a request error, never a reason to profile whichever source is current
+    // by the time a background task begins.
+    let snapshot = state.dataset_snapshot_for_version(&version.id)?;
+
+    let job = state.jobs.create(JobKind::Profile);
+    state.store_profile(
+        key.clone(),
+        ProfileCacheEntry {
+            job_id: job.id().to_string(),
+            result: None,
+        },
+    );
+
+    let worker_state = state.clone();
+    let worker_version = version.clone();
+    tokio::spawn(async move {
+        if !worker_state.jobs.start(&job) {
+            return;
+        }
+        worker_state.jobs.update_progress(
+            &job,
+            5,
+            Some("collecting exact source profile".to_string()),
+        );
+        if job.is_cancelled() {
+            worker_state.jobs.complete(&job);
+            return;
+        }
+
+        let frame = match worker_state
+            .query_executor
+            .execute_background_async(snapshot)
+            .await
+        {
+            Ok(frame) => frame,
+            Err(error) => {
+                worker_state.jobs.fail(&job, error.to_string());
+                return;
+            }
+        };
+        if job.is_cancelled() {
+            worker_state.jobs.complete(&job);
+            return;
+        }
+        worker_state.jobs.update_progress(
+            &job,
+            70,
+            Some("building exact quality report".to_string()),
+        );
+        let display_name = worker_state.time_column_display_name_sync();
+        let report = match tokio::task::spawn_blocking(move || {
+            build_dataset_metadata(&frame, true, display_name.as_deref())
+        })
+        .await
+        {
+            Ok(Ok(report)) => report,
+            Ok(Err(error)) => {
+                worker_state.jobs.fail(&job, error.to_string());
+                return;
+            }
+            Err(error) => {
+                worker_state
+                    .jobs
+                    .fail(&job, format!("Failed to join profile task: {error}"));
+                return;
+            }
+        };
+        if job.is_cancelled() {
+            worker_state.jobs.complete(&job);
+            return;
+        }
+
+        let mut report = report;
+        report.revision = worker_version.revision;
+        report.source_version_id = Some(worker_version.id.clone());
+        report.source_version_revision = Some(worker_version.revision);
+        report.root_source_version_id = Some(worker_version.root_id.clone());
+        report.parent_source_version_id = worker_version.parent_id.clone();
+        report.dataset_fingerprint = Some(worker_version.dataset_fingerprint.clone());
+        report.schema_fingerprint = Some(worker_version.schema_fingerprint.clone());
+        report.source_name = worker_version.source_name.clone();
+        match serde_json::to_value(report) {
+            Ok(result) => {
+                worker_state.store_profile(
+                    key,
+                    ProfileCacheEntry {
+                        job_id: job.id().to_string(),
+                        result: Some(result),
+                    },
+                );
+                worker_state.jobs.complete(&job);
+            }
+            Err(error) => {
+                worker_state
+                    .jobs
+                    .fail(&job, format!("Could not serialize profile: {error}"));
+            }
+        }
+    });
+
+    Ok(Json(profile_response(&state)?))
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
+    use edatime_core::config::AppConfig;
     use polars::prelude::{NamedFrom, TimeUnit};
     use std::fs;
 
@@ -598,6 +779,63 @@ mod tests {
                 .column_profiles
                 .iter()
                 .any(|profile| profile.name == "value" && profile.histogram.is_some())
+        );
+    }
+
+    #[tokio::test]
+    async fn exact_profile_job_is_reused_and_publishes_source_bound_metadata() {
+        let df = DataFrame::new(
+            3,
+            vec![
+                polars::prelude::Series::new("ts".into(), vec![1_i64, 2, 3]).into(),
+                polars::prelude::Series::new("value".into(), vec![Some(1.0_f64), None, Some(3.0)])
+                    .into(),
+            ],
+        )
+        .expect("dataframe");
+        let state = AppState::new(df, AppConfig::default());
+
+        let first = start_profile(State(state.clone()))
+            .await
+            .expect("start profile")
+            .0;
+        let second = start_profile(State(state.clone()))
+            .await
+            .expect("reuse profile")
+            .0;
+        assert_eq!(
+            first.job.as_ref().map(|job| &job.id),
+            second.job.as_ref().map(|job| &job.id)
+        );
+        assert!(matches!(
+            first.status.as_str(),
+            "queued" | "running" | "ready"
+        ));
+
+        let mut report = None;
+        for _ in 0..100 {
+            let response = get_profile(State(state.clone()))
+                .await
+                .expect("get profile")
+                .0;
+            if response.status == "ready" {
+                report = response.metadata;
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
+        let report = report.expect("completed exact profile");
+        assert_eq!(
+            report["source_version_id"],
+            serde_json::json!(first.source_version.id)
+        );
+        assert_eq!(
+            report["revision"],
+            serde_json::json!(first.source_version.revision)
+        );
+        assert_eq!(
+            report["column_profiles"][1]["null_count"],
+            serde_json::json!(1)
         );
     }
 

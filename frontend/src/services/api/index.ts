@@ -8,6 +8,7 @@ export { getJson, postJson } from './http.js';
 
 // Metadata
 export { fetchMetadata, fetchSampleDataset } from './metadata.js';
+export { fetchDatasetProfile, startDatasetProfile } from './profile.js';
 
 // Timeseries (Arrow IPC)
 export { fetchData } from './timeseries.js';

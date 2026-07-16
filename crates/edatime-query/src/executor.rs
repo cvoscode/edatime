@@ -129,6 +129,45 @@ impl QueryExecutor {
         .map_err(|e| AppError::Query(format!("Collect: {}", e)))
     }
 
+    /// Collect a durable/background workload through the independent bounded
+    /// admission lane. Exact profiling uses this so it cannot occupy every
+    /// interactive viewport-query permit.
+    pub async fn execute_background_async(
+        &self,
+        lf: LazyFrame,
+    ) -> Result<edatime_core::types::DataFrame, AppError> {
+        let pool = Arc::clone(&self.thread_pool);
+        let ctx = self.ctx.clone();
+        let metrics = self.metrics.clone();
+        let admission = self.admission.clone();
+        let queue_start = std::time::Instant::now();
+        if let Some(metrics) = metrics.as_ref() {
+            metrics.record_cpu_submit(CpuStage::Query);
+        }
+        let permit = match admission {
+            Some(admission) => Some(admission.acquire_background().await?),
+            None => None,
+        };
+        tokio::task::spawn_blocking(move || {
+            let _permit = permit;
+            if let Some(metrics) = metrics.as_ref() {
+                metrics
+                    .record_cpu_started(CpuStage::Query, queue_start.elapsed().as_nanos() as u64);
+            }
+            let result = pool.install(|| match ctx {
+                ExecutionContext::Eager | ExecutionContext::Parallel => lf.collect(),
+                ExecutionContext::Streaming => lf.with_new_streaming(true).collect(),
+            });
+            if let Some(metrics) = metrics.as_ref() {
+                metrics.record_cpu_completed(CpuStage::Query);
+            }
+            result
+        })
+        .await
+        .map_err(|e| AppError::Internal(format!("Join error: {}", e)))?
+        .map_err(|e| AppError::Query(format!("Collect: {}", e)))
+    }
+
     /// Execute a lazy query directly into a Parquet file through Polars' new
     /// streaming sink. The returned frame is intentionally discarded: the
     /// durable file is the output boundary.

@@ -6,6 +6,7 @@ export type {
     Histogram,
     ColumnProfile,
     DatasetMetadata,
+    DatasetProfileResponse,
 } from '../contracts/api/v1/dataset.js';
 export type {
     AnomalyRegion as AnomalyRegionData,

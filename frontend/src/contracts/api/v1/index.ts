@@ -6,6 +6,7 @@ export type {
     Histogram,
     ColumnProfile,
     DatasetMetadata,
+    DatasetProfileResponse,
 } from './dataset.js';
 export type {
     RollingBand,

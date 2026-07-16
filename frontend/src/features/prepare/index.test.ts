@@ -107,6 +107,29 @@ describe('Prepare page', () => {
         dispose();
     });
 
+    it('replaces immediate findings with the requested exact quality report', async () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        datasetState.metadata = { column_profiles: [{ name: 'preview_only', dtype: 'Float64', null_count: 1 }] } as any;
+        const startProfile = vi.fn(async () => ({
+            algorithmVersion: 'exact-v1',
+            sourceVersion: { id: 'source-1', revision: 3, datasetFingerprint: 'data' },
+            status: 'ready' as const,
+            job: null,
+            metadata: { column_profiles: [{ name: 'exact_nulls', dtype: 'Float64', null_count: 4 }] } as any,
+        }));
+        const dispose = initPreparePage({ startProfile });
+
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Build exact quality report')!.click();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(startProfile).toHaveBeenCalledTimes(1);
+        expect(document.querySelector('[data-quality-column="exact_nulls"]')?.textContent).toContain('4 null values');
+        expect(document.querySelector('[data-quality-column="preview_only"]')).toBeNull();
+        expect(document.getElementById('prepare-workspace')?.textContent).toContain('Exact background-profile findings');
+        dispose();
+    });
+
     it('creates stable duplicate resolution from explicit key columns', () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
         const dispose = initPreparePage();

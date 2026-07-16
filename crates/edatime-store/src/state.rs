@@ -1,9 +1,10 @@
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::sync::Arc;
 use std::sync::Mutex;
 
 use chrono::Utc;
 use polars::prelude::{DataFrame, DataType, LazyFrame, ScanArgsParquet, SchemaExt, len};
+use serde_json::Value;
 use tokio::sync::RwLock;
 
 use crate::artifacts::{ArtifactStorageUsage, DatasetArtifactProvenance, DatasetArtifactStore};
@@ -27,6 +28,15 @@ pub struct DbConnectionInfo {
     pub time_column: Option<String>,
 }
 
+/// A version-keyed completed or in-progress profile. The data payload stays
+/// JSON at the store boundary so `edatime-store` does not depend on the HTTP
+/// DTO crate that owns the profile schema.
+#[derive(Clone, Debug)]
+pub struct ProfileCacheEntry {
+    pub job_id: String,
+    pub result: Option<Value>,
+}
+
 #[allow(clippy::clone_on_ref_ptr)]
 pub struct AppState {
     pub repository: Arc<dyn DataRepository>,
@@ -40,6 +50,7 @@ pub struct AppState {
     pub db_pool: Arc<RwLock<Option<Arc<DbPool>>>>,
     pub db_info: Arc<RwLock<Option<DbConnectionInfo>>>,
     pub correlation_matrix_cache: Arc<Mutex<Option<(u64, CorrelationMatrixCacheEntry)>>>,
+    pub profile_cache: Arc<Mutex<BTreeMap<String, ProfileCacheEntry>>>,
     pub query_log: Arc<Mutex<VecDeque<QueryEntry>>>,
     pub query_counter: Arc<std::sync::atomic::AtomicU64>,
 }
@@ -58,6 +69,7 @@ impl Clone for AppState {
             db_pool: Arc::clone(&self.db_pool),
             db_info: Arc::clone(&self.db_info),
             correlation_matrix_cache: Arc::clone(&self.correlation_matrix_cache),
+            profile_cache: Arc::clone(&self.profile_cache),
             query_log: Arc::clone(&self.query_log),
             query_counter: Arc::clone(&self.query_counter),
         }
@@ -158,6 +170,7 @@ impl AppState {
             db_pool: Arc::new(RwLock::new(None)),
             db_info: Arc::new(RwLock::new(None)),
             correlation_matrix_cache: Arc::new(Mutex::new(None)),
+            profile_cache: Arc::new(Mutex::new(BTreeMap::new())),
             query_log: Arc::new(Mutex::new(VecDeque::with_capacity(max_stored))),
             query_counter: Arc::new(std::sync::atomic::AtomicU64::new(0)),
         }
@@ -629,6 +642,31 @@ impl AppState {
         }
     }
 
+    /// Return a cloned exact-profile entry for an immutable source/profile
+    /// algorithm key. Cache entries deliberately survive source selection so
+    /// returning to a retained source can reuse its completed profile.
+    pub fn cached_profile(&self, key: &str) -> Option<ProfileCacheEntry> {
+        self.profile_cache
+            .lock()
+            .map_err(|error| error.into_inner())
+            .ok()?
+            .get(key)
+            .cloned()
+    }
+
+    /// Record either a pending job or its completed result for one immutable
+    /// profile key. Callers must verify cancellation before publishing a
+    /// result; this method intentionally has no knowledge of HTTP DTOs.
+    pub fn store_profile(&self, key: String, entry: ProfileCacheEntry) {
+        if let Ok(mut cache) = self
+            .profile_cache
+            .lock()
+            .map_err(|error| error.into_inner())
+        {
+            cache.insert(key, entry);
+        }
+    }
+
     pub fn set_time_column_display_name(&self, name: Option<String>) {
         self.repository.set_time_column_display_name(name);
     }
@@ -689,7 +727,9 @@ impl AppState {
 
 fn ensure_job_not_cancelled(job: Option<&JobHandle>) -> Result<(), AppError> {
     if job.is_some_and(JobHandle::is_cancelled) {
-        return Err(AppError::bad_request("Materialization job cancelled before publication"));
+        return Err(AppError::bad_request(
+            "Materialization job cancelled before publication",
+        ));
     }
     Ok(())
 }
@@ -974,7 +1014,11 @@ mod tests {
             .expect("catalog");
         assert_eq!(catalog.len(), 2);
         assert!(catalog.iter().any(|entry| entry.version_id == active.id));
-        assert!(catalog.iter().any(|entry| entry.version_id == first_root.id));
+        assert!(
+            catalog
+                .iter()
+                .any(|entry| entry.version_id == first_root.id)
+        );
         assert!(state.dataset_snapshot_for_version(&first_root.id).is_ok());
         assert!(state.dataset_snapshot_for_version(&first_child.id).is_err());
         assert_eq!(state.dataset_versions().expect("versions").len(), 2);
