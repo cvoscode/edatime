@@ -1,5 +1,6 @@
 //! Persistent descriptors for scan-backed dataset artifacts.
 
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, Utc};
@@ -90,8 +91,43 @@ impl DatasetArtifactStore {
         let mut catalog = self.load_catalog()?;
         catalog.retain(|entry| entry.version_id != descriptor.version_id);
         catalog.push(descriptor);
+        self.write_catalog(&catalog)
+    }
+
+    /// Atomically remove catalog entries outside a validated retention set,
+    /// then best-effort remove their files. Publishing the catalog first keeps
+    /// restart recovery valid even if a file is temporarily locked; an orphan
+    /// is safer than deleting an operator-managed file during recovery.
+    pub fn prune_except(
+        &self,
+        retained: &BTreeSet<String>,
+    ) -> Result<Vec<DatasetArtifactDescriptor>, AppError> {
+        let catalog = self.load_catalog()?;
+        let (kept, removed): (Vec<_>, Vec<_>) = catalog
+            .into_iter()
+            .partition(|entry| retained.contains(&entry.version_id));
+        if removed.is_empty() {
+            return Ok(Vec::new());
+        }
+        self.write_catalog(&kept)?;
+        for descriptor in &removed {
+            if let Err(error) = std::fs::remove_file(&descriptor.path)
+                && error.kind() != std::io::ErrorKind::NotFound
+            {
+                tracing::warn!(
+                    "Could not delete pruned artifact '{}': {error}",
+                    descriptor.path.display()
+                );
+            }
+        }
+        Ok(removed)
+    }
+
+    fn write_catalog(&self, catalog: &[DatasetArtifactDescriptor]) -> Result<(), AppError> {
+        std::fs::create_dir_all(&self.root)
+            .map_err(|e| AppError::Io(format!("Create artifact directory: {e}")))?;
         let temp = self.root.join("catalog.json.tmp");
-        let bytes = serde_json::to_vec_pretty(&catalog)
+        let bytes = serde_json::to_vec_pretty(catalog)
             .map_err(|e| AppError::internal(format!("Encode artifact catalog: {e}")))?;
         std::fs::write(&temp, bytes)
             .map_err(|e| AppError::Io(format!("Write artifact catalog: {e}")))?;
@@ -284,8 +320,8 @@ impl DatasetArtifactStore {
                 entry.map_err(|error| AppError::Io(format!("Read artifact entry: {error}")))?;
             let name = entry.file_name();
             let name = name.to_string_lossy();
+            let path = entry.path();
             if name == "catalog.json.tmp" || name.ends_with(".parquet.tmp") {
-                let path = entry.path();
                 if path.is_file() {
                     std::fs::remove_file(path).map_err(|error| {
                         AppError::Io(format!("Remove incomplete artifact: {error}"))
@@ -525,6 +561,42 @@ mod tests {
             .expect("publish unrelated descriptor");
 
         assert!(active.exists());
+        fs::remove_dir_all(root).expect("clean test artifact directory");
+    }
+
+    #[test]
+    fn pruning_updates_the_catalog_and_removes_only_pruned_managed_files() {
+        let root = test_root();
+        let store = DatasetArtifactStore::new(&root);
+        let first = store
+            .write_parquet(
+                "source-retained".to_string(),
+                "fingerprint-retained".to_string(),
+                Utc::now(),
+                frame(vec![1]),
+            )
+            .expect("first artifact");
+        let second = store
+            .write_parquet(
+                "source-pruned".to_string(),
+                "fingerprint-pruned".to_string(),
+                Utc::now(),
+                frame(vec![2]),
+            )
+            .expect("second artifact");
+        store.publish(first.clone()).expect("publish first");
+        store.publish(second.clone()).expect("publish second");
+        let operator_file = root.join("operator.parquet");
+        fs::write(&operator_file, "leave me alone").expect("operator file");
+
+        let retained = [first.version_id.clone()].into_iter().collect();
+        let removed = store.prune_except(&retained).expect("prune artifacts");
+
+        assert_eq!(removed, vec![second.clone()]);
+        assert!(first.path.exists());
+        assert!(!second.path.exists());
+        assert!(operator_file.exists());
+        assert_eq!(store.load_catalog().expect("catalog"), vec![first]);
         fs::remove_dir_all(root).expect("clean test artifact directory");
     }
 }

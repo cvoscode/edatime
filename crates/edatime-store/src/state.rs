@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{BTreeSet, VecDeque};
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -190,6 +190,58 @@ impl AppState {
         }
     }
 
+    /// Keep a bounded set of complete retained version lineages. The active
+    /// lineage is mandatory; newer independent chains are added only while
+    /// they fit the configured cap, so pruning can never make catalog recovery
+    /// refer to a missing parent.
+    fn enforce_artifact_retention(&self, active_id: &str) -> Result<(), AppError> {
+        let Some(limit) = self.config.data.max_artifact_versions else {
+            return Ok(());
+        };
+        let Some(store) = &self.artifact_store else {
+            return Ok(());
+        };
+        let catalog_ids = store
+            .load_catalog()?
+            .into_iter()
+            .map(|descriptor| descriptor.version_id)
+            .collect::<BTreeSet<_>>();
+        let mut retained = self
+            .dataset_versions
+            .lineage_ids(active_id)?
+            .into_iter()
+            .filter(|id| catalog_ids.contains(id))
+            .collect::<BTreeSet<_>>();
+        if retained.len() > limit {
+            tracing::warn!(
+                configured_limit = limit,
+                mandatory_lineage = retained.len(),
+                "Managed artifact retention cap is smaller than the active lineage; preserving recovery"
+            );
+        } else {
+            let mut candidates = self.dataset_versions.list()?;
+            candidates.sort_by_key(|record| std::cmp::Reverse(record.created_at));
+            for candidate in candidates {
+                if !catalog_ids.contains(&candidate.id) || retained.contains(&candidate.id) {
+                    continue;
+                }
+                let lineage = self
+                    .dataset_versions
+                    .lineage_ids(&candidate.id)?
+                    .into_iter()
+                    .filter(|id| catalog_ids.contains(id))
+                    .collect::<BTreeSet<_>>();
+                let prospective = retained.union(&lineage).count();
+                if prospective <= limit {
+                    retained.extend(lineage);
+                }
+            }
+        }
+        store.prune_except(&retained)?;
+        self.dataset_versions.retain_ids(&retained)?;
+        Ok(())
+    }
+
     /// Clone only the requested columns from the shared frame.
     /// Returns LazyFrame with projection; callers collect if needed.
     pub async fn dataset_snapshot_for_columns(
@@ -246,6 +298,7 @@ impl AppState {
                 .map_err(AppError::from)?;
             descriptor.provenance = Some(provenance_from_record(&record, row_count, column_names));
             store.publish(descriptor)?;
+            self.enforce_artifact_retention(&record.id)?;
             rev
         } else {
             let rev = self.repository.replace_from_dataframe(df.clone())?;
@@ -342,6 +395,7 @@ impl AppState {
             .map_err(AppError::from)?;
         descriptor.provenance = Some(provenance_from_record(&record, row_count, column_names));
         store.publish(descriptor)?;
+        self.enforce_artifact_retention(&record.id)?;
         self.cache.invalidate_all().await;
         self.clear_correlation_matrix_cache();
         Ok(record)
@@ -387,6 +441,7 @@ impl AppState {
                 .map_err(AppError::from)?;
             descriptor.provenance = Some(provenance_from_record(&record, row_count, column_names));
             store.publish(descriptor)?;
+            self.enforce_artifact_retention(&record.id)?;
             record
         } else {
             let revision = self.repository.replace_from_dataframe(df.clone())?;
@@ -482,6 +537,7 @@ impl AppState {
             .map_err(AppError::from)?;
         descriptor.provenance = Some(provenance_from_record(&record, row_count, column_names));
         store.publish(descriptor)?;
+        self.enforce_artifact_retention(&record.id)?;
         self.cache.invalidate_all().await;
         self.clear_correlation_matrix_cache();
         Ok(record)
@@ -805,6 +861,58 @@ mod tests {
         assert_eq!(restored_height, 1);
 
         fs::remove_dir_all(artifact_dir).expect("clean artifact test directory");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn artifact_retention_preserves_active_lineage_and_prunes_old_roots() {
+        let artifact_dir = std::env::temp_dir().join(format!(
+            "edatime-state-retention-{}",
+            Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        let mut config = AppConfig::default();
+        config.data.artifact_dir = Some(artifact_dir.clone());
+        config.data.max_artifact_versions = Some(2);
+        let state = AppState::new(frame(vec![0]), config);
+
+        state
+            .replace_dataset(frame(vec![1, 2]))
+            .await
+            .expect("first root");
+        let first_root = state.current_dataset_version().expect("first root record");
+        let first_child = state
+            .materialize_dataset_child(&first_root.id, frame(vec![2]), "plan-1".to_string())
+            .await
+            .expect("first child");
+        assert_eq!(
+            state
+                .artifact_store
+                .as_ref()
+                .expect("artifact store")
+                .load_catalog()
+                .expect("catalog")
+                .len(),
+            2
+        );
+
+        state
+            .replace_dataset(frame(vec![10, 20, 30]))
+            .await
+            .expect("second root");
+        let active = state.current_dataset_version().expect("second root record");
+        let catalog = state
+            .artifact_store
+            .as_ref()
+            .expect("artifact store")
+            .load_catalog()
+            .expect("catalog");
+        assert_eq!(catalog.len(), 2);
+        assert!(catalog.iter().any(|entry| entry.version_id == active.id));
+        assert!(catalog.iter().any(|entry| entry.version_id == first_root.id));
+        assert!(state.dataset_snapshot_for_version(&first_root.id).is_ok());
+        assert!(state.dataset_snapshot_for_version(&first_child.id).is_err());
+        assert_eq!(state.dataset_versions().expect("versions").len(), 2);
+        assert_eq!(state.dataset_rows().await, 3);
+        fs::remove_dir_all(artifact_dir).expect("clean artifact directory");
     }
 
     fn expect_provenance(

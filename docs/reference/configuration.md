@@ -32,6 +32,7 @@ max_upload_bytes = 536870912
 [data]
 artifact_dir = "./edatime-artifacts" # optional; managed Parquet versions
 max_artifact_bytes = 21474836480      # optional 20 GiB artifact cap
+max_artifact_versions = 12             # optional lineage-safe version cap
 ```
 
 ## Environment Variables
@@ -50,6 +51,7 @@ max_artifact_bytes = 21474836480      # optional 20 GiB artifact cap
 | `EDATIME_MAX_UPLOAD_BYTES` | Maximum upload size in bytes | `268435456` |
 | `EDATIME_ARTIFACT_DIR` | Managed directory for durable Parquet versions | unset |
 | `EDATIME_MAX_ARTIFACT_BYTES` | Aggregate managed-artifact disk cap in bytes | unset |
+| `EDATIME_MAX_ARTIFACT_VERSIONS` | Lineage-safe cap for retained managed versions | unset |
 | `EDATIME_DATABASE_URL` | Database connection string | unset |
 | `EDATIME_DATABASE_BACKEND` | Preferred database backend | `none` |
 | `EDATIME_FRONTEND_DIR` | Override the frontend static directory | `frontend/` in the repo |
@@ -62,3 +64,6 @@ max_artifact_bytes = 21474836480      # optional 20 GiB artifact cap
 - Set `[data].artifact_dir` (or `EDATIME_ARTIFACT_DIR`) before enabling durable
   version retention. When unset, the application remains in its current
   in-memory storage mode.
+- `max_artifact_versions` retains the active version’s complete ancestry, then
+  as many newer independent version chains as fit. A cap smaller than the active
+  lineage is deliberately exceeded rather than publishing an unrecoverable catalog.

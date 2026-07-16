@@ -58,6 +58,9 @@ pub struct DataSettings {
     pub artifact_dir: Option<PathBuf>,
     /// Optional aggregate cap for managed Parquet artifacts.
     pub max_artifact_bytes: Option<u64>,
+    /// Optional cap on retained managed dataset versions. The active lineage is
+    /// always kept intact, so a smaller value never corrupts recovery.
+    pub max_artifact_versions: Option<usize>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -251,6 +254,12 @@ impl AppConfig {
         {
             self.data.max_artifact_bytes = Some(max_artifact_bytes);
         }
+        if let Ok(max_artifact_versions) = env::var("EDATIME_MAX_ARTIFACT_VERSIONS")
+            && let Ok(max_artifact_versions) = max_artifact_versions.parse::<usize>()
+            && max_artifact_versions > 0
+        {
+            self.data.max_artifact_versions = Some(max_artifact_versions);
+        }
         if let Ok(min_width) = env::var("EDATIME_MIN_VIEWPORT_WIDTH")
             && let Ok(min_width) = min_width.parse::<usize>()
         {
@@ -402,6 +411,29 @@ mod tests {
             },
             None => unsafe {
                 env::remove_var("EDATIME_MAX_ARTIFACT_BYTES");
+            },
+        }
+    }
+
+    #[test]
+    fn artifact_version_retention_can_be_overridden_from_env() {
+        let _guard = env_lock().lock().expect("env lock should not be poisoned");
+        let previous = env::var("EDATIME_MAX_ARTIFACT_VERSIONS").ok();
+
+        unsafe {
+            env::set_var("EDATIME_MAX_ARTIFACT_VERSIONS", "3");
+        }
+
+        let mut config = AppConfig::default();
+        config.apply_env_overrides();
+        assert_eq!(config.data.max_artifact_versions, Some(3));
+
+        match previous {
+            Some(value) => unsafe {
+                env::set_var("EDATIME_MAX_ARTIFACT_VERSIONS", value);
+            },
+            None => unsafe {
+                env::remove_var("EDATIME_MAX_ARTIFACT_VERSIONS");
             },
         }
     }

@@ -1,6 +1,6 @@
 //! Immutable dataset-version snapshots used by reversible cleaning plans.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
@@ -204,6 +204,50 @@ impl DatasetVersionRegistry {
             .values()
             .map(|entry| entry.record.clone())
             .collect())
+    }
+
+    /// Return a root-to-leaf lineage for `version_id`. Retention must keep
+    /// every member of this set or catalog recovery could lose a child’s
+    /// immutable parent chain after restart.
+    pub fn lineage_ids(&self, version_id: &str) -> Result<BTreeSet<String>, AppError> {
+        let entries = self
+            .entries
+            .read()
+            .map_err(|_| AppError::internal("dataset version registry lock poisoned"))?;
+        let mut lineage = BTreeSet::new();
+        let mut next = Some(version_id.to_string());
+        while let Some(id) = next {
+            let entry = entries
+                .get(&id)
+                .ok_or_else(|| AppError::NotFound(format!("Unknown dataset version '{id}'")))?;
+            if !lineage.insert(id) {
+                return Err(AppError::internal(
+                    "Dataset version lineage contains a cycle",
+                ));
+            }
+            next = entry.record.parent_id.clone();
+        }
+        Ok(lineage)
+    }
+
+    /// Drop versions that are no longer backed by retained artifacts. The
+    /// active version may never be removed.
+    pub fn retain_ids(&self, retained: &BTreeSet<String>) -> Result<(), AppError> {
+        let current = self
+            .current_id
+            .read()
+            .map_err(|_| AppError::internal("dataset version selection lock poisoned"))?
+            .clone();
+        if !retained.contains(&current) {
+            return Err(AppError::internal(
+                "Artifact retention cannot remove the active dataset version",
+            ));
+        }
+        self.entries
+            .write()
+            .map_err(|_| AppError::internal("dataset version registry lock poisoned"))?
+            .retain(|id, _| retained.contains(id));
+        Ok(())
     }
 
     pub fn register_root(
