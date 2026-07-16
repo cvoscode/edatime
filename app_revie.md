@@ -23,8 +23,11 @@
   the shared Pipeline Workbench for detailed field editing, previewing, exporting, and
   materialization. Prepare now also surfaces exact null-count findings from the
   canonical source metadata and turns each into a deduplicated, reversible
-  missing-value policy stage; progressive time/duplicate/distribution profiling
-  remains in progress. (`2f3f3d7`)
+  missing-value policy stage. Prepare can now launch or reuse a source-version,
+  revision, fingerprint, and `exact-v1`-keyed background profile, poll its
+  cancellable session job, and replace immediate findings only after the exact
+  report is complete; progressive sampled/time/duplicate/distribution profiling
+  remains in progress. (`2f3f3d7`, `71072b1`)
 - **Milestone B in progress:** data, scatter points/matrix, correlations, and
   correlation matrix, Drift, and export artifacts now carry immutable source
   version/revision, schema fingerprint, backend plan hash, and versioned
@@ -479,6 +482,17 @@ The existing page navigation can remain. Add a first-class **Prepare** destinati
 - For panel data, report group count, group-size distribution, per-group coverage/cadence, and incomplete groups.
 - Label sampled values as estimates and show sample size.
 - Make profile cards virtualized/searchable for hundreds of columns.
+
+**Implemented first slice:** `POST /api/v1/profile` starts or reuses an
+admitted exact `Profile` job for the active immutable source, and `GET
+/api/v1/profile` exposes the versioned cached result and job state. The job
+checks cancellation before collection, profiling, and cache publication; its
+collect uses the background executor lane. Prepare keeps immediate source
+findings available, offers an explicit exact-report action, and replaces only
+its quality findings when a matching source report reaches `ready`. This
+retains the existing `/metadata` and upload-preview contract while the fast
+schema/sample report and richer temporal/panel quality measures remain future
+slices. (`71072b1`)
 
 **Acceptance:** the user can see schema quickly on a large Parquet source and continue exploring while exact profile work runs separately.
 
