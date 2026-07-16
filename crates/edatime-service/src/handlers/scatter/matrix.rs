@@ -11,14 +11,13 @@ use edatime_query::validation::{validate_scatter_limit, validate_time_window};
 use edatime_store::cache::CachedResponse;
 use edatime_store::state::AppState;
 
-use super::{
-    ScatterColorKind, ScatterFilterSpec, ScatterMatrixPair, ScatterMatrixQuery, TimeColorMode,
-    clamp_limit, collect_filtered_scatter_frame, parse_scatter_filters,
-    parse_scatter_line_filters, resolved_scatter_limit,
-};
 use super::sample::collect_sampled_xyc_rows_streaming;
+use super::{
+    ScatterColorKind, ScatterMatrixPair, ScatterMatrixQuery, TimeColorMode, clamp_limit,
+    collect_filtered_scatter_frame, resolved_scatter_limit,
+};
 use crate::handlers::routes::cleaning::compile_request_frame;
-use crate::handlers::routes::shared::{ExecutionIdentity, current_execution_identity};
+use crate::handlers::routes::shared::ExecutionIdentity;
 
 #[derive(Debug, serde::Serialize)]
 struct ScatterMatrixCellMeta {
@@ -49,22 +48,6 @@ fn normalize_pairs(pairs: Vec<ScatterMatrixPair>) -> Vec<ScatterMatrixPair> {
     normalized
 }
 
-fn scope_filters_to_pair(
-    filters: &[ScatterFilterSpec],
-    pair: &ScatterMatrixPair,
-    color_column: Option<&str>,
-) -> Vec<ScatterFilterSpec> {
-    let mut allowed = std::collections::HashSet::from([pair.x.as_str(), pair.y.as_str()]);
-    if let Some(color) = color_column.filter(|value| !value.trim().is_empty()) {
-        allowed.insert(color);
-    }
-    filters
-        .iter()
-        .filter(|filter| allowed.contains(filter.column.as_str()))
-        .cloned()
-        .collect()
-}
-
 #[tracing::instrument(skip(state))]
 pub async fn post_scatter_matrix(
     State(state): State<AppState>,
@@ -90,9 +73,7 @@ async fn scatter_matrix_response(
         .filter(|value| !value.trim().is_empty());
     let start = params.start;
     let end = params.end;
-    let filters = parse_scatter_filters(params.filters.as_deref())?;
-    let line_filters = parse_scatter_line_filters(params.line_filters.as_deref())?;
-    let requires_time_column = start.zip(end).is_some() || !line_filters.is_empty();
+    let requires_time_column = start.zip(end).is_some();
 
     // `params.limit == 0` is the sentinel emitted by serde when the client
     // omits the field; substitute the configured default so operators can
@@ -121,39 +102,28 @@ async fn scatter_matrix_response(
         validate_time_window(start_dt, end_dt)?;
     }
 
-    let (lf, identity) = if let Some(envelope) = params.cleaning_plan.as_ref() {
-        let (version, hash, frame) = compile_request_frame(&state, envelope)?;
-        (frame, ExecutionIdentity::from_version(version, Some(hash)))
-    } else {
-        (
-            state.dataset_snapshot(),
-            current_execution_identity(&state)?,
-        )
-    };
+    let (version, hash, lf) = compile_request_frame(&state, &params.cleaning_plan)?;
+    let identity = ExecutionIdentity::from_version(version, Some(hash));
 
     let pairs_key = serde_json::to_string(&pairs)
         .map_err(|error| AppError::internal(format!("Serialize scatter matrix pairs: {error}")))?;
     let cache_key = format!(
-        "scatter-matrix:source={}:revision={}:pairs={}:color={}:start={}:end={}:filters={}:line-filters={}:plan={}",
+        "scatter-matrix:source={}:revision={}:pairs={}:color={}:start={}:end={}:plan={}",
         identity.source_version_id,
         identity.source_revision,
         pairs_key,
         color_col.as_deref().unwrap_or(""),
         start.map(|value| value.to_string()).unwrap_or_default(),
         end.map(|value| value.to_string()).unwrap_or_default(),
-        params.filters.as_deref().unwrap_or(""),
-        params.line_filters.as_deref().unwrap_or(""),
         identity.plan_hash.as_deref().unwrap_or("none"),
     );
     let sample_seed_prefix = format!(
-        "scatter-matrix-reservoir:source={}:revision={}:color={}:start={}:end={}:filters={}:line-filters={}:plan={}",
+        "scatter-matrix-reservoir:source={}:revision={}:color={}:start={}:end={}:plan={}",
         identity.source_version_id,
         identity.source_revision,
         color_col.as_deref().unwrap_or(""),
         start.map(|value| value.to_string()).unwrap_or_default(),
         end.map(|value| value.to_string()).unwrap_or_default(),
-        params.filters.as_deref().unwrap_or(""),
-        params.line_filters.as_deref().unwrap_or(""),
         identity.plan_hash.as_deref().unwrap_or("none"),
     );
     let cache_key = format!("{cache_key}:{limit}");
@@ -184,7 +154,6 @@ async fn scatter_matrix_response(
             let mut returned_points = 0_usize;
 
             for pair in pairs {
-                let scoped_filters = scope_filters_to_pair(&filters, &pair, color_col.as_deref());
                 let lazy_frame = collect_filtered_scatter_frame(
                     lf.clone(),
                     &pair.x,
@@ -194,8 +163,6 @@ async fn scatter_matrix_response(
                     time_column.as_deref(),
                     start,
                     end,
-                    &scoped_filters,
-                    &line_filters,
                 )?;
                 let sample_seed_scope = format!("{sample_seed_prefix}:{}:{}", pair.x, pair.y);
                 let (cell_total, sampled_rows, color_kind) = collect_sampled_xyc_rows_streaming(
@@ -306,12 +273,37 @@ async fn scatter_matrix_response(
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use super::post_scatter_matrix;
+    use crate::handlers::routes::cleaning::PlanRequestEnvelope;
     use crate::handlers::scatter::ScatterMatrixQuery;
     use axum::{Json, extract::State};
     use base64::prelude::*;
     use edatime_core::config::AppConfig;
+    use edatime_query::cleaning::CleaningPlanDto;
     use edatime_store::state::AppState;
     use polars::prelude::{DataFrame, NamedFrom, Series};
+
+    fn envelope(state: &AppState) -> PlanRequestEnvelope {
+        let version = state.current_dataset_version().expect("version");
+        PlanRequestEnvelope {
+            expected_plan_hash: None,
+            expected_source_version_id: version.id.clone(),
+            expected_dataset_revision: version.revision,
+            plan: CleaningPlanDto {
+                schema_version: 1,
+                id: "scatter-matrix-test-plan".to_string(),
+                plan_revision: 1,
+                source_version_id: version.id,
+                dataset_revision: version.revision,
+                dataset_fingerprint: Some(version.dataset_fingerprint),
+                schema_fingerprint: version.schema_fingerprint,
+                time_column: "ts".to_string(),
+                source_name: None,
+                stages: vec![],
+                created_at: "now".to_string(),
+                updated_at: "now".to_string(),
+            },
+        }
+    }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn scatter_matrix_returns_arrow_with_cell_metadata_for_multiple_pairs() {
@@ -339,9 +331,7 @@ mod tests {
             color: None,
             start: None,
             end: None,
-            filters: None,
-            line_filters: None,
-            cleaning_plan: None,
+            cleaning_plan: envelope(&state),
             limit: 10,
             time_color_mode: None,
         };
@@ -364,18 +354,19 @@ mod tests {
                 .and_then(|value| value.to_str().ok()),
             Some("source-0")
         );
-        assert_eq!(
+        assert!(
             response
                 .headers()
                 .get("x-edatime-plan-hash")
-                .and_then(|value| value.to_str().ok()),
-            Some("none")
+                .and_then(|value| value.to_str().ok())
+                .is_some_and(|value| !value.is_empty()),
+            "plan-aware requests must expose their plan hash"
         );
         assert_eq!(
             response
                 .headers()
-            .get("x-edatime-sampling-algorithm")
-            .and_then(|value| value.to_str().ok()),
+                .get("x-edatime-sampling-algorithm")
+                .and_then(|value| value.to_str().ok()),
             Some("reservoir-stream-v1")
         );
         assert!(
@@ -422,9 +413,7 @@ mod tests {
             color: None,
             start: None,
             end: None,
-            filters: None,
-            line_filters: None,
-            cleaning_plan: None,
+            cleaning_plan: envelope(&state),
             limit: 10,
             time_color_mode: None,
         };
@@ -472,9 +461,7 @@ mod tests {
             color: Some("group".to_string()),
             start: None,
             end: None,
-            filters: None,
-            line_filters: None,
-            cleaning_plan: None,
+            cleaning_plan: envelope(&state),
             limit: 10,
             time_color_mode: None,
         };

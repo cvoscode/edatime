@@ -883,6 +883,9 @@ snapshot. The current checkout already includes the following corrections:
   execution before viewport filtering and reduction;
 - plan propagation to rolling, anomalies, spectral filtering, scatter
   correlations, and correlation matrices;
+- plan-only Scatter points, matrix, correlation, and Parquet-export contracts:
+  each requires a typed plan envelope and no longer accepts legacy range or
+  adaptive-line filter fields;
 - backend semantic plan hashing that excludes audit-only fields;
 - immutable source-version revisions, separate active-session revisions, and
   `source_version_revision` metadata;
@@ -890,8 +893,8 @@ snapshot. The current checkout already includes the following corrections:
 
 They remain part of the verification matrix, but are not reimplemented by the
 pipeline-workbench milestones below. Content-derived source fingerprints,
-uniform result identity headers, and the remaining POST migrations are still
-open.
+uniform result identity headers, and the remaining non-Scatter POST migrations
+are still open.
 
 ### Milestone A — Pipeline Overview and Editable Workbench
 

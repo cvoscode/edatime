@@ -1,15 +1,14 @@
-//! Scatter correlation handler — GET /api/scatter/correlations
+//! Scatter correlation handlers — plan-aware POST requests.
 
 use std::sync::Arc;
 
 use axum::{
     Json,
-    extract::{Query, State},
+    extract::State,
     response::{IntoResponse, Response},
 };
 use rayon::prelude::*;
 use serde::Deserialize;
-use serde_json::Value;
 
 use crate::error::AppError;
 use edatime_core::metrics::{AppMetrics, CorrelationStage, CorrelationTelemetryMode, CpuStage};
@@ -20,9 +19,8 @@ use polars::prelude::LazyFrame;
 
 use super::collect::series_to_scatter_values;
 use super::{CorrelationItem, SuggestionItem, numeric_columns};
-use crate::handlers::routes::shared::{
-    ExecutionIdentity, add_execution_identity_headers, current_execution_identity,
-};
+use crate::handlers::routes::cleaning::{PlanRequestEnvelope, compile_request_frame};
+use crate::handlers::routes::shared::{ExecutionIdentity, add_execution_identity_headers};
 
 #[derive(Debug, Clone, Copy, Deserialize, serde::Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -70,7 +68,7 @@ pub struct ScatterCorrelationsQuery {
     pub base: Option<String>,
     pub threshold: Option<f64>,
     pub mode: Option<CorrelationMode>,
-    pub cleaning_plan: Option<String>,
+    pub cleaning_plan: PlanRequestEnvelope,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -109,18 +107,17 @@ fn json_with_execution_identity<T: serde::Serialize>(
     add_execution_identity_headers(Json(value).into_response(), identity)
 }
 
-#[tracing::instrument(skip(state))]
-pub async fn get_scatter_correlations(
-    State(state): State<AppState>,
-    Query(params): Query<ScatterCorrelationsQuery>,
+async fn scatter_correlations_response(
+    state: AppState,
+    params: ScatterCorrelationsQuery,
 ) -> Result<Response, AppError> {
     tracing::info!(
-        "get_scatter_correlations called with base={:?}, threshold={:?}",
+        "post_scatter_correlations called with base={:?}, threshold={:?}",
         params.base,
         params.threshold
     );
 
-    let (lf, identity) = correlation_frame_with_plan(&state, params.cleaning_plan.as_deref())?;
+    let (lf, identity) = correlation_frame_with_plan(&state, &params.cleaning_plan)?;
 
     let threshold = params.threshold.unwrap_or(0.7).clamp(0.0, 1.0);
     let requested_base = params.base.clone();
@@ -177,23 +174,12 @@ pub async fn get_scatter_correlations(
     ))
 }
 
+#[tracing::instrument(skip(state))]
 pub async fn post_scatter_correlations(
     State(state): State<AppState>,
-    Json(mut body): Json<Value>,
+    Json(params): Json<ScatterCorrelationsQuery>,
 ) -> Result<Response, AppError> {
-    if let Some(plan) = body.get_mut("cleaning_plan") {
-        let envelope: crate::handlers::routes::cleaning::PlanRequestEnvelope =
-            serde_json::from_value(std::mem::take(plan)).map_err(|error| {
-                AppError::bad_request(format!("Invalid cleaning plan envelope: {error}"))
-            })?;
-        *plan = Value::String(serde_json::to_string(&envelope).map_err(|error| {
-            AppError::internal(format!("Serialize cleaning plan envelope: {error}"))
-        })?);
-    }
-    let params = serde_json::from_value::<ScatterCorrelationsQuery>(body).map_err(|error| {
-        AppError::bad_request(format!("Invalid scatter correlation request: {error}"))
-    })?;
-    get_scatter_correlations(State(state), Query(params)).await
+    scatter_correlations_response(state, params).await
 }
 
 // ── Full NxN Correlation Matrix ────────────────────────────────────────────
@@ -219,28 +205,18 @@ pub struct CorrelationMatrixResponse {
 #[serde(deny_unknown_fields)]
 pub struct CorrelationMatrixQuery {
     pub mode: Option<CorrelationMode>,
-    pub cleaning_plan: Option<String>,
+    pub cleaning_plan: PlanRequestEnvelope,
 }
 
 fn correlation_frame_with_plan(
     state: &AppState,
-    cleaning_plan: Option<&str>,
+    cleaning_plan: &PlanRequestEnvelope,
 ) -> Result<(LazyFrame, ExecutionIdentity), AppError> {
-    match cleaning_plan.filter(|raw| !raw.trim().is_empty()) {
-        Some(raw) => {
-            let envelope: crate::handlers::routes::cleaning::PlanRequestEnvelope =
-                serde_json::from_str(raw).map_err(|error| {
-                    AppError::bad_request(format!("Invalid cleaning plan envelope: {error}"))
-                })?;
-            let (version, plan_hash, frame) =
-                crate::handlers::routes::cleaning::compile_request_frame(state, &envelope)?;
-            Ok((
-                frame,
-                ExecutionIdentity::from_version(version, Some(plan_hash)),
-            ))
-        }
-        None => Ok((state.dataset_snapshot(), current_execution_identity(state)?)),
-    }
+    let (version, plan_hash, frame) = compile_request_frame(state, cleaning_plan)?;
+    Ok((
+        frame,
+        ExecutionIdentity::from_version(version, Some(plan_hash)),
+    ))
 }
 
 // Phase 0.2 + Phase 0.3 follow-up: the type was promoted from
@@ -804,13 +780,12 @@ pub fn spawn_correlation_matrix_warmup(state: AppState) -> tokio::task::JoinHand
     })
 }
 
-#[tracing::instrument(skip(state))]
-pub async fn get_correlation_matrix(
-    State(state): State<AppState>,
-    Query(params): Query<CorrelationMatrixQuery>,
+async fn correlation_matrix_response(
+    state: AppState,
+    params: CorrelationMatrixQuery,
 ) -> Result<Response, AppError> {
     let mode = params.mode;
-    let (lf, identity) = correlation_frame_with_plan(&state, params.cleaning_plan.as_deref())?;
+    let (lf, identity) = correlation_frame_with_plan(&state, &params.cleaning_plan)?;
     let revision = identity.source_revision;
     let metrics = Arc::clone(&state.metrics);
     if identity.plan_hash.is_none()
@@ -883,30 +858,18 @@ pub async fn get_correlation_matrix(
 /// typed plan envelope so large plans never need to fit in a query string.
 pub async fn post_correlation_matrix(
     State(state): State<AppState>,
-    Json(mut body): Json<Value>,
+    Json(params): Json<CorrelationMatrixQuery>,
 ) -> Result<Response, AppError> {
-    if let Some(plan) = body.get_mut("cleaning_plan") {
-        let envelope: crate::handlers::routes::cleaning::PlanRequestEnvelope =
-            serde_json::from_value(std::mem::take(plan)).map_err(|error| {
-                AppError::bad_request(format!("Invalid cleaning plan envelope: {error}"))
-            })?;
-        *plan = Value::String(serde_json::to_string(&envelope).map_err(|error| {
-            AppError::internal(format!("Serialize cleaning plan envelope: {error}"))
-        })?);
-    }
-    let params = serde_json::from_value::<CorrelationMatrixQuery>(body).map_err(|error| {
-        AppError::bad_request(format!("Invalid correlation matrix request: {error}"))
-    })?;
-    get_correlation_matrix(State(state), Query(params)).await
+    correlation_matrix_response(state, params).await
 }
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
-    use axum::extract::{Query, State};
     use edatime_core::IntoLazy;
     use edatime_core::config::AppConfig;
+    use edatime_query::cleaning::CleaningPlanDto;
     use polars::prelude::{DataFrame, NamedFrom, Series};
 
     /// Test-only metrics handle. Telemetry from compute_correlation_matrix
@@ -914,6 +877,29 @@ mod tests {
     /// returned matrix, not on metric counters.
     fn test_metrics() -> Arc<AppMetrics> {
         Arc::new(AppMetrics::new())
+    }
+
+    fn empty_envelope(state: &AppState) -> PlanRequestEnvelope {
+        let version = state.current_dataset_version().expect("source version");
+        PlanRequestEnvelope {
+            expected_plan_hash: None,
+            expected_source_version_id: version.id.clone(),
+            expected_dataset_revision: version.revision,
+            plan: CleaningPlanDto {
+                schema_version: 1,
+                id: "correlation-test-plan".to_string(),
+                plan_revision: 1,
+                source_version_id: version.id,
+                dataset_revision: version.revision,
+                dataset_fingerprint: Some(version.dataset_fingerprint),
+                schema_fingerprint: version.schema_fingerprint,
+                time_column: "ts".to_string(),
+                source_name: None,
+                stages: vec![],
+                created_at: "now".to_string(),
+                updated_at: "now".to_string(),
+            },
+        }
     }
 
     #[test]
@@ -1303,7 +1289,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn scatter_correlations_miss_populates_matrix_cache() {
+    async fn scatter_correlations_execute_the_canonical_plan_without_active_cache_pollution() {
         let df = DataFrame::new(
             3,
             vec![
@@ -1316,14 +1302,14 @@ mod tests {
         let state = AppState::new(df, AppConfig::default());
         let revision = state.dataset_revision();
 
-        let response = get_scatter_correlations(
-            State(state.clone()),
-            Query(ScatterCorrelationsQuery {
+        let response = scatter_correlations_response(
+            state.clone(),
+            ScatterCorrelationsQuery {
                 base: Some("a".to_string()),
                 threshold: Some(0.7),
                 mode: Some(CorrelationMode::SpearmanDiff),
-                cleaning_plan: None,
-            }),
+                cleaning_plan: empty_envelope(&state),
+            },
         )
         .await
         .expect("scatter correlations request should succeed");
@@ -1341,10 +1327,10 @@ mod tests {
         let response: serde_json::Value = serde_json::from_slice(&body).expect("response JSON");
         assert_eq!(response["base_column"], "a");
         assert_eq!(response["mode"], "spearman_diff");
-        let cached = state
-            .cached_correlation_matrix(revision)
-            .expect("cold miss should populate the shared matrix cache");
-        assert_eq!(cached.columns, vec!["a", "b", "c"]);
+        assert!(
+            state.cached_correlation_matrix(revision).is_none(),
+            "a canonical plan must not populate the unplanned active-dataset cache"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -1396,14 +1382,15 @@ mod tests {
             "expectedDatasetRevision": version.revision
         });
 
-        let response = get_scatter_correlations(
-            State(state.clone()),
-            Query(ScatterCorrelationsQuery {
+        let response = scatter_correlations_response(
+            state.clone(),
+            ScatterCorrelationsQuery {
                 base: Some("a".to_string()),
                 threshold: Some(0.0),
                 mode: Some(CorrelationMode::PearsonRaw),
-                cleaning_plan: Some(serde_json::to_string(&envelope).expect("serialize envelope")),
-            }),
+                cleaning_plan: serde_json::from_value(envelope)
+                    .expect("plan envelope should deserialize"),
+            },
         )
         .await
         .expect("planned correlations request should succeed");

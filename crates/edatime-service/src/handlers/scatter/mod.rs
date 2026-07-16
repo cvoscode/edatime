@@ -10,13 +10,6 @@ mod sample;
 use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 
-// Re-export filter types used by consumers.
-pub use edatime_query::filters::{
-    LineFilter as ScatterLineFilterSpec, RangeFilter as ScatterFilterSpec,
-    apply_filters as apply_scatter_filters, parse_line_filters as parse_scatter_line_filters,
-    parse_range_filters as parse_scatter_filters,
-};
-
 // Re-export data helpers from collect.rs.
 pub use collect::{
     ColorCardinality, cap_categorical_cardinality, collect_filtered_scatter_frame, collect_xy_pairs,
@@ -24,8 +17,7 @@ pub use collect::{
 
 // Re-export route handlers for the router.
 pub use correlations::{
-    get_correlation_matrix, get_scatter_correlations, post_correlation_matrix,
-    post_scatter_correlations, spawn_correlation_matrix_warmup,
+    post_correlation_matrix, post_scatter_correlations, spawn_correlation_matrix_warmup,
 };
 // Phase 0.2: re-export the inner matrix computation under a
 // `_bench_target` suffix so the Criterion bench under
@@ -41,7 +33,7 @@ pub use correlations::CorrelationMatrixData as CorrelationMatrixDataBenchTarget;
 pub use correlations::compute_correlation_matrix as compute_correlation_matrix_bench_target;
 pub use export::post_scatter_export_parquet;
 pub use matrix::post_scatter_matrix;
-pub use points::{get_scatter_points, post_scatter_points};
+pub use points::post_scatter_points;
 
 // Re-export sampling helpers for tests and downstream consumers.
 pub use sample::{ScatterColorKind, TimeColorMode, collect_sampled_xyc_rows};
@@ -57,13 +49,9 @@ pub struct ScatterPointsQuery {
     pub size: Option<String>,
     pub start: Option<f64>,
     pub end: Option<f64>,
-    pub filters: Option<String>,
-    pub line_filters: Option<String>,
-    /// Canonical, version-guarded cleaning plan. When present it is executed
-    /// before this route's sampling/projection, rather than approximated via
-    /// legacy query filter fields.
-    #[serde(default)]
-    pub cleaning_plan: Option<crate::handlers::routes::cleaning::PlanRequestEnvelope>,
+    /// Canonical, version-guarded cleaning plan, executed before this route's
+    /// viewport filtering and sampling.
+    pub cleaning_plan: crate::handlers::routes::cleaning::PlanRequestEnvelope,
     #[serde(default = "default_scatter_limit")]
     pub limit: usize,
     /// Optional output format.  Clients may also set
@@ -135,10 +123,7 @@ pub struct ScatterMatrixQuery {
     /// `"bucket"` (default) — emit hour-of-day bucket label as categorical.
     /// `"raw"` — emit epoch-millisecond value as continuous numeric (legacy).
     pub time_color_mode: Option<String>,
-    pub filters: Option<String>,
-    pub line_filters: Option<String>,
-    #[serde(default)]
-    pub cleaning_plan: Option<crate::handlers::routes::cleaning::PlanRequestEnvelope>,
+    pub cleaning_plan: crate::handlers::routes::cleaning::PlanRequestEnvelope,
     #[serde(default = "default_scatter_limit")]
     pub limit: usize,
 }

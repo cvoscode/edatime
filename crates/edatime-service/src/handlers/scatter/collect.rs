@@ -8,7 +8,7 @@ use polars::prelude::*;
 
 use crate::error::AppError;
 
-use super::{ScatterFilterSpec, ScatterLineFilterSpec, apply_scatter_filters};
+use edatime_query::filters::apply_time_range_stage;
 
 // ── Value helpers ─────────────────────────────────────────────────────────────
 
@@ -203,7 +203,9 @@ pub fn cap_categorical_cardinality(
         if let Some(text) = label.as_ref() {
             let entry = frequencies.entry(text.clone()).or_insert(0);
             *entry += 1;
-            first_seen_index.entry(text.clone()).or_insert(insertion_counter);
+            first_seen_index
+                .entry(text.clone())
+                .or_insert(insertion_counter);
             insertion_counter += 1;
         }
     }
@@ -226,14 +228,8 @@ pub fn cap_categorical_cardinality(
     ranked.sort_by(|(label_a, count_a), (label_b, count_b)| {
         count_b.cmp(count_a).then_with(|| {
             // Stable tie-break: first-seen index.
-            let pos_a = first_seen_index
-                .get(label_a)
-                .copied()
-                .unwrap_or(usize::MAX);
-            let pos_b = first_seen_index
-                .get(label_b)
-                .copied()
-                .unwrap_or(usize::MAX);
+            let pos_a = first_seen_index.get(label_a).copied().unwrap_or(usize::MAX);
+            let pos_b = first_seen_index.get(label_b).copied().unwrap_or(usize::MAX);
             pos_a.cmp(&pos_b)
         })
     });
@@ -305,7 +301,8 @@ pub fn collect_xy_pairs(df: &DataFrame, x: &str, y: &str) -> Result<Vec<[f64; 2]
 
 // ── Core collection ───────────────────────────────────────────────────────────
 
-/// Filter a dataset snapshot to the requested columns and time/filters,
+/// Project an already plan-filtered dataset to the requested columns and apply
+/// an optional viewport time range,
 /// returning a `LazyFrame` that callers execute via `QueryExecutor`.
 #[allow(clippy::too_many_arguments)]
 pub fn collect_filtered_scatter_frame<I: Into<LazyFrame>>(
@@ -317,8 +314,6 @@ pub fn collect_filtered_scatter_frame<I: Into<LazyFrame>>(
     time_column: Option<&str>,
     start: Option<f64>,
     end: Option<f64>,
-    filters: &[ScatterFilterSpec],
-    line_filters: &[ScatterLineFilterSpec],
 ) -> Result<LazyFrame, AppError> {
     let lf: LazyFrame = df.into();
     let schema = lf
@@ -355,7 +350,12 @@ pub fn collect_filtered_scatter_frame<I: Into<LazyFrame>>(
         return Err(AppError::bad_request(format!("Unknown column '{}'", s)));
     }
 
-    let lf = apply_scatter_filters(lf, time_column, start, end, filters, line_filters)?;
+    let lf = match (time_column, start, end) {
+        (Some(column), Some(start), Some(end)) => {
+            apply_time_range_stage(lf, column, start, end, true)?
+        }
+        _ => lf,
+    };
 
     let mut selected_columns = Vec::with_capacity(4);
     for name in [Some(x), Some(y), color, size].into_iter().flatten() {
@@ -404,8 +404,6 @@ mod tests {
             Some("timestamp"),
             Some(1_500.0),
             Some(2_500.0),
-            &[],
-            &[],
         )
         .expect("scatter filtering should accept non-ts time columns")
         .collect()
@@ -424,10 +422,7 @@ mod tests {
     fn numeric_scatter_values_preserve_row_alignment_for_nulls_and_nan() {
         let df = DataFrame::new(
             4,
-            vec![
-                Series::new("x".into(), [Some(1.0_f64), None, Some(f64::NAN), Some(4.0)])
-                    .into(),
-            ],
+            vec![Series::new("x".into(), [Some(1.0_f64), None, Some(f64::NAN), Some(4.0)]).into()],
         )
         .expect("dataframe should build");
 
@@ -442,9 +437,7 @@ mod tests {
     /// zero.
     #[test]
     fn cap_categorical_cardinality_below_cap_is_noop() {
-        let labels: Vec<Option<String>> = (0..5)
-            .map(|i| Some(format!("cat-{i}")))
-            .collect();
+        let labels: Vec<Option<String>> = (0..5).map(|i| Some(format!("cat-{i}"))).collect();
         let (rewritten, info) = cap_categorical_cardinality(labels.clone(), 64);
         assert_eq!(rewritten, labels, "below-cap labels must be unchanged");
         assert_eq!(info.requested, 5);
@@ -474,7 +467,9 @@ mod tests {
         for label in rewritten.iter().flatten() {
             assert!(
                 label == "Other (95)"
-                    || (0..5).map(|i| format!("cat-{i}")).any(|kept| kept == *label),
+                    || (0..5)
+                        .map(|i| format!("cat-{i}"))
+                        .any(|kept| kept == *label),
                 "unexpected label after cap: {label}"
             );
         }

@@ -1,14 +1,10 @@
-//! Scatter points handlers — GET/POST /api/scatter/points.
+//! Scatter points handler — plan-aware POST /api/scatter/points.
 //!
 //! All business logic is delegated to:
 //!   - `collect.rs` — `collect_filtered_scatter_frame`
 //!   - `sample.rs`  — `collect_sampled_xyc_rows`
 
-use axum::{
-    Json,
-    extract::{Query, State},
-    response::Response,
-};
+use axum::{Json, extract::State, response::Response};
 use polars::prelude::*;
 use std::sync::Arc;
 
@@ -19,15 +15,10 @@ use edatime_store::cache::CachedResponse;
 use edatime_store::state::AppState;
 
 use super::collect::collect_filtered_scatter_frame;
-use super::sample::{
-    ScatterColorKind, TimeColorMode, collect_sampled_xyc_rows_streaming,
-};
-use super::{
-    ColorCardinalityInfo, ScatterPointsQuery, clamp_limit, parse_scatter_filters,
-    parse_scatter_line_filters, resolved_scatter_limit,
-};
+use super::sample::{ScatterColorKind, TimeColorMode, collect_sampled_xyc_rows_streaming};
+use super::{ColorCardinalityInfo, ScatterPointsQuery, clamp_limit, resolved_scatter_limit};
 use crate::handlers::routes::cleaning::compile_request_frame;
-use crate::handlers::routes::shared::{ExecutionIdentity, current_execution_identity};
+use crate::handlers::routes::shared::ExecutionIdentity;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -39,14 +30,6 @@ fn time_color_mode_label(mode: TimeColorMode) -> &'static str {
 }
 
 // ── Handlers ─────────────────────────────────────────────────────────────────
-
-#[tracing::instrument(skip(state))]
-pub async fn get_scatter_points(
-    State(state): State<AppState>,
-    Query(params): Query<ScatterPointsQuery>,
-) -> Result<Response, AppError> {
-    scatter_points_response(state, params).await
-}
 
 #[tracing::instrument(skip(state))]
 pub async fn post_scatter_points(
@@ -63,22 +46,15 @@ async fn scatter_points_response(
     params: ScatterPointsQuery,
 ) -> Result<Response, AppError> {
     tracing::info!(
-        "get_scatter_points called with x='{}', y='{}', color={:?}, limit={}",
+        "post_scatter_points called with x='{}', y='{}', color={:?}, limit={}",
         params.x,
         params.y,
         params.color,
         params.limit
     );
 
-    let (lf, identity) = if let Some(envelope) = params.cleaning_plan.as_ref() {
-        let (version, hash, frame) = compile_request_frame(&state, envelope)?;
-        (frame, ExecutionIdentity::from_version(version, Some(hash)))
-    } else {
-        (
-            state.dataset_snapshot(),
-            current_execution_identity(&state)?,
-        )
-    };
+    let (version, hash, lf) = compile_request_frame(&state, &params.cleaning_plan)?;
+    let identity = ExecutionIdentity::from_version(version, Some(hash));
 
     let x_col = params.x.clone();
     let y_col = params.y.clone();
@@ -91,9 +67,7 @@ async fn scatter_points_response(
     let size_col_for_headers = size_col.clone();
     let start = params.start;
     let end = params.end;
-    let filters = parse_scatter_filters(params.filters.as_deref())?;
-    let line_filters = parse_scatter_line_filters(params.line_filters.as_deref())?;
-    let requires_time_column = start.zip(end).is_some() || !line_filters.is_empty();
+    let requires_time_column = start.zip(end).is_some();
     let time_column = if requires_time_column {
         Some(state.ts_context(&lf)?.ts_col)
     } else {
@@ -113,7 +87,7 @@ async fn scatter_points_response(
     validate_scatter_limit(limit, &state.config.validation)?;
     let time_color_mode = TimeColorMode::from_query(params.time_color_mode.as_deref());
     let cache_key = format!(
-        "scatter:source={}:revision={}:x={}:y={}:color={}:size={}:start={}:end={}:filters={}:line-filters={}:plan={}:limit={}:format={}:time-color={}",
+        "scatter:source={}:revision={}:x={}:y={}:color={}:size={}:start={}:end={}:plan={}:limit={}:format={}:time-color={}",
         identity.source_version_id,
         identity.source_revision,
         x_col,
@@ -122,8 +96,6 @@ async fn scatter_points_response(
         size_col.as_deref().unwrap_or(""),
         start.map(|value| value.to_string()).unwrap_or_default(),
         end.map(|value| value.to_string()).unwrap_or_default(),
-        params.filters.as_deref().unwrap_or(""),
-        params.line_filters.as_deref().unwrap_or(""),
         identity.plan_hash.as_deref().unwrap_or("none"),
         limit,
         params.format.as_deref().unwrap_or("arrow"),
@@ -134,7 +106,7 @@ async fn scatter_points_response(
     // Arrow/JSON transports and smaller limits should be a subset of larger
     // samples for the same immutable source/plan/filter identity.
     let sample_seed_scope = format!(
-        "scatter-reservoir:source={}:revision={}:x={}:y={}:color={}:size={}:start={}:end={}:filters={}:line-filters={}:plan={}",
+        "scatter-reservoir:source={}:revision={}:x={}:y={}:color={}:size={}:start={}:end={}:plan={}",
         identity.source_version_id,
         identity.source_revision,
         x_col,
@@ -143,8 +115,6 @@ async fn scatter_points_response(
         size_col.as_deref().unwrap_or(""),
         start.map(|value| value.to_string()).unwrap_or_default(),
         end.map(|value| value.to_string()).unwrap_or_default(),
-        params.filters.as_deref().unwrap_or(""),
-        params.line_filters.as_deref().unwrap_or(""),
         identity.plan_hash.as_deref().unwrap_or("none"),
     );
     if let (Some(start_ms), Some(end_ms)) = (start, end) {
@@ -177,8 +147,6 @@ async fn scatter_points_response(
         time_column.as_deref(),
         start,
         end,
-        &filters,
-        &line_filters,
     )?;
 
     // Time only the period after this job is submitted to the blocking pool.
@@ -470,11 +438,36 @@ async fn scatter_points_response(
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use super::post_scatter_points;
+    use crate::handlers::routes::cleaning::PlanRequestEnvelope;
     use crate::handlers::scatter::ScatterPointsQuery;
     use axum::{Json, extract::State, http::header};
     use edatime_core::config::AppConfig;
+    use edatime_query::cleaning::CleaningPlanDto;
     use edatime_store::state::AppState;
     use polars::prelude::{DataFrame, NamedFrom, Series};
+
+    fn envelope(state: &AppState) -> PlanRequestEnvelope {
+        let version = state.current_dataset_version().expect("version");
+        PlanRequestEnvelope {
+            expected_plan_hash: None,
+            expected_source_version_id: version.id.clone(),
+            expected_dataset_revision: version.revision,
+            plan: CleaningPlanDto {
+                schema_version: 1,
+                id: "scatter-test-plan".to_string(),
+                plan_revision: 1,
+                source_version_id: version.id,
+                dataset_revision: version.revision,
+                dataset_fingerprint: Some(version.dataset_fingerprint),
+                schema_fingerprint: version.schema_fingerprint,
+                time_column: "ts".to_string(),
+                source_name: None,
+                stages: vec![],
+                created_at: "now".to_string(),
+                updated_at: "now".to_string(),
+            },
+        }
+    }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn scatter_points_allow_color_column_matching_axis() {
@@ -494,9 +487,7 @@ mod tests {
             size: None,
             start: None,
             end: None,
-            filters: None,
-            line_filters: None,
-            cleaning_plan: None,
+            cleaning_plan: envelope(&state),
             limit: 10,
             format: None,
             time_color_mode: None,
@@ -528,9 +519,7 @@ mod tests {
             size: None,
             start: None,
             end: None,
-            filters: None,
-            line_filters: None,
-            cleaning_plan: None,
+            cleaning_plan: envelope(&state),
             limit: 10,
             format: Some("arrow".to_string()),
             time_color_mode: None,
@@ -557,18 +546,19 @@ mod tests {
                 .and_then(|value| value.to_str().ok()),
             Some("source-0")
         );
-        assert_eq!(
+        assert!(
             first
                 .headers()
                 .get("x-edatime-plan-hash")
-                .and_then(|value| value.to_str().ok()),
-            Some("none")
+                .and_then(|value| value.to_str().ok())
+                .is_some_and(|value| !value.is_empty()),
+            "plan-aware requests must expose their plan hash"
         );
         assert_eq!(
             first
                 .headers()
-            .get("x-edatime-sampling-algorithm")
-            .and_then(|value| value.to_str().ok()),
+                .get("x-edatime-sampling-algorithm")
+                .and_then(|value| value.to_str().ok()),
             Some("reservoir-stream-v1")
         );
         assert!(
@@ -587,8 +577,17 @@ mod tests {
         );
     }
 
+    #[test]
+    fn scatter_points_reject_legacy_filter_fields() {
+        let error = serde_json::from_value::<ScatterPointsQuery>(serde_json::json!({
+            "x": "HUFL", "y": "HULL", "filters": "[]"
+        }))
+        .expect_err("legacy scatter filters must not deserialize");
+        assert!(error.to_string().contains("unknown field `filters`"));
+    }
+
     #[tokio::test(flavor = "multi_thread")]
-    async fn scatter_points_accept_line_filters_with_compatibility_id_field() {
+    async fn scatter_points_apply_the_canonical_plan() {
         let df = DataFrame::new(
             3,
             vec![
@@ -614,12 +613,7 @@ mod tests {
             size: None,
             start: Some(1_467_331_200_000.0),
             end: Some(1_530_042_300_000.0),
-            filters: None,
-            line_filters: Some(
-                r#"[{"id":"adaptive-1781794868781-c3v0r8","column":"HUFL","x1":1491469996428.5715,"y1":76.32572064536755,"x2":1497229179081.6326,"y2":77.28037623208502,"keepAbove":false}]"#
-                    .to_string(),
-            ),
-            cleaning_plan: None,
+            cleaning_plan: envelope(&state),
             limit: 10,
             format: Some("arrow".to_string()),
             time_color_mode: None,
@@ -629,7 +623,7 @@ mod tests {
 
         assert!(
             result.is_ok(),
-            "scatter points request should accept compatibility ids: {result:?}"
+            "scatter points request should execute its canonical plan: {result:?}"
         );
     }
 
@@ -653,9 +647,7 @@ mod tests {
             size: None,
             start: None,
             end: None,
-            filters: None,
-            line_filters: None,
-            cleaning_plan: None,
+            cleaning_plan: envelope(&state),
             limit: 10,
             format: Some("json".to_string()),
             time_color_mode: None,

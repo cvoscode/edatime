@@ -4,12 +4,10 @@ use crate::error::AppError;
 use axum::{Json, extract::State, response::Response};
 use edatime_store::state::AppState;
 
+use super::ScatterPointsQuery;
 use super::collect::collect_filtered_scatter_frame;
-use super::{ScatterPointsQuery, parse_scatter_filters, parse_scatter_line_filters};
 use crate::handlers::routes::cleaning::compile_request_frame;
-use crate::handlers::routes::shared::{
-    ExecutionIdentity, add_execution_identity_headers, current_execution_identity,
-};
+use crate::handlers::routes::shared::{ExecutionIdentity, add_execution_identity_headers};
 use crate::streaming_export::lazy_parquet_response;
 
 #[tracing::instrument(skip(state))]
@@ -17,23 +15,14 @@ pub async fn post_scatter_export_parquet(
     State(state): State<AppState>,
     Json(params): Json<ScatterPointsQuery>,
 ) -> Result<Response, AppError> {
-    let (lf, identity) = if let Some(envelope) = params.cleaning_plan.as_ref() {
-        let (version, hash, frame) = compile_request_frame(&state, envelope)?;
-        (frame, ExecutionIdentity::from_version(version, Some(hash)))
-    } else {
-        (
-            state.dataset_snapshot(),
-            current_execution_identity(&state)?,
-        )
-    };
+    let (version, hash, lf) = compile_request_frame(&state, &params.cleaning_plan)?;
+    let identity = ExecutionIdentity::from_version(version, Some(hash));
 
     let x = params.x.clone();
     let y = params.y.clone();
     let color = params.color.clone().filter(|s| !s.trim().is_empty());
     let size = params.size.clone().filter(|s| !s.trim().is_empty());
-    let filters = parse_scatter_filters(params.filters.as_deref())?;
-    let line_filters = parse_scatter_line_filters(params.line_filters.as_deref())?;
-    let requires_time_column = params.start.zip(params.end).is_some() || !line_filters.is_empty();
+    let requires_time_column = params.start.zip(params.end).is_some();
     let time_column = if requires_time_column {
         Some(state.ts_context(&lf)?.ts_col)
     } else {
@@ -49,8 +38,6 @@ pub async fn post_scatter_export_parquet(
         time_column.as_deref(),
         params.start,
         params.end,
-        &filters,
-        &line_filters,
     )?;
     let response = lazy_parquet_response(
         &state.query_executor,
@@ -65,15 +52,40 @@ pub async fn post_scatter_export_parquet(
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use super::post_scatter_export_parquet;
+    use crate::handlers::routes::cleaning::PlanRequestEnvelope;
     use crate::handlers::scatter::ScatterPointsQuery;
     use axum::http::header;
     use axum::{Json, extract::State};
     use edatime_core::config::AppConfig;
+    use edatime_query::cleaning::CleaningPlanDto;
     use edatime_store::state::AppState;
     use polars::prelude::{DataFrame, NamedFrom, Series};
 
+    fn envelope(state: &AppState) -> PlanRequestEnvelope {
+        let version = state.current_dataset_version().expect("version");
+        PlanRequestEnvelope {
+            expected_plan_hash: None,
+            expected_source_version_id: version.id.clone(),
+            expected_dataset_revision: version.revision,
+            plan: CleaningPlanDto {
+                schema_version: 1,
+                id: "scatter-export-test-plan".to_string(),
+                plan_revision: 1,
+                source_version_id: version.id,
+                dataset_revision: version.revision,
+                dataset_fingerprint: Some(version.dataset_fingerprint),
+                schema_fingerprint: version.schema_fingerprint,
+                time_column: "ts".to_string(),
+                source_name: None,
+                stages: vec![],
+                created_at: "now".to_string(),
+                updated_at: "now".to_string(),
+            },
+        }
+    }
+
     #[tokio::test(flavor = "multi_thread")]
-    async fn scatter_export_accepts_line_filters_with_compatibility_id_field() {
+    async fn scatter_export_executes_the_canonical_plan() {
         let df = DataFrame::new(
             3,
             vec![
@@ -99,12 +111,7 @@ mod tests {
             size: None,
             start: Some(1_467_331_200_000.0),
             end: Some(1_530_042_300_000.0),
-            filters: None,
-            line_filters: Some(
-                r#"[{"id":"adaptive-1781794868781-c3v0r8","column":"HUFL","x1":1491469996428.5715,"y1":76.32572064536755,"x2":1497229179081.6326,"y2":77.28037623208502,"keepAbove":false}]"#
-                    .to_string(),
-            ),
-            cleaning_plan: None,
+            cleaning_plan: envelope(&state),
             limit: 10,
             format: None,
             time_color_mode: None,
@@ -112,7 +119,7 @@ mod tests {
 
         let response = post_scatter_export_parquet(State(state), Json(params))
             .await
-            .expect("scatter export should accept compatibility ids");
+            .expect("scatter export should execute its canonical plan");
 
         assert_eq!(
             response
