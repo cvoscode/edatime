@@ -4,7 +4,6 @@
  * UI layer (ui/*) only binds DOM to injected action interfaces.
  */
 
-import { applyColumnRangesToData } from '../../services/timeseries/filtering.js';
 import { downloadBlob } from '../../utils/dom.js';
 import { escapeCsvField } from '../../utils/csv.js';
 import type { DataObject } from '../../types/api.js';
@@ -44,7 +43,12 @@ interface FilteredRowsResult {
     limitExceeded: boolean;
 }
 
-function buildFilteredSeriesRows(deps: ExportFeatureDeps, maxRows = Number.POSITIVE_INFINITY): FilteredRowsResult {
+/**
+ * Build a bounded chart-data export from the already plan-backed response.
+ * Workspace filter state is deliberately not reapplied here: membership is
+ * defined by the canonical plan, while chart controls are presentation state.
+ */
+function buildPlanBackedSeriesRows(deps: ExportFeatureDeps, maxRows = Number.POSITIVE_INFINITY): FilteredRowsResult {
     const data = deps.getData();
     const snapshot = deps.workspace.getSnapshot();
     const selectedColumns = snapshot.selection.columns;
@@ -52,17 +56,10 @@ function buildFilteredSeriesRows(deps: ExportFeatureDeps, maxRows = Number.POSIT
         return { rows: [], limitExceeded: false };
     }
 
-    const filtered = applyColumnRangesToData(
-        data,
-        [...selectedColumns],
-        { ...snapshot.filters.columnRanges },
-        snapshot.filters.adaptiveLines,
-    );
     const rows: FilteredRow[] = [];
     for (const column of selectedColumns) {
-        const series = filtered.series?.[column];
-        const xs = series?.x || new Float64Array(0);
-        const ys = series?.y || new Float64Array(0);
+        const xs = data.ts || new Float64Array(0);
+        const ys = data.values?.[column] || new Float64Array(0);
         const len = Math.min(xs.length, ys.length);
         for (let index = 0; index < len; index++) {
             const tsMs = Number(xs[index]);
@@ -87,7 +84,7 @@ function buildFilteredSeriesRows(deps: ExportFeatureDeps, maxRows = Number.POSIT
 // ── Transport calls ───────────────────────────────────────────────────────────
 
 function exportFilteredCsv(deps: ExportFeatureDeps): boolean {
-    const { rows, limitExceeded } = buildFilteredSeriesRows(deps, MAX_INLINE_EXPORT_ROWS);
+    const { rows, limitExceeded } = buildPlanBackedSeriesRows(deps, MAX_INLINE_EXPORT_ROWS);
     if (limitExceeded || rows.length === 0) return false;
 
     const lines = [
@@ -104,7 +101,7 @@ function exportFilteredCsv(deps: ExportFeatureDeps): boolean {
 }
 
 function exportFilteredJson(deps: ExportFeatureDeps): boolean {
-    const { rows, limitExceeded } = buildFilteredSeriesRows(deps, MAX_INLINE_EXPORT_ROWS);
+    const { rows, limitExceeded } = buildPlanBackedSeriesRows(deps, MAX_INLINE_EXPORT_ROWS);
     if (limitExceeded || rows.length === 0) return false;
 
     downloadBlob(

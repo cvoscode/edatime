@@ -107,7 +107,7 @@ describe('export feature characterization', () => {
         expect(downloadBlobMock).toHaveBeenCalledWith(expect.any(Blob), 'edatime_cleaned.parquet');
     });
 
-    it('exports filtered CSV rows in timestamp and series order', async () => {
+    it('exports plan-backed CSV rows in timestamp and series order without reapplying workspace filters', async () => {
         currentData = makeData();
         workspaceSnapshot = makeWorkspaceSnapshot({
             selection: { columns: ['temp', 'humidity'] },
@@ -124,6 +124,7 @@ describe('export feature characterization', () => {
         expect(csv).toBe([
             'ts_ms,ts_iso,series,value',
             '1000,"1970-01-01T00:00:01.000Z","humidity",1',
+            '1000,"1970-01-01T00:00:01.000Z","temp",10',
             '2000,"1970-01-01T00:00:02.000Z","humidity",2',
             '2000,"1970-01-01T00:00:02.000Z","temp",20',
             '3000,"1970-01-01T00:00:03.000Z","humidity",3',
@@ -131,7 +132,7 @@ describe('export feature characterization', () => {
         ].join('\n'));
     });
 
-    it('exports the same filtered rows as JSON', async () => {
+    it('exports plan-backed rows as JSON without reapplying workspace filters', async () => {
         currentData = makeData();
         workspaceSnapshot = makeWorkspaceSnapshot({
             selection: { columns: ['temp'] },
@@ -147,15 +148,27 @@ describe('export feature characterization', () => {
         const rows = JSON.parse(await jsonBlob.text());
         expect(rows).toEqual([
             {
+                ts_ms: 1_000,
+                ts_iso: '1970-01-01T00:00:01.000Z',
+                series: 'temp',
+                value: 10,
+            },
+            {
                 ts_ms: 2_000,
                 ts_iso: '1970-01-01T00:00:02.000Z',
                 series: 'temp',
                 value: 20,
             },
+            {
+                ts_ms: 3_000,
+                ts_iso: '1970-01-01T00:00:03.000Z',
+                series: 'temp',
+                value: 30,
+            },
         ]);
     });
 
-    it('returns false for CSV and JSON exports when filters remove every row', () => {
+    it('does not let workspace filters suppress plan-backed CSV or JSON exports', () => {
         currentData = makeData();
         workspaceSnapshot = makeWorkspaceSnapshot({
             selection: { columns: ['temp'] },
@@ -163,9 +176,9 @@ describe('export feature characterization', () => {
         });
         const feature = createFeature();
 
-        expect(feature.exportFilteredCsv()).toBe(false);
-        expect(feature.exportFilteredJson()).toBe(false);
-        expect(downloadBlobMock).not.toHaveBeenCalled();
+        expect(feature.exportFilteredCsv()).toBe(true);
+        expect(feature.exportFilteredJson()).toBe(true);
+        expect(downloadBlobMock).toHaveBeenCalledTimes(2);
     });
 
     it('escapes commas, quotes, and newlines in CSV series names through the shared csv helper', async () => {
