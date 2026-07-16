@@ -3,8 +3,14 @@
 .prepare-workspace__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .prepare-workspace__header .page-header__title { margin: 0; }
 .prepare-workspace__copy { margin: 5px 0 0; color: var(--text-dim); max-width: 760px; }
-.prepare-workspace__identity, .prepare-workspace__graph { padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--shell-surface-elevated); }
+.prepare-workspace__identity, .prepare-workspace__quality, .prepare-workspace__graph { padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--shell-surface-elevated); }
 .prepare-workspace__identity { color: var(--text-dim); font-size: 0.875rem; }
+.prepare-workspace__quality { display: grid; gap: 12px; }
+.prepare-workspace__quality h2 { margin: 0; font-size: 1rem; }
+.prepare-workspace__quality-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.prepare-workspace__quality-finding { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-md); }
+.prepare-workspace__quality-finding > div { display: grid; gap: 3px; min-width: 0; }
+.prepare-workspace__quality-finding span, .prepare-workspace__quality-empty { color: var(--text-dim); font-size: 0.8125rem; }
 .prepare-workspace__graph h2 { margin: 0; font-size: 1rem; }
 .prepare-workspace__graph-scroll { overflow: auto; margin-top: 16px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--shell-bg); }
 .prepare-workspace__graph-scroll .pipeline-graph { min-width: 680px; }
@@ -20,4 +26,4 @@
 .prepare-workspace__stage { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-md); }
 .prepare-workspace__stage-summary { display: grid; gap: 3px; min-width: 0; }
 .prepare-workspace__stage-summary span, .prepare-workspace__empty { color: var(--text-dim); font-size: 0.8125rem; }
-@media (max-width: 680px) { .page-prepare { padding: 14px; } .prepare-workspace__header, .prepare-workspace__stage { flex-direction: column; align-items: stretch; } }
+@media (max-width: 680px) { .page-prepare { padding: 14px; } .prepare-workspace__header, .prepare-workspace__quality-finding, .prepare-workspace__stage { flex-direction: column; align-items: stretch; } }

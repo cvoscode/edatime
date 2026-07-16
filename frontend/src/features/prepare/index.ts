@@ -2,6 +2,7 @@ import { buildPipelineGraph, renderPipelineGraphSvg } from '../../cleaning/pipel
 import { hasAscendingTimeSortBefore, normalizeFixedDuration, parseResampleAggregations } from '../../cleaning/resample.js';
 import { cleaningPlanStore } from '../../cleaning/store.js';
 import type { CleaningPlan } from '../../cleaning/types.js';
+import { datasetState } from '../../store/datasetState.js';
 import '../../../css/modules/prepare.css';
 
 export interface PreparePageDeps {
@@ -61,6 +62,71 @@ function resampleOrderingError(plan: CleaningPlan): string | null {
     return invalid < 0 ? null : 'Resampling requires the latest earlier enabled sort to be ascending with the time column first.';
 }
 
+function numericDtype(dtype: string): boolean {
+    return /^(u?int|float|decimal)/i.test(dtype.trim());
+}
+
+function hasMissingValuePolicy(plan: CleaningPlan, column: string): boolean {
+    return plan.stages.some((stage) => stage.kind === 'missingValue' && stage.column === column);
+}
+
+/**
+ * Surface only findings the current exact metadata can prove. More expensive
+ * cadence, duplicate, and distribution findings belong to the progressive
+ * profile job rather than being guessed in this immediate Prepare surface.
+ */
+function renderQualityFindings(plan: CleaningPlan, deps: PreparePageDeps): HTMLElement {
+    const section = createElement('section', 'prepare-workspace__quality');
+    const title = createElement('h2');
+    title.textContent = 'Quality findings';
+    const copy = createElement('p', 'prepare-workspace__copy');
+    copy.textContent = 'These exact source-profile findings can be turned into reversible stages. Review the proposed action before previewing or materializing.';
+    const findings = (datasetState.metadata?.column_profiles ?? [])
+        .filter((profile) => Number(profile?.null_count) > 0)
+        .sort((left, right) => Number(right.null_count) - Number(left.null_count)
+            || String(left.name).localeCompare(String(right.name)));
+    const list = createElement('ul', 'prepare-workspace__quality-list');
+
+    if (findings.length === 0) {
+        const empty = createElement('li', 'prepare-workspace__quality-empty');
+        empty.textContent = datasetState.metadata
+            ? 'No null-value findings are present in the current profile.'
+            : 'Load dataset metadata to inspect exact source-profile findings.';
+        list.append(empty);
+    }
+
+    for (const profile of findings) {
+        const item = createElement('li', 'prepare-workspace__quality-finding');
+        item.dataset.qualityColumn = profile.name;
+        const summary = createElement('div');
+        const label = createElement('strong');
+        label.textContent = profile.name;
+        const detail = createElement('span');
+        detail.textContent = String(profile.null_count) + ' null value' + (profile.null_count === 1 ? '' : 's')
+            + ' · ' + profile.dtype;
+        summary.append(label, detail);
+        const policyExists = hasMissingValuePolicy(plan, profile.name);
+        const add = actionButton(
+            policyExists ? 'Policy already added' : 'Add null policy',
+            () => {
+                cleaningPlanStore.addStage({
+                    kind: 'missingValue', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+                    sourcePage: 'manual', label: 'Drop missing values from ' + profile.name,
+                    column: profile.name,
+                    dropNulls: true,
+                    dropNonFinite: numericDtype(profile.dtype),
+                });
+                deps.onPlanChanged?.();
+            },
+            policyExists,
+        );
+        item.append(summary, add);
+        list.append(item);
+    }
+    section.append(title, copy, list);
+    return section;
+}
+
 function renderPrepareWorkspace(root: HTMLElement, plan: CleaningPlan | null, deps: PreparePageDeps): void {
     root.replaceChildren();
     const header = createElement('div', 'prepare-workspace__header');
@@ -88,6 +154,8 @@ function renderPrepareWorkspace(root: HTMLElement, plan: CleaningPlan | null, de
     identity.textContent = 'Source ' + plan.sourceVersionId + ' · revision ' + String(plan.datasetRevision)
         + ' · ' + String(activeStages) + ' active executable stage' + (activeStages === 1 ? '' : 's')
         + ' · ' + (cleaningPlanStore.isDirty() ? 'unmaterialized changes' : 'source baseline');
+
+    const qualitySection = renderQualityFindings(plan, deps);
 
     const graphSection = createElement('section', 'prepare-workspace__graph');
     const graphTitle = createElement('h2');
@@ -330,7 +398,7 @@ function renderPrepareWorkspace(root: HTMLElement, plan: CleaningPlan | null, de
         list.append(item);
     }
     stagesSection.append(stageTitle, stageCopy, history, addPolicy, addDeduplicate, addColumnSelect, addSort, addFill, addResample, list);
-    root.append(header, identity, graphSection, stagesSection);
+    root.append(header, identity, qualitySection, graphSection, stagesSection);
 }
 
 /** Lazy page surface for orienting a data scientist before opening the editor overlay. */

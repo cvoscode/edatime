@@ -2,11 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { initPreparePage } from './index.js';
 import { cleaningPlanStore } from '../../cleaning/store.js';
+import { datasetState } from '../../store/datasetState.js';
 
 describe('Prepare page', () => {
     beforeEach(() => {
         document.body.innerHTML = '<button id="open-cleaning-plan-btn"></button><div id="prepare-workspace"></div>';
         cleaningPlanStore.clear();
+        datasetState.metadata = null;
     });
 
     afterEach(() => cleaningPlanStore.clear());
@@ -78,6 +80,30 @@ describe('Prepare page', () => {
             kind: 'missingValue', column: 'value', dropNulls: true, dropNonFinite: true,
         }]);
         expect(onPlanChanged).toHaveBeenCalledTimes(1);
+        dispose();
+    });
+
+    it('turns an exact null-value finding into one reversible policy stage', () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        datasetState.metadata = {
+            column_profiles: [
+                { name: 'temperature', dtype: 'Float64', null_count: 12 },
+                { name: 'category', dtype: 'String', null_count: 2 },
+            ],
+        } as any;
+        const onPlanChanged = vi.fn();
+        const dispose = initPreparePage({ onPlanChanged });
+
+        const temperatureFinding = document.querySelector<HTMLElement>('[data-quality-column="temperature"]')!;
+        expect(temperatureFinding.textContent).toContain('12 null values');
+        Array.from(temperatureFinding.querySelectorAll('button')).find((button) => button.textContent === 'Add null policy')!.click();
+
+        expect(cleaningPlanStore.getSnapshot()!.stages).toMatchObject([{
+            kind: 'missingValue', column: 'temperature', dropNulls: true, dropNonFinite: true,
+        }]);
+        expect(onPlanChanged).toHaveBeenCalledTimes(1);
+        expect(temperatureFinding.querySelector('button')?.textContent).toBe('Add null policy');
+        expect(document.querySelector<HTMLElement>('[data-quality-column="temperature"] button')?.textContent).toBe('Policy already added');
         dispose();
     });
 
