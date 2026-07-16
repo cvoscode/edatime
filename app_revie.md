@@ -76,8 +76,12 @@
   the blocking task when a request future is dropped. This prevents a long
   durable sink from consuming viewport-query slots, but it is intentionally an
   executor foundation only: scatter/correlation/analytics handlers, resource
-  estimates/deadlines, cancellation, and the observable job API remain open.
-  (`a338f28`)
+  estimates/deadlines, cancellation of Polars itself, and the observable job
+  API remain open. `AppState` now also owns an in-process session job registry
+  with queued/running/cancelling/cancelled/completed/failed/expired states,
+  progress/messages, and cooperative cancellation handles. It is intentionally
+  not presented as a durable queue or public API until real workloads attach
+  to it. (`a338f28`, `1a3f266`)
 
 ## 1. Goal
 
@@ -886,13 +890,17 @@ interruption tests prove catalog recovery and atomicity.
    task so client-future drop cannot admit a replacement before Polars exits.
    This intentionally does not yet govern direct scatter/correlation/analytics
    task spawns. (`a338f28`)
-2. Extend that foundation into a scheduler with workload permits, work/memory
+2. **Completed registry foundation:** `AppState` owns an in-process,
+   session-scoped job registry with observable state transitions, progress,
+   messages, and cooperative cancellation handles. It is not yet durable or
+   public because no workload has been moved into it. (`1a3f266`)
+3. Extend those foundations into a scheduler with workload permits, work/memory
    estimates, deadlines, and structured `job_required` decisions.
-3. Move ingest normalization, exact profile, full export/materialization, and
+4. Move ingest normalization, exact profile, full export/materialization, and
    exact wide analytics into observable/cancellable jobs.
-4. Replace collect-then-reduce Timeseries and Scatter overview paths with
+5. Replace collect-then-reduce Timeseries and Scatter overview paths with
    bounded candidate envelopes/reservoir sampling after plan predicates.
-5. Surface queue/progress/cancellation and sampled/exact metadata in the UI.
+6. Surface queue/progress/cancellation and sampled/exact metadata in the UI.
 
 **Gate:** cancellation releases permits and temp files; one background job
 cannot block viewport interactions; peak memory follows configured candidate
