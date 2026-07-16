@@ -143,7 +143,7 @@ export interface ResampleStage extends CleaningStageBase {
     aggregations: ResampleAggregation[];
 }
 
-/** Global chronological labels; group-specific policy follows `seriesKeys`. */
+/** Global chronological labels; per-group policy is intentionally not part of v1. */
 export interface ChronologicalSplitStage extends CleaningStageBase {
     kind: 'chronologicalSplit';
     executionClass: 'polarsExpression';

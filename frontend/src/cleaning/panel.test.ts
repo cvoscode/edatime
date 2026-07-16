@@ -180,6 +180,19 @@ describe('cleaning plan panel', () => {
         expect(document.querySelector('.cleaning-plan-stage__impact')?.textContent).toContain('stable row order changed');
     });
 
+    it('describes chronological split labels without implying row removal', async () => {
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        const stage = planStore.addStage({ kind: 'chronologicalSplit', executionClass: 'polarsExpression', scope: 'schema', enabled: true, sourcePage: 'manual', label: 'Split', trainEndMs: 1_000, validationEndMs: 2_000, embargoMs: 100, outputColumn: 'split' });
+        previewMock.mockResolvedValue({ rowsBefore: 3, rowsAfter: 3, rowsRemoved: 0, columnsBefore: 2, columnsAfter: 3, warnings: [], stageImpacts: [{ stageId: stage.id, executed: true, rowsBefore: 3, rowsAfter: 3, rowsRemoved: 0 }] });
+        mountCleaningPlanPanel({ planStore, getViewport: () => null });
+        document.getElementById('open-cleaning-plan-btn')!.click();
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Preview')!.click();
+        await Promise.resolve(); await Promise.resolve();
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Stages')!.click();
+        expect(document.querySelector('.cleaning-plan-stage__impact')?.textContent).toContain('split labels added; row membership unchanged');
+    });
+
     it('only materializes when the user explicitly requests a new dataset version', async () => {
         const planStore = createCleaningPlanStore();
         planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });

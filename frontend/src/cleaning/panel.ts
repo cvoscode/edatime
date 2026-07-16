@@ -85,6 +85,7 @@ function stageImpactSummary(stage: CleaningStage, impact: CleaningStageImpact | 
     if (stage.kind === 'fillNull') return 'Executed — null values may change; row membership unchanged.';
     if (stage.kind === 'resample') return 'Executed — rows are aggregated into non-empty fixed-duration buckets.';
     if (stage.kind === 'columnSelect') return 'Executed — schema may change; row membership unchanged.';
+    if (stage.kind === 'chronologicalSplit') return 'Executed — split labels added; row membership unchanged.';
     return String(impact.rowsAfter.toLocaleString()) + ' of ' + String(impact.rowsBefore.toLocaleString())
         + ' rows after this stage · ' + String(impact.rowsRemoved.toLocaleString()) + ' removed.';
 }
