@@ -91,7 +91,7 @@
   unpublished temporary artifact. The Pipeline Workbench Export tab now
   shows the returned materialization job ID and can refresh the five most
   recent materialization states without adding a second workflow surface.
-  (`a338f28`, `1a3f266`, `b4b6fe3`, `3c4d506`, `6412a2d`)
+  (`a338f28`, `1a3f266`, `b4b6fe3`, `3c4d506`, `6412a2d`, `8ef652c`)
 
 ## 1. Goal
 
@@ -910,7 +910,7 @@ interruption tests prove catalog recovery and atomicity.
    sink. The existing Pipeline Workbench Export
    tab displays recent materialization records and apply confirmations carry
    their job ID, lists live records, and exposes cancellation only for live
-   materialization work. (`1a3f266`, `b4b6fe3`, `3c4d506`, `6412a2d`)
+   materialization work. (`1a3f266`, `b4b6fe3`, `3c4d506`, `6412a2d`, `8ef652c`)
 3. Extend those foundations into a scheduler with workload permits, work/memory
    estimates, deadlines, and structured `job_required` decisions.
 4. Move ingest normalization, exact profile, full export/materialization, and
