@@ -1,6 +1,5 @@
 use axum::{
     extract::{Query, State},
-    http::{HeaderValue, header},
     response::Response,
 };
 use chrono::{DateTime, Utc};
@@ -8,7 +7,7 @@ use polars::prelude::col;
 use serde::Deserialize;
 
 use crate::error::AppError;
-use edatime_query::arrow_export::dataframe_to_parquet;
+use crate::streaming_export::lazy_parquet_response;
 use edatime_query::filters::{apply_filters, parse_line_filters, parse_range_filters};
 use edatime_query::query;
 use edatime_query::validation::{validate_numeric_columns_lazy, validate_time_window};
@@ -43,41 +42,22 @@ pub async fn export_parquet(
     let start_ms = params.start.timestamp_millis() as f64;
     let end_ms = params.end.timestamp_millis() as f64;
 
-    let filtered = tokio::task::spawn_blocking(move || {
-        let filtered_lf = apply_filters(
-            lf.clone(),
-            Some(ts_col.as_str()),
-            Some(start_ms),
-            Some(end_ms),
-            &filters,
-            &line_filters,
-        )?;
-
-        let mut select_exprs = vec![col(ts_col.as_str())];
-        for col_name in &value_cols {
-            select_exprs.push(col(col_name.as_str()));
-        }
-
-        filtered_lf
-            .with_new_streaming(true)
-            .select(select_exprs)
-            .collect()
-            .map_err(|e| AppError::io(format!("export collect error: {}", e)))
-    })
+    let filtered = apply_filters(
+        lf,
+        Some(ts_col.as_str()),
+        Some(start_ms),
+        Some(end_ms),
+        &filters,
+        &line_filters,
+    )?;
+    let mut select_exprs = vec![col(ts_col.as_str())];
+    for col_name in &value_cols {
+        select_exprs.push(col(col_name.as_str()));
+    }
+    lazy_parquet_response(
+        &state.query_executor,
+        filtered.select(select_exprs),
+        "edatime_timeseries_filtered.parquet",
+    )
     .await
-    .map_err(|e| AppError::internal(format!("Failed to join export task: {:?}", e)))??;
-
-    let bytes = dataframe_to_parquet(filtered)
-        .map_err(|e| AppError::io(format!("Parquet serialization: {}", e)))?;
-
-    let mut response = Response::new(bytes.into());
-    response.headers_mut().insert(
-        header::CONTENT_TYPE,
-        HeaderValue::from_static("application/x-parquet"),
-    );
-    response.headers_mut().insert(
-        header::CONTENT_DISPOSITION,
-        HeaderValue::from_static("attachment; filename=edatime_timeseries_filtered.parquet"),
-    );
-    Ok(response)
 }

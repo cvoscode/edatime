@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
 use crate::handlers::routes::shared::{ExecutionIdentity, add_execution_identity_headers};
-use edatime_query::arrow_export::dataframe_to_parquet;
+use crate::streaming_export::lazy_parquet_response;
 use edatime_query::cleaning::{
     CleaningPlanDto, CleaningStageDto, compile_cleaning_plan, semantic_hash,
 };
@@ -250,23 +250,8 @@ pub async fn export_data(
         }
         frame = frame.select(columns.iter().map(polars::prelude::col).collect::<Vec<_>>());
     }
-    let data = state
-        .query_executor
-        .execute_async(frame)
-        .await
-        .map_err(AppError::from)?;
-    let bytes = dataframe_to_parquet(data)
-        .map_err(|error| AppError::io(format!("Cleaning Parquet serialization failed: {error}")))?;
-    let mut response = Response::new(bytes.into());
-    let headers = response.headers_mut();
-    headers.insert(
-        header::CONTENT_TYPE,
-        HeaderValue::from_static("application/x-parquet"),
-    );
-    headers.insert(
-        header::CONTENT_DISPOSITION,
-        HeaderValue::from_static("attachment; filename=edatime_cleaned.parquet"),
-    );
+    let response =
+        lazy_parquet_response(&state.query_executor, frame, "edatime_cleaned.parquet").await?;
     Ok(add_execution_identity_headers(
         response,
         &ExecutionIdentity::from_version(version, Some(plan_hash)),
@@ -381,7 +366,7 @@ mod tests {
     use axum::extract::State;
     use edatime_core::config::AppConfig;
     use edatime_query::cleaning::{CleaningStageBaseDto, CleaningStageDto, RangeMode};
-    use polars::prelude::{DataFrame, NamedFrom, Series};
+    use polars::prelude::{DataFrame, NamedFrom, ParquetReader, SerReader, Series};
     use std::fs;
 
     fn state() -> AppState {
@@ -478,6 +463,29 @@ mod tests {
                 .headers()
                 .get("x-edatime-schema-fingerprint")
                 .is_some()
+        );
+        let advertised_size = export
+            .headers()
+            .get(header::CONTENT_LENGTH)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse::<usize>().ok())
+            .expect("content length");
+        let body = axum::body::to_bytes(export.into_body(), usize::MAX)
+            .await
+            .expect("streamed export body");
+        assert_eq!(body.len(), advertised_size);
+        let data = ParquetReader::new(std::io::Cursor::new(body))
+            .finish()
+            .expect("streamed parquet");
+        assert_eq!(data.height(), 2);
+        assert_eq!(
+            data.column("value")
+                .expect("value")
+                .f64()
+                .expect("f64")
+                .into_no_null_iter()
+                .collect::<Vec<_>>(),
+            vec![2.0, 3.0]
         );
     }
 
