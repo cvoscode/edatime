@@ -53,9 +53,21 @@ export interface CleaningStageImpact {
 }
 
 export interface CleaningApplyResponse {
+    jobId: string;
     sourceVersion: DatasetVersionRecord;
     datasetRevision: number;
     planHash: string;
+}
+
+export interface SessionJob {
+    id: string;
+    kind: 'ingest' | 'profile' | 'materialization' | 'export' | 'analytics';
+    status: 'queued' | 'running' | 'cancelling' | 'cancelled' | 'completed' | 'failed' | 'expired';
+    createdAt: string;
+    startedAt: string | null;
+    finishedAt: string | null;
+    progressPercent: number | null;
+    message: string | null;
 }
 
 export interface CleaningDataExportOptions {
@@ -129,4 +141,9 @@ export function selectDatasetVersion(
 
 export function getArtifactStorageUsage(options?: ApiRequestOptions): Promise<ArtifactStorageUsage> {
     return getJson(apiV1Routes.cleaning.storage, 'Artifact storage usage', options);
+}
+
+/** Recent process-local pipeline work. This is operational state, not history. */
+export function listSessionJobs(options?: ApiRequestOptions): Promise<SessionJob[]> {
+    return getJson(apiV1Routes.jobs, 'Session jobs', { ...options, datasetScoped: false });
 }

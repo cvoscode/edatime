@@ -8,6 +8,7 @@ describe('API v1 route contract', () => {
             metadata: '/api/v1/metadata',
             data: '/api/v1/data',
             exportParquet: '/api/v1/export/parquet',
+            jobs: '/api/v1/jobs',
             cleaning: {
                 validate: '/api/v1/cleaning/validate',
                 preview: '/api/v1/cleaning/preview',

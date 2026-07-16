@@ -2,6 +2,7 @@ import {
     applyCleaningPlan,
     exportCleaningPlan,
     getArtifactStorageUsage,
+    listSessionJobs,
     listDatasetVersions,
     previewCleaningPlan,
     selectDatasetVersion,
@@ -786,8 +787,28 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
                 refreshStorage.disabled = false;
             }
         });
-        controls.append(planExport, graphExport, svgExport, pythonExport, rustExport, importPlan, importInput, refreshStorage);
-        panel.append(copy, controls, storage);
+        const jobs = document.createElement('p');
+        jobs.className = 'pipeline-workbench__hint';
+        jobs.textContent = 'Recent pipeline jobs are not loaded.';
+        const refreshJobs = button('Refresh pipeline jobs');
+        refreshJobs.addEventListener('click', async () => {
+            refreshJobs.disabled = true;
+            try {
+                const records = (await listSessionJobs())
+                    .filter((job) => job.kind === 'materialization')
+                    .slice(-5)
+                    .reverse();
+                jobs.textContent = records.length === 0
+                    ? 'No materialization jobs in this server session.'
+                    : records.map((job) => `${job.id} · ${job.status}${job.progressPercent == null ? '' : ` · ${job.progressPercent}%`}${job.message ? ` · ${job.message}` : ''}`).join('\n');
+            } catch (error) {
+                jobs.textContent = error instanceof Error ? error.message : 'Could not load session jobs.';
+            } finally {
+                refreshJobs.disabled = false;
+            }
+        });
+        controls.append(planExport, graphExport, svgExport, pythonExport, rustExport, importPlan, importInput, refreshStorage, refreshJobs);
+        panel.append(copy, controls, storage, jobs);
     };
     const renderActions = (plan: CleaningPlan) => {
         actions.replaceChildren();
@@ -854,7 +875,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             preview.textContent = 'Materializing a new dataset version…';
             try {
                 const result = await applyCleaningPlan(current);
-                preview.textContent = 'Created ' + result.sourceVersion.id + ' from ' + current.sourceVersionId + '.';
+                preview.textContent = 'Created ' + result.sourceVersion.id + ' from ' + current.sourceVersionId + ' · job ' + result.jobId + '.';
                 await deps.onPlanApplied?.();
             } catch (error) {
                 preview.textContent = error instanceof Error ? error.message : 'Could not materialize this plan.';
