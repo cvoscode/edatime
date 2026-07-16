@@ -3,9 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DataObject } from '../../types/api.js';
 import { makeWorkspaceSnapshot, type WorkspaceSnapshot } from '../../workspace/workspaceStore.js';
 
-const { downloadBlobMock, exportParquetMock, exportCleaningDataMock } = vi.hoisted(() => ({
+const { downloadBlobMock, exportCleaningDataMock } = vi.hoisted(() => ({
     downloadBlobMock: vi.fn(),
-    exportParquetMock: vi.fn(),
     exportCleaningDataMock: vi.fn(),
 }));
 
@@ -16,10 +15,6 @@ vi.mock('../../utils/dom.js', async (importOriginal) => {
         downloadBlob: downloadBlobMock,
     };
 });
-
-vi.mock('../../services/api/index.js', () => ({
-    exportParquet: exportParquetMock,
-}));
 
 vi.mock('../../cleaning/api.js', () => ({
     exportCleaningData: exportCleaningDataMock,
@@ -76,7 +71,6 @@ function createFeature(cleaningPlanStore?: { getSnapshot: () => any }) {
 describe('export feature characterization', () => {
     beforeEach(() => {
         downloadBlobMock.mockReset();
-        exportParquetMock.mockReset();
         exportCleaningDataMock.mockReset();
         currentData = null;
         workspaceSnapshot = makeWorkspaceSnapshot({
@@ -110,7 +104,6 @@ describe('export feature characterization', () => {
         await expect(feature.exportFilteredParquet()).resolves.toBe(true);
 
         expect(exportCleaningDataMock).toHaveBeenCalledWith(plan);
-        expect(exportParquetMock).not.toHaveBeenCalled();
         expect(downloadBlobMock).toHaveBeenCalledWith(expect.any(Blob), 'edatime_cleaned.parquet');
     });
 
@@ -206,50 +199,21 @@ describe('export feature characterization', () => {
         ].join('\n'));
     });
 
-    it('exports parquet with the current viewport, range filters, and adaptive line filters', async () => {
+    it('exports parquet from the active canonical plan', async () => {
         const parquetBlob = new Blob(['parquet']);
-        exportParquetMock.mockResolvedValueOnce(parquetBlob);
-
-        workspaceSnapshot = makeWorkspaceSnapshot({
-            selection: { columns: ['temp'] },
-            filters: {
-                columnRanges: { temp: { from: 15, to: 30 } },
-                adaptiveLines: [{
-                    id: 'line-1', column: 'temp', x1: 1_000, y1: 12,
-                    x2: 3_000, y2: 28, keepAbove: true,
-                }],
-            },
-            viewport: { xMin: 1_000, xMax: 3_000, yMin: null, yMax: null },
-        });
-        const feature = createFeature();
+        const plan = { id: 'canonical-plan', stages: [] };
+        exportCleaningDataMock.mockResolvedValueOnce(parquetBlob);
+        const feature = createFeature({ getSnapshot: () => plan });
 
         await expect(feature.exportFilteredParquet()).resolves.toBe(true);
-
-        const params = exportParquetMock.mock.calls[0]?.[0] as URLSearchParams;
-        expect(params.get('start')).toBe('1970-01-01T00:00:01.000Z');
-        expect(params.get('end')).toBe('1970-01-01T00:00:03.000Z');
-        expect(params.get('columns')).toBe('temp');
-        expect(JSON.parse(String(params.get('filters')))).toEqual([
-            { column: 'temp', from: 15, to: 30 },
-        ]);
-        expect(JSON.parse(String(params.get('line_filters')))).toEqual([
-            {
-                column: 'temp',
-                x1: 1_000,
-                y1: 12,
-                x2: 3_000,
-                y2: 28,
-                keepAbove: true,
-            },
-        ]);
-        expect(downloadBlobMock).toHaveBeenCalledWith(parquetBlob, 'edatime_filtered_series.parquet');
+        expect(exportCleaningDataMock).toHaveBeenCalledWith(plan);
+        expect(downloadBlobMock).toHaveBeenCalledWith(parquetBlob, 'edatime_cleaned.parquet');
     });
 
     it('returns false for parquet export without a viewport or selected series', async () => {
         const feature = createFeature();
 
         await expect(feature.exportFilteredParquet()).resolves.toBe(false);
-        expect(exportParquetMock).not.toHaveBeenCalled();
         expect(downloadBlobMock).not.toHaveBeenCalled();
     });
 
@@ -262,7 +226,6 @@ describe('export feature characterization', () => {
         const feature = createFeature();
 
         await expect(feature.exportFilteredParquet()).resolves.toBe(false);
-        expect(exportParquetMock).not.toHaveBeenCalled();
         expect(downloadBlobMock).not.toHaveBeenCalled();
     });
 

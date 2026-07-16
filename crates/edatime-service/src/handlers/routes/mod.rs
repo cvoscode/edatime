@@ -5,7 +5,6 @@ pub mod config;
 pub mod data;
 pub mod database;
 pub mod drift;
-pub mod export;
 pub mod jobs;
 pub mod metadata;
 pub mod metrics;
@@ -26,7 +25,6 @@ pub fn api_router() -> Router<AppState> {
     Router::new()
         .route("/health", get(health))
         .route("/data", post(data::post_data))
-        .route("/export/parquet", get(export::export_parquet))
         .route("/cleaning/validate", post(cleaning::validate))
         .route("/cleaning/preview", post(cleaning::preview))
         .route(

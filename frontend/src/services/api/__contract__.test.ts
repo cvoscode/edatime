@@ -112,13 +112,10 @@ describe('contract: every endpoint targets /api/v1', () => {
     it('export module targets /api/v1', async () => {
         const spy = installFetchSpy();
         try {
-            const { exportParquet, exportScatterParquet } =
-                await import('./export.js');
-            await exportParquet(new URLSearchParams({ columns: 'value' }));
+            const { exportScatterParquet } = await import('./export.js');
             await exportScatterParquet({ x: 'a', y: 'b' });
             const urls = spy.calls.map((c) => c.url);
-            expect(urls[0]).toBe('/api/v1/export/parquet?columns=value');
-            expect(urls[1]).toBe('/api/v1/scatter/export/parquet');
+            expect(urls).toEqual(['/api/v1/scatter/export/parquet']);
         } finally {
             spy.restore();
         }

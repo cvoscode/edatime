@@ -47,7 +47,7 @@ export {
 } from './analytics.js';
 
 // Export
-export { exportParquet, exportScatterParquet } from './export.js';
+export { exportScatterParquet } from './export.js';
 
 // Upload / Database / Drift
 export {

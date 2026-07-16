@@ -12,7 +12,6 @@ export const apiV1Routes = {
     profileSample: '/api/v1/profile/sample',
     data: '/api/v1/data',
     sample: (name: string): string => `/api/v1/sample/${encodeURIComponent(name)}`,
-    exportParquet: '/api/v1/export/parquet',
     jobs: '/api/v1/jobs',
     job: (id: string): string => `/api/v1/jobs/${encodeURIComponent(id)}`,
     cleaning: {

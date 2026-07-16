@@ -4,8 +4,7 @@
  * UI layer (ui/*) only binds DOM to injected action interfaces.
  */
 
-import { applyColumnRangesToData, buildAdaptiveLineFiltersForQueryState } from '../../services/timeseries/filtering.js';
-import { exportParquet } from '../../services/api/index.js';
+import { applyColumnRangesToData } from '../../services/timeseries/filtering.js';
 import { downloadBlob } from '../../utils/dom.js';
 import { escapeCsvField } from '../../utils/csv.js';
 import type { DataObject } from '../../types/api.js';
@@ -117,52 +116,9 @@ function exportFilteredJson(deps: ExportFeatureDeps): boolean {
 
 async function exportFilteredParquet(deps: ExportFeatureDeps): Promise<boolean> {
     const plan = deps.cleaningPlanStore?.getSnapshot();
-    if (plan?.stages.some((stage) => stage.enabled)) {
-        const blob = await exportCleaningData(plan);
-        downloadBlob(blob, 'edatime_cleaned.parquet');
-        return true;
-    }
-    const snapshot = deps.workspace.getSnapshot();
-    if (!snapshot.viewport) return false;
-    const start = Number(snapshot.viewport.xMin);
-    const end = Number(snapshot.viewport.xMax);
-    const selectedColumns = snapshot.selection.columns;
-    if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end) {
-        return false;
-    }
-    if (selectedColumns.length === 0) {
-        return false;
-    }
-
-    let startIso: string;
-    let endIso: string;
-    try {
-        startIso = new Date(start).toISOString();
-        endIso = new Date(end).toISOString();
-    } catch {
-        return false;
-    }
-    const params = new URLSearchParams({ start: startIso, end: endIso, columns: selectedColumns.join(',') });
-
-    const filters = Object.entries(snapshot.filters.columnRanges)
-        .map(([column, range]) => {
-            const from = Number(range?.from);
-            const to = Number(range?.to);
-            if (!column || !Number.isFinite(from) || !Number.isFinite(to)) return null;
-            return { column, from, to };
-        })
-        .filter((filter): filter is { column: string; from: number; to: number } => filter !== null);
-    if (filters.length > 0) {
-        params.set('filters', JSON.stringify(filters));
-    }
-
-    const lineFilters = buildAdaptiveLineFiltersForQueryState([...snapshot.filters.adaptiveLines]);
-    if (lineFilters.length > 0) {
-        params.set('line_filters', JSON.stringify(lineFilters));
-    }
-
-    const blob = await exportParquet(params);
-    downloadBlob(blob, 'edatime_filtered_series.parquet');
+    if (!plan) return false;
+    const blob = await exportCleaningData(plan);
+    downloadBlob(blob, 'edatime_cleaned.parquet');
     return true;
 }
 
