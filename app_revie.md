@@ -42,14 +42,23 @@
   schema/plan provenance required to restore an ordered Parquet version graph,
   and the registry validates that graph on recovery. Application startup
   attaches the newest valid restored version to the active repository as a
-  lazy scan with persisted metadata, without collecting its rows. Ingest,
-  streaming materialization/export and retention remain open. The Pipeline
+  lazy scan with persisted metadata, without collecting its rows. Configured
+  plan materializations now execute the canonical `LazyFrame` through Polars'
+  streaming Parquet sink, promote a complete temporary artifact atomically,
+  and attach a fresh scan without collecting the result dataset. Failed sinks,
+  quota rejection, and interrupted startup files are cleaned without touching
+  another live sink. The artifact fingerprint uses a bounded 64 KiB file pass;
+  hashing during the original stream remains open. Canonical plan, legacy
+  filtered-timeseries, and scatter Parquet exports now use the same bounded
+  file response: the lazy plan sinks before headers are returned, response
+  chunks do not scale with total output size, and the temporary file is removed
+  after EOF or response drop. Ingest and retention remain open. The Pipeline
   Workbench Export tab now reports retained artifact count and managed disk
   usage/quota on demand. An operator may set a managed-artifact aggregate disk cap;
   a candidate Parquet file is rejected and cleaned up before publication when
   it would exceed that cap. (`f2ed211`,
   `9887e4f`, `6ab6f44`, `7413758`, `7847b46`, `5bfdc39`, `d2dca71`,
-  `7c31697`, `84fd48f`, `5d6e19f`)
+  `7c31697`, `84fd48f`, `5d6e19f`, `f5b9e66`, `349c56f`, `19836bf`)
 
 ## 1. Goal
 
@@ -82,7 +91,7 @@ EdaTime already has a strong EDA foundation:
 - the first working slice of an immutable, reversible cleaning-plan system;
 - reproducible frontend, Rust, browser, and benchmark gates.
 
-The main limitation is architectural rather than cosmetic: file ingest still ends in a full `DataFrame` collect, database access copies a bounded snapshot into memory, and full cleaning export/materialization collect before writing. When an operator configures a managed artifact directory, roots and explicit plan materializations are durably written to Parquet and retained versions reopen as scans; the active compatibility repository remains resident. This is a durable-version step, not yet a larger-than-memory ingest or export path.
+The main limitation is architectural rather than cosmetic: file ingest still ends in a full `DataFrame` collect, and database access copies a bounded snapshot into memory. When an operator configures a managed artifact directory, roots are durably written to Parquet and retained versions reopen as scans; explicit plan materializations stream directly to managed Parquet and replace the active compatibility repository with a fresh scan. Parquet export now sinks lazy plans to temporary files and streams completed files in bounded HTTP chunks. This removes the full-result collection and response-byte-vector boundaries from plan materialization/export, but it is not yet a larger-than-memory ingest path or a cancellable/progress-reporting export job.
 
 The second limitation is product correctness: the cleaning plan is not yet the execution context for every page. The existing v1 plan supports only time ranges, numeric ranges, adaptive lines, and annotations. Timeseries applies range/line stages after server downsampling in the browser, while correlations, rolling bands, anomalies, and spectral filtering still read the active compatibility dataset without the plan. Other pages mostly consume a plan but do not yet author executable stages.
 
@@ -134,17 +143,18 @@ Do not start with allocator, SIMD, PGO, compression, framework replacement, or a
   catalog; `crates/edatime-store/src/versions.rs` can open a retained Parquet
   descriptor as a fresh `LazyFrame` scan. Configuring
   `data.artifact_dir`/`EDATIME_ARTIFACT_DIR` writes replacement roots and
-  materialized children to that catalog. Root/materialized frames are still
-  collected first. The registry reconstructs catalogued version provenance and
-  startup transitions the active compatibility repository to the latest
-  restored lazy scan; there is still no quota, retention, or eviction.
+  materialized children to that catalog. Root frames are still collected first;
+  configured plan materializations use a temporary streaming Parquet sink and
+  reopen the complete child as a lazy scan. The registry reconstructs
+  catalogued version provenance and startup transitions the active compatibility
+  repository to the latest restored lazy scan; retention and eviction remain open.
 - Dataset fingerprints are currently derived from canonical Arrow content
   (schema, row order, nulls, and values); they are still resident-frame hashes
   rather than streaming ingest hashes.
 - `crates/edatime-query/src/cleaning.rs` validates and compiles the ten v1
   portable stage kinds. Its semantic hash uses executable canonical content;
   labels, IDs, notes, and timestamps do not affect server execution identity.
-- `crates/edatime-service/src/handlers/routes/cleaning.rs` correctly validates source/version/schema identity, but preview collects the source and result, apply collects the full result, and data export collects then serializes the full result into a byte vector.
+- `crates/edatime-service/src/handlers/routes/cleaning.rs` correctly validates source/version/schema identity. Preview still collects its bounded result; apply streams to a scan-backed Parquet child when managed artifact storage is configured and retains the resident compatibility path otherwise; plan data export streams through a temporary Parquet file without a complete output `DataFrame` or response `Vec<u8>`. The legacy filtered-timeseries and scatter Parquet routes use the same response primitive.
 - The `expectedPlanHash` field is intentionally not trusted by the backend. That is acceptable only if it remains explicitly an optimistic client hint; cache and result identity must always use the backend hash.
 - Plan-aware execution exists for scatter points/matrix/export, FFT, Spectrogram, Causal, and Drift.
 - `/data`, scatter, and correlation routes are plan-aware and return the
