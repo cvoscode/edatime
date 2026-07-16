@@ -1,13 +1,7 @@
 //! Scatter export handlers — Parquet export of filtered scatter data.
 
 use crate::error::AppError;
-use axum::{
-    Json,
-    extract::State,
-    http::{HeaderValue, header},
-    response::Response,
-};
-use edatime_query::arrow_export::dataframe_to_parquet;
+use axum::{Json, extract::State, response::Response};
 use edatime_store::state::AppState;
 
 use super::collect::collect_filtered_scatter_frame;
@@ -16,6 +10,7 @@ use crate::handlers::routes::cleaning::compile_request_frame;
 use crate::handlers::routes::shared::{
     ExecutionIdentity, add_execution_identity_headers, current_execution_identity,
 };
+use crate::streaming_export::lazy_parquet_response;
 
 #[tracing::instrument(skip(state))]
 pub async fn post_scatter_export_parquet(
@@ -57,19 +52,12 @@ pub async fn post_scatter_export_parquet(
         &filters,
         &line_filters,
     )?;
-    let filtered = state.query_executor.execute_async(lazy_frame).await?;
-
-    let bytes = dataframe_to_parquet(filtered)
-        .map_err(|e| AppError::io(format!("Parquet serialization: {}", e)))?;
-    let mut response = Response::new(bytes.into());
-    response.headers_mut().insert(
-        header::CONTENT_TYPE,
-        HeaderValue::from_static("application/x-parquet"),
-    );
-    response.headers_mut().insert(
-        header::CONTENT_DISPOSITION,
-        HeaderValue::from_static("attachment; filename=edatime_scatter_filtered.parquet"),
-    );
+    let response = lazy_parquet_response(
+        &state.query_executor,
+        lazy_frame,
+        "edatime_scatter_filtered.parquet",
+    )
+    .await?;
     Ok(add_execution_identity_headers(response, &identity))
 }
 
