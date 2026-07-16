@@ -21,14 +21,14 @@
   stable-sort, bounded ordered-null-fill, and explicit fixed-duration
   resampling authoring, then hands off to
   the shared Pipeline Workbench for detailed field editing, previewing, exporting, and
-  materialization. Prepare now also surfaces exact null-count findings from the
-  canonical source metadata and turns each into a deduplicated, reversible
-  missing-value policy stage. Prepare can now launch or reuse a source-version,
+  materialization. Prepare now also surfaces exact null- and non-finite-count
+  findings from the canonical source metadata and turns each into a
+  deduplicated, reversible missing-value policy stage. Prepare can now launch or reuse a source-version,
   revision, fingerprint, and `exact-v1`-keyed background profile, poll its
   cancellable session job, cancel it directly while it is running, and replace
   immediate findings only after the exact report is complete; progressive
   sampled/time/duplicate/distribution profiling remains in progress.
-  (`2f3f3d7`, `71072b1`, `2a92c7c`)
+  (`2f3f3d7`, `71072b1`, `2a92c7c`, `35cf456`)
 - **Milestone B in progress:** data, scatter points/matrix, correlations, and
   correlation matrix, Drift, and export artifacts now carry immutable source
   version/revision, schema fingerprint, backend plan hash, and versioned
@@ -488,10 +488,11 @@ The existing page navigation can remain. Add a first-class **Prepare** destinati
 admitted exact `Profile` job for the active immutable source, and `GET
 /api/v1/profile` exposes the versioned cached result and job state. The job
 checks cancellation before collection, profiling, and cache publication; its
-collect uses the background executor lane. Prepare keeps immediate source
-findings available, offers an explicit exact-report action and in-flight
-cancellation, and replaces only its quality findings when a matching source
-report reaches `ready`. This
+collect uses the background executor lane. Exact profiles report null and
+non-finite counts while retaining finite-only extrema. Prepare keeps immediate
+source findings available, offers an explicit exact-report action and in-flight
+cancellation, and turns both finding types into the corresponding reversible
+row policy when a matching source report reaches `ready`. This
 retains the existing `/metadata` and upload-preview contract while the fast
 schema/sample report and richer temporal/panel quality measures remain future
 slices. (`71072b1`)
