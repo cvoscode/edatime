@@ -144,6 +144,25 @@ describe('Prepare page', () => {
         dispose();
     });
 
+    it('surfaces constant numeric columns as completed-profile findings', () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        datasetState.metadata = {
+            profile_status: 'exact',
+            column_profiles: [{
+                name: 'flatline', dtype: 'Float64', null_count: 0,
+                is_constant: true, finite_count: 12, zero_count: 12,
+            }],
+        } as any;
+        const dispose = initPreparePage();
+
+        const finding = document.querySelector<HTMLElement>('[data-quality-column="flatline"][data-quality-kind="constant"]')!;
+        expect(finding.textContent).toContain('constant numeric values');
+        expect(finding.textContent).toContain('12 finite values');
+        expect(finding.textContent).toContain('12 zeros');
+        expect(finding.querySelector('button')).toBeNull();
+        dispose();
+    });
+
     it('turns an exact non-finite finding into a reversible non-finite policy', () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
         datasetState.metadata = { column_profiles: [{ name: 'temperature', dtype: 'Float64', null_count: 0, non_finite_count: 3 }] } as any;

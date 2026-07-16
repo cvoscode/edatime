@@ -35,6 +35,14 @@ export interface ColumnProfile {
     null_count: number;
     /** Exact for `exact-v1`; absent from older server responses. */
     non_finite_count?: number;
+    /** Numeric distribution facts from a completed profile. */
+    finite_count?: number;
+    zero_count?: number;
+    distinct_count?: number;
+    is_constant?: boolean;
+    q25?: number | null;
+    q75?: number | null;
+    interquartile_range?: number | null;
     min: number | string | null;
     max: number | string | null;
     mean: number | null;

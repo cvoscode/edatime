@@ -124,6 +124,9 @@ function renderQualityFindings(
         .sort((left, right) => right.count - left.count
             || String(left.profile.name).localeCompare(String(right.profile.name))
             || left.kind.localeCompare(right.kind));
+    const constantColumns = (sourceMetadata?.column_profiles ?? [])
+        .filter((profile) => profile.is_constant === true)
+        .sort((left, right) => String(left.name).localeCompare(String(right.name)));
     const list = createElement('ul', 'prepare-workspace__quality-list');
 
     const profileActions = createElement('div', 'prepare-workspace__quality-actions');
@@ -163,6 +166,23 @@ function renderQualityFindings(
         detail.textContent = String(timeQuality.unique_timestamp_count) + ' unique timestamps · '
             + String(timeQuality.duplicate_timestamp_count) + ' duplicate timestamp' + duplicateSuffix + ' · '
             + String(timeQuality.out_of_order_count) + ' out-of-order transition' + orderSuffix + gap;
+        summary.append(label, detail);
+        item.append(summary);
+        list.append(item);
+    }
+
+    for (const profile of constantColumns) {
+        const item = createElement('li', 'prepare-workspace__quality-finding');
+        item.dataset.qualityColumn = profile.name;
+        item.dataset.qualityKind = 'constant';
+        const summary = createElement('div');
+        const label = createElement('strong');
+        label.textContent = profile.name;
+        const detail = createElement('span');
+        const finiteCount = typeof profile.finite_count === 'number' ? profile.finite_count : 0;
+        const zeroCount = typeof profile.zero_count === 'number' ? profile.zero_count : 0;
+        detail.textContent = 'constant numeric values · ' + String(finiteCount) + ' finite values · '
+            + String(zeroCount) + ' zero' + (zeroCount === 1 ? '' : 's');
         summary.append(label, detail);
         item.append(summary);
         list.append(item);

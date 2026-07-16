@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{collections::HashSet, path::Path};
 
 use axum::{Json, extract::State};
 use polars::prelude::{
@@ -102,8 +102,24 @@ pub struct ColumnProfile {
     pub non_null_count: usize,
     pub null_count: usize,
     pub non_finite_count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub finite_count: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub zero_count: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub distinct_count: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_constant: Option<bool>,
     pub min: Option<f64>,
     pub max: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub q25: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub median: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub q75: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interquartile_range: Option<f64>,
     pub histogram: Option<stats::Histogram>,
 }
 
@@ -214,10 +230,27 @@ fn profile_from_aggregate(
         non_null_count,
         null_count,
         non_finite_count,
+        finite_count: None,
+        zero_count: None,
+        distinct_count: None,
+        is_constant: None,
         min,
         max,
+        q25: None,
+        median: None,
+        q75: None,
+        interquartile_range: None,
         histogram: None,
     }
+}
+
+fn percentile(sorted: &[f64], quantile: f64) -> Option<f64> {
+    let last_index = sorted.len().checked_sub(1)?;
+    let position = quantile.clamp(0.0, 1.0) * last_index as f64;
+    let lower = position.floor() as usize;
+    let upper = position.ceil() as usize;
+    let fraction = position - lower as f64;
+    Some(sorted[lower] + (sorted[upper] - sorted[lower]) * fraction)
 }
 
 /// Resolve a `TimeRange` from aggregate columns for a detected time column.
@@ -600,8 +633,16 @@ pub fn build_dataset_metadata(
             non_null_count,
             null_count,
             non_finite_count: 0,
+            finite_count: None,
+            zero_count: None,
+            distinct_count: None,
+            is_constant: None,
             min: None,
             max: None,
+            q25: None,
+            median: None,
+            q75: None,
+            interquartile_range: None,
             histogram: None,
         };
 
@@ -610,7 +651,9 @@ pub fn build_dataset_metadata(
             let values = casted.f64()?;
             let mut min = f64::INFINITY;
             let mut max = f64::NEG_INFINITY;
-            let mut finite_count = 0usize;
+            let mut finite_values = Vec::with_capacity(non_null_count);
+            let mut distinct_values = HashSet::with_capacity(non_null_count);
+            let mut zero_count = 0usize;
             let mut non_finite_count = 0usize;
 
             for value in values.into_iter().flatten() {
@@ -620,25 +663,36 @@ pub fn build_dataset_metadata(
                 }
                 min = min.min(value);
                 max = max.max(value);
-                finite_count += 1;
+                finite_values.push(value);
+                zero_count += usize::from(value == 0.0);
+                distinct_values.insert(if value == 0.0 { 0 } else { value.to_bits() });
             }
 
             if min.is_finite() && max.is_finite() {
                 profile.min = Some(min);
                 profile.max = Some(max);
+                finite_values.sort_by(f64::total_cmp);
+                profile.q25 = percentile(&finite_values, 0.25);
+                profile.median = percentile(&finite_values, 0.5);
+                profile.q75 = percentile(&finite_values, 0.75);
+                profile.interquartile_range = profile
+                    .q75
+                    .zip(profile.q25)
+                    .map(|(upper, lower)| upper - lower);
                 if include_histograms {
                     profile.histogram = stats::build_histogram_from_finite_iter(
-                        values
-                            .into_iter()
-                            .flatten()
-                            .filter(|value| value.is_finite()),
+                        finite_values.iter().copied(),
                         min,
                         max,
-                        finite_count,
+                        finite_values.len(),
                     );
                 }
             }
             profile.non_finite_count = non_finite_count;
+            profile.finite_count = Some(finite_values.len());
+            profile.zero_count = Some(zero_count);
+            profile.distinct_count = Some(distinct_values.len());
+            profile.is_constant = Some(finite_values.len() > 0 && min == max);
         } else if matches!(dtype, DataType::Datetime(_, _) | DataType::Date) {
             let casted = series.cast(&DataType::Int64)?;
             let ints = casted.i64()?;
@@ -1257,8 +1311,49 @@ mod tests {
             .find(|profile| profile.name == "value")
             .expect("value profile");
         assert_eq!(profile.non_finite_count, 3);
+        assert_eq!(profile.finite_count, Some(1));
+        assert_eq!(profile.zero_count, Some(0));
+        assert_eq!(profile.distinct_count, Some(1));
+        assert_eq!(profile.is_constant, Some(true));
         assert_eq!(profile.min, Some(2.0));
         assert_eq!(profile.max, Some(2.0));
+    }
+
+    #[test]
+    fn completed_profiles_report_numeric_distribution_and_constant_facts() {
+        let df = DataFrame::new(
+            5,
+            vec![
+                polars::prelude::Series::new("ts".into(), vec![1_i64, 2, 3, 4, 5]).into(),
+                polars::prelude::Series::new("spread".into(), vec![0.0_f64, 1.0, 2.0, 3.0, 4.0])
+                    .into(),
+                polars::prelude::Series::new("constant".into(), vec![7.0_f64; 5]).into(),
+            ],
+        )
+        .expect("dataframe");
+
+        let metadata = build_dataset_metadata(&df, false, None).expect("metadata");
+        let spread = metadata
+            .column_profiles
+            .iter()
+            .find(|profile| profile.name == "spread")
+            .expect("spread profile");
+        assert_eq!(spread.finite_count, Some(5));
+        assert_eq!(spread.zero_count, Some(1));
+        assert_eq!(spread.distinct_count, Some(5));
+        assert_eq!(spread.is_constant, Some(false));
+        assert_eq!(spread.q25, Some(1.0));
+        assert_eq!(spread.median, Some(2.0));
+        assert_eq!(spread.q75, Some(3.0));
+        assert_eq!(spread.interquartile_range, Some(2.0));
+        let constant = metadata
+            .column_profiles
+            .iter()
+            .find(|profile| profile.name == "constant")
+            .expect("constant profile");
+        assert_eq!(constant.distinct_count, Some(1));
+        assert_eq!(constant.is_constant, Some(true));
+        assert_eq!(constant.interquartile_range, Some(0.0));
     }
 
     #[tokio::test]
