@@ -75,6 +75,8 @@ function stageDetail(stage: CleaningStage): string {
             return `Stable ${stage.descending ? 'descending' : 'ascending'} sort by ${stage.columns.join(', ')}`;
         case 'fillNull':
             return `${stage.strategy === 'forward' ? 'Forward' : 'Backward'} fill nulls in ${stage.columns.join(', ')} after time sort${stage.limit == null ? '' : ` (limit ${stage.limit})`}`;
+        case 'resample':
+            return `${stage.every} buckets: ${stage.aggregations.map(({ column, method }) => `${column} ${method}`).join(', ')}`;
         case 'annotation':
             return stage.note?.trim() || 'Informational annotation';
     }

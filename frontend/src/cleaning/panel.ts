@@ -42,6 +42,7 @@ function stageSummary(stage: CleaningStage): string {
         case 'columnSelect': return (stage.mode === 'keep' ? 'Keep only ' : 'Drop ') + 'columns: ' + stage.columns.join(', ');
         case 'sort': return 'Stable ' + (stage.descending ? 'descending' : 'ascending') + ' sort by ' + stage.columns.join(', ');
         case 'fillNull': return (stage.strategy === 'forward' ? 'Forward' : 'Backward') + ' fill nulls in ' + stage.columns.join(', ');
+        case 'resample': return 'Resample every ' + stage.every + ': ' + stage.aggregations.map(({ column, method }) => column + ' ' + method).join(', ');
         case 'annotation': return stage.note?.trim() || stage.label;
     }
 }
@@ -70,6 +71,7 @@ function stageImpactSummary(stage: CleaningStage, impact: CleaningStageImpact | 
     if (!impact.executed) return 'Annotation — no row membership change.';
     if (stage.kind === 'sort') return 'Executed — stable row order changed; row membership unchanged.';
     if (stage.kind === 'fillNull') return 'Executed — null values may change; row membership unchanged.';
+    if (stage.kind === 'resample') return 'Executed — rows are aggregated into non-empty fixed-duration buckets.';
     if (stage.kind === 'columnSelect') return 'Executed — schema may change; row membership unchanged.';
     return String(impact.rowsAfter.toLocaleString()) + ' of ' + String(impact.rowsBefore.toLocaleString())
         + ' rows after this stage · ' + String(impact.rowsRemoved.toLocaleString()) + ' removed.';
@@ -306,6 +308,17 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             const limit = rawLimit ? Number(rawLimit) : null;
             if (columns.length === 0 || new Set(columns).size !== columns.length || (limit != null && (!Number.isInteger(limit) || limit <= 0))) throw new Error('Fill needs unique columns and an optional positive integer limit.');
             patch = { ...common, columns, strategy: readText(form, 'strategy') as 'forward' | 'backward', limit } as Partial<CleaningStage>;
+        } else if (stage.kind === 'resample') {
+            const aggregations = readText(form, 'aggregations').split(',').map((entry) => {
+                const [column = '', method = ''] = entry.trim().split(/\s+/);
+                return { column, method };
+            });
+            if (!/^\d+(?:ns|us|ms|s|m|h)$/.test(readText(form, 'every'))
+                || aggregations.length === 0
+                || aggregations.some(({ column, method }) => !column || !['mean', 'sum', 'min', 'max', 'last'].includes(method))) {
+                throw new Error('Resampling needs a positive fixed duration and entries such as value mean, volume sum.');
+            }
+            patch = { ...common, every: readText(form, 'every'), aggregations } as Partial<CleaningStage>;
         } else if (stage.kind === 'adaptiveLine') {
             const x1Ms = readNumber(form, 'x1Ms', 'X1');
             const x2Ms = readNumber(form, 'x2Ms', 'X2');
@@ -388,6 +401,11 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             );
         } else if (stage.kind === 'fillNull') {
             fields.append(textInput('Columns (comma-separated)', stage.columns.join(', '), 'columns'), selectInput('Direction', stage.strategy, 'strategy', [['forward', 'Forward fill'], ['backward', 'Backward fill']]), textInput('Maximum consecutive fills (blank = unlimited)', stage.limit == null ? '' : String(stage.limit), 'limit', 'number'));
+        } else if (stage.kind === 'resample') {
+            fields.append(
+                textInput('Fixed interval (for example 15m)', stage.every, 'every'),
+                textInput('Aggregations (column method, comma-separated)', stage.aggregations.map(({ column, method }) => `${column} ${method}`).join(', '), 'aggregations'),
+            );
         } else if (stage.kind === 'adaptiveLine') {
             fields.append(
                 textInput('Column', stage.column, 'column'),
@@ -971,6 +989,13 @@ function isImportableStage(value: unknown): value is CleaningStage {
                 && new Set(stage.columns).size === stage.columns.length
                 && (stage.strategy === 'forward' || stage.strategy === 'backward')
                 && (stage.limit === null || (typeof stage.limit === 'number' && Number.isInteger(stage.limit) && stage.limit > 0));
+        case 'resample':
+            return typeof stage.every === 'string' && /^\d+(?:ns|us|ms|s|m|h)$/.test(stage.every)
+                && Array.isArray(stage.aggregations) && stage.aggregations.length > 0
+                && stage.aggregations.every((aggregation) => !!aggregation && typeof aggregation === 'object'
+                    && typeof (aggregation as Record<string, unknown>).column === 'string'
+                    && !!((aggregation as Record<string, unknown>).column as string).trim()
+                    && ['mean', 'sum', 'min', 'max', 'last'].includes(String((aggregation as Record<string, unknown>).method)));
         case 'annotation':
             return stage.severity === undefined || stage.severity === 'info' || stage.severity === 'warning' || stage.severity === 'critical';
         default:

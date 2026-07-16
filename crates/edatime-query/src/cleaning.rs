@@ -108,6 +108,12 @@ pub enum CleaningStageDto {
         strategy: FillNullDirection,
         limit: Option<u32>,
     },
+    Resample {
+        #[serde(flatten)]
+        base: CleaningStageBaseDto,
+        every: String,
+        aggregations: Vec<ResampleAggregationDto>,
+    },
     Annotation {
         #[serde(flatten)]
         base: CleaningStageBaseDto,
@@ -127,6 +133,7 @@ impl CleaningStageDto {
             | Self::ColumnSelect { base, .. }
             | Self::Sort { base, .. }
             | Self::FillNull { base, .. }
+            | Self::Resample { base, .. }
             | Self::Annotation { base, .. } => &base.id,
         }
     }
@@ -141,6 +148,7 @@ impl CleaningStageDto {
             | Self::ColumnSelect { base, .. }
             | Self::Sort { base, .. }
             | Self::FillNull { base, .. }
+            | Self::Resample { base, .. }
             | Self::Annotation { base, .. } => base.enabled,
         }
     }
@@ -177,6 +185,34 @@ pub enum ColumnSelectMode {
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum FillNullDirection { Forward, Backward }
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ResampleAggregationDto {
+    pub column: String,
+    pub method: ResampleAggregationMethod,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ResampleAggregationMethod { Mean, Sum, Min, Max, Last }
+
+fn parse_fixed_duration(stage_id: &str, every: &str) -> Result<polars::prelude::Duration, AppError> {
+    let value = every.trim();
+    let digit_count = value.bytes().take_while(u8::is_ascii_digit).count();
+    let (quantity, unit) = value.split_at(digit_count);
+    let valid_unit = matches!(unit, "ns" | "us" | "ms" | "s" | "m" | "h");
+    let valid_quantity = !quantity.is_empty()
+        && quantity.parse::<u64>().is_ok_and(|quantity| quantity > 0 && quantity <= i64::MAX as u64);
+    if digit_count == value.len() || !valid_unit || !valid_quantity {
+        return Err(AppError::bad_request(format!(
+            "Cleaning stage '{stage_id}' requires a positive fixed duration such as '15m'; supported units are ns, us, ms, s, m, and h"
+        )));
+    }
+    polars::prelude::Duration::try_parse(value).map_err(|error| {
+        AppError::bad_request(format!("Cleaning stage '{stage_id}' has invalid duration '{value}': {error}"))
+    })
+}
 
 fn ensure_finite(stage_id: &str, field: &str, value: f64) -> Result<(), AppError> {
     if value.is_finite() {
@@ -332,6 +368,32 @@ pub fn validate_cleaning_plan(plan: &CleaningPlanDto) -> Result<(), AppError> {
                     )));
                 }
             }
+            CleaningStageDto::Resample { base, every, aggregations } => {
+                parse_fixed_duration(&base.id, every)?;
+                let columns = aggregations.iter().map(|aggregation| aggregation.column.trim()).collect::<Vec<_>>();
+                if aggregations.is_empty()
+                    || columns.iter().any(|column| column.is_empty() || *column == plan.time_column.trim())
+                    || columns.len() != columns.iter().collect::<std::collections::HashSet<_>>().len()
+                {
+                    return Err(AppError::bad_request(format!(
+                        "Cleaning stage '{}' requires unique non-time value columns with explicit aggregations",
+                        base.id
+                    )));
+                }
+                let prior_sort = plan.stages[..index].iter().rev().find(|prior| {
+                    prior.enabled() && matches!(prior, CleaningStageDto::Sort { .. })
+                });
+                let has_ascending_time_sort = matches!(prior_sort,
+                    Some(CleaningStageDto::Sort { columns, descending: false, .. })
+                    if columns.first().is_some_and(|column| column.trim() == plan.time_column.trim())
+                );
+                if !has_ascending_time_sort {
+                    return Err(AppError::bad_request(format!(
+                        "Cleaning stage '{}' requires the latest earlier enabled sort to be ascending with time column '{}' first",
+                        base.id, plan.time_column
+                    )));
+                }
+            }
             CleaningStageDto::Annotation { .. } => {}
         }
     }
@@ -441,6 +503,33 @@ pub fn compile_cleaning_plan(
                     polars::prelude::col(column).fill_null_with_strategy(strategy)
                 }).collect::<Vec<_>>())
             }
+            CleaningStageDto::Resample { every, aggregations, .. } => {
+                let every = parse_fixed_duration(stage.id(), every)?;
+                let expressions = aggregations.iter().map(|aggregation| {
+                    let value = polars::prelude::col(&aggregation.column);
+                    match aggregation.method {
+                        ResampleAggregationMethod::Mean => value.mean(),
+                        ResampleAggregationMethod::Sum => value.sum(),
+                        ResampleAggregationMethod::Min => value.min(),
+                        ResampleAggregationMethod::Max => value.max(),
+                        ResampleAggregationMethod::Last => value.last(),
+                    }.alias(&aggregation.column)
+                }).collect::<Vec<_>>();
+                lf.group_by_dynamic(
+                    polars::prelude::col(&plan.time_column),
+                    [],
+                    polars::prelude::DynamicGroupOptions {
+                        every,
+                        period: every,
+                        offset: polars::prelude::Duration::try_parse("0ns").expect("zero fixed duration is valid"),
+                        label: polars::prelude::Label::Left,
+                        include_boundaries: false,
+                        closed_window: polars::prelude::ClosedWindow::Left,
+                        start_by: polars::prelude::StartBy::WindowBound,
+                        ..Default::default()
+                    },
+                ).agg(expressions)
+            }
             CleaningStageDto::Annotation { .. } => lf,
         };
     }
@@ -541,6 +630,14 @@ fn semantic_stage_value(stage: &CleaningStageDto) -> Option<serde_json::Value> {
             "strategy": strategy,
             "limit": limit,
         })),
+        CleaningStageDto::Resample { every, aggregations, .. } => Some(serde_json::json!({
+            "kind": "resample",
+            "every": every.trim(),
+            "aggregations": aggregations.iter().map(|aggregation| serde_json::json!({
+                "column": aggregation.column.trim(),
+                "method": aggregation.method,
+            })).collect::<Vec<_>>(),
+        })),
         CleaningStageDto::Annotation { .. } => None,
     }
 }
@@ -566,7 +663,7 @@ pub fn semantic_hash(plan: &CleaningPlanDto) -> Result<String, AppError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use polars::prelude::{DataFrame, IntoLazy, NamedFrom, Series};
+    use polars::prelude::{DataFrame, DataType, IntoLazy, NamedFrom, Series, TimeUnit};
 
     fn base(id: &str) -> CleaningStageBaseDto {
         CleaningStageBaseDto {
@@ -825,6 +922,50 @@ mod tests {
         }]);
         let error = validate_cleaning_plan(&plan).expect_err("must reject unordered fill");
         assert!(error.to_string().contains("requires an earlier enabled stable sort"));
+    }
+
+    #[test]
+    fn resample_stage_emits_left_labeled_non_empty_fixed_buckets() {
+        let plan = plan(vec![
+            CleaningStageDto::Sort { base: base("sort"), columns: vec!["ts".to_string()], descending: false, nulls_last: true },
+            CleaningStageDto::Resample {
+                base: base("resample"), every: "1m".to_string(),
+                aggregations: vec![
+                    ResampleAggregationDto { column: "value".to_string(), method: ResampleAggregationMethod::Mean },
+                    ResampleAggregationDto { column: "volume".to_string(), method: ResampleAggregationMethod::Sum },
+                ],
+            },
+        ]);
+        let timestamps = Series::new("ts".into(), vec![0_i64, 30_000, 60_000, 90_000, 180_000])
+            .cast(&DataType::Datetime(TimeUnit::Milliseconds, None)).expect("datetime");
+        let df = DataFrame::new(5, vec![
+            timestamps.into(),
+            Series::new("value".into(), vec![1.0_f64, 3.0, 5.0, 7.0, 9.0]).into(),
+            Series::new("volume".into(), vec![1_i64, 2, 3, 4, 5]).into(),
+        ]).expect("frame");
+
+        let result = compile_cleaning_plan(df.lazy(), &plan).expect("compile").collect().expect("collect");
+
+        assert_eq!(result.height(), 3, "the empty 2-minute bucket must not be synthesized");
+        assert_eq!(result.column("ts").expect("ts").datetime().expect("datetime").physical().into_no_null_iter().collect::<Vec<_>>(), vec![0, 60_000, 180_000]);
+        assert_eq!(result.column("value").expect("value").f64().expect("f64").into_no_null_iter().collect::<Vec<_>>(), vec![2.0, 6.0, 9.0]);
+        assert_eq!(result.column("volume").expect("volume").i64().expect("i64").into_no_null_iter().collect::<Vec<_>>(), vec![3, 7, 5]);
+    }
+
+    #[test]
+    fn resample_stage_rejects_calendar_or_unordered_contracts() {
+        let aggregation = vec![ResampleAggregationDto { column: "value".to_string(), method: ResampleAggregationMethod::Last }];
+        let calendar = plan(vec![
+            CleaningStageDto::Sort { base: base("sort"), columns: vec!["ts".to_string()], descending: false, nulls_last: true },
+            CleaningStageDto::Resample { base: base("resample"), every: "1d".to_string(), aggregations: aggregation.clone() },
+        ]);
+        assert!(validate_cleaning_plan(&calendar).expect_err("calendar duration").to_string().contains("positive fixed duration"));
+
+        let descending = plan(vec![
+            CleaningStageDto::Sort { base: base("sort"), columns: vec!["ts".to_string()], descending: true, nulls_last: true },
+            CleaningStageDto::Resample { base: base("resample"), every: "1h".to_string(), aggregations: aggregation },
+        ]);
+        assert!(validate_cleaning_plan(&descending).expect_err("descending sort").to_string().contains("ascending with time column"));
     }
 
     #[test]

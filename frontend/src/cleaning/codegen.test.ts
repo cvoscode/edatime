@@ -57,4 +57,16 @@ describe('cleaning code generation', () => {
         expect(generateRustPolars(plan)).toContain('FillNullStrategy::Forward(Some(2))');
         expect(generatePythonPolars(plan)).toContain('requires an earlier stable sort on the time column');
     });
+
+    it('emits explicit fixed-duration resampling in both portable targets', () => {
+        const plan = createEmptyCleaningPlan({ sourceVersionId: 'source-1', datasetRevision: 1, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        plan.stages.push({ id: 'sort', kind: 'sort', executionClass: 'polarsExpression', scope: 'order', enabled: true, sourcePage: 'manual', label: 'sort', createdAt: 'now', updatedAt: 'now', columns: ['ts'], descending: false, nullsLast: true });
+        plan.stages.push({ id: 'resample', kind: 'resample', executionClass: 'polarsExpression', scope: 'row', enabled: true, sourcePage: 'manual', label: 'resample', createdAt: 'now', updatedAt: 'now', every: '15m', aggregations: [{ column: 'value', method: 'mean' }, { column: 'volume', method: 'sum' }] });
+
+        expect(generatePythonPolars(plan)).toContain('group_by_dynamic("ts", every="15m", period="15m", closed="left", label="left", start_by="window")');
+        expect(generatePythonPolars(plan)).toContain('pl.col("volume").sum().alias("volume")');
+        expect(generateRustPolars(plan)).toContain('Duration::try_parse("15m")?');
+        expect(generateRustPolars(plan)).toContain('start_by: StartBy::WindowBound');
+        expect(generateRustPolars(plan)).toContain('col("value").mean().alias("value")');
+    });
 });

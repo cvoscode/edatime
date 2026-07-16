@@ -33,6 +33,9 @@ export function generatePythonPolars(plan: CleaningPlan): string {
         } else if (stage.kind === 'fillNull') {
             lines.push('    # Ordered null fill requires an earlier stable sort on the time column.');
             lines.push(`    lf = lf.with_columns([${stage.columns.map((column) => `pl.col(${quote(column)}).fill_null(strategy=${quote(stage.strategy)}, limit=${stage.limit == null ? 'None' : String(stage.limit)})`).join(', ')}])`);
+        } else if (stage.kind === 'resample') {
+            lines.push('    # Global fixed-duration buckets; empty buckets are not synthesized.');
+            lines.push(`    lf = lf.group_by_dynamic(${quote(plan.timeColumn)}, every=${quote(stage.every)}, period=${quote(stage.every)}, closed="left", label="left", start_by="window").agg([${stage.aggregations.map(({ column, method }) => `pl.col(${quote(column)}).${method}().alias(${quote(column)})`).join(', ')}])`);
         } else {
             const slope = (stage.y2 - stage.y1) / (stage.x2Ms - stage.x1Ms);
             const compare = `pl.col(${quote(stage.column)}) ${stage.keepAbove ? '>=' : '<='} (${numeric(stage.y1)} + ((pl.col(${quote(plan.timeColumn)}) - ${numeric(stage.x1Ms)}) * ${numeric(slope)}))`;
@@ -74,6 +77,11 @@ export function generateRustPolars(plan: CleaningPlan): string {
             const strategy = stage.strategy === 'forward' ? 'Forward' : 'Backward';
             lines.push('    // Ordered null fill requires an earlier stable sort on the time column.');
             lines.push(`    lf = lf.with_columns(vec![${stage.columns.map((column) => `col(${quote(column)}).fill_null_with_strategy(FillNullStrategy::${strategy}(${stage.limit == null ? 'None' : `Some(${stage.limit})`}))`).join(', ')}]);`);
+        } else if (stage.kind === 'resample') {
+            const aggregations = stage.aggregations.map(({ column, method }) => `col(${quote(column)}).${method}().alias(${quote(column)})`).join(', ');
+            lines.push('    // Global fixed-duration buckets; empty buckets are not synthesized.');
+            lines.push(`    let every = Duration::try_parse(${quote(stage.every)})?;`);
+            lines.push(`    lf = lf.group_by_dynamic(col(${quote(plan.timeColumn)}), [], DynamicGroupOptions { every, period: every, offset: Duration::try_parse("0ns")?, closed_window: ClosedWindow::Left, label: Label::Left, start_by: StartBy::WindowBound, ..Default::default() }).agg([${aggregations}]);`);
         } else {
             lines.push(`    // Adaptive line stage ${quote(stage.id)}: use the same time-unit conversion as your input frame.`);
         }
