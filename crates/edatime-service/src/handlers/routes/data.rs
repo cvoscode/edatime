@@ -1,10 +1,6 @@
 //! `GET /api/data` — full dataset
 
-use axum::{
-    Json,
-    extract::{Query, State},
-    response::Response,
-};
+use axum::{Json, extract::State, response::Response};
 use serde::Deserialize;
 
 use edatime_core::pipeline::{Pipeline, ProjectStage, TimeFilterStage};
@@ -20,7 +16,7 @@ use edatime_store::state::AppState;
 
 use super::{
     cleaning::{PlanRequestEnvelope, compile_request_frame},
-    shared::{ExecutionIdentity, current_execution_identity},
+    shared::ExecutionIdentity,
 };
 
 #[derive(Debug, Deserialize)]
@@ -28,16 +24,7 @@ use super::{
 pub struct PlanAwareDataQuery {
     #[serde(flatten)]
     pub query: DataQuery,
-    #[serde(default)]
-    pub cleaning_plan: Option<PlanRequestEnvelope>,
-}
-
-#[tracing::instrument(skip(state))]
-pub async fn get_data(
-    State(state): State<AppState>,
-    Query(params): Query<DataQuery>,
-) -> Result<Response, AppError> {
-    data_response(state, params, None).await
+    pub cleaning_plan: PlanRequestEnvelope,
 }
 
 #[tracing::instrument(skip(state))]
@@ -45,36 +32,23 @@ pub async fn post_data(
     State(state): State<AppState>,
     Json(request): Json<PlanAwareDataQuery>,
 ) -> Result<Response, AppError> {
-    data_response(state, request.query, request.cleaning_plan.as_ref()).await
+    data_response(state, request.query, &request.cleaning_plan).await
 }
 
 async fn data_response(
     state: AppState,
     params: DataQuery,
-    cleaning_plan: Option<&PlanRequestEnvelope>,
+    cleaning_plan: &PlanRequestEnvelope,
 ) -> Result<Response, AppError> {
-    tracing::info!("get_data called with params: {:?}", params);
+    tracing::info!("post_data called with params: {:?}", params);
 
     validate_time_window(params.start, params.end)?;
     let limits = &state.config.validation;
     validate_width(params.width, limits)?;
 
-    let (lf, identity, resolved_time_column) = if let Some(envelope) = cleaning_plan {
-        let (version, plan_hash, frame) = compile_request_frame(&state, envelope)?;
-        (
-            frame,
-            ExecutionIdentity::from_version(version, Some(plan_hash)),
-            envelope.plan.time_column.clone(),
-        )
-    } else {
-        (
-            state.dataset_snapshot(),
-            current_execution_identity(&state)?,
-            state
-                .time_column_display_name_sync()
-                .unwrap_or_else(|| "ts".to_string()),
-        )
-    };
+    let (version, plan_hash, lf) = compile_request_frame(&state, cleaning_plan)?;
+    let identity = ExecutionIdentity::from_version(version, Some(plan_hash));
+    let resolved_time_column = cleaning_plan.plan.time_column.clone();
     let value_cols = validate_numeric_columns_lazy(
         &lf,
         &query::parse_columns(params.columns.as_deref()),
@@ -164,9 +138,9 @@ async fn data_response(
     let count = state
         .query_executor
         .execute_async(
-            filtered_plan
-                .clone()
-                .select([polars::prelude::len().cast(polars::prelude::DataType::UInt64).alias("__rows")]),
+            filtered_plan.clone().select([polars::prelude::len()
+                .cast(polars::prelude::DataType::UInt64)
+                .alias("__rows")]),
         )
         .await?;
     let filtered_rows = count
@@ -184,24 +158,24 @@ async fn data_response(
     // The initial lazy envelope preserves one numeric line exactly enough for
     // overview use. Multi-series and colour requests retain their current
     // aligned exact path until their source-row envelope is implemented.
-    let use_envelope = filtered_rows > candidate_cap && value_cols.len() == 1 && color_column.is_none();
+    let use_envelope =
+        filtered_rows > candidate_cap && value_cols.len() == 1 && color_column.is_none();
     let (candidates, envelope_used) = if use_envelope {
         let bucket_count = (candidate_cap / 4).max(1) as i64;
         let span = end_ts.saturating_sub(start_ts).saturating_add(1);
         let bucket_width = (span / bucket_count).max(1);
-        let envelope = pipeline::lazy_time_envelope(
-            filtered_plan,
-            &ts_col,
-            &value_cols[0],
-            bucket_width,
-        )?;
+        let envelope =
+            pipeline::lazy_time_envelope(filtered_plan, &ts_col, &value_cols[0], bucket_width)?;
         let collected = state.query_executor.execute_async(envelope).await?;
         (
             pipeline::expand_time_envelope(&collected, &ts_col, &value_cols[0])?,
             true,
         )
     } else {
-        (state.query_executor.execute_async(filtered_plan).await?, false)
+        (
+            state.query_executor.execute_async(filtered_plan).await?,
+            false,
+        )
     };
     let candidate_rows = candidates.height();
     let (reduced, was_downsampled) = pipeline::apply_reduction(
@@ -264,7 +238,12 @@ async fn data_response(
         ("x-edatime-empty".to_string(), empty_header.to_string()),
         (
             "x-edatime-sampling-algorithm".to_string(),
-            if envelope_used { "envelope-lttb-v1" } else { "lttb-v1" }.to_string(),
+            if envelope_used {
+                "envelope-lttb-v1"
+            } else {
+                "lttb-v1"
+            }
+            .to_string(),
         ),
         (
             "x-edatime-approximate".to_string(),
@@ -294,11 +273,7 @@ async fn data_response(
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use axum::{
-        Json,
-        extract::{Query, State},
-    };
-    use chrono::TimeZone;
+    use axum::{Json, extract::State};
     use edatime_core::config::AppConfig;
     use edatime_store::state::AppState;
     use polars::prelude::{DataFrame, NamedFrom, Series};
@@ -347,24 +322,63 @@ mod tests {
         AppState::new(df, AppConfig::default())
     }
 
+    fn baseline_data_request(
+        state: &AppState,
+        start: &str,
+        end: &str,
+        width: usize,
+    ) -> PlanAwareDataQuery {
+        let version = state.current_dataset_version().expect("source version");
+        serde_json::from_value(serde_json::json!({
+            "start": start,
+            "end": end,
+            "width": width,
+            "columns": "HUFL",
+            "cleaning_plan": {
+                "plan": {
+                    "schemaVersion": 1,
+                    "id": "baseline-plan",
+                    "planRevision": 1,
+                    "sourceVersionId": version.id,
+                    "datasetRevision": version.revision,
+                    "datasetFingerprint": version.dataset_fingerprint,
+                    "schemaFingerprint": version.schema_fingerprint,
+                    "timeColumn": "ts",
+                    "sourceName": null,
+                    "stages": [],
+                    "createdAt": "2026-07-15T00:00:00Z",
+                    "updatedAt": "2026-07-15T00:00:00Z"
+                },
+                "expectedPlanHash": null,
+                "expectedSourceVersionId": version.id,
+                "expectedDatasetRevision": version.revision
+            }
+        }))
+        .expect("baseline plan-aware data request")
+    }
+
+    #[test]
+    fn plan_aware_data_query_requires_a_cleaning_plan() {
+        let request = serde_json::json!({
+            "start": "2018-01-01T00:00:00Z",
+            "end": "2018-01-02T00:00:00Z",
+            "width": 400,
+            "columns": "HUFL"
+        });
+        assert!(serde_json::from_value::<PlanAwareDataQuery>(request).is_err());
+    }
+
     /// Regression test for audit issue 2.3: a future time window used
     /// to return an empty Arrow payload without any signal that no
     /// data was found. The handler now sets `x-edatime-empty: 1` on
     /// the response so the frontend can render an explicit
     /// "no data in range" message.
     #[tokio::test(flavor = "multi_thread")]
-    async fn get_data_emits_empty_header_when_no_rows_match() {
+    async fn post_data_emits_empty_header_when_no_rows_match() {
         let state = build_test_state();
-        let params = DataQuery {
-            start: chrono::Utc.with_ymd_and_hms(2030, 1, 1, 0, 0, 0).unwrap(),
-            end: chrono::Utc.with_ymd_and_hms(2031, 1, 1, 0, 0, 0).unwrap(),
-            width: 400,
-            columns: Some("HUFL".to_string()),
-            color_column: None,
-            lookaround_ms: None,
-            format: None,
-        };
-        let response = get_data(State(state), Query(params))
+        let request =
+            baseline_data_request(&state, "2030-01-01T00:00:00Z", "2031-01-01T00:00:00Z", 400);
+        let response = post_data(State(state), Json(request))
             .await
             .expect("future window should be a valid request that returns empty");
         let empty = response
@@ -379,18 +393,11 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn get_data_emits_empty_zero_header_when_rows_match() {
+    async fn post_data_emits_empty_zero_header_when_rows_match() {
         let state = build_test_state();
-        let params = DataQuery {
-            start: chrono::Utc.with_ymd_and_hms(2018, 1, 1, 0, 0, 0).unwrap(),
-            end: chrono::Utc.with_ymd_and_hms(2018, 2, 1, 0, 0, 0).unwrap(),
-            width: 400,
-            columns: Some("HUFL".to_string()),
-            color_column: None,
-            lookaround_ms: None,
-            format: None,
-        };
-        let response = get_data(State(state), Query(params))
+        let request =
+            baseline_data_request(&state, "2018-01-01T00:00:00Z", "2018-02-01T00:00:00Z", 400);
+        let response = post_data(State(state), Json(request))
             .await
             .expect("normal window should succeed");
         let empty = response
@@ -414,18 +421,11 @@ mod tests {
     /// dropped_rows == 0 (LTTB `width=400` is far above the row
     /// count so no LTTB reduction kicks in).
     #[tokio::test(flavor = "multi_thread")]
-    async fn get_data_emits_filtered_and_dropped_rows_headers() {
+    async fn post_data_emits_filtered_and_dropped_rows_headers() {
         let state = build_test_state();
-        let params = DataQuery {
-            start: chrono::Utc.with_ymd_and_hms(2018, 1, 1, 0, 0, 0).unwrap(),
-            end: chrono::Utc.with_ymd_and_hms(2018, 2, 1, 0, 0, 0).unwrap(),
-            width: 400,
-            columns: Some("HUFL".to_string()),
-            color_column: None,
-            lookaround_ms: None,
-            format: None,
-        };
-        let response = get_data(State(state), Query(params))
+        let request =
+            baseline_data_request(&state, "2018-01-01T00:00:00Z", "2018-02-01T00:00:00Z", 400);
+        let response = post_data(State(state), Json(request))
             .await
             .expect("normal window should succeed");
 
@@ -450,19 +450,12 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn get_data_keeps_nan_series_at_the_viewport_cap() {
+    async fn post_data_keeps_nan_series_at_the_viewport_cap() {
         let state = build_large_nan_state();
-        let params = DataQuery {
-            start: chrono::Utc.with_ymd_and_hms(2018, 1, 1, 0, 0, 0).unwrap(),
-            end: chrono::Utc.with_ymd_and_hms(2018, 1, 2, 0, 0, 0).unwrap(),
-            width: 50,
-            columns: Some("HUFL".to_string()),
-            color_column: None,
-            lookaround_ms: None,
-            format: None,
-        };
+        let request =
+            baseline_data_request(&state, "2018-01-01T00:00:00Z", "2018-01-02T00:00:00Z", 50);
 
-        let response = get_data(State(state), Query(params))
+        let response = post_data(State(state), Json(request))
             .await
             .expect("NaN-containing time series should remain renderable");
         let returned = response
@@ -471,7 +464,10 @@ mod tests {
             .and_then(|value| value.to_str().ok())
             .and_then(|value| value.parse::<usize>().ok())
             .expect("returned rows");
-        assert!(returned <= 100, "one NaN must not bypass the viewport-derived cap");
+        assert!(
+            returned <= 100,
+            "one NaN must not bypass the viewport-derived cap"
+        );
         assert_eq!(
             response
                 .headers()

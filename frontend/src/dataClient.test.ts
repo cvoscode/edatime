@@ -120,6 +120,32 @@ describe('API client fetch helpers', () => {
     });
 
     describe('fetchData', () => {
+        beforeEach(async () => {
+            const { cleaningPlanStore } = await import('./cleaning/store.js');
+            cleaningPlanStore.resetForDataset({
+                sourceVersionId: 'source-baseline',
+                datasetRevision: 1,
+                datasetFingerprint: 'dataset-baseline',
+                schemaFingerprint: 'schema-baseline',
+                timeColumn: 'event_time',
+            });
+        });
+
+        afterEach(async () => {
+            const { cleaningPlanStore } = await import('./cleaning/store.js');
+            cleaningPlanStore.clear();
+        });
+
+        it('refuses to query before the dataset baseline plan exists', async () => {
+            const { fetchData } = await import('./services/api/index.js');
+            const { cleaningPlanStore } = await import('./cleaning/store.js');
+            cleaningPlanStore.clear();
+
+            await expect(fetchData('0', '1000', 500, 'value'))
+                .rejects.toThrow('requires an active cleaning plan');
+            expect(mockFetch).not.toHaveBeenCalled();
+        });
+
         it('rejects stale data responses after the dataset request scope is invalidated', async () => {
             const { fetchData } = await import('./services/api/index.js');
             const { invalidateDatasetRequestScope, __resetApiRequestStateForTests } = await import('./services/api/http.js');
@@ -180,7 +206,7 @@ describe('API client fetch helpers', () => {
             });
         });
 
-        it('constructs correct URL with parameters', async () => {
+        it('always sends a plan-aware POST request', async () => {
             const { fetchData } = await import('./services/api/index.js');
 
             mockFetch.mockResolvedValueOnce({
@@ -193,14 +219,20 @@ describe('API client fetch helpers', () => {
                 arrayBuffer: () => Promise.resolve(new ArrayBuffer(100)),
             });
 
-            const result = await fetchData('1704067200000', '1706745600000', 1000, 'value');
+            await fetchData('1704067200000', '1706745600000', 1000, 'value');
 
-            const calledUrl = mockFetch.mock.calls[0][0];
-            expect(calledUrl).toContain('/api/v1/data?');
-            expect(calledUrl).toContain('start=1704067200000');
-            expect(calledUrl).toContain('end=1706745600000');
-            expect(calledUrl).toContain('width=1000');
-            expect(calledUrl).toContain('columns=value');
+            expect(mockFetch).toHaveBeenCalledWith('/api/v1/data', expect.objectContaining({ method: 'POST' }));
+            expect(JSON.parse(String(mockFetch.mock.calls[0][1]?.body))).toMatchObject({
+                start: '1704067200000',
+                end: '1706745600000',
+                width: 1000,
+                columns: 'value',
+                cleaning_plan: {
+                    expectedSourceVersionId: 'source-baseline',
+                    expectedDatasetRevision: 1,
+                    plan: { stages: [] },
+                },
+            });
         });
 
         it('uses the plan-aware POST contract when an executable cleaning plan is active', async () => {
@@ -272,8 +304,8 @@ describe('API client fetch helpers', () => {
 
             await fetchData('0', '1000', 500, 'value', 'temperature');
 
-            const calledUrl = mockFetch.mock.calls[0][0];
-            expect(calledUrl).toContain('color_column=temperature');
+            const body = JSON.parse(String(mockFetch.mock.calls[0][1]?.body));
+            expect(body.color_column).toBe('temperature');
         });
 
         it('includes lookaround_ms when specified', async () => {
@@ -287,8 +319,8 @@ describe('API client fetch helpers', () => {
 
             await fetchData('0', '1000', 500, 'value', null, 120_000);
 
-            const calledUrl = mockFetch.mock.calls[0][0];
-            expect(calledUrl).toContain('lookaround_ms=120000');
+            const body = JSON.parse(String(mockFetch.mock.calls[0][1]?.body));
+            expect(body.lookaround_ms).toBe(120_000);
         });
 
         it('populates data.color_column and data.color when a color column is present in the Arrow table', async () => {

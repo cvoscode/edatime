@@ -353,7 +353,7 @@ The existing page navigation can remain. Add a first-class **Prepare** destinati
 
 **Implementation:**
 
-- Add a plan-aware POST timeseries query route. Keep `GET /api/v1/data` as a compatibility adapter until all call sites migrate.
+- Make `POST /api/v1/data` the only Timeseries query route; every request carries a `PlanRequestEnvelope`.
 - Send `PlanRequestEnvelope` from `services/api/timeseries.ts` and include backend result identity in Arrow headers.
 - Apply plan → viewport/time predicate → projection → bounded reduction on the server.
 - Remove cleaning-plan-derived filters from browser-side membership filtering. Browser filters may remain only for temporary view previews that are explicitly labeled and not exported.
@@ -365,7 +365,6 @@ The existing page navigation can remain. Add a first-class **Prepare** destinati
 
 - `frontend/src/services/api/timeseries.ts`
 - `frontend/src/features/timeseries/controller.ts`
-- `frontend/src/cleaning/compatibility.ts`
 - `frontend/src/contracts/api/v1/`
 - `crates/edatime-service/src/handlers/routes/data.rs`
 - `crates/edatime-service/src/handlers/routes/analytics.rs`
@@ -880,8 +879,8 @@ its stated contract and verification are in place.
 The P0.1 and P0.2 findings above were written against the initial review
 snapshot. The current checkout already includes the following corrections:
 
-- plan-aware `POST /api/v1/data`, with plan execution before viewport
-  filtering and reduction;
+- plan-aware `POST /api/v1/data` as the sole Timeseries route, with plan
+  execution before viewport filtering and reduction;
 - plan propagation to rolling, anomalies, spectral filtering, scatter
   correlations, and correlation matrices;
 - backend semantic plan hashing that excludes audit-only fields;

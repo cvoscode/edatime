@@ -1,5 +1,5 @@
 import type { DataObject } from '../../types/api.js';
-import { apiV1Routes, withApiQuery } from '../../contracts/api/v1/routes.js';
+import { apiV1Routes } from '../../contracts/api/v1/routes.js';
 import {
     assertDatasetRequestScopeActive,
     captureDatasetRequestScope,
@@ -34,40 +34,30 @@ export async function fetchData(
     // hatch). The backend allows widths up to 20,000; below 50 px
     // the chart has nothing meaningful to render anyway.
     const safeWidth = Math.max(50, Math.floor(width));
-    const params = new URLSearchParams({
-        start,
-        end,
-        width: String(safeWidth),
-        columns,
-    });
-    if (colorColumn) params.set('color_column', colorColumn);
-    if (Number.isFinite(lookaroundMs) && lookaroundMs > 0) params.set('lookaround_ms', String(Math.round(lookaroundMs)));
-
     const tableFromIPC = await ensureArrowParser();
     const activePlan = cleaningPlanStore.getSnapshot();
-    const hasActivePlan = !!activePlan?.stages.some((stage) => stage.enabled);
-    const url = hasActivePlan ? apiV1Routes.data : withApiQuery(apiV1Routes.data, params);
+    if (!activePlan) {
+        throw new Error('Timeseries data requires an active cleaning plan');
+    }
 
-    const requestInit: RequestInit = hasActivePlan && activePlan
-        ? {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                start,
-                end,
-                width: safeWidth,
-                columns,
-                color_column: colorColumn || undefined,
-                lookaround_ms: Number.isFinite(lookaroundMs) && lookaroundMs > 0 ? Math.round(lookaroundMs) : undefined,
-                cleaning_plan: buildPlanRequestSnapshot(activePlan),
-            }),
-            signal: options?.signal,
-            cache: 'no-store',
-        }
-        : options?.signal ? { signal: options.signal, cache: 'no-store' } : { cache: 'no-store' };
+    const requestInit: RequestInit = {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            start,
+            end,
+            width: safeWidth,
+            columns,
+            color_column: colorColumn || undefined,
+            lookaround_ms: Number.isFinite(lookaroundMs) && lookaroundMs > 0 ? Math.round(lookaroundMs) : undefined,
+            cleaning_plan: buildPlanRequestSnapshot(activePlan),
+        }),
+        signal: options?.signal,
+        cache: 'no-store',
+    };
 
-    dbg(hasActivePlan ? 'POST' : 'GET', url);
-    const res = await globalThis.fetch(url, requestInit);
+    dbg('POST', apiV1Routes.data);
+    const res = await globalThis.fetch(apiV1Routes.data, requestInit);
     assertDatasetRequestScopeActive(requestScope);
 
     if (DEBUG) {

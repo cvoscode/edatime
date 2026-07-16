@@ -30,7 +30,7 @@ import { initAppShell } from './app/shell.js';
 import { showPage } from './app/navigation/showPage.js';
 import { createAppRuntime } from './app/runtime.js';
 import { createWorkspaceStore } from './workspace/workspaceStore.js';
-import { bindCleaningPlanCompatibility, cleaningDatasetIdentityFromMetadata, cleaningPlanStore } from './cleaning/index.js';
+import { cleaningDatasetIdentityFromMetadata, cleaningPlanStore } from './cleaning/index.js';
 import { markAppReady, resetAppReady } from './app/bootState.js';
 import { upgradeSelects } from './ui/primitives/Dropdown.js';
 import { upgradeFlexibleNumberInputs } from './ui/primitives/FlexibleNumberInput.js';
@@ -76,7 +76,6 @@ export function createApp(): AppRoot {
     const runtime = createAppRuntime();
     const featureRegistry = createFeatureRegistry();
     const workspace = createWorkspaceStore();
-    const disposeCleaningCompatibility = bindCleaningPlanCompatibility(cleaningPlanStore, workspace);
     const analyticsOverlay = createAnalyticsOverlayController();
     let timeseriesModule!: ReturnType<typeof createTimeseriesModule>;
     const exportFeature = createExportFeature({
@@ -85,7 +84,6 @@ export function createApp(): AppRoot {
         getData: () => timeseriesModule?.getCurrentData() ?? null,
     });
     runtime.registerCleanup(() => workspace.dispose());
-    runtime.registerCleanup(disposeCleaningCompatibility);
     runtime.registerCleanup(featureRegistry.dispose);
     runtime.registerCleanup(analyticsOverlay.dispose);
 

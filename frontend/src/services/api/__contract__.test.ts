@@ -181,11 +181,24 @@ describe('contract: every endpoint targets /api/v1', () => {
     it('timeseries data fetch targets /api/v1', async () => {
         const spy = installFetchSpy();
         try {
+            const { cleaningPlanStore } = await import('../../cleaning/store.js');
             const { fetchData } = await import('./timeseries.js');
+            cleaningPlanStore.resetForDataset({
+                sourceVersionId: 'source-timeseries',
+                datasetRevision: 1,
+                datasetFingerprint: 'dataset-timeseries',
+                schemaFingerprint: 'schema-timeseries',
+                timeColumn: 'ts',
+            });
             await fetchData(ISO, ISO, 100, 'value');
             const url = spy.calls[0]?.url;
-            expect(url).toContain('/api/v1/data?');
-            expect(url).toContain('columns=value');
+            expect(url).toBe('/api/v1/data');
+            expect(spy.calls[0]?.init).toMatchObject({ method: 'POST' });
+            expect(JSON.parse(String(spy.calls[0]?.init?.body))).toMatchObject({
+                columns: 'value',
+                cleaning_plan: { expectedSourceVersionId: 'source-timeseries' },
+            });
+            cleaningPlanStore.clear();
         } finally {
             spy.restore();
         }
