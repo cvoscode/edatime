@@ -969,6 +969,16 @@ the algorithm, approximation flag, and all three row counts in result metadata,
 so downstream presentation and exports can distinguish an overview from an
 exact response. (`05651bd`, `5b1fd87`)
 
+**Implemented scatter point slice:** the scatter-points route and every scatter
+matrix cell now feed the post-predicate lazy projection into Polars' streaming
+callback sink. A deterministic reservoir keeps the lowest stable priorities
+from a seed derived from immutable source, plan, filters, and axes identity;
+therefore it is bounded by one stream batch plus the configured point capacity,
+is reproducible across requests, and makes a smaller point limit a subset of a
+larger one. The response labels this `reservoir-stream-v1`. Density/bin
+aggregation remains a distinct future rendering mode rather than being
+misrepresented as sampled points. (`23f8de1`)
+
 ### Milestone F — Profile, Prepare, and Modeling Handoff
 
 1. Add progressive schema/time-quality/column-quality profiling with cached
