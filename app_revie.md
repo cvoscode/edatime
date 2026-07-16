@@ -10,10 +10,11 @@
 
 - **Milestone A complete:** an editable Pipeline Workbench now derives a safe
   graph from the canonical cleaning plan, exposes all v1 stage editors and
-  reordering, and exports backend-plan JSON, graph JSON/SVG, and starter
-  Python/Rust code. The generated files and their export control explicitly
-  identify that code as a client-side preview pending backend canonical code
-  generation. (`ba9a639`, `65e1f67`, `4f06179`)
+  reordering, and exports backend-plan JSON plus graph JSON/SVG. Its Python
+  and Rust actions now call a backend endpoint that validates and compiles the
+  source-bound plan before generating an identity/hash-stamped artifact for
+  supported v1 stages; unsupported adaptive-line code export fails explicitly
+  rather than pretending parity. (`ba9a639`, `65e1f67`, `4f06179`, `7b08539`)
 - **Milestone F started:** a lazy, hash-routable **Prepare** destination now
   presents the canonical source → stages → result graph and live source
   identity. It provides page-native ordered-stage enable/disable, reordering,
@@ -587,6 +588,16 @@ Selection-to-stage actions must always open a confirmation/editor that shows exa
 
 ### P2.4 — Reproducible Modeling Handoff
 
+**Implemented first slice:** `POST /api/v1/cleaning/export/code` compiles the
+same immutable plan envelope used by preview, materialization, data export,
+and canonical-plan export before returning Python or Rust source. Its response
+and generated file carry the authoritative source version and semantic plan
+hash. The overlay no longer downloads browser-generated code. Adaptive-line
+stages are rejected until their temporal-unit conversion can be generated with
+the same cross-runtime semantics. Split definitions, quality manifests,
+checksums, and complete reproducibility bundles remain future slices.
+(`7b08539`)
+
 Add an export manifest containing:
 
 - source and root version IDs plus content checksums;
@@ -876,9 +887,10 @@ second pipeline model. The graph is a projection of the canonical
      plan change.
    - Keep the workbench global rather than adding a dedicated page or eagerly
      loading chart libraries for this milestone.
-   - Export uses the backend canonical plan JSON already available, plus local
-     graph JSON/SVG. Generated Python/Rust remain explicitly marked as client
-     previews until backend canonical code generation exists.
+   - Export uses the backend canonical plan JSON and source-bound generated
+     Python/Rust artifacts for supported v1 stages, plus local graph JSON/SVG.
+     Adaptive-line artifacts remain guarded until their temporal-unit codegen
+     parity exists.
 
 4. **Milestone A acceptance**
    - A user can inspect source → stages → result, edit/reorder/disable/remove
