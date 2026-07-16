@@ -899,6 +899,13 @@ favour of the source-bound cleaning export.
 
 ### Milestone A — Pipeline Overview and Editable Workbench
 
+**Status: completed.** `frontend/src/cleaning/pipelineGraph.ts` derives and
+exports the deterministic source → stages → result graph; `panel.ts` mounts a
+focus-managed Pipeline/Stages/Export workbench with graph selection, typed
+stage editing, reorder/remove/enable controls, preview/apply actions, and
+canonical plan, code, manifest, bundle, graph JSON, and SVG exports. Focused
+graph and overlay tests cover the stated interaction and export contracts.
+
 **Purpose:** make the current executable context visible without inventing a
 second pipeline model. The graph is a projection of the canonical
 `CleaningPlan`; editing the graph changes that plan through the existing store.
@@ -953,6 +960,13 @@ second pipeline model. The graph is a projection of the canonical
      console errors. Frontend architecture and bundle gates remain green.
 
 ### Milestone B — Complete Execution Identity
+
+**Status: contract migration completed; route-parity fixture expansion remains
+open.** Timeseries, Scatter, correlations, analytics, causal discovery, Drift,
+and plan-backed exports all require a typed `PlanRequestEnvelope`, compile it
+before projection/sampling, and return the shared execution-identity headers.
+The retired query-string and local-filter compatibility routes are no longer
+part of the public contract.
 
 1. Define and publish one result-identity DTO/header helper for every
    dataset-derived response: immutable source version, immutable source
