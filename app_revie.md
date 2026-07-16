@@ -57,15 +57,18 @@
   fresh scan-backed root, and skip the unbounded eager correlation warmup.
   Managed retention is now configurable with a lineage-safe version cap: it
   retains the active ancestry and newer independent chains that fit, never
-  corrupting restart recovery. Streaming source hashing, a measured large-sort
-  memory gate, and cancellable/progress-reporting jobs remain open. The Pipeline
+  corrupting restart recovery. To avoid an unmeasured large-sort promise,
+  managed ingestion now verifies non-decreasing timestamps with a scalar
+  streaming check by default; an operator must explicitly opt into Polars'
+  streaming sort. Streaming source hashing, a measured large-sort memory gate,
+  and cancellable/progress-reporting jobs remain open. The Pipeline
   Workbench Export tab now reports retained artifact count and managed disk
   usage/quota on demand. An operator may set a managed-artifact aggregate disk cap;
   a candidate Parquet file is rejected and cleaned up before publication when
   it would exceed that cap. (`f2ed211`,
   `9887e4f`, `6ab6f44`, `7413758`, `7847b46`, `5bfdc39`, `d2dca71`,
   `7c31697`, `84fd48f`, `5d6e19f`, `f5b9e66`, `349c56f`, `19836bf`,
-  `8f5ba28`, `06babb4`)
+  `8f5ba28`, `06babb4`, `748dce3`)
 
 ## 1. Goal
 
@@ -98,7 +101,7 @@ EdaTime already has a strong EDA foundation:
 - the first working slice of an immutable, reversible cleaning-plan system;
 - reproducible frontend, Rust, browser, and benchmark gates.
 
-The main limitation is architectural rather than cosmetic: database access still copies a bounded snapshot into memory, and large sorting needs a measured Polars 0.53 spill/memory gate before it can be promised as bounded. With a managed artifact directory, uploads retain a validated lazy CSV/Parquet plan through a streaming Parquet sink, roots and explicit plan materializations activate as fresh scans, and retained versions survive lineage-safe pruning. Parquet export sinks lazy plans to temporary files and streams completed files in bounded HTTP chunks. This removes the full-result collection and response-byte-vector boundaries from managed ingest/materialization/export, but exact full-data jobs are not yet cancellable or progress-reporting.
+The main limitation is architectural rather than cosmetic: database access still copies a bounded snapshot into memory, and large sorting needs a measured Polars 0.53 spill/memory gate before it can be offered by default. With a managed artifact directory, uploads require verified time order (or an explicit sort opt-in), retain a validated lazy CSV/Parquet plan through a streaming Parquet sink, roots and explicit plan materializations activate as fresh scans, and retained versions survive lineage-safe pruning. Parquet export sinks lazy plans to temporary files and streams completed files in bounded HTTP chunks. This removes the full-result collection and response-byte-vector boundaries from managed ingest/materialization/export, but exact full-data jobs are not yet cancellable or progress-reporting.
 
 The second limitation is product correctness: the cleaning plan is not yet the execution context for every page. The existing v1 plan supports only time ranges, numeric ranges, adaptive lines, and annotations. Timeseries applies range/line stages after server downsampling in the browser, while correlations, rolling bands, anomalies, and spectral filtering still read the active compatibility dataset without the plan. Other pages mostly consume a plan but do not yet author executable stages.
 
@@ -147,9 +150,11 @@ Do not start with allocator, SIMD, PGO, compression, framework replacement, or a
 - `crates/edatime-ingest/src/ingest.rs` builds one validated lazy CSV/Parquet
   normalization plan. The in-memory compatibility path still collects it, but
   managed uploads sink that plan directly to Parquet and activate a fresh scan.
-  Its canonical time sort uses Polars streaming execution; the exact
-  memory/spill behavior for a large unsorted source remains a required
-  benchmark gate rather than a blanket guarantee.
+  Managed mode verifies non-decreasing timestamps with a scalar streaming
+  check and preserves source order; it only enables the canonical Polars sort
+  after an operator explicitly opts in. The exact memory/spill behavior for a
+  large unsorted source remains a required benchmark gate rather than a
+  blanket guarantee.
 - `crates/edatime-store/src/repository.rs` stores one replaceable in-memory `LazyFrame` backed by a `DataFrame`.
 - `crates/edatime-store/src/artifacts.rs` provides an atomic local descriptor
   catalog; `crates/edatime-store/src/versions.rs` can open a retained Parquet
