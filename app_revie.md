@@ -11,7 +11,9 @@
 - **Milestone A complete:** an editable Pipeline Workbench now derives a safe
   graph from the canonical cleaning plan, exposes all v1 stage editors and
   reordering, and exports backend-plan JSON, graph JSON/SVG, and starter
-  Python/Rust code. (`ba9a639`, `65e1f67`)
+  Python/Rust code. The generated files and their export control explicitly
+  identify that code as a client-side preview pending backend canonical code
+  generation. (`ba9a639`, `65e1f67`, `4f06179`)
 - **Milestone F started:** a lazy, hash-routable **Prepare** destination now
   presents the canonical source → stages → result graph and live source
   identity. It provides page-native ordered-stage enable/disable, reordering,
