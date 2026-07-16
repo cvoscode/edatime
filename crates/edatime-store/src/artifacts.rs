@@ -87,7 +87,6 @@ impl DatasetArtifactStore {
     pub fn publish(&self, descriptor: DatasetArtifactDescriptor) -> Result<(), AppError> {
         std::fs::create_dir_all(&self.root)
             .map_err(|e| AppError::Io(format!("Create artifact directory: {e}")))?;
-        self.cleanup_temporary_files()?;
         let mut catalog = self.load_catalog()?;
         catalog.retain(|entry| entry.version_id != descriptor.version_id);
         catalog.push(descriptor);
@@ -113,7 +112,6 @@ impl DatasetArtifactStore {
         let file_name = artifact_file_name(&version_id)?;
         std::fs::create_dir_all(&self.root)
             .map_err(|e| AppError::Io(format!("Create artifact directory: {e}")))?;
-        self.cleanup_temporary_files()?;
         let path = self.root.join(&file_name);
         if path.exists() {
             return Err(AppError::bad_request(format!(
@@ -150,6 +148,72 @@ impl DatasetArtifactStore {
             provenance: None,
         };
         Ok(descriptor)
+    }
+
+    /// Reserve the temporary path used by a lazy streaming Parquet sink. The
+    /// final artifact remains invisible until `finalize_lazy_parquet` renames
+    /// it and the caller publishes its descriptor.
+    pub fn prepare_lazy_parquet(&self, version_id: &str) -> Result<PathBuf, AppError> {
+        let file_name = artifact_file_name(version_id)?;
+        std::fs::create_dir_all(&self.root)
+            .map_err(|e| AppError::Io(format!("Create artifact directory: {e}")))?;
+        let path = self.root.join(&file_name);
+        if path.exists() {
+            return Err(AppError::bad_request(format!(
+                "Artifact for dataset version '{version_id}' already exists"
+            )));
+        }
+        Ok(self.root.join(format!("{file_name}.tmp")))
+    }
+
+    /// Atomically promote a complete lazy-sink output to an immutable managed
+    /// artifact after quota and bounded file-fingerprint checks succeed.
+    pub fn finalize_lazy_parquet(
+        &self,
+        version_id: String,
+        created_at: DateTime<Utc>,
+    ) -> Result<DatasetArtifactDescriptor, AppError> {
+        let file_name = artifact_file_name(&version_id)?;
+        let temp = self.root.join(format!("{file_name}.tmp"));
+        let path = self.root.join(file_name);
+        let finalize = || -> Result<DatasetArtifactDescriptor, AppError> {
+            let byte_size = std::fs::metadata(&temp)
+                .map_err(|e| AppError::Io(format!("Read pending Parquet artifact size: {e}")))?
+                .len();
+            self.ensure_capacity(&version_id, byte_size)?;
+            let content_fingerprint = fingerprint_file(&temp)?;
+            std::fs::rename(&temp, &path)
+                .map_err(|e| AppError::Io(format!("Finalize Parquet artifact: {e}")))?;
+            Ok(DatasetArtifactDescriptor {
+                version_id,
+                path,
+                format: "parquet".to_string(),
+                byte_size,
+                content_fingerprint,
+                created_at,
+                provenance: None,
+            })
+        };
+        match finalize() {
+            Ok(descriptor) => Ok(descriptor),
+            Err(error) => {
+                let _ = std::fs::remove_file(temp);
+                Err(error)
+            }
+        }
+    }
+
+    pub fn discard_pending_lazy_parquet(&self, version_id: &str) {
+        if let Ok(file_name) = artifact_file_name(version_id) {
+            let _ = std::fs::remove_file(self.root.join(format!("{file_name}.tmp")));
+        }
+    }
+
+    pub fn discard_unpublished_lazy_parquet(&self, version_id: &str) {
+        if let Ok(file_name) = artifact_file_name(version_id) {
+            let _ = std::fs::remove_file(self.root.join(&file_name));
+            let _ = std::fs::remove_file(self.root.join(format!("{file_name}.tmp")));
+        }
     }
 
     /// Write a complete immutable frame and immediately publish it when the
@@ -206,7 +270,13 @@ impl DatasetArtifactStore {
         Ok(())
     }
 
-    fn cleanup_temporary_files(&self) -> Result<(), AppError> {
+    /// Remove files left by interrupted writes before the store begins serving
+    /// requests. This must not run during a live write because another unique
+    /// artifact temporary file may still be an active streaming sink.
+    pub fn recover_temporary_files(&self) -> Result<(), AppError> {
+        if !self.root.exists() {
+            return Ok(());
+        }
         let entries = std::fs::read_dir(&self.root)
             .map_err(|error| AppError::Io(format!("Read artifact directory: {error}")))?;
         for entry in entries {
@@ -240,6 +310,28 @@ fn artifact_file_name(version_id: &str) -> Result<String, AppError> {
     Ok(format!("{version_id}.parquet"))
 }
 
+fn fingerprint_file(path: &Path) -> Result<String, AppError> {
+    use std::io::Read;
+
+    let mut file = std::fs::File::open(path)
+        .map_err(|error| AppError::Io(format!("Open pending artifact fingerprint: {error}")))?;
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let read = file
+            .read(&mut buffer)
+            .map_err(|error| AppError::Io(format!("Read pending artifact fingerprint: {error}")))?;
+        if read == 0 {
+            break;
+        }
+        for byte in &buffer[..read] {
+            hash ^= u64::from(*byte);
+            hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    }
+    Ok(format!("fnv1a-parquet-{hash:016x}"))
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs;
@@ -249,7 +341,7 @@ mod tests {
     use chrono::Utc;
     use polars::prelude::{DataFrame, NamedFrom, Series};
 
-    use super::{DatasetArtifactDescriptor, DatasetArtifactStore};
+    use super::{ArtifactStorageUsage, DatasetArtifactDescriptor, DatasetArtifactStore};
 
     static NEXT_TEST_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
@@ -380,7 +472,26 @@ mod tests {
     }
 
     #[test]
-    fn managed_writes_clean_only_recognized_interrupted_artifacts() {
+    fn lazy_finalize_checks_quota_and_removes_rejected_temp_output() {
+        let root = test_root();
+        let store = DatasetArtifactStore::with_max_bytes(&root, Some(1));
+        let temp = store
+            .prepare_lazy_parquet("source-11")
+            .expect("pending path");
+        fs::write(&temp, b"larger than quota").expect("pending bytes");
+
+        let error = store
+            .finalize_lazy_parquet("source-11".to_string(), Utc::now())
+            .expect_err("quota should reject lazy artifact");
+
+        assert!(error.to_string().contains("quota exceeded"));
+        assert!(!temp.exists());
+        assert!(!root.join("source-11.parquet").exists());
+        fs::remove_dir_all(root).expect("clean test artifact directory");
+    }
+
+    #[test]
+    fn startup_recovery_cleans_only_recognized_interrupted_artifacts() {
         let root = test_root();
         fs::create_dir_all(&root).expect("create artifact directory");
         fs::write(root.join("catalog.json.tmp"), "partial catalog").expect("write catalog temp");
@@ -390,13 +501,30 @@ mod tests {
         let store = DatasetArtifactStore::new(&root);
 
         store
-            .publish(descriptor("source-11", 1))
-            .expect("publish descriptor after cleanup");
+            .recover_temporary_files()
+            .expect("recover interrupted writes");
 
         assert!(!root.join("catalog.json.tmp").exists());
         assert!(!root.join("source-11.parquet.tmp").exists());
         assert!(root.join("operator-note.tmp").exists());
 
+        fs::remove_dir_all(root).expect("clean test artifact directory");
+    }
+
+    #[test]
+    fn catalog_publication_does_not_remove_an_active_sink_temp_file() {
+        let root = test_root();
+        let store = DatasetArtifactStore::new(&root);
+        let active = store
+            .prepare_lazy_parquet("source-active")
+            .expect("active sink path");
+        fs::write(&active, "in progress").expect("active sink bytes");
+
+        store
+            .publish(descriptor("source-complete", 1))
+            .expect("publish unrelated descriptor");
+
+        assert!(active.exists());
         fs::remove_dir_all(root).expect("clean test artifact directory");
     }
 }

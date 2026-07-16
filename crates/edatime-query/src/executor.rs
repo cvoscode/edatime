@@ -6,6 +6,7 @@ use edatime_core::error::AppError;
 use edatime_core::metrics::{AppMetrics, CpuStage};
 use edatime_core::types::LazyFrame;
 use rayon::ThreadPool;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 const DEFAULT_QUERY_WORKER_CAP: usize = 8;
@@ -72,6 +73,39 @@ impl QueryExecutor {
         .await
         .map_err(|e| AppError::Internal(format!("Join error: {}", e)))?
         .map_err(|e| AppError::Query(format!("Collect: {}", e)))
+    }
+
+    /// Execute a lazy query directly into a Parquet file through Polars' new
+    /// streaming sink. The returned frame is intentionally discarded: the
+    /// durable file is the output boundary.
+    pub async fn sink_parquet_async(&self, lf: LazyFrame, path: PathBuf) -> Result<(), AppError> {
+        use polars::lazy::dsl::{FileWriteFormat, SinkDestination, SinkTarget, UnifiedSinkArgs};
+        use polars::prelude::{ParquetWriteOptions, PlRefPath};
+
+        let target = PlRefPath::try_from_path(&path)
+            .map_err(|error| AppError::Io(format!("Invalid Parquet sink path: {error}")))?;
+        let sink = lf
+            .sink(
+                SinkDestination::File {
+                    target: SinkTarget::Path(target),
+                },
+                FileWriteFormat::Parquet(Arc::new(ParquetWriteOptions::default())),
+                UnifiedSinkArgs::default(),
+            )
+            .map_err(|error| AppError::Query(format!("Build Parquet sink: {error}")))?;
+        let pool = Arc::clone(&self.thread_pool);
+        tokio::task::spawn_blocking(move || {
+            // Polars' file sink owns an async IO runtime internally. Run it on
+            // a plain child thread so it is not nested inside Tokio's runtime
+            // context inherited by `spawn_blocking`.
+            std::thread::spawn(move || pool.install(|| sink.with_new_streaming(true).collect()))
+                .join()
+                .map_err(|_| AppError::internal("Parquet sink thread panicked"))?
+                .map(|_| ())
+                .map_err(|error| AppError::Query(format!("Write Parquet sink: {error}")))
+        })
+        .await
+        .map_err(|error| AppError::internal(format!("Join Parquet sink: {error}")))?
     }
 
     pub fn execute(&self, lf: LazyFrame) -> Result<edatime_core::types::DataFrame, AppError> {

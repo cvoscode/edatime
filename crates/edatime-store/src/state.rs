@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 use chrono::Utc;
-use polars::prelude::{DataFrame, LazyFrame, SchemaExt};
+use polars::prelude::{DataFrame, DataType, LazyFrame, ScanArgsParquet, SchemaExt, len};
 use tokio::sync::RwLock;
 
 use crate::artifacts::{ArtifactStorageUsage, DatasetArtifactProvenance, DatasetArtifactStore};
@@ -72,6 +72,11 @@ impl AppState {
                 config.data.max_artifact_bytes,
             ))
         });
+        if let Some(store) = &artifact_store
+            && let Err(error) = store.recover_temporary_files()
+        {
+            tracing::warn!("Could not clean interrupted managed artifact writes: {error}");
+        }
         if can_restore_catalog && let Some(store) = &artifact_store {
             match store.load_catalog() {
                 Ok(catalog) if !catalog.is_empty() => {
@@ -302,6 +307,94 @@ impl AppState {
                 .register_child(parent_id, df, revision, plan_hash)
                 .map_err(AppError::from)?
         };
+        self.cache.invalidate_all().await;
+        self.clear_correlation_matrix_cache();
+        Ok(record)
+    }
+
+    /// Stream a plan result directly into a managed Parquet child and attach
+    /// the active compatibility repository to a fresh lazy scan. This path is
+    /// available only when managed artifact storage is configured.
+    pub async fn materialize_dataset_child_lazy(
+        &self,
+        parent_id: &str,
+        mut frame: LazyFrame,
+        plan_hash: String,
+        time_column: String,
+    ) -> Result<DatasetVersionRecord, AppError> {
+        let _parent = self
+            .dataset_versions
+            .record(parent_id)
+            .map_err(AppError::from)?;
+        let store = self.artifact_store.as_ref().ok_or_else(|| {
+            AppError::internal("Lazy materialization requires managed artifact storage")
+        })?;
+        let schema = frame.collect_schema().map_err(|error| {
+            AppError::bad_request(format!("Materialized plan schema unavailable: {error}"))
+        })?;
+        let column_names = schema
+            .iter_names()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>();
+        let version_id = self.dataset_versions.allocate_artifact_version_id();
+        let temp = store.prepare_lazy_parquet(&version_id)?;
+        if let Err(error) = self.query_executor.sink_parquet_async(frame, temp).await {
+            store.discard_pending_lazy_parquet(&version_id);
+            return Err(error);
+        }
+        let mut descriptor = store.finalize_lazy_parquet(version_id.clone(), Utc::now())?;
+        let prepared = async {
+            let scan = LazyFrame::scan_parquet(
+                descriptor.path.to_string_lossy().as_ref().into(),
+                ScanArgsParquet::default(),
+            )
+            .map_err(|error| {
+                AppError::internal(format!("Open materialized Parquet artifact: {error}"))
+            })?;
+            let count = self
+                .query_executor
+                .execute_async(
+                    scan.clone()
+                        .select([len().cast(DataType::UInt64).alias("__row_count")]),
+                )
+                .await?;
+            let row_count = count
+                .column("__row_count")
+                .ok()
+                .and_then(|column| column.u64().ok())
+                .and_then(|column| column.get(0))
+                .and_then(|value| usize::try_from(value).ok())
+                .ok_or_else(|| AppError::internal("Materialized Parquet row count unavailable"))?;
+            Ok::<_, AppError>((scan, row_count))
+        }
+        .await;
+        let (scan, row_count) = match prepared {
+            Ok(prepared) => prepared,
+            Err(error) => {
+                store.discard_unpublished_lazy_parquet(&version_id);
+                return Err(error);
+            }
+        };
+        let revision = match self.repository.replace_from_lazyframe(
+            scan,
+            DatasetMeta {
+                row_count,
+                column_names: column_names.clone(),
+                time_column: Some(time_column),
+            },
+        ) {
+            Ok(revision) => revision,
+            Err(error) => {
+                store.discard_unpublished_lazy_parquet(&version_id);
+                return Err(error);
+            }
+        };
+        let record = self
+            .dataset_versions
+            .register_child_artifact(parent_id, descriptor.clone(), revision, plan_hash)
+            .map_err(AppError::from)?;
+        descriptor.provenance = Some(provenance_from_record(&record, row_count, column_names));
+        store.publish(descriptor)?;
         self.cache.invalidate_all().await;
         self.clear_correlation_matrix_cache();
         Ok(record)

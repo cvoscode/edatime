@@ -320,14 +320,25 @@ pub async fn apply(
     Json(envelope): Json<PlanRequestEnvelope>,
 ) -> Result<Response, AppError> {
     let (version, plan_hash, frame) = compile_request_frame(&state, &envelope)?;
-    let data = state
-        .query_executor
-        .execute_async(frame)
-        .await
-        .map_err(AppError::from)?;
-    let child = state
-        .materialize_dataset_child(&version.id, data, plan_hash.clone())
-        .await?;
+    let child = if state.artifact_store.is_some() {
+        state
+            .materialize_dataset_child_lazy(
+                &version.id,
+                frame,
+                plan_hash.clone(),
+                envelope.plan.time_column.clone(),
+            )
+            .await?
+    } else {
+        let data = state
+            .query_executor
+            .execute_async(frame)
+            .await
+            .map_err(AppError::from)?;
+        state
+            .materialize_dataset_child(&version.id, data, plan_hash.clone())
+            .await?
+    };
     let response = CleaningApplyResponse {
         dataset_revision: child.revision,
         source_version: child.clone(),
@@ -371,6 +382,7 @@ mod tests {
     use edatime_core::config::AppConfig;
     use edatime_query::cleaning::{CleaningStageBaseDto, CleaningStageDto, RangeMode};
     use polars::prelude::{DataFrame, NamedFrom, Series};
+    use std::fs;
 
     fn state() -> AppState {
         let df = DataFrame::new(
@@ -519,6 +531,58 @@ mod tests {
                 .height(),
             2
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn configured_apply_streams_to_a_scan_backed_child_artifact() {
+        let artifact_dir = std::env::temp_dir().join(format!(
+            "edatime-cleaning-lazy-apply-{}",
+            Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        let mut config = AppConfig::default();
+        config.data.artifact_dir = Some(artifact_dir.clone());
+        let df = DataFrame::new(
+            3,
+            vec![
+                Series::new("ts".into(), vec![1_i64, 2, 3]).into(),
+                Series::new("value".into(), vec![1.0_f64, 2.0, 3.0]).into(),
+            ],
+        )
+        .expect("frame");
+        let state = AppState::new(df, config);
+
+        let response = apply(State(state.clone()), Json(envelope(&state)))
+            .await
+            .expect("streaming apply");
+
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let child = state.current_dataset_version().expect("child");
+        assert!(child.id.starts_with("artifact-"));
+        assert!(child.dataset_fingerprint.starts_with("fnv1a-parquet-"));
+        assert_eq!(state.dataset_rows().await, 2);
+        assert_eq!(
+            state
+                .query_executor
+                .execute_async(state.dataset_snapshot())
+                .await
+                .expect("scan child")
+                .height(),
+            2
+        );
+        let catalog = state
+            .artifact_store
+            .as_ref()
+            .expect("artifact store")
+            .load_catalog()
+            .expect("catalog");
+        assert_eq!(catalog.len(), 1);
+        assert_eq!(catalog[0].version_id, child.id);
+        assert!(
+            !artifact_dir
+                .join(format!("{}.parquet.tmp", child.id))
+                .exists()
+        );
+        fs::remove_dir_all(artifact_dir).expect("clean artifact directory");
     }
 
     #[tokio::test(flavor = "multi_thread")]
