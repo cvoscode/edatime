@@ -46,10 +46,8 @@ function stageSummary(stage: CleaningStage): string {
         case 'columnSelect': return (stage.mode === 'keep' ? 'Keep only ' : 'Drop ') + 'columns: ' + stage.columns.join(', ');
         case 'sort': return 'Stable ' + (stage.descending ? 'descending' : 'ascending') + ' sort by ' + stage.columns.join(', ');
         case 'fillNull': return (stage.strategy === 'forward' ? 'Forward' : 'Backward') + ' fill nulls in ' + stage.columns.join(', ');
-        case 'resample': return 'Resample every ' + stage.every;
-        case 'chronologicalSplit': return 'Chronological train / validation / test labels in ' + stage.outputColumn;
-        case 'annotation': return stage.note?.trim() || stage.label;
         case 'resample': return 'Resample every ' + stage.every + ': ' + stage.aggregations.map(({ column, method }) => column + ' ' + method).join(', ');
+        case 'chronologicalSplit': return 'Chronological train / validation / test labels in ' + stage.outputColumn;
         case 'annotation': return stage.note?.trim() || stage.label;
     }
 }
@@ -331,6 +329,13 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
                 throw new Error('Resampling requires the latest earlier enabled sort to be ascending with the time column first.');
             }
             patch = { ...common, every, aggregations } as Partial<CleaningStage>;
+        } else if (stage.kind === 'chronologicalSplit') {
+            const trainEndMs = readNumber(form, 'trainEndMs', 'Train end');
+            const validationEndMs = readNumber(form, 'validationEndMs', 'Validation end');
+            const embargoMs = readNumber(form, 'embargoMs', 'Embargo');
+            const outputColumn = readText(form, 'outputColumn').trim();
+            if (trainEndMs >= validationEndMs || embargoMs < 0 || !outputColumn) throw new Error('Train end must precede validation end; embargo must be non-negative; choose an output column.');
+            patch = { ...common, trainEndMs, validationEndMs, embargoMs, outputColumn } as Partial<CleaningStage>;
         } else if (stage.kind === 'adaptiveLine') {
             const x1Ms = readNumber(form, 'x1Ms', 'X1');
             const x2Ms = readNumber(form, 'x2Ms', 'X2');
@@ -659,6 +664,22 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             });
             notify();
         });
+        const addSplitForm = document.createElement('form');
+        addSplitForm.className = 'pipeline-workbench__add-stage';
+        const splitHeading = document.createElement('h3');
+        splitHeading.textContent = 'Add chronological split';
+        const splitFields = document.createElement('div');
+        splitFields.className = 'modal-grid';
+        splitFields.append(textInput('Train end (epoch ms)', '', 'trainEndMs', 'number'), textInput('Validation end (epoch ms)', '', 'validationEndMs', 'number'), textInput('Embargo (ms)', '0', 'embargoMs', 'number'), textInput('Split output column', 'split', 'outputColumn'));
+        const splitActions = document.createElement('div'); splitActions.className = 'pipeline-workbench__editor-actions';
+        const addSplit = button('Add chronological split', 'btn btn-primary btn-sm'); addSplit.type = 'submit'; splitActions.appendChild(addSplit);
+        addSplitForm.append(splitHeading, splitFields, splitActions);
+        addSplitForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const trainEndMs = Number(readText(addSplitForm, 'trainEndMs')); const validationEndMs = Number(readText(addSplitForm, 'validationEndMs')); const embargoMs = Number(readText(addSplitForm, 'embargoMs')); const outputColumn = readText(addSplitForm, 'outputColumn').trim();
+            if (!Number.isFinite(trainEndMs) || !Number.isFinite(validationEndMs) || !Number.isFinite(embargoMs) || trainEndMs >= validationEndMs || embargoMs < 0 || !outputColumn) { preview.textContent = 'Train end must precede validation end; embargo must be non-negative; choose an output column.'; return; }
+            deps.planStore.addStage({ kind: 'chronologicalSplit', executionClass: 'polarsExpression', scope: 'schema', enabled: true, sourcePage: 'manual', label: 'Chronological split', trainEndMs, validationEndMs, embargoMs, outputColumn }); notify();
+        });
         const list = document.createElement('div');
         list.className = 'cleaning-plan-stages';
         if (plan.stages.length === 0) {
@@ -723,7 +744,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             row.append(description, impact, toggle, up, down, remove);
             list.appendChild(row);
         }
-        panel.append(addMissingForm, addDeduplicateForm, addColumnSelectForm, addSortForm, addFillForm, addResampleForm, list);
+        panel.append(addMissingForm, addDeduplicateForm, addColumnSelectForm, addSortForm, addFillForm, addResampleForm, addSplitForm, list);
         const selected = plan.stages.find((stage) => stage.id === selectedStageId);
         if (selected) renderEditor(selected);
     };
