@@ -189,6 +189,26 @@ async fn metadata_v1_returns_well_formed_profile() {
     );
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn metadata_allows_the_empty_initial_dataset() {
+    let app = test_app_with_dataframe(DataFrame::default());
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/metadata")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let metadata: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(metadata["profile_status"], "immediate");
+    assert_eq!(metadata["total_rows"], 0);
+    assert_eq!(metadata["column_profiles"], serde_json::json!([]));
+}
+
 // ─── Data endpoint ────────────────────────────────────────────────────────────
 
 #[tokio::test(flavor = "multi_thread")]

@@ -397,12 +397,6 @@ fn build_immediate_dataset_metadata_from_lazyframe(
             numeric_columns.push(name);
         }
     }
-    if numeric_columns.is_empty() {
-        return Err(AppError::bad_request(
-            "File must contain at least one numeric column",
-        ));
-    }
-
     let mut expressions = vec![len().cast(DataType::UInt64).alias("__total_rows")];
     if let Some((name, dtype)) = time_col.as_ref() {
         if dtype.is_numeric() {
@@ -687,7 +681,13 @@ pub fn build_immediate_dataset_metadata_from_path_with_time_column(
                 .map_err(|e| AppError::bad_request(format!("Failed to scan csv: {e}")))?,
         }
     };
-    build_immediate_dataset_metadata_from_lazyframe(lf, time_column_override)
+    let metadata = build_immediate_dataset_metadata_from_lazyframe(lf, time_column_override)?;
+    if metadata.numeric_columns.is_empty() {
+        return Err(AppError::bad_request(
+            "File must contain at least one numeric column",
+        ));
+    }
+    Ok(metadata)
 }
 
 #[tracing::instrument(skip(state))]
