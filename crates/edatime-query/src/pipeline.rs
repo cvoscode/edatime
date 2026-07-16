@@ -57,6 +57,98 @@ pub enum Reduction {
     None,
 }
 
+/// Build a bounded, lazy time-series envelope. Each dynamic time bucket emits
+/// the first, finite minimum, finite maximum, and last value for one numeric
+/// series. Callers expand this small result back into ordinary time/value rows
+/// and may then run LTTB; no full filtered frame is collected first.
+pub fn lazy_time_envelope(
+    lf: LazyFrame,
+    ts_col: &str,
+    value_col: &str,
+    bucket_width_ms: i64,
+) -> Result<LazyFrame, AppError> {
+    let every = Duration::try_parse(&format!("{}ms", bucket_width_ms.max(1)))
+        .map_err(|error| AppError::BadRequest(format!("Invalid overview bucket width: {error}")))?;
+    Ok(lf.group_by_dynamic(
+        col(ts_col),
+        [],
+        DynamicGroupOptions {
+            every,
+            period: every,
+            offset: Duration::try_parse("0ns").expect("zero duration is valid"),
+            label: Label::Left,
+            include_boundaries: false,
+            closed_window: ClosedWindow::Left,
+            start_by: StartBy::WindowBound,
+            ..Default::default()
+        },
+    )
+    .agg([
+        col(value_col).first().alias("__edatime_first"),
+        col(value_col)
+            .filter(col(value_col).is_finite())
+            .min()
+            .alias("__edatime_min"),
+        col(value_col)
+            .filter(col(value_col).is_finite())
+            .max()
+            .alias("__edatime_max"),
+        col(value_col).last().alias("__edatime_last"),
+    ]))
+}
+
+/// Convert a bounded bucket envelope into the ordinary two-column frame used
+/// by the existing deterministic LTTB/serializer path. Bucket labels preserve
+/// chronological ordering while first/min/max/last preserve visible extrema.
+pub fn expand_time_envelope(
+    envelope: &DataFrame,
+    ts_col: &str,
+    value_col: &str,
+) -> Result<DataFrame, AppError> {
+    let ts = envelope
+        .column(ts_col)
+        .map_err(|error| AppError::BadRequest(format!("Envelope timestamp missing: {error}")))?
+        .as_materialized_series()
+        .cast(&DataType::Int64)
+        .map_err(|error| AppError::Io(format!("Envelope timestamp cast: {error}")))?;
+    let values = ["__edatime_first", "__edatime_min", "__edatime_max", "__edatime_last"]
+        .iter()
+        .map(|name| {
+            envelope
+                .column(name)
+                .map_err(|error| AppError::BadRequest(format!("Envelope value missing: {error}")))?
+                .as_materialized_series()
+                .cast(&DataType::Float64)
+                .map_err(|error| AppError::Io(format!("Envelope value cast: {error}")))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let ts_values = ts.i64().map_err(|error| AppError::Io(format!("Envelope timestamp read: {error}")))?;
+    let value_columns = values
+        .iter()
+        .map(|series| series.f64().map_err(|error| AppError::Io(format!("Envelope value read: {error}"))))
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut out_ts = Vec::with_capacity(envelope.height() * 4);
+    let mut out_values = Vec::with_capacity(envelope.height() * 4);
+    for row in 0..envelope.height() {
+        let Some(timestamp) = ts_values.get(row) else { continue };
+        for column in &value_columns {
+            if let Some(value) = column.get(row).filter(|value| value.is_finite()) {
+                out_ts.push(timestamp);
+                out_values.push(value);
+            }
+        }
+    }
+    let output_len = out_ts.len();
+    let timestamp = Series::new(ts_col.into(), out_ts)
+        .cast(envelope.column(ts_col).map_err(|error| AppError::BadRequest(error.to_string()))?.dtype())
+        .map_err(|error| AppError::Io(format!("Restore envelope timestamp dtype: {error}")))?;
+    DataFrame::new(
+        output_len,
+        vec![timestamp.into(), Series::new(value_col.into(), out_values).into()],
+    )
+    .map_err(|error| AppError::Io(format!("Build envelope frame: {error}")))
+}
+
 /// Apply the chosen reduction strategy. Returns `(reduced_df, was_reduced)`.
 pub fn apply_reduction(
     df: &DataFrame,

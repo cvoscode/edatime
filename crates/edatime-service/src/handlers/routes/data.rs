@@ -155,29 +155,57 @@ async fn data_response(
     };
 
     let pipeline = Pipeline::new().then(time_filter).then(project);
+    let filtered_plan = pipeline.apply(lf);
 
-    // Collect via QueryExecutor — runs on Rayon thread pool via spawn_blocking
-    let filtered: edatime_core::types::DataFrame = state
-        .query_executor
-        .execute_async(pipeline.apply(lf))
-        .await?;
-
-    // Audit issue 1.4: capture the row count after the time filter /
-    // non-finite cleanup but *before* LTTB so we can surface how many
-    // rows were dropped by filtering. The LTTB step may also reduce
-    // the row count further; we never let the dropped count go
-    // negative.
-    let filtered_rows = filtered.height();
-
-    // ── LTTB reduction on collected DataFrame ─────────────────────────────────
+    // A scalar streaming count decides between the exact small-frame path and
+    // the bounded overview envelope without materializing all candidates.
     let target_points = params.width * 2;
+    let candidate_cap = target_points.saturating_mul(4).max(target_points);
+    let count = state
+        .query_executor
+        .execute_async(
+            filtered_plan
+                .clone()
+                .select([polars::prelude::len().cast(polars::prelude::DataType::UInt64).alias("__rows")]),
+        )
+        .await?;
+    let filtered_rows = count
+        .column("__rows")
+        .ok()
+        .and_then(|column| column.u64().ok())
+        .and_then(|column| column.get(0))
+        .and_then(|value| usize::try_from(value).ok())
+        .ok_or_else(|| AppError::internal("Filtered candidate count unavailable"))?;
     let extra_cols = color_column
         .iter()
         .filter(|color_col| !value_cols.iter().any(|value_col| value_col == *color_col))
         .cloned()
         .collect::<Vec<String>>();
+    // The initial lazy envelope preserves one numeric line exactly enough for
+    // overview use. Multi-series and colour requests retain their current
+    // aligned exact path until their source-row envelope is implemented.
+    let use_envelope = filtered_rows > candidate_cap && value_cols.len() == 1 && color_column.is_none();
+    let (candidates, envelope_used) = if use_envelope {
+        let bucket_count = (candidate_cap / 4).max(1) as i64;
+        let span = end_ts.saturating_sub(start_ts).saturating_add(1);
+        let bucket_width = (span / bucket_count).max(1);
+        let envelope = pipeline::lazy_time_envelope(
+            filtered_plan,
+            &ts_col,
+            &value_cols[0],
+            bucket_width,
+        )?;
+        let collected = state.query_executor.execute_async(envelope).await?;
+        (
+            pipeline::expand_time_envelope(&collected, &ts_col, &value_cols[0])?,
+            true,
+        )
+    } else {
+        (state.query_executor.execute_async(filtered_plan).await?, false)
+    };
+    let candidate_rows = candidates.height();
     let (reduced, was_downsampled) = pipeline::apply_reduction(
-        &filtered,
+        &candidates,
         &value_cols,
         &extra_cols,
         &Reduction::Lttb { target_points },
@@ -236,11 +264,19 @@ async fn data_response(
         ("x-edatime-empty".to_string(), empty_header.to_string()),
         (
             "x-edatime-sampling-algorithm".to_string(),
-            "lttb-v1".to_string(),
+            if envelope_used { "envelope-lttb-v1" } else { "lttb-v1" }.to_string(),
+        ),
+        (
+            "x-edatime-approximate".to_string(),
+            if envelope_used { "1" } else { "0" }.to_string(),
         ),
         (
             "x-edatime-filtered-rows".to_string(),
             filtered_rows.to_string(),
+        ),
+        (
+            "x-edatime-candidate-rows".to_string(),
+            candidate_rows.to_string(),
         ),
         (
             "x-edatime-dropped-rows".to_string(),
@@ -432,11 +468,25 @@ mod tests {
         let returned = response
             .headers()
             .get("x-edatime-returned-rows")
-            .and_then(|value| value.to_str().ok());
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse::<usize>().ok())
+            .expect("returned rows");
+        assert!(returned <= 100, "one NaN must not bypass the viewport-derived cap");
         assert_eq!(
-            returned,
-            Some("100"),
-            "one NaN must not bypass the viewport-derived LTTB cap"
+            response
+                .headers()
+                .get("x-edatime-sampling-algorithm")
+                .and_then(|value| value.to_str().ok()),
+            Some("envelope-lttb-v1")
+        );
+        assert!(
+            response
+                .headers()
+                .get("x-edatime-candidate-rows")
+                .and_then(|value| value.to_str().ok())
+                .and_then(|value| value.parse::<usize>().ok())
+                .is_some_and(|candidates| candidates <= 400),
+            "bounded envelope must cap the collected candidates"
         );
     }
 
