@@ -30,9 +30,11 @@
   and upload preview now return bounded schema/row/time facts without a wide
   profile scan. Prepare can also launch or reuse a separately cached
   `sample-v1` report over the first 10,000 rows; it labels all findings as
-  estimates and retains the exact-report action for confirmation. Temporal,
-  duplicate, distribution, and panel profiling remain in progress.
-  (`2f3f3d7`, `71072b1`, `2a92c7c`, `35cf456`, `5e833b9`, `5b4eba2`, `59fbf6d`)
+  estimates and retains the exact-report action for confirmation. Completed
+  profiles also report source-order inversions, duplicate/unique timestamp
+  counts, and observed positive-gap statistics; distribution and panel
+  profiling remain in progress. (`2f3f3d7`, `71072b1`, `2a92c7c`, `35cf456`,
+  `5e833b9`, `5b4eba2`, `59fbf6d`, `e26872c`)
 - **Milestone B in progress:** data, scatter points/matrix, correlations, and
   correlation matrix, Drift, and export artifacts now carry immutable source
   version/revision, schema fingerprint, backend plan hash, and versioned
@@ -504,10 +506,13 @@ turns matching null/non-finite findings into reversible row policies. `/metadata
 and upload preview provide immediate schema, scalar row count, and time range
 without collecting a source frame or wide profile aggregates; their
 `profile_status: immediate` prevents the UI from presenting deferred quality
-as clean data. Rich temporal/duplicate/distribution/panel measures and a
-representative sampling policy remain future slices. The empty initial dataset
-remains a valid immediate metadata state until upload.
-(`71072b1`, `5e833b9`, `5b4eba2`, `59fbf6d`)
+as clean data. Completed reports include source-order monotonicity,
+out-of-order transition count, duplicate/unique timestamp counts, and
+min/median/max positive observed gaps; Prepare presents them as factual
+findings without guessing a repair or group key. Distribution/panel measures
+and a representative sampling policy remain future slices. The empty initial
+dataset remains a valid immediate metadata state until upload.
+(`71072b1`, `5e833b9`, `5b4eba2`, `59fbf6d`, `e26872c`)
 
 **Acceptance:** the user can see schema quickly on a large Parquet source and continue exploring while exact profile work runs separately.
 
