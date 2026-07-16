@@ -26,9 +26,10 @@
   deduplicated, reversible missing-value policy stage. Prepare can now launch or reuse a source-version,
   revision, fingerprint, and `exact-v1`-keyed background profile, poll its
   cancellable session job, cancel it directly while it is running, and replace
-  immediate findings only after the exact report is complete; progressive
-  sampled/time/duplicate/distribution profiling remains in progress.
-  (`2f3f3d7`, `71072b1`, `2a92c7c`, `35cf456`)
+  provisional quality state only after the exact report is complete. `/metadata`
+  and upload preview now return bounded schema/row/time facts without a wide
+  profile scan; progressive sampled/time/duplicate/distribution profiling
+  remains in progress. (`2f3f3d7`, `71072b1`, `2a92c7c`, `35cf456`, `5e833b9`)
 - **Milestone B in progress:** data, scatter points/matrix, correlations, and
   correlation matrix, Drift, and export artifacts now carry immutable source
   version/revision, schema fingerprint, backend plan hash, and versioned
@@ -492,10 +493,12 @@ collect uses the background executor lane. Exact profiles report null and
 non-finite counts while retaining finite-only extrema. Prepare keeps immediate
 source findings available, offers an explicit exact-report action and in-flight
 cancellation, and turns both finding types into the corresponding reversible
-row policy when a matching source report reaches `ready`. This
-retains the existing `/metadata` and upload-preview contract while the fast
-schema/sample report and richer temporal/panel quality measures remain future
-slices. (`71072b1`)
+row policy when a matching source report reaches `ready`. `/metadata` and
+upload preview now provide the immediate schema, scalar row count, and time
+range contract without collecting a source frame or wide profile aggregates;
+their `profile_status: immediate` prevents the UI from presenting deferred
+quality as clean data. The fast sampled report and richer temporal/panel
+quality measures remain future slices. (`71072b1`, `5e833b9`)
 
 **Acceptance:** the user can see schema quickly on a large Parquet source and continue exploring while exact profile work runs separately.
 
