@@ -110,11 +110,13 @@ fn code_number(value: f64) -> String {
 }
 
 fn validate_codegen_support(plan: &CleaningPlanDto) -> Result<(), AppError> {
-    if plan
-        .stages
-        .iter()
-        .any(|stage| stage.enabled() && matches!(stage, CleaningStageDto::AdaptiveLine { .. } | CleaningStageDto::ChronologicalSplit { .. }))
-    {
+    if plan.stages.iter().any(|stage| {
+        stage.enabled()
+            && matches!(
+                stage,
+                CleaningStageDto::AdaptiveLine { .. } | CleaningStageDto::ChronologicalSplit { .. }
+            )
+    }) {
         return Err(AppError::bad_request(
             "Backend code export does not yet support adaptive-line or chronological-split stages; export the canonical plan JSON or remove that stage before requesting code",
         ));
@@ -301,7 +303,9 @@ fn generate_python_polars(
                 );
                 lines.push(format!("    lf = lf.group_by_dynamic({}, every={}, period={}, closed=\"left\", label=\"left\", start_by=\"window\").agg([{aggregations}])", code_quote(&plan.time_column), code_quote(every), code_quote(every)));
             }
-            CleaningStageDto::AdaptiveLine { .. } | CleaningStageDto::ChronologicalSplit { .. } => unreachable!("validated codegen support"),
+            CleaningStageDto::AdaptiveLine { .. } | CleaningStageDto::ChronologicalSplit { .. } => {
+                unreachable!("validated codegen support")
+            }
             CleaningStageDto::Annotation { .. } => {}
         }
     }
@@ -482,7 +486,9 @@ fn generate_rust_polars(
                 ));
                 lines.push(format!("    lf = lf.group_by_dynamic(col({}), [], DynamicGroupOptions {{ every, period: every, offset: Duration::try_parse(\"0ns\")?, closed_window: ClosedWindow::Left, label: Label::Left, start_by: StartBy::WindowBound, ..Default::default() }}).agg([{aggregations}]);", code_quote(&plan.time_column)));
             }
-            CleaningStageDto::AdaptiveLine { .. } | CleaningStageDto::ChronologicalSplit { .. } => unreachable!("validated codegen support"),
+            CleaningStageDto::AdaptiveLine { .. } | CleaningStageDto::ChronologicalSplit { .. } => {
+                unreachable!("validated codegen support")
+            }
             CleaningStageDto::Annotation { .. } => {}
         }
     }
@@ -589,6 +595,29 @@ fn validate_envelope(
     Ok((version, hash))
 }
 
+fn preview_warnings(plan: &CleaningPlanDto) -> Vec<String> {
+    let Some(split_index) = plan.stages.iter().position(|stage| {
+        stage.enabled() && matches!(stage, CleaningStageDto::ChronologicalSplit { .. })
+    }) else {
+        return Vec::new();
+    };
+    plan.stages[..split_index]
+        .iter()
+        .filter(|stage| stage.enabled())
+        .filter_map(|stage| match stage {
+            CleaningStageDto::FillNull { .. } => Some(format!(
+                "Potential leakage: ordered null fill stage '{}' runs before the chronological split and can carry values across split boundaries.",
+                stage.id()
+            )),
+            CleaningStageDto::Resample { .. } => Some(format!(
+                "Potential leakage: resampling stage '{}' runs before the chronological split and can aggregate values across split boundaries.",
+                stage.id()
+            )),
+            _ => None,
+        })
+        .collect()
+}
+
 pub(crate) fn compile_request_frame(
     state: &AppState,
     envelope: &PlanRequestEnvelope,
@@ -677,7 +706,7 @@ pub async fn preview(
         columns_before: source_schema.len(),
         columns_after: result.width(),
         stage_impacts,
-        warnings: Vec::new(),
+        warnings: preview_warnings(&envelope.plan),
     }))
 }
 
@@ -1250,6 +1279,29 @@ mod tests {
             manifest["artifactChecksums"]["canonicalPlan"],
             manifest["planHash"]
         );
+    }
+
+    #[test]
+    fn preview_warns_when_resampling_precedes_a_chronological_split() {
+        let mut request = envelope(&state());
+        request.plan.stages = vec![
+            CleaningStageDto::Resample {
+                base: base("resample"),
+                every: "1s".to_string(),
+                aggregations: vec![edatime_query::cleaning::ResampleAggregationDto {
+                    column: "value".to_string(),
+                    method: edatime_query::cleaning::ResampleAggregationMethod::Mean,
+                }],
+            },
+            CleaningStageDto::ChronologicalSplit {
+                base: base("split"),
+                train_end_ms: 1.0,
+                validation_end_ms: 2.0,
+                embargo_ms: 0.0,
+                output_column: "split".to_string(),
+            },
+        ];
+        assert!(preview_warnings(&request.plan)[0].contains("resample"));
     }
 
     #[tokio::test(flavor = "multi_thread")]

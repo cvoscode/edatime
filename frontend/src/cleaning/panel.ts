@@ -73,7 +73,8 @@ function previewSummary(result: CleaningPreviewResponse): string {
     const columns = result.columnsAfter === result.columnsBefore
         ? ' Columns unchanged.'
         : ' Columns: ' + String(result.columnsBefore) + ' → ' + String(result.columnsAfter) + '.';
-    return rows + columns;
+    const warnings = result.warnings.length === 0 ? '' : ' Warnings: ' + result.warnings.join(' ');
+    return rows + columns + warnings;
 }
 
 function stageImpactSummary(stage: CleaningStage, impact: CleaningStageImpact | undefined): string {
