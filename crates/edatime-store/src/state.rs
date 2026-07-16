@@ -9,7 +9,7 @@ use tokio::sync::RwLock;
 use crate::artifacts::{ArtifactStorageUsage, DatasetArtifactProvenance, DatasetArtifactStore};
 use crate::cache::{CorrelationMatrixCacheEntry, ResponseCache};
 use crate::db::DbPool;
-use crate::jobs::JobRegistry;
+use crate::jobs::{JobHandle, JobRegistry};
 use crate::repository::{DataRepository, DatasetMeta, InMemoryDataRepository};
 use crate::versions::{DatasetVersionRecord, DatasetVersionRegistry, fingerprints_for_frame};
 use edatime_core::config::AppConfig;
@@ -473,7 +473,9 @@ impl AppState {
         mut frame: LazyFrame,
         plan_hash: String,
         time_column: String,
+        job: Option<&JobHandle>,
     ) -> Result<DatasetVersionRecord, AppError> {
+        ensure_job_not_cancelled(job)?;
         let _parent = self
             .dataset_versions
             .record(parent_id)
@@ -491,6 +493,10 @@ impl AppState {
         let version_id = self.dataset_versions.allocate_artifact_version_id();
         let temp = store.prepare_lazy_parquet(&version_id)?;
         if let Err(error) = self.query_executor.sink_parquet_async(frame, temp).await {
+            store.discard_pending_lazy_parquet(&version_id);
+            return Err(error);
+        }
+        if let Err(error) = ensure_job_not_cancelled(job) {
             store.discard_pending_lazy_parquet(&version_id);
             return Err(error);
         }
@@ -527,6 +533,10 @@ impl AppState {
                 return Err(error);
             }
         };
+        if let Err(error) = ensure_job_not_cancelled(job) {
+            store.discard_unpublished_lazy_parquet(&version_id);
+            return Err(error);
+        }
         let revision = match self.repository.replace_from_lazyframe(
             scan,
             DatasetMeta {
@@ -675,6 +685,13 @@ impl AppState {
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
             + 1
     }
+}
+
+fn ensure_job_not_cancelled(job: Option<&JobHandle>) -> Result<(), AppError> {
+    if job.is_some_and(JobHandle::is_cancelled) {
+        return Err(AppError::bad_request("Materialization job cancelled before publication"));
+    }
+    Ok(())
 }
 
 impl Default for AppState {

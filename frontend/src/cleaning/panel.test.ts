@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { previewMock, applyMock, exportPlanMock, listVersionsMock, selectVersionMock, storageUsageMock, sessionJobsMock, downloadBlobMock } = vi.hoisted(() => ({
+const { previewMock, applyMock, exportPlanMock, listVersionsMock, selectVersionMock, storageUsageMock, sessionJobsMock, cancelSessionJobMock, downloadBlobMock } = vi.hoisted(() => ({
     previewMock: vi.fn(),
     applyMock: vi.fn(),
     exportPlanMock: vi.fn(),
@@ -8,6 +8,7 @@ const { previewMock, applyMock, exportPlanMock, listVersionsMock, selectVersionM
     selectVersionMock: vi.fn(),
     storageUsageMock: vi.fn(),
     sessionJobsMock: vi.fn(),
+    cancelSessionJobMock: vi.fn(),
     downloadBlobMock: vi.fn(),
 }));
 
@@ -19,6 +20,7 @@ vi.mock('./api.js', () => ({
     selectDatasetVersion: selectVersionMock,
     getArtifactStorageUsage: storageUsageMock,
     listSessionJobs: sessionJobsMock,
+    cancelSessionJob: cancelSessionJobMock,
 }));
 vi.mock('../utils/dom.js', () => ({ downloadBlob: downloadBlobMock }));
 
@@ -35,6 +37,7 @@ describe('cleaning plan panel', () => {
         selectVersionMock.mockReset();
         storageUsageMock.mockReset();
         sessionJobsMock.mockReset();
+        cancelSessionJobMock.mockReset();
         downloadBlobMock.mockReset();
     });
 
@@ -232,9 +235,22 @@ describe('cleaning plan panel', () => {
         Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Refresh pipeline jobs')!.click();
         await Promise.resolve();
         expect(sessionJobsMock).toHaveBeenCalledTimes(1);
-        expect(Array.from(document.querySelectorAll('.pipeline-workbench__hint')).some((hint) =>
-            hint.textContent?.includes('job-0001 · completed · 100% · published'),
-        )).toBe(true);
+        expect(document.querySelector('.pipeline-workbench__jobs')?.textContent).toContain('job-0001 · completed · 100% · published');
+    });
+
+    it('offers cancellation only for a live materialization job', async () => {
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        sessionJobsMock.mockResolvedValue([{ id: 'job-0002', kind: 'materialization', status: 'running', progressPercent: 10, message: null }]);
+        cancelSessionJobMock.mockResolvedValue({ id: 'job-0002', status: 'cancelling' });
+        mountCleaningPlanPanel({ planStore, getViewport: () => null });
+        document.getElementById('open-cleaning-plan-btn')!.click();
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Export')!.click();
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Refresh pipeline jobs')!.click();
+        await Promise.resolve();
+        Array.from(document.querySelectorAll<HTMLButtonElement>('.pipeline-workbench__job button')).find((button) => button.textContent === 'Cancel')!.click();
+        await Promise.resolve();
+        expect(cancelSessionJobMock).toHaveBeenCalledWith('job-0002');
     });
 
     it('imports a saved plan only when it is anchored to the active dataset baseline', async () => {

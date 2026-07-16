@@ -12,6 +12,7 @@ export const apiV1Routes = {
     sample: (name: string): string => `/api/v1/sample/${encodeURIComponent(name)}`,
     exportParquet: '/api/v1/export/parquet',
     jobs: '/api/v1/jobs',
+    job: (id: string): string => `/api/v1/jobs/${encodeURIComponent(id)}`,
     cleaning: {
         validate: '/api/v1/cleaning/validate',
         preview: '/api/v1/cleaning/preview',

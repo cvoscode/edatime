@@ -22,3 +22,14 @@ pub async fn get_job(
         .map(Json)
         .ok_or_else(|| AppError::bad_request("Unknown session job"))
 }
+
+pub async fn cancel_job(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<JobRecord>, AppError> {
+    state
+        .jobs
+        .cancel(&id)
+        .map(Json)
+        .ok_or_else(|| AppError::bad_request("Unknown session job"))
+}

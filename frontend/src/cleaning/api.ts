@@ -1,5 +1,5 @@
 import { apiV1Routes } from '../contracts/api/v1/routes.js';
-import { getJson, postBlob, postJson } from '../services/api/http.js';
+import { deleteJson, getJson, postBlob, postJson } from '../services/api/http.js';
 import type { ApiRequestOptions } from '../services/api/http.js';
 import { buildPlanRequestSnapshot } from './compiler.js';
 import type { CleaningPlan } from './types.js';
@@ -146,4 +146,8 @@ export function getArtifactStorageUsage(options?: ApiRequestOptions): Promise<Ar
 /** Recent process-local pipeline work. This is operational state, not history. */
 export function listSessionJobs(options?: ApiRequestOptions): Promise<SessionJob[]> {
     return getJson(apiV1Routes.jobs, 'Session jobs', { ...options, datasetScoped: false });
+}
+
+export function cancelSessionJob(jobId: string, options?: ApiRequestOptions): Promise<SessionJob> {
+    return deleteJson(apiV1Routes.job(jobId), 'Session job cancellation', { ...options, datasetScoped: false });
 }

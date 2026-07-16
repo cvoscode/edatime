@@ -38,7 +38,7 @@ pub fn api_router() -> Router<AppState> {
         .route("/metadata", get(metadata::get_metadata))
         .route("/metrics", get(metrics::get_metrics))
         .route("/jobs", get(jobs::list_jobs))
-        .route("/jobs/{id}", get(jobs::get_job))
+        .route("/jobs/{id}", get(jobs::get_job).delete(jobs::cancel_job))
         .route(
             "/scatter/points",
             get(scatter::get_scatter_points).post(scatter::post_scatter_points),

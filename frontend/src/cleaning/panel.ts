@@ -1,5 +1,6 @@
 import {
     applyCleaningPlan,
+    cancelSessionJob,
     exportCleaningPlan,
     getArtifactStorageUsage,
     listSessionJobs,
@@ -787,8 +788,8 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
                 refreshStorage.disabled = false;
             }
         });
-        const jobs = document.createElement('p');
-        jobs.className = 'pipeline-workbench__hint';
+        const jobs = document.createElement('div');
+        jobs.className = 'pipeline-workbench__jobs';
         jobs.textContent = 'Recent pipeline jobs are not loaded.';
         const refreshJobs = button('Refresh pipeline jobs');
         refreshJobs.addEventListener('click', async () => {
@@ -798,9 +799,34 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
                     .filter((job) => job.kind === 'materialization')
                     .slice(-5)
                     .reverse();
-                jobs.textContent = records.length === 0
-                    ? 'No materialization jobs in this server session.'
-                    : records.map((job) => `${job.id} · ${job.status}${job.progressPercent == null ? '' : ` · ${job.progressPercent}%`}${job.message ? ` · ${job.message}` : ''}`).join('\n');
+                jobs.replaceChildren();
+                if (records.length === 0) {
+                    jobs.textContent = 'No materialization jobs in this server session.';
+                    return;
+                }
+                for (const job of records) {
+                    const row = document.createElement('div');
+                    row.className = 'pipeline-workbench__job';
+                    const label = document.createElement('span');
+                    label.textContent = `${job.id} · ${job.status}${job.progressPercent == null ? '' : ` · ${job.progressPercent}%`}${job.message ? ` · ${job.message}` : ''}`;
+                    row.appendChild(label);
+                    if (job.status === 'queued' || job.status === 'running' || job.status === 'cancelling') {
+                        const cancel = button('Cancel', 'btn btn-ghost btn-sm');
+                        cancel.addEventListener('click', async () => {
+                            cancel.disabled = true;
+                            try {
+                                await cancelSessionJob(job.id);
+                                refreshJobs.click();
+                            } catch (error) {
+                                preview.textContent = error instanceof Error ? error.message : 'Could not cancel this job.';
+                            } finally {
+                                cancel.disabled = false;
+                            }
+                        });
+                        row.appendChild(cancel);
+                    }
+                    jobs.appendChild(row);
+                }
             } catch (error) {
                 jobs.textContent = error instanceof Error ? error.message : 'Could not load session jobs.';
             } finally {

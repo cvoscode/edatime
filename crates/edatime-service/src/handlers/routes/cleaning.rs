@@ -325,14 +325,25 @@ pub async fn apply(
                 frame,
                 plan_hash.clone(),
                 envelope.plan.time_column.clone(),
+                Some(&job),
             )
             .await
     } else {
         async {
+            if job.is_cancelled() {
+                return Err(edatime_core::error::AppError::bad_request(
+                    "Materialization job cancelled before collection",
+                ));
+            }
             let data = state
                 .query_executor
                 .execute_async(frame)
                 .await?;
+            if job.is_cancelled() {
+                return Err(edatime_core::error::AppError::bad_request(
+                    "Materialization job cancelled before publication",
+                ));
+            }
             state
                 .materialize_dataset_child(&version.id, data, plan_hash.clone())
                 .await
