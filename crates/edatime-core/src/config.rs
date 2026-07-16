@@ -50,7 +50,7 @@ pub struct UploadSettings {
     pub max_upload_bytes: usize,
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
 pub struct DataSettings {
     /// Optional managed directory for durable Parquet dataset artifacts.
@@ -61,6 +61,20 @@ pub struct DataSettings {
     /// Optional cap on retained managed dataset versions. The active lineage is
     /// always kept intact, so a smaller value never corrupts recovery.
     pub max_artifact_versions: Option<usize>,
+    /// Avoid relying on unmeasured external-sort behavior when a managed scan
+    /// must remain bounded. Operators can opt into streaming sort explicitly.
+    pub require_sorted_scan_backed: bool,
+}
+
+impl Default for DataSettings {
+    fn default() -> Self {
+        Self {
+            artifact_dir: None,
+            max_artifact_bytes: None,
+            max_artifact_versions: None,
+            require_sorted_scan_backed: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -260,6 +274,11 @@ impl AppConfig {
         {
             self.data.max_artifact_versions = Some(max_artifact_versions);
         }
+        if let Ok(require_sorted) = env::var("EDATIME_REQUIRE_SORTED_SCAN_BACKED")
+            && let Ok(require_sorted) = require_sorted.parse::<bool>()
+        {
+            self.data.require_sorted_scan_backed = require_sorted;
+        }
         if let Ok(min_width) = env::var("EDATIME_MIN_VIEWPORT_WIDTH")
             && let Ok(min_width) = min_width.parse::<usize>()
         {
@@ -434,6 +453,29 @@ mod tests {
             },
             None => unsafe {
                 env::remove_var("EDATIME_MAX_ARTIFACT_VERSIONS");
+            },
+        }
+    }
+
+    #[test]
+    fn sorted_scan_backed_requirement_defaults_to_true_and_can_be_overridden() {
+        let _guard = env_lock().lock().expect("env lock should not be poisoned");
+        let previous = env::var("EDATIME_REQUIRE_SORTED_SCAN_BACKED").ok();
+        assert!(AppConfig::default().data.require_sorted_scan_backed);
+
+        unsafe {
+            env::set_var("EDATIME_REQUIRE_SORTED_SCAN_BACKED", "false");
+        }
+        let mut config = AppConfig::default();
+        config.apply_env_overrides();
+        assert!(!config.data.require_sorted_scan_backed);
+
+        match previous {
+            Some(value) => unsafe {
+                env::set_var("EDATIME_REQUIRE_SORTED_SCAN_BACKED", value);
+            },
+            None => unsafe {
+                env::remove_var("EDATIME_REQUIRE_SORTED_SCAN_BACKED");
             },
         }
     }

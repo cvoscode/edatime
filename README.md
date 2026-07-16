@@ -101,6 +101,7 @@ max_upload_bytes = 536870912   # 512 MB
 artifact_dir = "./edatime-artifacts" # optional durable Parquet versions
 max_artifact_bytes = 21474836480      # optional 20 GiB managed-artifact cap
 max_artifact_versions = 12             # optional lineage-safe version cap
+require_sorted_scan_backed = true      # false opts into Polars streaming sort
 ```
 
 **Environment variable overrides** (take precedence over the config file):
@@ -116,6 +117,7 @@ max_artifact_versions = 12             # optional lineage-safe version cap
 | `EDATIME_ARTIFACT_DIR` | *(unset)* | Managed directory for durable Parquet versions |
 | `EDATIME_MAX_ARTIFACT_BYTES` | *(unset)* | Aggregate managed-artifact disk cap |
 | `EDATIME_MAX_ARTIFACT_VERSIONS` | *(unset)* | Lineage-safe cap for retained managed versions |
+| `EDATIME_REQUIRE_SORTED_SCAN_BACKED` | `true` | Verify ordered timestamps before scan-backed ingest |
 
 ---
 

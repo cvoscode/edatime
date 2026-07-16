@@ -74,6 +74,23 @@ pub fn load_lazyframe_partial<P: AsRef<Path>>(
     path: P,
     params: &IngestParams,
 ) -> PolarsResult<LazyLoadResult> {
+    load_lazyframe_partial_with_sort(path, params, true)
+}
+
+/// Build a managed scan-backed ingest plan without inserting a global sort.
+/// The caller must verify ordering first or explicitly opt into a sort job.
+pub fn load_lazyframe_scan_backed<P: AsRef<Path>>(
+    path: P,
+    params: &IngestParams,
+) -> PolarsResult<LazyLoadResult> {
+    load_lazyframe_partial_with_sort(path, params, false)
+}
+
+fn load_lazyframe_partial_with_sort<P: AsRef<Path>>(
+    path: P,
+    params: &IngestParams,
+    sort_by_time: bool,
+) -> PolarsResult<LazyLoadResult> {
     let path_ref = path.as_ref();
     let is_parquet = path_ref.extension().is_some_and(|ext| ext == "parquet");
 
@@ -266,8 +283,10 @@ pub fn load_lazyframe_partial<P: AsRef<Path>>(
         );
     }
 
-    // ── 8. Preserve the canonical stable time ordering in the lazy plan ───
-    lf = lf.sort([old_name.as_str()], SortMultipleOptions::default());
+    // ── 8. Preserve the canonical stable time ordering when requested ─────
+    if sort_by_time {
+        lf = lf.sort([old_name.as_str()], SortMultipleOptions::default());
+    }
     let final_schema = lf.clone().collect_schema()?;
     let column_names = final_schema
         .iter_names()
@@ -290,6 +309,26 @@ pub fn load_lazyframe_partial<P: AsRef<Path>>(
         column_names,
         numeric_columns,
     })
+}
+
+/// Execute a scalar streaming check for monotonic non-decreasing timestamps.
+/// It is deliberately separate from `load_lazyframe_scan_backed` so the
+/// managed upload path can reject an unsorted source before creating an
+/// artifact while the in-memory compatibility path keeps its historical sort.
+pub fn time_column_is_non_decreasing(frame: LazyFrame, time_column: &str) -> PolarsResult<bool> {
+    let result = frame
+        .select([col(time_column)
+            .cast(DataType::Int64)
+            .lt(col(time_column).cast(DataType::Int64).cum_max(false))
+            .any(true)
+            .alias("__has_time_inversion")])
+        .with_new_streaming(true)
+        .collect()?;
+    Ok(!result
+        .column("__has_time_inversion")?
+        .bool()?
+        .get(0)
+        .unwrap_or(false))
 }
 
 #[cfg(test)]
@@ -361,6 +400,32 @@ mod tests {
                 .into_no_null_iter()
                 .collect::<Vec<_>>(),
             vec![1, 2, 3]
+        );
+    }
+
+    #[test]
+    fn scan_backed_plan_preserves_source_order_for_streaming_admission() {
+        let path = write_temp_csv("time,value\n2024-01-01T00:00:02Z,3\n2024-01-01T00:00:00Z,1\n");
+        let result = load_lazyframe_scan_backed(&path, &IngestParams::default())
+            .expect("scan-backed lazy plan");
+        let time_column = result.time_column_name.as_deref().expect("time column");
+
+        assert!(
+            !time_column_is_non_decreasing(result.frame.clone(), time_column)
+                .expect("streaming order check")
+        );
+        assert_eq!(
+            result
+                .frame
+                .collect()
+                .expect("source-order frame")
+                .column("value")
+                .expect("value")
+                .i64()
+                .expect("i64")
+                .into_no_null_iter()
+                .collect::<Vec<_>>(),
+            vec![3, 1]
         );
     }
 

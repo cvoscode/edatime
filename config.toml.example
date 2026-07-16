@@ -38,3 +38,4 @@
 # artifact_dir = "./edatime-artifacts"
 # max_artifact_bytes = 21474836480 # 20 GiB aggregate managed-artifact cap
 # max_artifact_versions = 12 # optional lineage-safe retained-version cap
+# require_sorted_scan_backed = true # verify order; false opts into Polars streaming sort

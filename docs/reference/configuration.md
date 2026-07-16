@@ -33,6 +33,7 @@ max_upload_bytes = 536870912
 artifact_dir = "./edatime-artifacts" # optional; managed Parquet versions
 max_artifact_bytes = 21474836480      # optional 20 GiB artifact cap
 max_artifact_versions = 12             # optional lineage-safe version cap
+require_sorted_scan_backed = true      # false opts into Polars streaming sort
 ```
 
 ## Environment Variables
@@ -52,6 +53,7 @@ max_artifact_versions = 12             # optional lineage-safe version cap
 | `EDATIME_ARTIFACT_DIR` | Managed directory for durable Parquet versions | unset |
 | `EDATIME_MAX_ARTIFACT_BYTES` | Aggregate managed-artifact disk cap in bytes | unset |
 | `EDATIME_MAX_ARTIFACT_VERSIONS` | Lineage-safe cap for retained managed versions | unset |
+| `EDATIME_REQUIRE_SORTED_SCAN_BACKED` | Require monotonic time before managed ingest | `true` |
 | `EDATIME_DATABASE_URL` | Database connection string | unset |
 | `EDATIME_DATABASE_BACKEND` | Preferred database backend | `none` |
 | `EDATIME_FRONTEND_DIR` | Override the frontend static directory | `frontend/` in the repo |
@@ -67,3 +69,6 @@ max_artifact_versions = 12             # optional lineage-safe version cap
 - `max_artifact_versions` retains the active version’s complete ancestry, then
   as many newer independent version chains as fit. A cap smaller than the active
   lineage is deliberately exceeded rather than publishing an unrecoverable catalog.
+- Scan-backed ingest verifies non-decreasing timestamps by default. Set
+  `require_sorted_scan_backed = false` only when the operator accepts Polars'
+  streaming sort resource profile for the uploaded data.

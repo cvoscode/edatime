@@ -24,55 +24,79 @@ pub async fn upload_data(
 
     let (path, ingest_params, file_name) = extract_upload_parts(&state, multipart).await?;
     let source_path = path.to_path_buf();
-    let (row_count, column_names, numeric_columns, time_column_name) =
-        if state.artifact_store.is_some() {
-            let lazy = tokio::task::spawn_blocking(move || {
-                edatime_ingest::ingest::load_lazyframe_partial(&source_path, &ingest_params)
+    let (row_count, column_names, numeric_columns, time_column_name) = if state
+        .artifact_store
+        .is_some()
+    {
+        let require_sorted_scan_backed = state.config.data.require_sorted_scan_backed;
+        let lazy = tokio::task::spawn_blocking(move || {
+                let lazy = edatime_ingest::ingest::load_lazyframe_scan_backed(
+                    &source_path,
+                    &ingest_params,
+                )?;
+                if require_sorted_scan_backed {
+                    let time_column = lazy.time_column_name.as_deref().ok_or_else(|| {
+                        polars::prelude::PolarsError::ComputeError(
+                            "Uploaded dataset has no resolved time column".into(),
+                        )
+                    })?;
+                    if !edatime_ingest::ingest::time_column_is_non_decreasing(
+                        lazy.frame.clone(),
+                        time_column,
+                    )? {
+                        return Err(polars::prelude::PolarsError::ComputeError(
+                            "Managed scan-backed upload requires timestamps in non-decreasing order. Sort before upload or set data.require_sorted_scan_backed=false to opt into Polars streaming sort."
+                                .into(),
+                        ));
+                    }
+                }
+                Ok(lazy)
             })
             .await
             .map_err(|error| AppError::internal(format!("Failed to join upload task: {error:?}")))?
             .map_err(|error| {
                 AppError::bad_request(format!("Failed to parse uploaded file: {error}"))
             })?;
-            let time_column_name = lazy.time_column_name.clone().ok_or_else(|| {
-                AppError::bad_request("Uploaded dataset has no resolved time column")
-            })?;
-            let column_names = lazy.column_names;
-            let numeric_columns = lazy.numeric_columns;
-            state
-                .replace_dataset_lazy_root(
-                    lazy.frame,
-                    Some(file_name.clone()),
-                    time_column_name.clone(),
-                )
-                .await?;
-            (
-                state.dataset_rows().await,
-                column_names,
-                numeric_columns,
-                Some(time_column_name),
+        let time_column_name = lazy
+            .time_column_name
+            .clone()
+            .ok_or_else(|| AppError::bad_request("Uploaded dataset has no resolved time column"))?;
+        let column_names = lazy.column_names;
+        let numeric_columns = lazy.numeric_columns;
+        state
+            .replace_dataset_lazy_root(
+                lazy.frame,
+                Some(file_name.clone()),
+                time_column_name.clone(),
             )
-        } else {
-            let loaded = tokio::task::spawn_blocking(move || {
-                edatime_ingest::ingest::load_dataframe_partial(&source_path, &ingest_params)
-            })
+            .await?;
+        (
+            state.dataset_rows().await,
+            column_names,
+            numeric_columns,
+            Some(time_column_name),
+        )
+    } else {
+        let loaded = tokio::task::spawn_blocking(move || {
+            edatime_ingest::ingest::load_dataframe_partial(&source_path, &ingest_params)
+        })
+        .await
+        .map_err(|error| AppError::internal(format!("Failed to join upload task: {error:?}")))?
+        .map_err(|error| {
+            AppError::bad_request(format!("Failed to parse uploaded file: {error}"))
+        })?;
+        let row_count = loaded.df.height();
+        state
+            .replace_dataset(loaded.df)
             .await
-            .map_err(|error| AppError::internal(format!("Failed to join upload task: {error:?}")))?
-            .map_err(|error| {
-                AppError::bad_request(format!("Failed to parse uploaded file: {error}"))
-            })?;
-            let row_count = loaded.df.height();
-            state
-                .replace_dataset(loaded.df)
-                .await
-                .map_err(|error| AppError::internal(format!("Failed to store dataset: {error}")))?;
-            (
-                row_count,
-                loaded.column_names,
-                loaded.numeric_columns,
-                loaded.time_column_name,
-            )
-        };
+            .map_err(|error| AppError::internal(format!("Failed to store dataset: {error}")))?;
+        (
+            row_count,
+            loaded.column_names,
+            loaded.numeric_columns,
+            loaded.time_column_name,
+        )
+    };
 
     state.set_time_column_display_name(time_column_name.clone());
     if state.artifact_store.is_none() {
@@ -112,16 +136,12 @@ pub async fn preview_upload_data(
         // the pipeline assumes. (Audit issue 4.1.)
         let mut metadata = raw;
         for profile in &mut metadata.column_profiles {
-            if profile.dtype.starts_with("datetime")
-                && !profile.dtype.starts_with("datetime[ms]")
-            {
+            if profile.dtype.starts_with("datetime") && !profile.dtype.starts_with("datetime[ms]") {
                 profile.dtype = "datetime[ms]".to_string();
             }
         }
         for col in &mut metadata.columns {
-            if col.dtype.starts_with("datetime")
-                && !col.dtype.starts_with("datetime[ms]")
-            {
+            if col.dtype.starts_with("datetime") && !col.dtype.starts_with("datetime[ms]") {
                 col.dtype = "datetime[ms]".to_string();
             }
         }
@@ -383,17 +403,15 @@ mod tests {
             .into_temp_path();
         fs::write(
             &source,
-            "time,value\n2024-01-01T00:00:02Z,3\n2024-01-01T00:00:00Z,1\n2024-01-01T00:00:01Z,2\n",
+            "time,value\n2024-01-01T00:00:00Z,1\n2024-01-01T00:00:01Z,2\n2024-01-01T00:00:02Z,3\n",
         )
         .expect("source CSV");
         let mut config = AppConfig::default();
         config.data.artifact_dir = Some(artifact_dir.clone());
         let state = AppState::new(DataFrame::default(), config);
-        let loaded = edatime_ingest::ingest::load_lazyframe_partial(
-            &source,
-            &IngestParams::default(),
-        )
-        .expect("lazy CSV ingest plan");
+        let loaded =
+            edatime_ingest::ingest::load_lazyframe_partial(&source, &IngestParams::default())
+                .expect("lazy CSV ingest plan");
 
         let record = state
             .replace_dataset_lazy_root(

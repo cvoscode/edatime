@@ -27,7 +27,7 @@ bytes = "1"
 chrono = { version = "0.4.41", features = ["serde"] }
 minmaxlttb = "0.1.4"
 ndarray = { version = "0.16", features = ["rayon"] }
-polars = { version = "0.53.0", features = ["lazy", "temporal", "dynamic_group_by", "parquet", "csv", "dtype-datetime", "ipc", "ipc_streaming", "is_in"] }
+polars = { version = "0.53.0", features = ["lazy", "temporal", "dynamic_group_by", "parquet", "csv", "dtype-datetime", "ipc", "ipc_streaming", "is_in", "cum_agg"] }
 rand = "0.8"
 rayon = "1.10"
 rustfft = "6.2.0"
@@ -98,6 +98,4 @@ lto = true
 # toolchains without waiting for polars to bump the dependency.
 [patch.crates-io]
 ethnum = { git = "https://github.com/nlordell/ethnum-rs", tag = "v1.5.3" }
-
-
 
