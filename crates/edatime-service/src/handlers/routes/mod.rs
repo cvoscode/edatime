@@ -6,6 +6,7 @@ pub mod data;
 pub mod database;
 pub mod drift;
 pub mod export;
+pub mod jobs;
 pub mod metadata;
 pub mod metrics;
 pub mod shared;
@@ -36,6 +37,8 @@ pub fn api_router() -> Router<AppState> {
         .route("/datasets/storage", get(cleaning::get_storage_usage))
         .route("/metadata", get(metadata::get_metadata))
         .route("/metrics", get(metrics::get_metrics))
+        .route("/jobs", get(jobs::list_jobs))
+        .route("/jobs/{id}", get(jobs::get_job))
         .route(
             "/scatter/points",
             get(scatter::get_scatter_points).post(scatter::post_scatter_points),

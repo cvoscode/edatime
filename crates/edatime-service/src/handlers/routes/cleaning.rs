@@ -16,6 +16,7 @@ use edatime_query::cleaning::{
     CleaningPlanDto, CleaningStageDto, compile_cleaning_plan, semantic_hash,
 };
 use edatime_store::artifacts::ArtifactStorageUsage;
+use edatime_store::jobs::JobKind;
 use edatime_store::state::AppState;
 use edatime_store::versions::DatasetVersionRecord;
 
@@ -83,6 +84,7 @@ pub struct CleaningStageImpact {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CleaningApplyResponse {
+    pub job_id: String,
     pub source_version: DatasetVersionRecord,
     pub dataset_revision: u64,
     pub plan_hash: String,
@@ -305,7 +307,18 @@ pub async fn apply(
     Json(envelope): Json<PlanRequestEnvelope>,
 ) -> Result<Response, AppError> {
     let (version, plan_hash, frame) = compile_request_frame(&state, &envelope)?;
-    let child = if state.artifact_store.is_some() {
+    let job = state.jobs.create(JobKind::Materialization);
+    if !state.jobs.start(&job) {
+        return Err(AppError::internal(
+            "Could not start plan materialization job",
+        ));
+    }
+    state.jobs.update_progress(
+        &job,
+        10,
+        Some("materializing canonical cleaning plan".to_string()),
+    );
+    let result = if state.artifact_store.is_some() {
         state
             .materialize_dataset_child_lazy(
                 &version.id,
@@ -313,18 +326,29 @@ pub async fn apply(
                 plan_hash.clone(),
                 envelope.plan.time_column.clone(),
             )
-            .await?
-    } else {
-        let data = state
-            .query_executor
-            .execute_async(frame)
             .await
-            .map_err(AppError::from)?;
-        state
-            .materialize_dataset_child(&version.id, data, plan_hash.clone())
-            .await?
+    } else {
+        async {
+            let data = state
+                .query_executor
+                .execute_async(frame)
+                .await?;
+            state
+                .materialize_dataset_child(&version.id, data, plan_hash.clone())
+                .await
+        }
+        .await
     };
+    let child = match result {
+        Ok(child) => child,
+        Err(error) => {
+            state.jobs.fail(&job, error.to_string());
+            return Err(AppError::from(error));
+        }
+    };
+    state.jobs.complete(&job);
     let response = CleaningApplyResponse {
+        job_id: job.id().to_string(),
         dataset_revision: child.revision,
         source_version: child.clone(),
         plan_hash: plan_hash.clone(),
@@ -518,6 +542,11 @@ mod tests {
             .await
             .expect("response body");
         let response: serde_json::Value = serde_json::from_slice(&body).expect("response JSON");
+        let job_id = response["jobId"].as_str().expect("materialization job id");
+        assert_eq!(
+            state.jobs.record(job_id).expect("job record").status,
+            edatime_store::jobs::JobStatus::Completed
+        );
         assert_eq!(
             response["sourceVersion"]["parentId"].as_str(),
             Some(root.id.as_str())
