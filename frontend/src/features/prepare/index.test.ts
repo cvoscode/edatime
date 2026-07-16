@@ -154,6 +154,32 @@ describe('Prepare page', () => {
         dispose();
     });
 
+    it('labels sampled quality findings as estimates and retains the exact-report action', async () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        datasetState.metadata = { profile_status: 'immediate', column_profiles: [] } as any;
+        const startSampleProfile = vi.fn(async () => ({
+            algorithmVersion: 'sample-v1',
+            sourceVersion: { id: 'source-1', revision: 3, datasetFingerprint: 'data' },
+            status: 'ready' as const,
+            job: null,
+            metadata: {
+                profile_status: 'sampled', profile_sample_rows: 10_000,
+                column_profiles: [{ name: 'temperature', dtype: 'Float64', null_count: 7 }],
+            } as any,
+        }));
+        const dispose = initPreparePage({ startSampleProfile });
+
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Build sampled quality report')!.click();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(startSampleProfile).toHaveBeenCalledTimes(1);
+        expect(document.getElementById('prepare-workspace')?.textContent).toContain('Sampled quality findings are estimates from 10000 rows');
+        expect(document.querySelector('[data-quality-column="temperature"]')?.textContent).toContain('7 null values');
+        expect(Array.from(document.querySelectorAll('button')).some((button) => button.textContent === 'Build exact quality report')).toBe(true);
+        dispose();
+    });
+
     it('cancels an in-flight exact quality report from Prepare', async () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
         const startProfile = vi.fn(async () => ({

@@ -17,6 +17,8 @@ use edatime_store::{
 };
 
 const PROFILE_ALGORITHM_VERSION: &str = "exact-v1";
+const SAMPLED_PROFILE_ALGORITHM_VERSION: &str = "sample-v1";
+const SAMPLED_PROFILE_ROW_CAP: usize = 10_000;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -46,6 +48,8 @@ pub struct DatasetMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_name: Option<String>,
     pub profile_status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile_sample_rows: Option<usize>,
     pub total_rows: usize,
     pub columns: Vec<ColumnMetadata>,
     pub numeric_columns: Vec<String>,
@@ -353,6 +357,7 @@ fn build_dataset_metadata_from_lazyframe(
         schema_fingerprint: None,
         source_name: None,
         profile_status: "exact".to_string(),
+        profile_sample_rows: None,
         total_rows,
         columns,
         numeric_columns,
@@ -448,6 +453,7 @@ fn build_immediate_dataset_metadata_from_lazyframe(
         schema_fingerprint: None,
         source_name: None,
         profile_status: "immediate".to_string(),
+        profile_sample_rows: None,
         total_rows,
         columns,
         numeric_columns,
@@ -605,6 +611,7 @@ pub fn build_dataset_metadata(
         schema_fingerprint: None,
         source_name: None,
         profile_status: "exact".to_string(),
+        profile_sample_rows: None,
         total_rows,
         columns,
         numeric_columns,
@@ -721,16 +728,19 @@ pub async fn get_metadata(
     Ok(Json(metadata))
 }
 
-fn profile_cache_key(version: &DatasetVersionRecord) -> String {
+fn profile_cache_key(version: &DatasetVersionRecord, algorithm_version: &str) -> String {
     format!(
-        "{PROFILE_ALGORITHM_VERSION}:{}:{}:{}",
+        "{algorithm_version}:{}:{}:{}",
         version.id, version.revision, version.dataset_fingerprint
     )
 }
 
-fn profile_response(state: &AppState) -> Result<ProfileResponse, AppError> {
+fn profile_response(
+    state: &AppState,
+    algorithm_version: &'static str,
+) -> Result<ProfileResponse, AppError> {
     let version = state.current_dataset_version()?;
-    let entry = state.cached_profile(&profile_cache_key(&version));
+    let entry = state.cached_profile(&profile_cache_key(&version, algorithm_version));
     let job = entry
         .as_ref()
         .and_then(|entry| state.jobs.record(&entry.job_id));
@@ -747,7 +757,7 @@ fn profile_response(state: &AppState) -> Result<ProfileResponse, AppError> {
         _ => "not_started",
     };
     Ok(ProfileResponse {
-        algorithm_version: PROFILE_ALGORITHM_VERSION.to_string(),
+        algorithm_version: algorithm_version.to_string(),
         source_version: version,
         status: status.to_string(),
         job,
@@ -759,7 +769,19 @@ fn profile_response(state: &AppState) -> Result<ProfileResponse, AppError> {
 /// Metadata remains available to existing consumers while this dedicated
 /// endpoint distinguishes a complete exact report from an in-flight job.
 pub async fn get_profile(State(state): State<AppState>) -> Result<Json<ProfileResponse>, AppError> {
-    Ok(Json(profile_response(&state)?))
+    Ok(Json(profile_response(&state, PROFILE_ALGORITHM_VERSION)?))
+}
+
+/// Report the bounded sampled profile cache independently from the exact
+/// profile. Its metadata always declares `profile_status: sampled` and a
+/// sample-row count so callers cannot treat it as an exact report.
+pub async fn get_sample_profile(
+    State(state): State<AppState>,
+) -> Result<Json<ProfileResponse>, AppError> {
+    Ok(Json(profile_response(
+        &state,
+        SAMPLED_PROFILE_ALGORITHM_VERSION,
+    )?))
 }
 
 /// Start (or reuse) an admitted exact profile job for the active source. The
@@ -768,8 +790,30 @@ pub async fn get_profile(State(state): State<AppState>) -> Result<Json<ProfileRe
 pub async fn start_profile(
     State(state): State<AppState>,
 ) -> Result<Json<ProfileResponse>, AppError> {
+    start_profile_mode(state, PROFILE_ALGORITHM_VERSION, None).await
+}
+
+/// Start or reuse a bounded first-rows sample profile. It intentionally uses
+/// the same observable job lifecycle as exact profiling, but its lazy limit
+/// bounds retained profile-frame memory regardless of source size.
+pub async fn start_sample_profile(
+    State(state): State<AppState>,
+) -> Result<Json<ProfileResponse>, AppError> {
+    start_profile_mode(
+        state,
+        SAMPLED_PROFILE_ALGORITHM_VERSION,
+        Some(SAMPLED_PROFILE_ROW_CAP),
+    )
+    .await
+}
+
+async fn start_profile_mode(
+    state: AppState,
+    algorithm_version: &'static str,
+    sample_row_cap: Option<usize>,
+) -> Result<Json<ProfileResponse>, AppError> {
     let version = state.current_dataset_version()?;
-    let key = profile_cache_key(&version);
+    let key = profile_cache_key(&version, algorithm_version);
     if let Some(entry) = state.cached_profile(&key) {
         let active = state.jobs.record(&entry.job_id).is_some_and(|job| {
             matches!(
@@ -778,13 +822,18 @@ pub async fn start_profile(
             )
         });
         if entry.result.is_some() || active {
-            return Ok(Json(profile_response(&state)?));
+            return Ok(Json(profile_response(&state, algorithm_version)?));
         }
     }
     // Capture the immutable source before publishing a job. A failed lookup is
     // a request error, never a reason to profile whichever source is current
     // by the time a background task begins.
-    let snapshot = state.dataset_snapshot_for_version(&version.id)?;
+    let mut snapshot = state.dataset_snapshot_for_version(&version.id)?;
+    if let Some(cap) = sample_row_cap {
+        let cap = u32::try_from(cap)
+            .map_err(|_| AppError::internal("Profile sample row cap exceeds Polars index width"))?;
+        snapshot = snapshot.limit(cap);
+    }
 
     let job = state.jobs.create(JobKind::Profile);
     state.store_profile(
@@ -804,7 +853,11 @@ pub async fn start_profile(
         worker_state.jobs.update_progress(
             &job,
             5,
-            Some("collecting exact source profile".to_string()),
+            Some(if sample_row_cap.is_some() {
+                format!("collecting bounded {algorithm_version} source profile")
+            } else {
+                "collecting exact source profile".to_string()
+            }),
         );
         if job.is_cancelled() {
             worker_state.jobs.complete(&job);
@@ -829,7 +882,11 @@ pub async fn start_profile(
         worker_state.jobs.update_progress(
             &job,
             70,
-            Some("building exact quality report".to_string()),
+            Some(if sample_row_cap.is_some() {
+                "building sampled quality report".to_string()
+            } else {
+                "building exact quality report".to_string()
+            }),
         );
         let display_name = worker_state.time_column_display_name_sync();
         let report = match tokio::task::spawn_blocking(move || {
@@ -855,6 +912,10 @@ pub async fn start_profile(
         }
 
         let mut report = report;
+        if sample_row_cap.is_some() {
+            report.profile_status = "sampled".to_string();
+            report.profile_sample_rows = Some(report.total_rows);
+        }
         report.revision = worker_version.revision;
         report.source_version_id = Some(worker_version.id.clone());
         report.source_version_revision = Some(worker_version.revision);
@@ -882,7 +943,7 @@ pub async fn start_profile(
         }
     });
 
-    Ok(Json(profile_response(&state)?))
+    Ok(Json(profile_response(&state, algorithm_version)?))
 }
 
 #[cfg(test)]
@@ -1105,6 +1166,57 @@ mod tests {
         assert_eq!(
             report["column_profiles"][1]["null_count"],
             serde_json::json!(1)
+        );
+    }
+
+    #[tokio::test]
+    async fn sampled_profile_is_bounded_and_marked_as_an_estimate() {
+        let rows = SAMPLED_PROFILE_ROW_CAP + 5;
+        let df = DataFrame::new(
+            rows,
+            vec![
+                polars::prelude::Series::new(
+                    "ts".into(),
+                    (0..rows).map(|value| value as i64).collect::<Vec<_>>(),
+                )
+                .into(),
+                polars::prelude::Series::new(
+                    "value".into(),
+                    (0..rows).map(|value| value as f64).collect::<Vec<_>>(),
+                )
+                .into(),
+            ],
+        )
+        .expect("dataframe");
+        let state = AppState::new(df, AppConfig::default());
+
+        let start = start_sample_profile(State(state.clone()))
+            .await
+            .expect("start sample profile")
+            .0;
+        assert_eq!(start.algorithm_version, SAMPLED_PROFILE_ALGORITHM_VERSION);
+
+        let mut report = None;
+        for _ in 0..100 {
+            let response = get_sample_profile(State(state.clone()))
+                .await
+                .expect("get sample profile")
+                .0;
+            if response.status == "ready" {
+                report = response.metadata;
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
+        let report = report.expect("completed sampled profile");
+        assert_eq!(report["profile_status"], serde_json::json!("sampled"));
+        assert_eq!(
+            report["profile_sample_rows"],
+            serde_json::json!(SAMPLED_PROFILE_ROW_CAP)
+        );
+        assert_eq!(
+            report["total_rows"],
+            serde_json::json!(SAMPLED_PROFILE_ROW_CAP)
         );
     }
 

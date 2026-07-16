@@ -4,7 +4,12 @@ import { cleaningPlanStore } from '../../cleaning/store.js';
 import { cancelSessionJob } from '../../cleaning/api.js';
 import type { CleaningPlan } from '../../cleaning/types.js';
 import { datasetState } from '../../store/datasetState.js';
-import { fetchDatasetProfile, startDatasetProfile } from '../../services/api/profile.js';
+import {
+    fetchDatasetProfile,
+    fetchSampledDatasetProfile,
+    startDatasetProfile,
+    startSampledDatasetProfile,
+} from '../../services/api/profile.js';
 import type { DatasetMetadata, DatasetProfileResponse } from '../../contracts/api/v1/dataset.js';
 import '../../../css/modules/prepare.css';
 
@@ -12,6 +17,8 @@ export interface PreparePageDeps {
     onPlanChanged?: () => void;
     startProfile?: () => Promise<DatasetProfileResponse>;
     getProfile?: () => Promise<DatasetProfileResponse>;
+    startSampleProfile?: () => Promise<DatasetProfileResponse>;
+    getSampleProfile?: () => Promise<DatasetProfileResponse>;
     cancelProfile?: (jobId: string) => Promise<unknown>;
 }
 
@@ -87,7 +94,9 @@ function renderQualityFindings(
     deps: PreparePageDeps,
     profileMetadata: DatasetMetadata | null,
     profileStatus: DatasetProfileResponse['status'],
-    requestProfile: () => void,
+    profileKind: 'exact' | 'sampled',
+    requestExactProfile: () => void,
+    requestSampleProfile: () => void,
     cancelProfile: () => void,
 ): HTMLElement {
     const section = createElement('section', 'prepare-workspace__quality');
@@ -95,10 +104,12 @@ function renderQualityFindings(
     title.textContent = 'Quality findings';
     const copy = createElement('p', 'prepare-workspace__copy');
     copy.textContent = profileStatus === 'ready'
-        ? 'Exact background-profile findings can be turned into reversible stages. Review the proposed action before previewing or materializing.'
+        ? profileKind === 'exact'
+            ? 'Exact background-profile findings can be turned into reversible stages. Review the proposed action before previewing or materializing.'
+            : 'Sampled quality findings are estimates from ' + String(profileMetadata?.profile_sample_rows ?? 0) + ' rows. Confirm them with the exact report before materializing.'
         : profileStatus === 'queued' || profileStatus === 'running' || profileStatus === 'cancelling'
-            ? 'Immediate source findings are shown while the exact background quality report runs.'
-            : 'Immediate source-profile findings can be turned into reversible stages. Build the exact quality report for a cached, versioned follow-up.';
+            ? 'Immediate source findings are shown while the ' + (profileKind === 'exact' ? 'exact' : 'sampled') + ' background quality report runs.'
+            : 'Immediate source-profile findings can be turned into reversible stages. Build a bounded sample or exact quality report for a cached, versioned follow-up.';
     const sourceMetadata = profileMetadata ?? datasetState.metadata;
     const findings = (sourceMetadata?.column_profiles ?? [])
         .flatMap((profile) => {
@@ -114,19 +125,36 @@ function renderQualityFindings(
             || left.kind.localeCompare(right.kind));
     const list = createElement('ul', 'prepare-workspace__quality-list');
 
+    const profileActions = createElement('div', 'prepare-workspace__quality-actions');
     const profileRunning = profileStatus === 'queued' || profileStatus === 'running' || profileStatus === 'cancelling';
-    const profileAction = actionButton(
-        profileRunning ? 'Cancel exact quality report' : profileStatus === 'ready' ? 'Exact quality report ready' : 'Build exact quality report',
-        profileRunning ? cancelProfile : requestProfile,
-        profileStatus === 'ready' || profileStatus === 'cancelling',
-    );
-    profileAction.classList.add('prepare-workspace__quality-action');
+    if (profileRunning) {
+        const cancel = actionButton('Cancel ' + (profileKind === 'exact' ? 'exact' : 'sampled') + ' quality report', cancelProfile, profileStatus === 'cancelling');
+        cancel.classList.add('prepare-workspace__quality-action');
+        profileActions.append(cancel);
+    } else {
+        const sample = actionButton(
+            profileKind === 'sampled' && profileStatus === 'ready' ? 'Sampled quality report ready' : 'Build sampled quality report',
+            requestSampleProfile,
+            profileKind === 'sampled' && profileStatus === 'ready',
+        );
+        const exact = actionButton(
+            profileKind === 'exact' && profileStatus === 'ready' ? 'Exact quality report ready' : 'Build exact quality report',
+            requestExactProfile,
+            profileKind === 'exact' && profileStatus === 'ready',
+        );
+        sample.classList.add('prepare-workspace__quality-action');
+        exact.classList.add('prepare-workspace__quality-action');
+        profileActions.append(sample, exact);
+    }
 
     if (findings.length === 0) {
         const empty = createElement('li', 'prepare-workspace__quality-empty');
-        const exact = profileStatus === 'ready' || sourceMetadata?.profile_status === 'exact';
+        const exact = (profileKind === 'exact' && profileStatus === 'ready') || sourceMetadata?.profile_status === 'exact';
+        const sampled = profileKind === 'sampled' && profileStatus === 'ready';
         empty.textContent = exact
             ? 'No null or non-finite findings are present in the exact profile.'
+            : sampled
+                ? 'No null or non-finite findings are present in this sampled estimate.'
             : sourceMetadata
                 ? 'Column quality findings are pending the exact profile.'
                 : 'Load dataset metadata to inspect source-profile findings.';
@@ -163,7 +191,7 @@ function renderQualityFindings(
         item.append(summary, add);
         list.append(item);
     }
-    section.append(title, copy, profileAction, list);
+    section.append(title, copy, profileActions, list);
     return section;
 }
 
@@ -173,7 +201,9 @@ function renderPrepareWorkspace(
     deps: PreparePageDeps,
     profileMetadata: DatasetMetadata | null,
     profileStatus: DatasetProfileResponse['status'],
-    requestProfile: () => void,
+    profileKind: 'exact' | 'sampled',
+    requestExactProfile: () => void,
+    requestSampleProfile: () => void,
     cancelProfile: () => void,
 ): void {
     root.replaceChildren();
@@ -203,7 +233,10 @@ function renderPrepareWorkspace(
         + ' · ' + String(activeStages) + ' active executable stage' + (activeStages === 1 ? '' : 's')
         + ' · ' + (cleaningPlanStore.isDirty() ? 'unmaterialized changes' : 'source baseline');
 
-    const qualitySection = renderQualityFindings(plan, deps, profileMetadata, profileStatus, requestProfile, cancelProfile);
+    const qualitySection = renderQualityFindings(
+        plan, deps, profileMetadata, profileStatus, profileKind,
+        requestExactProfile, requestSampleProfile, cancelProfile,
+    );
 
     const graphSection = createElement('section', 'prepare-workspace__graph');
     const graphTitle = createElement('h2');
@@ -456,6 +489,7 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
     let disposed = false;
     let profileMetadata: DatasetMetadata | null = null;
     let profileStatus: DatasetProfileResponse['status'] = 'not_started';
+    let profileKind: 'exact' | 'sampled' = 'exact';
     let profileJobId: string | null = null;
     let pollTimer: ReturnType<typeof setTimeout> | null = null;
     const render = () => renderPrepareWorkspace(
@@ -464,39 +498,53 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
         deps,
         profileMetadata,
         profileStatus,
-        requestProfile,
+        profileKind,
+        requestExactProfile,
+        requestSampleProfile,
         cancelProfile,
     );
-    const acceptProfile = (response: DatasetProfileResponse) => {
+    const acceptProfile = (response: DatasetProfileResponse, kind: 'exact' | 'sampled') => {
         const plan = cleaningPlanStore.getSnapshot();
         if (!plan || response.sourceVersion?.id !== plan.sourceVersionId) return false;
+        if (kind === 'exact' && response.algorithmVersion !== 'exact-v1') return false;
+        if (kind === 'sampled' && response.algorithmVersion !== 'sample-v1') return false;
+        profileKind = kind;
         profileStatus = response.status;
         profileJobId = response.job?.id ?? null;
         if (response.metadata) profileMetadata = response.metadata;
         render();
         return response.status === 'queued' || response.status === 'running' || response.status === 'cancelling';
     };
-    const pollProfile = () => {
+    const pollProfile = (kind: 'exact' | 'sampled') => {
         pollTimer = setTimeout(async () => {
             if (disposed) return;
             try {
-                if (acceptProfile(await (deps.getProfile ?? fetchDatasetProfile)())) pollProfile();
+                const get = kind === 'exact'
+                    ? (deps.getProfile ?? fetchDatasetProfile)
+                    : (deps.getSampleProfile ?? fetchSampledDatasetProfile);
+                if (acceptProfile(await get(), kind)) pollProfile(kind);
             } catch {
                 profileStatus = 'failed';
                 render();
             }
         }, 500);
     };
-    function requestProfile(): void {
+    function requestProfile(kind: 'exact' | 'sampled'): void {
         void (async () => {
+            profileKind = kind;
             try {
-                if (acceptProfile(await (deps.startProfile ?? startDatasetProfile)())) pollProfile();
+                const start = kind === 'exact'
+                    ? (deps.startProfile ?? startDatasetProfile)
+                    : (deps.startSampleProfile ?? startSampledDatasetProfile);
+                if (acceptProfile(await start(), kind)) pollProfile(kind);
             } catch {
                 profileStatus = 'failed';
                 render();
             }
         })();
     }
+    function requestExactProfile(): void { requestProfile('exact'); }
+    function requestSampleProfile(): void { requestProfile('sampled'); }
     function cancelProfile(): void {
         if (!profileJobId) return;
         void (async () => {
@@ -504,7 +552,7 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
                 await (deps.cancelProfile ?? cancelSessionJob)(profileJobId!);
                 profileStatus = 'cancelling';
                 render();
-                pollProfile();
+                pollProfile(profileKind);
             } catch {
                 // Keep the last known status; polling or a retry remains safe.
             }

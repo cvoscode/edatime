@@ -209,6 +209,47 @@ async fn metadata_allows_the_empty_initial_dataset() {
     assert_eq!(metadata["column_profiles"], serde_json::json!([]));
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn sampled_profile_v1_returns_estimated_metadata() {
+    let app = test_app();
+    let start = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri("/api/v1/profile/sample")
+                .header("content-type", "application/json")
+                .body(Body::from("{}"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(start.status(), StatusCode::OK);
+
+    for _ in 0..100 {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/profile/sample")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let profile: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        if profile["status"] == "ready" {
+            assert_eq!(profile["algorithmVersion"], "sample-v1");
+            assert_eq!(profile["metadata"]["profile_status"], "sampled");
+            assert_eq!(profile["metadata"]["profile_sample_rows"], 720);
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+    }
+    panic!("sampled profile did not complete");
+}
+
 // ─── Data endpoint ────────────────────────────────────────────────────────────
 
 #[tokio::test(flavor = "multi_thread")]

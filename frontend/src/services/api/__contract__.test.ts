@@ -96,6 +96,19 @@ describe('contract: every endpoint targets /api/v1', () => {
         }
     });
 
+    it('sampled profile module targets /api/v1', async () => {
+        const spy = installFetchSpy();
+        try {
+            const { fetchSampledDatasetProfile, startSampledDatasetProfile } = await import('./profile.js');
+            await fetchSampledDatasetProfile();
+            await startSampledDatasetProfile();
+            expect(spy.calls.map((call) => call.url)).toEqual(['/api/v1/profile/sample', '/api/v1/profile/sample']);
+            expect(spy.calls[1]?.init?.method).toBe('POST');
+        } finally {
+            spy.restore();
+        }
+    });
+
     it('export module targets /api/v1', async () => {
         const spy = installFetchSpy();
         try {

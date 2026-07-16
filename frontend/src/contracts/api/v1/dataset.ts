@@ -42,8 +42,10 @@ export interface DatasetMetadata {
     dataset_fingerprint?: string;
     schema_fingerprint?: string;
     source_name?: string | null;
-    /** `immediate` contains only schema/row/time facts; `exact` has column statistics. */
-    profile_status?: 'immediate' | 'exact';
+    /** `immediate` contains schema/row/time facts; sampled and exact carry column statistics. */
+    profile_status?: 'immediate' | 'sampled' | 'exact';
+    /** Row count used for a `sampled` profile. */
+    profile_sample_rows?: number;
     total_rows: number;
     columns: ColumnMetadata[];
     numeric_columns: string[];

@@ -9,6 +9,7 @@
 export const apiV1Routes = {
     metadata: '/api/v1/metadata',
     profile: '/api/v1/profile',
+    profileSample: '/api/v1/profile/sample',
     data: '/api/v1/data',
     sample: (name: string): string => `/api/v1/sample/${encodeURIComponent(name)}`,
     exportParquet: '/api/v1/export/parquet',

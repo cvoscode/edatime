@@ -11,3 +11,13 @@ export function startDatasetProfile(options?: ApiRequestOptions): Promise<Datase
 export function fetchDatasetProfile(options?: ApiRequestOptions): Promise<DatasetProfileResponse> {
     return getJson(apiV1Routes.profile, 'Dataset profile', options);
 }
+
+/** Start or reuse the bounded `sample-v1` profile for the active source. */
+export function startSampledDatasetProfile(options?: ApiRequestOptions): Promise<DatasetProfileResponse> {
+    return postJson(apiV1Routes.profileSample, {}, 'Sampled dataset profile', options);
+}
+
+/** Read the bounded sampled profile cache and session-job state. */
+export function fetchSampledDatasetProfile(options?: ApiRequestOptions): Promise<DatasetProfileResponse> {
+    return getJson(apiV1Routes.profileSample, 'Sampled dataset profile', options);
+}
