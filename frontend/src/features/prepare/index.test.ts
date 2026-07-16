@@ -130,6 +130,26 @@ describe('Prepare page', () => {
         dispose();
     });
 
+    it('cancels an in-flight exact quality report from Prepare', async () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        const startProfile = vi.fn(async () => ({
+            algorithmVersion: 'exact-v1', sourceVersion: { id: 'source-1', revision: 3, datasetFingerprint: 'data' },
+            status: 'running' as const, job: { id: 'profile-job', status: 'running', progressPercent: 5, message: null }, metadata: null,
+        }));
+        const cancelProfile = vi.fn(async () => ({}));
+        const dispose = initPreparePage({ startProfile, cancelProfile });
+
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Build exact quality report')!.click();
+        await Promise.resolve();
+        await Promise.resolve();
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Cancel exact quality report')!.click();
+        await Promise.resolve();
+
+        expect(cancelProfile).toHaveBeenCalledWith('profile-job');
+        expect(document.getElementById('prepare-workspace')?.textContent).toContain('Immediate source findings are shown while the exact background quality report runs');
+        dispose();
+    });
+
     it('creates stable duplicate resolution from explicit key columns', () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
         const dispose = initPreparePage();

@@ -1,6 +1,7 @@
 import { buildPipelineGraph, renderPipelineGraphSvg } from '../../cleaning/pipelineGraph.js';
 import { hasAscendingTimeSortBefore, normalizeFixedDuration, parseResampleAggregations } from '../../cleaning/resample.js';
 import { cleaningPlanStore } from '../../cleaning/store.js';
+import { cancelSessionJob } from '../../cleaning/api.js';
 import type { CleaningPlan } from '../../cleaning/types.js';
 import { datasetState } from '../../store/datasetState.js';
 import { fetchDatasetProfile, startDatasetProfile } from '../../services/api/profile.js';
@@ -11,6 +12,7 @@ export interface PreparePageDeps {
     onPlanChanged?: () => void;
     startProfile?: () => Promise<DatasetProfileResponse>;
     getProfile?: () => Promise<DatasetProfileResponse>;
+    cancelProfile?: (jobId: string) => Promise<unknown>;
 }
 
 function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string): HTMLElementTagNameMap[K] {
@@ -85,6 +87,7 @@ function renderQualityFindings(
     profileMetadata: DatasetMetadata | null,
     profileStatus: DatasetProfileResponse['status'],
     requestProfile: () => void,
+    cancelProfile: () => void,
 ): HTMLElement {
     const section = createElement('section', 'prepare-workspace__quality');
     const title = createElement('h2');
@@ -101,10 +104,11 @@ function renderQualityFindings(
             || String(left.name).localeCompare(String(right.name)));
     const list = createElement('ul', 'prepare-workspace__quality-list');
 
+    const profileRunning = profileStatus === 'queued' || profileStatus === 'running' || profileStatus === 'cancelling';
     const profileAction = actionButton(
-        profileStatus === 'ready' ? 'Exact quality report ready' : profileStatus === 'queued' || profileStatus === 'running' || profileStatus === 'cancelling' ? 'Building exact quality report…' : 'Build exact quality report',
-        requestProfile,
-        profileStatus === 'ready' || profileStatus === 'queued' || profileStatus === 'running' || profileStatus === 'cancelling',
+        profileRunning ? 'Cancel exact quality report' : profileStatus === 'ready' ? 'Exact quality report ready' : 'Build exact quality report',
+        profileRunning ? cancelProfile : requestProfile,
+        profileStatus === 'ready' || profileStatus === 'cancelling',
     );
     profileAction.classList.add('prepare-workspace__quality-action');
 
@@ -155,6 +159,7 @@ function renderPrepareWorkspace(
     profileMetadata: DatasetMetadata | null,
     profileStatus: DatasetProfileResponse['status'],
     requestProfile: () => void,
+    cancelProfile: () => void,
 ): void {
     root.replaceChildren();
     const header = createElement('div', 'prepare-workspace__header');
@@ -183,7 +188,7 @@ function renderPrepareWorkspace(
         + ' · ' + String(activeStages) + ' active executable stage' + (activeStages === 1 ? '' : 's')
         + ' · ' + (cleaningPlanStore.isDirty() ? 'unmaterialized changes' : 'source baseline');
 
-    const qualitySection = renderQualityFindings(plan, deps, profileMetadata, profileStatus, requestProfile);
+    const qualitySection = renderQualityFindings(plan, deps, profileMetadata, profileStatus, requestProfile, cancelProfile);
 
     const graphSection = createElement('section', 'prepare-workspace__graph');
     const graphTitle = createElement('h2');
@@ -436,6 +441,7 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
     let disposed = false;
     let profileMetadata: DatasetMetadata | null = null;
     let profileStatus: DatasetProfileResponse['status'] = 'not_started';
+    let profileJobId: string | null = null;
     let pollTimer: ReturnType<typeof setTimeout> | null = null;
     const render = () => renderPrepareWorkspace(
         root,
@@ -444,11 +450,13 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
         profileMetadata,
         profileStatus,
         requestProfile,
+        cancelProfile,
     );
     const acceptProfile = (response: DatasetProfileResponse) => {
         const plan = cleaningPlanStore.getSnapshot();
         if (!plan || response.sourceVersion?.id !== plan.sourceVersionId) return false;
         profileStatus = response.status;
+        profileJobId = response.job?.id ?? null;
         if (response.metadata) profileMetadata = response.metadata;
         render();
         return response.status === 'queued' || response.status === 'running' || response.status === 'cancelling';
@@ -471,6 +479,19 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
             } catch {
                 profileStatus = 'failed';
                 render();
+            }
+        })();
+    }
+    function cancelProfile(): void {
+        if (!profileJobId) return;
+        void (async () => {
+            try {
+                await (deps.cancelProfile ?? cancelSessionJob)(profileJobId!);
+                profileStatus = 'cancelling';
+                render();
+                pollProfile();
+            } catch {
+                // Keep the last known status; polling or a retry remains safe.
             }
         })();
     }
