@@ -737,6 +737,7 @@ mod tests {
 
     use super::AppState;
     use crate::artifacts::DatasetArtifactProvenance;
+    use crate::jobs::JobKind;
     use crate::versions::DatasetVersionRecord;
     use edatime_core::config::AppConfig;
 
@@ -888,6 +889,45 @@ mod tests {
         assert_eq!(restored_height, 1);
 
         fs::remove_dir_all(artifact_dir).expect("clean artifact test directory");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn cancelled_lazy_materialization_discards_its_unpublished_artifact() {
+        let artifact_dir = std::env::temp_dir().join(format!(
+            "edatime-state-cancelled-materialization-{}",
+            Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        let mut config = AppConfig::default();
+        config.data.artifact_dir = Some(artifact_dir.clone());
+        let state = AppState::new(frame(vec![0]), config);
+        let job = state.jobs.create(JobKind::Materialization);
+        assert!(state.jobs.start(&job));
+        state.jobs.cancel(job.id());
+
+        let error = state
+            .materialize_dataset_child_lazy(
+                "source-0",
+                frame(vec![1, 2]).lazy(),
+                "plan-cancelled".to_string(),
+                "value".to_string(),
+                Some(&job),
+            )
+            .await
+            .expect_err("cancelled job must not publish");
+        assert!(error.to_string().contains("cancelled"));
+        assert!(
+            state
+                .artifact_store
+                .as_ref()
+                .expect("artifact store")
+                .load_catalog()
+                .expect("catalog")
+                .is_empty()
+        );
+        assert_eq!(state.dataset_rows().await, 1);
+        if artifact_dir.exists() {
+            fs::remove_dir_all(artifact_dir).expect("clean artifact directory");
+        }
     }
 
     #[tokio::test(flavor = "multi_thread")]
