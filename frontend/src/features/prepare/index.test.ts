@@ -107,6 +107,21 @@ describe('Prepare page', () => {
         dispose();
     });
 
+    it('turns an exact non-finite finding into a reversible non-finite policy', () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        datasetState.metadata = { column_profiles: [{ name: 'temperature', dtype: 'Float64', null_count: 0, non_finite_count: 3 }] } as any;
+        const dispose = initPreparePage();
+
+        const finding = document.querySelector<HTMLElement>('[data-quality-column="temperature"][data-quality-kind="nonFinite"]')!;
+        expect(finding.textContent).toContain('3 non-finite values');
+        Array.from(finding.querySelectorAll('button')).find((button) => button.textContent === 'Add non-finite policy')!.click();
+
+        expect(cleaningPlanStore.getSnapshot()!.stages).toMatchObject([{
+            kind: 'missingValue', column: 'temperature', dropNulls: false, dropNonFinite: true,
+        }]);
+        dispose();
+    });
+
     it('replaces immediate findings with the requested exact quality report', async () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
         datasetState.metadata = { column_profiles: [{ name: 'preview_only', dtype: 'Float64', null_count: 1 }] } as any;

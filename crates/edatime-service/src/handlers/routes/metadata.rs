@@ -71,6 +71,7 @@ pub struct ColumnProfile {
     pub dtype: String,
     pub non_null_count: usize,
     pub null_count: usize,
+    pub non_finite_count: usize,
     pub min: Option<f64>,
     pub max: Option<f64>,
     pub histogram: Option<stats::Histogram>,
@@ -159,6 +160,7 @@ fn profile_from_aggregate(
 ) -> ColumnProfile {
     let non_null_count = read_u64_agg(agg, &format!("__{index}_non_null"));
     let null_count = read_u64_agg(agg, &format!("__{index}_null"));
+    let non_finite_count = read_u64_agg(agg, &format!("__{index}_non_finite"));
 
     let (min, max) = if dtype.is_numeric() {
         (
@@ -181,6 +183,7 @@ fn profile_from_aggregate(
         dtype: dtype.to_string(),
         non_null_count,
         null_count,
+        non_finite_count,
         min,
         max,
         histogram: None,
@@ -268,6 +271,15 @@ fn build_dataset_metadata_from_lazyframe(
         );
 
         if dtype.is_numeric() {
+            exprs.push(
+                col(&name)
+                    .cast(DataType::Float64)
+                    .is_finite()
+                    .not()
+                    .sum()
+                    .cast(DataType::UInt64)
+                    .alias(format!("__{index}_non_finite")),
+            );
             exprs.push(
                 col(&name)
                     .cast(DataType::Float64)
@@ -402,6 +414,7 @@ pub fn build_dataset_metadata(
             dtype: dtype.to_string(),
             non_null_count,
             null_count,
+            non_finite_count: 0,
             min: None,
             max: None,
             histogram: None,
@@ -413,9 +426,11 @@ pub fn build_dataset_metadata(
             let mut min = f64::INFINITY;
             let mut max = f64::NEG_INFINITY;
             let mut finite_count = 0usize;
+            let mut non_finite_count = 0usize;
 
             for value in values.into_iter().flatten() {
                 if !value.is_finite() {
+                    non_finite_count += 1;
                     continue;
                 }
                 min = min.min(value);
@@ -438,6 +453,7 @@ pub fn build_dataset_metadata(
                     );
                 }
             }
+            profile.non_finite_count = non_finite_count;
         } else if matches!(dtype, DataType::Datetime(_, _) | DataType::Date) {
             let casted = series.cast(&DataType::Int64)?;
             let ints = casted.i64()?;
@@ -782,6 +798,32 @@ mod tests {
         );
     }
 
+    #[test]
+    fn metadata_counts_non_finite_numeric_values_without_polluting_extrema() {
+        let df = DataFrame::new(
+            5,
+            vec![
+                polars::prelude::Series::new("ts".into(), vec![1_i64, 2, 3, 4, 5]).into(),
+                polars::prelude::Series::new(
+                    "value".into(),
+                    vec![Some(2.0_f64), Some(f64::NAN), Some(f64::INFINITY), Some(f64::NEG_INFINITY), None],
+                )
+                .into(),
+            ],
+        )
+        .expect("dataframe");
+
+        let metadata = build_dataset_metadata(&df, true, None).expect("metadata");
+        let profile = metadata
+            .column_profiles
+            .iter()
+            .find(|profile| profile.name == "value")
+            .expect("value profile");
+        assert_eq!(profile.non_finite_count, 3);
+        assert_eq!(profile.min, Some(2.0));
+        assert_eq!(profile.max, Some(2.0));
+    }
+
     #[tokio::test]
     async fn exact_profile_job_is_reused_and_publishes_source_bound_metadata() {
         let df = DataFrame::new(
@@ -856,6 +898,25 @@ mod tests {
             vec!["value".to_string(), "other".to_string()]
         );
         assert!(metadata.time_range.is_some());
+    }
+
+    #[test]
+    fn lazy_csv_profile_counts_non_finite_values() {
+        let file = tempfile::NamedTempFile::new().expect("tempfile");
+        fs::write(
+            file.path(),
+            "time,value\n2024-01-01T00:00:00Z,1\n2024-01-01T00:00:01Z,NaN\n",
+        )
+        .expect("write csv");
+
+        let metadata = build_dataset_metadata_from_path_with_time_column(file.path(), None)
+            .expect("metadata from csv");
+        let profile = metadata
+            .column_profiles
+            .iter()
+            .find(|profile| profile.name == "value")
+            .expect("value profile");
+        assert_eq!(profile.non_finite_count, 1);
     }
 
     #[test]

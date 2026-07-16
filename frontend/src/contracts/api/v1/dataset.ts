@@ -20,6 +20,8 @@ export interface ColumnProfile {
     count: number;
     non_null_count: number;
     null_count: number;
+    /** Exact for `exact-v1`; absent from older server responses. */
+    non_finite_count?: number;
     min: number | string | null;
     max: number | string | null;
     mean: number | null;

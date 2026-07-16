@@ -72,8 +72,9 @@ function numericDtype(dtype: string): boolean {
     return /^(u?int|float|decimal)/i.test(dtype.trim());
 }
 
-function hasMissingValuePolicy(plan: CleaningPlan, column: string): boolean {
-    return plan.stages.some((stage) => stage.kind === 'missingValue' && stage.column === column);
+function hasMissingValuePolicy(plan: CleaningPlan, column: string, kind: 'null' | 'nonFinite'): boolean {
+    return plan.stages.some((stage) => stage.kind === 'missingValue' && stage.column === column
+        && (kind === 'null' ? stage.dropNulls : stage.dropNonFinite));
 }
 
 /**
@@ -99,9 +100,17 @@ function renderQualityFindings(
             ? 'Immediate source findings are shown while the exact background quality report runs.'
             : 'Immediate source-profile findings can be turned into reversible stages. Build the exact quality report for a cached, versioned follow-up.';
     const findings = (profileMetadata?.column_profiles ?? datasetState.metadata?.column_profiles ?? [])
-        .filter((profile) => Number(profile?.null_count) > 0)
-        .sort((left, right) => Number(right.null_count) - Number(left.null_count)
-            || String(left.name).localeCompare(String(right.name)));
+        .flatMap((profile) => {
+            const nullCount = Number(profile?.null_count) || 0;
+            const nonFiniteCount = numericDtype(String(profile?.dtype ?? '')) ? Number(profile?.non_finite_count) || 0 : 0;
+            return [
+                ...(nullCount > 0 ? [{ profile, kind: 'null' as const, count: nullCount }] : []),
+                ...(nonFiniteCount > 0 ? [{ profile, kind: 'nonFinite' as const, count: nonFiniteCount }] : []),
+            ];
+        })
+        .sort((left, right) => right.count - left.count
+            || String(left.profile.name).localeCompare(String(right.profile.name))
+            || left.kind.localeCompare(right.kind));
     const list = createElement('ul', 'prepare-workspace__quality-list');
 
     const profileRunning = profileStatus === 'queued' || profileStatus === 'running' || profileStatus === 'cancelling';
@@ -120,26 +129,28 @@ function renderQualityFindings(
         list.append(empty);
     }
 
-    for (const profile of findings) {
+    for (const finding of findings) {
+        const { profile, kind, count } = finding;
         const item = createElement('li', 'prepare-workspace__quality-finding');
         item.dataset.qualityColumn = profile.name;
+        item.dataset.qualityKind = kind;
         const summary = createElement('div');
         const label = createElement('strong');
         label.textContent = profile.name;
         const detail = createElement('span');
-        detail.textContent = String(profile.null_count) + ' null value' + (profile.null_count === 1 ? '' : 's')
+        detail.textContent = String(count) + (kind === 'null' ? ' null value' : ' non-finite value') + (count === 1 ? '' : 's')
             + ' · ' + profile.dtype;
         summary.append(label, detail);
-        const policyExists = hasMissingValuePolicy(plan, profile.name);
+        const policyExists = hasMissingValuePolicy(plan, profile.name, kind);
         const add = actionButton(
-            policyExists ? 'Policy already added' : 'Add null policy',
+            policyExists ? 'Policy already added' : kind === 'null' ? 'Add null policy' : 'Add non-finite policy',
             () => {
                 cleaningPlanStore.addStage({
                     kind: 'missingValue', executionClass: 'polarsExpression', scope: 'row', enabled: true,
-                    sourcePage: 'manual', label: 'Drop missing values from ' + profile.name,
+                    sourcePage: 'manual', label: 'Drop ' + (kind === 'null' ? 'missing values from ' : 'non-finite values from ') + profile.name,
                     column: profile.name,
-                    dropNulls: true,
-                    dropNonFinite: numericDtype(profile.dtype),
+                    dropNulls: kind === 'null',
+                    dropNonFinite: kind === 'nonFinite' || (kind === 'null' && numericDtype(profile.dtype)),
                 });
                 deps.onPlanChanged?.();
             },
