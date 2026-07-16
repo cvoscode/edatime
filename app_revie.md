@@ -29,7 +29,7 @@
   provisional quality state only after the exact report is complete. `/metadata`
   and upload preview now return bounded schema/row/time facts without a wide
   profile scan; progressive sampled/time/duplicate/distribution profiling
-  remains in progress. (`2f3f3d7`, `71072b1`, `2a92c7c`, `35cf456`, `5e833b9`)
+  remains in progress. (`2f3f3d7`, `71072b1`, `2a92c7c`, `35cf456`, `5e833b9`, `5b4eba2`)
 - **Milestone B in progress:** data, scatter points/matrix, correlations, and
   correlation matrix, Drift, and export artifacts now carry immutable source
   version/revision, schema fingerprint, backend plan hash, and versioned
@@ -498,7 +498,8 @@ upload preview now provide the immediate schema, scalar row count, and time
 range contract without collecting a source frame or wide profile aggregates;
 their `profile_status: immediate` prevents the UI from presenting deferred
 quality as clean data. The fast sampled report and richer temporal/panel
-quality measures remain future slices. (`71072b1`, `5e833b9`)
+quality measures remain future slices. The empty initial dataset remains a
+valid immediate metadata state until upload. (`71072b1`, `5e833b9`, `5b4eba2`)
 
 **Acceptance:** the user can see schema quickly on a large Parquet source and continue exploring while exact profile work runs separately.
 
