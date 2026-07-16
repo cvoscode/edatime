@@ -100,13 +100,16 @@ describe('cleaning plan store', () => {
 
         expect(store.canUndo()).toBe(true);
         expect(store.isDirty()).toBe(true);
+        expect(store.getHistory().map((entry) => entry.action)).toEqual(['baseline', 'stageAdded']);
         expect(store.undo()).toBe(true);
         expect(store.getSnapshot()!.stages).toEqual([]);
         expect(store.isDirty()).toBe(false);
         expect(store.canRedo()).toBe(true);
+        expect(store.getHistory().map((entry) => entry.action)).toEqual(['baseline']);
         expect(store.redo()).toBe(true);
         expect(store.getSnapshot()!.stages.map((item) => item.id)).toEqual([stage.id]);
         expect(store.isDirty()).toBe(true);
+        expect(store.getHistory().map((entry) => entry.action)).toEqual(['baseline', 'stageAdded']);
 
         store.resetForDataset({
             sourceVersionId: 'source-2', datasetRevision: 8, datasetFingerprint: 'data-2', schemaFingerprint: 'schema-2', timeColumn: 'ts',

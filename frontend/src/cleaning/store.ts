@@ -1,7 +1,7 @@
 import { hashCleaningPlan } from './planHash.js';
 import type { CleaningDatasetIdentity, CleaningPlan, CleaningStage, CleaningStageInput } from './types.js';
 
-export type CleaningPlanHistoryAction = 'baseline' | 'draftRestored' | 'imported' | 'stageAdded' | 'stageUpdated' | 'stageRemoved' | 'stageReordered' | 'undo' | 'redo' | 'restored';
+export type CleaningPlanHistoryAction = 'baseline' | 'draftRestored' | 'imported' | 'stageAdded' | 'stageUpdated' | 'stageRemoved' | 'stageReordered' | 'restored';
 
 /** An immutable, dataset-scoped version of the plan shown in the pipeline graph. */
 export interface CleaningPlanHistoryEntry {
@@ -122,6 +122,7 @@ export function createCleaningPlanStore(options: CleaningPlanStoreOptions = {}):
     let undoStack: HistoryEntry[] = [];
     let redoStack: HistoryEntry[] = [];
     let history: CleaningPlanHistoryEntry[] = [];
+    let historyCursor = -1;
     const listeners = new Set<(plan: CleaningPlan | null) => void>();
 
     const publish = (): void => {
@@ -166,7 +167,9 @@ export function createCleaningPlanStore(options: CleaningPlanStoreOptions = {}):
     };
     const appendHistory = (action: CleaningPlanHistoryAction): void => {
         if (!plan) return;
+        history = history.slice(0, historyCursor + 1);
         history.push({ id: newId('revision'), action, createdAt: now(), dirty, plan: clone(plan) });
+        historyCursor = history.length - 1;
     };
     const commit = (next: CleaningPlan, recordUndo = true, nextDirty = true, action: CleaningPlanHistoryAction = 'stageUpdated'): void => {
         validatePlan(next);
@@ -183,7 +186,7 @@ export function createCleaningPlanStore(options: CleaningPlanStoreOptions = {}):
 
     return {
         getSnapshot: () => plan ? clone(plan) : null,
-        getHistory: () => history.map((entry) => ({ ...entry, plan: clone(entry.plan) })),
+        getHistory: () => history.slice(0, historyCursor + 1).map((entry) => ({ ...entry, plan: clone(entry.plan) })),
         subscribe(listener) {
             listeners.add(listener);
             return () => listeners.delete(listener);
@@ -195,6 +198,7 @@ export function createCleaningPlanStore(options: CleaningPlanStoreOptions = {}):
             undoStack = [];
             redoStack = [];
             history = [];
+            historyCursor = -1;
             commit(next, false, !!restored, restored ? 'draftRestored' : 'baseline');
             return clone(next);
         },
@@ -206,6 +210,7 @@ export function createCleaningPlanStore(options: CleaningPlanStoreOptions = {}):
             undoStack = [];
             redoStack = [];
             history = [];
+            historyCursor = -1;
             // Imported plans are reproducible inputs, but their stages have
             // not yet been materialized against this active source version.
             commit(next, false, true, 'imported');
@@ -258,7 +263,7 @@ export function createCleaningPlanStore(options: CleaningPlanStoreOptions = {}):
             redoStack.push({ plan: clone(plan), dirty });
             plan = previous.plan;
             dirty = previous.dirty;
-            appendHistory('undo');
+            historyCursor = Math.max(0, historyCursor - 1);
             persistDraft();
             publish();
             return true;
@@ -269,13 +274,13 @@ export function createCleaningPlanStore(options: CleaningPlanStoreOptions = {}):
             undoStack.push({ plan: clone(plan), dirty });
             plan = next.plan;
             dirty = next.dirty;
-            appendHistory('redo');
+            historyCursor = Math.min(history.length - 1, historyCursor + 1);
             persistDraft();
             publish();
             return true;
         },
         restoreHistoryEntry(id) {
-            const entry = history.find((candidate) => candidate.id === id);
+            const entry = history.slice(0, historyCursor + 1).find((candidate) => candidate.id === id);
             const current = plan;
             if (!entry || !current) return false;
             const restored = {
@@ -296,6 +301,7 @@ export function createCleaningPlanStore(options: CleaningPlanStoreOptions = {}):
             undoStack = [];
             redoStack = [];
             history = [];
+            historyCursor = -1;
             publish();
         },
     };

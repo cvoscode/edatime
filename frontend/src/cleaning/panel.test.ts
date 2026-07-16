@@ -173,6 +173,25 @@ describe('cleaning plan panel', () => {
         expect(document.querySelector('.pipeline-workbench__hint')?.textContent).toContain('Select a stage');
     });
 
+    it('removes undone revisions from the graph history and returns them on redo', () => {
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        planStore.addStage({
+            kind: 'timeRange', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+            sourcePage: 'timeseries', label: 'Current window', startMs: 10, endMs: 40, mode: 'keepInside',
+        });
+        mountCleaningPlanPanel({ planStore, getViewport: () => null });
+
+        document.getElementById('open-cleaning-plan-btn')!.click();
+        expect(document.querySelector('.pipeline-workbench__history')?.textContent).toContain('Added Current window');
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Undo last change')!.click();
+        expect(document.querySelector('.pipeline-workbench__history')?.textContent).not.toContain('Added Current window');
+        expect(document.querySelector('.pipeline-workbench__history')?.textContent).not.toContain('Undo');
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Redo last change')!.click();
+        expect(document.querySelector('.pipeline-workbench__history')?.textContent).toContain('Added Current window');
+        expect(document.querySelector('.pipeline-workbench__history')?.textContent).not.toContain('Redo ·');
+    });
+
     it('previews the current accumulated plan and reports its row impact', async () => {
         const planStore = createCleaningPlanStore();
         planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });

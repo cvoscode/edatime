@@ -184,8 +184,6 @@ function historyActionLabel(action: CleaningPlanHistoryAction): string {
         case 'stageUpdated': return 'Edited stage';
         case 'stageRemoved': return 'Removed stage';
         case 'stageReordered': return 'Reordered stage';
-        case 'undo': return 'Undo';
-        case 'redo': return 'Redo';
         case 'restored': return 'Restored graph revision';
     }
 }
