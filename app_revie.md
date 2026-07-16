@@ -964,7 +964,10 @@ candidate budget, collects a dynamic-group first/min/max/last envelope before
 the existing LTTB pass. The response exposes filtered/candidate/returned row
 counts, `envelope-lttb-v1`, and `x-edatime-approximate: 1`. Multi-series and
 colour-aligned envelopes remain deliberately on the exact path until their
-source-row pairing contract is implemented. (`05651bd`)
+source-row pairing contract is implemented. The Timeseries Arrow client retains
+the algorithm, approximation flag, and all three row counts in result metadata,
+so downstream presentation and exports can distinguish an overview from an
+exact response. (`05651bd`, `5b1fd87`)
 
 ### Milestone F — Profile, Prepare, and Modeling Handoff
 
