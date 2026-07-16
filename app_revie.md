@@ -52,13 +52,20 @@
   filtered-timeseries, and scatter Parquet exports now use the same bounded
   file response: the lazy plan sinks before headers are returned, response
   chunks do not scale with total output size, and the temporary file is removed
-  after EOF or response drop. Ingest and retention remain open. The Pipeline
+  after EOF or response drop. With managed storage, CSV/Parquet uploads now
+  keep their validated lazy plan through a streaming Parquet sink, activate a
+  fresh scan-backed root, and skip the unbounded eager correlation warmup.
+  Managed retention is now configurable with a lineage-safe version cap: it
+  retains the active ancestry and newer independent chains that fit, never
+  corrupting restart recovery. Streaming source hashing, a measured large-sort
+  memory gate, and cancellable/progress-reporting jobs remain open. The Pipeline
   Workbench Export tab now reports retained artifact count and managed disk
   usage/quota on demand. An operator may set a managed-artifact aggregate disk cap;
   a candidate Parquet file is rejected and cleaned up before publication when
   it would exceed that cap. (`f2ed211`,
   `9887e4f`, `6ab6f44`, `7413758`, `7847b46`, `5bfdc39`, `d2dca71`,
-  `7c31697`, `84fd48f`, `5d6e19f`, `f5b9e66`, `349c56f`, `19836bf`)
+  `7c31697`, `84fd48f`, `5d6e19f`, `f5b9e66`, `349c56f`, `19836bf`,
+  `8f5ba28`, `06babb4`)
 
 ## 1. Goal
 
@@ -91,7 +98,7 @@ EdaTime already has a strong EDA foundation:
 - the first working slice of an immutable, reversible cleaning-plan system;
 - reproducible frontend, Rust, browser, and benchmark gates.
 
-The main limitation is architectural rather than cosmetic: file ingest still ends in a full `DataFrame` collect, and database access copies a bounded snapshot into memory. When an operator configures a managed artifact directory, roots are durably written to Parquet and retained versions reopen as scans; explicit plan materializations stream directly to managed Parquet and replace the active compatibility repository with a fresh scan. Parquet export now sinks lazy plans to temporary files and streams completed files in bounded HTTP chunks. This removes the full-result collection and response-byte-vector boundaries from plan materialization/export, but it is not yet a larger-than-memory ingest path or a cancellable/progress-reporting export job.
+The main limitation is architectural rather than cosmetic: database access still copies a bounded snapshot into memory, and large sorting needs a measured Polars 0.53 spill/memory gate before it can be promised as bounded. With a managed artifact directory, uploads retain a validated lazy CSV/Parquet plan through a streaming Parquet sink, roots and explicit plan materializations activate as fresh scans, and retained versions survive lineage-safe pruning. Parquet export sinks lazy plans to temporary files and streams completed files in bounded HTTP chunks. This removes the full-result collection and response-byte-vector boundaries from managed ingest/materialization/export, but exact full-data jobs are not yet cancellable or progress-reporting.
 
 The second limitation is product correctness: the cleaning plan is not yet the execution context for every page. The existing v1 plan supports only time ranges, numeric ranges, adaptive lines, and annotations. Timeseries applies range/line stages after server downsampling in the browser, while correlations, rolling bands, anomalies, and spectral filtering still read the active compatibility dataset without the plan. Other pages mostly consume a plan but do not yet author executable stages.
 
@@ -137,17 +144,24 @@ Do not start with allocator, SIMD, PGO, compression, framework replacement, or a
 
 ### 3.2 Backend
 
-- `crates/edatime-ingest/src/ingest.rs` starts with lazy CSV/Parquet scans but sorts and performs a final `collect()`, returning a fully resident `DataFrame`.
+- `crates/edatime-ingest/src/ingest.rs` builds one validated lazy CSV/Parquet
+  normalization plan. The in-memory compatibility path still collects it, but
+  managed uploads sink that plan directly to Parquet and activate a fresh scan.
+  Its canonical time sort uses Polars streaming execution; the exact
+  memory/spill behavior for a large unsorted source remains a required
+  benchmark gate rather than a blanket guarantee.
 - `crates/edatime-store/src/repository.rs` stores one replaceable in-memory `LazyFrame` backed by a `DataFrame`.
 - `crates/edatime-store/src/artifacts.rs` provides an atomic local descriptor
   catalog; `crates/edatime-store/src/versions.rs` can open a retained Parquet
   descriptor as a fresh `LazyFrame` scan. Configuring
   `data.artifact_dir`/`EDATIME_ARTIFACT_DIR` writes replacement roots and
-  materialized children to that catalog. Root frames are still collected first;
-  configured plan materializations use a temporary streaming Parquet sink and
-  reopen the complete child as a lazy scan. The registry reconstructs
-  catalogued version provenance and startup transitions the active compatibility
-  repository to the latest restored lazy scan; retention and eviction remain open.
+  materialized children to that catalog. Managed roots and plan materializations
+  use temporary streaming Parquet sinks and reopen complete outputs as lazy
+  scans. The registry reconstructs catalogued version provenance and startup
+  transitions the active compatibility repository to the latest restored lazy
+  scan. `max_artifact_versions`/`EDATIME_MAX_ARTIFACT_VERSIONS` prunes only
+  complete non-active lineages, preserving active recovery and user-visible
+  usage/quota accounting.
 - Dataset fingerprints are currently derived from canonical Arrow content
   (schema, row order, nulls, and values); they are still resident-frame hashes
   rather than streaming ingest hashes.
