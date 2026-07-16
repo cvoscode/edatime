@@ -19,6 +19,16 @@ export interface DataFetchMeta {
     downsampleKnown: boolean;
     returnedRows: number;
     targetPoints: number;
+    /** Versioned server sampling implementation, when the response provides one. */
+    samplingAlgorithm?: string;
+    /** True when the server used a bounded approximation before final reduction. */
+    approximate?: boolean;
+    /** Rows after predicates, before bounded candidate selection. */
+    filteredRows?: number;
+    /** Rows considered by the final response reducer. */
+    candidateRows?: number;
+    /** Rows omitted before the final response was produced. */
+    droppedRows?: number;
     /** Immutable backend provenance for this decoded result, when supplied. */
     executionIdentity?: ExecutionIdentity;
 }

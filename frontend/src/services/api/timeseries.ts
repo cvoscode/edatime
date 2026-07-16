@@ -79,6 +79,11 @@ export async function fetchData(
     const downsampledHeader = res.headers.get('x-edatime-downsampled');
     const returnedRowsHeader = res.headers.get('x-edatime-returned-rows');
     const targetPointsHeader = res.headers.get('x-edatime-target-points');
+    const samplingAlgorithmHeader = res.headers.get('x-edatime-sampling-algorithm');
+    const approximateHeader = res.headers.get('x-edatime-approximate');
+    const filteredRowsHeader = res.headers.get('x-edatime-filtered-rows');
+    const candidateRowsHeader = res.headers.get('x-edatime-candidate-rows');
+    const droppedRowsHeader = res.headers.get('x-edatime-dropped-rows');
     const timeColumnHeader = res.headers.get('x-edatime-time-column');
     const executionIdentity = readExecutionIdentity(res.headers);
 
@@ -86,11 +91,16 @@ export async function fetchData(
     let isDownsampled = downsampledHeader === '1';
     const returnedRows = Number.parseInt(returnedRowsHeader ?? '', 10);
     const targetPoints = Number.parseInt(targetPointsHeader ?? '', 10);
+    const filteredRows = Number.parseInt(filteredRowsHeader ?? '', 10);
+    const candidateRows = Number.parseInt(candidateRowsHeader ?? '', 10);
+    const droppedRows = Number.parseInt(droppedRowsHeader ?? '', 10);
 
     if (DEBUG) {
         dbg('x-edatime-downsampled', downsampledHeader);
         dbg('x-edatime-returned-rows', returnedRowsHeader);
         dbg('x-edatime-target-points', targetPointsHeader);
+        dbg('x-edatime-sampling-algorithm', samplingAlgorithmHeader);
+        dbg('x-edatime-approximate', approximateHeader);
     }
 
     if (!res.ok) {
@@ -150,6 +160,11 @@ export async function fetchData(
             downsampleKnown: hasDownsampleHeader,
             returnedRows: Number.isFinite(returnedRows) ? returnedRows : len,
             targetPoints: Number.isFinite(targetPoints) ? targetPoints : width * 2,
+            samplingAlgorithm: samplingAlgorithmHeader || undefined,
+            approximate: approximateHeader === '1',
+            filteredRows: Number.isFinite(filteredRows) ? filteredRows : undefined,
+            candidateRows: Number.isFinite(candidateRows) ? candidateRows : undefined,
+            droppedRows: Number.isFinite(droppedRows) ? droppedRows : undefined,
             executionIdentity,
         },
     };

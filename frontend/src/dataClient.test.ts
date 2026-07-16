@@ -361,6 +361,35 @@ describe('API client fetch helpers', () => {
             expect(result._meta.targetPoints).toBe(1024);
         });
 
+        it('preserves bounded overview provenance from response headers', async () => {
+            const { fetchData } = await import('./services/api/index.js');
+
+            mockFetch.mockResolvedValueOnce({
+                ok: true,
+                headers: new Map([
+                    ['x-edatime-downsampled', '1'],
+                    ['x-edatime-returned-rows', '512'],
+                    ['x-edatime-target-points', '1024'],
+                    ['x-edatime-sampling-algorithm', 'envelope-lttb-v1'],
+                    ['x-edatime-approximate', '1'],
+                    ['x-edatime-filtered-rows', '1000000'],
+                    ['x-edatime-candidate-rows', '4096'],
+                    ['x-edatime-dropped-rows', '999488'],
+                ]),
+                arrayBuffer: () => Promise.resolve(new ArrayBuffer(100)),
+            });
+
+            const result = await fetchData('0', '1000', 500, 'value');
+
+            expect(result._meta).toMatchObject({
+                samplingAlgorithm: 'envelope-lttb-v1',
+                approximate: true,
+                filteredRows: 1_000_000,
+                candidateRows: 4_096,
+                droppedRows: 999_488,
+            });
+        });
+
         it('interprets timestamps below 1e11 as seconds (epoch seconds → ms)', async () => {
             const { fetchData } = await import('./services/api/index.js');
 
