@@ -127,11 +127,18 @@ describe('contract: every endpoint targets /api/v1', () => {
     it('scatter matrix helper targets /api/v1', async () => {
         const spy = installFetchSpy();
         try {
+            const { cleaningPlanStore } = await import('../../cleaning/store.js');
             const { fetchCorrelationMatrix } =
                 await import('./scatter-matrix.js');
+            cleaningPlanStore.resetForDataset({
+                sourceVersionId: 'source-matrix-baseline', datasetRevision: 1,
+                datasetFingerprint: 'dataset-matrix-baseline', schemaFingerprint: 'schema-matrix-baseline', timeColumn: 'ts',
+            });
             await fetchCorrelationMatrix();
             const url = spy.calls[0]?.url;
-            expect(url).toBe('/api/v1/scatter/correlations/matrix?mode=pearson_raw');
+            expect(url).toBe('/api/v1/scatter/correlations/matrix');
+            expect(JSON.parse(String(spy.calls[0]?.init?.body))).toMatchObject({ mode: 'pearson_raw' });
+            cleaningPlanStore.clear();
         } finally {
             spy.restore();
         }
@@ -164,10 +171,10 @@ describe('contract: every endpoint targets /api/v1', () => {
 
             await fetchCorrelationMatrix('spearman_diff');
 
-            const url = new URL(String(spy.calls[0]?.url), 'http://localhost');
-            expect(url.pathname).toBe('/api/v1/scatter/correlations/matrix');
-            expect(url.searchParams.get('mode')).toBe('spearman_diff');
-            expect(JSON.parse(String(url.searchParams.get('cleaning_plan')))).toMatchObject({
+            expect(spy.calls[0]?.url).toBe('/api/v1/scatter/correlations/matrix');
+            const body = JSON.parse(String(spy.calls[0]?.init?.body));
+            expect(body.mode).toBe('spearman_diff');
+            expect(body.cleaning_plan).toMatchObject({
                 expectedSourceVersionId: 'source-matrix',
                 expectedDatasetRevision: 5,
                 plan: { stages: [{ kind: 'columnRange' }] },
@@ -248,14 +255,21 @@ describe('contract: every endpoint targets /api/v1', () => {
     it('scatter module targets /api/v1', async () => {
         const spy = installFetchSpy();
         try {
+            const { cleaningPlanStore } = await import('../../cleaning/store.js');
             const { fetchScatterPoints, fetchScatterCorrelations } =
                 await import('./scatter.js');
+            cleaningPlanStore.resetForDataset({
+                sourceVersionId: 'source-scatter', datasetRevision: 1,
+                datasetFingerprint: 'dataset-scatter', schemaFingerprint: 'schema-scatter', timeColumn: 'ts',
+            });
             // fetchScatterMatrix requires Arrow IPC, covered in scatter.test.ts.
             await fetchScatterPoints('a', 'b');
             await fetchScatterCorrelations('a', 0.5, 'pearson_raw');
             const urls = spy.calls.map((c) => c.url);
             expect(urls[0]).toBe('/api/v1/scatter/points');
-            expect(urls[1]).toBe('/api/v1/scatter/correlations?threshold=0.5&base=a&mode=pearson_raw');
+            expect(urls[1]).toBe('/api/v1/scatter/correlations');
+            for (const call of spy.calls) expect(call.init).toMatchObject({ method: 'POST' });
+            cleaningPlanStore.clear();
         } finally {
             spy.restore();
         }

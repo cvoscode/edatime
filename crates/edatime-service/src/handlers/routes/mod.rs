@@ -54,22 +54,16 @@ pub fn api_router() -> Router<AppState> {
         .route("/metrics", get(metrics::get_metrics))
         .route("/jobs", get(jobs::list_jobs))
         .route("/jobs/{id}", get(jobs::get_job).delete(jobs::cancel_job))
-        .route(
-            "/scatter/points",
-            get(scatter::get_scatter_points).post(scatter::post_scatter_points),
-        )
+        .route("/scatter/points", post(scatter::post_scatter_points))
         .route("/scatter/matrix", post(scatter::post_scatter_matrix))
         .route(
             "/scatter/export/parquet",
             post(scatter::post_scatter_export_parquet),
         )
-        .route(
-            "/scatter/correlations",
-            get(scatter::get_scatter_correlations).post(scatter::post_scatter_correlations),
-        )
+        .route("/scatter/correlations", post(scatter::post_scatter_correlations))
         .route(
             "/scatter/correlations/matrix",
-            get(scatter::get_correlation_matrix).post(scatter::post_correlation_matrix),
+            post(scatter::post_correlation_matrix),
         )
         .route("/upload", post(upload::upload_data))
         .route("/upload/preview", post(upload::preview_upload_data))

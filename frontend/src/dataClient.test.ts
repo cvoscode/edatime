@@ -44,8 +44,15 @@ vi.mock('apache-arrow', () => ({
 }));
 
 describe('API client fetch helpers', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
         mockFetch.mockReset();
+        // Every data-analysis route now executes the explicit dataset baseline.
+        // Individual tests may replace this plan with a transformed one.
+        const { cleaningPlanStore } = await import('./cleaning/store.js');
+        cleaningPlanStore.resetForDataset({
+            sourceVersionId: 'source-baseline', datasetRevision: 1,
+            datasetFingerprint: 'dataset-baseline', schemaFingerprint: 'schema-baseline', timeColumn: 'event_time',
+        });
         arrowMockState.fields = [
             { name: 'event_time', type: 'Int64' },
             { name: 'value', type: 'Float64' },
@@ -56,7 +63,9 @@ describe('API client fetch helpers', () => {
         };
     });
 
-    afterEach(() => {
+    afterEach(async () => {
+        const { cleaningPlanStore } = await import('./cleaning/store.js');
+        cleaningPlanStore.clear();
         vi.restoreAllMocks();
     });
 
@@ -572,7 +581,7 @@ describe('API client fetch helpers', () => {
             });
         });
 
-        it('passes the configured threshold and mode in the query string', async () => {
+        it('passes the configured threshold and mode in the plan-aware body', async () => {
             const { fetchScatterCorrelations } = await import('./services/api/index.js');
 
             mockFetch.mockResolvedValueOnce({
@@ -588,7 +597,10 @@ describe('API client fetch helpers', () => {
             });
 
             await fetchScatterCorrelations('col_a', 0.75, 'pearson_diff');
-            expect(mockFetch).toHaveBeenCalledWith('/api/v1/scatter/correlations?threshold=0.75&base=col_a&mode=pearson_diff', { cache: 'no-store' });
+            expect(mockFetch).toHaveBeenCalledWith('/api/v1/scatter/correlations', expect.objectContaining({ method: 'POST' }));
+            expect(JSON.parse(String(mockFetch.mock.calls[0]?.[1]?.body))).toMatchObject({
+                base: 'col_a', threshold: 0.75, mode: 'pearson_diff',
+            });
         });
 
         it('includes the active cleaning plan in correlation requests', async () => {
@@ -682,7 +694,7 @@ describe('API client fetch helpers', () => {
             );
         });
 
-        it('omits adaptive filter ids from scatter line filter payloads', async () => {
+        it('does not lower adaptive lines into scatter transport fields', async () => {
             const { fetchScatterPoints } = await import('./services/api/index.js');
 
             mockFetch.mockResolvedValueOnce({
@@ -710,9 +722,8 @@ describe('API client fetch helpers', () => {
 
             const request = mockFetch.mock.calls.at(-1)?.[1] as RequestInit | undefined;
             const payload = JSON.parse(String(request?.body ?? '{}'));
-            expect(JSON.parse(String(payload.line_filters))).toEqual([
-                { column: 'col_a', x1: 1, y1: 2, x2: 3, y2: 4, keepAbove: true },
-            ]);
+            expect(payload.line_filters).toBeUndefined();
+            expect(payload.cleaning_plan).toBeDefined();
         });
 
         it('reads scatter Arrow responses using the declared axis columns', async () => {
@@ -794,7 +805,7 @@ describe('API client fetch helpers', () => {
                 expect.stringContaining('/api/v1/scatter/matrix'),
                 expect.objectContaining({ method: 'POST' }),
             );
-            expect(JSON.parse(String(request?.body ?? '{}'))).toEqual({
+            expect(JSON.parse(String(request?.body ?? '{}'))).toMatchObject({
                 pairs: [
                     { x: 'HUFL', y: 'HULL' },
                     { x: 'OT', y: 'MUFL' },
@@ -802,9 +813,8 @@ describe('API client fetch helpers', () => {
                 color: 'group',
                 start: 10,
                 end: 20,
-                filters: JSON.stringify([{ column: 'HUFL', from: 1, to: 9 }]),
-                line_filters: JSON.stringify([{ column: 'HUFL', x1: 1, y1: 2, x2: 3, y2: 4, keepAbove: true }]),
                 limit: 4096,
+                cleaning_plan: { expectedSourceVersionId: 'source-baseline' },
             });
         });
 

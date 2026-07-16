@@ -2,7 +2,7 @@ import type {
     ScatterFetchOptions,
     ScatterMatrixResponse,
 } from '../../types/scatter.js';
-import { apiV1Routes, withApiQuery } from '../../contracts/api/v1/routes.js';
+import { apiV1Routes } from '../../contracts/api/v1/routes.js';
 import type {
     CorrelationMetric,
     ScatterCorrelationsResponse,
@@ -24,31 +24,10 @@ import {
 import { cleaningPlanStore } from '../../cleaning/store.js';
 import { buildPlanRequestSnapshot } from '../../cleaning/compiler.js';
 
-function normalizeScatterLineFilters(lineFilters: unknown[]): Array<{
-    column: string;
-    x1: number;
-    y1: number;
-    x2: number;
-    y2: number;
-    keepAbove: boolean;
-}> {
-    return lineFilters
-        .map((filter) => ({
-            column: String((filter as Record<string, unknown>)?.column ?? ''),
-            x1: Number((filter as Record<string, unknown>)?.x1),
-            y1: Number((filter as Record<string, unknown>)?.y1),
-            x2: Number((filter as Record<string, unknown>)?.x2),
-            y2: Number((filter as Record<string, unknown>)?.y2),
-            keepAbove: !!(filter as Record<string, unknown>)?.keepAbove,
-        }))
-        .filter((filter) =>
-            !!filter.column
-            && Number.isFinite(filter.x1)
-            && Number.isFinite(filter.y1)
-            && Number.isFinite(filter.x2)
-            && Number.isFinite(filter.y2)
-            && filter.x1 !== filter.x2,
-        );
+function activeCleaningPlan(): ReturnType<typeof buildPlanRequestSnapshot> {
+    const plan = cleaningPlanStore.getSnapshot();
+    if (!plan) throw new Error('Scatter requests require an active cleaning plan');
+    return buildPlanRequestSnapshot(plan);
 }
 
 export async function fetchScatterPoints(
@@ -74,17 +53,7 @@ export async function fetchScatterPoints(
         payload.start = start;
         payload.end = end;
     }
-    const activePlan = cleaningPlanStore.getSnapshot();
-    const hasCanonicalPlan = !!activePlan?.stages.some((stage) => stage.enabled);
-    if (hasCanonicalPlan && activePlan) {
-        payload.cleaning_plan = buildPlanRequestSnapshot(activePlan);
-    }
-    if (!hasCanonicalPlan && Array.isArray(options?.filters) && options!.filters!.length > 0) {
-        payload.filters = JSON.stringify(options!.filters);
-    }
-    if (!hasCanonicalPlan && Array.isArray(options?.lineFilters) && options!.lineFilters!.length > 0) {
-        payload.line_filters = JSON.stringify(normalizeScatterLineFilters(options!.lineFilters));
-    }
+    payload.cleaning_plan = activeCleaningPlan();
 
     const url = apiV1Routes.scatter.points;
     dbg('POST (Scatter points)', { url, body: payload });
@@ -249,17 +218,7 @@ export async function fetchScatterMatrix(
         payload.start = start;
         payload.end = end;
     }
-    const activePlan = cleaningPlanStore.getSnapshot();
-    const hasCanonicalPlan = !!activePlan?.stages.some((stage) => stage.enabled);
-    if (hasCanonicalPlan && activePlan) {
-        payload.cleaning_plan = buildPlanRequestSnapshot(activePlan);
-    }
-    if (!hasCanonicalPlan && Array.isArray(options?.filters) && options.filters.length > 0) {
-        payload.filters = JSON.stringify(options.filters);
-    }
-    if (!hasCanonicalPlan && Array.isArray(options?.lineFilters) && options.lineFilters.length > 0) {
-        payload.line_filters = JSON.stringify(normalizeScatterLineFilters(options.lineFilters));
-    }
+    payload.cleaning_plan = activeCleaningPlan();
 
     const url = apiV1Routes.scatter.matrix;
     dbg('POST (Scatter matrix)', { url, body: payload });
@@ -347,22 +306,13 @@ export async function fetchScatterCorrelations(
     threshold = 0.7,
     mode: CorrelationMetric = 'pearson_raw',
 ): Promise<ScatterCorrelationsResponse> {
-    const plan = cleaningPlanStore.getSnapshot();
-    const activePlan = plan?.stages.some((stage) => stage.enabled)
-        ? buildPlanRequestSnapshot(plan)
-        : null;
-    const params = new URLSearchParams({ threshold: String(threshold) });
-    if (base !== null && base !== undefined && String(base).trim() !== '') params.set('base', String(base));
-    params.set('mode', mode);
-    const url = activePlan
-        ? apiV1Routes.scatter.correlations
-        : withApiQuery(apiV1Routes.scatter.correlations, params);
+    const activePlan = activeCleaningPlan();
     const requestScope = captureDatasetRequestScope();
-    const res = await globalThis.fetch(url, activePlan
-        ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+    const res = await globalThis.fetch(apiV1Routes.scatter.correlations, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
             base: base?.trim() || undefined, threshold, mode, cleaning_plan: activePlan,
-        }), cache: 'no-store' }
-        : { cache: 'no-store' });
+        }), cache: 'no-store',
+    });
     assertDatasetRequestScopeActive(requestScope);
     if (!res.ok) throw await readApiError(res, 'Scatter correlations');
     const executionIdentity = readExecutionIdentity(res.headers);
