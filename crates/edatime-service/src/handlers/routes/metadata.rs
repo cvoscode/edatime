@@ -55,6 +55,8 @@ pub struct DatasetMetadata {
     pub numeric_columns: Vec<String>,
     pub time_column: Option<String>,
     pub time_range: Option<TimeRange>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub time_quality: Option<TimeQuality>,
     pub column_profiles: Vec<ColumnProfile>,
 }
 
@@ -68,6 +70,29 @@ pub struct ColumnMetadata {
 pub struct TimeRange {
     pub min: i64,
     pub max: i64,
+}
+
+/// Ordered-source quality facts for the detected time column.
+///
+/// These facts are deliberately only produced by a completed sampled or exact
+/// profile. Immediate metadata reports the time range without pretending it
+/// has inspected source ordering or duplicate timestamps.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct TimeQuality {
+    pub non_null_count: usize,
+    pub null_count: usize,
+    pub unique_timestamp_count: usize,
+    /// Rows beyond the first occurrence for each duplicate timestamp.
+    pub duplicate_timestamp_count: usize,
+    pub is_monotonic_non_decreasing: bool,
+    /// Adjacent source-order timestamp pairs where the latter is earlier.
+    pub out_of_order_count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_gap_ms: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub median_gap_ms: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_gap_ms: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -220,6 +245,73 @@ fn time_range_from_aggregate(agg: &DataFrame, index: usize, dtype: &DataType) ->
     }
 }
 
+fn time_quality_from_frame(df: &DataFrame) -> Option<TimeQuality> {
+    let schema = df.schema();
+    let (name, dtype) = detect_time_column(schema.as_ref(), None)?;
+    let series = df.column(&name).ok()?.as_materialized_series().clone();
+    let mut timestamps = Vec::with_capacity(series.len());
+    let null_count = series.null_count();
+
+    if dtype.is_numeric() {
+        for value in series
+            .cast(&DataType::Float64)
+            .ok()?
+            .f64()
+            .ok()?
+            .into_iter()
+            .flatten()
+        {
+            if value.is_finite() {
+                timestamps.push(
+                    temporal::native_to_epoch_ms(value.round() as i64, &DataType::Int64).round()
+                        as i64,
+                );
+            }
+        }
+    } else if matches!(dtype, DataType::Datetime(_, _) | DataType::Date) {
+        for value in series
+            .cast(&DataType::Int64)
+            .ok()?
+            .i64()
+            .ok()?
+            .into_iter()
+            .flatten()
+        {
+            timestamps.push(temporal::native_to_epoch_ms(value, &dtype).round() as i64);
+        }
+    } else {
+        return None;
+    }
+
+    let out_of_order_count = timestamps
+        .windows(2)
+        .filter(|pair| pair[1] < pair[0])
+        .count();
+    let mut ordered = timestamps.clone();
+    ordered.sort_unstable();
+    let duplicate_timestamp_count = ordered.windows(2).filter(|pair| pair[0] == pair[1]).count();
+    let mut positive_gaps = ordered
+        .windows(2)
+        .filter_map(|pair| (pair[1] > pair[0]).then_some(pair[1].saturating_sub(pair[0])))
+        .collect::<Vec<_>>();
+    positive_gaps.sort_unstable();
+    let median_gap_ms = positive_gaps
+        .get(positive_gaps.len().saturating_sub(1) / 2)
+        .copied();
+
+    Some(TimeQuality {
+        non_null_count: timestamps.len(),
+        null_count,
+        unique_timestamp_count: ordered.len().saturating_sub(duplicate_timestamp_count),
+        duplicate_timestamp_count,
+        is_monotonic_non_decreasing: out_of_order_count == 0,
+        out_of_order_count,
+        min_gap_ms: positive_gaps.first().copied(),
+        median_gap_ms,
+        max_gap_ms: positive_gaps.last().copied(),
+    })
+}
+
 fn build_dataset_metadata_from_lazyframe(
     lf: LazyFrame,
     time_column_override: Option<&str>,
@@ -363,6 +455,7 @@ fn build_dataset_metadata_from_lazyframe(
         numeric_columns,
         time_column: time_col_name,
         time_range,
+        time_quality: None,
         column_profiles,
     })
 }
@@ -459,6 +552,7 @@ fn build_immediate_dataset_metadata_from_lazyframe(
         numeric_columns,
         time_column: time_col_name,
         time_range,
+        time_quality: None,
         column_profiles: Vec::new(),
     })
 }
@@ -600,6 +694,7 @@ pub fn build_dataset_metadata(
         .filter(|_| time_col_name == "ts")
         .map(String::from)
         .or_else(|| time_col.as_ref().map(|(name, _)| name.clone()));
+    let time_quality = time_quality_from_frame(df);
 
     Ok(DatasetMetadata {
         revision: 0,
@@ -617,6 +712,7 @@ pub fn build_dataset_metadata(
         numeric_columns,
         time_column: time_column_for_response,
         time_range,
+        time_quality,
         column_profiles,
     })
 }
@@ -975,6 +1071,20 @@ mod tests {
         assert_eq!(metadata.numeric_columns, vec!["value".to_string()]);
         assert_eq!(metadata.total_rows, 2);
         assert!(metadata.time_range.is_some());
+        assert_eq!(
+            metadata.time_quality,
+            Some(TimeQuality {
+                non_null_count: 2,
+                null_count: 0,
+                unique_timestamp_count: 2,
+                duplicate_timestamp_count: 0,
+                is_monotonic_non_decreasing: true,
+                out_of_order_count: 0,
+                min_gap_ms: Some(100_000),
+                median_gap_ms: Some(100_000),
+                max_gap_ms: Some(100_000),
+            })
+        );
         assert!(
             metadata
                 .column_profiles
@@ -1016,7 +1126,46 @@ mod tests {
             })
         );
         assert_eq!(metadata.profile_status, "immediate");
+        assert_eq!(metadata.time_quality, None);
         assert!(metadata.column_profiles.is_empty());
+    }
+
+    #[test]
+    fn completed_profiles_report_duplicate_out_of_order_time_quality() {
+        let df = DataFrame::new(
+            5,
+            vec![
+                polars::prelude::Series::new(
+                    "ts".into(),
+                    vec![
+                        Some(1_700_000_003_000_i64),
+                        Some(1_700_000_001_000),
+                        Some(1_700_000_001_000),
+                        None,
+                        Some(1_700_000_005_000),
+                    ],
+                )
+                .into(),
+                polars::prelude::Series::new("value".into(), vec![1.0_f64; 5]).into(),
+            ],
+        )
+        .expect("dataframe");
+
+        let metadata = build_dataset_metadata(&df, false, None).expect("metadata");
+        assert_eq!(
+            metadata.time_quality,
+            Some(TimeQuality {
+                non_null_count: 4,
+                null_count: 1,
+                unique_timestamp_count: 3,
+                duplicate_timestamp_count: 1,
+                is_monotonic_non_decreasing: false,
+                out_of_order_count: 1,
+                min_gap_ms: Some(2_000),
+                median_gap_ms: Some(2_000),
+                max_gap_ms: Some(2_000),
+            })
+        );
     }
 
     #[test]

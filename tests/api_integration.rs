@@ -243,6 +243,7 @@ async fn sampled_profile_v1_returns_estimated_metadata() {
             assert_eq!(profile["algorithmVersion"], "sample-v1");
             assert_eq!(profile["metadata"]["profile_status"], "sampled");
             assert_eq!(profile["metadata"]["profile_sample_rows"], 720);
+            assert!(profile["metadata"]["time_quality"].is_object());
             return;
         }
         tokio::time::sleep(std::time::Duration::from_millis(5)).await;

@@ -9,6 +9,19 @@ export interface TimeRange {
     max: number;
 }
 
+/** Source-order and duplicate-timestamp facts from a completed profile. */
+export interface TimeQuality {
+    non_null_count: number;
+    null_count: number;
+    unique_timestamp_count: number;
+    duplicate_timestamp_count: number;
+    is_monotonic_non_decreasing: boolean;
+    out_of_order_count: number;
+    min_gap_ms?: number | null;
+    median_gap_ms?: number | null;
+    max_gap_ms?: number | null;
+}
+
 export interface Histogram {
     bin_edges: number[];
     counts: number[];
@@ -51,6 +64,8 @@ export interface DatasetMetadata {
     numeric_columns: string[];
     time_column: string | null;
     time_range: TimeRange | null;
+    /** Absent from immediate metadata because order and duplicates require profiling. */
+    time_quality?: TimeQuality | null;
     column_profiles: ColumnProfile[];
 }
 

@@ -116,6 +116,34 @@ describe('Prepare page', () => {
         dispose();
     });
 
+    it('surfaces completed time-order and duplicate facts without inventing a repair', () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        datasetState.metadata = {
+            profile_status: 'exact',
+            column_profiles: [],
+            time_quality: {
+                non_null_count: 4,
+                null_count: 1,
+                unique_timestamp_count: 3,
+                duplicate_timestamp_count: 1,
+                is_monotonic_non_decreasing: false,
+                out_of_order_count: 1,
+                min_gap_ms: 2_000,
+                median_gap_ms: 2_000,
+                max_gap_ms: 2_000,
+            },
+        } as any;
+        const dispose = initPreparePage();
+
+        const finding = document.querySelector<HTMLElement>('[data-quality-kind="time"]')!;
+        expect(finding.textContent).toContain('3 unique timestamps');
+        expect(finding.textContent).toContain('1 duplicate timestamp');
+        expect(finding.textContent).toContain('1 out-of-order transition');
+        expect(finding.textContent).toContain('median observed gap 2000 ms');
+        expect(finding.querySelector('button')).toBeNull();
+        dispose();
+    });
+
     it('turns an exact non-finite finding into a reversible non-finite policy', () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
         datasetState.metadata = { column_profiles: [{ name: 'temperature', dtype: 'Float64', null_count: 0, non_finite_count: 3 }] } as any;

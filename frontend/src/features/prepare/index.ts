@@ -111,6 +111,7 @@ function renderQualityFindings(
             ? 'Immediate source findings are shown while the ' + (profileKind === 'exact' ? 'exact' : 'sampled') + ' background quality report runs.'
             : 'Immediate source-profile findings can be turned into reversible stages. Build a bounded sample or exact quality report for a cached, versioned follow-up.';
     const sourceMetadata = profileMetadata ?? datasetState.metadata;
+    const timeQuality = sourceMetadata?.time_quality;
     const findings = (sourceMetadata?.column_profiles ?? [])
         .flatMap((profile) => {
             const nullCount = Number(profile?.null_count) || 0;
@@ -145,6 +146,26 @@ function renderQualityFindings(
         sample.classList.add('prepare-workspace__quality-action');
         exact.classList.add('prepare-workspace__quality-action');
         profileActions.append(sample, exact);
+    }
+
+    if (timeQuality) {
+        const item = createElement('li', 'prepare-workspace__quality-finding');
+        item.dataset.qualityKind = 'time';
+        const summary = createElement('div');
+        const label = createElement('strong');
+        label.textContent = 'Time axis';
+        const detail = createElement('span');
+        const duplicateSuffix = timeQuality.duplicate_timestamp_count === 1 ? '' : 's';
+        const orderSuffix = timeQuality.out_of_order_count === 1 ? '' : 's';
+        const gap = typeof timeQuality.median_gap_ms === 'number'
+            ? ' · median observed gap ' + String(timeQuality.median_gap_ms) + ' ms'
+            : '';
+        detail.textContent = String(timeQuality.unique_timestamp_count) + ' unique timestamps · '
+            + String(timeQuality.duplicate_timestamp_count) + ' duplicate timestamp' + duplicateSuffix + ' · '
+            + String(timeQuality.out_of_order_count) + ' out-of-order transition' + orderSuffix + gap;
+        summary.append(label, detail);
+        item.append(summary);
+        list.append(item);
     }
 
     if (findings.length === 0) {
