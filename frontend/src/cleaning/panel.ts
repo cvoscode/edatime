@@ -15,12 +15,13 @@ import type { CleaningPreviewResponse, CleaningStageImpact } from './api.js';
 import { buildPipelineGraph, renderPipelineGraphSvg, serializePipelineGraph } from './pipelineGraph.js';
 import { formatResampleAggregations, hasAscendingTimeSortBefore, normalizeFixedDuration, parseResampleAggregations } from './resample.js';
 import type { CleaningPlan, CleaningStage } from './types.js';
-import type { CleaningPlanHistoryAction, CleaningPlanStore } from './store.js';
+import type { CleaningPlanHistoryAction, CleaningPlanHistoryEntry, CleaningPlanStore } from './store.js';
 import { downloadBlob } from '../utils/dom.js';
 
 type PlanPanelStore = Pick<CleaningPlanStore,
     'getSnapshot' | 'getHistory' | 'subscribe' | 'setPlan' | 'addStage' | 'updateStage' | 'removeStage' | 'setStageEnabled' | 'reorderStage' | 'canUndo' | 'canRedo' | 'isDirty' | 'undo' | 'redo' | 'restoreHistoryEntry'>;
 type WorkbenchTab = 'pipeline' | 'stages' | 'export';
+type StageComposerKind = 'missingValue' | 'deduplicate' | 'columnSelect' | 'sort' | 'fillNull' | 'resample' | 'chronologicalSplit';
 
 export interface CleaningPlanPanelDeps {
     planStore: PlanPanelStore;
@@ -189,6 +190,22 @@ function historyActionLabel(action: CleaningPlanHistoryAction): string {
     }
 }
 
+function describeHistoryEntry(entry: CleaningPlanHistoryEntry, previous: CleaningPlanHistoryEntry | undefined): string {
+    if (entry.action === 'stageAdded') {
+        const stage = entry.plan.stages.find((candidate) => !previous?.plan.stages.some((before) => before.id === candidate.id));
+        return stage ? 'Added ' + (stage.label || stage.kind) : 'Added a stage';
+    }
+    if (entry.action === 'stageRemoved') {
+        const stage = previous?.plan.stages.find((candidate) => !entry.plan.stages.some((after) => after.id === candidate.id));
+        return stage ? 'Removed ' + (stage.label || stage.kind) : 'Removed a stage';
+    }
+    if (entry.action === 'stageUpdated') {
+        const stage = entry.plan.stages.find((candidate) => JSON.stringify(candidate) !== JSON.stringify(previous?.plan.stages.find((before) => before.id === candidate.id)));
+        return stage ? 'Updated ' + (stage.label || stage.kind) : 'Updated a stage';
+    }
+    return historyActionLabel(entry.action);
+}
+
 /**
  * Pipeline workbench for the canonical plan store. The SVG is a visual
  * projection only; every mutation continues through the existing plan store.
@@ -249,6 +266,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
     let activeTab: WorkbenchTab = 'pipeline';
     let selectedStageId: string | null = null;
     let selectedHistoryEntryId: string | null = null;
+    let stageComposerKind: StageComposerKind = 'missingValue';
     let lastPreview: { planId: string; planRevision: number; result: CleaningPreviewResponse } | null = null;
 
     const notify = (stage?: CleaningStage) => {
@@ -283,7 +301,10 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         const graphPlan = viewedEntry?.plan ?? plan;
         const scroll = document.createElement('div');
         scroll.className = 'pipeline-workbench__graph-scroll';
-        scroll.innerHTML = renderPipelineGraphSvg(buildPipelineGraph(graphPlan), { selectedStageId });
+        scroll.innerHTML = renderPipelineGraphSvg(buildPipelineGraph(graphPlan), {
+            selectedStageId,
+            title: viewingHistory ? 'Earlier pipeline revision' : 'Current live pipeline',
+        });
         const hint = document.createElement('p');
         hint.className = 'pipeline-workbench__hint';
         hint.textContent = viewingHistory
@@ -308,10 +329,12 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         historyCopy.textContent = 'Choose any revision to inspect its graph, then restore it when you want its stages applied to the live plot.';
         const historyList = document.createElement('ol');
         historyList.className = 'pipeline-workbench__history-list';
-        for (const entry of [...history].reverse()) {
+        for (let index = history.length - 1; index >= 0; index -= 1) {
+            const entry = history[index];
+            const previous = history[index - 1];
             const item = document.createElement('li');
             item.className = 'pipeline-workbench__history-item';
-            const inspect = button(historyActionLabel(entry.action) + ' · ' + entry.plan.stages.length + ' stage' + (entry.plan.stages.length === 1 ? '' : 's'), 'pipeline-workbench__history-inspect');
+            const inspect = button(describeHistoryEntry(entry, previous), 'pipeline-workbench__history-inspect');
             inspect.classList.toggle('is-selected', entry.id === viewedEntry?.id);
             inspect.setAttribute('aria-pressed', String(entry.id === viewedEntry?.id));
             inspect.addEventListener('click', () => {
@@ -322,7 +345,10 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             const timestamp = document.createElement('time');
             timestamp.dateTime = entry.createdAt;
             timestamp.textContent = new Date(entry.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            item.append(inspect, timestamp);
+            const detail = document.createElement('span');
+            detail.className = 'pipeline-workbench__history-detail';
+            detail.textContent = 'Revision ' + entry.plan.planRevision + ' · ' + entry.plan.stages.filter((stage) => executable(stage) && stage.enabled).length + ' live stage' + (entry.plan.stages.filter((stage) => executable(stage) && stage.enabled).length === 1 ? '' : 's');
+            item.append(inspect, detail, timestamp);
             historyList.appendChild(item);
         }
         historySection.append(historyHeading, historyCopy, historyList);
@@ -441,7 +467,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         notify(stage);
         preview.textContent = 'Saved ' + (stage.label || stage.kind) + '.';
     };
-    const renderEditor = (stage: CleaningStage) => {
+    const renderEditor = (stage: CleaningStage): HTMLFormElement => {
         const form = document.createElement('form');
         form.className = 'pipeline-workbench__editor';
         const heading = document.createElement('h3');
@@ -550,12 +576,13 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
                 preview.textContent = error instanceof Error ? error.message : 'Could not save this stage.';
             }
         });
-        panel.appendChild(form);
+        return form;
     };
     const renderStages = (plan: CleaningPlan) => {
         panel.replaceChildren();
         const addMissingForm = document.createElement('form');
         addMissingForm.className = 'pipeline-workbench__add-stage';
+        addMissingForm.dataset.stageComposerKind = 'missingValue';
         const addHeading = document.createElement('h3');
         addHeading.textContent = 'Add missing-value policy';
         const addFields = document.createElement('div');
@@ -593,6 +620,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         });
         const addDeduplicateForm = document.createElement('form');
         addDeduplicateForm.className = 'pipeline-workbench__add-stage';
+        addDeduplicateForm.dataset.stageComposerKind = 'deduplicate';
         const deduplicateHeading = document.createElement('h3');
         deduplicateHeading.textContent = 'Add duplicate resolution';
         const deduplicateFields = document.createElement('div');
@@ -623,6 +651,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         });
         const addColumnSelectForm = document.createElement('form');
         addColumnSelectForm.className = 'pipeline-workbench__add-stage';
+        addColumnSelectForm.dataset.stageComposerKind = 'columnSelect';
         const columnSelectHeading = document.createElement('h3');
         columnSelectHeading.textContent = 'Add column selection';
         const columnSelectFields = document.createElement('div');
@@ -653,6 +682,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         });
         const addSortForm = document.createElement('form');
         addSortForm.className = 'pipeline-workbench__add-stage';
+        addSortForm.dataset.stageComposerKind = 'sort';
         const sortHeading = document.createElement('h3');
         sortHeading.textContent = 'Add stable sort';
         const sortFields = document.createElement('div');
@@ -686,6 +716,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         });
         const addFillForm = document.createElement('form');
         addFillForm.className = 'pipeline-workbench__add-stage';
+        addFillForm.dataset.stageComposerKind = 'fillNull';
         const fillHeading = document.createElement('h3');
         fillHeading.textContent = 'Add ordered null fill';
         const fillFields = document.createElement('div');
@@ -710,6 +741,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         });
         const addResampleForm = document.createElement('form');
         addResampleForm.className = 'pipeline-workbench__add-stage';
+        addResampleForm.dataset.stageComposerKind = 'resample';
         const resampleHeading = document.createElement('h3');
         resampleHeading.textContent = 'Add fixed-duration resampling';
         const resampleFields = document.createElement('div');
@@ -744,6 +776,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         });
         const addSplitForm = document.createElement('form');
         addSplitForm.className = 'pipeline-workbench__add-stage';
+        addSplitForm.dataset.stageComposerKind = 'chronologicalSplit';
         const splitHeading = document.createElement('h3');
         splitHeading.textContent = 'Add chronological split';
         const splitFields = document.createElement('div');
@@ -822,9 +855,48 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             row.append(description, impact, toggle, up, down, remove);
             list.appendChild(row);
         }
-        panel.append(addMissingForm, addDeduplicateForm, addColumnSelectForm, addSortForm, addFillForm, addResampleForm, addSplitForm, list);
+        const stageHeader = document.createElement('div');
+        stageHeader.className = 'pipeline-workbench__stages-header';
+        const stageHeading = document.createElement('h3');
+        stageHeading.textContent = plan.stages.length === 0 ? 'No stages yet' : 'Pipeline stages';
+        const stageCopy = document.createElement('p');
+        stageCopy.className = 'pipeline-workbench__hint';
+        stageCopy.textContent = plan.stages.length === 0
+            ? 'Add only the transform you need. It will update the live plot as soon as it is saved.'
+            : 'Use the compact controls to enable, order, or edit each stage.';
+        stageHeader.append(stageHeading, stageCopy);
+        const composer = document.createElement('section');
+        composer.className = 'pipeline-workbench__composer';
+        const composerHeading = document.createElement('h3');
+        composerHeading.textContent = 'Add a transformation';
+        const composerSelect = selectInput('Transformation type', stageComposerKind, 'stageComposerKind', [
+            ['missingValue', 'Missing-value policy'],
+            ['deduplicate', 'Duplicate resolution'],
+            ['columnSelect', 'Column selection'],
+            ['sort', 'Stable sort'],
+            ['fillNull', 'Ordered null fill'],
+            ['resample', 'Fixed-duration resampling'],
+            ['chronologicalSplit', 'Chronological split'],
+        ]);
+        const composerControl = composerSelect.querySelector('select')!;
+        composerControl.addEventListener('change', () => {
+            stageComposerKind = composerControl.value as StageComposerKind;
+            render();
+        });
+        const forms: Record<StageComposerKind, HTMLFormElement> = {
+            missingValue: addMissingForm,
+            deduplicate: addDeduplicateForm,
+            columnSelect: addColumnSelectForm,
+            sort: addSortForm,
+            fillNull: addFillForm,
+            resample: addResampleForm,
+            chronologicalSplit: addSplitForm,
+        };
+        composer.append(composerHeading, composerSelect, forms[stageComposerKind]);
+        panel.append(stageHeader, list);
         const selected = plan.stages.find((stage) => stage.id === selectedStageId);
-        if (selected) renderEditor(selected);
+        if (selected) panel.appendChild(renderEditor(selected));
+        panel.appendChild(composer);
     };
     const exportText = (content: string, filename: string, type: string) => {
         downloadBlob(new Blob([content], { type }), filename);
@@ -972,7 +1044,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
     };
     const renderActions = (plan: CleaningPlan) => {
         actions.replaceChildren();
-        const undo = button('Undo');
+        const undo = button('Undo last change', 'pipeline-workbench__history-action');
         undo.disabled = !deps.planStore.canUndo();
         undo.addEventListener('click', () => {
             if (deps.planStore.undo()) {
@@ -980,7 +1052,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
                 deps.onPlanChanged?.();
             }
         });
-        const redo = button('Redo');
+        const redo = button('Redo last change', 'pipeline-workbench__history-action');
         redo.disabled = !deps.planStore.canRedo();
         redo.addEventListener('click', () => {
             if (deps.planStore.redo()) {

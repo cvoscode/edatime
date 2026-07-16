@@ -108,6 +108,30 @@ function shorten(value: string, limit = 28): string {
     return value.length > limit ? `${value.slice(0, Math.max(1, limit - 1))}…` : value;
 }
 
+function nodeEyebrow(node: PipelineGraphNode): string {
+    if (node.kind === 'source') return 'SOURCE';
+    if (node.kind === 'result') return 'LIVE OUTPUT';
+    if (node.kind === 'annotation') return 'NOTE';
+    return `STEP ${node.order + 1}${node.status === 'disabled' ? ' · OFF' : ''}`;
+}
+
+function stageKindLabel(node: PipelineGraphNode): string {
+    switch (node.id.split(':', 1)[0]) {
+        case 'timeRange': return 'Time range';
+        case 'columnRange': return 'Value range';
+        case 'adaptiveLine': return 'Adaptive line';
+        case 'missingValue': return 'Missing values';
+        case 'deduplicate': return 'Deduplicate';
+        case 'columnSelect': return 'Columns';
+        case 'sort': return 'Stable sort';
+        case 'fillNull': return 'Fill nulls';
+        case 'resample': return 'Resample';
+        case 'chronologicalSplit': return 'Chronological split';
+        case 'derivedColumn': return 'Derived column';
+        default: return node.label;
+    }
+}
+
 /** Builds a stable graph whose main path preserves saved executable-stage order. */
 export function buildPipelineGraph(plan: CleaningPlan): PipelineGraph {
     const nodes: PipelineGraphNode[] = [{
@@ -206,23 +230,23 @@ export function serializePipelineGraph(graph: PipelineGraph): string {
 export function renderPipelineGraphSvg(graph: PipelineGraph, options: PipelineGraphSvgOptions = {}): string {
     const mainNodes = graph.nodes.filter((node) => node.kind !== 'annotation');
     const annotations = graph.nodes.filter((node) => node.kind === 'annotation');
-    const nodeWidth = 176;
-    const nodeHeight = 76;
-    const gap = 54;
-    const margin = 38;
-    const width = Math.max(640, margin * 2 + mainNodes.length * nodeWidth + Math.max(0, mainNodes.length - 1) * gap);
-    const annotationHeight = annotations.length ? 114 : 0;
-    const height = 174 + annotationHeight;
+    const nodeWidth = 212;
+    const nodeHeight = 82;
+    const gap = 38;
+    const margin = 28;
+    const width = Math.max(620, margin * 2 + mainNodes.length * nodeWidth + Math.max(0, mainNodes.length - 1) * gap);
+    const annotationHeight = annotations.length ? 104 : 0;
+    const height = 150 + annotationHeight;
     const positions = new Map<string, { x: number; y: number }>();
     mainNodes.forEach((node, index) => {
-        positions.set(node.id, { x: margin + index * (nodeWidth + gap), y: 50 });
+        positions.set(node.id, { x: margin + index * (nodeWidth + gap), y: 34 });
     });
     annotations.forEach((node, index) => {
         const parent = graph.edges.find((edge) => edge.to === node.id)?.from;
         const parentPosition = parent ? positions.get(parent) : undefined;
         positions.set(node.id, {
             x: Math.max(margin, (parentPosition?.x ?? margin) + index * 12),
-            y: 158,
+            y: 136,
         });
     });
 
@@ -246,9 +270,10 @@ export function renderPipelineGraphSvg(graph: PipelineGraph, options: PipelineGr
             `pipeline-graph__node--${node.status}`,
             selected ? 'is-selected' : '',
         ].filter(Boolean).join(' ');
-        const label = escapeXml(shorten(node.label));
-        const detail = escapeXml(shorten(node.detail, 42));
-        return `<g class="${className}" data-node-id="${escapeXml(node.id)}"${node.stageId ? ` data-stage-id="${escapeXml(node.stageId)}"` : ''} tabindex="${node.stageId ? '0' : '-1'}" role="${node.stageId ? 'button' : 'img'}" aria-label="${escapeXml(`${node.label}: ${node.detail}`)}"><rect x="${position.x}" y="${position.y}" width="${nodeWidth}" height="${nodeHeight}" rx="10" /><text x="${position.x + 14}" y="${position.y + 30}" class="pipeline-graph__label">${label}</text><text x="${position.x + 14}" y="${position.y + 53}" class="pipeline-graph__detail">${detail}</text></g>`;
+        const eyebrow = escapeXml(nodeEyebrow(node));
+        const label = escapeXml(shorten(node.kind === 'stage' ? stageKindLabel(node) : node.label, 32));
+        const detail = escapeXml(shorten(node.detail, 50));
+        return `<g class="${className}" data-node-id="${escapeXml(node.id)}"${node.stageId ? ` data-stage-id="${escapeXml(node.stageId)}"` : ''} tabindex="${node.stageId ? '0' : '-1'}" role="${node.stageId ? 'button' : 'img'}" aria-label="${escapeXml(`${node.label}: ${node.detail}`)}"><rect x="${position.x}" y="${position.y}" width="${nodeWidth}" height="${nodeHeight}" rx="12" /><text x="${position.x + 15}" y="${position.y + 19}" class="pipeline-graph__eyebrow">${eyebrow}</text><text x="${position.x + 15}" y="${position.y + 44}" class="pipeline-graph__label">${label}</text><text x="${position.x + 15}" y="${position.y + 65}" class="pipeline-graph__detail">${detail}</text></g>`;
     }).join('');
     const title = escapeXml(options.title || `EdaTime pipeline for ${graph.sourceVersionId}`);
 

@@ -33,6 +33,13 @@ vi.mock('../utils/dom.js', () => ({ downloadBlob: downloadBlobMock }));
 import { mountCleaningPlanPanel } from './panel.js';
 import { createCleaningPlanStore } from './store.js';
 
+function chooseStageComposer(kind: string): HTMLFormElement {
+    const select = document.querySelector<HTMLSelectElement>('select[name="stageComposerKind"]')!;
+    select.value = kind;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    return document.querySelector<HTMLFormElement>('form.pipeline-workbench__add-stage')!;
+}
+
 describe('cleaning plan panel', () => {
     beforeEach(() => {
         document.body.innerHTML = '<button id="open-cleaning-plan-btn"></button>';
@@ -459,7 +466,7 @@ describe('cleaning plan panel', () => {
         mountCleaningPlanPanel({ planStore, getViewport: () => null });
         document.getElementById('open-cleaning-plan-btn')!.click();
         Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Stages')!.click();
-        const form = document.querySelectorAll<HTMLFormElement>('form.pipeline-workbench__add-stage')[4];
+        const form = chooseStageComposer('fillNull');
         (form.elements.namedItem('fillColumns') as HTMLInputElement).value = 'value';
         form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
         expect(planStore.getSnapshot()!.stages).toHaveLength(0);
@@ -473,7 +480,7 @@ describe('cleaning plan panel', () => {
 
         document.getElementById('open-cleaning-plan-btn')!.click();
         Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Stages')!.click();
-        const form = document.querySelectorAll<HTMLFormElement>('form.pipeline-workbench__add-stage')[2];
+        const form = chooseStageComposer('columnSelect');
         (form.elements.namedItem('columnSelectColumns') as HTMLInputElement).value = 'ts, target';
         (form.elements.namedItem('columnSelectMode') as HTMLSelectElement).value = 'keep';
         form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
@@ -495,7 +502,7 @@ describe('cleaning plan panel', () => {
 
         document.getElementById('open-cleaning-plan-btn')!.click();
         Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Stages')!.click();
-        const form = document.querySelectorAll<HTMLFormElement>('form.pipeline-workbench__add-stage')[5];
+        const form = chooseStageComposer('resample');
         (form.elements.namedItem('resampleEvery') as HTMLInputElement).value = '15m';
         (form.elements.namedItem('resampleAggregations') as HTMLInputElement).value = 'value:mean, volume:sum';
         form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
@@ -515,7 +522,7 @@ describe('cleaning plan panel', () => {
         mountCleaningPlanPanel({ planStore, getViewport: () => null });
         document.getElementById('open-cleaning-plan-btn')!.click();
         Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Stages')!.click();
-        const form = document.querySelectorAll<HTMLFormElement>('form.pipeline-workbench__add-stage')[5];
+        const form = chooseStageComposer('resample');
         (form.elements.namedItem('resampleEvery') as HTMLInputElement).value = '1h';
         (form.elements.namedItem('resampleAggregations') as HTMLInputElement).value = 'value:last';
 
