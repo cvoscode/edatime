@@ -958,6 +958,14 @@ deterministic source-version/plan/axes-seeded reservoir for point mode and a
 bounded bin aggregate for density mode. Do not reuse a time-series envelope for
 arbitrary X/Y scatter geometry.
 
+**Implemented first slice:** a large single-series Timeseries request without
+a colour channel now runs a scalar lazy count and, above the `width * 2 * 4`
+candidate budget, collects a dynamic-group first/min/max/last envelope before
+the existing LTTB pass. The response exposes filtered/candidate/returned row
+counts, `envelope-lttb-v1`, and `x-edatime-approximate: 1`. Multi-series and
+colour-aligned envelopes remain deliberately on the exact path until their
+source-row pairing contract is implemented. (`05651bd`)
+
 ### Milestone F — Profile, Prepare, and Modeling Handoff
 
 1. Add progressive schema/time-quality/column-quality profiling with cached
