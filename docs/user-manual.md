@@ -31,7 +31,7 @@ The app opens on the Home page by default. The main navigation lives in the left
 - `Alt+9`: Causal
 - `Alt+0`: Drift
 
-The main workflow pages are `Upload`, `Timeseries`, `Correlations`, and `Scatter`.
+The main workflow pages are `Upload`, `Prepare`, `Timeseries`, `Correlations`, and `Scatter`.
 
 The advanced analysis group contains `FFT / PSD`, `Spectrogram`, `Causal Graph`, and `Drift Analysis`.
 
@@ -44,11 +44,36 @@ The sidebar can be collapsed when you want more chart space.
 If you are new to the app, this is the fastest path to understanding a dataset:
 
 1. Go to Upload and confirm the detected schema and time range.
-2. Open Timeseries and enable a few important numeric series.
-3. Zoom into a time window of interest.
-4. Open Scatter to compare two variables inside that same linked time range.
-5. Switch Scatter from `Plot` to `Matrix` when you want a fast pairwise scan.
-6. Use Scatter's distribution controls, FFT, Spectrogram, Drift, or Causal when you want deeper analysis.
+2. Open Prepare to inspect the source-to-result pipeline and add reversible transformations.
+3. Open Timeseries and enable a few important numeric series.
+4. Zoom into a time window of interest.
+5. Open Scatter to compare two variables inside that same linked time range.
+6. Switch Scatter from `Plot` to `Matrix` when you want a fast pairwise scan.
+7. Use Scatter's distribution controls, FFT, Spectrogram, Drift, or Causal when you want deeper analysis.
+
+## Prepare Page And Pipeline Workbench
+
+Prepare shows the current immutable source, ordered cleaning stages, and working
+dataset as a graph derived from the canonical plan. The same Pipeline Workbench
+is available from the shared header on every page.
+
+Use Prepare for quick stage authoring, enable/disable, keyboard reorder,
+removal, undo, and redo. Use the overlay for detailed stage editing,
+server-authoritative preview, materialization, and exports. The Export tab can
+save the canonical plan, graph JSON, graph SVG, and starter Python/Rust Polars
+code. Graph interaction never mutates the source directly.
+
+The first temporal regularization operation is fixed-duration resampling:
+
+- add an enabled ascending stable sort with the canonical time column first;
+- choose a positive fixed interval such as `30s`, `15m`, or `1h`;
+- assign one explicit aggregation (`mean`, `sum`, `min`, `max`, or `last`) to
+  every output value column, using entries such as `value:mean, volume:sum`;
+- preview the plan before materializing or exporting it.
+
+Resampling emits one left-labeled row for each non-empty bucket. It does not
+invent empty buckets, infer cadence, interpolate, group panel series, or perform
+timezone conversion.
 
 ## Upload Page
 

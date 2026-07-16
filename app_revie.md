@@ -16,7 +16,8 @@
   presents the canonical source → stages → result graph and live source
   identity. It provides page-native ordered-stage enable/disable, reordering,
   removal, undo/redo, missing-value/duplicate-resolution/column-selection,
-  stable-sort, and bounded ordered-null-fill authoring, then hands off to
+  stable-sort, bounded ordered-null-fill, and explicit fixed-duration
+  resampling authoring, then hands off to
   the shared Pipeline Workbench for detailed field editing, previewing, exporting, and
   materialization while the quality workflow remains in progress.
 - **Milestone B in progress:** data, scatter points/matrix, correlations, and
@@ -105,7 +106,8 @@ Do not start with allocator, SIMD, PGO, compression, framework replacement, or a
 - `frontend/src/cleaning/` provides a plan store, request envelope, preview/apply/export calls, a shared Pipeline Workbench overlay, local code generation, and compatibility lowering.
 - `frontend/src/cleaning/types.ts` exposes portable `timeRange`, `columnRange`,
   `adaptiveLine`, column-scoped `missingValue`, stable `deduplicate`, explicit
-  keep/drop `columnSelect`, stable `sort`, bounded forward/backward `fillNull`, and `annotation` stages. More schema, temporal,
+  keep/drop `columnSelect`, stable `sort`, bounded forward/backward `fillNull`,
+  global fixed-duration `resample`, and `annotation` stages. More schema, temporal,
   robust-cleaning, and modeling
   stage families remain open.
 - `frontend/src/cleaning/panel.ts` is now a Pipeline Workbench: it visualizes
@@ -139,7 +141,7 @@ Do not start with allocator, SIMD, PGO, compression, framework replacement, or a
 - Dataset fingerprints are currently derived from canonical Arrow content
   (schema, row order, nulls, and values); they are still resident-frame hashes
   rather than streaming ingest hashes.
-- `crates/edatime-query/src/cleaning.rs` validates and compiles the nine v1
+- `crates/edatime-query/src/cleaning.rs` validates and compiles the ten v1
   portable stage kinds. Its semantic hash uses executable canonical content;
   labels, IDs, notes, and timestamps do not affect server execution identity.
 - `crates/edatime-service/src/handlers/routes/cleaning.rs` correctly validates source/version/schema identity, but preview collects the source and result, apply collects the full result, and data export collects then serializes the full result into a byte vector.
@@ -442,7 +444,7 @@ The Prepare page should replace the plan modal as the main editing surface while
 
 Every stage needs explicit null semantics, group scope, ordering requirements, schema effect, portability class, preview cost, and export/codegen support. Do not add an operation to the UI until Rust execution, JSON fixtures, preview, export, and generated-code parity exist.
 
-#### Next temporal slice: fixed-duration resampling contract
+#### Completed temporal slice: fixed-duration resampling contract
 
 The first resampling stage must remain deliberately narrow until panel-series
 identity exists: it operates globally, requires an earlier enabled ascending
@@ -454,6 +456,12 @@ interpolation, implicit aggregate selection, timezone conversion, and any
 operation that would guess a cadence. This gives preview/apply/export/codegen
 one portable meaning; grouped resampling and gap materialization follow only
 after `seriesKeys` and profile-derived cadence are available.
+
+Implemented in `5834b6b` and `9e8f17f`. Both Prepare surfaces author and edit
+the same canonical stage, imports and local mutations preserve its ordering
+precondition, Rust executes native lazy dynamic grouping, semantic hashes track
+the interval and ordered aggregations, and Python/Rust code exports reproduce
+the left-labeled non-empty bucket contract.
 
 ### P2.2 — Make Every Plot Author Useful Stages
 
