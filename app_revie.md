@@ -609,8 +609,10 @@ using explicit epoch-millisecond boundaries, with null time values labelled
 Pipeline Workbench authors and edits the stage, the graph exposes it as a
 schema-changing node, and the backend compiler/semantic hash execute the same
 contract. Code export explicitly rejects it until cross-runtime temporal-unit
-parity is generated. Per-group splitting and leakage warnings remain future
-slices. (`2232e94`, `d77ffae`, `d752820`)
+parity is generated. Exact previews now warn when ordered null fill or
+resampling precedes the split, because either can cross its boundaries;
+per-group splitting remains future work.
+(`2232e94`, `d77ffae`, `d752820`, `52fbb6a`)
 
 Add an export manifest containing:
 
