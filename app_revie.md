@@ -68,7 +68,7 @@
   it would exceed that cap. (`f2ed211`,
   `9887e4f`, `6ab6f44`, `7413758`, `7847b46`, `5bfdc39`, `d2dca71`,
   `7c31697`, `84fd48f`, `5d6e19f`, `f5b9e66`, `349c56f`, `19836bf`,
-  `8f5ba28`, `06babb4`, `748dce3`)
+  `8f5ba28`, `06babb4`, `748dce3`, `7e73748`)
 
 ## 1. Goal
 
@@ -140,7 +140,11 @@ Do not start with allocator, SIMD, PGO, compression, framework replacement, or a
 - `frontend/src/services/api/timeseries.ts` sends the canonical plan envelope
   with plan-aware requests; the backend applies it before projection and
   reduction. The result keeps immutable execution provenance in `_meta`.
-- `frontend/src/features/home/guidedWorkflow.ts` guides Upload → Timeseries → Correlations → Scatter → Causal. It does not finish with quality review, preparation, validation, or export.
+- `frontend/src/features/home/guidedWorkflow.ts` now guides Upload → Timeseries
+  → Correlations → Scatter → Causal → Prepare. The final Prepare handoff names
+  the source → stages → result graph and directs users to the Pipeline Workbench
+  for detailed editing, preview, materialization, and export. Dedicated
+  validation/experiment status remains open.
 - Upload validation now checks format only; server-side configurable admission
   owns file-size policy so the UI does not preempt scan-backed/streaming work.
 - Arrow decoding is bounded for normal chart routes, but it copies Arrow columns into JavaScript typed arrays. Response budgets must therefore remain strict even after the backend becomes out-of-core.
