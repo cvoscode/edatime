@@ -893,8 +893,9 @@ snapshot. The current checkout already includes the following corrections:
 
 They remain part of the verification matrix, but are not reimplemented by the
 pipeline-workbench milestones below. Content-derived source fingerprints,
-uniform result identity headers, and the remaining non-Scatter POST migrations
-are still open.
+uniform result identity headers remain open. The active client surfaces now use
+typed POST plan envelopes; legacy filtered-Parquet export has been removed in
+favour of the source-bound cleaning export.
 
 ### Milestone A — Pipeline Overview and Editable Workbench
 
