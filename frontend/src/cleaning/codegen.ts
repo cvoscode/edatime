@@ -5,7 +5,14 @@ function numeric(value: number): string { return Number.isFinite(value) ? String
 
 /** Portable code for the v1 row-filter stages supported by the backend compiler. */
 export function generatePythonPolars(plan: CleaningPlan): string {
-    const lines = ['import polars as pl', '', 'def apply_edatime_plan(lf: pl.LazyFrame) -> pl.LazyFrame:'];
+    const lines = [
+        '# Client-side EdaTime plan preview.',
+        '# Revalidate against the backend-exported canonical plan before execution.',
+        '',
+        'import polars as pl',
+        '',
+        'def apply_edatime_plan(lf: pl.LazyFrame) -> pl.LazyFrame:',
+    ];
     let body = false;
     for (const stage of plan.stages) {
         if (!stage.enabled || stage.kind === 'annotation') continue;
@@ -50,7 +57,14 @@ export function generatePythonPolars(plan: CleaningPlan): string {
 }
 
 export function generateRustPolars(plan: CleaningPlan): string {
-    const lines = ['use polars::prelude::*;', '', 'pub fn apply_edatime_plan(mut lf: LazyFrame) -> PolarsResult<LazyFrame> {'];
+    const lines = [
+        '// Client-side EdaTime plan preview.',
+        '// Revalidate against the backend-exported canonical plan before execution.',
+        '',
+        'use polars::prelude::*;',
+        '',
+        'pub fn apply_edatime_plan(mut lf: LazyFrame) -> PolarsResult<LazyFrame> {',
+    ];
     for (const stage of plan.stages) {
         if (!stage.enabled || stage.kind === 'annotation') continue;
         if (stage.kind === 'timeRange') {

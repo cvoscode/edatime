@@ -201,6 +201,9 @@ describe('cleaning plan panel', () => {
 
         document.getElementById('open-cleaning-plan-btn')!.click();
         Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Export')!.click();
+        expect(Array.from(document.querySelectorAll('.pipeline-workbench__hint')).some((hint) =>
+            hint.textContent?.includes('Python and Rust files are client-side starter previews'),
+        )).toBe(true);
         Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Export graph JSON')!.click();
         Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Export graph SVG')!.click();
 

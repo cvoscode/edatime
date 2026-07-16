@@ -723,7 +723,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         panel.replaceChildren();
         const copy = document.createElement('p');
         copy.className = 'pipeline-workbench__hint';
-        copy.textContent = 'Export the backend-validated plan for reproducibility, or export this visual projection for review.';
+        copy.textContent = 'Export the backend-validated plan for reproducibility, or export this visual projection for review. Python and Rust files are client-side starter previews; revalidate them against the backend-exported canonical plan before execution.';
         const controls = document.createElement('div');
         controls.className = 'pipeline-workbench__export-actions';
         const planExport = button('Export plan JSON');
