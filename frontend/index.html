@@ -1005,6 +1005,13 @@
               </details>
             </div>
           </div>
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions">
+            <span class="scatter-toolbar__eyebrow">Pipeline</span>
+            <div class="scatter-toolbar__fields">
+              <button id="heatmap-add-columns-to-plan" class="btn btn-ghost btn-sm" type="button"
+                title="Propose a canonical keep-columns stage from this matrix">Keep matrix columns…</button>
+            </div>
+          </div>
         </div>
         <main class="main main--padded">
           <div id="heatmap-container" class="heatmap-container"></div>
@@ -1039,6 +1046,19 @@
           </div>
         </main>
       </section>
+      <dialog id="heatmap-plan-columns-dialog" class="modal modal--compact" aria-labelledby="heatmap-plan-columns-title">
+        <div class="modal-header">
+          <h2 id="heatmap-plan-columns-title">Keep current matrix columns?</h2>
+        </div>
+        <div class="modal-body">
+          <p id="heatmap-plan-columns-summary" class="modal-hint"></p>
+          <p class="modal-hint">The stage is local until you preview or materialize it from the Pipeline Workbench.</p>
+        </div>
+        <div class="modal-actions">
+          <button id="heatmap-plan-columns-cancel" class="btn btn-ghost" type="button">Cancel</button>
+          <button id="heatmap-plan-columns-confirm" class="btn btn-primary" type="button">Add keep-columns stage</button>
+        </div>
+      </dialog>
 
       <section class="page page--analysis-scroll" id="page-spectrogram" data-page-name="spectrogram" hidden>
         <div class="page-header">

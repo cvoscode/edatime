@@ -20,6 +20,7 @@
  */
 
 import type { FeatureRegistry } from './featureRegistry.js';
+import type { CleaningPlanStore } from '../cleaning/store.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 import { ensureStyleModule, type StyleModuleName } from '../utils/pageStyles.js';
 
@@ -29,6 +30,7 @@ export interface PageDescriptorInitDeps {
     chipColor: (col: string, idx: number) => string;
     setLoading: (btnId: string, overlayId: string, loading: boolean, label?: string) => void;
     onCleaningPlanChanged: () => void;
+    cleaningPlanStore: Pick<CleaningPlanStore, 'getSnapshot' | 'addStage'>;
     workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'subscribe'>;
 }
 
@@ -67,7 +69,13 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
         requiresMetadata: true,
         async load(deps) {
             const { initHeatmapPage } = await import('../features/heatmap/index.js');
-            return { init: () => initHeatmapPage({ showPage: deps.showPage }) };
+            return {
+                init: () => initHeatmapPage({
+                    showPage: deps.showPage,
+                    cleaningPlanStore: deps.cleaningPlanStore,
+                    onPlanChanged: deps.onCleaningPlanChanged,
+                }),
+            };
         },
     },
     {

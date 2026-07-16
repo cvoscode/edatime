@@ -23,6 +23,7 @@ vi.mock('../features/drift/index.js', () => ({ initDriftPage: mocks.initDriftPag
 import { loadPageDescriptors, type PageDescriptorInitDeps } from './pageModules.js';
 import type { FeatureRegistry } from './featureRegistry.js';
 import { makeWorkspaceSnapshot } from '../workspace/workspaceStore.js';
+import { createCleaningPlanStore } from '../cleaning/store.js';
 
 function createDeps(): PageDescriptorInitDeps {
     return {
@@ -31,6 +32,7 @@ function createDeps(): PageDescriptorInitDeps {
         chipColor: vi.fn(() => '#fff'),
         setLoading: vi.fn(),
         onCleaningPlanChanged: vi.fn(),
+        cleaningPlanStore: createCleaningPlanStore(),
         workspace: { getSnapshot: vi.fn(() => makeWorkspaceSnapshot()), setFilters: vi.fn(), subscribe: vi.fn(() => vi.fn()) },
     };
 }
@@ -88,7 +90,11 @@ describe('page module descriptors', () => {
         expect(mocks.initHeatmapPage).not.toHaveBeenCalled();
         await heatmap!.init();
 
-        expect(mocks.initHeatmapPage).toHaveBeenCalledWith({ showPage: deps.showPage });
+        expect(mocks.initHeatmapPage).toHaveBeenCalledWith({
+            showPage: deps.showPage,
+            cleaningPlanStore: deps.cleaningPlanStore,
+            onPlanChanged: deps.onCleaningPlanChanged,
+        });
     });
 
     it('loads FFT directly from its descriptor only on initialization', async () => {

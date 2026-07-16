@@ -27,9 +27,13 @@ import { buildHeatmapGridLayout } from './gridLayout.js';
 import { buildHeatmapRenderOrder } from './orderingPolicy.js';
 import { buildHeatmapCellPresentation } from './cellPresentation.js';
 import { classifyHeatmapLoadError } from './loadErrorPolicy.js';
+import type { CleaningPlanStore } from '../../cleaning/store.js';
 
 interface HeatmapPageDeps {
     showPage: (pageName: string) => void;
+    /** Optional so the page stays embeddable in isolated visual tests. */
+    cleaningPlanStore?: Pick<CleaningPlanStore, 'getSnapshot' | 'addStage'>;
+    onPlanChanged?: () => void;
 }
 
 let heatmapCellSize = 36;
@@ -525,7 +529,54 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
             const clusterToggle = document.getElementById('heatmap-cluster-toggle') as HTMLInputElement | null;
             const fitToggle = document.getElementById('heatmap-fit-toggle') as HTMLButtonElement | null;
             const axisFitToggle = document.getElementById('heatmap-axis-fit-toggle') as HTMLButtonElement | null;
+            const addMatrixColumnsButton = document.getElementById('heatmap-add-columns-to-plan') as HTMLButtonElement | null;
+            const planDialog = document.getElementById('heatmap-plan-columns-dialog') as HTMLDialogElement | null;
+            const planSummary = document.getElementById('heatmap-plan-columns-summary');
+            const planConfirm = document.getElementById('heatmap-plan-columns-confirm') as HTMLButtonElement | null;
+            const planCancel = document.getElementById('heatmap-plan-columns-cancel') as HTMLButtonElement | null;
             if (!container) return;
+
+            const selectedPlanColumns = (): string[] | null => {
+                const plan = deps.cleaningPlanStore?.getSnapshot();
+                if (!plan || !matrixData || matrixData.columns.length === 0) return null;
+                return [...new Set([plan.timeColumn, ...matrixData.columns])];
+            };
+            const closePlanDialog = () => {
+                if (!planDialog) return;
+                if (planDialog.open) planDialog.close();
+                else planDialog.hidden = true;
+            };
+            addMatrixColumnsButton?.addEventListener('click', () => {
+                const columns = selectedPlanColumns();
+                if (!columns) {
+                    if (planSummary) planSummary.textContent = 'Load a correlation matrix before creating a stage.';
+                    return;
+                }
+                if (planSummary) {
+                    planSummary.textContent = `This adds a keep-columns stage for the canonical time column and ${columns.length - 1} numeric matrix column${columns.length === 2 ? '' : 's'}. It does not alter values or remove rows; nonnumeric columns are excluded.`;
+                }
+                if (typeof planDialog?.showModal === 'function') planDialog.showModal();
+                else if (planDialog) planDialog.hidden = false;
+            }, listenerOptions);
+            planCancel?.addEventListener('click', closePlanDialog, listenerOptions);
+            planConfirm?.addEventListener('click', () => {
+                const plan = deps.cleaningPlanStore?.getSnapshot();
+                const columns = selectedPlanColumns();
+                if (!plan || !columns) return;
+                deps.cleaningPlanStore!.addStage({
+                    kind: 'columnSelect',
+                    executionClass: 'polarsExpression',
+                    scope: 'schema',
+                    enabled: true,
+                    sourcePage: 'correlation',
+                    label: `Keep ${columns.length - 1} correlation matrix columns`,
+                    columns,
+                    mode: 'keep',
+                });
+                deps.onPlanChanged?.();
+                if (planSummary) planSummary.textContent = 'Added the keep-columns stage to the Pipeline Workbench. You can review or edit it there before previewing.';
+                closePlanDialog();
+            }, listenerOptions);
 
             metric = normalizeCorrelationMetric(getSetting('defaultCorrelationMetric'));
             setDropdownValue('heatmap-metric', metric);

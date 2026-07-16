@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { createCleaningPlanStore } from '../../cleaning/store.js';
 
 class ResizeObserverMock {
     static instances: ResizeObserverMock[] = [];
@@ -173,6 +174,8 @@ describe('heatmapPage with clustering', () => {
             <input id="heatmap-cluster-toggle" type="checkbox" checked>
             <button id="heatmap-fit-toggle" type="button" class="btn btn-ghost btn-sm toolbar-toggle-btn" aria-pressed="false">Snap to panel</button>
             <button id="heatmap-axis-fit-toggle" type="button" class="btn btn-ghost btn-sm toolbar-toggle-btn" aria-pressed="false">Fit color axis</button>
+            <button id="heatmap-add-columns-to-plan" type="button">Keep matrix columns…</button>
+            <dialog id="heatmap-plan-columns-dialog"><p id="heatmap-plan-columns-summary"></p><button id="heatmap-plan-columns-cancel" type="button">Cancel</button><button id="heatmap-plan-columns-confirm" type="button">Add keep-columns stage</button></dialog>
             <select id="scatter-x-col"><option value=""></option><option value="a1">a1</option><option value="a2">a2</option><option value="a3">a3</option><option value="b1">b1</option><option value="b2">b2</option><option value="b3">b3</option></select>
             <select id="scatter-y-col"><option value=""></option><option value="a1">a1</option><option value="a2">a2</option><option value="a3">a3</option><option value="b1">b1</option><option value="b2">b2</option><option value="b3">b3</option></select>
         `;
@@ -190,6 +193,26 @@ describe('heatmapPage with clustering', () => {
         await activateHeatmap();
         const cells = document.querySelectorAll('.heatmap-cell');
         expect(cells.length).toBe(36);
+    });
+
+    it('confirms and authors a canonical keep-columns stage from the matrix', async () => {
+        const { initHeatmapPage } = await import('./page.js');
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        const onPlanChanged = vi.fn();
+        await initHeatmapPage({ showPage: vi.fn(), cleaningPlanStore: planStore, onPlanChanged });
+        await activateHeatmap();
+
+        document.getElementById('heatmap-add-columns-to-plan')!.click();
+        expect(document.getElementById('heatmap-plan-columns-summary')?.textContent)
+            .toContain('It does not alter values or remove rows');
+        expect(planStore.getSnapshot()!.stages).toHaveLength(0);
+
+        document.getElementById('heatmap-plan-columns-confirm')!.click();
+        expect(planStore.getSnapshot()!.stages).toMatchObject([{
+            kind: 'columnSelect', sourcePage: 'correlation', mode: 'keep', columns: ['ts', ...DEFAULT_MATRIX_RESPONSE.columns],
+        }]);
+        expect(onPlanChanged).toHaveBeenCalledTimes(1);
     });
 
     it('releases prior control listeners before re-initializing the Heatmap page', async () => {

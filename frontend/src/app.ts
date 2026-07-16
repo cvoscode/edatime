@@ -215,6 +215,7 @@ export function createApp(): AppRoot {
             chipColor: (col, idx) => getAnalyticsChipColor(col, idx),
             setLoading: setComputeLoading,
             onCleaningPlanChanged: refreshCleaningPlanConsumers,
+            cleaningPlanStore,
             workspace,
         });
 
