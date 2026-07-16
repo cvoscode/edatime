@@ -14,6 +14,16 @@ pub struct LoadResult {
     pub numeric_columns: Vec<String>,
 }
 
+/// Validated lazy ingest plan plus schema metadata. Callers with managed
+/// storage can sink this plan directly without first materializing a complete
+/// resident `DataFrame`.
+pub struct LazyLoadResult {
+    pub frame: LazyFrame,
+    pub time_column_name: Option<String>,
+    pub column_names: Vec<String>,
+    pub numeric_columns: Vec<String>,
+}
+
 /// Parameters for partial DataFrame loading.
 #[derive(Debug, Default)]
 pub struct IngestParams {
@@ -38,29 +48,32 @@ pub fn load_dataframe<P: AsRef<Path>>(path: P) -> PolarsResult<LoadResult> {
     load_dataframe_partial(path, &IngestParams::default())
 }
 
-fn numeric_columns_from_df(df: &DataFrame) -> Vec<String> {
-    df.get_column_names()
-        .iter()
-        .filter_map(|name| {
-            let name_str = name.as_str();
-            match df.column(name_str) {
-                Ok(col) if col.dtype().is_numeric() => Some(name_str.to_string()),
-                Ok(col)
-                    if name_str == "ts"
-                        && matches!(col.dtype(), DataType::Datetime(_, _) | DataType::Date) =>
-                {
-                    Some(name_str.to_string())
-                }
-                _ => None,
-            }
-        })
-        .collect()
-}
-
 pub fn load_dataframe_partial<P: AsRef<Path>>(
     path: P,
     params: &IngestParams,
 ) -> PolarsResult<LoadResult> {
+    let lazy = load_lazyframe_partial(path, params)?;
+    let df = lazy.frame.with_new_streaming(true).collect()?;
+
+    if df.height() == 0 {
+        return Err(PolarsError::ComputeError(
+            "No rows loaded for the selected partial range. Reduce skip_rows or increase n_rows."
+                .into(),
+        ));
+    }
+
+    Ok(LoadResult {
+        df,
+        time_column_name: lazy.time_column_name,
+        column_names: lazy.column_names,
+        numeric_columns: lazy.numeric_columns,
+    })
+}
+
+pub fn load_lazyframe_partial<P: AsRef<Path>>(
+    path: P,
+    params: &IngestParams,
+) -> PolarsResult<LazyLoadResult> {
     let path_ref = path.as_ref();
     let is_parquet = path_ref.extension().is_some_and(|ext| ext == "parquet");
 
@@ -253,31 +266,29 @@ pub fn load_dataframe_partial<P: AsRef<Path>>(
         );
     }
 
-    // ── 8. Sort and single collect (streaming for out-of-core support) ────
-    let df = lf
-        .sort([old_name.as_str()], SortMultipleOptions::default())
-        .with_new_streaming(true)
-        .collect()?;
-
-    if df.height() == 0 {
-        return Err(PolarsError::ComputeError(
-            "No rows loaded for the selected partial range. Reduce skip_rows or increase n_rows."
-                .into(),
-        ));
-    }
-
-    let column_names: Vec<String> = df
-        .get_column_names()
-        .iter()
-        .map(|s| s.to_string())
+    // ── 8. Preserve the canonical stable time ordering in the lazy plan ───
+    lf = lf.sort([old_name.as_str()], SortMultipleOptions::default());
+    let final_schema = lf.clone().collect_schema()?;
+    let column_names = final_schema
+        .iter_names()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>();
+    let numeric_columns = final_schema
+        .iter_fields()
+        .filter_map(|field| {
+            let name = field.name().as_str();
+            (field.dtype().is_numeric()
+                || (name == "ts"
+                    && matches!(field.dtype(), DataType::Datetime(_, _) | DataType::Date)))
+            .then(|| name.to_string())
+        })
         .collect();
-    let numeric_cols: Vec<String> = numeric_columns_from_df(&df);
 
-    Ok(LoadResult {
-        df,
+    Ok(LazyLoadResult {
+        frame: lf,
         time_column_name: Some(old_name),
         column_names,
-        numeric_columns: numeric_cols,
+        numeric_columns,
     })
 }
 
@@ -319,6 +330,38 @@ mod tests {
         assert!(column_names.contains(&"time"));
         assert!(column_names.contains(&"value"));
         assert_eq!(column_names.len(), 2);
+    }
+
+    #[test]
+    fn lazy_partial_load_preserves_metadata_and_defers_the_full_result() {
+        let path = write_temp_csv(
+            "time,value,other\n2024-01-01T00:00:02Z,3,30\n2024-01-01T00:00:00Z,1,10\n2024-01-01T00:00:01Z,2,20\n",
+        );
+
+        let result = load_lazyframe_partial(
+            &path,
+            &IngestParams {
+                selected_columns: Some(vec!["value".to_string()]),
+                ..IngestParams::default()
+            },
+        )
+        .expect("lazy partial load");
+
+        assert_eq!(result.time_column_name.as_deref(), Some("time"));
+        assert_eq!(result.column_names, vec!["time", "value"]);
+        assert_eq!(result.numeric_columns, vec!["value"]);
+        let collected = result.frame.collect().expect("execute lazy ingest plan");
+        assert_eq!(collected.height(), 3);
+        assert_eq!(
+            collected
+                .column("value")
+                .expect("value")
+                .i64()
+                .expect("i64")
+                .into_no_null_iter()
+                .collect::<Vec<_>>(),
+            vec![1, 2, 3]
+        );
     }
 
     #[test]

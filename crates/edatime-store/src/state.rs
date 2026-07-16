@@ -260,6 +260,93 @@ impl AppState {
         Ok(rev)
     }
 
+    /// Normalize a lazy ingest plan directly into managed Parquet and activate
+    /// a fresh scan-backed root version without collecting the full dataset.
+    pub async fn replace_dataset_lazy_root(
+        &self,
+        mut frame: LazyFrame,
+        source_name: Option<String>,
+        time_column: String,
+    ) -> Result<DatasetVersionRecord, AppError> {
+        let store = self.artifact_store.as_ref().ok_or_else(|| {
+            AppError::internal("Lazy root ingest requires managed artifact storage")
+        })?;
+        let schema = frame.collect_schema().map_err(|error| {
+            AppError::bad_request(format!("Ingest schema unavailable: {error}"))
+        })?;
+        let column_names = schema
+            .iter_names()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>();
+        let version_id = self.dataset_versions.allocate_artifact_version_id();
+        let temp = store.prepare_lazy_parquet(&version_id)?;
+        if let Err(error) = self.query_executor.sink_parquet_async(frame, temp).await {
+            store.discard_pending_lazy_parquet(&version_id);
+            return Err(error);
+        }
+        let mut descriptor = store.finalize_lazy_parquet(version_id.clone(), Utc::now())?;
+        let prepared = async {
+            let scan = LazyFrame::scan_parquet(
+                descriptor.path.to_string_lossy().as_ref().into(),
+                ScanArgsParquet::default(),
+            )
+            .map_err(|error| {
+                AppError::internal(format!("Open ingested Parquet artifact: {error}"))
+            })?;
+            let count = self
+                .query_executor
+                .execute_async(
+                    scan.clone()
+                        .select([len().cast(DataType::UInt64).alias("__row_count")]),
+                )
+                .await?;
+            let row_count = count
+                .column("__row_count")
+                .ok()
+                .and_then(|column| column.u64().ok())
+                .and_then(|column| column.get(0))
+                .and_then(|value| usize::try_from(value).ok())
+                .ok_or_else(|| AppError::internal("Ingested Parquet row count unavailable"))?;
+            if row_count == 0 {
+                return Err(AppError::bad_request(
+                    "No rows loaded for the selected partial range. Reduce skip_rows or increase n_rows.",
+                ));
+            }
+            Ok::<_, AppError>((scan, row_count))
+        }
+        .await;
+        let (scan, row_count) = match prepared {
+            Ok(prepared) => prepared,
+            Err(error) => {
+                store.discard_unpublished_lazy_parquet(&version_id);
+                return Err(error);
+            }
+        };
+        let revision = match self.repository.replace_from_lazyframe(
+            scan,
+            DatasetMeta {
+                row_count,
+                column_names: column_names.clone(),
+                time_column: Some(time_column),
+            },
+        ) {
+            Ok(revision) => revision,
+            Err(error) => {
+                store.discard_unpublished_lazy_parquet(&version_id);
+                return Err(error);
+            }
+        };
+        let record = self
+            .dataset_versions
+            .register_root_artifact(descriptor.clone(), revision, source_name)
+            .map_err(AppError::from)?;
+        descriptor.provenance = Some(provenance_from_record(&record, row_count, column_names));
+        store.publish(descriptor)?;
+        self.cache.invalidate_all().await;
+        self.clear_correlation_matrix_cache();
+        Ok(record)
+    }
+
     /// Make a plan result the active working dataset while retaining its
     /// immutable parent snapshot in the version registry.
     pub async fn materialize_dataset_child(
@@ -563,7 +650,7 @@ mod tests {
     use std::fs;
 
     use chrono::Utc;
-    use polars::prelude::{DataFrame, NamedFrom, Series};
+    use polars::prelude::{DataFrame, IntoLazy, NamedFrom, Series};
 
     use super::AppState;
     use crate::artifacts::DatasetArtifactProvenance;
@@ -576,6 +663,64 @@ mod tests {
             vec![Series::new("value".into(), values).into()],
         )
         .expect("frame")
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn configured_lazy_root_ingest_activates_a_scan_backed_artifact() {
+        let artifact_dir = std::env::temp_dir().join(format!(
+            "edatime-state-lazy-root-{}",
+            Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        let mut config = AppConfig::default();
+        config.data.artifact_dir = Some(artifact_dir.clone());
+        let state = AppState::new(frame(vec![0]), config);
+        let lazy = DataFrame::new(
+            3,
+            vec![
+                Series::new("time".into(), vec![1_i64, 2, 3]).into(),
+                Series::new("value".into(), vec![10.0_f64, 20.0, 30.0]).into(),
+            ],
+        )
+        .expect("ingest frame")
+        .lazy();
+
+        let record = state
+            .replace_dataset_lazy_root(
+                lazy,
+                Some("fixture.parquet".to_string()),
+                "time".to_string(),
+            )
+            .await
+            .expect("lazy root ingest");
+
+        assert!(record.id.starts_with("artifact-"));
+        assert_eq!(record.source_name.as_deref(), Some("fixture.parquet"));
+        assert_eq!(state.dataset_rows().await, 3);
+        assert_eq!(
+            state
+                .query_executor
+                .execute_async(state.dataset_snapshot())
+                .await
+                .expect("active scan")
+                .height(),
+            3
+        );
+        let catalog = state
+            .artifact_store
+            .as_ref()
+            .expect("artifact store")
+            .load_catalog()
+            .expect("catalog");
+        assert_eq!(catalog.len(), 1);
+        assert_eq!(catalog[0].version_id, record.id);
+        assert_eq!(
+            catalog[0]
+                .provenance
+                .as_ref()
+                .and_then(|provenance| provenance.source_name.as_deref()),
+            Some("fixture.parquet")
+        );
+        fs::remove_dir_all(artifact_dir).expect("clean artifact directory");
     }
 
     #[tokio::test(flavor = "multi_thread")]

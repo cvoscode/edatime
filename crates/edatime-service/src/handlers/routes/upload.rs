@@ -23,28 +23,72 @@ pub async fn upload_data(
     tracing::info!("Received file upload request");
 
     let (path, ingest_params, file_name) = extract_upload_parts(&state, multipart).await?;
+    let source_path = path.to_path_buf();
+    let (row_count, column_names, numeric_columns, time_column_name) =
+        if state.artifact_store.is_some() {
+            let lazy = tokio::task::spawn_blocking(move || {
+                edatime_ingest::ingest::load_lazyframe_partial(&source_path, &ingest_params)
+            })
+            .await
+            .map_err(|error| AppError::internal(format!("Failed to join upload task: {error:?}")))?
+            .map_err(|error| {
+                AppError::bad_request(format!("Failed to parse uploaded file: {error}"))
+            })?;
+            let time_column_name = lazy.time_column_name.clone().ok_or_else(|| {
+                AppError::bad_request("Uploaded dataset has no resolved time column")
+            })?;
+            let column_names = lazy.column_names;
+            let numeric_columns = lazy.numeric_columns;
+            state
+                .replace_dataset_lazy_root(
+                    lazy.frame,
+                    Some(file_name.clone()),
+                    time_column_name.clone(),
+                )
+                .await?;
+            (
+                state.dataset_rows().await,
+                column_names,
+                numeric_columns,
+                Some(time_column_name),
+            )
+        } else {
+            let loaded = tokio::task::spawn_blocking(move || {
+                edatime_ingest::ingest::load_dataframe_partial(&source_path, &ingest_params)
+            })
+            .await
+            .map_err(|error| AppError::internal(format!("Failed to join upload task: {error:?}")))?
+            .map_err(|error| {
+                AppError::bad_request(format!("Failed to parse uploaded file: {error}"))
+            })?;
+            let row_count = loaded.df.height();
+            state
+                .replace_dataset(loaded.df)
+                .await
+                .map_err(|error| AppError::internal(format!("Failed to store dataset: {error}")))?;
+            (
+                row_count,
+                loaded.column_names,
+                loaded.numeric_columns,
+                loaded.time_column_name,
+            )
+        };
 
-    let df = tokio::task::spawn_blocking(move || {
-        edatime_ingest::ingest::load_dataframe_partial(&path, &ingest_params)
-    })
-    .await
-    .map_err(|error| AppError::internal(format!("Failed to join upload task: {error:?}")))?
-    .map_err(|error| AppError::bad_request(format!("Failed to parse uploaded file: {error}")))?;
-
-    let time_column_name = df.time_column_name.clone();
-    let row_count = df.df.height();
-    state
-        .replace_dataset(df.df.clone())
-        .await
-        .map_err(|e| AppError::internal(format!("Failed to store dataset: {e}")))?;
     state.set_time_column_display_name(time_column_name.clone());
-    let _warmup = spawn_correlation_matrix_warmup(state.clone());
+    if state.artifact_store.is_none() {
+        let _warmup = spawn_correlation_matrix_warmup(state.clone());
+    } else {
+        // A scan-backed upload must not immediately trigger an unbudgeted
+        // full-column correlation warmup. Exact warmup belongs in the future
+        // admitted background-job path.
+        tracing::debug!("Skipping eager correlation warmup for scan-backed upload");
+    }
 
     Ok(Json(serde_json::json!({
         "status": "success",
         "rows": row_count,
-        "columns": df.column_names,
-        "numeric_columns": df.numeric_columns,
+        "columns": column_names,
+        "numeric_columns": numeric_columns,
         "timestamp_column": time_column_name,
         "file_name": file_name,
     })))
@@ -315,5 +359,69 @@ pub async fn serve_sample_file(
                 .map_err(|e| AppError::internal(e.to_string()))?)
         }
         Err(e) => Err(AppError::io(e.to_string())),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use chrono::Utc;
+    use polars::prelude::DataFrame;
+
+    use super::*;
+    use edatime_core::config::AppConfig;
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn configured_csv_ingest_streams_a_sorted_scan_backed_root() {
+        let artifact_dir = std::env::temp_dir().join(format!(
+            "edatime-upload-lazy-root-{}",
+            Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        let source = create_temp_upload_file(Some("fixture.csv"), "edatime-upload-test-")
+            .expect("source temp file")
+            .into_temp_path();
+        fs::write(
+            &source,
+            "time,value\n2024-01-01T00:00:02Z,3\n2024-01-01T00:00:00Z,1\n2024-01-01T00:00:01Z,2\n",
+        )
+        .expect("source CSV");
+        let mut config = AppConfig::default();
+        config.data.artifact_dir = Some(artifact_dir.clone());
+        let state = AppState::new(DataFrame::default(), config);
+        let loaded = edatime_ingest::ingest::load_lazyframe_partial(
+            &source,
+            &IngestParams::default(),
+        )
+        .expect("lazy CSV ingest plan");
+
+        let record = state
+            .replace_dataset_lazy_root(
+                loaded.frame,
+                Some("fixture.csv".to_string()),
+                loaded.time_column_name.expect("time column"),
+            )
+            .await
+            .expect("stream CSV to managed root");
+
+        assert!(record.id.starts_with("artifact-"));
+        assert_eq!(record.source_name.as_deref(), Some("fixture.csv"));
+        let active = state
+            .query_executor
+            .execute_async(state.dataset_snapshot())
+            .await
+            .expect("active scan");
+        assert_eq!(active.height(), 3);
+        assert_eq!(
+            active
+                .column("value")
+                .expect("value")
+                .i64()
+                .expect("i64")
+                .into_no_null_iter()
+                .collect::<Vec<_>>(),
+            vec![1, 2, 3]
+        );
+        fs::remove_dir_all(artifact_dir).expect("clean artifact directory");
     }
 }
