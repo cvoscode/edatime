@@ -613,7 +613,7 @@ artifacts, and a SHA-256 `checksums.json` index in one source-bound ZIP. It
 rejects unsupported code-generation stages rather than bundling a partial
 handoff. Approximation history, dependency versions, and per-group policy
 remain future slices.
-(`7b08539`, `5df3a5c`)
+(`7b08539`, `5df3a5c`, `7aaca62`)
 
 **Chronological split slice:** a `chronologicalSplit` stage now labels the
 canonical time axis as `train`, `embargo`, `validation`, `embargo`, and `test`
