@@ -580,6 +580,13 @@ the left-labeled non-empty bucket contract.
 
 Selection-to-stage actions must always open a confirmation/editor that shows exact semantics. A chart gesture by itself must never mutate the plan.
 
+**Correlation authoring slice:** the Correlations toolbar can now propose a
+single schema-only `columnSelect` stage from the current numeric matrix. Its
+confirmation states that the canonical time column is retained, numeric matrix
+columns are kept, nonnumeric columns are excluded, and no values or rows change.
+The stage is local to the canonical Pipeline Workbench until preview or
+materialization, and remains editable there. (`4e8dbc1`)
+
 ### P2.3 — Replace Destructive Mutation Endpoints
 
 `/transform` and `/analytics/remove_outliers` currently mutate the active dataset. Migrate the UI to plan-stage creation and make materialization explicit. Keep the routes temporarily as compatibility adapters that internally create/apply a plan and return provenance, then deprecate them.
