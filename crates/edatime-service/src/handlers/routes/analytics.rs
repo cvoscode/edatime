@@ -1,12 +1,10 @@
-//! `GET /api/analytics/rolling` — rolling statistics bands
-//! `GET /api/analytics/anomalies` — anomaly detection
-//! `GET /api/analytics/fft` — frequency-domain analysis
+//! Plan-aware POST analytics handlers.
 
 use std::sync::Arc;
 
 use axum::{
     Json,
-    extract::{Query, State},
+    extract::State,
     response::{IntoResponse, Response},
 };
 use chrono::{DateTime, TimeZone, Utc};
@@ -38,11 +36,7 @@ fn analytics_response<T: serde::Serialize>(value: T, identity: &ExecutionIdentit
     add_execution_identity_headers(Json(value).into_response(), identity)
 }
 
-#[tracing::instrument(skip(state))]
-pub async fn get_rolling(
-    State(state): State<AppState>,
-    Query(params): Query<RollingQuery>,
-) -> Result<Response, AppError> {
+async fn rolling_response(state: AppState, params: RollingQuery) -> Result<Response, AppError> {
     let (value_cols, filtered, identity) = filter_preamble_with_plan(
         &state,
         params.start,
@@ -109,7 +103,7 @@ pub async fn post_rolling(
     State(state): State<AppState>,
     Json(params): Json<RollingQuery>,
 ) -> Result<Response, AppError> {
-    get_rolling(State(state), Query(params)).await
+    rolling_response(state, params).await
 }
 
 // ── Anomaly Detection ──────────────────────────────────────────────────────
@@ -126,11 +120,7 @@ pub struct AnomalyQuery {
     pub cleaning_plan: crate::handlers::routes::cleaning::PlanRequestEnvelope,
 }
 
-#[tracing::instrument(skip(state))]
-pub async fn get_anomalies(
-    State(state): State<AppState>,
-    Query(params): Query<AnomalyQuery>,
-) -> Result<Response, AppError> {
+async fn anomalies_response(state: AppState, params: AnomalyQuery) -> Result<Response, AppError> {
     let params = Arc::new(params);
     let (value_cols, filtered, identity) = filter_preamble_with_plan(
         &state,
@@ -180,7 +170,7 @@ pub async fn post_anomalies(
     State(state): State<AppState>,
     Json(params): Json<AnomalyQuery>,
 ) -> Result<Response, AppError> {
-    get_anomalies(State(state), Query(params)).await
+    anomalies_response(state, params).await
 }
 
 // ── FFT / PSD ──────────────────────────────────────────────────────────────
@@ -195,11 +185,7 @@ pub struct FftQuery {
     pub cleaning_plan: crate::handlers::routes::cleaning::PlanRequestEnvelope,
 }
 
-#[tracing::instrument(skip(state))]
-pub async fn get_fft(
-    State(state): State<AppState>,
-    Query(params): Query<FftQuery>,
-) -> Result<Response, AppError> {
+async fn fft_response(state: AppState, params: FftQuery) -> Result<Response, AppError> {
     let (value_cols, filtered, identity) = filter_preamble_with_plan(
         &state,
         params.start,
@@ -233,7 +219,7 @@ pub async fn post_fft(
     State(state): State<AppState>,
     Json(params): Json<FftQuery>,
 ) -> Result<Response, AppError> {
-    get_fft(State(state), Query(params)).await
+    fft_response(state, params).await
 }
 
 // ── Spectrogram (STFT) ────────────────────────────────────────────────────
@@ -260,10 +246,9 @@ pub struct SpectrogramQuery {
     pub cleaning_plan: crate::handlers::routes::cleaning::PlanRequestEnvelope,
 }
 
-#[tracing::instrument(skip(state))]
-pub async fn get_spectrogram(
-    State(state): State<AppState>,
-    Query(params): Query<SpectrogramQuery>,
+async fn spectrogram_response(
+    state: AppState,
+    params: SpectrogramQuery,
 ) -> Result<Response, AppError> {
     let (value_cols, filtered, identity) = filter_preamble_with_plan(
         &state,
@@ -313,12 +298,12 @@ pub async fn post_spectrogram(
     State(state): State<AppState>,
     Json(params): Json<SpectrogramQuery>,
 ) -> Result<Response, AppError> {
-    get_spectrogram(State(state), Query(params)).await
+    spectrogram_response(state, params).await
 }
 
 // ── Spectral Filter ────────────────────────────────────────────────────────
 
-/// `GET /api/analytics/spectral-filter` — apply frequency-domain filter, return filtered signal
+/// Apply a frequency-domain filter and return the filtered signal.
 #[derive(Debug, Deserialize)]
 pub struct SpectralFilterQuery {
     /// Start of the time range. Defaults to the dataset's earliest timestamp when omitted.
@@ -339,10 +324,9 @@ pub struct SpectralFilterQuery {
     pub cleaning_plan: crate::handlers::routes::cleaning::PlanRequestEnvelope,
 }
 
-#[tracing::instrument(skip(state))]
-pub async fn get_spectral_filter(
-    State(state): State<AppState>,
-    Query(params): Query<SpectralFilterQuery>,
+async fn spectral_filter_response(
+    state: AppState,
+    params: SpectralFilterQuery,
 ) -> Result<Response, AppError> {
     let col_opt = Some(params.column.clone());
 
@@ -446,7 +430,7 @@ pub async fn post_spectral_filter(
     State(state): State<AppState>,
     Json(params): Json<SpectralFilterQuery>,
 ) -> Result<Response, AppError> {
-    get_spectral_filter(State(state), Query(params)).await
+    spectral_filter_response(state, params).await
 }
 
 /// Internal type used to accept either a comma-separated string
@@ -713,7 +697,7 @@ pub async fn post_causal_graph(
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use super::{
-        AnomalyQuery, CausalGraphRequest, estimate_causal_work_units, get_anomalies,
+        AnomalyQuery, CausalGraphRequest, anomalies_response, estimate_causal_work_units,
         post_causal_graph,
     };
     use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
@@ -1010,16 +994,16 @@ mod tests {
         .expect("test dataframe should build");
         let state = AppState::new(df, AppConfig::default());
 
-        let response = get_anomalies(
-            State(state.clone()),
-            axum::extract::Query(AnomalyQuery {
+        let response = anomalies_response(
+            state.clone(),
+            AnomalyQuery {
                 start: chrono::Utc.with_ymd_and_hms(2018, 1, 1, 0, 0, 0).unwrap(),
                 end: chrono::Utc.with_ymd_and_hms(2018, 5, 1, 0, 0, 0).unwrap(),
                 columns: Some("HUFL,HULL".to_string()),
                 method: Some("zscore".to_string()),
                 threshold: Some(3.0),
                 cleaning_plan: empty_envelope(&state),
-            }),
+            },
         )
         .await
         .expect("anomaly route should succeed");
