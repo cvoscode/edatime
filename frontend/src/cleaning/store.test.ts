@@ -4,6 +4,25 @@ import { compileCleaningPlanForLegacyFilters } from './compiler.js';
 import { hashCleaningPlan } from './planHash.js';
 import { createCleaningPlanStore } from './store.js';
 
+function memoryStorage() {
+    const entries = new Map<string, string>();
+    return {
+        getItem: (key: string) => entries.get(key) ?? null,
+        setItem: (key: string, value: string) => { entries.set(key, value); },
+        removeItem: (key: string) => { entries.delete(key); },
+        keys: () => [...entries.keys()],
+    };
+}
+
+const identity = {
+    sourceVersionId: 'source-1',
+    datasetRevision: 7,
+    datasetFingerprint: 'dataset-fingerprint',
+    schemaFingerprint: 'schema-fingerprint',
+    timeColumn: 'ts',
+    sourceName: 'fixture.parquet',
+};
+
 function setupPlan() {
     const store = createCleaningPlanStore();
     store.resetForDataset({
@@ -108,6 +127,47 @@ describe('cleaning plan store', () => {
             sourceVersionId: 'source-2', datasetRevision: 8, datasetFingerprint: 'data-2', schemaFingerprint: 'schema-2', timeColumn: 'ts',
         });
         expect(store.isDirty()).toBe(false);
+    });
+
+    it('restores an autosaved draft only for the identical dataset identity', () => {
+        const storage = memoryStorage();
+        const writer = createCleaningPlanStore({ draftStorage: storage });
+        writer.resetForDataset(identity);
+        writer.addStage({
+            kind: 'annotation', executionClass: 'annotation', scope: 'annotation', enabled: true,
+            sourcePage: 'drift', label: 'Keep this investigation note', severity: 'warning',
+        });
+        expect(storage.keys()).toHaveLength(1);
+
+        const reloaded = createCleaningPlanStore({ draftStorage: storage });
+        const restored = reloaded.resetForDataset(identity);
+        expect(restored.stages).toHaveLength(1);
+        expect(reloaded.isDirty()).toBe(true);
+
+        const other = reloaded.resetForDataset({ ...identity, sourceVersionId: 'source-2' });
+        expect(other.stages).toEqual([]);
+        expect(reloaded.isDirty()).toBe(false);
+    });
+
+    it('drops an autosaved draft when undo returns to the source baseline', () => {
+        const storage = memoryStorage();
+        const store = createCleaningPlanStore({ draftStorage: storage });
+        store.resetForDataset(identity);
+        store.addStage({
+            kind: 'annotation', executionClass: 'annotation', scope: 'annotation', enabled: true,
+            sourcePage: 'drift', label: 'Temporary note', severity: 'warning',
+        });
+        expect(storage.keys()).toHaveLength(1);
+
+        store.undo();
+        expect(store.isDirty()).toBe(false);
+        expect(storage.keys()).toEqual([]);
+    });
+
+    it('rejects imported plans that target another source instead of silently rebinding them', () => {
+        const store = setupPlan();
+        const foreign = { ...store.getSnapshot()!, sourceVersionId: 'source-elsewhere' };
+        expect(() => store.setPlan(foreign)).toThrow(/active dataset identity/);
     });
 });
 

@@ -19,6 +19,19 @@ export interface CleaningPlanStore {
     clear(): void;
 }
 
+export interface CleaningPlanDraftStorage {
+    getItem(key: string): string | null;
+    setItem(key: string, value: string): void;
+    removeItem(key: string): void;
+}
+
+export interface CleaningPlanStoreOptions {
+    /** Optional browser persistence. Test/embedded stores stay in-memory unless supplied. */
+    draftStorage?: CleaningPlanDraftStorage | null;
+}
+
+const DRAFT_STORAGE_PREFIX = 'edatime-cleaning-draft-v1:';
+
 function now(): string {
     return new Date().toISOString();
 }
@@ -52,6 +65,24 @@ function validatePlan(plan: CleaningPlan): void {
     }
 }
 
+function sameIdentity(plan: CleaningPlan, identity: CleaningDatasetIdentity): boolean {
+    return plan.sourceVersionId === identity.sourceVersionId
+        && plan.datasetRevision === identity.datasetRevision
+        && plan.datasetFingerprint === identity.datasetFingerprint
+        && plan.schemaFingerprint === identity.schemaFingerprint
+        && plan.timeColumn === identity.timeColumn;
+}
+
+function draftKey(identity: CleaningDatasetIdentity): string {
+    return DRAFT_STORAGE_PREFIX + [
+        identity.sourceVersionId,
+        identity.datasetRevision,
+        identity.datasetFingerprint,
+        identity.schemaFingerprint,
+        identity.timeColumn,
+    ].map((value) => encodeURIComponent(String(value ?? ''))).join(':');
+}
+
 export function createEmptyCleaningPlan(identity: CleaningDatasetIdentity): CleaningPlan {
     const timestamp = now();
     return {
@@ -70,9 +101,10 @@ export function createEmptyCleaningPlan(identity: CleaningDatasetIdentity): Clea
     };
 }
 
-export function createCleaningPlanStore(): CleaningPlanStore {
+export function createCleaningPlanStore(options: CleaningPlanStoreOptions = {}): CleaningPlanStore {
     let plan: CleaningPlan | null = null;
     let dirty = false;
+    let activeDraftKey: string | null = null;
     type HistoryEntry = { plan: CleaningPlan; dirty: boolean };
     let undoStack: HistoryEntry[] = [];
     let redoStack: HistoryEntry[] = [];
@@ -81,6 +113,38 @@ export function createCleaningPlanStore(): CleaningPlanStore {
     const publish = (): void => {
         const snapshot = plan ? clone(plan) : null;
         for (const listener of listeners) listener(snapshot);
+    };
+    const removeDraft = (): void => {
+        if (!activeDraftKey || !options.draftStorage) return;
+        try {
+            options.draftStorage.removeItem(activeDraftKey);
+        } catch {
+            // Draft persistence is best effort (private mode/quota may reject it).
+        }
+    };
+    const persistDraft = (): void => {
+        if (!activeDraftKey || !options.draftStorage) return;
+        if (!plan || !dirty) {
+            removeDraft();
+            return;
+        }
+        try {
+            options.draftStorage.setItem(activeDraftKey, JSON.stringify(plan));
+        } catch {
+            // Keep the canonical in-memory plan when persistence is unavailable.
+        }
+    };
+    const loadDraft = (identity: CleaningDatasetIdentity): CleaningPlan | null => {
+        if (!activeDraftKey || !options.draftStorage) return null;
+        try {
+            const raw = options.draftStorage.getItem(activeDraftKey);
+            if (!raw) return null;
+            const candidate = JSON.parse(raw) as CleaningPlan;
+            validatePlan(candidate);
+            return sameIdentity(candidate, identity) ? candidate : null;
+        } catch {
+            return null;
+        }
     };
     const requirePlan = (): CleaningPlan => {
         if (!plan) throw new Error('No active cleaning plan. Select a dataset first.');
@@ -94,6 +158,7 @@ export function createCleaningPlanStore(): CleaningPlanStore {
         }
         plan = clone(next);
         dirty = nextDirty;
+        persistDraft();
         publish();
     };
 
@@ -104,14 +169,19 @@ export function createCleaningPlanStore(): CleaningPlanStore {
             return () => listeners.delete(listener);
         },
         resetForDataset(identity) {
-            const next = createEmptyCleaningPlan(identity);
+            activeDraftKey = draftKey(identity);
+            const restored = loadDraft(identity);
+            const next = restored || createEmptyCleaningPlan(identity);
             undoStack = [];
             redoStack = [];
-            commit(next, false, false);
+            commit(next, false, !!restored);
             return clone(next);
         },
         setPlan(next) {
             validatePlan(next);
+            if (plan && !sameIdentity(next, plan)) {
+                throw new Error('Imported cleaning plan must match the active dataset identity.');
+            }
             undoStack = [];
             redoStack = [];
             // Imported plans are reproducible inputs, but their stages have
@@ -166,6 +236,7 @@ export function createCleaningPlanStore(): CleaningPlanStore {
             redoStack.push({ plan: clone(plan), dirty });
             plan = previous.plan;
             dirty = previous.dirty;
+            persistDraft();
             publish();
             return true;
         },
@@ -175,12 +246,15 @@ export function createCleaningPlanStore(): CleaningPlanStore {
             undoStack.push({ plan: clone(plan), dirty });
             plan = next.plan;
             dirty = next.dirty;
+            persistDraft();
             publish();
             return true;
         },
         clear() {
+            removeDraft();
             plan = null;
             dirty = false;
+            activeDraftKey = null;
             undoStack = [];
             redoStack = [];
             publish();
@@ -188,8 +262,16 @@ export function createCleaningPlanStore(): CleaningPlanStore {
     };
 }
 
-/** Singleton used by page integrations; tests should normally construct a store. */
-export const cleaningPlanStore = createCleaningPlanStore();
+function browserDraftStorage(): CleaningPlanDraftStorage | null {
+    try {
+        return typeof window === 'undefined' ? null : window.localStorage;
+    } catch {
+        return null;
+    }
+}
+
+/** Singleton used by page integrations; tests should normally construct an in-memory store. */
+export const cleaningPlanStore = createCleaningPlanStore({ draftStorage: browserDraftStorage() });
 
 export function getCleaningPlanHash(): string | null {
     const plan = cleaningPlanStore.getSnapshot();
