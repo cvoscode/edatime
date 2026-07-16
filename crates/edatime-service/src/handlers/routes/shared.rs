@@ -154,40 +154,19 @@ pub async fn filter_preamble(
     Ok((value_cols, filtered))
 }
 
-/// Plan-aware variant for analytics GET routes. The envelope is URL-encoded
-/// JSON solely for transport compatibility; it is still validated against the
-/// immutable source before any page-local time/projection work is applied.
+/// Plan-aware analytics preamble. The canonical envelope is validated against
+/// the immutable source before any page-local time/projection work is applied.
 pub async fn filter_preamble_with_plan(
     state: &AppState,
     start: DateTime<Utc>,
     end: DateTime<Utc>,
     columns: Option<&str>,
-    cleaning_plan: Option<&str>,
+    cleaning_plan: &PlanRequestEnvelope,
 ) -> Result<(Vec<String>, DataFrame, ExecutionIdentity), AppError> {
     validate_time_window(start, end)?;
-    let (lf, time_column, identity) = match cleaning_plan.filter(|raw| !raw.trim().is_empty()) {
-        Some(raw) => {
-            let envelope: PlanRequestEnvelope = serde_json::from_str(raw).map_err(|error| {
-                AppError::bad_request(format!("Invalid cleaning plan query: {error}"))
-            })?;
-            let (version, hash, frame) = compile_request_frame(state, &envelope)?;
-            (
-                frame,
-                envelope.plan.time_column,
-                ExecutionIdentity::from_version(version, Some(hash)),
-            )
-        }
-        None => {
-            let identity = current_execution_identity(state)?;
-            (
-                state.dataset_snapshot(),
-                state
-                    .time_column_display_name_sync()
-                    .unwrap_or_else(|| "ts".to_string()),
-                identity,
-            )
-        }
-    };
+    let (version, hash, lf) = compile_request_frame(state, cleaning_plan)?;
+    let time_column = cleaning_plan.plan.time_column.clone();
+    let identity = ExecutionIdentity::from_version(version, Some(hash));
     let cols = query::parse_columns(columns);
     let limits = &state.config.validation;
     let value_cols = validate_numeric_columns_lazy(&lf, &cols, limits)?;

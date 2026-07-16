@@ -10,8 +10,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use chrono::{DateTime, TimeZone, Utc};
-use serde::{Deserialize, de::DeserializeOwned};
-use serde_json::Value;
+use serde::Deserialize;
 
 use crate::analytics;
 use crate::error::AppError;
@@ -32,27 +31,11 @@ pub struct RollingQuery {
     pub columns: Option<String>,
     /// Rolling window size in number of samples (default: 50)
     pub window: Option<usize>,
-    pub cleaning_plan: Option<String>,
+    pub cleaning_plan: crate::handlers::routes::cleaning::PlanRequestEnvelope,
 }
 
 fn analytics_response<T: serde::Serialize>(value: T, identity: &ExecutionIdentity) -> Response {
     add_execution_identity_headers(Json(value).into_response(), identity)
-}
-
-/// Decode a POST analytics body and require its canonical plan envelope.
-fn decode_plan_aware_post<T: DeserializeOwned>(mut value: Value) -> Result<T, AppError> {
-    let plan = value
-        .get_mut("cleaning_plan")
-        .ok_or_else(|| AppError::bad_request("Analytics requests require a cleaning plan"))?;
-    let envelope: crate::handlers::routes::cleaning::PlanRequestEnvelope =
-        serde_json::from_value(std::mem::take(plan)).map_err(|error| {
-            AppError::bad_request(format!("Invalid cleaning plan envelope: {error}"))
-        })?;
-    *plan = Value::String(serde_json::to_string(&envelope).map_err(|error| {
-        AppError::internal(format!("Serialize cleaning plan envelope: {error}"))
-    })?);
-    serde_json::from_value(value)
-        .map_err(|error| AppError::bad_request(format!("Invalid analytics request: {error}")))
 }
 
 #[tracing::instrument(skip(state))]
@@ -65,7 +48,7 @@ pub async fn get_rolling(
         params.start,
         params.end,
         params.columns.as_deref(),
-        params.cleaning_plan.as_deref(),
+        &params.cleaning_plan,
     )
     .await?;
     let params = Arc::new(params);
@@ -124,9 +107,9 @@ pub async fn get_rolling(
 
 pub async fn post_rolling(
     State(state): State<AppState>,
-    Json(body): Json<Value>,
+    Json(params): Json<RollingQuery>,
 ) -> Result<Response, AppError> {
-    get_rolling(State(state), Query(decode_plan_aware_post(body)?)).await
+    get_rolling(State(state), Query(params)).await
 }
 
 // ── Anomaly Detection ──────────────────────────────────────────────────────
@@ -140,7 +123,7 @@ pub struct AnomalyQuery {
     pub method: Option<String>,
     /// Threshold for zscore (default: 3.0) or IQR multiplier (default: 1.5)
     pub threshold: Option<f64>,
-    pub cleaning_plan: Option<String>,
+    pub cleaning_plan: crate::handlers::routes::cleaning::PlanRequestEnvelope,
 }
 
 #[tracing::instrument(skip(state))]
@@ -154,7 +137,7 @@ pub async fn get_anomalies(
         params.start,
         params.end,
         params.columns.as_deref(),
-        params.cleaning_plan.as_deref(),
+        &params.cleaning_plan,
     )
     .await?;
 
@@ -195,9 +178,9 @@ pub async fn get_anomalies(
 
 pub async fn post_anomalies(
     State(state): State<AppState>,
-    Json(body): Json<Value>,
+    Json(params): Json<AnomalyQuery>,
 ) -> Result<Response, AppError> {
-    get_anomalies(State(state), Query(decode_plan_aware_post(body)?)).await
+    get_anomalies(State(state), Query(params)).await
 }
 
 // ── FFT / PSD ──────────────────────────────────────────────────────────────
@@ -209,7 +192,7 @@ pub struct FftQuery {
     pub columns: Option<String>,
     /// Max points for FFT (default: 8192, will downsample if data is larger)
     pub max_points: Option<usize>,
-    pub cleaning_plan: Option<String>,
+    pub cleaning_plan: crate::handlers::routes::cleaning::PlanRequestEnvelope,
 }
 
 #[tracing::instrument(skip(state))]
@@ -222,7 +205,7 @@ pub async fn get_fft(
         params.start,
         params.end,
         params.columns.as_deref(),
-        params.cleaning_plan.as_deref(),
+        &params.cleaning_plan,
     )
     .await?;
 
@@ -248,9 +231,9 @@ pub async fn get_fft(
 
 pub async fn post_fft(
     State(state): State<AppState>,
-    Json(body): Json<Value>,
+    Json(params): Json<FftQuery>,
 ) -> Result<Response, AppError> {
-    get_fft(State(state), Query(decode_plan_aware_post(body)?)).await
+    get_fft(State(state), Query(params)).await
 }
 
 // ── Spectrogram (STFT) ────────────────────────────────────────────────────
@@ -274,7 +257,7 @@ pub struct SpectrogramQuery {
     /// Threshold for the active clip mode (percentage on each tail for
     /// `percentile`, k multiplier for `iqr`).
     pub clip_param: Option<f64>,
-    pub cleaning_plan: Option<String>,
+    pub cleaning_plan: crate::handlers::routes::cleaning::PlanRequestEnvelope,
 }
 
 #[tracing::instrument(skip(state))]
@@ -287,7 +270,7 @@ pub async fn get_spectrogram(
         params.start,
         params.end,
         Some(params.column.as_str()),
-        params.cleaning_plan.as_deref(),
+        &params.cleaning_plan,
     )
     .await?;
     let col = &value_cols[0];
@@ -328,9 +311,9 @@ pub async fn get_spectrogram(
 
 pub async fn post_spectrogram(
     State(state): State<AppState>,
-    Json(body): Json<Value>,
+    Json(params): Json<SpectrogramQuery>,
 ) -> Result<Response, AppError> {
-    get_spectrogram(State(state), Query(decode_plan_aware_post(body)?)).await
+    get_spectrogram(State(state), Query(params)).await
 }
 
 // ── Spectral Filter ────────────────────────────────────────────────────────
@@ -353,7 +336,7 @@ pub struct SpectralFilterQuery {
     pub sample_rate_hz: Option<f64>,
     /// Max points (default: 16384)
     pub max_points: Option<usize>,
-    pub cleaning_plan: Option<String>,
+    pub cleaning_plan: crate::handlers::routes::cleaning::PlanRequestEnvelope,
 }
 
 #[tracing::instrument(skip(state))]
@@ -367,32 +350,12 @@ pub async fn get_spectral_filter(
     let (start, end) = match (params.start, params.end) {
         (Some(s), Some(e)) => (s, e),
         (opt_s, opt_e) => {
-            let (lf_snap, time_column) = match params
-                .cleaning_plan
-                .as_deref()
-                .filter(|raw| !raw.trim().is_empty())
-            {
-                Some(raw) => {
-                    let envelope: crate::handlers::routes::cleaning::PlanRequestEnvelope =
-                        serde_json::from_str(raw).map_err(|error| {
-                            AppError::bad_request(format!(
-                                "Invalid cleaning plan envelope: {error}"
-                            ))
-                        })?;
-                    let time_column = envelope.plan.time_column.clone();
-                    let (_version, _hash, frame) =
-                        crate::handlers::routes::cleaning::compile_request_frame(
-                            &state, &envelope,
-                        )?;
-                    (frame, time_column)
-                }
-                None => (
-                    state.dataset_snapshot(),
-                    state
-                        .time_column_display_name_sync()
-                        .unwrap_or_else(|| "ts".to_string()),
-                ),
-            };
+            let (_version, _hash, lf_snap) =
+                crate::handlers::routes::cleaning::compile_request_frame(
+                    &state,
+                    &params.cleaning_plan,
+                )?;
+            let time_column = params.cleaning_plan.plan.time_column.clone();
             let ctx = edatime_core::temporal::ts_context(&lf_snap, &time_column)?;
             let ts_col = ctx.ts_col;
             let multiplier = ctx.multiplier;
@@ -433,7 +396,7 @@ pub async fn get_spectral_filter(
         start,
         end,
         col_opt.as_deref(),
-        params.cleaning_plan.as_deref(),
+        &params.cleaning_plan,
     )
     .await?;
     let col = &value_cols[0];
@@ -481,9 +444,9 @@ pub async fn get_spectral_filter(
 
 pub async fn post_spectral_filter(
     State(state): State<AppState>,
-    Json(body): Json<Value>,
+    Json(params): Json<SpectralFilterQuery>,
 ) -> Result<Response, AppError> {
-    get_spectral_filter(State(state), Query(decode_plan_aware_post(body)?)).await
+    get_spectral_filter(State(state), Query(params)).await
 }
 
 /// Internal type used to accept either a comma-separated string
@@ -764,9 +727,33 @@ mod tests {
     use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
     use chrono::TimeZone;
     use edatime_core::config::AppConfig;
+    use edatime_query::cleaning::CleaningPlanDto;
     use edatime_store::state::AppState;
     use polars::prelude::{DataFrame, NamedFrom, Series};
     use serde_json::Value;
+
+    fn empty_envelope(state: &AppState) -> crate::handlers::routes::cleaning::PlanRequestEnvelope {
+        let version = state.current_dataset_version().expect("source version");
+        crate::handlers::routes::cleaning::PlanRequestEnvelope {
+            expected_plan_hash: None,
+            expected_source_version_id: version.id.clone(),
+            expected_dataset_revision: version.revision,
+            plan: CleaningPlanDto {
+                schema_version: 1,
+                id: "analytics-test-plan".to_string(),
+                plan_revision: 1,
+                source_version_id: version.id,
+                dataset_revision: version.revision,
+                dataset_fingerprint: Some(version.dataset_fingerprint),
+                schema_fingerprint: version.schema_fingerprint,
+                time_column: "ts".to_string(),
+                source_name: None,
+                stages: vec![],
+                created_at: "now".to_string(),
+                updated_at: "now".to_string(),
+            },
+        }
+    }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn causal_route_preserves_response_shape_for_pcmci() {
@@ -781,7 +768,7 @@ mod tests {
         let state = AppState::new(df, AppConfig::default());
 
         let response = post_causal_graph(
-            State(state),
+            State(state.clone()),
             Json(CausalGraphRequest {
                 columns: Some("x,y".to_string()),
                 tau_max: Some(1),
@@ -1005,14 +992,14 @@ mod tests {
         let state = AppState::new(df, AppConfig::default());
 
         let response = get_anomalies(
-            State(state),
+            State(state.clone()),
             axum::extract::Query(AnomalyQuery {
                 start: chrono::Utc.with_ymd_and_hms(2018, 1, 1, 0, 0, 0).unwrap(),
                 end: chrono::Utc.with_ymd_and_hms(2018, 5, 1, 0, 0, 0).unwrap(),
                 columns: Some("HUFL,HULL".to_string()),
                 method: Some("zscore".to_string()),
                 threshold: Some(3.0),
-                cleaning_plan: None,
+                cleaning_plan: empty_envelope(&state),
             }),
         )
         .await
@@ -1025,12 +1012,13 @@ mod tests {
                 .and_then(|value| value.to_str().ok()),
             Some("source-0")
         );
-        assert_eq!(
+        assert!(
             response
                 .headers()
                 .get("x-edatime-plan-hash")
-                .and_then(|value| value.to_str().ok()),
-            Some("none")
+                .and_then(|value| value.to_str().ok())
+                .is_some_and(|value| !value.is_empty()),
+            "plan-aware analytics requests must expose their plan hash"
         );
 
         let body = axum::body::to_bytes(response.into_body(), usize::MAX)
