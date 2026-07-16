@@ -34,6 +34,7 @@ pub fn api_router() -> Router<AppState> {
         .route("/cleaning/export/plan", post(cleaning::export_plan))
         .route("/cleaning/export/code", post(cleaning::export_code))
         .route("/cleaning/export/manifest", post(cleaning::export_manifest))
+        .route("/cleaning/export/bundle", post(cleaning::export_bundle))
         .route("/datasets/versions", get(cleaning::list_versions))
         .route("/datasets/versions/select", post(cleaning::select_version))
         .route("/datasets/storage", get(cleaning::get_storage_usage))

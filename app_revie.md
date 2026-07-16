@@ -607,8 +607,12 @@ canonical plan/hash, dataset/schema/plan checksums, exact row/column counts,
 time coverage, and null/non-finite totals. The overlay exposes this as a
 handoff-manifest download. Each manifest also records the executing EdaTime
 service package version, plan-schema version, semantic-hash algorithm, and its
-`exact-plan-v1` execution mode. Approximation history, dependency versions,
-per-group policy, and a multi-artifact bundle remain future slices.
+`exact-plan-v1` execution mode. `POST /api/v1/cleaning/export/bundle` packages
+that exact manifest, the canonical plan JSON, backend-generated Python/Rust
+artifacts, and a SHA-256 `checksums.json` index in one source-bound ZIP. It
+rejects unsupported code-generation stages rather than bundling a partial
+handoff. Approximation history, dependency versions, and per-group policy
+remain future slices.
 (`7b08539`, `5df3a5c`)
 
 **Chronological split slice:** a `chronologicalSplit` stage now labels the

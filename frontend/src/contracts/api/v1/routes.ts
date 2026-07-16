@@ -23,6 +23,7 @@ export const apiV1Routes = {
         exportPlan: '/api/v1/cleaning/export/plan',
         exportCode: '/api/v1/cleaning/export/code',
         exportManifest: '/api/v1/cleaning/export/manifest',
+        exportBundle: '/api/v1/cleaning/export/bundle',
         versions: '/api/v1/datasets/versions',
         selectVersion: '/api/v1/datasets/versions/select',
         storage: '/api/v1/datasets/storage',

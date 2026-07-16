@@ -153,6 +153,19 @@ export function exportCleaningManifest(
     );
 }
 
+/** Source-bound archive containing the canonical plan, manifest, code, and checksums. */
+export function exportCleaningBundle(
+    plan: CleaningPlan,
+    options?: ApiRequestOptions,
+): Promise<Blob> {
+    return postBlob(
+        apiV1Routes.cleaning.exportBundle,
+        envelope(plan),
+        'Cleaning handoff bundle export',
+        options,
+    );
+}
+
 export function listDatasetVersions(options?: ApiRequestOptions): Promise<DatasetVersionRecord[]> {
     // Versions are dataset-scoped by design: a replacement invalidates this
     // selection list along with all other dataset-derived responses.

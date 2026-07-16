@@ -2,6 +2,7 @@ import {
     applyCleaningPlan,
     cancelSessionJob,
     exportCleaningCode,
+    exportCleaningBundle,
     exportCleaningManifest,
     exportCleaningPlan,
     getArtifactStorageUsage,
@@ -778,6 +779,13 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             catch (error) { preview.textContent = error instanceof Error ? error.message : 'Could not export the handoff manifest.'; }
             finally { manifestExport.disabled = false; }
         });
+        const bundleExport = button('Export handoff bundle');
+        bundleExport.addEventListener('click', async () => {
+            bundleExport.disabled = true;
+            try { downloadBlob(await exportCleaningBundle(plan), 'edatime_handoff_bundle.zip'); }
+            catch (error) { preview.textContent = error instanceof Error ? error.message : 'Could not export the handoff bundle.'; }
+            finally { bundleExport.disabled = false; }
+        });
         const graphExport = button('Export graph JSON');
         graphExport.addEventListener('click', () => {
             exportText(serializePipelineGraph(buildPipelineGraph(plan)), 'edatime_pipeline_graph.json', 'application/json;charset=utf-8');
@@ -884,7 +892,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
                 refreshJobs.disabled = false;
             }
         });
-        controls.append(planExport, manifestExport, graphExport, svgExport, pythonExport, rustExport, importPlan, importInput, refreshStorage, refreshJobs);
+        controls.append(planExport, manifestExport, bundleExport, graphExport, svgExport, pythonExport, rustExport, importPlan, importInput, refreshStorage, refreshJobs);
         panel.append(copy, controls, storage, jobs);
     };
     const renderActions = (plan: CleaningPlan) => {

@@ -1,5 +1,8 @@
 //! Plan-aware validation, preview, and full working-dataset export.
 
+use std::collections::BTreeMap;
+use std::io::{Cursor, Write};
+
 use axum::{
     Json,
     extract::State,
@@ -9,6 +12,8 @@ use axum::{
 use chrono::{DateTime, Utc};
 use polars::prelude::DataType;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use zip::{CompressionMethod, ZipWriter, write::FileOptions};
 
 use crate::error::AppError;
 use crate::handlers::routes::shared::{ExecutionIdentity, add_execution_identity_headers};
@@ -873,14 +878,11 @@ fn manifest_summary(data: &polars::prelude::DataFrame) -> Result<ManifestDataset
     })
 }
 
-/// Export an exact, source-bound reproducibility manifest for the compiled
-/// plan. Unlike interactive chart queries this intentionally collects both
-/// sides so row/column and quality summaries are audit facts, not estimates.
-pub async fn export_manifest(
-    State(state): State<AppState>,
-    Json(envelope): Json<PlanRequestEnvelope>,
-) -> Result<Response, AppError> {
-    let (version, plan_hash, frame) = compile_request_frame(&state, &envelope)?;
+async fn build_handoff_manifest(
+    state: &AppState,
+    envelope: &PlanRequestEnvelope,
+) -> Result<(DatasetVersionRecord, String, CleaningHandoffManifest), AppError> {
+    let (version, plan_hash, frame) = compile_request_frame(state, envelope)?;
     let root_version = state
         .dataset_versions()?
         .into_iter()
@@ -905,7 +907,7 @@ pub async fn export_manifest(
         source_version: version.clone(),
         root_source_version: root_version,
         plan_hash: plan_hash.clone(),
-        canonical_plan: envelope.plan,
+        canonical_plan: envelope.plan.clone(),
         before: manifest_summary(&before)?,
         after: manifest_summary(&after)?,
         artifact_checksums: ManifestArtifactChecksums {
@@ -914,6 +916,63 @@ pub async fn export_manifest(
             canonical_plan: plan_hash.clone(),
         },
     };
+    Ok((version, plan_hash, manifest))
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CleaningBundleChecksums {
+    schema_version: u16,
+    algorithm: &'static str,
+    artifacts: BTreeMap<String, String>,
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    format!("sha256:{:x}", Sha256::digest(bytes))
+}
+
+/// Bundle independently usable, backend-generated handoff artifacts without
+/// making browser code responsible for provenance or source generation.
+fn build_handoff_bundle(mut artifacts: Vec<(String, Vec<u8>)>) -> Result<Vec<u8>, AppError> {
+    let checksums = artifacts
+        .iter()
+        .map(|(name, bytes)| (name.clone(), sha256_hex(bytes)))
+        .collect::<BTreeMap<_, _>>();
+    let index = CleaningBundleChecksums {
+        schema_version: 1,
+        algorithm: "sha256",
+        artifacts: checksums,
+    };
+    artifacts.push((
+        "checksums.json".to_string(),
+        serde_json::to_vec_pretty(&index).map_err(|error| {
+            AppError::internal(format!("Bundle checksum serialization failed: {error}"))
+        })?,
+    ));
+    let mut archive = ZipWriter::new(Cursor::new(Vec::new()));
+    let options = FileOptions::default().compression_method(CompressionMethod::Stored);
+    for (name, bytes) in artifacts {
+        archive.start_file(name, options).map_err(|error| {
+            AppError::internal(format!("Bundle archive creation failed: {error}"))
+        })?;
+        archive
+            .write_all(&bytes)
+            .map_err(|error| AppError::internal(format!("Bundle archive write failed: {error}")))?;
+    }
+    archive
+        .finish()
+        .map(|cursor| cursor.into_inner())
+        .map_err(|error| AppError::internal(format!("Bundle archive finalization failed: {error}")))
+}
+
+/// Export an exact, source-bound reproducibility manifest for the compiled
+/// plan. Unlike interactive chart queries this intentionally collects both
+/// sides so row/column and quality summaries are audit facts, not estimates.
+pub async fn export_manifest(
+    State(state): State<AppState>,
+    Json(envelope): Json<PlanRequestEnvelope>,
+) -> Result<Response, AppError> {
+    let (version, plan_hash, manifest) = build_handoff_manifest(&state, &envelope).await?;
     let bytes = serde_json::to_vec_pretty(&manifest)
         .map_err(|error| AppError::internal(format!("Manifest serialization failed: {error}")))?;
     let mut response = Response::new(bytes.into());
@@ -924,6 +983,69 @@ pub async fn export_manifest(
     response.headers_mut().insert(
         header::CONTENT_DISPOSITION,
         HeaderValue::from_static("attachment; filename=edatime_handoff_manifest.json"),
+    );
+    Ok(add_execution_identity_headers(
+        response,
+        &ExecutionIdentity::from_version(version, Some(plan_hash)),
+    ))
+}
+
+/// Export a complete, source-bound handoff archive. Every executable artifact
+/// is generated after canonical validation, and `checksums.json` records the
+/// SHA-256 digest of every other archive member.
+pub async fn export_bundle(
+    State(state): State<AppState>,
+    Json(envelope): Json<PlanRequestEnvelope>,
+) -> Result<Response, AppError> {
+    let (version, plan_hash, manifest) = build_handoff_manifest(&state, &envelope).await?;
+    validate_codegen_support(&envelope.plan)?;
+    let source_schema = state
+        .dataset_snapshot_for_version(&version.id)?
+        .collect_schema()
+        .map_err(|error| {
+            AppError::bad_request(format!(
+                "Failed to inspect bundle code-export time column: {error}"
+            ))
+        })?;
+    let time_dtype = source_schema
+        .get(&envelope.plan.time_column)
+        .ok_or_else(|| {
+            AppError::bad_request(format!(
+                "Missing time column '{}' for bundle code export",
+                envelope.plan.time_column
+            ))
+        })?;
+    let artifacts = vec![
+        (
+            "handoff-manifest.json".to_string(),
+            serde_json::to_vec_pretty(&manifest).map_err(|error| {
+                AppError::internal(format!("Bundle manifest serialization failed: {error}"))
+            })?,
+        ),
+        (
+            "canonical-plan.json".to_string(),
+            serde_json::to_vec_pretty(&envelope.plan).map_err(|error| {
+                AppError::internal(format!("Bundle plan serialization failed: {error}"))
+            })?,
+        ),
+        (
+            "apply_edatime_plan.py".to_string(),
+            generate_python_polars(&envelope.plan, &version, &plan_hash, time_dtype)?.into_bytes(),
+        ),
+        (
+            "apply_edatime_plan.rs".to_string(),
+            generate_rust_polars(&envelope.plan, &version, &plan_hash, time_dtype)?.into_bytes(),
+        ),
+    ];
+    let bytes = build_handoff_bundle(artifacts)?;
+    let mut response = Response::new(bytes.into());
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/zip"),
+    );
+    response.headers_mut().insert(
+        header::CONTENT_DISPOSITION,
+        HeaderValue::from_static("attachment; filename=edatime_handoff_bundle.zip"),
     );
     Ok(add_execution_identity_headers(
         response,
@@ -1082,6 +1204,7 @@ mod tests {
     use edatime_query::cleaning::{CleaningStageBaseDto, CleaningStageDto, RangeMode};
     use polars::prelude::{DataFrame, NamedFrom, ParquetReader, SerReader, Series};
     use std::fs;
+    use std::io::Read;
 
     fn state() -> AppState {
         let df = DataFrame::new(
@@ -1443,6 +1566,63 @@ mod tests {
         assert_eq!(
             manifest["artifactChecksums"]["canonicalPlan"],
             manifest["planHash"]
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn handoff_bundle_contains_verified_canonical_artifacts() {
+        let state = state();
+        let export = export_bundle(State(state.clone()), Json(envelope(&state)))
+            .await
+            .expect("bundle");
+        assert_eq!(
+            export
+                .headers()
+                .get(header::CONTENT_TYPE)
+                .and_then(|value| value.to_str().ok()),
+            Some("application/zip")
+        );
+        let body = axum::body::to_bytes(export.into_body(), usize::MAX)
+            .await
+            .expect("body");
+        let mut archive = zip::ZipArchive::new(Cursor::new(body.to_vec())).expect("zip archive");
+        let names = (0..archive.len())
+            .map(|index| {
+                archive
+                    .by_index(index)
+                    .expect("archive entry")
+                    .name()
+                    .to_string()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            names,
+            vec![
+                "handoff-manifest.json",
+                "canonical-plan.json",
+                "apply_edatime_plan.py",
+                "apply_edatime_plan.rs",
+                "checksums.json",
+            ]
+        );
+        let mut checksums = String::new();
+        archive
+            .by_name("checksums.json")
+            .expect("checksums entry")
+            .read_to_string(&mut checksums)
+            .expect("checksums text");
+        let checksums: serde_json::Value =
+            serde_json::from_str(&checksums).expect("checksums json");
+        assert_eq!(checksums["algorithm"], "sha256");
+        let mut canonical_plan = Vec::new();
+        archive
+            .by_name("canonical-plan.json")
+            .expect("plan entry")
+            .read_to_end(&mut canonical_plan)
+            .expect("plan bytes");
+        assert_eq!(
+            checksums["artifacts"]["canonical-plan.json"],
+            sha256_hex(&canonical_plan)
         );
     }
 

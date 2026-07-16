@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { __resetApiRequestStateForTests } from '../services/api/http.js';
-import { applyCleaningPlan, exportCleaningCode, exportCleaningData, exportCleaningManifest, exportCleaningPlan, previewCleaningPlan, selectDatasetVersion, validateCleaningPlan } from './api.js';
+import { applyCleaningPlan, exportCleaningBundle, exportCleaningCode, exportCleaningData, exportCleaningManifest, exportCleaningPlan, previewCleaningPlan, selectDatasetVersion, validateCleaningPlan } from './api.js';
 import type { CleaningPlan } from './types.js';
 
 function plan(): CleaningPlan {
@@ -103,6 +103,13 @@ describe('cleaning API', () => {
         fetchMock.mockResolvedValueOnce({ ok: true, status: 200, blob: vi.fn().mockResolvedValue(new Blob(['manifest'])) });
         await exportCleaningManifest(plan());
         expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/cleaning/export/manifest');
+        expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({ expectedSourceVersionId: 'source-0' });
+    });
+
+    it('requests the canonical multi-artifact handoff bundle with the guarded envelope', async () => {
+        fetchMock.mockResolvedValueOnce({ ok: true, status: 200, blob: vi.fn().mockResolvedValue(new Blob(['bundle'])) });
+        await exportCleaningBundle(plan());
+        expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/cleaning/export/bundle');
         expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({ expectedSourceVersionId: 'source-0' });
     });
 
