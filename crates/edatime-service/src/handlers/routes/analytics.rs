@@ -15,8 +15,8 @@ use serde::Deserialize;
 use crate::analytics;
 use crate::error::AppError;
 use crate::handlers::routes::shared::{
-    ExecutionIdentity, add_execution_identity_headers, current_execution_identity,
-    downsample_by_stride, filter_preamble_with_plan,
+    ExecutionIdentity, add_execution_identity_headers, downsample_by_stride,
+    filter_preamble_with_plan,
 };
 use edatime_query::query;
 use edatime_query::validation::validate_numeric_columns_lazy;
@@ -535,8 +535,7 @@ pub struct CausalGraphRequest {
     pub knn: Option<usize>,
     /// Number of shuffle samples for CMI-KNN significance test (default: 200)
     pub sig_samples: Option<usize>,
-    #[serde(default)]
-    pub cleaning_plan: Option<crate::handlers::routes::cleaning::PlanRequestEnvelope>,
+    pub cleaning_plan: crate::handlers::routes::cleaning::PlanRequestEnvelope,
 }
 
 const MAX_CAUSAL_TAU_MAX: usize = 128;
@@ -597,16 +596,9 @@ pub async fn post_causal_graph(
     State(state): State<AppState>,
     Json(params): Json<CausalGraphRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let (lf, identity) = if let Some(envelope) = params.cleaning_plan.as_ref() {
-        let (version, hash, frame) =
-            crate::handlers::routes::cleaning::compile_request_frame(&state, envelope)?;
-        (frame, ExecutionIdentity::from_version(version, Some(hash)))
-    } else {
-        (
-            state.dataset_snapshot(),
-            current_execution_identity(&state)?,
-        )
-    };
+    let (version, hash, lf) =
+        crate::handlers::routes::cleaning::compile_request_frame(&state, &params.cleaning_plan)?;
+    let identity = ExecutionIdentity::from_version(version, Some(hash));
     let cols = query::parse_columns(params.columns.as_deref());
     let limits = &state.config.validation;
     let value_cols = validate_numeric_columns_lazy(&lf, &cols, limits)?;
@@ -755,6 +747,28 @@ mod tests {
         }
     }
 
+    fn test_envelope_json() -> Value {
+        serde_json::json!({
+            "plan": {
+                "schemaVersion": 1,
+                "id": "causal-test-plan",
+                "planRevision": 1,
+                "sourceVersionId": "source-0",
+                "datasetRevision": 0,
+                "datasetFingerprint": "test-frame",
+                "schemaFingerprint": "test-schema",
+                "timeColumn": "ts",
+                "sourceName": null,
+                "stages": [],
+                "createdAt": "now",
+                "updatedAt": "now"
+            },
+            "expectedPlanHash": null,
+            "expectedSourceVersionId": "source-0",
+            "expectedDatasetRevision": 0
+        })
+    }
+
     #[tokio::test(flavor = "multi_thread")]
     async fn causal_route_preserves_response_shape_for_pcmci() {
         let df = DataFrame::new(
@@ -766,6 +780,7 @@ mod tests {
         )
         .expect("test dataframe should build");
         let state = AppState::new(df, AppConfig::default());
+        let cleaning_plan = empty_envelope(&state);
 
         let response = post_causal_graph(
             State(state.clone()),
@@ -782,7 +797,7 @@ mod tests {
                 n_preliminary_iterations: Some(1),
                 knn: None,
                 sig_samples: None,
-                cleaning_plan: None,
+                cleaning_plan,
             }),
         )
         .await
@@ -825,6 +840,7 @@ mod tests {
         )
         .expect("test dataframe should build");
         let state = AppState::new(df, AppConfig::default());
+        let cleaning_plan = empty_envelope(&state);
 
         let response = post_causal_graph(
             State(state),
@@ -841,7 +857,7 @@ mod tests {
                 n_preliminary_iterations: Some(1),
                 knn: None,
                 sig_samples: None,
-                cleaning_plan: None,
+                cleaning_plan,
             }),
         )
         .await
@@ -872,6 +888,7 @@ mod tests {
             .collect();
         let df = DataFrame::new(row_count, columns).expect("test dataframe should build");
         let state = AppState::new(df, AppConfig::default());
+        let cleaning_plan = empty_envelope(&state);
 
         let err = post_causal_graph(
             State(state),
@@ -888,7 +905,7 @@ mod tests {
                 n_preliminary_iterations: Some(1),
                 knn: None,
                 sig_samples: None,
-                cleaning_plan: None,
+                cleaning_plan,
             }),
         )
         .await
@@ -940,14 +957,16 @@ mod tests {
     /// singular `column` upfront.
     #[test]
     fn causal_request_accepts_comma_separated_columns() {
-        let body = serde_json::json!({"columns": "x,y", "tau_max": 1});
+        let mut body = serde_json::json!({"columns": "x,y", "tau_max": 1});
+        body["cleaning_plan"] = test_envelope_json();
         let req: CausalGraphRequest = serde_json::from_value(body).expect("parse");
         assert_eq!(req.columns.as_deref(), Some("x,y"));
     }
 
     #[test]
     fn causal_request_accepts_json_array_columns() {
-        let body = serde_json::json!({"columns": ["x", "y"], "tau_max": 1});
+        let mut body = serde_json::json!({"columns": ["x", "y"], "tau_max": 1});
+        body["cleaning_plan"] = test_envelope_json();
         let req: CausalGraphRequest = serde_json::from_value(body).expect("parse");
         assert_eq!(req.columns.as_deref(), Some("x,y"));
     }
