@@ -598,8 +598,10 @@ the same cross-runtime semantics. `POST /api/v1/cleaning/export/manifest`
 collects the exact pre- and post-plan frames and exports source/root identity,
 canonical plan/hash, dataset/schema/plan checksums, exact row/column counts,
 time coverage, and null/non-finite totals. The overlay exposes this as a
-handoff-manifest download. Approximation history, application/dependency
-versions, per-group policy, and a multi-artifact bundle remain future slices.
+handoff-manifest download. Each manifest also records the executing EdaTime
+service package version, plan-schema version, semantic-hash algorithm, and its
+`exact-plan-v1` execution mode. Approximation history, dependency versions,
+per-group policy, and a multi-artifact bundle remain future slices.
 (`7b08539`, `5df3a5c`)
 
 **Chronological split slice:** a `chronologicalSplit` stage now labels the
