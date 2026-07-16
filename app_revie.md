@@ -68,7 +68,7 @@
   it would exceed that cap. (`f2ed211`,
   `9887e4f`, `6ab6f44`, `7413758`, `7847b46`, `5bfdc39`, `d2dca71`,
   `7c31697`, `84fd48f`, `5d6e19f`, `f5b9e66`, `349c56f`, `19836bf`,
-  `8f5ba28`, `06babb4`, `748dce3`, `7e73748`)
+  `8f5ba28`, `06babb4`, `748dce3`, `7e73748`, `f965d93`)
 
 ## 1. Goal
 
@@ -135,7 +135,10 @@ Do not start with allocator, SIMD, PGO, compression, framework replacement, or a
   JSON/SVG, and starter code. It is available from the shared header on every
   page and includes local undo/redo, same-baseline plan import, explicit
   per-stage row-impact previews, and canonical unmaterialized-change state.
-  Cross-baseline rebind and most preparation operation families remain open.
+  Dirty drafts now autosave by exact source/version/revision/content/schema/time
+  identity and restore only for that same baseline; cross-baseline imports are
+  explicitly rejected rather than silently rebound. Most preparation operation
+  families remain open.
 - Executable stage authoring is currently concentrated in Timeseries (`filterModalController.ts`, `adaptiveGesture.ts`, and the plan panel). Scatter, Correlations, FFT, Spectrogram, Causal, and Drift do not yet fulfill the “author from every plot” goal.
 - `frontend/src/services/api/timeseries.ts` sends the canonical plan envelope
   with plan-aware requests; the backend applies it before projection and
