@@ -15,11 +15,11 @@ import type { CleaningPreviewResponse, CleaningStageImpact } from './api.js';
 import { buildPipelineGraph, renderPipelineGraphSvg, serializePipelineGraph } from './pipelineGraph.js';
 import { formatResampleAggregations, hasAscendingTimeSortBefore, normalizeFixedDuration, parseResampleAggregations } from './resample.js';
 import type { CleaningPlan, CleaningStage } from './types.js';
-import type { CleaningPlanStore } from './store.js';
+import type { CleaningPlanHistoryAction, CleaningPlanStore } from './store.js';
 import { downloadBlob } from '../utils/dom.js';
 
 type PlanPanelStore = Pick<CleaningPlanStore,
-    'getSnapshot' | 'subscribe' | 'setPlan' | 'addStage' | 'updateStage' | 'removeStage' | 'setStageEnabled' | 'reorderStage' | 'canUndo' | 'canRedo' | 'isDirty' | 'undo' | 'redo'>;
+    'getSnapshot' | 'getHistory' | 'subscribe' | 'setPlan' | 'addStage' | 'updateStage' | 'removeStage' | 'setStageEnabled' | 'reorderStage' | 'canUndo' | 'canRedo' | 'isDirty' | 'undo' | 'redo' | 'restoreHistoryEntry'>;
 type WorkbenchTab = 'pipeline' | 'stages' | 'export';
 
 export interface CleaningPlanPanelDeps {
@@ -174,6 +174,21 @@ function createTab(label: string, tab: WorkbenchTab): HTMLButtonElement {
     return element;
 }
 
+function historyActionLabel(action: CleaningPlanHistoryAction): string {
+    switch (action) {
+        case 'baseline': return 'Source baseline';
+        case 'draftRestored': return 'Restored saved draft';
+        case 'imported': return 'Imported plan';
+        case 'stageAdded': return 'Added stage';
+        case 'stageUpdated': return 'Edited stage';
+        case 'stageRemoved': return 'Removed stage';
+        case 'stageReordered': return 'Reordered stage';
+        case 'undo': return 'Undo';
+        case 'redo': return 'Redo';
+        case 'restored': return 'Restored graph revision';
+    }
+}
+
 /**
  * Pipeline workbench for the canonical plan store. The SVG is a visual
  * projection only; every mutation continues through the existing plan store.
@@ -233,6 +248,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
     const tabs = [pipelineTab, stagesTab, exportTab];
     let activeTab: WorkbenchTab = 'pipeline';
     let selectedStageId: string | null = null;
+    let selectedHistoryEntryId: string | null = null;
     let lastPreview: { planId: string; planRevision: number; result: CleaningPreviewResponse } | null = null;
 
     const notify = (stage?: CleaningStage) => {
@@ -258,16 +274,24 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         panel.replaceChildren();
         const legend = document.createElement('div');
         legend.className = 'pipeline-workbench__legend';
-        legend.textContent = 'Active stages can filter rows, alter values or schema, or establish row order. Disabled stages are bypassed. Annotations document the pipeline.';
+        legend.textContent = 'Active stages can filter rows, alter values or schema, or establish row order. Executable stage edits refresh plots immediately; applying still creates a dataset version only when explicitly requested.';
+        const history = deps.planStore.getHistory();
+        const currentEntry = history.at(-1) ?? null;
+        const selectedEntry = selectedHistoryEntryId ? history.find((entry) => entry.id === selectedHistoryEntryId) ?? null : null;
+        const viewedEntry = selectedEntry ?? currentEntry;
+        const viewingHistory = !!selectedEntry && selectedEntry.id !== currentEntry?.id;
+        const graphPlan = viewedEntry?.plan ?? plan;
         const scroll = document.createElement('div');
         scroll.className = 'pipeline-workbench__graph-scroll';
-        scroll.innerHTML = renderPipelineGraphSvg(buildPipelineGraph(plan), { selectedStageId });
+        scroll.innerHTML = renderPipelineGraphSvg(buildPipelineGraph(graphPlan), { selectedStageId });
         const hint = document.createElement('p');
         hint.className = 'pipeline-workbench__hint';
-        hint.textContent = 'Select a stage in the graph to edit it. The graph never changes data directly.';
+        hint.textContent = viewingHistory
+            ? 'Viewing an earlier graph revision. Restore it to make it the live plan and update the plots.'
+            : 'Select a stage in the graph to edit it. The graph never changes data directly.';
         const onSelect = (event: Event) => {
             const stageId = (event.target as Element | null)?.closest<SVGGElement>('[data-stage-id]')?.dataset.stageId;
-            if (stageId) selectStage(stageId);
+            if (stageId && !viewingHistory) selectStage(stageId);
         };
         scroll.addEventListener('click', onSelect);
         scroll.addEventListener('keydown', (event) => {
@@ -275,7 +299,46 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             event.preventDefault();
             onSelect(event);
         });
-        panel.append(legend, scroll, hint);
+        const historySection = document.createElement('section');
+        historySection.className = 'pipeline-workbench__history';
+        const historyHeading = document.createElement('h3');
+        historyHeading.textContent = 'Graph history';
+        const historyCopy = document.createElement('p');
+        historyCopy.className = 'pipeline-workbench__hint';
+        historyCopy.textContent = 'Choose any revision to inspect its graph, then restore it when you want its stages applied to the live plot.';
+        const historyList = document.createElement('ol');
+        historyList.className = 'pipeline-workbench__history-list';
+        for (const entry of [...history].reverse()) {
+            const item = document.createElement('li');
+            item.className = 'pipeline-workbench__history-item';
+            const inspect = button(historyActionLabel(entry.action) + ' · ' + entry.plan.stages.length + ' stage' + (entry.plan.stages.length === 1 ? '' : 's'), 'pipeline-workbench__history-inspect');
+            inspect.classList.toggle('is-selected', entry.id === viewedEntry?.id);
+            inspect.setAttribute('aria-pressed', String(entry.id === viewedEntry?.id));
+            inspect.addEventListener('click', () => {
+                selectedHistoryEntryId = entry.id;
+                selectedStageId = null;
+                render();
+            });
+            const timestamp = document.createElement('time');
+            timestamp.dateTime = entry.createdAt;
+            timestamp.textContent = new Date(entry.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            item.append(inspect, timestamp);
+            historyList.appendChild(item);
+        }
+        historySection.append(historyHeading, historyCopy, historyList);
+        if (viewingHistory && selectedEntry) {
+            const restore = button('Restore this revision', 'btn btn-primary btn-sm');
+            restore.addEventListener('click', () => {
+                selectedHistoryEntryId = null;
+                selectedStageId = null;
+                if (!deps.planStore.restoreHistoryEntry(selectedEntry.id)) return;
+                lastPreview = null;
+                preview.textContent = 'Restored this graph revision. Plots are updating with the restored plan.';
+                deps.onPlanChanged?.();
+            });
+            historySection.appendChild(restore);
+        }
+        panel.append(legend, scroll, hint, historySection);
     };
     const saveStage = (stage: CleaningStage, form: HTMLFormElement) => {
         const common = {
@@ -1027,6 +1090,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
     };
     const open = () => {
         selectedStageId = null;
+        selectedHistoryEntryId = null;
         activeTab = 'pipeline';
         render();
         backdrop.hidden = false;

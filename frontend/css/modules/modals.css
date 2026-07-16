@@ -71,6 +71,13 @@
 .pipeline-workbench__legend { display: flex; flex-wrap: wrap; gap: 10px; color: var(--text-dim); font-size: 0.75rem; }
 .pipeline-workbench__graph-scroll { overflow: auto; padding: 4px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--shell-bg); }
 .pipeline-workbench__hint { margin: 0; color: var(--text-dim); font-size: 0.8125rem; white-space: pre-line; }
+.pipeline-workbench__history { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--shell-hover); }
+.pipeline-workbench__history h3 { margin: 0; font-size: 0.875rem; }
+.pipeline-workbench__history-list { display: grid; gap: 5px; max-height: 220px; margin: 0; padding: 0; overflow: auto; list-style: none; }
+.pipeline-workbench__history-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--text-dim); font-size: 0.75rem; }
+.pipeline-workbench__history-inspect { flex: 1; min-width: 0; overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.pipeline-workbench__history-inspect.is-selected { color: var(--text); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.pipeline-workbench__history-item time { font-variant-numeric: tabular-nums; }
 .pipeline-workbench__jobs { display: grid; gap: 6px; color: var(--text-dim); font-size: 0.8125rem; }
 .pipeline-workbench__job { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .pipeline-workbench__editor, .pipeline-workbench__add-stage { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--border-hi); border-radius: var(--radius-md); background: var(--shell-hover); }

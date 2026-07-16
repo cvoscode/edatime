@@ -163,11 +163,21 @@ export function createApp(): AppRoot {
 
         // Mount registers page lifecycle (page-change listener, etc.)
         runtime.registerCleanup(timeseriesModule.mount());
+        let planRefreshQueued = false;
         const refreshCleaningPlanConsumers = () => {
-            timeseriesModule.buildRangeControls();
-            timeseriesModule.renderCurrentData();
-            void timeseriesModule.fetchAndRender();
+            if (planRefreshQueued) return;
+            planRefreshQueued = true;
+            queueMicrotask(() => {
+                planRefreshQueued = false;
+                timeseriesModule.buildRangeControls();
+                timeseriesModule.renderCurrentData();
+                void timeseriesModule.fetchAndRender();
+            });
         };
+        // A plan is the plot request contract. Subscribe once at the owner so
+        // every editor, page action, import, undo, and history restore updates
+        // the visible plot without requiring each caller to remember a refresh.
+        runtime.registerCleanup(cleaningPlanStore.subscribe(() => refreshCleaningPlanConsumers()));
         initAppShell({
             ensurePageModuleLoaded: featureRegistry.ensureFeatureLoaded,
             ensureDatasetReady: () => timeseriesModule.ensureDatasetReady(),

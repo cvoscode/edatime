@@ -116,6 +116,29 @@ describe('cleaning plan store', () => {
         expect(store.isDirty()).toBe(false);
     });
 
+    it('keeps immutable graph revisions and can restore any earlier revision', () => {
+        const store = setupPlan();
+        const baseline = store.getHistory()[0]!;
+        const stage = store.addStage({
+            kind: 'timeRange', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+            sourcePage: 'timeseries', label: 'Initial window', startMs: 10, endMs: 20, mode: 'keepInside',
+        });
+        store.updateStage(stage.id, { label: 'Reviewed window', endMs: 30 });
+
+        const revisions = store.getHistory();
+        expect(revisions.map((entry) => entry.action)).toEqual(['baseline', 'stageAdded', 'stageUpdated']);
+        expect(revisions[1]!.plan.stages[0]!.label).toBe('Initial window');
+        revisions[1]!.plan.stages[0]!.label = 'Mutated snapshot';
+        expect(store.getHistory()[1]!.plan.stages[0]!.label).toBe('Initial window');
+
+        expect(store.restoreHistoryEntry(baseline.id)).toBe(true);
+        expect(store.getSnapshot()!.stages).toEqual([]);
+        expect(store.isDirty()).toBe(false);
+        expect(store.getHistory().at(-1)).toMatchObject({ action: 'restored', dirty: false });
+        expect(store.undo()).toBe(true);
+        expect(store.getSnapshot()!.stages[0]).toMatchObject({ label: 'Reviewed window', endMs: 30 });
+    });
+
     it('treats an imported plan as unmaterialized until the dataset baseline changes', () => {
         const store = setupPlan();
         const imported = { ...store.getSnapshot()!, id: 'imported-plan', planRevision: 4 };

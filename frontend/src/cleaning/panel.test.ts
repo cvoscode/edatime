@@ -144,6 +144,28 @@ describe('cleaning plan panel', () => {
         expect(stages[0].id).not.toBe(stages[1].id);
     });
 
+    it('shows prior graph revisions and restores the selected revision as the live plot plan', () => {
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        planStore.addStage({
+            kind: 'timeRange', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+            sourcePage: 'timeseries', label: 'Current window', startMs: 10, endMs: 40, mode: 'keepInside',
+        });
+        const onPlanChanged = vi.fn();
+        mountCleaningPlanPanel({ planStore, getViewport: () => null, onPlanChanged });
+
+        document.getElementById('open-cleaning-plan-btn')!.click();
+        expect(document.querySelector('.pipeline-workbench__history')?.textContent).toContain('Graph history');
+        Array.from(document.querySelectorAll<HTMLButtonElement>('.pipeline-workbench__history-inspect'))
+            .find((button) => button.textContent?.startsWith('Source baseline'))!.click();
+        expect(document.querySelector('.pipeline-workbench__hint')?.textContent).toContain('Viewing an earlier graph revision');
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Restore this revision')!.click();
+
+        expect(planStore.getSnapshot()!.stages).toEqual([]);
+        expect(onPlanChanged).toHaveBeenCalledTimes(1);
+        expect(document.querySelector('.pipeline-workbench__hint')?.textContent).toContain('Select a stage');
+    });
+
     it('previews the current accumulated plan and reports its row impact', async () => {
         const planStore = createCleaningPlanStore();
         planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
