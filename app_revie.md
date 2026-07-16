@@ -588,15 +588,19 @@ Selection-to-stage actions must always open a confirmation/editor that shows exa
 
 ### P2.4 — Reproducible Modeling Handoff
 
-**Implemented first slice:** `POST /api/v1/cleaning/export/code` compiles the
+**Implemented slices:** `POST /api/v1/cleaning/export/code` compiles the
 same immutable plan envelope used by preview, materialization, data export,
 and canonical-plan export before returning Python or Rust source. Its response
 and generated file carry the authoritative source version and semantic plan
 hash. The overlay no longer downloads browser-generated code. Adaptive-line
 stages are rejected until their temporal-unit conversion can be generated with
-the same cross-runtime semantics. Split definitions, quality manifests,
-checksums, and complete reproducibility bundles remain future slices.
-(`7b08539`)
+the same cross-runtime semantics. `POST /api/v1/cleaning/export/manifest`
+collects the exact pre- and post-plan frames and exports source/root identity,
+canonical plan/hash, dataset/schema/plan checksums, exact row/column counts,
+time coverage, and null/non-finite totals. The overlay exposes this as a
+handoff-manifest download. Approximation history, application/dependency
+versions, split definitions, per-group policy, and a multi-artifact bundle
+remain future slices. (`7b08539`, `5df3a5c`)
 
 Add an export manifest containing:
 
