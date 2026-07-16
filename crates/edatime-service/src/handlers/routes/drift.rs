@@ -11,9 +11,7 @@ use serde::Deserialize;
 
 use crate::analytics::{DriftThresholds, compute_drift_investigation, compute_temporal_drift};
 use crate::error::AppError;
-use crate::handlers::routes::shared::{
-    ExecutionIdentity, add_execution_identity_headers, current_execution_identity,
-};
+use crate::handlers::routes::shared::{ExecutionIdentity, add_execution_identity_headers};
 use edatime_core::temporal::native_to_epoch_ms;
 use edatime_query::pipeline::filter_time_range;
 use edatime_query::validation::validate_numeric_columns_lazy;
@@ -32,8 +30,7 @@ pub struct DriftQuery {
     pub psi_minor_threshold: Option<f64>,
     pub psi_major_threshold: Option<f64>,
     pub wasserstein_std_multiplier: Option<f64>,
-    #[serde(default)]
-    pub cleaning_plan: Option<crate::handlers::routes::cleaning::PlanRequestEnvelope>,
+    pub cleaning_plan: crate::handlers::routes::cleaning::PlanRequestEnvelope,
 }
 
 #[derive(Debug, Deserialize)]
@@ -55,8 +52,7 @@ pub struct DriftInvestigateQuery {
     pub include_quality: Option<bool>,
     pub include_change_points: Option<bool>,
     pub include_correlations: Option<bool>,
-    #[serde(default)]
-    pub cleaning_plan: Option<crate::handlers::routes::cleaning::PlanRequestEnvelope>,
+    pub cleaning_plan: crate::handlers::routes::cleaning::PlanRequestEnvelope,
 }
 
 fn window_ms(window: &str) -> i64 {
@@ -173,15 +169,11 @@ async fn filtered_drift_df(
 
 fn drift_frame_with_identity(
     state: &AppState,
-    cleaning_plan: Option<&crate::handlers::routes::cleaning::PlanRequestEnvelope>,
+    cleaning_plan: &crate::handlers::routes::cleaning::PlanRequestEnvelope,
 ) -> Result<(polars::prelude::LazyFrame, ExecutionIdentity), AppError> {
-    if let Some(envelope) = cleaning_plan {
-        let (version, hash, frame) =
-            crate::handlers::routes::cleaning::compile_request_frame(state, envelope)?;
-        Ok((frame, ExecutionIdentity::from_version(version, Some(hash))))
-    } else {
-        Ok((state.dataset_snapshot(), current_execution_identity(state)?))
-    }
+    let (version, hash, frame) =
+        crate::handlers::routes::cleaning::compile_request_frame(state, cleaning_plan)?;
+    Ok((frame, ExecutionIdentity::from_version(version, Some(hash))))
 }
 
 #[tracing::instrument(skip(state))]
@@ -193,7 +185,7 @@ pub async fn post_drift_stats(
     let ref_end = parse_datetime(&query.reference_end)?;
     validate_time_window(ref_start, ref_end)?;
 
-    let (lf, identity) = drift_frame_with_identity(&state, query.cleaning_plan.as_ref())?;
+    let (lf, identity) = drift_frame_with_identity(&state, &query.cleaning_plan)?;
     let (column_name, window_size) =
         validate_drift_stats_query(&lf, &query, &state.config.validation)?;
     let ctx = state.ts_context(&lf)?;
@@ -267,7 +259,7 @@ pub async fn post_drift_investigate(
         Some(value) => parse_datetime(value)?,
         None => reference_end,
     };
-    let (lf, identity) = drift_frame_with_identity(&state, query.cleaning_plan.as_ref())?;
+    let (lf, identity) = drift_frame_with_identity(&state, &query.cleaning_plan)?;
     let comparison_end = match query.comparison_end.as_deref() {
         Some(value) => parse_datetime(value)?,
         None => {
@@ -368,7 +360,18 @@ mod tests {
             psi_minor_threshold: None,
             psi_major_threshold: None,
             wasserstein_std_multiplier: None,
-            cleaning_plan: None,
+            cleaning_plan: serde_json::from_value(json!({
+                "plan": {
+                    "schemaVersion": 1, "id": "drift-test-plan", "planRevision": 1,
+                    "sourceVersionId": "source-0", "datasetRevision": 0,
+                    "datasetFingerprint": "test-frame", "schemaFingerprint": "test-schema",
+                    "timeColumn": "ts", "sourceName": null, "stages": [],
+                    "createdAt": "now", "updatedAt": "now"
+                },
+                "expectedPlanHash": null, "expectedSourceVersionId": "source-0",
+                "expectedDatasetRevision": 0
+            }))
+            .expect("test plan envelope should deserialize"),
         }
     }
 
