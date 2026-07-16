@@ -13,9 +13,10 @@ use edatime_store::state::AppState;
 
 use super::{
     ScatterColorKind, ScatterFilterSpec, ScatterMatrixPair, ScatterMatrixQuery, TimeColorMode,
-    clamp_limit, collect_filtered_scatter_frame, collect_sampled_xyc_rows, parse_scatter_filters,
+    clamp_limit, collect_filtered_scatter_frame, parse_scatter_filters,
     parse_scatter_line_filters, resolved_scatter_limit,
 };
+use super::sample::collect_sampled_xyc_rows_streaming;
 use crate::handlers::routes::cleaning::compile_request_frame;
 use crate::handlers::routes::shared::{ExecutionIdentity, current_execution_identity};
 
@@ -144,6 +145,17 @@ async fn scatter_matrix_response(
         params.line_filters.as_deref().unwrap_or(""),
         identity.plan_hash.as_deref().unwrap_or("none"),
     );
+    let sample_seed_prefix = format!(
+        "scatter-matrix-reservoir:source={}:revision={}:color={}:start={}:end={}:filters={}:line-filters={}:plan={}",
+        identity.source_version_id,
+        identity.source_revision,
+        color_col.as_deref().unwrap_or(""),
+        start.map(|value| value.to_string()).unwrap_or_default(),
+        end.map(|value| value.to_string()).unwrap_or_default(),
+        params.filters.as_deref().unwrap_or(""),
+        params.line_filters.as_deref().unwrap_or(""),
+        identity.plan_hash.as_deref().unwrap_or("none"),
+    );
     let cache_key = format!("{cache_key}:{limit}");
     if let Some(cached) = state.cache.get(&cache_key).await {
         state.metrics.record_cache_hit();
@@ -185,19 +197,16 @@ async fn scatter_matrix_response(
                     &scoped_filters,
                     &line_filters,
                 )?;
-                let filtered_df = lazy_frame
-                    .with_new_streaming(true)
-                    .collect()
-                    .map_err(|error| AppError::io(error.to_string()))?;
-                let (cell_total, sampled_rows, color_kind) = collect_sampled_xyc_rows(
-                    &filtered_df,
+                let sample_seed_scope = format!("{sample_seed_prefix}:{}:{}", pair.x, pair.y);
+                let (cell_total, sampled_rows, color_kind) = collect_sampled_xyc_rows_streaming(
+                    lazy_frame,
                     &pair.x,
                     &pair.y,
                     color_col.as_deref(),
                     None,
-                    limit,
                     effective_limit,
                     time_color_mode,
+                    &sample_seed_scope,
                 )?;
                 let returned_for_cell = sampled_rows.len();
 
@@ -277,7 +286,7 @@ async fn scatter_matrix_response(
     let mut extra_headers = identity.headers();
     extra_headers.push((
         "x-edatime-sampling-algorithm".to_string(),
-        "stride-lttb-pad-v1".to_string(),
+        "reservoir-stream-v1".to_string(),
     ));
     extra_headers.push((
         "x-edatime-matrix-cells".to_string(),
@@ -365,9 +374,9 @@ mod tests {
         assert_eq!(
             response
                 .headers()
-                .get("x-edatime-sampling-algorithm")
-                .and_then(|value| value.to_str().ok()),
-            Some("stride-lttb-pad-v1")
+            .get("x-edatime-sampling-algorithm")
+            .and_then(|value| value.to_str().ok()),
+            Some("reservoir-stream-v1")
         );
         assert!(
             response

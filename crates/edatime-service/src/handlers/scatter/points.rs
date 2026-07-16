@@ -19,7 +19,9 @@ use edatime_store::cache::CachedResponse;
 use edatime_store::state::AppState;
 
 use super::collect::collect_filtered_scatter_frame;
-use super::sample::{ScatterColorKind, TimeColorMode, collect_sampled_xyc_rows};
+use super::sample::{
+    ScatterColorKind, TimeColorMode, collect_sampled_xyc_rows_streaming,
+};
 use super::{
     ColorCardinalityInfo, ScatterPointsQuery, clamp_limit, parse_scatter_filters,
     parse_scatter_line_filters, resolved_scatter_limit,
@@ -127,6 +129,24 @@ async fn scatter_points_response(
         params.format.as_deref().unwrap_or("arrow"),
         time_color_mode_label(time_color_mode),
     );
+    // The seed deliberately excludes response format and requested capacity:
+    // equivalent scatter geometry should retain the same source points across
+    // Arrow/JSON transports and smaller limits should be a subset of larger
+    // samples for the same immutable source/plan/filter identity.
+    let sample_seed_scope = format!(
+        "scatter-reservoir:source={}:revision={}:x={}:y={}:color={}:size={}:start={}:end={}:filters={}:line-filters={}:plan={}",
+        identity.source_version_id,
+        identity.source_revision,
+        x_col,
+        y_col,
+        color_col.as_deref().unwrap_or(""),
+        size_col.as_deref().unwrap_or(""),
+        start.map(|value| value.to_string()).unwrap_or_default(),
+        end.map(|value| value.to_string()).unwrap_or_default(),
+        params.filters.as_deref().unwrap_or(""),
+        params.line_filters.as_deref().unwrap_or(""),
+        identity.plan_hash.as_deref().unwrap_or("none"),
+    );
     if let (Some(start_ms), Some(end_ms)) = (start, end) {
         let start_dt = chrono::DateTime::<chrono::Utc>::from_timestamp_millis(start_ms as i64)
             .ok_or_else(|| {
@@ -188,30 +208,23 @@ async fn scatter_points_response(
         inner_metrics.record_cpu_started(edatime_core::metrics::CpuStage::Scatter, queue_wait_ns);
         let result = (|| {
             let collect_start = std::time::Instant::now();
-            let filtered_df = lazy_frame
-                .clone()
-                .with_new_streaming(true)
-                .collect()
-                .map_err(|e| AppError::io(e.to_string()))?;
-            let filtered_rows = filtered_df.height() as u64;
-            let collect_ns = collect_start.elapsed().as_nanos() as u64;
-            inner_metrics
-                .record_scatter_stage(edatime_core::metrics::ScatterStage::Collect, collect_ns);
-            inner_metrics.record_scatter_filtered_rows(filtered_rows);
-            let sample_start = std::time::Instant::now();
-
             let effective_limit = limit.min(state.config.validation.max_scatter_effective_points);
 
-            let (total, sampled_rows, color_kind) = collect_sampled_xyc_rows(
-                &filtered_df,
+            let (total, sampled_rows, color_kind) = collect_sampled_xyc_rows_streaming(
+                lazy_frame,
                 &x_col,
                 &y_col,
                 color_col.as_deref(),
                 size_col.as_deref(),
-                limit,
                 effective_limit,
                 time_color_mode,
+                &sample_seed_scope,
             )?;
+            let collect_ns = collect_start.elapsed().as_nanos() as u64;
+            inner_metrics
+                .record_scatter_stage(edatime_core::metrics::ScatterStage::Collect, collect_ns);
+            inner_metrics.record_scatter_filtered_rows(total as u64);
+            let sample_start = std::time::Instant::now();
 
             let n = sampled_rows.len();
             let mut x_buf = Vec::with_capacity(n);
@@ -317,7 +330,7 @@ async fn scatter_points_response(
     extra_headers.extend([
         (
             "x-edatime-sampling-algorithm".to_string(),
-            "stride-lttb-pad-v1".to_string(),
+            "reservoir-stream-v1".to_string(),
         ),
         (
             "x-edatime-scatter-total".to_string(),
@@ -554,9 +567,9 @@ mod tests {
         assert_eq!(
             first
                 .headers()
-                .get("x-edatime-sampling-algorithm")
-                .and_then(|value| value.to_str().ok()),
-            Some("stride-lttb-pad-v1")
+            .get("x-edatime-sampling-algorithm")
+            .and_then(|value| value.to_str().ok()),
+            Some("reservoir-stream-v1")
         );
         assert!(
             first

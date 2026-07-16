@@ -1,13 +1,17 @@
-//! Scatter sampling — downsample data points and build scatter rows.
+//! Scatter sampling — bounded, deterministic point samples from filtered data.
 //!
-//! `collect_sampled_xyc_rows` is the core function that takes an executed
-//! DataFrame, applies LTTB downsampling to the xy pairs, and produces
-//! `SampledScatterRow` structs with color/size metadata.
+//! The streaming path consumes Polars batches through a callback sink and keeps
+//! only a seeded reservoir. This is deliberately not a time-series reducer:
+//! arbitrary X/Y scatter geometry needs an unbiased point sample rather than
+//! an order-sensitive LTTB envelope.
 
 use polars::prelude::*;
+use std::cmp::Ordering;
+use std::collections::BinaryHeap;
+use std::num::NonZeroUsize;
+use std::sync::{Arc, Mutex};
 
 use crate::error::AppError;
-use edatime_query::downsample::downsample_indices;
 
 use super::collect::{
     series_to_label_values, series_to_scatter_values, series_to_time_bucket_labels,
@@ -57,27 +61,110 @@ pub struct SampledScatterRow {
 
 // ── Core sampling ───────────────────────────────────────────────────────────
 
-/// Sample scatter points from an executed DataFrame, applying LTTB downsampling
-/// to xy pairs and building `SampledScatterRow` structs with color/size metadata.
-///
-/// Returns `(total_points, sampled_rows, color_kind)`.
-///
-/// `time_color_mode` controls how a temporal color column is rendered:
-/// - `"bucket"` (default): bucket by hour-of-day and emit a categorical label.
-///   Useful for DS workflows that want to spot diurnal patterns.
-/// - `"raw"`: emit the raw epoch-ms value as a continuous numeric. This is
-///   the legacy behavior; it produces a colorbar that is technically valid
-///   but semantically poor for typical EDA.
-pub fn collect_sampled_xyc_rows(
+const SCATTER_BATCH_ROWS: usize = 16_384;
+
+struct ReservoirEntry {
+    priority: u64,
+    ordinal: u64,
+    row: SampledScatterRow,
+}
+
+impl PartialEq for ReservoirEntry {
+    fn eq(&self, other: &Self) -> bool {
+        self.priority == other.priority && self.ordinal == other.ordinal
+    }
+}
+
+impl Eq for ReservoirEntry {}
+
+impl PartialOrd for ReservoirEntry {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for ReservoirEntry {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.priority
+            .cmp(&other.priority)
+            .then_with(|| self.ordinal.cmp(&other.ordinal))
+    }
+}
+
+/// A stable, inexpensive mix for a source-scope seed and source row ordinal.
+/// Keeping the lowest priorities gives a deterministic reservoir without an
+/// RNG state or assumptions about upstream streaming partition sizes.
+fn reservoir_priority(seed: u64, ordinal: u64) -> u64 {
+    let mut value = seed ^ ordinal.wrapping_add(0x9e37_79b9_7f4a_7c15);
+    value = (value ^ (value >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    value = (value ^ (value >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+    value ^ (value >> 31)
+}
+
+/// FNV-1a is enough here: it only derives a reproducible seed from immutable
+/// request identity, not a security boundary.
+pub fn scatter_reservoir_seed(scope: &str) -> u64 {
+    scope.bytes().fold(0xcbf2_9ce4_8422_2325_u64, |hash, byte| {
+        (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3)
+    })
+}
+
+struct ScatterReservoir {
+    capacity: usize,
+    seed: u64,
+    total_points: usize,
+    entries: BinaryHeap<ReservoirEntry>,
+}
+
+impl ScatterReservoir {
+    fn new(capacity: usize, seed: u64) -> Self {
+        Self {
+            capacity,
+            seed,
+            total_points: 0,
+            entries: BinaryHeap::with_capacity(capacity),
+        }
+    }
+
+    fn consider(&mut self, row: SampledScatterRow) {
+        let ordinal = self.total_points as u64;
+        self.total_points += 1;
+        if self.capacity == 0 {
+            return;
+        }
+
+        let entry = ReservoirEntry {
+            priority: reservoir_priority(self.seed, ordinal),
+            ordinal,
+            row,
+        };
+        if self.entries.len() < self.capacity {
+            self.entries.push(entry);
+        } else if self.entries.peek().is_some_and(|worst| entry < *worst) {
+            let _ = self.entries.pop();
+            self.entries.push(entry);
+        }
+    }
+
+    fn finish(self) -> (usize, Vec<SampledScatterRow>) {
+        let mut entries = self.entries.into_vec();
+        entries.sort_by_key(|entry| entry.ordinal);
+        (
+            self.total_points,
+            entries.into_iter().map(|entry| entry.row).collect(),
+        )
+    }
+}
+
+fn sample_frame_into_reservoir(
+    reservoir: &mut ScatterReservoir,
     df: &DataFrame,
     x: &str,
     y: &str,
     color: Option<&str>,
     size: Option<&str>,
-    _limit: usize,
-    effective_limit: usize,
     time_color_mode: TimeColorMode,
-) -> Result<(usize, Vec<SampledScatterRow>, Option<ScatterColorKind>), AppError> {
+) -> Result<Option<ScatterColorKind>, AppError> {
     let x_vals = series_to_scatter_values(df, x)?;
     let y_vals = series_to_scatter_values(df, y)?;
 
@@ -120,18 +207,6 @@ pub fn collect_sampled_xyc_rows(
         None
     };
 
-    // Scan every row in the filtered frame, count valid points, and collect
-    // per-row color / size metadata. The scan is bounded by a deterministic
-    // candidate stride once we exceed `effective_limit` so the sampling
-    // helper sees a stable upper-bound view of the full filtered frame
-    // instead of an arbitrary head slice.
-    let mut all_x: Vec<f64> = Vec::new();
-    let mut all_y: Vec<f64> = Vec::new();
-    let mut all_color_value: Vec<Option<f64>> = Vec::new();
-    let mut all_color_label: Vec<Option<String>> = Vec::new();
-    let mut all_size_value: Vec<Option<f64>> = Vec::new();
-
-    let mut first_pass: Vec<usize> = Vec::new();
     for idx in 0..df.height() {
         let ox = x_vals.get(idx).copied().flatten();
         let oy = y_vals.get(idx).copied().flatten();
@@ -141,86 +216,26 @@ pub fn collect_sampled_xyc_rows(
         if !(xv.is_finite() && yv.is_finite()) {
             continue;
         }
-        first_pass.push(idx);
-    }
-    let total_points = first_pass.len();
-
-    let candidate_rows: Vec<usize> = if total_points > effective_limit {
-        // Build a bounded deterministic candidate set by striding through
-        // the full set of valid rows. This lets the downsampler see the
-        // entire filtered frame instead of an arbitrary head slice while
-        // still keeping work bounded by `effective_limit`.
-        //
-        // Use floor-division so the stride keeps the candidate count
-        // close to `effective_limit`. With ceil-division, the final
-        // `step_by` falls one short because the input length is not
-        // always a perfect multiple of the stride.
-        let stride = (total_points / effective_limit).max(1);
-        first_pass
-            .iter()
-            .step_by(stride)
-            .copied()
-            .take(effective_limit)
-            .collect()
-    } else {
-        first_pass.clone()
-    };
-
-    for idx in &candidate_rows {
-        let xv = x_vals.get(*idx).copied().flatten().unwrap_or(0.0);
-        let yv = y_vals.get(*idx).copied().flatten().unwrap_or(0.0);
         let (color_value, color_label) = match c_vals.as_ref() {
             Some(ScatterColorColumn::Continuous(values)) => (
                 values
-                    .get(*idx)
+                    .get(idx)
                     .copied()
                     .flatten()
                     .filter(|value| value.is_finite()),
                 None,
             ),
             Some(ScatterColorColumn::Categorical(values)) => {
-                (None, values.get(*idx).cloned().flatten())
+                (None, values.get(idx).cloned().flatten())
             }
             None => (None, None),
         };
 
         let size_value = s_vals
             .as_ref()
-            .and_then(|vals| vals.get(*idx).copied().flatten().filter(|v| v.is_finite()));
+            .and_then(|vals| vals.get(idx).copied().flatten().filter(|v| v.is_finite()));
 
-        all_x.push(xv);
-        all_y.push(yv);
-        all_color_value.push(color_value);
-        all_color_label.push(color_label);
-        all_size_value.push(size_value);
-    }
-
-    let candidate_len = all_x.len();
-    let mut candidate_indices: Vec<usize> = downsample_indices(&all_x, &all_y, effective_limit);
-    // Top up to `effective_limit` if LTTB returned fewer (audit issue 3.3).
-    // LTTB is a triangle-area selection and can return slightly fewer
-    // points than `target_points`; deterministic stride from the unused
-    // candidate slots restores the contract without changing LTTB's picks.
-    if candidate_indices.len() < effective_limit {
-        candidate_indices = edatime_query::downsample::pad_to_limit(
-            candidate_indices,
-            candidate_len,
-            effective_limit,
-        );
-    }
-
-    let mut sampled = Vec::with_capacity(candidate_indices.len());
-    for sampled_pos in candidate_indices {
-        if sampled_pos >= candidate_len {
-            continue;
-        }
-        let xv = all_x[sampled_pos];
-        let yv = all_y[sampled_pos];
-        let color_value = all_color_value[sampled_pos];
-        let color_label = all_color_label[sampled_pos].clone();
-        let size_value = all_size_value[sampled_pos];
-
-        sampled.push(SampledScatterRow {
+        reservoir.consider(SampledScatterRow {
             x: xv,
             y: yv,
             color_value,
@@ -228,15 +243,117 @@ pub fn collect_sampled_xyc_rows(
             size_value,
         });
     }
+    Ok(color_kind)
+}
 
-    Ok((total_points, sampled, color_kind))
+/// Sample a materialized frame. This is kept for small callers and focused
+/// unit tests; request handlers should use the streaming helper below.
+pub fn collect_sampled_xyc_rows(
+    df: &DataFrame,
+    x: &str,
+    y: &str,
+    color: Option<&str>,
+    size: Option<&str>,
+    _limit: usize,
+    effective_limit: usize,
+    time_color_mode: TimeColorMode,
+) -> Result<(usize, Vec<SampledScatterRow>, Option<ScatterColorKind>), AppError> {
+    let mut reservoir = ScatterReservoir::new(effective_limit, scatter_reservoir_seed("frame"));
+    let color_kind = sample_frame_into_reservoir(
+        &mut reservoir,
+        df,
+        x,
+        y,
+        color,
+        size,
+        time_color_mode,
+    )?;
+    let (total_points, sampled_rows) = reservoir.finish();
+    Ok((total_points, sampled_rows, color_kind))
+}
+
+/// Sample a filtered lazy frame through Polars' streaming callback sink.
+/// Memory is bounded by the stream batch plus `effective_limit` retained rows.
+#[allow(clippy::too_many_arguments)]
+pub fn collect_sampled_xyc_rows_streaming(
+    lazy_frame: LazyFrame,
+    x: &str,
+    y: &str,
+    color: Option<&str>,
+    size: Option<&str>,
+    effective_limit: usize,
+    time_color_mode: TimeColorMode,
+    seed_scope: &str,
+) -> Result<(usize, Vec<SampledScatterRow>, Option<ScatterColorKind>), AppError> {
+    let schema = lazy_frame
+        .clone()
+        .collect_schema()
+        .map_err(|error| AppError::bad_request(format!("scatter schema: {error}")))?;
+    let color_kind = color.map(|color_name| {
+        let dtype = schema
+            .get(color_name)
+            .ok_or_else(|| AppError::bad_request(format!("Unknown column '{color_name}'")))?;
+        Ok::<ScatterColorKind, AppError>(if dtype.is_numeric()
+            || (matches!(dtype, DataType::Datetime(_, _) | DataType::Date)
+                && matches!(time_color_mode, TimeColorMode::Raw))
+        {
+            ScatterColorKind::Continuous
+        } else {
+            ScatterColorKind::Categorical
+        })
+    }).transpose()?;
+
+    let reservoir = Arc::new(Mutex::new(ScatterReservoir::new(
+        effective_limit,
+        scatter_reservoir_seed(seed_scope),
+    )));
+    let callback_reservoir = Arc::clone(&reservoir);
+    let x = x.to_owned();
+    let y = y.to_owned();
+    let color = color.map(str::to_owned);
+    let size = size.map(str::to_owned);
+    let callback = PlanCallback::new(move |batch: DataFrame| {
+        let mut reservoir = callback_reservoir.lock().map_err(|_| {
+            PolarsError::ComputeError("scatter reservoir lock poisoned".into())
+        })?;
+        sample_frame_into_reservoir(
+            &mut reservoir,
+            &batch,
+            &x,
+            &y,
+            color.as_deref(),
+            size.as_deref(),
+            time_color_mode,
+        )
+        .map_err(|error| PolarsError::ComputeError(error.to_string().into()))?;
+        Ok(false)
+    });
+    lazy_frame
+        .with_new_streaming(true)
+        .sink_batches(
+            callback,
+            true,
+            NonZeroUsize::new(SCATTER_BATCH_ROWS),
+        )
+        .map_err(|error| AppError::io(format!("build scatter stream: {error}")))?
+        .collect()
+        .map_err(|error| AppError::io(format!("stream scatter rows: {error}")))?;
+    let reservoir = Arc::try_unwrap(reservoir)
+        .map_err(|_| AppError::internal("scatter stream retained its reservoir"))?
+        .into_inner()
+        .map_err(|_| AppError::internal("scatter reservoir lock poisoned"))?;
+    let (total_points, sampled_rows) = reservoir.finish();
+    Ok((total_points, sampled_rows, color_kind))
 }
 
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
-    use super::{ScatterColorKind, TimeColorMode, collect_sampled_xyc_rows};
-    use polars::prelude::{DataFrame, NamedFrom, Series};
+    use super::{
+        ScatterColorKind, TimeColorMode, collect_sampled_xyc_rows,
+        collect_sampled_xyc_rows_streaming,
+    };
+    use polars::prelude::{DataFrame, IntoLazy, NamedFrom, Series};
 
     fn build_xy_df(n: usize) -> DataFrame {
         let xs: Vec<f64> = (0..n).map(|i| i as f64).collect();
@@ -411,6 +528,65 @@ mod tests {
         );
         // When rows exceed effective_limit, total must be greater than the sampled set.
         assert!(total > sampled.len());
+    }
+
+    #[test]
+    fn streaming_reservoir_is_seeded_bounded_and_repeatable() {
+        let df = build_xy_df(10_000);
+        let (_, first, _) = collect_sampled_xyc_rows_streaming(
+            df.clone().lazy(),
+            "x",
+            "y",
+            None,
+            None,
+            127,
+            TimeColorMode::default(),
+            "source-0|revision-1|x|y",
+        )
+        .expect("first streaming sample");
+        let (total, second, _) = collect_sampled_xyc_rows_streaming(
+            df.lazy(),
+            "x",
+            "y",
+            None,
+            None,
+            127,
+            TimeColorMode::default(),
+            "source-0|revision-1|x|y",
+        )
+        .expect("second streaming sample");
+
+        assert_eq!(total, 10_000);
+        assert_eq!(first.len(), 127);
+        assert_eq!(
+            first.iter().map(|row| row.x).collect::<Vec<_>>(),
+            second.iter().map(|row| row.x).collect::<Vec<_>>(),
+            "the immutable request seed must select the same reservoir"
+        );
+        assert!(
+            first.iter().any(|row| row.x > 9_000.0),
+            "the reservoir must not be a head slice"
+        );
+
+        let (_, wider, _) = collect_sampled_xyc_rows_streaming(
+            build_xy_df(10_000).lazy(),
+            "x",
+            "y",
+            None,
+            None,
+            511,
+            TimeColorMode::default(),
+            "source-0|revision-1|x|y",
+        )
+        .expect("wider streaming sample");
+        let wider_points = wider
+            .iter()
+            .map(|row| row.x as u64)
+            .collect::<std::collections::HashSet<_>>();
+        assert!(
+            first.iter().all(|row| wider_points.contains(&(row.x as u64))),
+            "reducing capacity must retain a subset of the same seeded reservoir"
+        );
     }
 
     #[test]
