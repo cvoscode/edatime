@@ -7,6 +7,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use chrono::{DateTime, Utc};
+use polars::prelude::DataType;
 use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
@@ -122,6 +123,27 @@ fn code_number(value: f64) -> String {
     }
 }
 
+/// Match the compiler's physical comparison values for Date and Datetime
+/// columns. Generated code compares `cast(Int64)` values, so emitting raw
+/// epoch milliseconds would silently disagree for dates and µs/ns datetimes.
+fn split_native_boundaries(
+    train_end_ms: f64,
+    validation_end_ms: f64,
+    embargo_ms: f64,
+    time_dtype: &DataType,
+) -> Result<[i64; 4], AppError> {
+    Ok([
+        edatime_core::temporal::epoch_ms_to_native(train_end_ms, time_dtype, true)?,
+        edatime_core::temporal::epoch_ms_to_native(train_end_ms + embargo_ms, time_dtype, true)?,
+        edatime_core::temporal::epoch_ms_to_native(validation_end_ms, time_dtype, true)?,
+        edatime_core::temporal::epoch_ms_to_native(
+            validation_end_ms + embargo_ms,
+            time_dtype,
+            true,
+        )?,
+    ])
+}
+
 fn validate_codegen_support(plan: &CleaningPlanDto) -> Result<(), AppError> {
     if plan
         .stages
@@ -149,7 +171,8 @@ fn generate_python_polars(
     plan: &CleaningPlanDto,
     version: &DatasetVersionRecord,
     hash: &str,
-) -> String {
+    time_dtype: &DataType,
+) -> Result<String, AppError> {
     let mut lines = vec![
         "# EdaTime backend-generated canonical plan artifact (v1).".to_string(),
         format!(
@@ -322,7 +345,19 @@ fn generate_python_polars(
                 ..
             } => {
                 let time = code_quote(&plan.time_column);
-                lines.push(format!("    lf = lf.with_columns(pl.when(pl.col({time}).is_null()).then(pl.lit(\"unassigned\")).when(pl.col({time}) <= {}).then(pl.lit(\"train\")).when(pl.col({time}) <= {}).then(pl.lit(\"embargo\")).when(pl.col({time}) <= {}).then(pl.lit(\"validation\")).when(pl.col({time}) <= {}).then(pl.lit(\"embargo\")).otherwise(pl.lit(\"test\")).alias({}))", code_number(*train_end_ms), code_number(*train_end_ms + *embargo_ms), code_number(*validation_end_ms), code_number(*validation_end_ms + *embargo_ms), code_quote(output_column)));
+                let [
+                    train_end,
+                    train_embargo_end,
+                    validation_end,
+                    validation_embargo_end,
+                ] = split_native_boundaries(
+                    *train_end_ms,
+                    *validation_end_ms,
+                    *embargo_ms,
+                    time_dtype,
+                )?;
+                lines.push(format!("    # Compare physical Int64 time values using the source column's native unit."));
+                lines.push(format!("    lf = lf.with_columns(pl.when(pl.col({time}).cast(pl.Int64).is_null()).then(pl.lit(\"unassigned\")).when(pl.col({time}).cast(pl.Int64) <= {train_end}).then(pl.lit(\"train\")).when(pl.col({time}).cast(pl.Int64) <= {train_embargo_end}).then(pl.lit(\"embargo\")).when(pl.col({time}).cast(pl.Int64) <= {validation_end}).then(pl.lit(\"validation\")).when(pl.col({time}).cast(pl.Int64) <= {validation_embargo_end}).then(pl.lit(\"embargo\")).otherwise(pl.lit(\"test\")).alias({}))", code_quote(output_column)));
             }
             CleaningStageDto::AdaptiveLine { .. } => {
                 unreachable!("validated codegen support")
@@ -335,14 +370,15 @@ fn generate_python_polars(
     } else {
         "    return lf  # no enabled executable stages".to_string()
     });
-    format!("{}\n", lines.join("\n"))
+    Ok(format!("{}\n", lines.join("\n")))
 }
 
 fn generate_rust_polars(
     plan: &CleaningPlanDto,
     version: &DatasetVersionRecord,
     hash: &str,
-) -> String {
+    time_dtype: &DataType,
+) -> Result<String, AppError> {
     let mut lines = vec![
         "// EdaTime backend-generated canonical plan artifact (v1).".to_string(),
         format!(
@@ -515,7 +551,19 @@ fn generate_rust_polars(
                 ..
             } => {
                 let time = code_quote(&plan.time_column);
-                lines.push(format!("    lf = lf.with_columns(vec![when(col({time}).is_null()).then(lit(\"unassigned\")).when(col({time}).lt_eq(lit({}))).then(lit(\"train\")).when(col({time}).lt_eq(lit({}))).then(lit(\"embargo\")).when(col({time}).lt_eq(lit({}))).then(lit(\"validation\")).when(col({time}).lt_eq(lit({}))).then(lit(\"embargo\")).otherwise(lit(\"test\")).alias({})]);", code_number(*train_end_ms), code_number(*train_end_ms + *embargo_ms), code_number(*validation_end_ms), code_number(*validation_end_ms + *embargo_ms), code_quote(output_column)));
+                let [
+                    train_end,
+                    train_embargo_end,
+                    validation_end,
+                    validation_embargo_end,
+                ] = split_native_boundaries(
+                    *train_end_ms,
+                    *validation_end_ms,
+                    *embargo_ms,
+                    time_dtype,
+                )?;
+                lines.push("    // Compare physical Int64 time values using the source column's native unit.".to_string());
+                lines.push(format!("    lf = lf.with_columns(vec![when(col({time}).cast(DataType::Int64).is_null()).then(lit(\"unassigned\")).when(col({time}).cast(DataType::Int64).lt_eq(lit({train_end}))).then(lit(\"train\")).when(col({time}).cast(DataType::Int64).lt_eq(lit({train_embargo_end}))).then(lit(\"embargo\")).when(col({time}).cast(DataType::Int64).lt_eq(lit({validation_end}))).then(lit(\"validation\")).when(col({time}).cast(DataType::Int64).lt_eq(lit({validation_embargo_end}))).then(lit(\"embargo\")).otherwise(lit(\"test\")).alias({})]);", code_quote(output_column)));
             }
             CleaningStageDto::AdaptiveLine { .. } => {
                 unreachable!("validated codegen support")
@@ -525,7 +573,7 @@ fn generate_rust_polars(
     }
     lines.push("    Ok(lf)".to_string());
     lines.push("}".to_string());
-    format!("{}\n", lines.join("\n"))
+    Ok(format!("{}\n", lines.join("\n")))
 }
 
 #[derive(Debug, Serialize)]
@@ -891,14 +939,30 @@ pub async fn export_code(
 ) -> Result<Response, AppError> {
     let (version, plan_hash, _frame) = compile_request_frame(&state, &request.context)?;
     validate_codegen_support(&request.context.plan)?;
+    let source_schema = state
+        .dataset_snapshot_for_version(&version.id)?
+        .collect_schema()
+        .map_err(|error| {
+            AppError::bad_request(format!(
+                "Failed to inspect code-export time column: {error}"
+            ))
+        })?;
+    let time_dtype = source_schema
+        .get(&request.context.plan.time_column)
+        .ok_or_else(|| {
+            AppError::bad_request(format!(
+                "Missing time column '{}' for code export",
+                request.context.plan.time_column
+            ))
+        })?;
     let (content, disposition, content_type) = match request.language {
         CleaningCodeLanguage::Python => (
-            generate_python_polars(&request.context.plan, &version, &plan_hash),
+            generate_python_polars(&request.context.plan, &version, &plan_hash, time_dtype)?,
             "attachment; filename=apply_edatime_plan.py",
             "text/x-python; charset=utf-8",
         ),
         CleaningCodeLanguage::Rust => (
-            generate_rust_polars(&request.context.plan, &version, &plan_hash),
+            generate_rust_polars(&request.context.plan, &version, &plan_hash, time_dtype)?,
             "attachment; filename=apply_edatime_plan.rs",
             "text/rust; charset=utf-8",
         ),
@@ -1324,6 +1388,29 @@ mod tests {
         let code = String::from_utf8(body.to_vec()).expect("utf8");
         assert!(code.contains("unassigned"));
         assert!(code.contains("validation"));
+        assert!(code.contains("cast(pl.Int64)"));
+    }
+
+    #[test]
+    fn codegen_split_uses_native_date_boundaries() {
+        let state = state();
+        let mut context = envelope(&state);
+        context.plan.stages = vec![CleaningStageDto::ChronologicalSplit {
+            base: base("split"),
+            train_end_ms: 86_400_000.0,
+            validation_end_ms: 172_800_000.0,
+            embargo_ms: 0.0,
+            output_column: "split".to_string(),
+        }];
+        let version = state.current_dataset_version().expect("version");
+        let python = generate_python_polars(&context.plan, &version, "hash", &DataType::Date)
+            .expect("python code");
+        let rust = generate_rust_polars(&context.plan, &version, "hash", &DataType::Date)
+            .expect("rust code");
+        assert!(python.contains("cast(pl.Int64) <= 1"));
+        assert!(python.contains("cast(pl.Int64) <= 2"));
+        assert!(rust.contains("cast(DataType::Int64).lt_eq(lit(1))"));
+        assert!(rust.contains("cast(DataType::Int64).lt_eq(lit(2))"));
     }
 
     #[tokio::test(flavor = "multi_thread")]

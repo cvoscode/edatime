@@ -611,7 +611,10 @@ using explicit epoch-millisecond boundaries, with null time values labelled
 Pipeline Workbench authors and edits the stage, the graph exposes it as a
 schema-changing node, and the backend compiler/semantic hash execute the same
 contract. Backend Python/Rust code export now generates the same split labels;
-adaptive-line remains the only guarded v1 code-export stage. Exact previews now warn when ordered null fill or
+the exporter converts epoch-millisecond boundaries to the source column's
+physical date/datetime unit before comparing its `Int64` representation, so it
+matches compiler semantics beyond numeric millisecond columns. Adaptive-line
+remains the only guarded v1 code-export stage. Exact previews now warn when ordered null fill or
 resampling precedes the split, because either can cross its boundaries;
 per-group splitting remains future work.
 (`2232e94`, `d77ffae`, `d752820`, `52fbb6a`)
