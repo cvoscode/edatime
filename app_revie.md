@@ -2,7 +2,7 @@
 
 **Status:** implementation roadmap; Milestone A is complete and Milestones B/C/D/E have active, committed slices
 
-**Reviewed:** 2026-07-15
+**Reviewed:** 2026-07-16
 
 **Scope:** frontend, Rust backend, ingestion, query execution, preprocessing, analytics, export, and the data-scientist workflow
 
@@ -28,8 +28,11 @@
   cancellable session job, cancel it directly while it is running, and replace
   provisional quality state only after the exact report is complete. `/metadata`
   and upload preview now return bounded schema/row/time facts without a wide
-  profile scan; progressive sampled/time/duplicate/distribution profiling
-  remains in progress. (`2f3f3d7`, `71072b1`, `2a92c7c`, `35cf456`, `5e833b9`, `5b4eba2`)
+  profile scan. Prepare can also launch or reuse a separately cached
+  `sample-v1` report over the first 10,000 rows; it labels all findings as
+  estimates and retains the exact-report action for confirmation. Temporal,
+  duplicate, distribution, and panel profiling remain in progress.
+  (`2f3f3d7`, `71072b1`, `2a92c7c`, `35cf456`, `5e833b9`, `5b4eba2`, `59fbf6d`)
 - **Milestone B in progress:** data, scatter points/matrix, correlations, and
   correlation matrix, Drift, and export artifacts now carry immutable source
   version/revision, schema fingerprint, backend plan hash, and versioned
@@ -485,21 +488,26 @@ The existing page navigation can remain. Add a first-class **Prepare** destinati
 - Label sampled values as estimates and show sample size.
 - Make profile cards virtualized/searchable for hundreds of columns.
 
-**Implemented first slice:** `POST /api/v1/profile` starts or reuses an
+**Implemented first slices:** `POST /api/v1/profile` starts or reuses an
 admitted exact `Profile` job for the active immutable source, and `GET
 /api/v1/profile` exposes the versioned cached result and job state. The job
 checks cancellation before collection, profiling, and cache publication; its
 collect uses the background executor lane. Exact profiles report null and
-non-finite counts while retaining finite-only extrema. Prepare keeps immediate
-source findings available, offers an explicit exact-report action and in-flight
-cancellation, and turns both finding types into the corresponding reversible
-row policy when a matching source report reaches `ready`. `/metadata` and
-upload preview now provide the immediate schema, scalar row count, and time
-range contract without collecting a source frame or wide profile aggregates;
-their `profile_status: immediate` prevents the UI from presenting deferred
-quality as clean data. The fast sampled report and richer temporal/panel
-quality measures remain future slices. The empty initial dataset remains a
-valid immediate metadata state until upload. (`71072b1`, `5e833b9`, `5b4eba2`)
+non-finite counts while retaining finite-only extrema. `POST`/`GET
+/api/v1/profile/sample` provide an independent, `sample-v1`-keyed job and
+cache entry. It limits the lazy source to the first 10,000 rows before
+collection, returns `profile_status: sampled` plus `profile_sample_rows`, and
+is explicitly presented as an estimate rather than a representative random
+sample. Prepare exposes both report actions, retains the exact action after a
+sample completes, supports cancellation while either report is running, and
+turns matching null/non-finite findings into reversible row policies. `/metadata`
+and upload preview provide immediate schema, scalar row count, and time range
+without collecting a source frame or wide profile aggregates; their
+`profile_status: immediate` prevents the UI from presenting deferred quality
+as clean data. Rich temporal/duplicate/distribution/panel measures and a
+representative sampling policy remain future slices. The empty initial dataset
+remains a valid immediate metadata state until upload.
+(`71072b1`, `5e833b9`, `5b4eba2`, `59fbf6d`)
 
 **Acceptance:** the user can see schema quickly on a large Parquet source and continue exploring while exact profile work runs separately.
 
