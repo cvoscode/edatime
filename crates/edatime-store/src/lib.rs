@@ -5,6 +5,7 @@ pub mod artifacts;
 pub mod cache;
 pub mod csv_adapter;
 pub mod db;
+pub mod jobs;
 pub mod parquet_adapter;
 pub mod repository;
 pub mod state;

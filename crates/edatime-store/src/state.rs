@@ -9,6 +9,7 @@ use tokio::sync::RwLock;
 use crate::artifacts::{ArtifactStorageUsage, DatasetArtifactProvenance, DatasetArtifactStore};
 use crate::cache::{CorrelationMatrixCacheEntry, ResponseCache};
 use crate::db::DbPool;
+use crate::jobs::JobRegistry;
 use crate::repository::{DataRepository, DatasetMeta, InMemoryDataRepository};
 use crate::versions::{DatasetVersionRecord, DatasetVersionRegistry, fingerprints_for_frame};
 use edatime_core::config::AppConfig;
@@ -32,6 +33,7 @@ pub struct AppState {
     pub dataset_versions: Arc<DatasetVersionRegistry>,
     pub artifact_store: Option<Arc<DatasetArtifactStore>>,
     pub query_executor: Arc<QueryExecutor>,
+    pub jobs: Arc<JobRegistry>,
     pub cache: Arc<ResponseCache>,
     pub metrics: Arc<AppMetrics>,
     pub config: Arc<AppConfig>,
@@ -49,6 +51,7 @@ impl Clone for AppState {
             dataset_versions: Arc::clone(&self.dataset_versions),
             artifact_store: self.artifact_store.clone(),
             query_executor: Arc::clone(&self.query_executor),
+            jobs: Arc::clone(&self.jobs),
             cache: Arc::clone(&self.cache),
             metrics: Arc::clone(&self.metrics),
             config: Arc::clone(&self.config),
@@ -142,11 +145,13 @@ impl AppState {
                     config.query.max_background_concurrency,
                 ),
         );
+        let jobs = Arc::new(JobRegistry::new());
         Self {
             repository,
             dataset_versions,
             artifact_store,
             query_executor,
+            jobs,
             cache,
             metrics,
             config: Arc::new(config),
