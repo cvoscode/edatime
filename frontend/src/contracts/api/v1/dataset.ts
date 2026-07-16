@@ -42,6 +42,8 @@ export interface DatasetMetadata {
     dataset_fingerprint?: string;
     schema_fingerprint?: string;
     source_name?: string | null;
+    /** `immediate` contains only schema/row/time facts; `exact` has column statistics. */
+    profile_status?: 'immediate' | 'exact';
     total_rows: number;
     columns: ColumnMetadata[];
     numeric_columns: string[];

@@ -99,7 +99,8 @@ function renderQualityFindings(
         : profileStatus === 'queued' || profileStatus === 'running' || profileStatus === 'cancelling'
             ? 'Immediate source findings are shown while the exact background quality report runs.'
             : 'Immediate source-profile findings can be turned into reversible stages. Build the exact quality report for a cached, versioned follow-up.';
-    const findings = (profileMetadata?.column_profiles ?? datasetState.metadata?.column_profiles ?? [])
+    const sourceMetadata = profileMetadata ?? datasetState.metadata;
+    const findings = (sourceMetadata?.column_profiles ?? [])
         .flatMap((profile) => {
             const nullCount = Number(profile?.null_count) || 0;
             const nonFiniteCount = numericDtype(String(profile?.dtype ?? '')) ? Number(profile?.non_finite_count) || 0 : 0;
@@ -123,9 +124,12 @@ function renderQualityFindings(
 
     if (findings.length === 0) {
         const empty = createElement('li', 'prepare-workspace__quality-empty');
-        empty.textContent = datasetState.metadata
-            ? 'No null-value findings are present in the current profile.'
-            : 'Load dataset metadata to inspect exact source-profile findings.';
+        const exact = profileStatus === 'ready' || sourceMetadata?.profile_status === 'exact';
+        empty.textContent = exact
+            ? 'No null or non-finite findings are present in the exact profile.'
+            : sourceMetadata
+                ? 'Column quality findings are pending the exact profile.'
+                : 'Load dataset metadata to inspect source-profile findings.';
         list.append(empty);
     }
 

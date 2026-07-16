@@ -107,6 +107,15 @@ describe('Prepare page', () => {
         dispose();
     });
 
+    it('does not present deferred schema metadata as a clean quality profile', () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        datasetState.metadata = { profile_status: 'immediate', column_profiles: [] } as any;
+        const dispose = initPreparePage();
+
+        expect(document.getElementById('prepare-workspace')?.textContent).toContain('Column quality findings are pending the exact profile');
+        dispose();
+    });
+
     it('turns an exact non-finite finding into a reversible non-finite policy', () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
         datasetState.metadata = { column_profiles: [{ name: 'temperature', dtype: 'Float64', null_count: 0, non_finite_count: 3 }] } as any;

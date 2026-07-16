@@ -45,6 +45,7 @@ pub struct DatasetMetadata {
     pub schema_fingerprint: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_name: Option<String>,
+    pub profile_status: String,
     pub total_rows: usize,
     pub columns: Vec<ColumnMetadata>,
     pub numeric_columns: Vec<String>,
@@ -191,14 +192,9 @@ fn profile_from_aggregate(
 }
 
 /// Resolve a `TimeRange` from aggregate columns for a detected time column.
-fn time_range_from_aggregate(
-    agg: &DataFrame,
-    index: usize,
-    dtype: &DataType,
-    is_override: bool,
-) -> Option<TimeRange> {
-    if is_override || matches!(dtype, DataType::Int64 | DataType::Int32) {
-        // Numeric / overridden time columns: read as f64, round to i64,
+fn time_range_from_aggregate(agg: &DataFrame, index: usize, dtype: &DataType) -> Option<TimeRange> {
+    if dtype.is_numeric() {
+        // Numeric time columns: read as f64, round to i64,
         // then apply the integer heuristic in `native_to_epoch_ms`.
         let min_raw = read_f64_agg(agg, &format!("__{index}_min"))?;
         let max_raw = read_f64_agg(agg, &format!("__{index}_max"))?;
@@ -345,14 +341,7 @@ fn build_dataset_metadata_from_lazyframe(
                 .enumerate()
                 .find(|(_, field)| field.name().as_str() == time_col_name)
         })
-        .and_then(|(index, field)| {
-            time_range_from_aggregate(
-                &aggregate,
-                index,
-                field.dtype(),
-                time_column_override.is_some(),
-            )
-        });
+        .and_then(|(index, field)| time_range_from_aggregate(&aggregate, index, field.dtype()));
 
     Ok(DatasetMetadata {
         revision: 0,
@@ -363,12 +352,114 @@ fn build_dataset_metadata_from_lazyframe(
         dataset_fingerprint: None,
         schema_fingerprint: None,
         source_name: None,
+        profile_status: "exact".to_string(),
         total_rows,
         columns,
         numeric_columns,
         time_column: time_col_name,
         time_range,
         column_profiles,
+    })
+}
+
+/// Produce the metadata required to start exploring a source without building
+/// wide per-column aggregates or histograms. The one-row lazy aggregate keeps
+/// the row count and time range truthful while the exact profile job owns all
+/// quality statistics.
+fn build_immediate_dataset_metadata_from_lazyframe(
+    lf: LazyFrame,
+    time_column_override: Option<&str>,
+) -> Result<DatasetMetadata, AppError> {
+    let schema_ref = lf
+        .clone()
+        .collect_schema()
+        .map_err(|e| AppError::bad_request(format!("Failed to infer schema: {e}")))?;
+    let schema = schema_ref.as_ref();
+    let time_col = detect_time_column(schema, time_column_override);
+    let time_col_name = time_col.as_ref().map(|(name, _)| name.clone());
+
+    if time_col.is_none() && time_column_override.is_some() {
+        return Err(AppError::bad_request(
+            "Specified time column not found in the file",
+        ));
+    }
+
+    let mut columns = Vec::with_capacity(schema.len());
+    let mut numeric_columns = Vec::new();
+    for field in schema.iter_fields() {
+        let name = field.name().to_string();
+        let dtype = field.dtype().clone();
+        columns.push(ColumnMetadata {
+            name: name.clone(),
+            dtype: dtype.to_string(),
+        });
+        if dtype.is_numeric() && Some(name.as_str()) != time_col_name.as_deref() {
+            numeric_columns.push(name);
+        }
+    }
+    if numeric_columns.is_empty() {
+        return Err(AppError::bad_request(
+            "File must contain at least one numeric column",
+        ));
+    }
+
+    let mut expressions = vec![len().cast(DataType::UInt64).alias("__total_rows")];
+    if let Some((name, dtype)) = time_col.as_ref() {
+        if dtype.is_numeric() {
+            expressions.push(col(name).cast(DataType::Float64).min().alias("__time_min"));
+            expressions.push(col(name).cast(DataType::Float64).max().alias("__time_max"));
+        } else if matches!(dtype, DataType::Datetime(_, _) | DataType::Date) {
+            expressions.push(col(name).cast(DataType::Int64).min().alias("__time_min"));
+            expressions.push(col(name).cast(DataType::Int64).max().alias("__time_max"));
+        }
+    }
+    let aggregate = lf
+        .select(expressions)
+        .collect()
+        .map_err(|e| AppError::bad_request(format!("Failed to inspect source: {e}")))?;
+    let total_rows = read_u64_agg(&aggregate, "__total_rows");
+    let time_range = time_col.as_ref().and_then(|(_, dtype)| {
+        if dtype.is_numeric() {
+            Some(TimeRange {
+                min: temporal::native_to_epoch_ms(
+                    read_f64_agg(&aggregate, "__time_min")?.round() as i64,
+                    &DataType::Int64,
+                )
+                .round() as i64,
+                max: temporal::native_to_epoch_ms(
+                    read_f64_agg(&aggregate, "__time_max")?.round() as i64,
+                    &DataType::Int64,
+                )
+                .round() as i64,
+            })
+        } else if matches!(dtype, DataType::Datetime(_, _) | DataType::Date) {
+            Some(TimeRange {
+                min: temporal::native_to_epoch_ms(read_i64_agg(&aggregate, "__time_min")?, dtype)
+                    .round() as i64,
+                max: temporal::native_to_epoch_ms(read_i64_agg(&aggregate, "__time_max")?, dtype)
+                    .round() as i64,
+            })
+        } else {
+            None
+        }
+    });
+
+    Ok(DatasetMetadata {
+        revision: 0,
+        source_version_id: None,
+        source_version_revision: None,
+        root_source_version_id: None,
+        parent_source_version_id: None,
+        dataset_fingerprint: None,
+        schema_fingerprint: None,
+        source_name: None,
+        profile_status: "immediate".to_string(),
+        total_rows,
+        columns,
+        numeric_columns,
+        time_column: time_col_name,
+        time_range,
+        column_profiles: Vec::new(),
     })
 }
 
@@ -519,6 +610,7 @@ pub fn build_dataset_metadata(
         dataset_fingerprint: None,
         schema_fingerprint: None,
         source_name: None,
+        profile_status: "exact".to_string(),
         total_rows,
         columns,
         numeric_columns,
@@ -558,6 +650,46 @@ pub fn build_dataset_metadata_from_path_with_time_column(
     build_dataset_metadata_from_lazyframe(lf, time_column_override)
 }
 
+fn apply_time_column_display_name(metadata: &mut DatasetMetadata, display_name: Option<&str>) {
+    let Some(display_name) = display_name.filter(|name| !name.trim().is_empty()) else {
+        return;
+    };
+    if metadata.time_column.as_deref() != Some("ts") {
+        return;
+    }
+    for column in &mut metadata.columns {
+        if column.name == "ts" {
+            column.name = display_name.to_string();
+        }
+    }
+    metadata.time_column = Some(display_name.to_string());
+}
+
+pub fn build_immediate_dataset_metadata_from_path_with_time_column(
+    path: &Path,
+    time_column_override: Option<&str>,
+) -> Result<DatasetMetadata, AppError> {
+    let path_str = path
+        .to_str()
+        .ok_or_else(|| AppError::bad_request("Invalid upload path"))?;
+    let is_parquet = path.extension().is_some_and(|ext| ext == "parquet");
+    let lf = if is_parquet {
+        LazyFrame::scan_parquet(path_str.into(), ScanArgsParquet::default())
+            .map_err(|e| AppError::bad_request(format!("Failed to scan parquet: {e}")))?
+    } else {
+        let base = LazyCsvReader::new(path_str.into()).with_try_parse_dates(true);
+        match base.clone().finish() {
+            Ok(frame) => frame,
+            Err(_) => base
+                .with_ignore_errors(true)
+                .with_infer_schema_length(Some(10000))
+                .finish()
+                .map_err(|e| AppError::bad_request(format!("Failed to scan csv: {e}")))?,
+        }
+    };
+    build_immediate_dataset_metadata_from_lazyframe(lf, time_column_override)
+}
+
 #[tracing::instrument(skip(state))]
 pub async fn get_metadata(
     State(state): State<AppState>,
@@ -568,11 +700,9 @@ pub async fn get_metadata(
     let metadata = tokio::task::spawn_blocking(move || {
         let lf = repo.snapshot();
         let time_col_display = repo.time_column_display_name_sync();
-        let df = lf
-            .with_new_streaming(true)
-            .collect()
-            .map_err(|e| AppError::internal(format!("collect metadata frame: {}", e)))?;
-        build_dataset_metadata(&df, true, time_col_display.as_deref())
+        let mut metadata = build_immediate_dataset_metadata_from_lazyframe(lf, None)?;
+        apply_time_column_display_name(&mut metadata, time_col_display.as_deref());
+        Ok::<_, AppError>(metadata)
     })
     .await
     .map_err(|e| AppError::internal(format!("Failed to join metadata task: {e:?}")))??;
@@ -760,7 +890,7 @@ pub async fn start_profile(
 mod tests {
     use super::*;
     use edatime_core::config::AppConfig;
-    use polars::prelude::{NamedFrom, TimeUnit};
+    use polars::prelude::{IntoLazy, NamedFrom, TimeUnit};
     use std::fs;
 
     #[test]
@@ -799,6 +929,97 @@ mod tests {
     }
 
     #[test]
+    fn immediate_metadata_keeps_exploration_facts_and_defers_profiles() {
+        let df = DataFrame::new(
+            2,
+            vec![
+                polars::prelude::Series::new(
+                    "ts".into(),
+                    vec![1_700_000_000_000_i64, 1_700_000_001_000],
+                )
+                .into(),
+                polars::prelude::Series::new("value".into(), vec![1.0_f64, 2.0]).into(),
+            ],
+        )
+        .expect("dataframe");
+
+        let metadata = build_immediate_dataset_metadata_from_lazyframe(df.lazy(), None)
+            .expect("immediate metadata");
+        assert_eq!(metadata.total_rows, 2);
+        assert_eq!(metadata.numeric_columns, vec!["value".to_string()]);
+        assert_eq!(
+            metadata.time_range,
+            Some(TimeRange {
+                min: 1_700_000_000_000,
+                max: 1_700_000_001_000
+            })
+        );
+        assert_eq!(metadata.profile_status, "immediate");
+        assert!(metadata.column_profiles.is_empty());
+    }
+
+    #[test]
+    fn immediate_metadata_relabels_canonical_time_only_after_resolution() {
+        let df = DataFrame::new(
+            2,
+            vec![
+                polars::prelude::Series::new("ts".into(), vec![1_i64, 2]).into(),
+                polars::prelude::Series::new("value".into(), vec![1.0_f64, 2.0]).into(),
+            ],
+        )
+        .expect("dataframe");
+        let mut metadata = build_immediate_dataset_metadata_from_lazyframe(df.lazy(), None)
+            .expect("immediate metadata");
+
+        apply_time_column_display_name(&mut metadata, Some("recorded_at"));
+
+        assert_eq!(metadata.time_column.as_deref(), Some("recorded_at"));
+        assert!(
+            metadata
+                .columns
+                .iter()
+                .any(|column| column.name == "recorded_at")
+        );
+        assert_eq!(
+            metadata.time_range,
+            Some(TimeRange {
+                min: 1_000,
+                max: 2_000
+            })
+        );
+    }
+
+    #[test]
+    fn immediate_metadata_honors_datetime_time_override_as_datetime() {
+        let timestamps = polars::prelude::Series::new(
+            "recorded_at".into(),
+            vec![1_700_000_000_000_i64, 1_700_000_001_000],
+        )
+        .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))
+        .expect("datetime");
+        let df = DataFrame::new(
+            2,
+            vec![
+                timestamps.into(),
+                polars::prelude::Series::new("value".into(), vec![1.0_f64, 2.0]).into(),
+            ],
+        )
+        .expect("dataframe");
+
+        let metadata =
+            build_immediate_dataset_metadata_from_lazyframe(df.lazy(), Some("recorded_at"))
+                .expect("immediate metadata");
+        assert_eq!(metadata.time_column.as_deref(), Some("recorded_at"));
+        assert_eq!(
+            metadata.time_range,
+            Some(TimeRange {
+                min: 1_700_000_000_000,
+                max: 1_700_000_001_000
+            })
+        );
+    }
+
+    #[test]
     fn metadata_counts_non_finite_numeric_values_without_polluting_extrema() {
         let df = DataFrame::new(
             5,
@@ -806,7 +1027,13 @@ mod tests {
                 polars::prelude::Series::new("ts".into(), vec![1_i64, 2, 3, 4, 5]).into(),
                 polars::prelude::Series::new(
                     "value".into(),
-                    vec![Some(2.0_f64), Some(f64::NAN), Some(f64::INFINITY), Some(f64::NEG_INFINITY), None],
+                    vec![
+                        Some(2.0_f64),
+                        Some(f64::NAN),
+                        Some(f64::INFINITY),
+                        Some(f64::NEG_INFINITY),
+                        None,
+                    ],
                 )
                 .into(),
             ],

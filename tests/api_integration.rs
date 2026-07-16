@@ -128,7 +128,7 @@ async fn metadata_returns_dataset_info() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn metadata_includes_column_profiles() {
+async fn metadata_is_immediate_and_defers_column_profiles() {
     let app = test_app();
     let req = Request::builder()
         .uri("/api/v1/metadata")
@@ -140,12 +140,9 @@ async fn metadata_includes_column_profiles() {
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     let profiles = json["column_profiles"].as_array().unwrap();
-    assert!(!profiles.is_empty());
-    // Each profile should have name, dtype, non_null_count
-    let first = &profiles[0];
-    assert!(first["name"].as_str().is_some());
-    assert!(first["dtype"].as_str().is_some());
-    assert!(first["non_null_count"].as_u64().is_some());
+    assert!(profiles.is_empty(), "exact per-column profiles belong to /profile jobs");
+    assert!(!json["columns"].as_array().unwrap().is_empty());
+    assert!(json["time_range"]["min"].as_i64().is_some());
 }
 
 /// `/api/v1/metadata` is the canonical dataset metadata endpoint. After the

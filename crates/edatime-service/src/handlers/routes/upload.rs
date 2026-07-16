@@ -9,7 +9,7 @@ use chrono::{DateTime, Utc};
 use tempfile::{Builder, TempPath};
 
 use crate::error::AppError;
-use crate::handlers::routes::metadata::build_dataset_metadata_from_path_with_time_column;
+use crate::handlers::routes::metadata::build_immediate_dataset_metadata_from_path_with_time_column;
 use crate::handlers::scatter::spawn_correlation_matrix_warmup;
 use edatime_ingest::ingest::IngestParams;
 use edatime_query::validation::validate_upload_size_with_limit;
@@ -127,7 +127,7 @@ pub async fn preview_upload_data(
 
     let (path, time_column) = extract_preview_file(&state, multipart).await?;
     let metadata = tokio::task::spawn_blocking(move || {
-        let raw = build_dataset_metadata_from_path_with_time_column(
+        let raw = build_immediate_dataset_metadata_from_path_with_time_column(
             path.as_ref(),
             time_column.as_deref(),
         )?;
