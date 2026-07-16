@@ -110,15 +110,13 @@ fn code_number(value: f64) -> String {
 }
 
 fn validate_codegen_support(plan: &CleaningPlanDto) -> Result<(), AppError> {
-    if plan.stages.iter().any(|stage| {
-        stage.enabled()
-            && matches!(
-                stage,
-                CleaningStageDto::AdaptiveLine { .. } | CleaningStageDto::ChronologicalSplit { .. }
-            )
-    }) {
+    if plan
+        .stages
+        .iter()
+        .any(|stage| stage.enabled() && matches!(stage, CleaningStageDto::AdaptiveLine { .. }))
+    {
         return Err(AppError::bad_request(
-            "Backend code export does not yet support adaptive-line or chronological-split stages; export the canonical plan JSON or remove that stage before requesting code",
+            "Backend code export does not yet support adaptive-line stages; export the canonical plan JSON or remove that stage before requesting code",
         ));
     }
     Ok(())
@@ -303,7 +301,17 @@ fn generate_python_polars(
                 );
                 lines.push(format!("    lf = lf.group_by_dynamic({}, every={}, period={}, closed=\"left\", label=\"left\", start_by=\"window\").agg([{aggregations}])", code_quote(&plan.time_column), code_quote(every), code_quote(every)));
             }
-            CleaningStageDto::AdaptiveLine { .. } | CleaningStageDto::ChronologicalSplit { .. } => {
+            CleaningStageDto::ChronologicalSplit {
+                train_end_ms,
+                validation_end_ms,
+                embargo_ms,
+                output_column,
+                ..
+            } => {
+                let time = code_quote(&plan.time_column);
+                lines.push(format!("    lf = lf.with_columns(pl.when(pl.col({time}).is_null()).then(pl.lit(\"unassigned\")).when(pl.col({time}) <= {}).then(pl.lit(\"train\")).when(pl.col({time}) <= {}).then(pl.lit(\"embargo\")).when(pl.col({time}) <= {}).then(pl.lit(\"validation\")).when(pl.col({time}) <= {}).then(pl.lit(\"embargo\")).otherwise(pl.lit(\"test\")).alias({}))", code_number(*train_end_ms), code_number(*train_end_ms + *embargo_ms), code_number(*validation_end_ms), code_number(*validation_end_ms + *embargo_ms), code_quote(output_column)));
+            }
+            CleaningStageDto::AdaptiveLine { .. } => {
                 unreachable!("validated codegen support")
             }
             CleaningStageDto::Annotation { .. } => {}
@@ -486,7 +494,17 @@ fn generate_rust_polars(
                 ));
                 lines.push(format!("    lf = lf.group_by_dynamic(col({}), [], DynamicGroupOptions {{ every, period: every, offset: Duration::try_parse(\"0ns\")?, closed_window: ClosedWindow::Left, label: Label::Left, start_by: StartBy::WindowBound, ..Default::default() }}).agg([{aggregations}]);", code_quote(&plan.time_column)));
             }
-            CleaningStageDto::AdaptiveLine { .. } | CleaningStageDto::ChronologicalSplit { .. } => {
+            CleaningStageDto::ChronologicalSplit {
+                train_end_ms,
+                validation_end_ms,
+                embargo_ms,
+                output_column,
+                ..
+            } => {
+                let time = code_quote(&plan.time_column);
+                lines.push(format!("    lf = lf.with_columns(vec![when(col({time}).is_null()).then(lit(\"unassigned\")).when(col({time}).lt_eq(lit({}))).then(lit(\"train\")).when(col({time}).lt_eq(lit({}))).then(lit(\"embargo\")).when(col({time}).lt_eq(lit({}))).then(lit(\"validation\")).when(col({time}).lt_eq(lit({}))).then(lit(\"embargo\")).otherwise(lit(\"test\")).alias({})]);", code_number(*train_end_ms), code_number(*train_end_ms + *embargo_ms), code_number(*validation_end_ms), code_number(*validation_end_ms + *embargo_ms), code_quote(output_column)));
+            }
+            CleaningStageDto::AdaptiveLine { .. } => {
                 unreachable!("validated codegen support")
             }
             CleaningStageDto::Annotation { .. } => {}
@@ -1258,6 +1276,34 @@ mod tests {
         let code = String::from_utf8(body.to_vec()).expect("utf8");
         assert!(code.contains("EdaTime backend-generated canonical plan artifact"));
         assert!(code.contains("pl.col(\"value\")"));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn code_export_supports_chronological_split_labels() {
+        let state = state();
+        let mut context = envelope(&state);
+        context.plan.stages = vec![CleaningStageDto::ChronologicalSplit {
+            base: base("split"),
+            train_end_ms: 1.0,
+            validation_end_ms: 2.0,
+            embargo_ms: 0.0,
+            output_column: "split".to_string(),
+        }];
+        let export = export_code(
+            State(state),
+            Json(CleaningCodeExportRequest {
+                context,
+                language: CleaningCodeLanguage::Python,
+            }),
+        )
+        .await
+        .expect("export");
+        let body = axum::body::to_bytes(export.into_body(), usize::MAX)
+            .await
+            .expect("body");
+        let code = String::from_utf8(body.to_vec()).expect("utf8");
+        assert!(code.contains("unassigned"));
+        assert!(code.contains("validation"));
     }
 
     #[tokio::test(flavor = "multi_thread")]
