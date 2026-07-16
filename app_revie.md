@@ -32,9 +32,11 @@
   `sample-v1` report over the first 10,000 rows; it labels all findings as
   estimates and retains the exact-report action for confirmation. Completed
   profiles also report source-order inversions, duplicate/unique timestamp
-  counts, and observed positive-gap statistics; distribution and panel
-  profiling remain in progress. (`2f3f3d7`, `71072b1`, `2a92c7c`, `35cf456`,
-  `5e833b9`, `5b4eba2`, `59fbf6d`, `e26872c`)
+  counts, and observed positive-gap statistics. Numeric completed profiles now
+  also report finite/zero/distinct counts, constant-column status, quartiles,
+  and interquartile range; panel profiling remains in progress.
+  (`2f3f3d7`, `71072b1`, `2a92c7c`, `35cf456`, `5e833b9`, `5b4eba2`,
+  `59fbf6d`, `e26872c`, `c37e456`)
 - **Milestone B in progress:** data, scatter points/matrix, correlations, and
   correlation matrix, Drift, and export artifacts now carry immutable source
   version/revision, schema fingerprint, backend plan hash, and versioned
@@ -509,10 +511,12 @@ without collecting a source frame or wide profile aggregates; their
 as clean data. Completed reports include source-order monotonicity,
 out-of-order transition count, duplicate/unique timestamp counts, and
 min/median/max positive observed gaps; Prepare presents them as factual
-findings without guessing a repair or group key. Distribution/panel measures
-and a representative sampling policy remain future slices. The empty initial
-dataset remains a valid immediate metadata state until upload.
-(`71072b1`, `5e833b9`, `5b4eba2`, `59fbf6d`, `e26872c`)
+findings without guessing a repair or group key. Numeric profiles additionally
+report finite/zero/distinct counts, constant-column status, q25/median/q75,
+and interquartile range; Prepare highlights constants without silently dropping
+them. Panel measures and a representative sampling policy remain future slices.
+The empty initial dataset remains a valid immediate metadata state until upload.
+(`71072b1`, `5e833b9`, `5b4eba2`, `59fbf6d`, `e26872c`, `c37e456`)
 
 **Acceptance:** the user can see schema quickly on a large Parquet source and continue exploring while exact profile work runs separately.
 
