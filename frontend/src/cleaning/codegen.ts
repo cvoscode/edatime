@@ -22,7 +22,10 @@ export function generatePythonPolars(plan: CleaningPlan): string {
             lines.push(`    lf = lf.filter(${stage.mode === 'keepInside' ? predicate : `(${predicate}).not() | (${predicate}).is_null()`})`);
         } else if (stage.kind === 'columnRange') {
             const predicate = `(pl.col(${quote(stage.column)}) >= ${numeric(Math.min(stage.from, stage.to))}) & (pl.col(${quote(stage.column)}) <= ${numeric(Math.max(stage.from, stage.to))})`;
-            lines.push(`    lf = lf.filter(${stage.mode === 'keepInside' ? predicate : `(${predicate}).not() | (${predicate}).is_null()`})`);
+            const expression = stage.mode === 'keepInside'
+                ? (stage.retainNulls ? `pl.col(${quote(stage.column)}).is_null() | (${predicate})` : predicate)
+                : `(${predicate}).not() | (${predicate}).is_null()`;
+            lines.push(`    lf = lf.filter(${expression})`);
         } else if (stage.kind === 'missingValue') {
             const value = `pl.col(${quote(stage.column)})`;
             const predicate = stage.dropNulls && stage.dropNonFinite
@@ -75,7 +78,10 @@ export function generateRustPolars(plan: CleaningPlan): string {
             lines.push(`    lf = lf.filter(${stage.mode === 'keepInside' ? predicate : `${predicate}.is_null().or(${predicate}.not())`});`);
         } else if (stage.kind === 'columnRange') {
             const predicate = `col(${quote(stage.column)}).cast(DataType::Float64).gt_eq(lit(${numeric(Math.min(stage.from, stage.to))})).and(col(${quote(stage.column)}).cast(DataType::Float64).lt_eq(lit(${numeric(Math.max(stage.from, stage.to))})))`;
-            lines.push(`    lf = lf.filter(${stage.mode === 'keepInside' ? predicate : `${predicate}.is_null().or(${predicate}.not())`});`);
+            const expression = stage.mode === 'keepInside'
+                ? (stage.retainNulls ? `col(${quote(stage.column)}).is_null().or(${predicate})` : predicate)
+                : `${predicate}.is_null().or(${predicate}.not())`;
+            lines.push(`    lf = lf.filter(${expression});`);
         } else if (stage.kind === 'missingValue') {
             const value = `col(${quote(stage.column)})`;
             const predicate = stage.dropNulls && stage.dropNonFinite

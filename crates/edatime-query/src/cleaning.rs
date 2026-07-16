@@ -63,6 +63,8 @@ pub enum CleaningStageDto {
         from: f64,
         to: f64,
         mode: RangeMode,
+        #[serde(default)]
+        retain_nulls: bool,
     },
     AdaptiveLine {
         #[serde(flatten)]
@@ -501,6 +503,7 @@ pub fn compile_cleaning_plan(
                 from,
                 to,
                 mode,
+                retain_nulls,
                 ..
             } => {
                 let filter = RangeFilter {
@@ -508,7 +511,7 @@ pub fn compile_cleaning_plan(
                     from: *from,
                     to: *to,
                 };
-                apply_range_stage(lf, &filter, *mode == RangeMode::KeepInside)?
+                apply_range_stage(lf, &filter, *mode == RangeMode::KeepInside, *retain_nulls)?
             }
             CleaningStageDto::AdaptiveLine {
                 column,
@@ -711,6 +714,7 @@ fn semantic_stage_value(stage: &CleaningStageDto) -> Option<serde_json::Value> {
             from,
             to,
             mode,
+            retain_nulls,
             ..
         } => Some(serde_json::json!({
             "kind": "columnRange",
@@ -718,6 +722,7 @@ fn semantic_stage_value(stage: &CleaningStageDto) -> Option<serde_json::Value> {
             "from": canonical_number(from.min(*to)),
             "to": canonical_number(from.max(*to)),
             "mode": mode,
+            "retainNulls": retain_nulls,
         })),
         CleaningStageDto::AdaptiveLine {
             column,
@@ -879,6 +884,7 @@ mod tests {
                 from: 2.0,
                 to: 3.0,
                 mode: RangeMode::KeepInside,
+                retain_nulls: false,
             },
         ]);
         let df = DataFrame::new(
@@ -904,6 +910,7 @@ mod tests {
             from: 1.0,
             to: 2.0,
             mode: RangeMode::DropInside,
+            retain_nulls: false,
         }]);
         let df = DataFrame::new(
             4,
@@ -931,6 +938,44 @@ mod tests {
                 .into_no_null_iter()
                 .collect::<Vec<_>>(),
             vec![3, 4]
+        );
+    }
+
+    #[test]
+    fn keep_range_can_retain_nulls_without_retaining_non_finite_values() {
+        let plan = plan(vec![CleaningStageDto::ColumnRange {
+            base: base("outlier-bounds"),
+            column: "value".to_string(),
+            from: 0.0,
+            to: 2.0,
+            mode: RangeMode::KeepInside,
+            retain_nulls: true,
+        }]);
+        let df = DataFrame::new(
+            4,
+            vec![
+                Series::new("ts".into(), vec![1_i64, 2, 3, 4]).into(),
+                Series::new(
+                    "value".into(),
+                    vec![Some(1.0_f64), None, Some(f64::NAN), Some(4.0)],
+                )
+                .into(),
+            ],
+        )
+        .expect("frame");
+        let result = compile_cleaning_plan(df.lazy(), &plan)
+            .expect("compile")
+            .collect()
+            .expect("collect");
+        assert_eq!(
+            result
+                .column("ts")
+                .expect("ts")
+                .i64()
+                .expect("i64")
+                .into_no_null_iter()
+                .collect::<Vec<_>>(),
+            vec![1, 2]
         );
     }
 
@@ -1377,6 +1422,7 @@ mod tests {
             from: 1.0,
             to: 2.0,
             mode: RangeMode::KeepInside,
+            retain_nulls: false,
         }]);
         let expected = semantic_hash(&original).expect("original hash");
 

@@ -64,6 +64,8 @@ export interface ColumnRangeStage extends CleaningStageBase {
     from: number;
     to: number;
     mode: 'keepInside' | 'dropInside';
+    /** Keep nulls while evaluating the range; non-finite numeric values remain outside. */
+    retainNulls?: boolean;
 }
 
 export interface AdaptiveLineStage extends CleaningStageBase {

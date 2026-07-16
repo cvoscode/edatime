@@ -19,6 +19,13 @@ describe('cleaning code generation', () => {
         expect(generateRustPolars(plan)).toContain('is_null().or');
     });
 
+    it('retains nulls but not non-finite values for explicit robust range stages', () => {
+        const plan = createEmptyCleaningPlan({ sourceVersionId: 'source-1', datasetRevision: 1, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        plan.stages.push({ id: 'outlier-bounds', kind: 'columnRange', executionClass: 'polarsExpression', scope: 'row', enabled: true, sourcePage: 'manual', label: 'Keep robust bounds', createdAt: 'now', updatedAt: 'now', column: 'value', from: 1, to: 2, mode: 'keepInside', retainNulls: true });
+        expect(generatePythonPolars(plan)).toContain('pl.col("value").is_null() |');
+        expect(generateRustPolars(plan)).toContain('col("value").is_null().or');
+    });
+
     it('emits null and non-finite row policies in both portable code targets', () => {
         const plan = createEmptyCleaningPlan({ sourceVersionId: 'source-1', datasetRevision: 1, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
         plan.stages.push({

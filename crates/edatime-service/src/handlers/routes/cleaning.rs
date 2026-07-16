@@ -217,11 +217,16 @@ fn generate_python_polars(
                 from,
                 to,
                 mode,
+                retain_nulls,
                 ..
             } => {
                 let predicate = python_predicate(column, *from, *to);
                 let expression = if *mode == RangeMode::KeepInside {
-                    predicate
+                    if *retain_nulls {
+                        format!("pl.col({}).is_null() | ({predicate})", code_quote(column))
+                    } else {
+                        predicate
+                    }
                 } else {
                     format!("({predicate}).not() | ({predicate}).is_null()")
                 };
@@ -425,6 +430,7 @@ fn generate_rust_polars(
                 from,
                 to,
                 mode,
+                retain_nulls,
                 ..
             } => {
                 let predicate = format!(
@@ -435,7 +441,11 @@ fn generate_rust_polars(
                     code_number(from.max(*to))
                 );
                 let expression = if *mode == RangeMode::KeepInside {
-                    predicate
+                    if *retain_nulls {
+                        format!("col({}).is_null().or({predicate})", code_quote(column))
+                    } else {
+                        predicate
+                    }
                 } else {
                     format!("{predicate}.is_null().or({predicate}.not())")
                 };
@@ -1254,6 +1264,7 @@ mod tests {
                     from: 2.0,
                     to: 3.0,
                     mode: RangeMode::KeepInside,
+                    retain_nulls: false,
                 }],
                 created_at: "now".to_string(),
                 updated_at: "now".to_string(),

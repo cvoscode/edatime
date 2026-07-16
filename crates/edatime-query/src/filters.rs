@@ -129,6 +129,7 @@ pub fn apply_range_stage<I: Into<LazyFrame>>(
     df: I,
     filter: &RangeFilter,
     keep_inside: bool,
+    retain_nulls: bool,
 ) -> Result<LazyFrame, AppError> {
     let lf: LazyFrame = df.into();
     let column = filter.column.trim();
@@ -144,7 +145,16 @@ pub fn apply_range_stage<I: Into<LazyFrame>>(
         DataType::Datetime(_, _) | DataType::Date => temporal_range_expr(column, dtype, filter.from.min(filter.to), filter.from.max(filter.to))?,
         _ => return Err(AppError::bad_request(format!("Filter column '{column}' is not numeric or temporal"))),
     };
-    Ok(lf.filter(keep_or_drop_predicate(predicate, keep_inside)))
+    let policy = keep_or_drop_predicate(predicate, keep_inside);
+    // A range normally keeps only known-true values. Explicitly retaining
+    // nulls is needed for robust-cleaning proposals: legacy outlier removal
+    // never classified a null as an outlier, while it still removed NaN/Inf.
+    let policy = if retain_nulls && keep_inside {
+        col(column).is_null().or(policy)
+    } else {
+        policy
+    };
+    Ok(lf.filter(policy))
 }
 
 /// Apply one portable adaptive-line stage. Segment-only stages pass rows

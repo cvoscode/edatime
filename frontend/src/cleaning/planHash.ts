@@ -32,6 +32,7 @@ function stageSemanticValue(stage: CleaningStage): Record<string, unknown> | nul
                 from: Math.min(finite(stage.from), finite(stage.to)),
                 to: Math.max(finite(stage.from), finite(stage.to)),
                 mode: stage.mode,
+                retainNulls: stage.retainNulls === true,
             };
         case 'adaptiveLine':
             return {
