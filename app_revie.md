@@ -81,7 +81,12 @@
   with queued/running/cancelling/cancelled/completed/failed/expired states,
   progress/messages, and cooperative cancellation handles. It is intentionally
   not presented as a durable queue or public API until real workloads attach
-  to it. (`a338f28`, `1a3f266`)
+  to it. Managed plan materialization is now its first real workload: the
+  synchronous apply response returns `jobId`, materialization updates the
+  record at its owned publish boundary, failures are retained, and read-only
+  session inspection is available at `GET /api/v1/jobs` and
+  `GET /api/v1/jobs/{id}`. Cancellation stays deferred until the underlying
+  Polars boundary can honor it safely. (`a338f28`, `1a3f266`, `b4b6fe3`)
 
 ## 1. Goal
 
@@ -893,7 +898,10 @@ interruption tests prove catalog recovery and atomicity.
 2. **Completed registry foundation:** `AppState` owns an in-process,
    session-scoped job registry with observable state transitions, progress,
    messages, and cooperative cancellation handles. It is not yet durable or
-   public because no workload has been moved into it. (`1a3f266`)
+   public because no workload has been moved into it. Managed plan
+   materialization now records its first real session job and exposes read-only
+   status endpoints; cancellation remains deliberately unavailable until the
+   execution boundary is cooperative. (`1a3f266`, `b4b6fe3`)
 3. Extend those foundations into a scheduler with workload permits, work/memory
    estimates, deadlines, and structured `job_required` decisions.
 4. Move ingest normalization, exact profile, full export/materialization, and
