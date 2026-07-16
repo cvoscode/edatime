@@ -5,7 +5,7 @@ import { onNavigationChange } from '../../platform/navigationEvents.js';
 import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
 import { toast } from '../../utils/toast.js';
 
-export type WorkflowStepId = 'upload' | 'timeseries' | 'correlations' | 'scatter' | 'causal';
+export type WorkflowStepId = 'upload' | 'timeseries' | 'correlations' | 'scatter' | 'causal' | 'prepare';
 
 export interface WorkflowSnapshot {
     currentPage: string;
@@ -56,6 +56,7 @@ const WORKFLOW_STEPS: Array<{ id: WorkflowStepId; label: string; page: string }>
     { id: 'correlations', label: 'Correlations', page: 'correlations' },
     { id: 'scatter', label: 'Scatter', page: 'scatter' },
     { id: 'causal', label: 'Causal', page: 'causal' },
+    { id: 'prepare', label: 'Prepare', page: 'prepare' },
 ];
 
 let _initialized = false;
@@ -179,6 +180,7 @@ function mapPageToStep(page: string, nextStepId: WorkflowStepId | null): Workflo
     if (page === 'correlations' || page === 'heatmap' || page === 'scattermatrix') return 'correlations';
     if (page === 'scatter') return 'scatter';
     if (page === 'causal') return 'causal';
+    if (page === 'prepare') return 'prepare';
     if (page === 'fft' || page === 'spectrogram' || page === 'drift' || page === 'settings') return null;
     return nextStepId;
 }
@@ -195,6 +197,7 @@ export function computeWorkflowProgress(snapshot: WorkflowSnapshot): WorkflowPro
     }
     if (snapshot.scatterX && snapshot.scatterY) completedStepIds.push('scatter');
     if (snapshot.causalLinkCount > 0) completedStepIds.push('causal');
+    if (visited.has('prepare')) completedStepIds.push('prepare');
 
     const nextStepId = WORKFLOW_STEPS.find((step) => !completedStepIds.includes(step.id))?.id || null;
     const activeStepId = mapPageToStep(snapshot.currentPage, nextStepId);
@@ -251,11 +254,19 @@ function defaultSuggestionForStep(stepId: WorkflowStepId | null): WorkflowSugges
             actionPage: 'causal',
         };
     }
+    if (stepId === 'prepare') {
+        return {
+            title: 'Prepare a reproducible handoff',
+            body: 'Review the canonical pipeline graph, make any reversible preparation changes, then open the Pipeline Workbench to preview, materialize, or export the exact dataset and plan.',
+            actionLabel: 'Open Prepare',
+            actionPage: 'prepare',
+        };
+    }
     return {
         title: 'Workflow complete',
-        body: 'You have touched each guided step. Revisit any page as needed and save or export the context you want to keep.',
-        actionLabel: 'Open Timeseries',
-        actionPage: 'timeseries',
+        body: 'You have reached the reproducible handoff. Use the Pipeline Workbench in Prepare whenever you need to revise, preview, materialize, or export the canonical plan.',
+        actionLabel: 'Open Prepare',
+        actionPage: 'prepare',
     };
 }
 
@@ -350,8 +361,17 @@ export function buildWorkflowSuggestion(snapshot: WorkflowSnapshot): WorkflowSug
             };
         }
         return {
-            title: 'Compare causal runs for stability',
-            body: 'Save multiple runs and compare them so stable edges stand out from parameter-sensitive ones.',
+            title: 'Turn findings into a reproducible pipeline',
+            body: 'Move to Prepare to review the source → stages → result pipeline graph, make reversible changes, and export or materialize the exact handoff dataset.',
+            actionLabel: 'Open Prepare',
+            actionPage: 'prepare',
+        };
+    }
+
+    if (snapshot.currentPage === 'prepare') {
+        return {
+            title: 'Review and hand off the pipeline',
+            body: 'Use the page graph for an overview, then open Pipeline Workbench for detailed stage editing, previews, exports, and explicit materialization.',
             actionLabel: null,
             actionPage: null,
         };

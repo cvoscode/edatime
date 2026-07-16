@@ -53,7 +53,7 @@ describe('computeWorkflowProgress', () => {
         expect(progress.nextStepId).toBe('scatter');
     });
 
-    it('marks the full workflow complete when scatter axes and a causal graph exist', () => {
+    it('moves from causal discovery into Prepare before marking the workflow complete', () => {
         const progress = computeWorkflowProgress(snapshot({
             currentPage: 'causal',
             hasDataset: true,
@@ -64,7 +64,7 @@ describe('computeWorkflowProgress', () => {
             causalLinkCount: 4,
         }));
         expect(progress.completedStepIds).toEqual(['upload', 'timeseries', 'correlations', 'scatter', 'causal']);
-        expect(progress.nextStepId).toBeNull();
+        expect(progress.nextStepId).toBe('prepare');
     });
 });
 
@@ -117,6 +117,34 @@ describe('buildWorkflowSuggestion', () => {
         expect(suggestion.actionPage).toBeNull();
         expect(suggestion.actionLabel).toBeNull();
         expect(suggestion.body).toBe('');
+    });
+
+    it('guides a completed causal run into the pipeline workbench handoff', () => {
+        const suggestion = buildWorkflowSuggestion(snapshot({
+            currentPage: 'causal',
+            hasDataset: true,
+            selectedSeriesCount: 2,
+            visitedPages: ['upload', 'timeseries', 'correlations'],
+            scatterX: 'HUFL',
+            scatterY: 'OT',
+            causalLinkCount: 2,
+        }));
+        expect(suggestion.actionPage).toBe('prepare');
+        expect(suggestion.body).toContain('pipeline');
+    });
+
+    it('marks Prepare complete only after the dataset-scoped visit', () => {
+        const progress = computeWorkflowProgress(snapshot({
+            currentPage: 'prepare',
+            hasDataset: true,
+            selectedSeriesCount: 2,
+            visitedPages: ['upload', 'timeseries', 'correlations', 'prepare'],
+            scatterX: 'HUFL',
+            scatterY: 'OT',
+            causalLinkCount: 1,
+        }));
+        expect(progress.completedStepIds.at(-1)).toBe('prepare');
+        expect(progress.nextStepId).toBeNull();
     });
 });
 
