@@ -589,7 +589,24 @@ materialization, and remains editable there. (`4e8dbc1`)
 
 ### P2.3 — Replace Destructive Mutation Endpoints
 
-`/transform` and `/analytics/remove_outliers` currently mutate the active dataset. Migrate the UI to plan-stage creation and make materialization explicit. Keep the routes temporarily as compatibility adapters that internally create/apply a plan and return provenance, then deprecate them.
+`/transform` and `/analytics/remove_outliers` mutated the active dataset. The pre-deployment API removes both routes: Transform and Outliers now author canonical plan stages, and materialization is explicit.
+
+**Implemented migration slice — global outliers:** the normal Outliers modal now
+submits the guarded current plan to `/api/v1/cleaning/propose/outliers`. The
+service computes exact global Z-score or IQR bounds over that compiled frame and
+the client adds explicit `columnRange` stages (including null-retention
+semantics) to the Pipeline Workbench. It does not refresh or overwrite the
+active source; users preview or materialize the plan explicitly. Windowed
+outlier removal is intentionally not exposed because it has no portable plan
+semantics in the current stage model.
+
+**Implemented migration slice — derived columns:** the normal Transform modal
+now authors an editable `derivedColumn` stage; the destructive endpoint has
+been removed.
+The portable expression grammar is parsed by `edatime-query`, evaluated in the
+saved plan order, included in semantic hashing and graph projection, validated
+against the working schema, and emitted by the backend canonical Python/Rust
+code exports. Users preview or materialize the plan explicitly.
 
 **Acceptance:** no normal analysis control overwrites the active source; every dataset-changing result has parent version and plan provenance.
 

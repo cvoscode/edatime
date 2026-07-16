@@ -1,21 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
-    removeOutliersMock,
-    runTransformMock,
+    proposeOutliersMock,
     openMock,
     closeMock,
 } = vi.hoisted(() => ({
-    removeOutliersMock: vi.fn(),
-    runTransformMock: vi.fn(),
+    proposeOutliersMock: vi.fn(),
     openMock: vi.fn(),
     closeMock: vi.fn(),
 }));
 
 vi.mock('./feature.js', () => ({
     createDataMutationFeature: () => ({
-        runTransform: runTransformMock,
-        removeOutliers: removeOutliersMock,
+        proposeOutliers: proposeOutliersMock,
     }),
 }));
 
@@ -31,7 +28,8 @@ vi.mock('../../ui/primitives/Dropdown.js', () => ({
 }));
 
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
-import { initOutlierModal } from './modals.js';
+import { createCleaningPlanStore } from '../../cleaning/store.js';
+import { initOutlierModal, initTransformModal } from './modals.js';
 
 describe('dataMutationModals', () => {
     beforeEach(() => {
@@ -40,31 +38,66 @@ describe('dataMutationModals', () => {
             <button id="outlier-apply-btn"></button>
             <select id="outlier-method"></select>
             <input id="outlier-threshold" value="3" />
-            <input id="outlier-window" value="0" />
             <div id="outlier-error"></div>
             <div id="outlier-result"></div>
         `;
-        removeOutliersMock.mockReset();
-        removeOutliersMock.mockResolvedValue({ rows_removed: 1, rows_before: 10, rows_after: 9 });
+        proposeOutliersMock.mockReset();
+        proposeOutliersMock.mockResolvedValue({
+            method: 'zscore',
+            ranges: [{ column: 'a', from: -2, to: 2, retainNulls: true }],
+        });
         openMock.mockClear();
         closeMock.mockClear();
     });
 
-    it('builds the outlier-removal payload from canonical workspace selection', async () => {
+    it('adds a plan-aware, non-destructive outlier proposal from canonical workspace selection', async () => {
         const workspace = createWorkspaceStore();
         workspace.setSelection(['a', 'b']);
         const refreshDataset = vi.fn().mockResolvedValue(undefined);
-        initOutlierModal({ refreshDataset, workspace });
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({
+            sourceVersionId: 'source-0', datasetRevision: 0, datasetFingerprint: 'frame', schemaFingerprint: 'schema', timeColumn: 'ts',
+        });
+        const onPlanChanged = vi.fn();
+        initOutlierModal({ refreshDataset, workspace, planStore, onPlanChanged });
 
         (document.getElementById('outlier-apply-btn') as HTMLButtonElement).click();
         await Promise.resolve();
         await Promise.resolve();
 
-        expect(removeOutliersMock).toHaveBeenCalledWith({
+        expect(proposeOutliersMock).toHaveBeenCalledWith(expect.objectContaining({ sourceVersionId: 'source-0' }), {
             columns: ['a', 'b'],
             method: 'zscore',
             threshold: 3,
-            window: undefined,
         });
+        expect(planStore.getSnapshot()?.stages).toMatchObject([{
+            kind: 'columnRange', column: 'a', from: -2, to: 2, mode: 'keepInside', retainNulls: true,
+        }]);
+        expect(onPlanChanged).toHaveBeenCalledOnce();
+        expect(refreshDataset).not.toHaveBeenCalled();
+    });
+
+    it('adds a derived-column stage instead of invoking the destructive transform endpoint', async () => {
+        document.body.innerHTML = `
+            <button id="transform-apply-btn"></button>
+            <input id="transform-expression" value="sqrt(value) + 1" />
+            <input id="transform-output-name" value="score" />
+            <div id="transform-error"></div>
+        `;
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({
+            sourceVersionId: 'source-0', datasetRevision: 0, datasetFingerprint: 'frame', schemaFingerprint: 'schema', timeColumn: 'ts',
+        });
+        const refreshDataset = vi.fn().mockResolvedValue(undefined);
+        const onPlanChanged = vi.fn();
+        initTransformModal({ refreshDataset, planStore, onPlanChanged });
+
+        (document.getElementById('transform-apply-btn') as HTMLButtonElement).click();
+
+        expect(planStore.getSnapshot()?.stages).toMatchObject([{
+            kind: 'derivedColumn', expression: 'sqrt(value) + 1', outputColumn: 'score', scope: 'schema',
+        }]);
+        expect(onPlanChanged).toHaveBeenCalledOnce();
+        expect(refreshDataset).not.toHaveBeenCalled();
     });
 });

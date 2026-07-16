@@ -29,6 +29,10 @@ pub fn api_router() -> Router<AppState> {
         .route("/export/parquet", get(export::export_parquet))
         .route("/cleaning/validate", post(cleaning::validate))
         .route("/cleaning/preview", post(cleaning::preview))
+        .route(
+            "/cleaning/propose/outliers",
+            post(cleaning::propose_outliers),
+        )
         .route("/cleaning/apply", post(cleaning::apply))
         .route("/cleaning/export/data", post(cleaning::export_data))
         .route("/cleaning/export/plan", post(cleaning::export_plan))
@@ -88,7 +92,6 @@ pub fn api_router() -> Router<AppState> {
         .route("/aggregate", get(aggregate::get_aggregate))
         // Analytics endpoints
         .nest("/analytics", analytics_router())
-        .route("/transform", post(analytics::post_transform))
         // Drift endpoint
         .route("/drift/stats", post(drift::post_drift_stats))
         .route("/drift/investigate", post(drift::post_drift_investigate))
@@ -114,7 +117,6 @@ fn analytics_router() -> Router<AppState> {
             get(analytics::get_spectral_filter).post(analytics::post_spectral_filter),
         )
         .route("/causal", post(analytics::post_causal_graph))
-        .route("/remove_outliers", post(analytics::post_remove_outliers))
 }
 
 #[tracing::instrument]

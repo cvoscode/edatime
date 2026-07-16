@@ -22,6 +22,7 @@ use edatime_query::cleaning::{
     CleaningPlanDto, CleaningStageDto, ColumnSelectMode, DuplicateKeep, FillNullDirection,
     RangeMode, ResampleAggregationMethod, TimeRangeMode, compile_cleaning_plan, semantic_hash,
 };
+use edatime_query::derived::parse_derived_expression;
 use edatime_store::artifacts::ArtifactStorageUsage;
 use edatime_store::jobs::JobKind;
 use edatime_store::state::AppState;
@@ -79,6 +80,38 @@ pub struct PlanRequestEnvelope {
     pub expected_plan_hash: Option<String>,
     pub expected_source_version_id: String,
     pub expected_dataset_revision: u64,
+}
+
+/// Exact, plan-aware bounds that can be added as canonical range stages
+/// instead of invoking the legacy destructive outlier endpoint.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct OutlierProposalRequest {
+    #[serde(flatten)]
+    pub context: PlanRequestEnvelope,
+    pub columns: Vec<String>,
+    pub method: String,
+    pub threshold: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OutlierRangeProposal {
+    pub column: String,
+    pub from: f64,
+    pub to: f64,
+    pub retain_nulls: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OutlierProposalResponse {
+    pub source_version: DatasetVersionRecord,
+    pub dataset_revision: u64,
+    pub plan_hash: String,
+    pub method: String,
+    pub threshold: f64,
+    pub ranges: Vec<OutlierRangeProposal>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -187,6 +220,7 @@ fn generate_python_polars(
         format!("# plan hash: {hash}"),
         "# Requires a Polars runtime compatible with the generated v1 operators.".to_string(),
         String::new(),
+        "import math".to_string(),
         "import polars as pl".to_string(),
         String::new(),
         "def apply_edatime_plan(lf: pl.LazyFrame) -> pl.LazyFrame:".to_string(),
@@ -368,6 +402,18 @@ fn generate_python_polars(
                 )?;
                 lines.push(format!("    # Compare physical Int64 time values using the source column's native unit."));
                 lines.push(format!("    lf = lf.with_columns(pl.when(pl.col({time}).cast(pl.Int64).is_null()).then(pl.lit(\"unassigned\")).when(pl.col({time}).cast(pl.Int64) <= {train_end}).then(pl.lit(\"train\")).when(pl.col({time}).cast(pl.Int64) <= {train_embargo_end}).then(pl.lit(\"embargo\")).when(pl.col({time}).cast(pl.Int64) <= {validation_end}).then(pl.lit(\"validation\")).when(pl.col({time}).cast(pl.Int64) <= {validation_embargo_end}).then(pl.lit(\"embargo\")).otherwise(pl.lit(\"test\")).alias({}))", code_quote(output_column)));
+            }
+            CleaningStageDto::DerivedColumn {
+                expression,
+                output_column,
+                ..
+            } => {
+                let expression = parse_derived_expression(expression)?;
+                lines.push(format!(
+                    "    lf = lf.with_columns({}.alias({}))",
+                    expression.to_python_polars(),
+                    code_quote(output_column)
+                ));
             }
             CleaningStageDto::AdaptiveLine { .. } => {
                 unreachable!("validated codegen support")
@@ -579,6 +625,18 @@ fn generate_rust_polars(
                 )?;
                 lines.push("    // Compare physical Int64 time values using the source column's native unit.".to_string());
                 lines.push(format!("    lf = lf.with_columns(vec![when(col({time}).cast(DataType::Int64).is_null()).then(lit(\"unassigned\")).when(col({time}).cast(DataType::Int64).lt_eq(lit({train_end}))).then(lit(\"train\")).when(col({time}).cast(DataType::Int64).lt_eq(lit({train_embargo_end}))).then(lit(\"embargo\")).when(col({time}).cast(DataType::Int64).lt_eq(lit({validation_end}))).then(lit(\"validation\")).when(col({time}).cast(DataType::Int64).lt_eq(lit({validation_embargo_end}))).then(lit(\"embargo\")).otherwise(lit(\"test\")).alias({})]);", code_quote(output_column)));
+            }
+            CleaningStageDto::DerivedColumn {
+                expression,
+                output_column,
+                ..
+            } => {
+                let expression = parse_derived_expression(expression)?;
+                lines.push(format!(
+                    "    lf = lf.with_column({}.alias({}));",
+                    expression.to_rust_polars(),
+                    code_quote(output_column)
+                ));
             }
             CleaningStageDto::AdaptiveLine { .. } => {
                 unreachable!("validated codegen support")
@@ -801,6 +859,130 @@ pub async fn preview(
         columns_after: result.width(),
         stage_impacts,
         warnings: preview_warnings(&envelope.plan),
+    }))
+}
+
+/// Calculate global z-score or IQR outlier bounds over the current canonical
+/// working frame. This is intentionally a proposal: it never writes a dataset
+/// and lets the client add the returned ranges to its editable plan.
+pub async fn propose_outliers(
+    State(state): State<AppState>,
+    Json(request): Json<OutlierProposalRequest>,
+) -> Result<Json<OutlierProposalResponse>, AppError> {
+    let method = request.method.trim().to_ascii_lowercase();
+    if !matches!(method.as_str(), "zscore" | "iqr") {
+        return Err(AppError::bad_request(
+            "Outlier proposal method must be zscore or iqr",
+        ));
+    }
+    if !request.threshold.is_finite() || request.threshold <= 0.0 {
+        return Err(AppError::bad_request(
+            "Outlier proposal threshold must be finite and positive",
+        ));
+    }
+    let columns = request
+        .columns
+        .iter()
+        .map(|column| column.trim())
+        .filter(|column| !column.is_empty())
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    if columns.is_empty()
+        || columns.len()
+            != columns
+                .iter()
+                .collect::<std::collections::HashSet<_>>()
+                .len()
+    {
+        return Err(AppError::bad_request(
+            "Outlier proposal requires unique non-empty numeric columns",
+        ));
+    }
+    let (version, plan_hash, frame) = compile_request_frame(&state, &request.context)?;
+    let schema = frame.clone().collect_schema().map_err(|error| {
+        AppError::bad_request(format!(
+            "Failed to inspect outlier proposal columns: {error}"
+        ))
+    })?;
+    for column in &columns {
+        if !schema.get(column).is_some_and(|dtype| dtype.is_numeric()) {
+            return Err(AppError::bad_request(format!(
+                "Outlier proposal column '{column}' must be numeric"
+            )));
+        }
+    }
+    let data = state
+        .query_executor
+        .execute_async(frame)
+        .await
+        .map_err(AppError::from)?;
+    let mut ranges = Vec::new();
+    for column in columns {
+        let values = data
+            .column(&column)
+            .map_err(|error| {
+                AppError::internal(format!(
+                    "Outlier proposal column '{column}' is unavailable: {error}"
+                ))
+            })?
+            .as_materialized_series()
+            .cast(&DataType::Float64)
+            .map_err(|error| {
+                AppError::internal(format!(
+                    "Outlier proposal could not cast '{column}': {error}"
+                ))
+            })?
+            .f64()
+            .map_err(|error| {
+                AppError::internal(format!(
+                    "Outlier proposal could not read '{column}': {error}"
+                ))
+            })?
+            .into_iter()
+            .flatten()
+            .filter(|value| value.is_finite())
+            .collect::<Vec<_>>();
+        let bounds = if method == "iqr" {
+            let stats = edatime_core::stats::compute_column_stats(&values);
+            match (stats.q1, stats.q3) {
+                (Some(q1), Some(q3)) => {
+                    let iqr = q3 - q1;
+                    Some((q1 - request.threshold * iqr, q3 + request.threshold * iqr))
+                }
+                _ => None,
+            }
+        } else if values.len() < 2 {
+            None
+        } else {
+            let n = values.len() as f64;
+            let mean = values.iter().sum::<f64>() / n;
+            let std = (values
+                .iter()
+                .map(|value| (value - mean).powi(2))
+                .sum::<f64>()
+                / n)
+                .sqrt();
+            (std >= f64::EPSILON).then_some((
+                mean - request.threshold * std,
+                mean + request.threshold * std,
+            ))
+        };
+        if let Some((from, to)) = bounds {
+            ranges.push(OutlierRangeProposal {
+                column,
+                from,
+                to,
+                retain_nulls: true,
+            });
+        }
+    }
+    Ok(Json(OutlierProposalResponse {
+        source_version: version.clone(),
+        dataset_revision: version.revision,
+        plan_hash,
+        method,
+        threshold: request.threshold,
+        ranges,
     }))
 }
 
@@ -1338,6 +1520,32 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    async fn outlier_proposal_returns_plan_aware_non_destructive_bounds() {
+        let state = state();
+        let response = propose_outliers(
+            State(state.clone()),
+            Json(OutlierProposalRequest {
+                context: envelope(&state),
+                columns: vec!["value".to_string()],
+                method: "zscore".to_string(),
+                threshold: 1.0,
+            }),
+        )
+        .await
+        .expect("proposal")
+        .0;
+        assert_eq!(response.source_version.id, "source-0");
+        assert_eq!(response.method, "zscore");
+        assert_eq!(response.ranges.len(), 1);
+        assert_eq!(response.ranges[0].column, "value");
+        assert!(response.ranges[0].retain_nulls);
+        // The fixture's canonical plan already keeps value in [2, 3], so
+        // the proposal proves it measures the working frame, not raw data.
+        assert!((response.ranges[0].from - 2.0).abs() < 0.001);
+        assert!((response.ranges[0].to - 3.0).abs() < 0.001);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
     async fn stale_source_identity_is_rejected_before_execution() {
         let state = state();
         let mut request = envelope(&state);
@@ -1523,6 +1731,32 @@ mod tests {
         assert!(code.contains("unassigned"));
         assert!(code.contains("validation"));
         assert!(code.contains("cast(pl.Int64)"));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn code_export_supports_canonical_derived_columns() {
+        let state = state();
+        let mut context = envelope(&state);
+        context.plan.stages = vec![CleaningStageDto::DerivedColumn {
+            base: base("derived"),
+            expression: "sqrt(value) + 1".to_string(),
+            output_column: "score".to_string(),
+        }];
+        let export = export_code(
+            State(state),
+            Json(CleaningCodeExportRequest {
+                context,
+                language: CleaningCodeLanguage::Python,
+            }),
+        )
+        .await
+        .expect("export");
+        let body = axum::body::to_bytes(export.into_body(), usize::MAX)
+            .await
+            .expect("body");
+        let code = String::from_utf8(body.to_vec()).expect("utf8");
+        assert!(code.contains("pl.col(\"value\")"));
+        assert!(code.contains("alias(\"score\")"));
     }
 
     #[test]

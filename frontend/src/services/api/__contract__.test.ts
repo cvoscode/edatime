@@ -257,9 +257,7 @@ describe('contract: every endpoint targets /api/v1', () => {
                 fetchFft,
                 fetchSpectrogram,
                 fetchCausalGraph,
-                postTransform,
                 fetchCorrelationMatrix,
-                postRemoveOutliers,
                 fetchSpectralFilter,
             } = await import('./analytics.js');
             await fetchRollingBands(ISO, ISO, 'value', 50);
@@ -267,9 +265,7 @@ describe('contract: every endpoint targets /api/v1', () => {
             await fetchFft(ISO, ISO, 'value', 1024);
             await fetchSpectrogram(ISO, ISO, 'value', 64, 32, 2048);
             await fetchCausalGraph(['value'], 2, 0.05, 'pcmci', 1000, undefined);
-            await postTransform('value*2', 'value2');
             await fetchCorrelationMatrix();
-            await postRemoveOutliers(null, 'zscore', 3, 10);
             await fetchSpectralFilter(new URLSearchParams({
                 start: ISO, end: ISO, column: 'value',
                 window_size: '64', hop_size: '32', max_points: '1024',
@@ -280,10 +276,8 @@ describe('contract: every endpoint targets /api/v1', () => {
             expect(urls[2]).toContain('/api/v1/analytics/fft?');
             expect(urls[3]).toContain('/api/v1/analytics/spectrogram?');
             expect(urls[4]).toBe('/api/v1/analytics/causal');
-            expect(urls[5]).toBe('/api/v1/transform');
-            expect(urls[6]).toBe('/api/v1/scatter/correlations/matrix');
-            expect(urls[7]).toBe('/api/v1/analytics/remove_outliers');
-            expect(urls[8]).toContain('/api/v1/analytics/spectral-filter?');
+            expect(urls[5]).toBe('/api/v1/scatter/correlations/matrix');
+            expect(urls[6]).toContain('/api/v1/analytics/spectral-filter?');
         } finally {
             spy.restore();
         }

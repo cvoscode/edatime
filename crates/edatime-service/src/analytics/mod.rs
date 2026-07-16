@@ -5,18 +5,14 @@
 //! - `anomaly` — Z-score and IQR anomaly detection
 //! - `fft` — FFT, PSD, dominant frequency peaks
 //! - `spectrogram` — STFT spectrogram and spectral filtering
-//! - `transform` — column expression parsing and application
-//! - `outlier` — global and windowed outlier removal
 //! - `drift` — temporal drift analysis (KS, Wasserstein, PSI)
 
 pub mod anomaly;
 pub mod drift;
 pub mod fft;
-pub mod outlier;
 pub mod rolling;
 pub mod shared;
 pub mod spectrogram;
-pub mod transform;
 
 // ── Public re-exports for the top-level API ─────────────────────────────────
 
@@ -29,7 +25,6 @@ pub use drift::{
     WindowDistributionStats, compute_drift_investigation, compute_temporal_drift,
 };
 pub use fft::{FftResult, FrequencyPeak, compute_fft};
-pub use outlier::{OutlierRemovalResult, remove_outliers_global, remove_outliers_windowed};
 pub use rolling::{RollingBands, compute_rolling_bands};
 pub use shared::{
     extract_columns_f64_mean, extract_columns_f64_preserve_missing, extract_f64_column,
@@ -39,4 +34,3 @@ pub use spectrogram::{
     ClipMode, FilterType, ScaleMode, ScaleOptions, SpectrogramResult,
     apply_scale as apply_spectrogram_scale, apply_spectral_filter, compute_spectrogram,
 };
-pub use transform::{apply_column_transform, apply_column_transform_lazy};

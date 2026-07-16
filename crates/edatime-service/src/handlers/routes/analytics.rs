@@ -1,7 +1,6 @@
 //! `GET /api/analytics/rolling` — rolling statistics bands
 //! `GET /api/analytics/anomalies` — anomaly detection
 //! `GET /api/analytics/fft` — frequency-domain analysis
-//! `POST /api/transform` — column transformation expressions
 
 use std::sync::Arc;
 
@@ -489,57 +488,6 @@ pub async fn post_spectral_filter(
     get_spectral_filter(State(state), Query(decode_plan_aware_post(body)?)).await
 }
 
-// ── Column Transformation ──────────────────────────────────────────────────
-#[derive(Debug, Deserialize)]
-pub struct TransformRequest {
-    /// Expression string, e.g. "col_a / col_b" or "log(col_a)"
-    pub expression: String,
-    /// Name for the output column
-    pub output_name: String,
-}
-
-#[tracing::instrument(skip(state))]
-pub async fn post_transform(
-    State(state): State<AppState>,
-    Json(params): Json<TransformRequest>,
-) -> Result<impl IntoResponse, AppError> {
-    let expression = params.expression.trim().to_string();
-    let output_name = params.output_name.trim().to_string();
-
-    if expression.is_empty() {
-        return Err(AppError::bad_request("Expression is empty"));
-    }
-    if output_name.is_empty() || output_name == "ts" {
-        return Err(AppError::bad_request("Invalid output column name"));
-    }
-    // Safety: limit expression length to prevent abuse
-    if expression.len() > 500 {
-        return Err(AppError::bad_request("Expression too long (max 500 chars)"));
-    }
-
-    let lf = state.dataset_snapshot();
-
-    let new_df = tokio::task::spawn_blocking({
-        let lf = lf.clone();
-        let expression = expression.clone();
-        let output_name = output_name.clone();
-        move || analytics::apply_column_transform_lazy(&lf, &expression, &output_name)
-    })
-    .await
-    .map_err(|e| AppError::internal(format!("Join error: {e}")))??;
-
-    let _revision = state.replace_dataset(new_df).await;
-    state.cache.invalidate_all().await;
-
-    Ok(Json(serde_json::json!({
-        "status": "ok",
-        "column": output_name,
-        "expression": expression,
-    })))
-}
-
-// ── Outlier Removal ────────────────────────────────────────────────────────
-
 /// Internal type used to accept either a comma-separated string
 /// (`"HUFL,HULL"`) or a JSON array (`["HUFL", "HULL"]`) for the
 /// `columns` field. The frontend already follows the string shape;
@@ -593,61 +541,6 @@ where
     }
 
     deserializer.deserialize_any(ColumnsVisitor)
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct OutlierRemovalRequest {
-    /// Columns to check for outliers (comma-separated string or JSON array)
-    #[serde(default, deserialize_with = "deserialize_columns")]
-    pub columns: Option<String>,
-    /// Detection method: "zscore" (default) or "iqr"
-    pub method: Option<String>,
-    /// Threshold: z-score cutoff (default 3.0) or IQR multiplier (default 1.5)
-    pub threshold: Option<f64>,
-    /// If set, use rolling window approach with this window size
-    pub window: Option<usize>,
-}
-
-#[tracing::instrument(skip(state))]
-pub async fn post_remove_outliers(
-    State(state): State<AppState>,
-    Json(params): Json<OutlierRemovalRequest>,
-) -> Result<impl IntoResponse, AppError> {
-    let lf = state.dataset_snapshot();
-    let cols = query::parse_columns(params.columns.as_deref());
-    let limits = &state.config.validation;
-    let value_cols = validate_numeric_columns_lazy(&lf, &cols, limits)?;
-    let df = state
-        .query_executor
-        .execute_async(lf)
-        .await
-        .map_err(|e| AppError::io(e.to_string()))?;
-
-    let method = params.method.as_deref().unwrap_or("zscore");
-    let threshold = params
-        .threshold
-        .unwrap_or(if method == "iqr" { 1.5 } else { 3.0 });
-
-    let (new_df, result) = tokio::task::spawn_blocking({
-        let df = df.clone();
-        let value_cols = value_cols.clone();
-        let method = method.to_string();
-        move || {
-            if let Some(window) = params.window {
-                analytics::remove_outliers_windowed(&df, &value_cols, &method, threshold, window)
-            } else {
-                analytics::remove_outliers_global(&df, &value_cols, &method, threshold)
-            }
-        }
-    })
-    .await
-    .map_err(|e| AppError::internal(format!("Join error: {e}")))??;
-
-    let _revision = state.replace_dataset(new_df).await;
-    state.cache.invalidate_all().await;
-
-    Ok(Json(serde_json::json!(result)))
 }
 
 // ── Causal Graph (Native Rust — PCMCI / PCMCI+) ───────────────────────────
@@ -1055,8 +948,7 @@ mod tests {
 
     // ── Fix 5.1/5.2 regression tests ─────────────────────────────────────
 
-    /// `OutlierRemovalRequest` and `CausalGraphRequest` must accept both
-    /// the documented comma-separated string and the alternative JSON
+    /// `CausalGraphRequest` accepts both the documented comma-separated string and the alternative JSON
     /// array form. Previously, a singular `column` (the obvious typo)
     /// was silently ignored, leading to a misleading "No valid numeric
     /// columns were requested" error. `deny_unknown_fields` now rejects

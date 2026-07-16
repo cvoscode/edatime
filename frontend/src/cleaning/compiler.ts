@@ -67,6 +67,10 @@ export function compileCleaningPlanForLegacyFilters(plan: CleaningPlan): Compile
             });
             continue;
         }
+        if (stage.kind === 'derivedColumn') {
+            unsupportedForLegacyFilters.push(stage);
+            continue;
+        }
         if (stage.kind === 'adaptiveLine') {
             if (!stage.column.trim() || !finite(stage.x1Ms) || !finite(stage.y1) || !finite(stage.x2Ms)
                 || !finite(stage.y2) || stage.x1Ms === stage.x2Ms || !stage.applyWithinSegmentOnly) {

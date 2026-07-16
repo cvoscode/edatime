@@ -8,6 +8,7 @@
  */
 
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
+import type { CleaningPlanStore } from '../../cleaning/store.js';
 import type { DataObject } from '../../types/api.js';
 
 export interface RefreshDatasetOptions {
@@ -30,6 +31,8 @@ export interface DeferredShellDeps {
     resetZoom: () => void;
     updateAnalysisYRange: (min: number, max: number, sourceKind?: string) => void;
     requestAnnotationOverlayRender: () => void;
+    cleaningPlanStore?: Pick<CleaningPlanStore, 'getSnapshot' | 'addStage'>;
+    onCleaningPlanChanged?: () => void;
     registerCleanup: (cleanup: () => void) => void;
     workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'setViewport' | 'subscribe'>;
 }
@@ -138,8 +141,17 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
 
     registerSubsystem('workflow-modals', async (deps) => {
         const { initOutlierModal, initTransformModal } = await import('../../features/dataMutation/index.js');
-        initTransformModal({ refreshDataset: deps.refreshDatasetAfterMutation });
-        initOutlierModal({ refreshDataset: deps.refreshDatasetAfterMutation, workspace: deps.workspace });
+        initTransformModal({
+            refreshDataset: deps.refreshDatasetAfterMutation,
+            planStore: deps.cleaningPlanStore,
+            onPlanChanged: deps.onCleaningPlanChanged,
+        });
+        initOutlierModal({
+            refreshDataset: deps.refreshDatasetAfterMutation,
+            workspace: deps.workspace,
+            planStore: deps.cleaningPlanStore,
+            onPlanChanged: deps.onCleaningPlanChanged,
+        });
     });
 
     registerSubsystem('provenance', async (deps) => {

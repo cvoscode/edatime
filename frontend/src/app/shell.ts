@@ -39,6 +39,8 @@ export interface AppShellDeps {
     renderCurrentData: () => void;
     updateAnalysisYRange: (min: number, max: number, sourceKind?: string) => void;
     requestAnnotationOverlayRender: () => void;
+    cleaningPlanStore?: import('../cleaning/store.js').CleaningPlanStore;
+    onCleaningPlanChanged?: () => void;
     buildTimeseriesColumns: () => void;
     buildTimeseriesRanges: () => void;
     zoomOut: () => void;
@@ -73,6 +75,8 @@ export function initAppShell(deps: AppShellDeps): AppShell {
         resetZoom: deps.resetZoom,
         updateAnalysisYRange: deps.updateAnalysisYRange,
         requestAnnotationOverlayRender: deps.requestAnnotationOverlayRender,
+        cleaningPlanStore: deps.cleaningPlanStore,
+        onCleaningPlanChanged: deps.onCleaningPlanChanged,
         registerCleanup: deps.registerCleanup,
         workspace: deps.workspace,
     };

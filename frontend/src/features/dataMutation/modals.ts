@@ -2,6 +2,7 @@ import { createModalController } from '../../ui/shell/createModalController.js';
 import { createDataMutationFeature } from './feature.js';
 import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
+import type { CleaningPlanStore } from '../../cleaning/store.js';
 
 const dataMutationFeature = createDataMutationFeature();
 
@@ -13,11 +14,18 @@ interface DataMutationModalDeps {
     refreshDataset: (options?: RefreshDatasetOptions) => Promise<void>;
 }
 
-interface OutlierModalDeps extends DataMutationModalDeps {
-    workspace: Pick<WorkspaceStore, 'getSnapshot'>;
+interface TransformModalDeps extends DataMutationModalDeps {
+    planStore?: Pick<CleaningPlanStore, 'getSnapshot' | 'addStage'>;
+    onPlanChanged?: () => void;
 }
 
-export function initTransformModal(deps: DataMutationModalDeps): void {
+interface OutlierModalDeps extends DataMutationModalDeps {
+    workspace: Pick<WorkspaceStore, 'getSnapshot'>;
+    planStore?: Pick<CleaningPlanStore, 'getSnapshot' | 'addStage'>;
+    onPlanChanged?: () => void;
+}
+
+export function initTransformModal(deps: TransformModalDeps): void {
     const applyBtn = document.getElementById('transform-apply-btn') as HTMLButtonElement | null;
     const exprInput = document.getElementById('transform-expression') as HTMLInputElement | null;
     const nameInput = document.getElementById('transform-output-name') as HTMLInputElement | null;
@@ -46,17 +54,29 @@ export function initTransformModal(deps: DataMutationModalDeps): void {
 
         try {
             if (applyBtn) {
-                applyBtn.textContent = 'Applying…';
+                applyBtn.textContent = 'Adding…';
                 applyBtn.disabled = true;
             }
-            await dataMutationFeature.runTransform(expr, name);
+            const planStore = deps.planStore;
+            const plan = planStore?.getSnapshot();
+            if (!planStore || !plan) throw new Error('Load a dataset before adding a derived column to the pipeline.');
+            planStore.addStage({
+                kind: 'derivedColumn',
+                executionClass: 'polarsExpression',
+                scope: 'schema',
+                enabled: true,
+                sourcePage: 'manual',
+                label: `Derive ${name}`,
+                expression: expr,
+                outputColumn: name,
+            });
+            deps.onPlanChanged?.();
             controller.close();
-            await deps.refreshDataset({ selectedColumn: name });
         } catch (error: any) {
-            if (errorEl) errorEl.textContent = error?.message || 'Transform failed.';
+            if (errorEl) errorEl.textContent = error?.message || 'Could not add transform to the pipeline.';
         } finally {
             if (applyBtn) {
-                applyBtn.textContent = 'Apply';
+                applyBtn.textContent = 'Add to pipeline';
                 applyBtn.disabled = false;
             }
         }
@@ -68,7 +88,6 @@ export function initOutlierModal(deps: OutlierModalDeps): void {
     const applyBtn = document.getElementById('outlier-apply-btn') as HTMLButtonElement | null;
     const methodSelect = document.getElementById('outlier-method') as HTMLElement | null;
     const thresholdInput = document.getElementById('outlier-threshold') as HTMLInputElement | null;
-    const windowInput = document.getElementById('outlier-window') as HTMLInputElement | null;
     const errorEl = document.getElementById('outlier-error') as HTMLElement | null;
     const resultEl = document.getElementById('outlier-result') as HTMLElement | null;
 
@@ -97,33 +116,50 @@ export function initOutlierModal(deps: OutlierModalDeps): void {
 
         const method = getDropdownValue('outlier-method') || 'zscore';
         const threshold = Number.parseFloat(thresholdInput?.value || '3');
-        const windowSize = Number.parseInt(windowInput?.value || '0', 10);
+        const selectedColumns = deps.workspace.getSnapshot().selection.columns;
 
         try {
             if (applyBtn) {
                 applyBtn.disabled = true;
-                applyBtn.textContent = 'Removing…';
+                applyBtn.textContent = 'Proposing…';
             }
-
-            const result = await dataMutationFeature.removeOutliers({
-                columns: deps.workspace.getSnapshot().selection.columns.length > 0
-                    ? [...deps.workspace.getSnapshot().selection.columns]
-                    : null,
-                method,
+            const planStore = deps.planStore;
+            const plan = planStore?.getSnapshot();
+            if (!planStore || !plan) throw new Error('Load a dataset before adding an outlier proposal to the pipeline.');
+            if (selectedColumns.length === 0) throw new Error('Select one or more numeric columns before proposing outlier ranges.');
+            const methodName = method === 'iqr' ? 'iqr' : 'zscore';
+            const proposal = await dataMutationFeature.proposeOutliers(plan, {
+                columns: [...selectedColumns],
+                method: methodName,
                 threshold,
-                window: windowSize > 0 ? windowSize : undefined,
             });
-
-            if (resultEl) {
-                resultEl.textContent = `Removed ${result.rows_removed} rows (${result.rows_before} → ${result.rows_after})`;
+            for (const range of proposal.ranges) {
+                planStore.addStage({
+                    kind: 'columnRange',
+                    executionClass: 'polarsExpression',
+                    scope: 'row',
+                    enabled: true,
+                    sourcePage: 'manual',
+                    label: `Keep global ${proposal.method} inliers for ${range.column}`,
+                    column: range.column,
+                    from: range.from,
+                    to: range.to,
+                    mode: 'keepInside',
+                    retainNulls: range.retainNulls,
+                });
             }
-            await deps.refreshDataset();
+            deps.onPlanChanged?.();
+            if (resultEl) {
+                resultEl.textContent = proposal.ranges.length === 0
+                    ? 'No global bounds were needed for the selected columns; the pipeline is unchanged.'
+                    : `Added ${proposal.ranges.length} global inlier range${proposal.ranges.length === 1 ? '' : 's'} to the Pipeline Workbench. Preview or materialize them there.`;
+            }
         } catch (error: any) {
-            if (errorEl) errorEl.textContent = error?.message || 'Outlier removal failed.';
+            if (errorEl) errorEl.textContent = error?.message || 'Could not propose outlier ranges.';
         } finally {
             if (applyBtn) {
                 applyBtn.disabled = false;
-                applyBtn.textContent = 'Remove Outliers';
+                applyBtn.textContent = 'Add outlier proposal';
             }
         }
     });

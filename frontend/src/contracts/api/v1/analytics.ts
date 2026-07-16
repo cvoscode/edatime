@@ -93,12 +93,6 @@ export interface CausalGraphResponse {
     p_matrix: number[][][];
 }
 
-export interface TransformResponse {
-    status: string;
-    column: string;
-    expression: string;
-}
-
 export interface CorrelationMatrixResponse {
     columns: string[];
     pearson_raw?: (number | null)[][];
@@ -107,14 +101,6 @@ export interface CorrelationMatrixResponse {
     pearson_diff?: (number | null)[][];
     spearman_diff?: (number | null)[][];
     kendall_diff?: (number | null)[][];
-}
-
-export interface OutlierRemovalResult {
-    method: string;
-    columns: string[];
-    rows_before: number;
-    rows_after: number;
-    rows_removed: number;
 }
 
 export interface SpectralFilterResponse {

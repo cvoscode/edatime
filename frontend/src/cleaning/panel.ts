@@ -49,6 +49,7 @@ function stageSummary(stage: CleaningStage): string {
         case 'fillNull': return (stage.strategy === 'forward' ? 'Forward' : 'Backward') + ' fill nulls in ' + stage.columns.join(', ');
         case 'resample': return 'Resample every ' + stage.every + ': ' + stage.aggregations.map(({ column, method }) => column + ' ' + method).join(', ');
         case 'chronologicalSplit': return 'Chronological train / validation / test labels in ' + stage.outputColumn;
+        case 'derivedColumn': return 'Derive ' + stage.outputColumn + ' = ' + stage.expression;
         case 'annotation': return stage.note?.trim() || stage.label;
     }
 }
@@ -87,6 +88,7 @@ function stageImpactSummary(stage: CleaningStage, impact: CleaningStageImpact | 
     if (stage.kind === 'resample') return 'Executed — rows are aggregated into non-empty fixed-duration buckets.';
     if (stage.kind === 'columnSelect') return 'Executed — schema may change; row membership unchanged.';
     if (stage.kind === 'chronologicalSplit') return 'Executed — split labels added; row membership unchanged.';
+    if (stage.kind === 'derivedColumn') return 'Executed — derived column added or replaced; row membership unchanged.';
     return String(impact.rowsAfter.toLocaleString()) + ' of ' + String(impact.rowsBefore.toLocaleString())
         + ' rows after this stage · ' + String(impact.rowsRemoved.toLocaleString()) + ' removed.';
 }
@@ -339,6 +341,11 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             const outputColumn = readText(form, 'outputColumn').trim();
             if (trainEndMs >= validationEndMs || embargoMs < 0 || !outputColumn) throw new Error('Train end must precede validation end; embargo must be non-negative; choose an output column.');
             patch = { ...common, trainEndMs, validationEndMs, embargoMs, outputColumn } as Partial<CleaningStage>;
+        } else if (stage.kind === 'derivedColumn') {
+            const expression = readText(form, 'expression').trim();
+            const outputColumn = readText(form, 'outputColumn').trim();
+            if (!expression || !outputColumn) throw new Error('Derived columns need an expression and output column.');
+            patch = { ...common, expression, outputColumn } as Partial<CleaningStage>;
         } else if (stage.kind === 'adaptiveLine') {
             const x1Ms = readNumber(form, 'x1Ms', 'X1');
             const x2Ms = readNumber(form, 'x2Ms', 'X2');
@@ -440,6 +447,11 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
                 textInput('Validation end (epoch ms)', String(stage.validationEndMs), 'validationEndMs', 'number'),
                 textInput('Embargo (ms)', String(stage.embargoMs), 'embargoMs', 'number'),
                 textInput('Split output column', stage.outputColumn, 'outputColumn'),
+            );
+        } else if (stage.kind === 'derivedColumn') {
+            fields.append(
+                textInput('Expression', stage.expression, 'expression'),
+                textInput('Output column', stage.outputColumn, 'outputColumn'),
             );
         } else if (stage.kind === 'adaptiveLine') {
             fields.append(
@@ -1181,6 +1193,16 @@ function isImportableStage(value: unknown): value is CleaningStage {
             });
             return columns.every((column): column is string => column !== null)
                 && new Set(columns).size === columns.length;
+        case 'chronologicalSplit':
+            return typeof stage.trainEndMs === 'number' && typeof stage.validationEndMs === 'number' && typeof stage.embargoMs === 'number'
+                && finite(stage.trainEndMs, stage.validationEndMs, stage.embargoMs)
+                && stage.trainEndMs < stage.validationEndMs
+                && stage.embargoMs >= 0
+                && typeof stage.outputColumn === 'string' && !!stage.outputColumn.trim();
+        case 'derivedColumn':
+            return typeof stage.expression === 'string' && !!stage.expression.trim()
+                && stage.expression.length <= 500
+                && typeof stage.outputColumn === 'string' && !!stage.outputColumn.trim();
         case 'annotation':
             return stage.severity === undefined || stage.severity === 'info' || stage.severity === 'warning' || stage.severity === 'critical';
         default:

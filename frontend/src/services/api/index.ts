@@ -29,8 +29,6 @@ export {
     fetchFft,
     fetchSpectrogram,
     fetchCausalGraph,
-    postTransform,
-    postRemoveOutliers,
     fetchSpectralFilter,
     // Interfaces re-exported so consumers don't need to import from sub-modules
     type RollingBand,
@@ -43,9 +41,7 @@ export {
     type SpectrogramResponse,
     type CausalLink,
     type CausalGraphResponse,
-    type TransformResponse,
     type CorrelationMatrixResponse,
-    type OutlierRemovalResult,
     type SpectralFilterResponse,
     // fetchCorrelationMatrix is exported from scatter-matrix.ts to avoid circular collision
 } from './analytics.js';

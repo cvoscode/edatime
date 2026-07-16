@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { __resetApiRequestStateForTests } from '../services/api/http.js';
-import { applyCleaningPlan, exportCleaningBundle, exportCleaningCode, exportCleaningData, exportCleaningManifest, exportCleaningPlan, previewCleaningPlan, selectDatasetVersion, validateCleaningPlan } from './api.js';
+import { applyCleaningPlan, exportCleaningBundle, exportCleaningCode, exportCleaningData, exportCleaningManifest, exportCleaningPlan, previewCleaningPlan, proposeCleaningOutliers, selectDatasetVersion, validateCleaningPlan } from './api.js';
 import type { CleaningPlan } from './types.js';
 
 function plan(): CleaningPlan {
@@ -79,6 +79,18 @@ describe('cleaning API', () => {
 
         expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/cleaning/apply');
         expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
+            expectedSourceVersionId: 'source-0', expectedDatasetRevision: 0,
+        });
+    });
+
+    it('requests a non-destructive, plan-aware outlier proposal', async () => {
+        fetchMock.mockResolvedValueOnce(jsonResponse({ method: 'zscore', ranges: [] }));
+
+        await proposeCleaningOutliers(plan(), { columns: ['value'], method: 'zscore', threshold: 3 });
+
+        expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/cleaning/propose/outliers');
+        expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
+            columns: ['value'], method: 'zscore', threshold: 3,
             expectedSourceVersionId: 'source-0', expectedDatasetRevision: 0,
         });
     });

@@ -1,47 +1,37 @@
 /**
- * Data mutation feature operations.
- * Owns transport-layer calls for transform and outlier removal.
+ * Pipeline proposal actions for the dataset-tools controls.
  * UI layer (ui/*) only binds DOM to injected action interfaces.
  */
 
-import { postTransform, postRemoveOutliers } from '../../services/api/index.js';
+import { proposeCleaningOutliers, type OutlierProposalResponse } from '../../cleaning/api.js';
+import type { CleaningPlan } from '../../cleaning/types.js';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface RemoveOutliersInput {
-    columns: string[] | null;
-    method: string;
+export interface OutlierProposalInput {
+    columns: string[];
+    method: 'zscore' | 'iqr';
     threshold: number;
-    window?: number;
 }
 
 export interface DataMutationActions {
-    runTransform: (expression: string, outputName: string) => Promise<void>;
-    removeOutliers: (input: RemoveOutliersInput) => Promise<{ rows_removed: number; rows_before: number; rows_after: number }>;
+    proposeOutliers: (plan: CleaningPlan, input: OutlierProposalInput) => Promise<OutlierProposalResponse>;
 }
 
 export type DataMutationFeature = DataMutationActions;
 
-// ── Transport calls ───────────────────────────────────────────────────────────
-
-async function runTransform(expression: string, outputName: string): Promise<void> {
-    await postTransform(expression, outputName);
-}
-
-async function removeOutliers(input: RemoveOutliersInput): Promise<{ rows_removed: number; rows_before: number; rows_after: number }> {
-    return postRemoveOutliers(
-        input.columns,
-        input.method,
-        input.threshold,
-        input.window,
-    );
+async function proposeOutliers(plan: CleaningPlan, input: OutlierProposalInput): Promise<OutlierProposalResponse> {
+    return proposeCleaningOutliers(plan, {
+        columns: input.columns,
+        method: input.method,
+        threshold: input.threshold,
+    });
 }
 
 // ── Entrypoint factory ────────────────────────────────────────────────────────
 
 export function createDataMutationFeature(): DataMutationFeature {
     return {
-        runTransform,
-        removeOutliers,
+        proposeOutliers,
     };
 }

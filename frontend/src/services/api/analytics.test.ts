@@ -10,8 +10,6 @@ import {
     fetchRollingBands,
     fetchSpectralFilter,
     fetchSpectrogram,
-    postRemoveOutliers,
-    postTransform,
 } from './analytics.js';
 
 function jsonResponse(body: unknown): Response {
@@ -282,35 +280,6 @@ describe('analytics api helpers', () => {
             test: 'gpdc',
             max_conds_dim: 4,
             fdr_method: 'bh',
-        });
-    });
-
-    it('postTransform and postRemoveOutliers preserve their legacy mutation payloads', async () => {
-        fetchMock
-            .mockResolvedValueOnce(jsonResponse({ status: 'ok', column: 'x', expression: 'col("x") * 2' }))
-            .mockResolvedValueOnce(jsonResponse({
-                method: 'zscore',
-                columns: ['value'],
-                rows_before: 10,
-                rows_after: 8,
-                rows_removed: 2,
-            }));
-
-        await postTransform('col("x") * 2', 'x_scaled');
-        await postRemoveOutliers(['value'], 'zscore', 3, 25);
-
-        expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/transform');
-        expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
-            expression: 'col("x") * 2',
-            output_name: 'x_scaled',
-        });
-
-        expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/v1/analytics/remove_outliers');
-        expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
-            columns: 'value',
-            method: 'zscore',
-            threshold: 3,
-            window: 25,
         });
     });
 

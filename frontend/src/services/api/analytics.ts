@@ -8,12 +8,10 @@ import type {
     CausalGraphResponse,
     CorrelationMatrixResponse,
     FftResponse,
-    OutlierRemovalResult,
     RollingResponse,
     SpectralFilterResponse,
     SpectrogramResponse,
     SpectrogramScaleOptions,
-    TransformResponse,
 } from '../../contracts/api/v1/analytics.js';
 
 function appendCleaningPlan(params: URLSearchParams): void {
@@ -41,9 +39,7 @@ export type {
     SpectrogramScaleOptions,
     CausalLink,
     CausalGraphResponse,
-    TransformResponse,
     CorrelationMatrixResponse,
-    OutlierRemovalResult,
     SpectralFilterResponse,
 } from '../../contracts/api/v1/analytics.js';
 
@@ -186,16 +182,6 @@ export async function fetchCausalGraph(
     return postJson<CausalGraphResponse>(url, body, 'Causal graph', options);
 }
 
-// ── Transform ────────────────────────────────────────────────────────────────
-
-export async function postTransform(
-    expression: string,
-    outputName: string,
-): Promise<TransformResponse> {
-    const url = apiV1Routes.transform;
-    return postJson<TransformResponse>(url, { expression, output_name: outputName }, 'Transform');
-}
-
 // ── Correlation Matrix ───────────────────────────────────────────────────────
 
 export async function fetchCorrelationMatrix(): Promise<CorrelationMatrixResponse> {
@@ -209,23 +195,6 @@ export async function fetchCorrelationMatrix(): Promise<CorrelationMatrixRespons
     }
     const url = apiV1Routes.scatter.correlationMatrix;
     return getJson<CorrelationMatrixResponse>(url, 'Correlation matrix');
-}
-
-// ── Outlier Removal ─────────────────────────────────────────────────────────
-
-export async function postRemoveOutliers(
-    columns: string[] | null,
-    method = 'zscore',
-    threshold?: number,
-    window?: number,
-): Promise<OutlierRemovalResult> {
-    const body: Record<string, unknown> = { method };
-    if (columns) body.columns = columns.join(',');
-    if (threshold !== undefined) body.threshold = threshold;
-    if (window !== undefined) body.window = window;
-
-    const url = apiV1Routes.analytics.removeOutliers;
-    return postJson<OutlierRemovalResult>(url, body, 'Outlier removal');
 }
 
 // ── Spectral Filter ─────────────────────────────────────────────────────────

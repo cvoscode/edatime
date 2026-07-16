@@ -79,6 +79,8 @@ function stageDetail(stage: CleaningStage): string {
             return `${stage.every} buckets: ${stage.aggregations.map(({ column, method }) => `${column} ${method}`).join(', ')}`;
         case 'chronologicalSplit':
             return `train → validation → test labels in ${stage.outputColumn}`;
+        case 'derivedColumn':
+            return `${stage.outputColumn} = ${stage.expression}`;
         case 'annotation':
             return stage.note?.trim() || 'Informational annotation';
     }

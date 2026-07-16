@@ -16,6 +16,9 @@ export function generatePythonPolars(plan: CleaningPlan): string {
     let body = false;
     for (const stage of plan.stages) {
         if (!stage.enabled || stage.kind === 'annotation') continue;
+        if (stage.kind === 'derivedColumn') {
+            throw new Error('Use the backend canonical code export for derived-column stages.');
+        }
         body = true;
         if (stage.kind === 'timeRange') {
             const predicate = `(pl.col(${quote(plan.timeColumn)}) >= ${numeric(Math.min(stage.startMs, stage.endMs))}) & (pl.col(${quote(plan.timeColumn)}) <= ${numeric(Math.max(stage.startMs, stage.endMs))})`;
@@ -73,6 +76,9 @@ export function generateRustPolars(plan: CleaningPlan): string {
     ];
     for (const stage of plan.stages) {
         if (!stage.enabled || stage.kind === 'annotation') continue;
+        if (stage.kind === 'derivedColumn') {
+            throw new Error('Use the backend canonical code export for derived-column stages.');
+        }
         if (stage.kind === 'timeRange') {
             const predicate = `col(${quote(plan.timeColumn)}).gt_eq(lit(${numeric(Math.min(stage.startMs, stage.endMs))})).and(col(${quote(plan.timeColumn)}).lt_eq(lit(${numeric(Math.max(stage.startMs, stage.endMs))})))`;
             lines.push(`    lf = lf.filter(${stage.mode === 'keepInside' ? predicate : `${predicate}.is_null().or(${predicate}.not())`});`);

@@ -40,6 +40,7 @@ function stageSummary(stage: CleaningPlan['stages'][number]): string {
         case 'fillNull': return (stage.strategy === 'forward' ? 'Forward' : 'Backward') + ' fill nulls in ' + stage.columns.join(', ');
         case 'resample': return 'Resample every ' + stage.every + ': ' + stage.aggregations.map(({ column, method }) => column + ' ' + method).join(', ');
         case 'chronologicalSplit': return 'Chronological split into ' + stage.outputColumn;
+        case 'derivedColumn': return 'Derive ' + stage.outputColumn + ' = ' + stage.expression;
         case 'annotation': return stage.note?.trim() || stage.label;
     }
 }

@@ -59,6 +59,22 @@ export interface CleaningApplyResponse {
     planHash: string;
 }
 
+export interface OutlierRangeProposal {
+    column: string;
+    from: number;
+    to: number;
+    retainNulls: boolean;
+}
+
+export interface OutlierProposalResponse {
+    sourceVersion: DatasetVersionRecord;
+    datasetRevision: number;
+    planHash: string;
+    method: 'zscore' | 'iqr';
+    threshold: number;
+    ranges: OutlierRangeProposal[];
+}
+
 export interface SessionJob {
     id: string;
     kind: 'ingest' | 'profile' | 'materialization' | 'export' | 'analytics';
@@ -97,6 +113,20 @@ export function previewCleaningPlan(
     options?: ApiRequestOptions,
 ): Promise<CleaningPreviewResponse> {
     return postJson(apiV1Routes.cleaning.preview, envelope(plan), 'Cleaning plan preview', options);
+}
+
+/** Exact bounds over the current compiled plan; never mutates a dataset. */
+export function proposeCleaningOutliers(
+    plan: CleaningPlan,
+    input: { columns: string[]; method: 'zscore' | 'iqr'; threshold: number },
+    options?: ApiRequestOptions,
+): Promise<OutlierProposalResponse> {
+    return postJson(
+        apiV1Routes.cleaning.proposeOutliers,
+        { ...envelope(plan), ...input },
+        'Cleaning outlier proposal',
+        options,
+    );
 }
 
 export function applyCleaningPlan(

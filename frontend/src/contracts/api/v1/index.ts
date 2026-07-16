@@ -22,9 +22,7 @@ export type {
     SpectrogramScaleOptions,
     CausalLink,
     CausalGraphResponse,
-    TransformResponse,
     CorrelationMatrixResponse,
-    OutlierRemovalResult,
     SpectralFilterResponse,
 } from './analytics.js';
 export { CORRELATION_METRICS } from './scatter.js';

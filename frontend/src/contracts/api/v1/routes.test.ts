@@ -12,6 +12,7 @@ describe('API v1 route contract', () => {
             cleaning: {
                 validate: '/api/v1/cleaning/validate',
                 preview: '/api/v1/cleaning/preview',
+                proposeOutliers: '/api/v1/cleaning/propose/outliers',
                 apply: '/api/v1/cleaning/apply',
                 exportData: '/api/v1/cleaning/export/data',
                 exportPlan: '/api/v1/cleaning/export/plan',
@@ -20,7 +21,6 @@ describe('API v1 route contract', () => {
             },
             upload: '/api/v1/upload',
             uploadPreview: '/api/v1/upload/preview',
-            transform: '/api/v1/transform',
             analytics: {
                 rolling: '/api/v1/analytics/rolling',
                 anomalies: '/api/v1/analytics/anomalies',
@@ -28,7 +28,6 @@ describe('API v1 route contract', () => {
                 spectrogram: '/api/v1/analytics/spectrogram',
                 spectralFilter: '/api/v1/analytics/spectral-filter',
                 causal: '/api/v1/analytics/causal',
-                removeOutliers: '/api/v1/analytics/remove_outliers',
             },
             scatter: {
                 points: '/api/v1/scatter/points',

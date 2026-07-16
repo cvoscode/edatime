@@ -190,6 +190,8 @@ export function createApp(): AppRoot {
             refreshDatasetAfterMutation: (opts) => timeseriesModule.refreshAfterMutation(opts),
             registerCleanup: runtime.registerCleanup,
             workspace,
+            cleaningPlanStore,
+            onCleaningPlanChanged: refreshCleaningPlanConsumers,
         });
 
         // The workbench owns its graph/editor/export implementation, so keep

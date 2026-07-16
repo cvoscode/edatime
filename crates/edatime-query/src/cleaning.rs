@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use edatime_core::{error::AppError, temporal};
 
+use crate::derived::{parse_derived_expression, validate_derived_expression_columns};
 use crate::filters::{
     LineFilter, RangeFilter, apply_line_stage, apply_range_stage, apply_time_range_stage,
 };
@@ -125,6 +126,12 @@ pub enum CleaningStageDto {
         embargo_ms: f64,
         output_column: String,
     },
+    DerivedColumn {
+        #[serde(flatten)]
+        base: CleaningStageBaseDto,
+        expression: String,
+        output_column: String,
+    },
     Annotation {
         #[serde(flatten)]
         base: CleaningStageBaseDto,
@@ -146,6 +153,7 @@ impl CleaningStageDto {
             | Self::FillNull { base, .. }
             | Self::Resample { base, .. }
             | Self::ChronologicalSplit { base, .. }
+            | Self::DerivedColumn { base, .. }
             | Self::Annotation { base, .. } => &base.id,
         }
     }
@@ -162,6 +170,7 @@ impl CleaningStageDto {
             | Self::FillNull { base, .. }
             | Self::Resample { base, .. }
             | Self::ChronologicalSplit { base, .. }
+            | Self::DerivedColumn { base, .. }
             | Self::Annotation { base, .. } => base.enabled,
         }
     }
@@ -469,6 +478,21 @@ pub fn validate_cleaning_plan(plan: &CleaningPlanDto) -> Result<(), AppError> {
                     )));
                 }
             }
+            CleaningStageDto::DerivedColumn {
+                base,
+                expression,
+                output_column,
+            } => {
+                if output_column.trim().is_empty()
+                    || output_column.trim() == plan.time_column.trim()
+                {
+                    return Err(AppError::bad_request(format!(
+                        "Cleaning stage '{}' requires a non-time output column",
+                        base.id
+                    )));
+                }
+                parse_derived_expression(expression)?;
+            }
             CleaningStageDto::Annotation { .. } => {}
         }
     }
@@ -674,6 +698,20 @@ pub fn compile_cleaning_plan(
                     .otherwise(polars::prelude::lit("test"))
                     .alias(output_column)])
             }
+            CleaningStageDto::DerivedColumn {
+                expression,
+                output_column,
+                ..
+            } => {
+                let schema = lf.clone().collect_schema().map_err(|error| {
+                    AppError::bad_request(format!(
+                        "Failed to inspect derived expression columns: {error}"
+                    ))
+                })?;
+                let expression = parse_derived_expression(expression)?;
+                validate_derived_expression_columns(&expression, &schema)?;
+                lf.with_column(expression.to_polars_expr().alias(output_column))
+            }
             CleaningStageDto::Annotation { .. } => lf,
         };
     }
@@ -811,6 +849,15 @@ fn semantic_stage_value(stage: &CleaningStageDto) -> Option<serde_json::Value> {
             "embargoMs": canonical_number(*embargo_ms),
             "outputColumn": output_column.trim(),
         })),
+        CleaningStageDto::DerivedColumn {
+            expression,
+            output_column,
+            ..
+        } => Some(serde_json::json!({
+            "kind": "derivedColumn",
+            "expression": expression.trim(),
+            "outputColumn": output_column.trim(),
+        })),
         CleaningStageDto::Annotation { .. } => None,
     }
 }
@@ -900,6 +947,38 @@ mod tests {
             .collect()
             .expect("collect");
         assert_eq!(result.height(), 2);
+    }
+
+    #[test]
+    fn derived_column_stage_is_schema_changing_and_can_use_prior_columns() {
+        let plan = plan(vec![CleaningStageDto::DerivedColumn {
+            base: base("derived"),
+            expression: "value + temp * 2".to_string(),
+            output_column: "score".to_string(),
+        }]);
+        let df = DataFrame::new(
+            2,
+            vec![
+                Series::new("ts".into(), vec![1_i64, 2]).into(),
+                Series::new("value".into(), vec![1.0_f64, 2.0]).into(),
+                Series::new("temp".into(), vec![3.0_f64, 4.0]).into(),
+            ],
+        )
+        .expect("frame");
+        let result = compile_cleaning_plan(df.lazy(), &plan)
+            .expect("compile")
+            .collect()
+            .expect("collect");
+        assert_eq!(
+            result
+                .column("score")
+                .expect("score")
+                .f64()
+                .expect("f64")
+                .into_no_null_iter()
+                .collect::<Vec<_>>(),
+            vec![7.0, 10.0]
+        );
     }
 
     #[test]

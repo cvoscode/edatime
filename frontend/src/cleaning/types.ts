@@ -5,7 +5,7 @@
  * may create stages, but never own the execution semantics themselves.
  */
 
-export type CleaningStageKind = 'timeRange' | 'columnRange' | 'adaptiveLine' | 'missingValue' | 'deduplicate' | 'columnSelect' | 'sort' | 'fillNull' | 'resample' | 'chronologicalSplit' | 'annotation';
+export type CleaningStageKind = 'timeRange' | 'columnRange' | 'adaptiveLine' | 'missingValue' | 'deduplicate' | 'columnSelect' | 'sort' | 'fillNull' | 'resample' | 'chronologicalSplit' | 'derivedColumn' | 'annotation';
 export type StageExecutionClass = 'polarsExpression' | 'annotation';
 export type StageScope = 'row' | 'schema' | 'order' | 'annotation';
 export type SourcePage = 'timeseries' | 'scatter' | 'correlation' | 'fft' | 'spectrogram' | 'causal' | 'drift' | 'manual' | 'import';
@@ -156,6 +156,15 @@ export interface ChronologicalSplitStage extends CleaningStageBase {
     outputColumn: string;
 }
 
+/** A portable derived numeric column using the documented transform grammar. */
+export interface DerivedColumnStage extends CleaningStageBase {
+    kind: 'derivedColumn';
+    executionClass: 'polarsExpression';
+    scope: 'schema';
+    expression: string;
+    outputColumn: string;
+}
+
 export interface AnnotationStage extends CleaningStageBase {
     kind: 'annotation';
     executionClass: 'annotation';
@@ -163,7 +172,7 @@ export interface AnnotationStage extends CleaningStageBase {
     severity?: 'info' | 'warning' | 'critical';
 }
 
-export type CleaningStage = TimeRangeStage | ColumnRangeStage | AdaptiveLineStage | MissingValueStage | DeduplicateStage | ColumnSelectStage | SortStage | FillNullStage | ResampleStage | ChronologicalSplitStage | AnnotationStage;
+export type CleaningStage = TimeRangeStage | ColumnRangeStage | AdaptiveLineStage | MissingValueStage | DeduplicateStage | ColumnSelectStage | SortStage | FillNullStage | ResampleStage | ChronologicalSplitStage | DerivedColumnStage | AnnotationStage;
 
 export type CleaningStageInput = Omit<TimeRangeStage, 'id' | 'createdAt' | 'updatedAt'>
     | Omit<ColumnRangeStage, 'id' | 'createdAt' | 'updatedAt'>
@@ -175,6 +184,7 @@ export type CleaningStageInput = Omit<TimeRangeStage, 'id' | 'createdAt' | 'upda
     | Omit<FillNullStage, 'id' | 'createdAt' | 'updatedAt'>
     | Omit<ResampleStage, 'id' | 'createdAt' | 'updatedAt'>
     | Omit<ChronologicalSplitStage, 'id' | 'createdAt' | 'updatedAt'>
+    | Omit<DerivedColumnStage, 'id' | 'createdAt' | 'updatedAt'>
     | Omit<AnnotationStage, 'id' | 'createdAt' | 'updatedAt'>;
 
 export interface PlanRequestSnapshot {

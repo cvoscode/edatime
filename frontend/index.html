@@ -2197,14 +2197,14 @@
             </label>
             <div class="modal-hint" id="transform-hint">
               Supported: +, -, *, /, %, abs(), log(), log2(), log10(), sqrt(), exp(), sin(), cos(), tan(), ceil(),
-              floor(), round()
+              floor(), round(). Adds an editable pipeline stage; preview or materialize it from the Pipeline Workbench.
             </div>
             <div class="modal-hint" id="transform-error" style="color:#ff4a6e;"></div>
           </div>
           <div class="modal-actions">
             <div class="modal-actions-right">
               <button class="btn btn-ghost" id="transform-cancel-btn" type="button">Cancel</button>
-              <button class="btn btn-primary" id="transform-apply-btn" type="button">Apply</button>
+              <button class="btn btn-primary" id="transform-apply-btn" type="button">Add to pipeline</button>
             </div>
           </div>
         </div>
@@ -2213,7 +2213,7 @@
       <div id="outlier-modal" class="modal-backdrop" hidden>
         <div class="modal" role="dialog" aria-modal="true" aria-labelledby="outlier-title">
           <div class="modal-header">
-            <div class="modal-title" id="outlier-title">Remove Outliers</div>
+            <div class="modal-title" id="outlier-title">Propose Outlier Ranges</div>
             <button class="btn btn-ghost" id="outlier-close-btn" type="button">Close</button>
           </div>
           <div class="modal-body">
@@ -2229,19 +2229,14 @@
               <input id="outlier-threshold" class="modal-input" type="number" value="3" min="0.5" max="10" step="0.1"
                 aria-label="Outlier threshold">
             </label>
-            <label class="modal-field">
-              <span class="modal-label">Window size (0 = global)</span>
-              <input id="outlier-window" class="modal-input" type="number" value="0" min="0" max="10000" step="10"
-                aria-label="Rolling window size">
-            </label>
-            <div class="modal-hint">Removes rows from the dataset where selected columns contain outliers.</div>
+            <div class="modal-hint">Calculates global bounds over the current pipeline for selected numeric columns and adds reviewable keep-range stages. Nothing is changed until you preview or materialize the plan.</div>
             <div class="modal-hint" id="outlier-error" style="color:#ff4a6e;"></div>
             <div class="modal-hint" id="outlier-result" style="color:var(--green);"></div>
           </div>
           <div class="modal-actions">
             <div class="modal-actions-right">
               <button class="btn btn-ghost" id="outlier-cancel-btn" type="button">Cancel</button>
-              <button class="btn btn-primary" id="outlier-apply-btn" type="button">Remove Outliers</button>
+              <button class="btn btn-primary" id="outlier-apply-btn" type="button">Add outlier proposal</button>
             </div>
           </div>
         </div>
@@ -2354,9 +2349,9 @@
             <span class="toolbar-field__label">Dataset tools</span>
             <div class="toolbar-field__actions">
               <button class="btn btn-ghost btn-sm" id="transform-open-btn" type="button"
-                title="Column transform expression">Transform…</button>
+                title="Add a derived-column stage to the pipeline">Transform…</button>
               <button class="btn btn-ghost btn-sm" id="outlier-open-btn" type="button"
-                title="Remove outliers from dataset">Outliers…</button>
+                title="Propose reviewable outlier ranges for selected columns">Outliers…</button>
             </div>
           </div>
         </div>
