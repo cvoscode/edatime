@@ -23,6 +23,8 @@ describe('spectrogram chart options', () => {
         expect(chart.visualMap).toMatchObject({ min: -2, max: 3, inRange: { color: ['#111111', '#eeeeee'] } });
         expect(chart.series[0]).toMatchObject({ type: 'heatmap', progressive: 4000, data: points });
         expect(chart.yAxis.name).toBe('Frequency (µHz)');
+        expect(chart.xAxis.axisLabel.hideOverlap).toBe(true);
+        expect(chart.yAxis.axisLabel.hideOverlap).toBe(true);
         expect(chart.xAxis.axisLabel.formatter(1_700_000_000_000)).toMatch(/^\d{2}:\d{2}$/);
         expect(formatFrequency(0.0003)).toBe('300.00 µHz');
     });

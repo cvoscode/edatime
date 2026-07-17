@@ -16,7 +16,7 @@ describe('buildTimeSeriesDataModel', () => {
         });
 
         expect(model.series).toHaveLength(1);
-        expect((model.series[0] as any).data).toEqual([[0, 1], [2, 3]]);
+        expect((model.series[0] as any).data).toEqual([[0, 1], [1, Number.NaN], [2, 3]]);
         expect(model.annotations).toHaveLength(2);
         expect(model).toMatchObject({ dataYMin: 1, dataYMax: 3, xDomainMin: 0, xDomainMax: 2 });
     });

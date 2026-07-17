@@ -56,4 +56,33 @@ describe('spectrogram chart controller', () => {
         expect(chart.dispose).toHaveBeenCalledTimes(1);
         expect(element.querySelector('[style*="pointer-events"]')).toBeNull();
     });
+
+    it('does NOT pin the chart element to height:360px after mount', async () => {
+        // Regression test for usage_issue.md §1.1: the runtime must defer to
+        // CSS (`flex: 1 1 0; height: 100%`) and only set a `min-height` floor,
+        // not an absolute `height` value that pinned the chart at 360px.
+        class ResizeObserverStub {
+            observe = vi.fn();
+            disconnect = vi.fn();
+        }
+        vi.stubGlobal('ResizeObserver', ResizeObserverStub);
+        document.body.innerHTML = '<div id="spectrogram-chart"></div>';
+        const element = document.getElementById('spectrogram-chart') as HTMLDivElement;
+        Object.defineProperty(element, 'clientWidth', { configurable: true, value: 1452 });
+        Object.defineProperty(element, 'clientHeight', { configurable: true, value: 760 });
+        const chart = { setOption: vi.fn(), resize: vi.fn(), dispatchAction: vi.fn(), dispose: vi.fn() };
+        const controller = createSpectrogramChartController({
+            element,
+            getResult: () => ({ times_ms: [0], frequencies: [0] }) as any,
+            createChart: () => chart,
+        });
+        await controller.ensure();
+        // Allow the double-RAF resize to settle.
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null))));
+        // The element's inline height should NOT be '360px' (the legacy pin).
+        expect(element.style.height).not.toBe('360px');
+        // min-height should still pin a sensible floor.
+        expect(element.style.minHeight).toBe('360px');
+        controller.dispose();
+    });
 });

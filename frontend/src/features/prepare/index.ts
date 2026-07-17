@@ -11,7 +11,36 @@ import {
     startSampledDatasetProfile,
 } from '../../services/api/profile.js';
 import type { DatasetMetadata, DatasetProfileResponse } from '../../contracts/api/v1/dataset.js';
+import { initPageHelp, type PageHelpContent } from '../../ui/pageHelp.js';
 import '../../../css/modules/prepare.css';
+
+export const PREPARE_HELP: PageHelpContent = {
+    pageName: 'Prepare',
+    intro: 'Review and refine the reversible cleaning plan that EdaTime applies before analysis. Nothing here replaces the source dataset until you explicitly materialize a new version.',
+    sections: [
+        {
+            title: 'Recommended order',
+            bullets: [
+                'Check source identity and quality findings first.',
+                'Review the pipeline graph from left to right.',
+                'Add or reorder stages, then open the workbench for parameter previews.',
+                'Materialize only after the plan matches the intended analysis dataset.',
+            ],
+        },
+        {
+            title: 'How changes behave',
+            body: 'Stage controls edit the canonical plan immediately, but source data remains unchanged. Undo and Redo operate on plan history; disabled stages stay in the plan and can be re-enabled later.',
+        },
+        {
+            title: 'Quality profiles',
+            body: 'Immediate findings are fast source checks. Sampled profiles estimate quality on part of a large dataset; exact profiles run in the background and provide authoritative counts.',
+        },
+    ],
+    tips: [
+        'Sort by the time column before adding a resample stage.',
+        'Use the workbench when you need previews, import/export, or materialization.',
+    ],
+};
 
 export interface PreparePageDeps {
     onPlanChanged?: () => void;
@@ -102,6 +131,7 @@ function renderQualityFindings(
     cancelProfile: () => void,
 ): HTMLElement {
     const section = createElement('section', 'prepare-workspace__quality');
+    section.id = 'prepare-profile-findings';
     const title = createElement('h2');
     title.textContent = 'Quality findings';
     const copy = createElement('p', 'prepare-workspace__copy');
@@ -252,17 +282,46 @@ function renderPrepareWorkspace(
     root.replaceChildren();
     const header = createElement('div', 'prepare-workspace__header');
     const heading = createElement('div');
+    const titleRow = createElement('div', 'prepare-workspace__title-row');
     const title = createElement('h1', 'page-header__title');
     title.textContent = 'Prepare';
+    const help = createElement('button', 'page-help-trigger');
+    help.id = 'prepare-help-btn';
+    help.type = 'button';
+    help.textContent = '?';
+    titleRow.append(title, help);
     const copy = createElement('p', 'prepare-workspace__copy');
     copy.textContent = 'Review the reversible preprocessing pipeline before materializing a new dataset version.';
-    heading.append(title, copy);
+    heading.append(titleRow, copy);
     const openWorkbench = createElement('button', 'btn btn-primary btn-sm');
     openWorkbench.type = 'button';
     openWorkbench.textContent = 'Open Pipeline Workbench';
     openWorkbench.disabled = !plan;
     openWorkbench.addEventListener('click', () => document.getElementById('open-cleaning-plan-btn')?.click());
     header.append(heading, openWorkbench);
+
+    const localNav = createElement('nav', 'prepare-workspace__local-nav');
+    localNav.setAttribute('aria-label', 'Prepare sections');
+    for (const [label, targetId] of [
+        ['Profile findings', 'prepare-profile-findings'],
+        ['Pipeline preview', 'prepare-pipeline-preview'],
+        ['Pipeline stages', 'prepare-pipeline-stages'],
+    ] as const) {
+        const link = createElement('a');
+        link.href = `#${targetId}`;
+        link.textContent = label;
+        link.addEventListener('click', (event) => {
+            event.preventDefault();
+            document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+        localNav.append(link);
+    }
+    const previewExport = createElement('button');
+    previewExport.type = 'button';
+    previewExport.textContent = 'Preview & export';
+    previewExport.disabled = !plan;
+    previewExport.addEventListener('click', () => document.getElementById('open-cleaning-plan-btn')?.click());
+    localNav.append(previewExport);
 
     const identity = createElement('section', 'prepare-workspace__identity');
     identity.setAttribute('aria-label', 'Pipeline source identity');
@@ -282,6 +341,7 @@ function renderPrepareWorkspace(
     );
 
     const graphSection = createElement('section', 'prepare-workspace__graph');
+    graphSection.id = 'prepare-pipeline-preview';
     const graphTitle = createElement('h2');
     graphTitle.textContent = 'Current pipeline';
     const graphCopy = createElement('p', 'prepare-workspace__copy');
@@ -291,6 +351,7 @@ function renderPrepareWorkspace(
     graphSection.append(graphTitle, graphCopy, graphScroll);
 
     const stagesSection = createElement('section', 'prepare-workspace__stages');
+    stagesSection.id = 'prepare-pipeline-stages';
     const stageTitle = createElement('h2');
     stageTitle.textContent = 'Ordered stages';
     const stageCopy = createElement('p', 'prepare-workspace__copy');
@@ -299,6 +360,7 @@ function renderPrepareWorkspace(
     history.append(
         actionButton('Undo', () => { if (cleaningPlanStore.undo()) deps.onPlanChanged?.(); }, !cleaningPlanStore.canUndo()),
         actionButton('Redo', () => { if (cleaningPlanStore.redo()) deps.onPlanChanged?.(); }, !cleaningPlanStore.canRedo()),
+        actionButton('Preview / Materialize', () => document.getElementById('open-cleaning-plan-btn')?.click()),
     );
     const addPolicy = createElement('form', 'prepare-workspace__policy-form');
     const policyTitle = createElement('h3');
@@ -483,8 +545,12 @@ function renderPrepareWorkspace(
         const detail = createElement('span');
         detail.textContent = stageSummary(stage) + (stage.enabled ? '' : ' · disabled');
         summary.append(label, detail);
-        const controls = createElement('div', 'prepare-workspace__stage-controls');
-        controls.append(
+        const controls = createElement('details', 'prepare-workspace__stage-controls');
+        controls.open = !window.matchMedia('(max-width: 680px)').matches;
+        const controlsSummary = createElement('summary');
+        controlsSummary.textContent = 'Stage actions';
+        const controlsList = createElement('div', 'prepare-workspace__stage-actions');
+        controlsList.append(
             actionButton(stage.enabled ? 'Disable' : 'Enable', () => {
                 const stages = plan.stages.map((candidate) => candidate.id === stage.id
                     ? { ...candidate, enabled: !stage.enabled } as CleaningPlan['stages'][number]
@@ -518,11 +584,12 @@ function renderPrepareWorkspace(
                 deps.onPlanChanged?.();
             }),
         );
+        controls.append(controlsSummary, controlsList);
         item.append(summary, controls);
         list.append(item);
     }
     stagesSection.append(stageTitle, stageCopy, history, addPolicy, addDeduplicate, addColumnSelect, addSort, addFill, addResample, list);
-    root.append(header, identity, qualitySection, graphSection, stagesSection);
+    root.append(header, localNav, identity, qualitySection, graphSection, stagesSection);
 }
 
 /** Lazy page surface for orienting a data scientist before opening the editor overlay. */
@@ -535,17 +602,22 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
     let profileKind: 'exact' | 'sampled' = 'exact';
     let profileJobId: string | null = null;
     let pollTimer: ReturnType<typeof setTimeout> | null = null;
-    const render = () => renderPrepareWorkspace(
-        root,
-        cleaningPlanStore.getSnapshot(),
-        deps,
-        profileMetadata,
-        profileStatus,
-        profileKind,
-        requestExactProfile,
-        requestSampleProfile,
-        cancelProfile,
-    );
+    let disposeHelp = () => {};
+    const render = () => {
+        disposeHelp();
+        renderPrepareWorkspace(
+            root,
+            cleaningPlanStore.getSnapshot(),
+            deps,
+            profileMetadata,
+            profileStatus,
+            profileKind,
+            requestExactProfile,
+            requestSampleProfile,
+            cancelProfile,
+        );
+        disposeHelp = initPageHelp('prepare', PREPARE_HELP);
+    };
     const acceptProfile = (response: DatasetProfileResponse, kind: 'exact' | 'sampled') => {
         const plan = cleaningPlanStore.getSnapshot();
         if (!plan || response.sourceVersion?.id !== plan.sourceVersionId) return false;
@@ -606,6 +678,7 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
     return () => {
         disposed = true;
         if (pollTimer != null) clearTimeout(pollTimer);
+        disposeHelp();
         unsubscribe();
     };
 }

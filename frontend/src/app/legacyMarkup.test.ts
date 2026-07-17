@@ -12,7 +12,7 @@ describe('application markup ownership', () => {
     });
 
     it('keeps the pipeline workbench trigger in the shared app header', () => {
-        const headerStart = indexHtml.indexOf('<header>');
+        const headerStart = indexHtml.search(/<header[^>]*>/);
         const headerEnd = indexHtml.indexOf('</header>', headerStart);
         const headerMarkup = indexHtml.slice(headerStart, headerEnd);
 

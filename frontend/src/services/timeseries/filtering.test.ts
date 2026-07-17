@@ -38,7 +38,7 @@ describe('timeseries filtering helpers', () => {
         ]);
     });
 
-    it('applies range and adaptive filters without reading global state', () => {
+    it('masks only the filtered trace with NaNs while preserving timestamps and color alignment', () => {
         const filtered = applyColumnRangesToData(
             {
                 ts: Float64Array.from([0, 5, 10]),
@@ -55,15 +55,33 @@ describe('timeseries filtering helpers', () => {
                     targetPoints: 10,
                 },
             },
-            ['value'],
+            ['value', 'guard'],
             { value: { from: 0, to: 10 } },
             [{ id: 'g1', column: 'guard', x1: 0, y1: 5, x2: 10, y2: 5, keepAbove: true }],
         );
 
-        expect(Array.from(filtered.series.value.x)).toEqual([0, 10]);
-        expect(Array.from(filtered.series.value.y)).toEqual([1, 9]);
-        expect(filtered.colorByColumn.value).toEqual(['a', 'c']);
+        expect(Array.from(filtered.series.value.x)).toEqual([0, 5, 10]);
+        expect(Array.from(filtered.series.value.y)).toEqual([1, 5, 9]);
+        expect(Array.from(filtered.series.guard.x)).toEqual([0, 5, 10]);
+        expect(Array.from(filtered.series.guard.y)).toEqual([10, Number.NaN, 10]);
+        expect(filtered.colorByColumn.value).toEqual(['a', 'b', 'c']);
+        expect(filtered.colorByColumn.guard).toEqual(['a', 'b', 'c']);
         expect(buildAdaptiveLineY({ id: 'x1', column: 'x', x1: 0, y1: 0, x2: 10, y2: 20, keepAbove: true }, 5)).toBe(10);
+    });
+
+    it('keeps every row when a numeric range filters a selected trace', () => {
+        const filtered = applyColumnRangesToData(
+            {
+                ts: Float64Array.from([0, 5, 10]),
+                values: { value: Float64Array.from([1, 5, 9]) },
+            } as any,
+            ['value'],
+            { value: { from: 2, to: 8 } },
+            [],
+        );
+
+        expect(Array.from(filtered.series.value.x)).toEqual([0, 5, 10]);
+        expect(Array.from(filtered.series.value.y)).toEqual([Number.NaN, 5, Number.NaN]);
     });
 
     it('applies workspace filter intent without consulting global ui state', () => {
@@ -92,9 +110,9 @@ describe('timeseries filtering helpers', () => {
             }),
         );
 
-        expect(Array.from(filtered.series.value.x)).toEqual([0, 10]);
-        expect(Array.from(filtered.series.value.y)).toEqual([1, 9]);
-        expect(filtered.colorByColumn.value).toEqual(['a', 'c']);
+        expect(Array.from(filtered.series.value.x)).toEqual([0, 5, 10]);
+        expect(Array.from(filtered.series.value.y)).toEqual([1, 5, 9]);
+        expect(filtered.colorByColumn.value).toEqual(['a', 'b', 'c']);
     });
 
     it('clips buffered data to the visible x viewport before downstream rendering', () => {

@@ -42,11 +42,12 @@ export function createSpectrogramChartController({
     let disposed = false;
 
     const ensureDimensions = () => {
-        if (element.clientHeight >= 320) return;
-        element.style.minHeight = element.style.minHeight || '360px';
-        if (!element.style.height || element.style.height === '100%' || element.clientHeight < 320) {
-            element.style.height = '360px';
-        }
+        // Defer fully to CSS: the parent .spectrogram-chart-row uses
+        // flex stretch, and #spectrogram-chart owns its own sizing
+        // (`flex: 1 1 0; min-height: 360px; height: 100%`). Injecting a
+        // hard 360 px height here used to leave ~500 px of dead space
+        // at 1920×1080 viewports — see usage_issue.md §1.1.
+        element.style.minHeight = '360px';
     };
 
     const isReady = () => {
@@ -139,6 +140,10 @@ export function createSpectrogramChartController({
             if (!(await waitForReady())) throw new Error('Spectrogram chart container is not ready yet.');
             if (disposed) throw new Error('Spectrogram chart controller has been disposed.');
             chart = await createChart(element);
+            // Force ECharts to pick up the row height after layout settles.
+            // Without this double-RAF, ECharts measures before flex stretch
+            // finishes and pins height:360px — see usage_issue.md §1.1.
+            requestAnimationFrame(() => requestAnimationFrame(() => chart?.resize?.()));
             resizeObserver?.disconnect();
             resizeObserver = new ResizeObserver(() => chart?.resize?.());
             resizeObserver.observe(element);

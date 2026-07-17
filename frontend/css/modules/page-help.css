@@ -152,7 +152,7 @@
 .page-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 12px;
   padding: 12px 28px 0;
   max-width: 1480px;
@@ -173,8 +173,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
   border-radius: 50%;
   background: transparent;
   border: 1px solid var(--border-hi);
@@ -186,6 +188,7 @@
   user-select: none;
   flex: 0 0 auto;
   padding: 0;
+  margin-left: 0;
   transition: background var(--transition), border-color var(--transition), opacity var(--transition);
   opacity: 0.7;
 }
@@ -202,5 +205,14 @@
 @media (max-width: 900px) {
   .page-header {
     padding: 10px 16px 0;
+  }
+
+  /* Preserve a full touch target on tablets and phones while keeping the
+     compact visual next to the title on pointer-oriented layouts. */
+  .page-help-trigger {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
   }
 }

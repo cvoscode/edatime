@@ -93,7 +93,7 @@
 /* Feature grid */
 .home-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
     padding: 16px 28px 8px;
 }
@@ -289,6 +289,10 @@
     padding: 16px 28px 28px;
 }
 
+.home-shortcuts__summary {
+    display: none;
+}
+
 .home-section-title {
     font-size: 0.8125rem;
     font-weight: 600;
@@ -351,8 +355,45 @@
 
 .home-datasets-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
+}
+
+@media (max-width: 900px) {
+    .home-grid,
+    .home-datasets-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .home-grid,
+    .home-datasets-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .home-shortcuts {
+        margin: 12px 16px 20px;
+        padding: 0;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+    }
+
+    .home-shortcuts__summary {
+        display: flex;
+        min-height: 44px;
+        align-items: center;
+        padding: 0 12px;
+        color: var(--text);
+        font-size: 0.8125rem;
+        font-weight: 700;
+        cursor: pointer;
+    }
+
+    .home-shortcuts-grid {
+        grid-template-columns: 1fr;
+        padding: 0 12px 12px;
+    }
 }
 
 .home-dataset-card {

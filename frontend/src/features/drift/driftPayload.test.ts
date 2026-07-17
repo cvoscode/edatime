@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { cleaningPlanStore } from '../../cleaning/store.js';
 
 vi.mock('../../debug.js', () => ({ DEBUG: false, dbg: vi.fn() }));
 vi.mock('../../utils/toast.js', () => ({ toast: vi.fn() }));
@@ -46,6 +48,13 @@ describe('drift compute payload', () => {
     beforeEach(() => {
         vi.restoreAllMocks();
         (globalThis as any).ResizeObserver = ResizeObserverMock;
+        cleaningPlanStore.resetForDataset({
+            sourceVersionId: 'drift-test-source',
+            datasetRevision: 1,
+            datasetFingerprint: 'drift-test-data',
+            schemaFingerprint: 'drift-test-schema',
+            timeColumn: 'ts',
+        });
         vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => createCanvasContextMock() as any);
 
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
@@ -203,6 +212,8 @@ describe('drift compute payload', () => {
         expect(request[0]).toBe('/api/v1/drift/investigate');
         expect(body.column).toBeUndefined();
     });
+
+    afterEach(() => cleaningPlanStore.clear());
 
     it('renders inline drift column chips and updates the selection summary after bulk-selecting all columns', async () => {
         const { initDriftPage } = await import('./page.js');

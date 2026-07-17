@@ -16,8 +16,7 @@ describe('heatmap matrix policy', () => {
     });
 
     it('builds compact status and unavailable-matrix guidance', () => {
-        expect(buildHeatmapStatus(4, 36, 2)).toBe('2 clusters · 4 columns · 36px cells');
-        expect(buildHeatmapStatus(4, 36, null)).toBe('4 columns · 36px cells');
+        expect(buildHeatmapStatus(4, 36)).toBe('4 columns · 36px cells');
         expect(getUnavailableMatrixMessage('kendall_raw')).toContain('Kendall tau');
     });
 });

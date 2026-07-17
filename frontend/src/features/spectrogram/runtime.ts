@@ -8,6 +8,7 @@
  * exposes the same interface as other analysis page runtimes.
  */
 import { fetchSpectrogram, type SpectrogramResult } from '../../services/api/index.js';
+import { downloadBlob } from '../../utils/dom.js';
 import { datasetState } from '../../store/datasetState.js';
 import { exportEChartsPNG, exportEChartsSVG, exportEChartsHTML } from '../../utils/chartExport.js';
 import {
@@ -49,6 +50,47 @@ let spectrogramRenderError: string | null = null;
 let spectrogramAppliedScaleMode: ScaleMode = 'none';
 let spectrogramAppliedClipMode: ClipMode = 'none';
 let spectrogramAppliedClipParam = 0.5;
+
+/**
+ * CSV export for the spectrogram. Mirrors the per-page export pattern used
+ * by PNG/SVG/HTML but reads the cached `spectrogramResult` (set after a
+ * successful Compute) instead of the rendered chart instance.
+ *
+ * Triples shape: one row per (time, frequency) bin with `power` magnitude.
+ * Added to bridge the gap left by the help dialog claiming CSV export +
+ * the `E` shortcut, neither of which existed — see usage_issue.md §1.3.
+ */
+
+/** Build the (time, frequency, power) CSV body for a spectrogram result. */
+export function buildSpectrogramCsv(result: SpectrogramResult): string {
+    const headers = ['time_ms', 'frequency_hz', 'power'];
+    const lines: string[] = [headers.join(',')];
+    const times = result.times_ms;
+    const freqs = result.frequencies;
+    const mags: number[][] = result.magnitudes;
+    for (let t = 0; t < times.length; t += 1) {
+        const row = mags[t];
+        if (!row) continue;
+        const timeVal = times[t];
+        for (let f = 0; f < freqs.length; f += 1) {
+            const power = row[f];
+            lines.push([timeVal, freqs[f], power ?? ''].join(','));
+        }
+    }
+    return lines.join('\n');
+}
+
+export function exportSpectrogramCsv(filename = 'edatime_spectrogram.csv'): void {
+    const result = spectrogramResult;
+    if (!result || !result.times_ms.length || !result.frequencies.length) {
+        toast('Compute the spectrogram before exporting CSV.', 'warning');
+        return;
+    }
+    const csv = buildSpectrogramCsv(result);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    downloadBlob(blob, filename);
+    toast(`CSV exported (${result.times_ms.length * result.frequencies.length} rows).`, 'success');
+}
 
 export function __resetSpectrogramChartRuntimeForTests(): void {
     spectrogramChartController?.dispose();
@@ -132,6 +174,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             png: { fn: exportEChartsPNG, filename: 'edatime_spectrogram.png' },
             svg: { fn: exportEChartsSVG, filename: 'edatime_spectrogram.svg' },
             html: { fn: exportEChartsHTML, filename: 'edatime_spectrogram.html' },
+            csv: { fn: exportSpectrogramCsv, filename: 'edatime_spectrogram.csv' },
         },
         init() {
             controlAbort?.abort();
@@ -153,6 +196,20 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     if (controlAbort === listenerAbort) controlAbort = null;
                 };
             }
+
+            // Keyboard shortcut: E triggers CSV export when no input/textarea
+            // is focused. Wired next to the rest of the page-level listeners
+            // so it gets cleaned up on dispose — see usage_issue.md §1.3.
+            document.addEventListener('keydown', (event: KeyboardEvent) => {
+                if (event.key !== 'e' && event.key !== 'E') return;
+                if (event.metaKey || event.ctrlKey || event.altKey) return;
+                const target = event.target as HTMLElement | null;
+                if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+                    return;
+                }
+                event.preventDefault();
+                document.getElementById('spectrogram-export-csv-btn')?.click();
+            }, listenerOptions);
 
             spectrogramChartController?.dispose();
             const chartController = createSpectrogramChartController({

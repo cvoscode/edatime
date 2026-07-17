@@ -346,6 +346,128 @@
   display: none;
 }
 
+.scatter-secondary-controls {
+  display: contents;
+}
+
+@media (max-width: 640px) {
+  #page-scatter {
+    overflow-y: auto;
+  }
+
+  #page-scatter > .page-header {
+    order: 1;
+  }
+
+  #page-scatter > .scatter-toolbar {
+    order: 2;
+    flex: 0 0 auto;
+    align-items: stretch;
+    padding: 4px 8px;
+  }
+
+  #page-scatter > .scatter-view {
+    order: 3;
+    flex: 1 0 300px;
+    min-height: 300px;
+  }
+
+  #page-scatter > .scatter-stats-bar {
+    order: 4;
+    flex: 0 0 auto;
+    padding: 8px;
+  }
+
+  #scatter-analytics-group {
+    display: flex;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  #scatter-analytics-group > .scatter-toolbar__segment--view {
+    width: 100%;
+    padding: 4px;
+  }
+
+  #scatter-analytics-group > .scatter-toolbar__segment--view .scatter-toolbar__fields {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr) minmax(0, 1fr);
+    gap: 6px;
+    width: 100%;
+  }
+
+  #scatter-analytics-group > .scatter-toolbar__segment--view .scatter-toolbar__field {
+    width: auto;
+    min-width: 0;
+    padding: 0;
+  }
+
+  #scatter-analytics-group > .scatter-toolbar__segment--view .modal-select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .scatter-view-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .scatter-view-toggle .btn {
+    min-width: 0;
+    padding-inline: 7px;
+  }
+
+  .scatter-secondary-controls {
+    display: block;
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .scatter-secondary-controls[open] .analysis-secondary-disclosure__content {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  #page-scatter > .scatter-toolbar > .scatter-toolbar__segment--actions {
+    flex: 0 0 auto;
+    margin-left: auto;
+    padding: 4px;
+  }
+
+  .scatter-filter-banner {
+    min-height: 40px;
+    margin: 0;
+    padding: 6px 8px;
+  }
+
+  .scatter-filter-banner__text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .scatter-stats-bar__suggestions,
+  .scatter-stats-bar__correlations {
+    width: 100%;
+  }
+
+  #scatter-marginal-x,
+  .scatter-marginal-y-right {
+    display: none !important;
+  }
+
+  #scatter-chart.with-x-marginal {
+    top: 0;
+    height: 100%;
+  }
+
+  #scatter-chart.with-x-marginal ~ #scatter-right-panel {
+    top: 0;
+  }
+}
+
 /* Scatter panel card */
 .scatter-panel {
   position: relative;
@@ -600,11 +722,54 @@
   width: 100%;
 }
 
+.heatmap-secondary-controls {
+  display: contents;
+}
+
+@media (max-width: 640px) {
+  #page-heatmap {
+    overflow-y: auto;
+  }
+
+  #page-heatmap > .scatter-toolbar {
+    flex: 0 0 auto;
+    align-items: stretch;
+    padding: 4px 8px;
+  }
+
+  #page-heatmap > .scatter-toolbar > .scatter-toolbar__segment--view {
+    width: 100%;
+    padding: 4px;
+  }
+
+  #page-heatmap > .scatter-toolbar > .scatter-toolbar__segment--view .scatter-toolbar__fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px;
+    width: 100%;
+  }
+
+  #page-heatmap .heatmap-secondary-controls {
+    display: block;
+    width: 100%;
+  }
+
+  #page-heatmap .heatmap-secondary-controls[open] .analysis-secondary-disclosure__content {
+    display: grid;
+    gap: 6px;
+  }
+
+  #page-heatmap > .main--padded {
+    min-height: 300px;
+    overscroll-behavior-inline: contain;
+  }
+}
+
 .heatmap-shell {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 18px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
   padding: 10px 8px;
   background: transparent;
   width: 100%;
@@ -618,6 +783,8 @@
 }
 
 .heatmap-grid {
+  flex: 0 0 auto;
+  width: max-content;
   line-height: 1;
   gap: 2px;
   font-size: 0.78rem;
@@ -824,40 +991,6 @@
   white-space: nowrap;
 }
 
-/* C1 — cluster legend strip that shows how the columns were split
-   into groups. On wide screens (≥1280px) the chips sit beside the
-   matrix; on narrower viewports the strip wraps above the matrix
-   instead of being clipped. */
-.heatmap-cluster-legend {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 4px 4px 8px;
-  color: var(--tb-eyebrow);
-  font-size: 0.72rem;
-}
-
-.heatmap-cluster-legend__chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 8px;
-  border: 1px solid var(--tb-divider);
-  border-radius: 999px;
-  background: rgba(136, 174, 242, 0.08);
-  color: var(--text-dim);
-  font-variant-numeric: tabular-nums;
-}
-
-.heatmap-cluster-legend__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #88aef2;
-  box-shadow: 0 0 0 2px rgba(136, 174, 242, 0.18);
-}
-
 /* C2 — Give the heatmap toolbar segments card-style treatment so they
    read as discrete units even though they are flush against each
    other. The base toolbar rule already gives segments rounded
@@ -975,11 +1108,6 @@
     border-left: 1px solid #88aef2 !important;
   }
 
-  .heatmap-cluster-legend {
-    padding: 4px 0;
-    font-size: 0.66rem;
-  }
-
   .heatmap-footer {
     font-size: 0.66rem;
     padding-top: 6px;
@@ -1003,46 +1131,6 @@
   }
 }
 
-/* On screens ≥1280 px the cluster legend strip sits beside the
-   matrix (right column) instead of above. The shell switches from
-   `flex-direction: column` (default) to `flex-direction: row` so
-   the legend, grid, color scale, and footer flow left-to-right. */
-@media (min-width: 1280px) {
-  .heatmap-shell {
-    flex-direction: row;
-    align-items: flex-start;
-    flex-wrap: wrap;
-    row-gap: 12px;
-  }
-
-  .heatmap-cluster-legend {
-    flex: 0 0 auto;
-    min-width: 0;
-    max-width: 280px;
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 6px 12px;
-    border-right: 1px solid var(--tb-divider);
-    margin-right: 12px;
-  }
-
-  .heatmap-grid {
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-
-  .heatmap-scale {
-    flex: 0 0 auto;
-    margin-left: 12px;
-    align-self: center;
-    height: auto;
-  }
-
-  .heatmap-footer {
-    flex: 1 1 100%;
-    margin-top: 8px;
-  }
-}
 
 /* On screens wider than 1024px the dead-band between the Display and
    Export segments collapses because the segments now occupy natural

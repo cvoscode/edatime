@@ -13,6 +13,9 @@
     padding: 0 16px;
     background: var(--shell-hover);
     border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
 }
 
 .settings-tab-btn {
@@ -25,6 +28,7 @@
     cursor: pointer;
     border-bottom: 2px solid transparent;
     transition: color var(--transition), border-color var(--transition);
+    flex: 0 0 auto;
 }
 
 .settings-tab-btn:hover {
@@ -152,6 +156,47 @@
 /* Settings modal actions */
 .settings-modal .modal-actions {
     border-top: 1px solid var(--border);
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    background: var(--shell-surface-elevated);
+}
+
+@media (max-width: 640px) {
+    .settings-modal .modal {
+        width: calc(100% - 16px);
+        max-height: calc(100dvh - 16px);
+    }
+
+    .settings-tabs {
+        padding-inline: 8px;
+    }
+
+    .settings-tab-btn {
+        min-height: 44px;
+        padding-inline: 14px;
+    }
+
+    .settings-row {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .settings-label {
+        flex-basis: auto;
+    }
+
+    .settings-control select,
+    .settings-control input[type="text"],
+    .settings-control input[type="number"] {
+        max-width: none;
+    }
+
+    .settings-modal .modal-actions {
+        gap: 8px;
+        padding: 10px;
+    }
 }
 
 /* Checkbox toggle style */

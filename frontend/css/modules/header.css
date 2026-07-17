@@ -19,13 +19,33 @@ header {
   justify-content: space-between;
   gap: 20px;
   position: relative;
-  z-index: 10;
+  z-index: 220;
 }
 
 .header-brand {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.mobile-sidebar-toggle {
+  display: none;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid var(--shell-border-strong);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--shell-hover);
+  cursor: pointer;
+}
+
+.mobile-sidebar-toggle svg {
+  width: 16px;
+  height: 16px;
 }
 
 .brand-icon {
@@ -61,6 +81,80 @@ header {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.mobile-header-menu {
+  display: none;
+  position: relative;
+}
+
+.mobile-header-menu__toggle {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.mobile-header-menu__popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 320;
+  width: min(220px, calc(100vw - 24px));
+  padding: 6px;
+  border: 1px solid var(--shell-border-strong);
+  border-radius: 10px;
+  background: var(--shell-surface-elevated);
+  box-shadow: var(--shadow-lg);
+}
+
+.mobile-header-menu__popover button {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--text);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mobile-header-menu__popover button:hover,
+.mobile-header-menu__popover button:focus-visible {
+  background: var(--shell-hover);
+  outline: none;
+}
+
+/* Mobile collapse — keep only theme toggle + data freshness on the
+   top bar; the rest (Workflow / Plan / Context / shortcuts) move into
+   a hamburger overflow if needed. See usage_issue.md I1 + A4. */
+@media (max-width: 640px) {
+
+  .mobile-sidebar-toggle {
+    display: inline-flex;
+  }
+
+  .app-topbar .header-meta>#keyboard-help-btn,
+  .app-topbar .header-meta>#settings-btn,
+  .app-topbar .header-meta>#workflow-toggle-btn,
+  .app-topbar .header-meta>#open-cleaning-plan-btn,
+  .app-topbar .header-meta>#provenance-toggle-btn {
+    display: none;
+  }
+
+  .mobile-header-menu {
+    display: block;
+  }
+
+  .header-brand .brand-name {
+    display: inline;
+    font-size: 0.875rem;
+  }
 }
 
 .theme-toggle {

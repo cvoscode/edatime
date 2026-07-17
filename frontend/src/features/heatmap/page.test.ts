@@ -487,7 +487,7 @@ describe('heatmapPage with clustering', () => {
         expect(document.getElementById('heatmap-empty-state')?.textContent).toContain('unavailable in the correlation response');
     });
 
-    it('fills the available shell width so cells do not squish against the left edge', async () => {
+    it('keeps the matrix and color scale as one compact scrollable unit', async () => {
         const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
@@ -496,12 +496,14 @@ describe('heatmapPage with clustering', () => {
         const grid = document.querySelector('.heatmap-grid') as HTMLElement | null;
         expect(shell).not.toBeNull();
         expect(grid).not.toBeNull();
-        // The grid must be sized to fill the shell instead of sitting at
-        // its natural inline-grid width, which previously pinned the
-        // correlation matrix to size × fixed-cell-size and ignored the
-        // available container width.
+        const scale = document.querySelector('.heatmap-scale') as HTMLElement | null;
+        // The grid must use its computed cell-template width so the scale
+        // follows it directly rather than being pushed to the far edge of
+        // the full-width shell.
         expect(grid!.style.display).toBe('grid');
-        expect(grid!.style.width).toBe('100%');
+        expect(grid!.style.width).toBe('');
+        expect(scale).not.toBeNull();
+        expect(grid!.nextElementSibling).toBe(scale);
         // The shell must also allow horizontal scrolling for very wide
         // matrices rather than clipping cells.
         expect(getComputedStyle(shell!).overflowX).not.toBe('visible');
@@ -625,14 +627,13 @@ describe('heatmapPage audit follow-ups (C1–C11)', () => {
         expect(corner?.querySelector('.heatmap-corner__metric')?.textContent).toMatch(/Pearson/);
     });
 
-    // C1 — cluster legend chips appear when clustering finds groups.
-    it('renders a cluster legend strip with one chip per detected cluster', async () => {
+    it('keeps cluster membership out of the rendered chrome', async () => {
         const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
 
-        const chips = document.querySelectorAll('.heatmap-cluster-legend__chip');
-        expect(chips.length).toBeGreaterThan(0);
+        expect(document.querySelector('.heatmap-cluster-legend')).toBeNull();
+        expect(document.querySelector('.heatmap-footer')?.textContent).not.toMatch(/clusters/i);
     });
 
     // C1 — footer is visible after a successful render.

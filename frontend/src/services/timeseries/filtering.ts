@@ -77,27 +77,11 @@ export function buildAdaptiveLineY(filter: AdaptiveLineFilter, tsMs: number): nu
     return y1 + (x - x1) * slope;
 }
 
-function passesAdaptiveLineFilters(
-    tsMs: number,
-    valuesByColumn: Record<string, number | undefined>,
-    filters: readonly AdaptiveLineFilter[],
-): boolean {
-    for (const filter of filters) {
-        const column = String(filter?.column || '');
-        if (!column) continue;
-        const y = Number(valuesByColumn?.[column]);
-        if (!Number.isFinite(y)) return false;
-
-        const lineY = buildAdaptiveLineY(filter, tsMs);
-        if (!Number.isFinite(lineY)) continue;
-
-        if (filter.keepAbove) {
-            if (y < lineY!) return false;
-        } else if (y > lineY!) {
-            return false;
-        }
-    }
-    return true;
+function passesAdaptiveLineFilter(tsMs: number, y: number, filter: AdaptiveLineFilter): boolean {
+    if (!Number.isFinite(y)) return false;
+    const lineY = buildAdaptiveLineY(filter, tsMs);
+    if (lineY === null || !Number.isFinite(lineY)) return true;
+    return filter.keepAbove ? y >= lineY : y <= lineY;
 }
 
 export function buildAdaptiveLineFiltersForQueryState(filters: AdaptiveLineFilter[]): ScatterLineFilterSpec[] {
@@ -165,44 +149,38 @@ export function applyColumnRangesToData(
 ): FilteredDataObject {
     const filtered: FilteredDataObject = { ...dataObj, series: {}, colorByColumn: {} };
     const lineFilters = Array.isArray(adaptiveLineFilters) ? adaptiveLineFilters : [];
-    const neededColumns: string[] = lineFilters.length > 0
-        ? [...new Set([...(selectedCols || []), ...lineFilters.map((filter) => filter.column)])]
-        : [];
 
     for (const col of selectedCols) {
         const yValues = dataObj.values?.[col];
         if (!yValues) continue;
 
         const range = columnRanges[col];
-        const xs: number[] = [];
-        const ys: number[] = [];
+        const filtersForColumn = lineFilters.filter((filter) => filter.column === col);
+        const pointCount = Math.min(dataObj.ts?.length ?? 0, yValues.length);
+        const xs = new Float64Array(pointCount);
+        const ys = new Float64Array(pointCount);
         const colorValues: (number | string | null)[] = [];
 
-        for (let i = 0; i < yValues.length; i++) {
-            const y = yValues[i];
-            const ts = dataObj.ts?.[i];
-            if (!Number.isFinite(y)) continue;
-            if (!Number.isFinite(ts)) continue;
-            if (range && (y < range.from || y > range.to)) continue;
-
-            if (lineFilters.length > 0) {
-                const valuesByColumn: Record<string, number | undefined> = {};
-                for (const name of neededColumns) {
-                    valuesByColumn[name] = dataObj.values?.[name]?.[i];
-                }
-                if (!passesAdaptiveLineFilters(ts, valuesByColumn, lineFilters)) continue;
-            }
-
-            xs.push(ts);
-            ys.push(y);
+        for (let i = 0; i < pointCount; i++) {
+            const y = Number(yValues[i]);
+            const ts = Number(dataObj.ts?.[i]);
+            xs[i] = ts;
+            const outsideRange = !!range && (y < range.from || y > range.to);
+            const failsLineFilter = filtersForColumn.some((filter) => !passesAdaptiveLineFilter(ts, y, filter));
+            // Keep every timestamp so selected series remain aligned. A
+            // filtered value becomes a chart gap instead of removing its row
+            // or shifting colors/tooltips relative to neighbouring traces.
+            ys[i] = Number.isFinite(ts) && Number.isFinite(y) && !outsideRange && !failsLineFilter
+                ? y
+                : Number.NaN;
             if (Array.isArray(dataObj.color)) {
                 colorValues.push(dataObj.color[i]);
             }
         }
 
         filtered.series[col] = {
-            x: Float64Array.from(xs),
-            y: Float64Array.from(ys),
+            x: xs,
+            y: ys,
         };
         if (Array.isArray(dataObj.color)) {
             filtered.colorByColumn[col] = colorValues;

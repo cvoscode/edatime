@@ -121,6 +121,7 @@ function openPicker(colPickerPanel: HTMLElement | null, colPickerBtn: HTMLButton
     if (colPickerPanel.parentElement !== document.body) {
         document.body.appendChild(colPickerPanel);
     }
+    colPickerPanel.classList.remove('drift-col-picker-panel--inline');
     const rect = colPickerBtn.getBoundingClientRect();
     colPickerPanel.style.position = 'fixed';
     colPickerPanel.style.top = `${rect.bottom + 4}px`;
@@ -266,6 +267,15 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
         if (!latestNInput) return;
         const enabled = getDropdownValue('drift-evaluation-mode') === 'latest-n';
         latestNInput.disabled = !enabled;
+        // Hide the entire field container (label + input + helper) when
+        // Latest-N is not the active mode — usage_issue.md H4 — so the
+        // toolbar only surfaces relevant knobs and the helper hint does
+        // not float as a stray tooltip in the toolbar's right gutter.
+        const fieldContainer = latestNInput.closest<HTMLElement>('.scatter-toolbar__field');
+        if (fieldContainer) {
+            fieldContainer.hidden = !enabled;
+            fieldContainer.style.display = enabled ? '' : 'none';
+        }
         if (latestNHelper) {
             latestNHelper.hidden = enabled;
             latestNHelper.textContent = "Used only with 'Latest N windows' mode.";

@@ -57,7 +57,10 @@ export function buildTimeseriesRenderModel(input: {
         input.columnRanges,
         input.adaptiveLineFilters,
     );
-    const hasPoints = selectedColumns.some((column) => (filtered.series[column]?.x.length ?? 0) > 0);
+    const hasPoints = selectedColumns.some((column) => {
+        const y = filtered.series[column]?.y;
+        return !!y && Array.from(y).some(Number.isFinite);
+    });
     if (!hasPoints) {
         const rangeOutside = isRangeOutsideDataset(input.datasetRange, input.viewport.start, input.viewport.end);
         return {

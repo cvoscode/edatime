@@ -2,6 +2,7 @@
 .prepare-workspace { display: grid; gap: 18px; width: min(1180px, 100%); margin: 0 auto; }
 .prepare-workspace__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .prepare-workspace__header .page-header__title { margin: 0; }
+.prepare-workspace__title-row { display: flex; align-items: center; gap: 10px; }
 .prepare-workspace__copy { margin: 5px 0 0; color: var(--text-dim); max-width: 760px; }
 .prepare-workspace__identity, .prepare-workspace__quality, .prepare-workspace__graph { padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--shell-surface-elevated); }
 .prepare-workspace__identity { color: var(--text-dim); font-size: 0.875rem; }
@@ -16,7 +17,13 @@
 .prepare-workspace__graph-scroll .pipeline-graph { min-width: 680px; }
 .prepare-workspace__stages { display: grid; gap: 12px; padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--shell-surface-elevated); }
 .prepare-workspace__stages h2 { margin: 0; font-size: 1rem; }
-.prepare-workspace__history, .prepare-workspace__stage-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.prepare-workspace__history, .prepare-workspace__stage-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.prepare-workspace__local-nav { position: sticky; top: 0; z-index: 12; display: flex; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: color-mix(in srgb, var(--shell-surface-elevated) 94%, transparent); backdrop-filter: blur(10px); }
+.prepare-workspace__local-nav a, .prepare-workspace__local-nav button { min-height: 36px; padding: 0 10px; border: 0; border-radius: var(--radius-md); color: var(--text-dim); background: transparent; font: inherit; font-size: 0.75rem; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; }
+.prepare-workspace__local-nav a:hover, .prepare-workspace__local-nav button:hover { color: var(--text); background: var(--shell-hover); }
+.prepare-workspace__local-nav button { margin-left: auto; color: var(--accent); }
+.prepare-workspace__history { position: sticky; top: 52px; z-index: 10; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--shell-surface-elevated); }
+.prepare-workspace__stage-controls > summary { display: none; }
 .prepare-workspace__policy-form { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--border-hi); border-radius: var(--radius-md); background: var(--shell-hover); }
 .prepare-workspace__policy-form h3 { width: 100%; margin: 0; font-size: 0.875rem; }
 .prepare-workspace__policy-form .modal-input { flex: 1 1 180px; }
@@ -26,4 +33,4 @@
 .prepare-workspace__stage { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-md); }
 .prepare-workspace__stage-summary { display: grid; gap: 3px; min-width: 0; }
 .prepare-workspace__stage-summary span, .prepare-workspace__empty { color: var(--text-dim); font-size: 0.8125rem; }
-@media (max-width: 680px) { .page-prepare { padding: 14px; } .prepare-workspace__header, .prepare-workspace__quality-finding, .prepare-workspace__stage { flex-direction: column; align-items: stretch; } }
+@media (max-width: 680px) { .page-prepare { padding: 14px; } .prepare-workspace__header, .prepare-workspace__quality-finding, .prepare-workspace__stage { flex-direction: column; align-items: stretch; } .prepare-workspace__local-nav { overflow-x: auto; } .prepare-workspace__local-nav a, .prepare-workspace__local-nav button { flex: 0 0 auto; } .prepare-workspace__history { top: 52px; } .prepare-workspace__stage-controls { width: 100%; } .prepare-workspace__stage-controls > summary { display: flex; min-height: 40px; align-items: center; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--text); cursor: pointer; } .prepare-workspace__stage-actions { padding-top: 8px; } .prepare-workspace__stage-actions .btn { flex: 1 1 calc(50% - 4px); } }

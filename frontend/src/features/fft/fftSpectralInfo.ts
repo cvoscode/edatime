@@ -1,5 +1,5 @@
 import type { FftTrace } from '../../chart/FftChart.js';
-import { formatCyclesPerDay, formatFrequencyInUnit, frequencyToPeriod, pickFrequencyUnit, useCyclesPerDayFrequencyAxis } from '../../utils/spectralPresets.js';
+import { formatCyclesPerDay, formatFrequencyInUnit, formatReciprocalInterval, frequencyToPeriod, pickFrequencyUnit, useCyclesPerDayFrequencyAxis } from '../../utils/spectralPresets.js';
 
 export interface FftSpectralInfo {
     visible: boolean;
@@ -38,13 +38,4 @@ export function buildFftSpectralInfo(traces: readonly FftTrace[]): FftSpectralIn
 
 function emptyInfo(): FftSpectralInfo {
     return { visible: false, sampleRate: { text: '—', title: '' }, nyquist: { text: '—', title: '' }, peaks: [] };
-}
-
-function formatReciprocalInterval(hz: number): string {
-    if (!Number.isFinite(hz) || hz <= 0) return '—';
-    const seconds = 1 / hz;
-    if (seconds < 60) return `1 / ${seconds.toFixed(1)} sec`;
-    if (seconds < 3600) return `1 / ${(seconds / 60).toFixed(1)} min`;
-    if (seconds < 86_400) return `1 / ${(seconds / 3600).toFixed(1)} hr`;
-    return `1 / ${(seconds / 86_400).toFixed(1)} day`;
 }

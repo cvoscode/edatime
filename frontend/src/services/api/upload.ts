@@ -54,7 +54,6 @@ export async function fetchDriftInvestigation<T>(payload: unknown, options?: Api
 function withCleaningPlan(payload: unknown): unknown {
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return payload;
     const plan = cleaningPlanStore.getSnapshot();
-    return plan?.stages.some((stage) => stage.enabled)
-        ? { ...(payload as Record<string, unknown>), cleaningPlan: buildPlanRequestSnapshot(plan) }
-        : payload;
+    if (!plan) throw new Error('Drift requests require an active cleaning plan');
+    return { ...(payload as Record<string, unknown>), cleaningPlan: buildPlanRequestSnapshot(plan) };
 }

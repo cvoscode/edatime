@@ -206,7 +206,7 @@ describe('createTimeseriesPageController', () => {
 
         expect(chart.updateDataMulti).toHaveBeenCalledWith(expect.objectContaining({
             series: expect.objectContaining({
-                workspace: expect.objectContaining({ y: Float64Array.from([3]) }),
+                workspace: expect.objectContaining({ y: Float64Array.from([Number.NaN, 3]) }),
             }),
         }), ['workspace'], 'workspace-color', []);
         expect((window as any).__edatime?.debugYSnapshot).toBeUndefined();

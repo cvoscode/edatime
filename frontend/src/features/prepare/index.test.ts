@@ -41,6 +41,18 @@ describe('Prepare page', () => {
         dispose();
     });
 
+    it('provides the same page-level help contract as every analysis page', () => {
+        const dispose = initPreparePage();
+        const trigger = document.getElementById('prepare-help-btn') as HTMLButtonElement;
+
+        expect(trigger.getAttribute('data-page-help-bound')).toBe('true');
+        expect(trigger.getAttribute('aria-label')).toBe('Show help for the Prepare page');
+        trigger.click();
+        expect(document.getElementById('page-help-modal')?.textContent).toContain('Recommended order');
+
+        dispose();
+    });
+
     it('edits ordered stages and history through the canonical store', () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
         const first = cleaningPlanStore.addStage({

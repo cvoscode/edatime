@@ -194,6 +194,77 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 
+.upload-advanced-options > summary {
+  list-style-position: inside;
+  cursor: pointer;
+}
+
+.upload-advanced-options > summary::marker {
+  color: var(--text-dim);
+}
+
+@media (min-width: 641px) {
+  .upload-advanced-options > summary {
+    list-style: none;
+    cursor: default;
+  }
+
+  .upload-advanced-options > summary::-webkit-details-marker {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .upload-inner {
+    counter-reset: upload-step;
+  }
+
+  .upload-source-tabs,
+  .upload-source-panel--file > .drop-zone,
+  .upload-source-panel--file > .upload-advanced-options,
+  .upload-preview {
+    counter-increment: upload-step;
+  }
+
+  .upload-source-tabs::before,
+  .upload-source-panel--file > .drop-zone::after,
+  .upload-source-panel--file > .upload-advanced-options::before,
+  .upload-preview::before {
+    content: "Step " counter(upload-step);
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .upload-source-panel--file > .drop-zone::after {
+    position: absolute;
+    top: 10px;
+    left: 12px;
+  }
+
+  .upload-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--shell-surface-elevated) 94%, transparent);
+    box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.18);
+    backdrop-filter: blur(10px);
+  }
+
+  .upload-preview-table-wrap,
+  .upload-preview-body {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+  }
+}
+
 /* ─── Toggle switch ───────────────────────────────────────────── */
 .toggle-row {
   display: flex;

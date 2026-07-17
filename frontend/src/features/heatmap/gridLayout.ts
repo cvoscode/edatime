@@ -18,7 +18,10 @@ export function buildHeatmapGridLayout(options: {
     const minCell = 24;
     const maxCell = Math.max(minCell, preferredCellSize);
     const shellWidth = Math.max(containerWidth, 480);
-    const usableWidth = Math.max(labelWidth + minCell * columnCount + 8, shellWidth - 56);
+    // Leave a fixed inline slot for the color scale and its gap. This keeps
+    // the scale directly beside the matrix rather than outside the first
+    // visible scroll position when the matrix is fitted to its panel.
+    const usableWidth = Math.max(labelWidth + minCell * columnCount + 8, shellWidth - 84);
     const fitCell = Math.floor((usableWidth - labelWidth - 2 * (columnCount - 1)) / Math.max(1, columnCount));
     const responsiveCell = fitToScreen
         ? Math.max(minCell, fitCell)

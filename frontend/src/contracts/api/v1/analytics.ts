@@ -59,6 +59,8 @@ export interface FftResponse {
 
 export interface SpectrogramResult {
     column: string;
+    /** Original input cadence; `times_ms` is spaced by the STFT hop. */
+    sample_rate_hz?: number;
     times_ms: number[];
     frequencies: number[];
     magnitudes: number[][];

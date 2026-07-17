@@ -35,9 +35,14 @@ export function syncCausalGraphActionState(hasGraph: boolean): void {
     const exportMenu = document.getElementById('causal-export-menu') as HTMLElement | null;
     const saveRunBtn = document.getElementById('causal-save-run-btn') as HTMLButtonElement | null;
 
-    if (addEdgeBtn) addEdgeBtn.disabled = !hasGraph;
-    if (exportBtn) exportBtn.disabled = !hasGraph;
-    if (saveRunBtn) saveRunBtn.disabled = !hasGraph;
+    const syncAction = (button: HTMLButtonElement | null, enabledTitle: string) => {
+        if (!button) return;
+        button.disabled = !hasGraph;
+        button.title = hasGraph ? enabledTitle : 'Run Compute first';
+    };
+    syncAction(addEdgeBtn, 'Click two nodes to add an edge between them');
+    syncAction(exportBtn, 'Export graph');
+    syncAction(saveRunBtn, 'Save this causal run for comparison');
     if (!hasGraph && exportMenu) exportMenu.hidden = true;
 }
 

@@ -1,4 +1,5 @@
 import type { SpectrogramResult } from '../../services/api/index.js';
+import { formatReciprocalInterval } from '../../utils/spectralPresets.js';
 
 export interface SpectrogramSummaryMetrics {
     sampleRate: string;
@@ -18,13 +19,16 @@ export interface SpectrogramSummaryLabelInput {
 export function buildSpectrogramSummaryMetrics(result: SpectrogramResult): SpectrogramSummaryMetrics {
     const times = result.times_ms;
     const spanMs = Math.max(0, Number(times[times.length - 1] ?? 0) - Number(times[0] ?? 0));
-    const sampleRateHz = spanMs > 0 && times.length > 1
-        ? ((times.length - 1) * 1000) / spanMs
-        : Number.NaN;
+    const responseSampleRate = Number(result.sample_rate_hz);
+    const sampleRateHz = Number.isFinite(responseSampleRate) && responseSampleRate > 0
+        ? responseSampleRate
+        : spanMs > 0 && times.length > 1
+            ? ((times.length - 1) * 1000) / spanMs
+            : Number.NaN;
     const nyquistHz = Number.isFinite(sampleRateHz) ? sampleRateHz / 2 : Number.NaN;
     return {
-        sampleRate: formatFrequency(sampleRateHz),
-        nyquist: formatFrequency(nyquistHz),
+        sampleRate: formatReciprocalInterval(sampleRateHz),
+        nyquist: formatReciprocalInterval(nyquistHz),
         timePoints: times.length.toLocaleString(),
         frequencyBins: result.frequencies.length.toLocaleString(),
     };
@@ -63,11 +67,4 @@ export function renderSpectrogramSummary(root: HTMLElement | null, result: Spect
 function setText(root: HTMLElement, id: string, value: string): void {
     const element = root.querySelector<HTMLElement>(`#${id}`);
     if (element) element.textContent = value;
-}
-
-function formatFrequency(hz: number): string {
-    if (!Number.isFinite(hz)) return '—';
-    if (hz >= 1000) return `${(hz / 1000).toFixed(2)} kHz`;
-    if (hz >= 1) return `${hz.toFixed(2)} Hz`;
-    return `${(hz * 1000).toFixed(2)} mHz`;
 }

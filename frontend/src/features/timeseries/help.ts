@@ -65,7 +65,7 @@ export const TIMESERIES_HELP: PageHelpContent = {
             bullets: [
                 'Rolling bands — shaded confidence interval from a rolling window; visible after enabling in Analytics',
                 'Anomalies — point markers from the anomaly detector; severity-coloured',
-                'Adaptive filters — horizontal lines drawn at Ctrl+click points; the chart dims series outside the filter band; "Clear filters" removes them',
+                'Adaptive filters — horizontal lines drawn at Ctrl+click points; filtered samples become gaps in the targeted series while timestamps and other traces stay aligned; "Clear filters" removes them',
                 'Drawings — Arrows and Boxes you draw with the Draw tool; persistent per session',
             ],
         },

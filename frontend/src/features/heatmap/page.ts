@@ -308,23 +308,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
         }
 
         let html = '<div class="heatmap-shell">';
-        // Cluster legend strip: a horizontal row of chips showing how the
-        // clustering split the columns into groups. Helps users understand
-        // why HUFL/HULL sit next to each other even when they didn't ask
-        // for it. Width ≥1280 keeps the strip beside the matrix; it stays
-        // above the matrix on narrower viewports via CSS.
-        if (clusters.length > 0) {
-            html += '<div class="heatmap-cluster-legend" aria-label="Detected correlation clusters">';
-            clusters.forEach((cl, idx) => {
-                const memberNames = cl.members.map((m) => escapeAttr(m)).join(', ');
-                html += `<span class="heatmap-cluster-legend__chip" title="Cluster ${idx + 1}: ${memberNames}">`
-                    + `<span class="heatmap-cluster-legend__dot" aria-hidden="true"></span>`
-                    + `Cluster ${idx + 1} · ${cl.members.length}`
-                    + `</span>`;
-            });
-            html += '</div>';
-        }
-        html += `<div class="heatmap-grid" style="display:grid;width:100%;grid-template-columns:${colTemplate};grid-template-rows:${rowTemplate};">`;
+        html += `<div class="heatmap-grid" style="display:grid;grid-template-columns:${colTemplate};grid-template-rows:${rowTemplate};">`;
         html += cells.join('');
         html += '</div>';
         html += '<div class="heatmap-scale" aria-label="Correlation color scale">';
@@ -332,19 +316,17 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
         html += '<div class="heatmap-scale__bar" aria-hidden="true"></div>';
         html += `<span class="heatmap-scale__tick heatmap-scale__tick--negative">-${formatScaleTick(colorDomainMax)}</span>`;
         html += '</div>';
+        html += '</div>';
         // Status footer below the matrix and the color scale. Tells
         // users what they're looking at and how to interact with it,
         // without scrolling back up to the toolbar.
-        const clusterCount = heatmapClusterEnabled && clusters.length > 0 ? clusters.length : null;
-        const clusterSummary = clusterCount !== null ? `${clusterCount} clusters · ` : '';
         html += `<div class="heatmap-footer" aria-label="Active correlation matrix summary">`
             + `<span class="heatmap-footer__metric">${escapeAttr(metricLabel)}</span>`
             + `<span class="heatmap-footer__sep" aria-hidden="true">·</span>`
-            + `<span class="heatmap-footer__size">${clusterSummary}${size}×${size} matrix</span>`
+            + `<span class="heatmap-footer__size">${size}×${size} matrix</span>`
             + `<span class="heatmap-footer__sep" aria-hidden="true">·</span>`
             + `<span class="heatmap-footer__hint">Click any cell to open that pair in Scatter</span>`
             + `</div>`;
-        html += '</div>';
 
         container.innerHTML = html;
         // Bind cell click: navigate to the scatter page with the chosen
@@ -494,7 +476,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
             });
         }
 
-        heatmapRuntime?.updateStatus(`${getCorrelationModeLabel(metric)} · ${buildHeatmapStatus(columns.length, heatmapCellSize, clusterCount)}`);
+        heatmapRuntime?.updateStatus(`${getCorrelationModeLabel(metric)} · ${buildHeatmapStatus(columns.length, heatmapCellSize)}`);
     }
 
     heatmapRuntime = createAnalysisPageRuntime({

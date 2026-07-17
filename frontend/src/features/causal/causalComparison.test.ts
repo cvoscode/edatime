@@ -16,6 +16,7 @@ describe('causal comparison graph state', () => {
             <input id="causal-tau-max" value="3" />
             <input id="causal-alpha" value="0.05" />
             <button id="causal-save-run-btn" type="button">Save Run</button>
+            <div id="causal-compare-panel" hidden></div>
             <select id="causal-compare-run-a"></select>
             <select id="causal-compare-run-b"></select>
             <button id="causal-compare-run-btn" type="button">Compare</button>
@@ -42,6 +43,7 @@ describe('causal comparison graph state', () => {
         ]);
 
         initCausalComparison();
+        expect(document.getElementById('causal-compare-panel')?.hidden).toBe(true);
         (document.getElementById('causal-save-run-btn') as HTMLButtonElement).click();
 
         expect(getCurrentCausalGraph()).toEqual({
@@ -50,6 +52,7 @@ describe('causal comparison graph state', () => {
         });
         expect((window as any).__edatimeCausalGraph).toBeUndefined();
         expect(loadSavedRuns()).toHaveLength(1);
+        expect(document.getElementById('causal-compare-panel')?.hidden).toBe(false);
         expect(mocks.toast).toHaveBeenCalledWith(expect.stringContaining('Saved run'), 'success');
     });
 });

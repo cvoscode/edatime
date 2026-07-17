@@ -155,6 +155,16 @@ export function frequencyToPeriod(hz: number): string {
     return `${(seconds / 86400).toFixed(1)} days`;
 }
 
+/** Format a sampling frequency as the human-scale interval between samples. */
+export function formatReciprocalInterval(hz: number): string {
+    if (!Number.isFinite(hz) || hz <= 0) return '—';
+    const seconds = 1 / hz;
+    if (seconds < 60) return `1 / ${seconds.toFixed(1)} sec`;
+    if (seconds < 3600) return `1 / ${(seconds / 60).toFixed(1)} min`;
+    if (seconds < 86_400) return `1 / ${(seconds / 3600).toFixed(1)} hr`;
+    return `1 / ${(seconds / 86_400).toFixed(1)} day`;
+}
+
 /**
  * Get a human-readable description for a frequency.
  */

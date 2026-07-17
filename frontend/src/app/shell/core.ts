@@ -17,6 +17,8 @@ import { initAccessibilityShortcuts, showKeyboardShortcutsHelp } from '../../uti
 import { initHashRouting } from '../../utils/router.js';
 import { initPageNavigation, type PageNavigationDeps } from '../../ui/pageNavigation.js';
 import { wireHomeNavigationCards } from '../../features/home/index.js';
+import { initMobileHeaderMenu } from '../../ui/mobileHeaderMenu.js';
+import { initActionProxies, initResponsiveDisclosures } from '../../ui/responsiveDisclosure.js';
 
 export interface ShellCoreInitDeps {
     showPage: (pageName: string) => void;
@@ -35,6 +37,9 @@ export function initShellCore(deps: ShellCoreInitDeps): () => void {
     const disposeThemeToggle = initThemeToggle();
     const disposeAccessibilityShortcuts = initAccessibilityShortcuts();
     const disposeKeyboardHelpButton = initKeyboardHelpButton();
+    const disposeMobileHeaderMenu = initMobileHeaderMenu();
+    const disposeResponsiveDisclosures = initResponsiveDisclosures();
+    const disposeActionProxies = initActionProxies();
 
     const layout = document.querySelector('.app-layout') as HTMLElement | null;
     if (layout && getSetting('sidebarCollapsed')) {
@@ -44,6 +49,9 @@ export function initShellCore(deps: ShellCoreInitDeps): () => void {
 
     return () => {
         disposeHomeNavigation();
+        disposeMobileHeaderMenu();
+        disposeResponsiveDisclosures();
+        disposeActionProxies();
         disposeKeyboardHelpButton();
         disposeAccessibilityShortcuts();
         disposeThemeToggle();

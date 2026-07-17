@@ -385,8 +385,10 @@ export async function initDriftPage(
         computeBtnEl.textContent = 'Computing...';
         syncEmptyState(false);
 
-        // Ensure ECharts is loaded and charts are initialised before showing data.
-        await ensureChartsAsync();
+        // Load the chart runtime in parallel with the API request. Drift results
+        // should not wait behind a large visualization chunk before the backend
+        // can start computing, especially on a cold mobile visit.
+        const chartsReady = ensureChartsAsync().catch(() => undefined);
 
         try {
             await driftComputeTask.run(async (signal) => {
@@ -404,6 +406,7 @@ export async function initDriftPage(
                 });
 
                 const investigation = await fetchDriftInvestigation<DriftInvestigationResponse>(basePayload, { signal });
+                await chartsReady;
                 const results = new Map<string, DriftResponse>(Object.entries(investigation.columns || {}));
                 if (results.size === 0) throw new Error('No drift responses received.');
                 if (DEBUG && investigation.overview) console.debug('drift investigation overview', investigation.overview);

@@ -249,6 +249,9 @@ describe('causal page chart bootstrap', () => {
         expect((document.getElementById('causal-add-edge-btn') as HTMLButtonElement).disabled).toBe(true);
         expect((document.getElementById('causal-export-btn') as HTMLButtonElement).disabled).toBe(true);
         expect((document.getElementById('causal-save-run-btn') as HTMLButtonElement).disabled).toBe(true);
+        expect((document.getElementById('causal-add-edge-btn') as HTMLButtonElement).title).toBe('Run Compute first');
+        expect((document.getElementById('causal-export-btn') as HTMLButtonElement).title).toBe('Run Compute first');
+        expect((document.getElementById('causal-save-run-btn') as HTMLButtonElement).title).toBe('Run Compute first');
         expect((document.getElementById('causal-compare-run-btn') as HTMLButtonElement).disabled).toBe(true);
         expect((document.getElementById('causal-compare-clear-btn') as HTMLButtonElement).disabled).toBe(true);
         expect(document.getElementById('causal-saved-runs-list')?.textContent).toContain('Run Compute first');

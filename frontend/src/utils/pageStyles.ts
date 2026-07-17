@@ -5,6 +5,7 @@ export type StyleModuleName = typeof STYLE_MODULE_NAMES[number];
 export type PageName = keyof typeof PAGE_STYLE_MODULES;
 
 const PAGE_STYLE_MODULES = {
+    causal: ['drift'],
     correlations: ['scatter'],
     drift: ['drift'],
     home: ['home'],

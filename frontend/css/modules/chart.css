@@ -138,16 +138,22 @@
 
 #fft-chart,
 #spectrogram-chart {
+  /* Default: stand-alone page (no flex parent) */
   min-height: clamp(260px, 46vh, 560px);
   position: relative;
 }
 
 /* When the parent .main--analysis-chart uses flex column layout, the
    chart fills the remaining space and the spectral-info footer sits
-   naturally beneath it. */
-.main--analysis-chart #fft-chart,
-.main--analysis-chart #spectrogram-chart {
-  min-height: 0;
+   naturally beneath it. The explicit flex + height:100% makes ECharts
+   stretch with the row instead of pinning to a 360px floor — see
+   usage_issue.md §1.1. */
+.main--analysis-chart #spectrogram-chart,
+.main--analysis-chart #fft-chart {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 360px;
+  height: 100%;
 }
 
 .plot-empty-state {
@@ -319,5 +325,13 @@
   .plot-empty-illustration svg {
     width: 64px;
     height: 48px;
+  }
+}
+
+/* Spectrogram: clear the 84px colorbar so the placeholder does not
+   overlap with the legend — see usage_issue.md §1.9. */
+@media (min-width: 721px) {
+  .spectrogram-chart-row #spectrogram-empty-state {
+    right: 96px;
   }
 }

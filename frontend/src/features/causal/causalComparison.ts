@@ -260,6 +260,8 @@ export function initCausalComparison(): void {
 }
 
 function refreshCompareUI(): void {
+    const panel = document.getElementById('causal-compare-panel');
+    if (panel) panel.hidden = _savedRuns.length === 0;
     renderRunSelector('causal-compare-run-a', _savedRuns, _compareRunAId, (id) => { _compareRunAId = id; });
     renderRunSelector('causal-compare-run-b', _savedRuns, _compareRunBId, (id) => { _compareRunBId = id; });
 

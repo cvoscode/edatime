@@ -171,8 +171,11 @@
   /* Below this width the Display segment gets too cramped when
      fitting Mode and Distribution. Hide the Distribution (diagonal)
      select and let Mode own the segment. The diagonal option is
-     still available via the analytics panel entry. */
-  .scatter-toolbar__segment--display .toolbar-field:nth-of-type(2) {
+     still available via the analytics panel entry.
+     Scoped to #page-scatter so the spectrogram page — whose 2nd
+     Display field is the FFT Window knob (functional, not decorative)
+     — keeps the control visible at every viewport. */
+  #page-scatter .scatter-toolbar__segment--display .toolbar-field:nth-of-type(2) {
     display: none;
   }
 
@@ -371,39 +374,36 @@
 
 @media (max-width: 640px) {
   .app-layout {
-    grid-template-columns: 40px 1fr;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100vw;
   }
 
   .sidebar {
-    padding: 10px 4px;
+    padding: 16px 10px;
     gap: 4px;
   }
 
   .sidebar-title {
-    display: none;
+    display: block;
   }
 
   .nav-text,
   .nav-shortcut {
-    display: none;
+    display: inline-flex;
   }
 
   .sidebar-section-label {
-    display: none;
+    display: block;
   }
 
   .nav-item {
-    justify-content: center;
-    padding: 0;
-    height: 36px;
+    justify-content: flex-start;
+    padding: 0 12px;
+    height: 40px;
   }
 
   header {
     padding: 0 8px;
-  }
-
-  .brand-name {
-    display: none;
   }
 
   .toolbar {

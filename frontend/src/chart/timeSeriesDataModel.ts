@@ -56,8 +56,11 @@ export function buildTimeSeriesDataModel(input: TimeSeriesDataModelInput): TimeS
         for (let pointIndex = 0; pointIndex < count; pointIndex++) {
             const x = Number(xValues![pointIndex]);
             const y = Number(yValues![pointIndex]);
-            if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-            points.push([x, y]);
+            if (!Number.isFinite(x)) continue;
+            // Preserve a filtered sample as NaN so line renderers break at
+            // that timestamp instead of joining the points on either side.
+            points.push([x, Number.isFinite(y) ? y : Number.NaN]);
+            if (!Number.isFinite(y)) continue;
             displayYValues.push(y);
             xDomainMin = Math.min(xDomainMin, x);
             xDomainMax = Math.max(xDomainMax, x);
@@ -78,6 +81,7 @@ export function buildTimeSeriesDataModel(input: TimeSeriesDataModelInput): TimeS
         baseSeries.push({ type: 'line', name: column, color, visible, data: points });
         if (showMarkers && visible) {
             for (const [x, y] of points) {
+                if (!Number.isFinite(y)) continue;
                 annotations.push({ type: 'point', x, y, layer: 'aboveSeries', marker: { symbol: 'circle', size: 5, style: { color } } });
             }
         }

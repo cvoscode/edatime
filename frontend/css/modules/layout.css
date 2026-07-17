@@ -2,11 +2,74 @@
 .app-layout {
   height: 100vh;
   display: grid;
-  /* Allow the sidebar to shrink at narrow viewports so the nav-text
-     ellipsis kicks in instead of overflowing mid-word. The min 220px
-     preserves the desktop layout; the auto minimum lets the column
-     collapse gracefully when space is tight. */
-  grid-template-columns: minmax(220px, 1fr) minmax(0, 4fr);
+  /* Keep navigation readable without letting it consume a fixed 20% of
+     ultrawide screens. The analysis canvas owns all remaining width. */
+  grid-template-columns: clamp(220px, 16vw, 280px) minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.mobile-sidebar-backdrop {
+  display: none;
+}
+
+/* On small screens the sidebar becomes a slide-in drawer so the chart
+   page gets the full width. See usage_issue.md A2 (drawer mode). */
+@media (max-width: 640px) {
+  .app-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Override the desktop sidebar-collapsed rule (which would shrink
+     the column to 56px) — the drawer logic owns the layout here. */
+  .app-layout.sidebar-collapsed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-layout>.sidebar,
+  .app-layout>aside.sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 260px;
+    z-index: 250;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    border-right: 1px solid var(--border);
+    background: var(--shell-bg);
+    overflow-y: auto;
+  }
+
+  .app-layout[data-sidebar-open="true"]>.sidebar,
+  .app-layout[data-sidebar-open="true"]>aside.sidebar {
+    transform: translateX(0);
+  }
+
+  .mobile-sidebar-backdrop {
+    display: block;
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 260px;
+    width: auto;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 240;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .app-layout[data-sidebar-open="true"]>.mobile-sidebar-backdrop {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+body.mobile-nav-open {
   overflow: hidden;
 }
 
@@ -84,16 +147,32 @@
   min-width: 0;
   min-height: 0;
   gap: 0;
+  /* Anchor for the absolutely-positioned empty-state overlay — see
+     usage_issue.md §1.9. */
+  position: relative;
+}
+
+/* Hard cap on dropdown trigger label width so the "Hop 50% (50% overlap)"
+   chip can ellipsize instead of overflowing into the next field —
+   see usage_issue.md §1.7. */
+.scatter-toolbar__field .dropdown__trigger>.dropdown__label {
+  max-width: 12ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .spectrogram-chart-row #spectrogram-colorbar {
   align-self: stretch;
   flex-shrink: 0;
   width: 84px;
-  display: flex;
-  flex-direction: column;
+  /* Grid layout pin the "z-score → [0,1]" scale label to the bottom of
+     the column instead of letting it drift to the bottom of a 900px
+     flex column — see usage_issue.md §1.4. */
+  display: grid;
+  grid-template-rows: auto 1fr auto;
   align-items: center;
-  justify-content: stretch;
+  justify-items: center;
   padding: 14px 0 10px;
   gap: 4px;
   pointer-events: auto;
@@ -196,11 +275,14 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   overflow-wrap: normal;
-  margin-top: 8px;
+  margin-top: 6px;
   padding: 0;
   opacity: 0.9;
   line-height: 1.2;
   text-align: center;
+  /* Stays in the bottom grid row (auto), just under the Low tick — see
+     usage_issue.md §1.4. */
+  align-self: end;
 }
 
 /* Intermediate colorbar tick labels (25%, 50%, 75%) */
@@ -408,6 +490,37 @@
 
   .spectrogram-spectral-info__row {
     gap: 8px;
+  }
+
+  /* The summary uses a --colorbar-width variable (96px at desktop,
+     0px at mobile) — see usage_issue.md §1.6. */
+  #page-spectrogram {
+    --colorbar-width: 0px;
+  }
+}
+
+/* Desktop default: keep summary card clear of the 84px colorbar + 12px gap. */
+#page-spectrogram {
+  --colorbar-width: 96px;
+}
+
+.spectrogram-spectral-info {
+  right: var(--colorbar-width, 96px);
+  max-width: calc(100vw - var(--colorbar-width, 96px) - 240px);
+}
+
+/* At <=520px the summary abandons absolute mode and stacks as a 2-col
+   grid below the chart so it cannot clip past the right edge. */
+@media (max-width: 520px) {
+  .spectrogram-spectral-info {
+    position: static;
+    margin: 8px 12px 0;
+    right: auto;
+    max-width: none;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 12px;
+    width: auto;
   }
 }
 

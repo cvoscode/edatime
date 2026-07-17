@@ -242,7 +242,10 @@ export class FallbackChart implements ChartInstance {
             for (let i = 0; i < xs.length; i++) {
                 const x = Number(xs[i]);
                 const y = Number(ys[i]);
-                if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+                if (!Number.isFinite(x) || !Number.isFinite(y)) {
+                    started = false;
+                    continue;
+                }
                 if (x < viewXMin || x > viewXMax || y < viewYMin || y > viewYMax) continue;
 
                 const px = pad + ((x - viewXMin) / (viewXMax - viewXMin)) * (width - 2 * pad);

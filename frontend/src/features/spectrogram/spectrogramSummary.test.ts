@@ -7,6 +7,7 @@ import {
 
 const result = {
     column: 'HUFL',
+    sample_rate_hz: 2,
     times_ms: [0, 500, 1000],
     frequencies: [1, 2, 3],
     magnitudes: [[1], [2], [3]],
@@ -15,8 +16,8 @@ const result = {
 describe('spectrogram summary', () => {
     it('derives readable result metrics and accessible context', () => {
         expect(buildSpectrogramSummaryMetrics(result)).toEqual({
-            sampleRate: '2.00 Hz',
-            nyquist: '1.00 Hz',
+            sampleRate: '1 / 0.5 sec',
+            nyquist: '1 / 1.0 sec',
             timePoints: '3',
             frequencyBins: '3',
         });
@@ -41,10 +42,22 @@ describe('spectrogram summary', () => {
         const root = document.getElementById('summary')!;
         renderSpectrogramSummary(root, result);
         expect(root.hidden).toBe(false);
-        expect(document.getElementById('spectrogram-summary-rate')?.textContent).toBe('2.00 Hz');
+        expect(document.getElementById('spectrogram-summary-rate')?.textContent).toBe('1 / 0.5 sec');
         expect(document.getElementById('spectrogram-summary-bins')?.textContent).toBe('3');
 
         renderSpectrogramSummary(root, null);
         expect(root.hidden).toBe(true);
+    });
+
+    it('uses the original sample cadence rather than STFT hop spacing', () => {
+        const ettm2 = {
+            ...result,
+            sample_rate_hz: 1 / (15 * 60),
+            times_ms: [0, 43_200_000, 86_400_000],
+        };
+        expect(buildSpectrogramSummaryMetrics(ettm2)).toMatchObject({
+            sampleRate: '1 / 15.0 min',
+            nyquist: '1 / 30.0 min',
+        });
     });
 });

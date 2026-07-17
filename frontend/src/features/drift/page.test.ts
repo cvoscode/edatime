@@ -56,6 +56,14 @@ describe('drift page accessibility and debug metadata', () => {
         // of returning the real echarts singleton that vitest doesn't control.
         const driftPageModule = await import('./page.js');
         driftPageModule._setEchartsModule(null);
+        const { cleaningPlanStore } = await import('../../cleaning/store.js');
+        cleaningPlanStore.resetForDataset({
+            sourceVersionId: 'source-drift-test',
+            datasetRevision: 1,
+            datasetFingerprint: 'dataset-drift-test',
+            schemaFingerprint: 'schema-drift-test',
+            timeColumn: 'timestamp',
+        });
 
         // Build the fetch mock HERE in beforeEach (not inside it()) so that any
         // code path during module initialisation that calls fetch() hits the mock.

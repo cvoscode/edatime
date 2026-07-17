@@ -84,6 +84,7 @@ export function buildSpectrogramChartOptions({
                 nameGap: 48,
                 axisLabel: {
                     color: '#9fb1d1',
+                    hideOverlap: true,
                     rotate: totalSpanMs > 48 * 60 * 60_000 ? 0 : 15,
                     interval: xTickInterval,
                     formatter: (value: string | number) => {
@@ -104,6 +105,7 @@ export function buildSpectrogramChartOptions({
                 nameGap: 84,
                 axisLabel: {
                     color: '#9fb1d1',
+                    hideOverlap: true,
                     interval: yTickInterval,
                     formatter: (value: string | number) => formatFrequency(Number(value)),
                 },

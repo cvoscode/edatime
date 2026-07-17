@@ -211,6 +211,7 @@ describe('contract: every endpoint targets /api/v1', () => {
     it('upload module targets /api/v1', async () => {
         const spy = installFetchSpy();
         try {
+            const { cleaningPlanStore } = await import('../../cleaning/store.js');
             const {
                 previewUpload,
                 uploadDataset,
@@ -222,6 +223,10 @@ describe('contract: every endpoint targets /api/v1', () => {
                 fetchDriftStats,
                 fetchDriftInvestigation,
             } = await import('./upload.js');
+            cleaningPlanStore.resetForDataset({
+                sourceVersionId: 'source-drift', datasetRevision: 2,
+                datasetFingerprint: 'dataset-drift', schemaFingerprint: 'schema-drift', timeColumn: 'ts',
+            });
             const fd = new FormData();
             await previewUpload(fd);
             await uploadDataset(fd);
@@ -244,6 +249,16 @@ describe('contract: every endpoint targets /api/v1', () => {
                 '/api/v1/drift/stats',
                 '/api/v1/drift/investigate',
             ]);
+            for (const call of spy.calls.slice(-2)) {
+                expect(JSON.parse(String(call.init?.body))).toMatchObject({
+                    cleaningPlan: {
+                        expectedSourceVersionId: 'source-drift',
+                        expectedDatasetRevision: 2,
+                        plan: { stages: [] },
+                    },
+                });
+            }
+            cleaningPlanStore.clear();
         } finally {
             spy.restore();
         }
