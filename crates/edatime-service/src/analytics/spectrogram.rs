@@ -95,6 +95,10 @@ impl ScaleOptions {
 #[derive(Debug, Serialize)]
 pub struct SpectrogramResult {
     pub column: String,
+    /// Sampling rate inferred from the original input timestamps. The
+    /// `times_ms` values are STFT-window centres, so their spacing is the
+    /// hop interval rather than the source cadence.
+    pub sample_rate_hz: f64,
     pub times_ms: Vec<f64>,
     pub frequencies: Vec<f64>,
     pub magnitudes: Vec<Vec<f64>>,
@@ -180,6 +184,7 @@ pub fn compute_spectrogram(
 
     Ok(SpectrogramResult {
         column: column.to_string(),
+        sample_rate_hz: fs,
         times_ms,
         frequencies,
         magnitudes,
@@ -455,6 +460,7 @@ mod tests {
     fn make_result(values: Vec<f64>) -> SpectrogramResult {
         SpectrogramResult {
             column: "x".into(),
+            sample_rate_hz: 1.0,
             times_ms: vec![0.0; values.len()],
             frequencies: vec![0.0],
             magnitudes: values.into_iter().map(|v| vec![v]).collect(),

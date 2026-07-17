@@ -1,5 +1,5 @@
 # ai/crates/edatime-service/src/handlers/routes/drift.md
-> HTTP handlers for `POST /api/drift/stats` and `POST /api/drift/investigate`.
+> HTTP handlers for `POST /api/v1/drift/stats` and `POST /api/v1/drift/investigate`.
 
 ## Structs
 - `pub struct DriftQuery { column, window, reference_start, reference_end, ks_pvalue_threshold?, es_pvalue_threshold?, psi_minor_threshold?, psi_major_threshold?, wasserstein_std_multiplier? }` — Request body for single-column drift stats. All serde `rename_all = "camelCase"`.

@@ -1,25 +1,27 @@
 # frontend/src/services/api/upload.ts
-> Upload, database connection, and drift API wrappers — re-exports all route-family implementations for the upload/database/drift domain.
+> Upload, database connection, and drift API wrappers. Database status/connect calls use `{ datasetScoped: false }`; `loadDatabaseTable` is dataset-scoped because it mutates the active dataset.
 
 ## Functions (Upload)
-- `previewUpload(formData: FormData, signal?: AbortSignal): Promise<Response>`
-  - Uploads a file for preview; returns raw `Response`. [deps: [postJson][1]]
+- `previewUpload(formData: FormData, options?: ApiRequestOptions): Promise<Response>`
+  - POST `/api/v1/upload/preview` with raw `FormData` body. Returns the raw `Response` (preview metadata is consumed via `frontend/src/features/upload/preview.ts`). [deps: [routes][1]]
 - `uploadDataset(formData: FormData): Promise<Response>`
-  - Ingests the dataset upload; returns raw `Response`. [deps: [postJson][1]]
+  - POST `/api/v1/upload` with raw `FormData` body. [deps: [routes][1]]
 
-## Functions (Database)
-- `fetchDatabaseTables(): Promise<unknown>` — Lists tables from connected database (dataset-scoped: false). [deps: [getJson][1]]
-- `connectDatabase(body: unknown): Promise<unknown>` — Establishes DB connection with credentials/config. [deps: [postJson][1]]
-- `loadDatabaseTable(body: unknown): Promise<unknown>` — Loads a database table into in-memory dataset (dataset-scoped: true). [deps: [postJson][1]]
-- `deleteDatabaseConnection(): Promise<Response>` — Closes active DB connection. Returns raw `Response`.
-- `fetchDatabaseStatus(): Promise<unknown>` — Returns current DB connection health and metadata. [deps: [getJson][1]]
+## Functions (Database — `datasetScoped: false` unless noted)
+- `fetchDatabaseTables(): Promise<unknown>` — GET `/api/v1/database/tables`. [deps: [http][2]]
+- `connectDatabase(body: unknown): Promise<unknown>` — POST `/api/v1/database/connect`. [deps: [http][2]]
+- `loadDatabaseTable(body: unknown): Promise<unknown>` — POST `/api/v1/database/load`. **Dataset-scoped** because the call mutates the active dataset. [deps: [http][2]]
+- `deleteDatabaseConnection(): Promise<unknown>` — DELETE `/api/v1/database/connect`. [deps: [http][2]]
+- `fetchDatabaseStatus(): Promise<unknown>` — GET `/api/v1/database/status`. [deps: [http][2]]
 
 ## Functions (Drift)
-- `fetchDriftStats<T>(payload: DriftQueryPayload, signal?: AbortSignal): Promise<T>`
-  - Posts drift query payload (`{ column, window, reference_start, reference_end, ...thresholdOverrides }`) to `/api/drift/stats`; returns typed response. [deps: [postJson][1]]
-
-- `fetchDriftInvestigation(payload: DriftInvestigateQueryPayload, signal?: AbortSignal): Promise<DriftInvestigationResponse>`
-  - Posts multi-column drift investigation request to `/api/drift/investigate`. Returns full investigation response with rankings and optional segmentation. [deps: [postJson][1]]
+- `fetchDriftStats<T>(payload: unknown, options?: ApiRequestOptions): Promise<T>`
+  - POST `/api/v1/drift/stats`. The cleaning plan is attached only when at least one stage is enabled (`plan.stages.some(s => s.enabled)`). [deps: [http][2], [cleaning/store][3], [cleaning/compiler][4]]
+- `fetchDriftInvestigation<T>(payload: unknown, options?: ApiRequestOptions): Promise<T>`
+  - POST `/api/v1/drift/investigate`. Same cleaning-plan attachment rule as `fetchDriftStats`. [deps: [http][2], [cleaning/store][3], [cleaning/compiler][4]]
 
 ---
-[1]: ./http.md
+[1]: ../contracts/api/v1/routes.md
+[2]: ./http.md
+[3]: ../cleaning/store.md
+[4]: ../cleaning/compiler.md

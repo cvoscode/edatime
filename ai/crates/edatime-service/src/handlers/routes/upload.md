@@ -1,5 +1,5 @@
 # crates/edatime-service/src/handlers/routes/upload.rs
-> `POST /api/upload`, `POST /api/upload/preview`, `GET /api/sample/{name}` — data file upload and preview.
+> `POST /api/v1/upload`, `POST /api/v1/upload/preview`, `GET /api/v1/sample/{name}` — data file upload and preview.
 
 ## Handlers
 

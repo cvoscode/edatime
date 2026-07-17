@@ -17,29 +17,36 @@ edatime is an interactive time-series analytics app with a Rust/Axum/Polars back
 
 ### Backend routes
 
-- `GET /api/data`
+- `GET /api/v1/data`
   - filters by time range
   - downsamples with `minmaxlttb` when needed
   - returns Arrow IPC with `application/vnd.apache.arrow.stream`
-- `GET /api/metadata`
+  - also exposed as `POST /api/v1/data` (JSON body) for long filter payloads
+- `GET /api/v1/metadata`
   - returns dataset schema, numeric columns, time range, and column profiles
-- `GET /api/health`
-- `GET /api/aggregate`
+- `GET /api/v1/health`
+- `GET /api/v1/aggregate`
   - supports Arrow IPC or JSON output
-- `GET /api/metrics`
+- `GET /api/v1/metrics`
   - returns in-memory runtime metrics for request counts, caching, rate limiting, scatter sampling, and dataset revision
-- `GET /api/scatter/correlations`
+- `GET /api/v1/scatter/correlations`
   - returns correlation suggestions and candidate columns for scatter analysis
-- `GET /api/scatter/points`
-- `POST /api/scatter/points`
+- `GET /api/v1/scatter/points`
+- `POST /api/v1/scatter/points`
   - returns Arrow IPC with `application/vnd.apache.arrow.stream`
   - metadata (total, returned, color_min/max) in response headers
   - frontend currently uses POST to avoid long query strings when many filters are active
-- `POST /api/upload`
+- `POST /api/v1/upload`
   - supports partial ingestion, column subset selection, and optional time slicing
-- `POST /api/upload/preview`
+- `POST /api/v1/upload/preview`
   - returns preview metadata used to populate the profile grid before ingest
-- All API routes are also available under `/api/v1/*` as a compatibility alias for legacy clients. The canonical mount is `/api/*`; do not target `/api/v1/*` from new frontend code.
+- `POST /api/v1/database/{connect,load,tables,columns,status}` and `DELETE /api/v1/database/connect`
+- `GET|POST /api/v1/profile`, `GET|POST /api/v1/profile/sample` — column profile jobs
+- `GET /api/v1/jobs`, `GET /api/v1/jobs/{id}`, `DELETE /api/v1/jobs/{id}` — background job registry (cleaning, profile, correlation warmup)
+- `POST /api/v1/cleaning/{validate,preview,propose/outliers,apply,export/{data,plan,code,manifest,bundle}}` — cleaning-plan lifecycle
+- `GET /api/v1/datasets/versions`, `POST /api/v1/datasets/versions/select`, `GET /api/v1/datasets/storage` — cleaning-plan dataset versions
+- `GET|POST /api/v1/config/database` — runtime database config
+- All API routes are mounted under `/api/v1/*`. There is no `/api` alias; the canonical mount is `/api/v1` (single `nest` call in `src/main.rs` and `crates/edatime-bin/src/main.rs`).
 
 ### Frontend runtime structure
 
@@ -119,7 +126,7 @@ edatime is an interactive time-series analytics app with a Rust/Axum/Polars back
 - Upload-time column subset selection
 - Dataset metadata and time-range detection during preview
 - Column profile grid with sorting, resizing, and virtualization
-- Short-lived in-memory caching for repeated `/api/data` requests
+- Short-lived in-memory caching for repeated `/api/v1/data` requests
 - Request validation and upload-size enforcement on backend routes
 - In-memory runtime metrics and per-client rate limiting
 - Numeric range filters on temporal data
@@ -138,7 +145,7 @@ edatime is an interactive time-series analytics app with a Rust/Axum/Polars back
 - WebGPU availability guard with a user-facing error
 - Canvas fallback chart registration
 - Spectrogram colorbar normalization (none / min-max [0,1] / z-score / robust [Q1, Q3]) with optional outlier clipping (percentile or IQR); the same controls are mirrored on the FFT page
-- Server-side pre-scaling for `/api/analytics/spectrogram` via `normalize`, `clip`, `clip_param` query params (mirrors the frontend helper; defaults preserve the previous look)
+- Server-side pre-scaling for `/api/v1/analytics/spectrogram` via `normalize`, `clip`, `clip_param` query params (mirrors the frontend helper; defaults preserve the previous look)
 
 ## Known active issue (priority)
 
@@ -149,7 +156,7 @@ edatime is an interactive time-series analytics app with a Rust/Axum/Polars back
 Execution order: fix scatter color-by-column first, then deliver the requested feature set below.
 
 1. Color-by-column reliability (scatter first)
-  - Ensure `/api/scatter/points` returns a consistent color contract for numeric vs categorical color columns.
+  - Ensure `/api/v1/scatter/points` returns a consistent color contract for numeric vs categorical color columns.
   - Make frontend scatter rendering resilient when color arrays are partially missing or contain non-finite values.
   - Verify colorbar and legend behavior across scatter and density modes.
 
@@ -185,10 +192,10 @@ Execution order: fix scatter color-by-column first, then deliver the requested f
 ## Current data flow
 
 ### Main chart page
-1. Frontend fetches `/api/metadata`.
+1. Frontend fetches `/api/v1/metadata`.
 2. Frontend builds series chips, range controls, upload/profile UI, analysis controls, and chart state.
 3. User may locally change per-series chart colors from the series chips.
-4. Frontend requests `/api/data?start=...&end=...&width=...&columns=...`.
+4. Frontend requests `/api/v1/data?start=...&end=...&width=...&columns=...`.
 5. Backend filters and downsamples in Polars.
 6. Backend returns Arrow IPC.
 7. Frontend decodes Arrow and renders through ChartGPU.
@@ -196,8 +203,8 @@ Execution order: fix scatter color-by-column first, then deliver the requested f
 9. Zooming triggers a debounced re-fetch, while purely presentational changes stay local.
 
 ### Scatter page
-1. Frontend fetches `/api/scatter/correlations` for X/Y suggestions.
-2. Frontend sends a `POST /api/scatter/points` request for the selected X/Y pair.
+1. Frontend fetches `/api/v1/scatter/correlations` for X/Y suggestions.
+2. Frontend sends a `POST /api/v1/scatter/points` request for the selected X/Y pair.
 3. Request payload may include linked time range, numeric filters, adaptive line filters, and an optional scatter color column.
 4. Backend applies lazy Polars filtering.
 5. Backend returns scatter points as JSON.
@@ -205,10 +212,10 @@ Execution order: fix scatter color-by-column first, then deliver the requested f
 7. Scatter-only color scale settings are applied in the scatter renderer.
 
 ### Upload flow
-1. Frontend uploads a file to `/api/upload/preview`.
+1. Frontend uploads a file to `/api/v1/upload/preview`.
 2. Backend scans the file and returns dataset metadata plus column profiles.
 3. User optionally selects partial-load settings and a subset of columns.
-4. Frontend uploads the file to `/api/upload` with those options.
+4. Frontend uploads the file to `/api/v1/upload` with those options.
 5. Backend ingests the selection into the shared `DataFrame`.
 6. Frontend reloads against the newly ingested dataset and rebuilds UI state from metadata.
 

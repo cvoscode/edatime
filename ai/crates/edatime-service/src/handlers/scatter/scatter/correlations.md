@@ -1,5 +1,5 @@
 # ai/crates/edatime-service/src/handlers/scatter/scatter/correlations.md
-> Scatter correlation handler — GET /api/scatter/correlations and GET /api/scatter/matrix.
+> Scatter correlation handler — GET /api/v1/scatter/correlations and GET /api/v1/scatter/correlations/matrix.
 
 ## Enum: CorrelationMode
 - `PearsonRaw`, `SpearmanRaw`, `KendallRaw`, `PearsonDiff`, `SpearmanDiff`, `KendallDiff` [serde(rename_all = "snake_case")]

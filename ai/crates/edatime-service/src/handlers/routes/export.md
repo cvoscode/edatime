@@ -1,5 +1,5 @@
 # crates/edatime-service/src/handlers/routes/export.rs
-> `GET /api/export/parquet` — export dataset as Parquet.
+> `GET /api/v1/export/parquet` — export dataset as Parquet.
 
 ## Handler
 - `export_parquet(State(state): State<AppState>, Query(params): Query<DataQuery>) -> Result<impl IntoResponse, AppError>`

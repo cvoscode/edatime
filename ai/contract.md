@@ -123,6 +123,99 @@
 ### `POST /api/v1/analytics/causal`
 - **TS caller:** `fetchCausalGraph(columns, tauMax?, alpha?, method?, maxPoints?, signalOrOptions?, pcAlpha?, test?, maxCondsDim?, fdrMethod?): Promise<CausalGraphResponse>` [deps: [analytics_api][3]]
 
+## Cleaning
+
+> Cleaning-plan lifecycle endpoints. The plan is a serializable artifact that can be validated, previewed, applied (creating a new dataset version), exported as data / plan / code / manifest / bundle, and listed as dataset versions.
+
+### `POST /api/v1/cleaning/validate`
+- Validate a cleaning plan payload without applying it.
+
+### `POST /api/v1/cleaning/preview`
+- Preview a cleaning plan's effect on the dataset.
+
+### `POST /api/v1/cleaning/propose/outliers`
+- Generate an outlier-cleaning plan proposal from the current dataset.
+
+### `POST /api/v1/cleaning/apply`
+- Apply a cleaning plan to the dataset. Creates a new dataset version on success.
+
+### `POST /api/v1/cleaning/export/data`
+- Export the post-cleaning dataset.
+
+### `POST /api/v1/cleaning/export/plan`
+- Export the cleaning plan as a portable artifact (JSON / plan format).
+
+### `POST /api/v1/cleaning/export/code`
+- Export the cleaning plan as code (e.g. reproducible Python / Polars snippet).
+
+### `POST /api/v1/cleaning/export/manifest`
+- Export a manifest describing the cleaning plan and its provenance.
+
+### `POST /api/v1/cleaning/export/bundle`
+- Export a bundle combining data, plan, code, and manifest.
+
+## Jobs
+
+### `GET /api/v1/jobs`
+- List background jobs (cleaning, profile, correlation warmups, etc.).
+
+### `GET /api/v1/jobs/{id}`
+- Fetch a single job's status and (if complete) result payload.
+
+### `DELETE /api/v1/jobs/{id}`
+- Cancel a running background job.
+
+## Datasets
+
+### `GET /api/v1/datasets/versions`
+- List all dataset versions on disk (cleaning-plan versions).
+
+### `POST /api/v1/datasets/versions/select`
+- Switch the in-memory dataset to a previously saved version. Body: `{ version_id: string }`.
+
+### `GET /api/v1/datasets/storage`
+- Return disk-usage information for the dataset artifact store.
+
+## Profile
+
+### `GET /api/v1/profile`
+- Read the cached column profile for the active dataset (if computed).
+
+### `POST /api/v1/profile`
+- Start a fresh column-profile job for the active dataset.
+
+### `GET /api/v1/profile/sample`
+- Read the cached column profile for a sample dataset (if computed).
+
+### `POST /api/v1/profile/sample`
+- Start a fresh column-profile job for a sample dataset.
+
+## Config
+
+### `GET /api/v1/config/database`
+- Read the current database-connection configuration.
+
+### `POST /api/v1/config/database`
+- Update database-connection configuration.
+
+## Aggregate
+
+### `GET /api/v1/aggregate`
+- Bucket-aggregated bar/heatmap data with support for tumbling and sliding windows.
+
+## Database (additional)
+
+### `GET /api/v1/database/columns`
+- List columns of a connected database table.
+
+## Health & Metrics
+
+### `GET /api/v1/health`
+- Liveness probe. Returns `{ "status": "ok" }`.
+
+### `GET /api/v1/metrics`
+- In-memory runtime metrics: request counts, cache hits/misses, rate-limit rejections, scatter sampling stats, dataset revision.
+
 ---
 [1]: ./frontend/src/services/api/metadata.md
 [2]: ./frontend/src/services/api/scatter.md

@@ -1,51 +1,62 @@
-# ai/frontend/src/services/api/http.md
-> Core HTTP fetch helpers with request-dedupe, Arrow IPC parsing utilities, timestamp resolution, and response-shape assertion helpers. Dataset request-scope state and `dedupeInflight` are owned by `datasetRequestScope.ts` and re-exported here for the public contract.
+# frontend/src/services/api/http.ts
+> Core HTTP fetch helpers for the API service layer: JSON / Blob GET/POST/DELETE, dataset request-scope dedupe, Arrow IPC parsing utilities, timestamp resolution, response-shape assertion helpers, and structured error extraction. Dataset request-scope state and `dedupeInflight` are owned by `datasetRequestScope.ts` and re-exported here for backward-compatible imports.
 
 ## Types
 - `ApiRequestOptions { signal?: AbortSignal; datasetScoped?: boolean }`
-  - Options accepted by API request helpers. `datasetScoped` defaults to `true`; database status/table/connect calls pass `false`.
+  - Options accepted by API request helpers. `signal` is forwarded to `fetch`. `datasetScoped` defaults to `true`; database status/table/connect calls and session jobs pass `false`.
 - `TableFromIPCFn = (buffer: ArrayBuffer) => ArrowTable`
+  - Lazy-resolved Arrow decoder signature.
 - `ArrowTable { schema?: { fields?: Array<{ name?: string; type?: unknown }> }; numRows: number; getChild(name: string): ArrowColumn | null }`
 - `ArrowColumn { get(index: number): unknown }`
+- `ApiErrorPayload { error?: unknown; message?: unknown; code?: unknown; correlation_id?: unknown }` (internal)
 
 ## Functions
-- `normalizeOptions(signalOrOptions: AbortSignal | ApiRequestOptions | undefined): ApiRequestOptions`
-  - Normalizes legacy `AbortSignal` argument or `ApiRequestOptions` object into a consistent `ApiRequestOptions` shape.
-- `dedupe<T>(key: string, factory: () => Promise<T>): Promise<T>`
-  - Deduplicates in-flight requests by URL+body key; ensures only one outstanding request per key. Delegates to `dedupeInflight` from [datasetRequestScope][2].
+
+### Request helpers
+- `getJson<T>(url: string, label: string, options?: ApiRequestOptions): Promise<T>` [deps: [readApiError][1], [datasetRequestScope][2]]
+  - GET with dedupe and JSON parsing; throws `readApiError(res, label)` on non-OK status.
+- `getBlob(url: string, label: string, options?: ApiRequestOptions): Promise<Blob>` [deps: [datasetRequestScope][2]]
+  - Same contract as `getJson` but returns the raw response body as a `Blob`.
+- `postJson<T>(url: string, body: unknown, label: string, options?: ApiRequestOptions): Promise<T>` [deps: [datasetRequestScope][2]]
+  - POST with `Content-Type: application/json`, dedupe key includes JSON-stringified body.
+- `postBlob(url: string, body: unknown, label: string, options?: ApiRequestOptions): Promise<Blob>` [deps: [datasetRequestScope][2]]
+  - POST returning `Blob` (used by parquet export etc.).
+- `deleteJson<T>(url: string, label: string, options?: ApiRequestOptions): Promise<T>` [deps: [datasetRequestScope][2]]
+  - DELETE with `cache: 'no-store'` and JSON response body.
+
+### Error parsing
+- `readApiError(response: Response, label: string): Promise<Error & { status?: number; code?: string; correlationId?: string }>` [deps: [debug][1]]
+  - Extracts error message from JSON `message` / `code` / `correlation_id` fields, falls back to plain text. Sets `status`, `code`, and `correlationId` properties on the resulting `Error`.
+
+### Arrow / timestamp helpers
 - `ensureArrowParser(): Promise<TableFromIPCFn>`
-  - Lazily loads and caches the Apache Arrow `tableFromIPC` parser.
+  - Lazily loads and caches the `apache-arrow` ES module, returning its `tableFromIPC` decoder. Throws if the module is missing.
 - `resolveTimestampColumnName(table: ArrowTable, requestedCols: string[], colorColumn: string | null, headerName: string | null): string | null`
-  - Resolves the timestamp column name from explicit header, single non-value column, temporal name pattern, or first column fallback.
+  - Resolves the timestamp column name from (1) `x-edatime-time-column` header, (2) the single non-value column, (3) any `/time|date|timestamp/i` column, (4) first schema field.
 - `toEpochMs(value: unknown): number`
-  - Converts numeric timestamps to epoch-ms using backend-aligned unit thresholds (s/ms/µs/ns). [deps: [debug][1]]
-- `isObject(v: unknown): v is Record<string, unknown>`
-  - Type guard that returns true for plain object values.
+  - Converts numeric timestamps to epoch-ms with backend-aligned thresholds: ≥1e17 → ns, ≥1e14 → µs, ≥1e11 → ms passthrough, else seconds × 1000.
+- `readExecutionIdentity(headers: Pick<Headers, 'get'> | null | undefined): ExecutionIdentity | undefined`
+  - Decodes the immutable result provenance contract shared by plan-aware routes from `x-edatime-source-version`, `x-edatime-source-revision`, `x-edatime-schema-fingerprint`, `x-edatime-plan-hash` headers. Returns `undefined` when any required header is missing/invalid.
+
+### Response guards
+- `isObject(v: unknown): v is Record<string, unknown>` — type guard for plain objects.
 - `assertDatasetMetadata(data: unknown): asserts data is DatasetMetadata`
-  - Throws if the metadata response lacks required `total_rows`, `columns`, and `numeric_columns` fields.
+  - Throws if metadata lacks `total_rows`, `columns`, or `numeric_columns`.
 - `assertScatterPoints(data: unknown): asserts data is ScatterPointsResponse`
   - Throws if scatter points response lacks a `points` array.
 - `assertScatterCorrelations(data: unknown): asserts data is ScatterCorrelationsResponse`
   - Throws if correlations response lacks a `correlations` array.
-- `readApiError(response: Response, label: string): Promise<Error & { status?: number }>`
-  - Extracts error message from JSON error payloads (`message`, `code`, `correlation_id`) or plain text fallback; attaches `status` from response.
-- `getJson<T>(url: string, label: string, options?: AbortSignal | ApiRequestOptions): Promise<T>`
-  - Performs a cached GET request with deduplication and JSON parsing; throws on non-OK status.
-- `postJson<T>(url: string, body: unknown, label: string, options?: AbortSignal | ApiRequestOptions): Promise<T>`
-  - Performs a POST request with JSON serialization and deduplication; throws on non-OK status.
-- `getJsonForApi`, `postJsonForApi`
-  - Aliases of `getJson` / `postJson` for backward-compatible facade file imports.
-- `captureDatasetRequestScope(): number`
-  - Re-exported from [datasetRequestScope][2]. Returns the current scope value.
-- `assertDatasetRequestScopeActive(scope: number): void`
-  - Re-exported from [datasetRequestScope][2]. Throws if the scope is no longer current.
-- `invalidateDatasetRequestScope(): number`
-  - Re-exported from [datasetRequestScope][2]. Increments scope and clears in-flight dedupe.
-- `__resetApiRequestStateForTests(): void`
-  - Re-exported from [datasetRequestScope][2]. Resets all request state for test isolation.
-- `dbg`, `DEBUG`
-  - Debug logging utilities re-exported for route-family modules. [deps: [debug][1]]
+
+### Dataset request-scope re-exports (canonical owner is `datasetRequestScope.ts`)
+- `captureDatasetRequestScope(): number` — current scope counter.
+- `assertDatasetRequestScopeActive(scope: number): void` — throws `AbortError`-named error when stale.
+- `invalidateDatasetRequestScope(): number` — bumps scope and clears the inflight dedupe map.
+- `__resetApiRequestStateForTests(): void` — alias for `__resetDatasetRequestScopeForTests` (test-only).
+- `dedupe` — alias for `dedupeInflight` (internal).
+
+### Debug logging re-exports
+- `dbg`, `DEBUG` — re-exported from `../../debug.js` for route-family modules.
 
 ---
-[1]: ../../../debug.md
+[1]: ../../debug.md
 [2]: ./datasetRequestScope.md

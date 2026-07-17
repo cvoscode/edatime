@@ -29,7 +29,7 @@
 ---
 [1]: ../../store/datasetState.md
 [2]: ../../store/chartState.md
-[3]: ../../store/index.md#setViewport
-[4]: ../../store/index.md#setColumnRanges
-[5]: ../../store/index.md#setAdaptiveLineFilters
+[3]: ../../store/chartState.md#setViewport
+[4]: ../../store/uiState.md#setSeriesColors
+[5]: ../../store/uiState.md#setAdaptiveFilterColumn
 [6]: ../../utils/dom.md#debounce

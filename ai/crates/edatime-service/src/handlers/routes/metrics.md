@@ -1,5 +1,5 @@
 # crates/edatime-service/src/handlers/routes/metrics.rs
-> `GET /api/metrics` — application metrics snapshot.
+> `GET /api/v1/metrics` — application metrics snapshot.
 
 ## Handler
 

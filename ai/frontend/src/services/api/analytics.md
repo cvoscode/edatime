@@ -1,49 +1,26 @@
-# ai/frontend/src/services/api/analytics.md
-> Frontend client for rolling-band, anomaly, FFT, spectrogram, causal, transform, correlation-matrix, outlier-removal, and spectral-filter endpoints.
+# frontend/src/services/api/analytics.ts
+> Frontend client for rolling-band, anomaly, FFT, spectrogram, spectral-filter, causal, and correlation-matrix endpoints. All endpoints require an active cleaning plan and attach it via `cleaningPlanStore`.
 
-## Interfaces
-- `RollingBand`
-  - `{ column: string; ts: number[]; mean: (number | null)[]; upper1: (number | null)[]; lower1: (number | null)[]; upper2: (number | null)[]; lower2: (number | null)[] }`
-- `RollingResponse`
-  - `{ bands: RollingBand[] }`
-- `AnomalyRegion`
-  - `{ column: string; method: string; start_ms: number; end_ms: number; score: number }`
-- `SummaryStats`
-  - `{ mean: number; std: number; min: number; max: number }`
-- `AnomalyResponse`
-  - `{ method: string; threshold: number; regions: AnomalyRegion[]; summary_stats?: SummaryStats | null }`
-- `FrequencyPeak`
-  - `{ frequency_hz: number; magnitude: number; power: number; rank: number }`
-- `FftResult`
-  - `{ column: string; frequencies: number[]; magnitudes: number[]; psd: number[]; sample_rate_hz: number; nyquist_hz: number; dominant_peaks: FrequencyPeak[] }`
-- `FftResponse`
-  - `{ sample_count: number; results: FftResult[] }`
-- `SpectrogramResult`
-  - `{ column: string; times_ms: number[]; frequencies: number[]; magnitudes: number[][] }`
-- `SpectrogramResponse`
-  - `{ sample_count: number; result: SpectrogramResult }`
-- `SpectrogramScaleOptions`
-  - `{ normalize?: string; clip?: string; clipParam?: number }`
-- `CausalLink`
-  - `{ source: string; target: string; lag: number; type: string; value: number; pvalue: number }`
-- `CausalGraphResponse`
-  - `{ columns: string[]; tau_max: number; links: CausalLink[]; graph: string[][][]; val_matrix: number[][][]; p_matrix: number[][][] }`
-- `TransformResponse`
-  - `{ status: string; column: string; expression: string }`
-- `CorrelationMatrixResponse`
-  - `{ columns: string[]; pearson?: (number | null)[][]; spearman?: (number | null)[][]; pearson_raw?: (number | null)[][]; spearman_raw?: (number | null)[][]; kendall_raw?: (number | null)[][]; pearson_diff?: (number | null)[][]; spearman_diff?: (number | null)[][]; kendall_diff?: (number | null)[][] }`
-- `OutlierRemovalResult`
-  - `{ method: string; columns: string[]; rows_before: number; rows_after: number; rows_removed: number }`
-- `SpectralFilterResponse`
-  - `{ column: string; ts: number[]; values: number[]; filter_type: string; low_hz?: number; high_hz?: number }`
+## Re-exports
+- Re-exports all analytics DTO types from `../../contracts/api/v1/analytics.js` (`RollingBand`, `RollingResponse`, `AnomalyRegion`, `AnomalyResponse`, `FrequencyPeak`, `FftResult`, `FftResponse`, `SpectrogramResult`, `SpectrogramResponse`, `SpectrogramScaleOptions`, `CausalLink`, `CausalGraphResponse`, `CorrelationMatrixResponse`, `SpectralFilterResponse`).
 
 ## Functions
-- `fetchRollingBands(start: string, end: string, columns: string, window?: number, signal?: AbortSignal): Promise<RollingResponse>`
-- `fetchAnomalies(start: string, end: string, columns: string, method?: string, threshold?: number, signal?: AbortSignal): Promise<AnomalyResponse>`
-- `fetchFft(start: string, end: string, columns: string, maxPoints?: number, signal?: AbortSignal): Promise<FftResponse>`
-- `fetchSpectrogram(start: string, end: string, column: string, windowSize?: number, hopSize?: number, maxPoints?: number, signal?: AbortSignal, scaleOptions?: SpectrogramScaleOptions): Promise<SpectrogramResponse>`
-- `fetchCausalGraph(columns: string[], tauMax?: number, alpha?: number, method?: string, maxPoints?: number, signal?: AbortSignal, pcAlpha?: number, test?: string, maxCondsDim?: number, fdrMethod?: string): Promise<CausalGraphResponse>`
-- `postTransform(expression: string, outputName: string): Promise<TransformResponse>`
-- `fetchCorrelationMatrix(): Promise<CorrelationMatrixResponse>`
-- `postRemoveOutliers(columns: string[] | null, method?: string, threshold?: number, window?: number): Promise<OutlierRemovalResult>`
-- `fetchSpectralFilter(params: URLSearchParams, signal?: AbortSignal): Promise<SpectralFilterResponse>`
+- `fetchRollingBands(start, end, columns, window = 50, options?: ApiRequestOptions): Promise<RollingResponse>`
+- `fetchAnomalies(start, end, columns, method = 'zscore', threshold?, options?): Promise<AnomalyResponse>`
+- `fetchFft(start, end, columns, maxPoints = 8192, options?): Promise<FftResponse>`
+- `fetchSpectrogram(start, end, column, windowSize = 96, hopSize?, maxPoints = 32768, options?, scaleOptions?: SpectrogramScaleOptions): Promise<SpectrogramResponse>`
+  - Forwards `normalize`, `clip`, `clip_param` from `scaleOptions` to the backend.
+- `fetchCausalGraph(columns: string[], tauMax = 3, alpha = 0.05, method = 'pcmci', maxPoints = 5000, options?, pcAlpha = 0.2, test = 'par_corr', maxCondsDim?, fdrMethod = 'none'): Promise<CausalGraphResponse>`
+  - Sends `{ columns, tau_max, alpha, method, max_points, pc_alpha, test, fdr_method, [max_conds_dim], cleaning_plan }`.
+- `fetchCorrelationMatrix(): Promise<CorrelationMatrixResponse>` — duplicates `fetchCorrelationMatrix` from `./scatter-matrix.ts`. Both POST `/api/v1/scatter/correlations/matrix` (the source file shows this).
+- `fetchSpectralFilter(params: URLSearchParams, options?): Promise<SpectralFilterResponse>`
+  - Converts `URLSearchParams` to a JSON body, parses `low_hz`/`high_hz`/`sample_rate_hz`/`max_points` to numbers, attaches cleaning plan.
+
+---
+[deps: [http][1], [routes][2], [cleaning/store][3], [cleaning/compiler][4], [contracts/analytics][5]]
+
+[1]: ./http.md
+[2]: ../contracts/api/v1/routes.md
+[3]: ../cleaning/store.md
+[4]: ../cleaning/compiler.md
+[5]: ../contracts/api/v1/analytics.md

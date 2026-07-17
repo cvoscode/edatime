@@ -9,4 +9,4 @@
   - Renders row and numeric-column counts into the header and page meta bar slots.
 
 ---
-[deps: ../store/appStateCompat.md][1]
+[deps: ../store/appStateCompat.md][1]> Reconciled 2026-07-16: previously linked `store/appStateCompat.md`; that shim was removed. Use `store/datasetState.ts` directly.

@@ -1,5 +1,5 @@
 # crates/edatime-service/src/handlers/routes/metadata.rs
-> `GET /api/metadata` — dataset column metadata.
+> `GET /api/v1/metadata` — dataset column metadata.
 
 ## Handler
 

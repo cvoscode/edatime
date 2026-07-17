@@ -192,57 +192,65 @@ let spectrogramRuntime: ReturnType<typeof createAnalysisPageRuntime>;
 
 ## Project Structure
 
+> Last reconciled: 2026-07-16. Several old subtrees documented in the AI folder are no longer present in the repo. See `ai/frontend/refactor/2026-06-01-frontend-modularization-staged-plan.md` for the migration context.
+
 ```
 edatime/
 ├── crates/
 │   ├── edatime-core/      # Pure types, pipeline IR, config, error
-│   ├── edatime-store/     # Data repository, state, storage adapters
-│   ├── edatime-query/     # LazyFrame query engine, aggregations, downsampling
+│   ├── edatime-store/     # Data repository, state, storage adapters, artifacts, jobs, dataset versions
+│   ├── edatime-query/     # LazyFrame query engine, aggregations, downsampling, cleaning, derived
 │   ├── edatime-ingest/    # Data ingestion, CSV/Parquet loading
-│   ├── edatime-service/   # Axum HTTP handlers, routing, analytics, causal
-│   └── edatime-bin/       # Main binary entry point
+│   ├── edatime-service/   # Axum HTTP handlers, routing, analytics, causal, cleaning, scatter
+│   └── edatime-bin/       # Main binary entry point (re-export of root src/)
 └── frontend/src/
     ├── app.ts             # Main bootstrapping
-    ├── app/               # App-level helpers (pageLifecycle, pageRegistry, runtime, shell)
-    ├── state.ts           # Centralised app state, format helpers, column-range filtering
-    ├── bootstrap/         # App shell, page loaders, analytics overlay, session bootstrap
-    ├── pages/             # timeseries, fft, spectrogram, heatmap
-    ├── scatter/           # Scatter plot page
-    ├── causal/            # Causal graph page
-    ├── drift/             # Temporal drift page
-    ├── chart/             # DataChart (ChartGPU WebGPU), FftChart, overlays, ticks
-    ├── store/             # Central pub/sub store (index, events, chartState, etc.)
-    ├── services/api/      # HTTP client, data fetching
-    ├── features/          # Feature-scoped entrypoints (timeseries, fft, heatmap, scatter, spectrogram, causal, drift)
+    ├── app/               # App-level helpers (pageLifecycle, pageRegistry, runtime, shell, bootState, navigation)
+    ├── chart/             # DataChart (ChartGPU WebGPU) + tick helpers
+    ├── charts/            # Chart registry (ChartGPU line chart + Canvas fallback)
+    ├── store/             # Flat pub/sub store (chartState, uiState, datasetState, analyticsState, scatterState, runtimeState, events)
+    ├── services/api/      # HTTP client barrel + endpoint modules + contract tests
+    ├── features/          # Feature-scoped entrypoints (timeseries, fft, heatmap, scatter, spectrogram, causal, drift, upload, home)
+    ├── cleaning/          # Cleaning-plan UI (api, panel, store, compiler, codegen, types, dataset identity, plan hash, resample, pipeline graph, compatibility)
+    ├── contracts/         # Canonical contract registry (api/v1 routes.ts + workspace contracts.ts)
+    ├── workspace/         # Workspace-level store + tests
+    ├── platform/          # Platform / environment helpers
     ├── ui/                # Shared UI surface — primitives (Button, Chip, ColorInput, …) and composites (SeriesChip, RangeControls, …)
-    ├── components/        # DEPRECATED — re-exports from ui/; will be removed once no internal imports remain
-    ├── types/             # TypeScript interfaces
-    └── utils/             # Helpers (chartExport, bindExportButtons, platform, router, etc.)
+    ├── types/             # TypeScript interfaces (api, scatter, store, analytics, chart, assets.d)
+    └── utils/             # Helpers (chartExport, bindExportButtons, toast, router, etc.)
 ```
+
+> Note: the legacy `frontend/src/state.ts`, `frontend/src/components/`, `frontend/src/pages/`, `frontend/src/bootstrap/`, `frontend/src/scatter/`, `frontend/src/causal/`, `frontend/src/drift/`, `frontend/src/services/timeseries/`, `frontend/src/services/profile/`, `frontend/src/services/chart/`, and `frontend/src/legacy/` folders have been removed in favor of the `features/*` + `store/*` layout. Many AI docs under `ai/frontend/src/{pages,scatter,causal,drift,bootstrap,legacy}` and `ai/frontend/src/store/{index,appStateCompat}.md` are stale and need to be regenerated.
 
 ## Backend Tech Stack
 - **Runtime:** tokio async runtime
 - **HTTP:** Axum + tower-http (CORS, compression, tracing)
 - **Data:** Polars DataFrame/LazyFrame
-- **Rate limiting:** Token-bucket per IP
+- **Rate limiting:** Token-bucket per IP (plus per-job registry for cleaning/profile/correlation jobs)
+- **Cleaning pipeline:** PCMCI causal + cleaning-plan IR (`edatime-query::cleaning`, `edatime-query::derived`) + persistent artifact store (`edatime-store::artifacts`) + dataset-version registry (`edatime-store::versions`)
 
 ## Frontend Tech Stack
 - **Framework:** Vanilla TypeScript + DOM (no Solid.js or other UI framework)
 - **Build:** Vite
 - **Charts:** WebGPU via ChartGPU library, ECharts fallback, Canvas 2D fallback chart
-- **State:** Custom pub/sub store (`store/index.ts`), module-level `appState` wrapper
+- **State:** Flat pub/sub store under `store/` (sub-states: `chartState`, `uiState`, `datasetState`, `analyticsState`, `scatterState`, `runtimeState`, plus `events`). The earlier composite `appState` Proxy at `store/index.ts` was retired in favor of direct sub-state imports.
 
 ## Planning Notes
 
 - `ai/frontend/refactor/2026-05-30-broad-frontend-consolidation.md` — approved target architecture and migration status for the broad frontend consolidation and legacy archive refactor.
+- `ai/frontend/refactor/2026-05-30-frontend-canonicalization-plan.md` — supersede-d by the actual `/api/v1` canonical cutover; all listed contract URLs in this plan are out of date.
+- `ai/frontend/refactor/2026-06-01-frontend-modularization-staged-{design,plan}.md` — implemented in spirit; the actual file layout lives under `frontend/src/features/*` rather than the paths named in the plan.
+- `ai/frontend/refactor/2026-06-01-timeseries-ownership-and-shared-shell-{design,plan}.md` — timeseries ownership now lives under `frontend/src/features/timeseries/{lifecycle,controller,module,...}.ts`. The shared analysis runtime the plan referenced (`frontend/src/pages/shared/analysisPageRuntime.ts`) was retired.
 
 ## Key Architecture Notes
 
 - **`frontend/src/ui/`** is the canonical shared component surface. `primitives/` holds basic building blocks (Button, Chip, ColorInput, IconButton, Select, TextInput). `composites/` holds domain-aware components (SeriesChip, RangeControls, ColumnSelector, etc.).
-- **`frontend/src/components/`** is a deprecated adapter layer that re-exports from `ui/`. It exists only during migration and will be removed once `rg "components/" frontend/src` returns no internal runtime imports.
-- **`frontend/src/app/pageLifecycle.ts`** provides shared page lifecycle wiring (one-time init, page-change listeners, onVisible hooks) used by fftPage, heatmapPage, and spectrogramPage.
-- **`frontend/src/ui/seriesChipList.ts`** provides shared SeriesChip list orchestration (rendering, keyboard activation, color update plumbing) used by columnsController, fftPage, and causalPage.
-- **`frontend/src/utils/bindExportButtons.ts`** provides declarative PNG/SVG/HTML/CSV button wiring used by fftPage, heatmapPage, and spectrogramPage.
+- **`frontend/src/contracts/api/v1/routes.ts`** is the canonical TypeScript registry of every URL the frontend targets. New endpoints must be added here before the corresponding frontend caller.
+- **`frontend/src/store/`** holds flat pub/sub sub-states; new state should be added as a focused module (e.g. `xxxState.ts`) and emitted through `events.ts`. The deprecated `appState` Proxy / `appStateCompat` shim are gone — do not reintroduce them.
+- **`frontend/src/app/pageLifecycle.ts`** provides shared page lifecycle wiring (one-time init, page-change listeners, onVisible hooks) used by feature pages.
+- **`frontend/src/ui/seriesChipList.ts`** provides shared SeriesChip list orchestration (rendering, keyboard activation, color update plumbing).
+- **`frontend/src/utils/bindExportButtons.ts`** provides declarative PNG/SVG/HTML/CSV button wiring used by feature pages.
+- **API base path is `/api/v1`** (single canonical mount in `src/main.rs` and `crates/edatime-bin/src/main.rs`). There is no `/api` alias; do not introduce one.
 
 ## Key Entry Points
 - Backend binary: `crates/edatime-bin/src/main.rs`

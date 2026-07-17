@@ -6,7 +6,7 @@
 - `ColumnMetadata` [deps: [types.ts][1]]
 - `ColumnProfile` [deps: [types.ts][1]]
 - `CorrelationItem` [deps: [types.ts][1]]
-- `CorrelationSuggestion` [deps: [types.ts][1]] — `{ x: string; y: string; correlation: number }` shape returned by `GET /api/scatter/correlations`. Replaces the older single-column suggestion shape.
+- `CorrelationSuggestion` [deps: [types.ts][1]] — `{ x: string; y: string; correlation: number }` shape returned by `GET /api/v1/scatter/correlations`. Replaces the older single-column suggestion shape.
 - `DataFetchMeta` [deps: [types.ts][1]]
 - `DataObject` [deps: [types.ts][1]]
 - `DatasetMetadata` [deps: [types.ts][1]]

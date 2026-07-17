@@ -8,6 +8,6 @@
 - Creates AppState with default DataFrame
 - Sets up RateLimiter
 - Configures CorsLayer, CompressionLayer, TraceLayer, CSP layer
-- Mounts `routes::api_router()` at `/api` and `/api/v1`
+- Mounts `routes::api_router()` at `/api/v1` (single canonical mount; no `/api` alias)
 - Serves frontend from `frontend/dist` for non-API routes
 - Binds TCP listener and runs axum server

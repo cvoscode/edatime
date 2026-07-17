@@ -1,5 +1,5 @@
 # crates/edatime-service/src/handlers/scatter/scatter/points.rs
-> Scatter points handlers — GET/POST /api/scatter/points.
+> Scatter points handlers — GET/POST /api/v1/scatter/points.
 
 ## Handler
 - `pub async fn get_scatter_points(State(state): State<AppState>, Query(params): Query<ScatterPointsQuery>) -> Result<Response, AppError>`

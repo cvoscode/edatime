@@ -29,7 +29,7 @@
 - `pub fn compute_temporal_drift(df: &DataFrame, column: &str, window_ms, ref_start_ms, ref_end_ms, curr_start_ms, curr_end_ms, n_bins, ks_pvalue_threshold, es_pvalue_threshold, wasserstein_threshold, psi_minor, psi_major) -> Result<DriftResponse, AppError>`
   - Full temporal drift analysis pipeline: splits data into windows, computes statistics and drift metrics per window.
 
-- `pub fn compute_drift_investigation(df: &DataFrame, columns: &[&str], column_label_map: &HashMap<String, String>, window_ms, ref_start_ms, ref_end_ms, curr_start_ms, curr_end_ms, n_bins, ks_pvalue_threshold, es_pvalue_threshold, wasserstein_threshold, psi_minor, psi_major) -> Result<DriftInvestigationResponse, AppError>`
+- `pub fn compute_drift_investigation(df: &DataFrame, columns: &[String], segment_by: Option<&str>, segment_limit: usize, window_ms: i64, reference_start_ms: f64, reference_end_ms: f64, comparison_start_ms: f64, comparison_end_ms: f64, n_bins: usize, thresholds: DriftThresholds, include_quality: bool, include_change_points: bool, include_correlations: bool) -> Result<DriftInvestigationResponse, AppError>`
   - Comprehensive drift investigation across multiple columns; includes segment analysis, quality checks, and relationship analysis.
 
 ## Structs
@@ -59,7 +59,29 @@
 - `fn histogram_from_edges(data, edges) -> Vec<u64>` — Histogram count array using binary search for bin assignment.
 - `fn ecdf_downsampled(sorted, max_pts) -> (Vec<f64>, Vec<f64>)` — Downsampled ECDF with at most `max_pts` points.
 - `fn build_distribution_stats(values, all_values_including_nulls, start_ms, end_ms, label, hist_edges) -> WindowDistributionStats` — Builds distribution stats from raw values and null count.
+- `fn zero_rate(values: &[f64]) -> f64`, `fn constant_value_share(stats: &WindowDistributionStats) -> f64`
+- `fn compute_window_drift_score(prev_level: Option<&str>, window: &DriftWindowStats) -> u32`, `fn compute_column_window_scores(response: &DriftResponse) -> Vec<u32>`
+- `fn first_non_green_window(response) -> Option<(usize, &DriftWindowStats)>`, `fn first_sustained_non_green_window(response) -> Option<(usize, &DriftWindowStats)>`
+- `fn format_iso_time(ms) -> Option<String>`
+- `fn build_feature_rank(response) -> DriftFeatureRank`, `fn build_change_point_rank(response) -> Option<DriftChangePointRank>`, `fn build_quality_summary(response) -> DriftQualitySummary`
+- `fn build_quality_issue_rank(column, summary, feature_score) -> Vec<DriftQualityIssueRank>`
+- `fn extract_segment_values(df, segment_col) -> Result<Vec<Option<String>>, AppError>`
+- `fn top_segment_values(ts_ms, segment_values, comparison_start_ms, comparison_end_ms, segment_limit) -> Vec<(String, usize)>`
+- `fn filter_df_by_segment(df, segment_col, segment_value) -> Result<DataFrame, AppError>`
+- `fn compute_pearson(df, left, right, start_ms, end_ms) -> Result<(Option<f64>, usize), AppError>` — delegates to `edatime_core::stats::pearson`.
+- `fn build_relationship_rankings(df, columns, ref_start, ref_end, cmp_start, cmp_end) -> Result<Vec<DriftRelationshipRank>, AppError>` — pairs require both ref/comparison sample counts ≥ 20.
+- `fn build_overview(columns: &BTreeMap<String, DriftResponse>) -> DriftInvestigationOverview`
 - `fn format_timestamp(ms) -> String`, `fn format_time_only(ms) -> String`, `fn same_utc_day(start_ms, end_ms) -> bool`, `fn format_range_full(start_ms, end_ms) -> String` — Timestamp formatting helpers.
+
+## Threshold conventions
+
+- `wasserstein_threshold > 0` → absolute threshold; `wasserstein_threshold ≤ 0` → `reference.std × |threshold|` (fallback `1e-9`).
+- `n_bins` is clamped to `[4, 50]`.
+- Epps-Singleton sampling caps the reference at `ES_REF_CAP = 400` (`step_by(step)`).
+- Per-window low-sample rule: `< 5` valid values → all metrics default to `(0.0, 1.0)`, `drift_level = "green"`, `low_sample_warning = true`, classification skipped.
+- `psi_sample_ratio_warning = avg_window_samples > 0 && reference_samples / avg_window_samples > 10`.
+- `bin_count_warning = true` when reference is degenerate and a uniform-width fallback grid is used.
+- `DriftWindowStats` flattens `distribution` on the wire (`#[serde(flatten)]`) so consumers see `count`, `mean`, etc. at the top level.
 
 [deps: [extract_f64_column_opt][1], [extract_ts_epoch_ms][2]]
 

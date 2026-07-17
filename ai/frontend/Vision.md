@@ -122,7 +122,7 @@ But feature-specific meaning such as “which columns are valid here” or “wh
 
 ### 5. `store/*` is the shared state seam, not a dumping ground
 
-The target store model stays modular and event-based, similar to the current split documented in [ai/frontend/src/store/index.md](/home/crispy/edatime/ai/frontend/src/store/index.md). Shared state should be divided by domain instead of growing a universal mutable object.
+The target store model stays modular and event-based, mirroring the current flat `frontend/src/store/{chart,ui,dataset,analytics,scatter}State.ts` split. Shared state should be divided by domain instead of growing a universal mutable object.
 
 Expected stable store areas:
 

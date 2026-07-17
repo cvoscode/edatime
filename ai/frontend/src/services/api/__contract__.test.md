@@ -1,0 +1,2 @@
+# frontend/src/services/api/__contract__.test.ts
+> Contract tests for the `/api/v1` cutover. Asserts that the frontend service barrel and the per-route-family files build URLs from `frontend/src/contracts/api/v1/routes.ts` and never call `/api/*` (legacy) directly. Pinned by CI.
