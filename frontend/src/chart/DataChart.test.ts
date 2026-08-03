@@ -453,8 +453,8 @@ describe('updateDataMulti', () => {
             animation: false,
             legend: { show: false },
             theme: expect.objectContaining({
-                backgroundColor: '#0B0F18',
-                textColor: '#D2DAF0',
+                backgroundColor: '#0B0F14',
+                textColor: '#C8D2DC',
             }),
         }));
     });

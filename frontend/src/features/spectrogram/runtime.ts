@@ -37,6 +37,7 @@ import { buildSpectrogramRequest } from './spectrogramRequest.js';
 import { buildSpectrogramSummaryLabel, renderSpectrogramSummary } from './spectrogramSummary.js';
 import { createSpectrogramChartController, type SpectrogramChartController } from './spectrogramChartController.js';
 import { syncSpectrogramClipControls, syncSpectrogramClipLabel } from './spectrogramClipControls.js';
+import { onThemeChange } from '../../utils/theme.js';
 
 interface SpectrogramPageDeps {
     setLoading: (btnId: string, overlayId: string, loading: boolean, label?: string) => void;
@@ -156,7 +157,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
         // see `usage_issue.md` §5.1.
         const fallback = spectrogramRenderError
             ? spectrogramRenderError
-            : (message || 'Pick a numeric column and click Compute to generate the spectrogram.');
+            : (message || 'Pick a numeric column and update the spectrogram.');
         spectrogramRuntime?.updateEmptyState({
             visible: !spectrogramResult,
             reason: spectrogramResult ? '' : (spectrogramRenderError ? 'render-error' : 'no-columns-selected'),
@@ -306,10 +307,14 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 syncSpectrogramEmptyState();
             };
 
+            const disposeTheme = onThemeChange(() => {
+                if (spectrogramResult) void renderSpectrogramChart();
+            });
+
             const computeSpectrogram = async () => {
                 const column = getDropdownValue('spectrogram-col-select');
                 if (!column) {
-                    syncSpectrogramEmptyState('Pick a numeric column and click Compute to generate the spectrogram.');
+                    syncSpectrogramEmptyState('Pick a numeric column and update the spectrogram.');
                     return;
                 }
                 const viewport = currentViewport();
@@ -336,7 +341,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 });
                 if (!request) return;
                 try {
-                    deps.setLoading('spectrogram-compute-btn', 'spectrogram-loading', true);
+                    deps.setLoading('spectrogram-compute-btn', 'spectrogram-loading', true, 'Update spectrogram');
                     spectrogramRenderError = null;
                     colorbar.resetFilter();
 
@@ -370,7 +375,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     syncSpectrogramEmptyState();
                     toast(spectrogramRenderError, 'error', { duration: 6000 });
                 } finally {
-                    deps.setLoading('spectrogram-compute-btn', 'spectrogram-loading', false);
+                    deps.setLoading('spectrogram-compute-btn', 'spectrogram-loading', false, 'Update spectrogram');
                 }
             };
 
@@ -383,7 +388,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 if (!autoComputeExplained) {
                     autoComputeExplained = true;
                     const autoColumn = getDropdownValue('spectrogram-col-select');
-                    toast(`Loaded ${autoColumn} automatically. Pick another column and press Compute to switch.`, 'info', {
+                    toast(`Loaded ${autoColumn} automatically. Pick another column and update the spectrogram to switch.`, 'info', {
                         duration: 5000,
                     });
                 }
@@ -437,6 +442,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             maybeAutoComputeSpectrogram();
             return () => {
                 listenerAbort.abort();
+                disposeTheme();
                 if (controlAbort === listenerAbort) controlAbort = null;
                 colorbar.dispose();
                 chartController.dispose();

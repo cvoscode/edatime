@@ -46,7 +46,7 @@ describe('Prepare page', () => {
         const trigger = document.getElementById('prepare-help-btn') as HTMLButtonElement;
 
         expect(trigger.getAttribute('data-page-help-bound')).toBe('true');
-        expect(trigger.getAttribute('aria-label')).toBe('Show help for the Prepare page');
+        expect(trigger.getAttribute('aria-label')).toBe('Show help for the Preparation page');
         trigger.click();
         expect(document.getElementById('page-help-modal')?.textContent).toContain('Recommended order');
 

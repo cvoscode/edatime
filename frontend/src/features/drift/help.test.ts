@@ -23,7 +23,7 @@ describe('drift page help button', () => {
     });
 
     it('ships a real <button> with id "drift-help-btn" inside #page-drift', () => {
-        expect(indexHtml).toMatch(/<button[^>]*id="drift-help-btn"[^>]*>\?<\/button>/);
+        expect(indexHtml).toMatch(/<button[^>]*id="drift-help-btn"[^>]*>/);
         const match = indexHtml.match(/<section[^>]*id="page-drift"[\s\S]*?<\/section>/);
         expect(match?.[0] ?? '').toContain('id="drift-help-btn"');
     });

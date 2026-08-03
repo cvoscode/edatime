@@ -1,18 +1,22 @@
 /**
- * analyticsDrawer — right-side collapsible analytics panel for timeseries.
- * Toggles open/closed via toolbar button. The drawer is transient UI state.
+ * Legacy analyticsDrawer entrypoint for the Signals analytics modal.
+ * The filename stays stable for deferred imports while the UI uses the shared
+ * accessible modal behavior used by the other chart tools.
  */
 
-import { createDrawerController } from './shell/createDrawerController';
+import { createModalController } from './shell/createModalController';
 
-let controller: ReturnType<typeof createDrawerController> | null = null;
+let controller: ReturnType<typeof createModalController> | null = null;
 let disposeAnalyticsDrawer: (() => void) | null = null;
+let modalOpen = false;
 
 function getController() {
     if (!controller) {
-        controller = createDrawerController({
-            drawerId: 'analytics-drawer',
-            toggleButtonIds: ['open-analytics-panel-btn'],
+        controller = createModalController({
+            modalId: 'signals-analytics-modal',
+            closeButtonIds: ['analytics-close-btn', 'analytics-done-btn'],
+            onOpen: () => { modalOpen = true; },
+            onClose: () => { modalOpen = false; },
         });
     }
     return controller;
@@ -20,16 +24,28 @@ function getController() {
 
 export function initAnalyticsDrawer(): () => void {
     if (disposeAnalyticsDrawer) return disposeAnalyticsDrawer;
+    const modal = document.getElementById('signals-analytics-modal');
+    if (modal && modal.parentElement !== document.body) document.body.appendChild(modal);
     const activeController = getController();
-    const closeButton = document.getElementById('analytics-close-btn') as HTMLButtonElement | null;
-    closeButton?.addEventListener('click', activeController.close);
+    const openButton = document.getElementById('open-analytics-panel-btn') as HTMLButtonElement | null;
+    const nestedToolButtons = ['transform-open-btn', 'outlier-open-btn']
+        .map((id) => document.getElementById(id))
+        .filter((button): button is HTMLElement => !!button);
+    openButton?.addEventListener('click', activeController.open);
+    for (const button of nestedToolButtons) {
+        button.addEventListener('click', activeController.close, { capture: true });
+    }
 
-    // Always normalize runtime state before the user explicitly opens it.
-    activeController.close();
+    // Remove stale state left by older builds that rendered this tool as a drawer.
+    document.body.classList.remove('drawer-open');
     const dispose = () => {
-        closeButton?.removeEventListener('click', activeController.close);
+        openButton?.removeEventListener('click', activeController.open);
+        for (const button of nestedToolButtons) {
+            button.removeEventListener('click', activeController.close, { capture: true });
+        }
         activeController.dispose();
         controller = null;
+        modalOpen = false;
         if (disposeAnalyticsDrawer === dispose) disposeAnalyticsDrawer = null;
     };
     disposeAnalyticsDrawer = dispose;
@@ -38,4 +54,7 @@ export function initAnalyticsDrawer(): () => void {
 
 export const openDrawer = () => getController().open();
 export const closeDrawer = () => getController().close();
-export const toggleDrawer = () => getController().toggle();
+export const toggleDrawer = () => modalOpen ? getController().close() : getController().open();
+
+export const openAnalyticsModal = openDrawer;
+export const closeAnalyticsModal = closeDrawer;

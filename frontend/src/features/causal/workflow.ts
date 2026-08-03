@@ -136,7 +136,7 @@ export async function handleComputeClick(
     const signal = causalComputeController.signal;
     let progressId: number | undefined;
     try {
-        deps.setLoading('causal-compute-btn', 'causal-loading', true, 'Compute');
+        deps.setLoading('causal-compute-btn', 'causal-loading', true, 'Run discovery');
         setStatus(`${methodLabel}: running causal discovery...`);
         setProgress(0, methodLabel + ': preparing');
         progressId = window.setInterval(() => {
@@ -175,7 +175,7 @@ export async function handleComputeClick(
             window.clearInterval(progressId);
             progressId = undefined;
         }
-        deps.setLoading('causal-compute-btn', 'causal-loading', false, 'Compute');
+        deps.setLoading('causal-compute-btn', 'causal-loading', false, 'Run discovery');
     }
 }
 

@@ -70,8 +70,8 @@ describe('DataChart.init', () => {
         expect(createChartMock).toHaveBeenCalledTimes(1);
         expect(createChartMock.mock.calls[0][1]).toEqual(expect.objectContaining({
             theme: expect.objectContaining({
-                backgroundColor: '#F4F5F7',
-                textColor: '#1B2638',
+                backgroundColor: '#FFFFFF',
+                textColor: '#334155',
             }),
         }));
     });
@@ -121,8 +121,8 @@ describe('DataChart.init', () => {
 
         expect(chartInstance.setOption).toHaveBeenCalledWith(expect.objectContaining({
             theme: expect.objectContaining({
-                backgroundColor: '#F4F5F7',
-                textColor: '#1B2638',
+                backgroundColor: '#FFFFFF',
+                textColor: '#334155',
             }),
         }));
     });

@@ -268,7 +268,7 @@ describe('drift page accessibility and debug metadata', () => {
               <div id="drift-relationships-panel"></div>
               <div id="drift-summary-strip"></div>
               <div id="drift-column-summary"></div>
-              <div id="drift-status" role="status" aria-live="polite">Select one or more columns, choose a baseline, and press Compute.</div>
+              <div id="drift-status" role="status" aria-live="polite">Select one or more columns, choose a baseline, and run the analysis.</div>
               <div id="drift-timeline-chart"></div>
               <div id="drift-detail-chart"></div>
               <select id="drift-detail-col-select"></select>
@@ -388,7 +388,7 @@ describe('drift page accessibility and debug metadata', () => {
             time_range: { min: 0, max: 1_000 },
         });
 
-        expect(document.getElementById('drift-status')?.textContent).toContain('press Compute');
+        expect(document.getElementById('drift-status')?.textContent).toContain('run the analysis');
 
         (document.getElementById('drift-ref-start') as HTMLInputElement).value = '1970-01-01T00:00';
         (document.getElementById('drift-ref-end') as HTMLInputElement).value = '1970-01-01T00:10';
@@ -427,7 +427,7 @@ describe('drift page accessibility and debug metadata', () => {
         otherCheckbox!.checked = true;
         otherCheckbox!.dispatchEvent(new Event('change', { bubbles: true }));
 
-        expect(document.getElementById('drift-status')?.textContent).toContain('press Compute');
+        expect(document.getElementById('drift-status')?.textContent).toContain('run the analysis');
     });
 
     it('opens the timeline plots tab after compute so charts are visible', async () => {

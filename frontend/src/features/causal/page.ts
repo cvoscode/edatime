@@ -34,6 +34,7 @@ import { applyMethodControlState, toggleAddEdgeMode, cancelAddEdgeMode, handleCo
 import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
 import { bindInfoPopovers } from '../../ui/infoPopovers.js';
 import { onFeatureEvent } from '../../platform/featureEvents.js';
+import { onThemeChange } from '../../utils/theme.js';
 
 let _chartEl: HTMLDivElement | null = null;
 let _causalPageListeners: AbortController | null = null;
@@ -90,6 +91,8 @@ export function initCausalPage(deps: CausalDeps): () => void {
     applyMethodControlState(getDropdownValue('causal-method-select') || 'pcmci');
     syncCausalGraphActionState(_currentLinks.length > 0 && _currentColumns.length >= 2);
     scheduleCausalChartRefresh();
+    const unsubscribeTheme = onThemeChange(() => scheduleCausalChartRefresh());
+    listenerController.signal.addEventListener('abort', unsubscribeTheme, { once: true });
 
     const unsubscribePreselect = onFeatureEvent('causal:preselect', ({ columns: cols }) => {
         if (cols.length === 0) return;

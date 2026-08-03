@@ -1,5 +1,6 @@
 import * as echarts from 'echarts';
 import { SCATTER_PLOT_GRID } from '../features/scatter/index.js';
+import { getChartPalette, onThemeChange } from '../utils/theme.js';
 
 export class EchartsScatterChart {
     private _containerId: string;
@@ -7,6 +8,8 @@ export class EchartsScatterChart {
     private _chart: any = null;
     private _resizeObserver: ResizeObserver | null = null;
     private _lastObservedSize: { width: number; height: number } | null = null;
+    private _lastOption: any = null;
+    private _themeUnsubscribe: (() => void) | null = null;
 
     constructor(containerId: string) {
         this._containerId = containerId;
@@ -33,10 +36,16 @@ export class EchartsScatterChart {
             this.resize();
         });
         this._resizeObserver.observe(container);
+        this._themeUnsubscribe?.();
+        this._themeUnsubscribe = onThemeChange(() => {
+            if (this._lastOption) this.setOption(this._lastOption);
+        });
     }
 
     setOption(option: any): void {
         if (!this._chart) return;
+        this._lastOption = option;
+        const palette = getChartPalette();
 
         const translatedSeries = Array.isArray(option?.series)
             ? option.series.map((series: any) => ({
@@ -45,7 +54,7 @@ export class EchartsScatterChart {
                 data: Array.isArray(series?.data) ? series.data : [],
                 symbolSize: series?.symbolSize || 4,
                 itemStyle: {
-                    color: typeof series?.color === 'string' ? series.color : '#4a9eff',
+                    color: typeof series?.color === 'string' ? series.color : palette.scatterPoint,
                     opacity: series?.mode === 'density' ? 0.38 : 0.72,
                 },
             }))
@@ -53,6 +62,7 @@ export class EchartsScatterChart {
 
         this._chart.setOption({
             animation: false,
+            backgroundColor: palette.background,
             grid: option?.grid || { ...SCATTER_PLOT_GRID },
             tooltip: option?.tooltip || { show: true, trigger: 'item' },
             legend: { show: false },
@@ -64,10 +74,11 @@ export class EchartsScatterChart {
                 nameLocation: 'middle',
                 nameGap: 34,
                 axisLabel: {
-                    color: '#9fb1d1',
+                    color: palette.textDim,
                     formatter: option?.xAxis?.tickFormatter,
                 },
-                splitLine: { lineStyle: { color: 'rgba(126, 158, 212, 0.12)' } },
+                axisLine: { lineStyle: { color: palette.borderHi } },
+                splitLine: { lineStyle: { color: palette.border } },
             },
             yAxis: {
                 type: 'value',
@@ -77,10 +88,11 @@ export class EchartsScatterChart {
                 nameLocation: 'middle',
                 nameGap: 48,
                 axisLabel: {
-                    color: '#9fb1d1',
+                    color: palette.textDim,
                     formatter: option?.yAxis?.tickFormatter,
                 },
-                splitLine: { lineStyle: { color: 'rgba(126, 158, 212, 0.12)' } },
+                axisLine: { lineStyle: { color: palette.borderHi } },
+                splitLine: { lineStyle: { color: palette.border } },
             },
             series: translatedSeries,
         });
@@ -98,7 +110,10 @@ export class EchartsScatterChart {
     dispose(): void {
         this._resizeObserver?.disconnect();
         this._resizeObserver = null;
+        this._themeUnsubscribe?.();
+        this._themeUnsubscribe = null;
         this._lastObservedSize = null;
+        this._lastOption = null;
         this._chart?.dispose?.();
         this._chart = null;
         this._container = null;

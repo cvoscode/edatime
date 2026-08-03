@@ -612,9 +612,7 @@
   gap: 8px 14px;
   padding: 8px 14px;
   border-top: 1px solid var(--shell-border, rgba(255, 255, 255, 0.08));
-  background:
-    linear-gradient(180deg, rgba(12, 17, 28, 0.92), rgba(11, 16, 26, 0.88)),
-    radial-gradient(circle at right center, rgba(32, 226, 215, 0.06), transparent 32%);
+  background: color-mix(in srgb, var(--surface-1) 94%, var(--accent) 6%);
   flex-shrink: 0;
 }
 
@@ -662,6 +660,19 @@
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+}
+
+/* Give the exact peak values a deliberate reading area instead of leaving
+   them to shrink beside the two short sample-rate facts. */
+@media (min-width: 900px) {
+  .fft-peaks-details {
+    flex: 1 1 500px;
+    max-width: 680px;
+  }
+
+  .fft-spectral-info__peak-row {
+    grid-template-columns: 28px minmax(132px, 1.5fr) minmax(94px, 1fr) minmax(72px, 0.8fr);
+  }
 }
 
 @media (max-width: 899px) {

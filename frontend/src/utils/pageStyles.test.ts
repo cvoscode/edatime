@@ -12,6 +12,7 @@ describe('pageStyles', () => {
 
     it('maps page names to page-owned style modules', () => {
         expect(pageStyleModulesFor('home')).toEqual(['home']);
+        expect(pageStyleModulesFor('causal')).toEqual(['drift', 'causal']);
         expect(pageStyleModulesFor('drift')).toEqual(['drift']);
         expect(pageStyleModulesFor('heatmap')).toEqual(['scatter']);
         expect(pageStyleModulesFor('scatter')).toEqual(['scatter']);

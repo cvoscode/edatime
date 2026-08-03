@@ -35,9 +35,12 @@ export function correlationToneClass(value: number | null): string {
     return 'heatmap-cell--neutral';
 }
 
-export function correlationTextColor(value: number | null): string {
+export function correlationTextColor(value: number | null, maxAbs = 1): string {
     if (value === null || !Number.isFinite(value)) return 'var(--text-dim)';
-    return Math.abs(value) >= 0.5 ? '#fff' : '#b8cef8';
+    const match = correlationColor(value, maxAbs).match(/\d+/g)?.map(Number) ?? [255, 255, 255];
+    const [red = 255, green = 255, blue = 255] = match;
+    const luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
+    return luminance < 0.54 ? '#FFFFFF' : '#15202B';
 }
 
 export function escapeHtmlAttribute(value: string): string {

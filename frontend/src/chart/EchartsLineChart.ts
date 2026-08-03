@@ -5,6 +5,7 @@ import {
 } from '../utils/spectralPresets.js';
 import { applySpectralScale } from '../utils/spectralScaling.js';
 import { getActiveSeriesPalette } from '../utils/seriesColors.js';
+import { getChartPalette, onThemeChange } from '../utils/theme.js';
 
 export interface EchartsFftTrace {
     column: string;
@@ -26,6 +27,13 @@ export class EchartsLineChart {
     private _container: HTMLElement | null = null;
     private _chart: any = null;
     private _resizeObserver: ResizeObserver | null = null;
+    private _themeUnsubscribe: (() => void) | null = null;
+    private _lastUpdate: {
+        traces: EchartsFftTrace[];
+        mode: string;
+        logScale: boolean;
+        scaleOptions?: { mode: 'none' | 'minmax' | 'zscore' | 'robust'; clip: 'none' | 'percentile' | 'iqr'; clipParam: number };
+    } | null = null;
 
     onZoomChange: ((isZoomed: boolean) => void) | null = null;
 
@@ -42,6 +50,16 @@ export class EchartsLineChart {
         this._resizeObserver?.disconnect();
         this._resizeObserver = new ResizeObserver(() => this.resize());
         this._resizeObserver.observe(container);
+        this._themeUnsubscribe?.();
+        this._themeUnsubscribe = onThemeChange(() => {
+            if (!this._lastUpdate) return;
+            this.updateData(
+                this._lastUpdate.traces,
+                this._lastUpdate.mode,
+                this._lastUpdate.logScale,
+                this._lastUpdate.scaleOptions,
+            );
+        });
     }
 
     updateData(
@@ -51,9 +69,11 @@ export class EchartsLineChart {
         scaleOptions?: { mode: 'none' | 'minmax' | 'zscore' | 'robust'; clip: 'none' | 'percentile' | 'iqr'; clipParam: number },
     ): void {
         if (!this._chart) return;
+        this._lastUpdate = { traces, mode, logScale, scaleOptions };
 
         const opts = scaleOptions || { mode: 'none' as const, clip: 'none' as const, clipParam: 0.5 };
         const palette = getActiveSeriesPalette();
+        const chartPalette = getChartPalette();
         const series = traces.map((trace, index) => {
             const values = mode === 'psd' ? trace.psd : trace.magnitudes;
             const preLog: number[] = values.map((v) => {
@@ -97,17 +117,18 @@ export class EchartsLineChart {
 
         this._chart.setOption({
             animation: false,
+            backgroundColor: chartPalette.background,
             grid: { left: 96, right: 28, top: 24, bottom: 56 },
             legend: {
                 top: 8,
                 right: 12,
-                textStyle: { color: '#c8d4ef' },
+                textStyle: { color: chartPalette.text },
             },
             tooltip: {
                 trigger: 'axis',
-                backgroundColor: 'rgba(8, 12, 20, 0.94)',
-                borderColor: 'rgba(126, 158, 212, 0.28)',
-                textStyle: { color: '#eef4ff' },
+                backgroundColor: chartPalette.surfaceElevated,
+                borderColor: chartPalette.borderHi,
+                textStyle: { color: chartPalette.text },
                 formatter: (params: any[]) => {
                     const first = params?.[0];
                     const frequency = Number(first?.value?.[0]);
@@ -124,8 +145,9 @@ export class EchartsLineChart {
                 name: 'Frequency (Hz)',
                 nameLocation: 'middle',
                 nameGap: 36,
-                axisLabel: { color: '#9fb1d1' },
-                splitLine: { lineStyle: { color: 'rgba(126, 158, 212, 0.12)' } },
+                axisLabel: { color: chartPalette.textDim },
+                axisLine: { lineStyle: { color: chartPalette.borderHi } },
+                splitLine: { lineStyle: { color: chartPalette.border } },
             },
             yAxis: {
                 type: 'value',
@@ -133,10 +155,11 @@ export class EchartsLineChart {
                 nameLocation: 'middle',
                 nameGap: 64,
                 axisLabel: {
-                    color: '#9fb1d1',
+                    color: chartPalette.textDim,
                     formatter: (value: number) => Number(value).toFixed(yTickPrec),
                 },
-                splitLine: { lineStyle: { color: 'rgba(126, 158, 212, 0.12)' } },
+                axisLine: { lineStyle: { color: chartPalette.borderHi } },
+                splitLine: { lineStyle: { color: chartPalette.border } },
             },
             series,
         });
@@ -162,6 +185,9 @@ export class EchartsLineChart {
     destroy(): void {
         this._resizeObserver?.disconnect();
         this._resizeObserver = null;
+        this._themeUnsubscribe?.();
+        this._themeUnsubscribe = null;
+        this._lastUpdate = null;
         this._chart?.dispose?.();
         this._chart = null;
         this._container = null;

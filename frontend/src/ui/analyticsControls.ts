@@ -17,7 +17,6 @@ export function initAnalyticsControls(): void {
     const anomalyGlobalCheck = document.getElementById('anomaly-global') as HTMLInputElement | null;
     const anomalyMethodSelect = document.getElementById('anomaly-method') as HTMLElement | null;
     const anomalyThresholdInput = document.getElementById('anomaly-threshold') as HTMLInputElement | null;
-    const transformOpenBtn = document.getElementById('transform-open-btn') as HTMLElement | null;
 
     const dispatchAnalyticsChange = () => emitFeatureEvent('analytics:change', undefined);
 
@@ -76,12 +75,5 @@ export function initAnalyticsControls(): void {
             }
         });
         anomalyThresholdInput.dataset.bound = '1';
-    }
-    if (transformOpenBtn && !transformOpenBtn.dataset.bound) {
-        transformOpenBtn.addEventListener('click', () => {
-            const modal = document.getElementById('transform-modal');
-            if (modal) modal.hidden = false;
-        });
-        transformOpenBtn.dataset.bound = '1';
     }
 }

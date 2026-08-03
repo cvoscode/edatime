@@ -1,0 +1,1187 @@
+/* ─── Professional analysis workspace ─────────────────────────
+   Presentation-only hierarchy shared across the shell and pages.
+   Existing IDs, event contracts, page routes, and result behavior stay
+   owned by their feature modules. */
+
+:root {
+  --workspace-pad: clamp(14px, 1.6vw, 24px);
+  --workspace-rule: 1px solid var(--shell-border);
+  --workspace-result: #0B0F14;
+  --workspace-raised: #18222D;
+  --tb-surface: var(--surface-0);
+  --tb-surface-strong: var(--surface-1);
+  --tb-border: var(--border);
+  --tb-border-strong: var(--border-hi);
+  --tb-hover: var(--shell-hover);
+  --tb-active: var(--accent-dim);
+  --tb-divider: var(--border-subtle);
+  --tb-eyebrow: var(--text-muted);
+}
+
+:root[data-theme="light"] {
+  --workspace-result: #FFFFFF;
+  --workspace-raised: #F8FAFC;
+}
+
+body {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--text);
+  letter-spacing: 0;
+  text-rendering: optimizeLegibility;
+}
+
+.app-layout {
+  grid-template-columns: 216px minmax(0, 1fr);
+}
+
+.sidebar,
+header,
+.toolbar,
+.scatter-toolbar {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+header.app-topbar {
+  height: 54px;
+  padding-inline: var(--workspace-pad);
+  background: var(--shell-surface);
+}
+
+.header-brand {
+  min-width: 0;
+}
+
+.workspace-bar-title {
+  color: var(--text-strong);
+  font-size: 0.8125rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+@media (min-width: 641px) {
+  .app-topbar .header-brand .brand-icon,
+  .app-topbar .header-brand .brand-name {
+    display: none;
+  }
+}
+
+.header-meta {
+  gap: 4px;
+}
+
+.header-meta > .btn,
+.theme-toggle,
+.provenance-header-btn {
+  min-height: 34px;
+  border-color: transparent;
+  color: var(--text-dim);
+  background: transparent;
+}
+
+.header-meta > .btn:hover,
+.theme-toggle:hover,
+.provenance-header-btn:hover {
+  border-color: var(--shell-border-strong);
+  background: var(--shell-hover);
+  color: var(--text-strong);
+  transform: none;
+}
+
+#open-cleaning-plan-btn,
+#provenance-toggle-btn {
+  color: var(--text);
+}
+
+.sidebar {
+  padding: 14px 10px 12px;
+  background: var(--shell-bg);
+  border-color: var(--shell-border);
+  gap: 3px;
+}
+
+.sidebar-title {
+  padding: 5px 10px 12px;
+  color: var(--text-strong);
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.sidebar-section-label {
+  padding: 13px 10px 5px;
+  color: var(--text-muted);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.105em;
+}
+
+.sidebar-section-label--spaced {
+  margin-top: 7px;
+  border-color: var(--shell-border);
+}
+
+.nav-item {
+  height: 38px;
+  padding-inline: 10px;
+  gap: 10px;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+}
+
+.nav-item.active {
+  background: var(--shell-active);
+  color: var(--text-strong);
+}
+
+.nav-item.active::before {
+  top: 7px;
+  bottom: 7px;
+  width: 2px;
+  background: var(--accent);
+  border-radius: 2px;
+  box-shadow: none;
+}
+
+.nav-icon {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+}
+
+.nav-item.active .nav-icon {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+}
+
+.nav-shortcut {
+  display: none;
+}
+
+.brand-icon {
+  background: var(--cyan);
+  box-shadow: none;
+}
+
+.page-header {
+  min-height: 64px;
+  max-width: none;
+  margin: 0;
+  padding: 10px var(--workspace-pad);
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: var(--workspace-rule);
+  background: var(--bg);
+}
+
+.page-header__copy {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.page-header__title {
+  color: var(--text-strong);
+  font-size: 1.125rem;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: -0.015em;
+  text-transform: none;
+}
+
+.page-header__description {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-help-trigger {
+  width: auto;
+  min-width: 0;
+  height: 30px;
+  min-height: 30px;
+  gap: 6px;
+  padding: 0 10px;
+  border-color: transparent;
+  border-radius: 6px;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 1;
+}
+
+.page-help-trigger:hover,
+.page-help-trigger:focus-visible {
+  border-color: var(--border);
+  background: var(--shell-hover);
+  color: var(--text-strong);
+}
+
+.page-help-trigger > span[aria-hidden="true"] {
+  display: inline-grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 0.625rem;
+}
+
+.btn {
+  border-radius: 6px;
+  font-weight: 550;
+  letter-spacing: 0;
+}
+
+.btn:hover,
+.btn-accent:hover,
+.btn-primary:hover {
+  box-shadow: none;
+  transform: none;
+}
+
+.btn-primary,
+.btn-accent {
+  background: var(--action-primary);
+  border-color: var(--action-primary);
+  color: var(--text-strong-on-brand);
+}
+
+.btn-primary:hover,
+.btn-accent:hover {
+  background: color-mix(in srgb, var(--action-primary) 88%, black);
+}
+
+.toolbar,
+.analysis-toolbar,
+.range-toolbar,
+.scatter-toolbar {
+  background: var(--surface-0);
+  border-color: var(--shell-border);
+}
+
+/* One sizing contract for every analysis toolbar. Page-local styles used a
+   mixture of 24, 28, 34, and content-derived control heights, which made the
+   same select/button treatment jump between pages. Keep the density setting
+   meaningful by deriving the whole toolbar from the shared control token. */
+.scatter-toolbar {
+  --analysis-control-h: var(--ctrl-h);
+  align-items: center;
+}
+
+.scatter-toolbar__segment {
+  align-items: center;
+  min-height: calc(var(--analysis-control-h) + 10px);
+}
+
+.scatter-toolbar__segment > .scatter-toolbar__controls,
+.scatter-toolbar__segment > .scatter-toolbar__fields,
+.scatter-toolbar .scatter-toolbar__field,
+.scatter-toolbar .scatter-toolbar__field.toolbar-field {
+  align-items: center;
+}
+
+.scatter-toolbar .scatter-toolbar__field.toolbar-field {
+  flex-wrap: nowrap;
+}
+
+.scatter-toolbar .btn,
+.scatter-toolbar select,
+.scatter-toolbar input[type="text"],
+.scatter-toolbar input[type="number"],
+.scatter-toolbar input[type="datetime-local"],
+.scatter-toolbar .dropdown,
+.scatter-toolbar .dropdown__trigger,
+.scatter-toolbar .toolbar-panel-open,
+.scatter-toolbar .toolbar-disclosure__summary,
+.scatter-toolbar .scatter-link-toggle,
+.scatter-toolbar .zoom-range-badge,
+.scatter-toolbar .scatter-toolbar__overflow-btn {
+  height: var(--analysis-control-h);
+  min-height: var(--analysis-control-h);
+  box-sizing: border-box;
+}
+
+.scatter-toolbar .btn,
+.scatter-toolbar .toolbar-panel-open,
+.scatter-toolbar .toolbar-disclosure__summary,
+.scatter-toolbar .scatter-link-toggle {
+  padding-block: 0;
+}
+
+.scatter-toolbar .scatter-view-toggle {
+  height: var(--analysis-control-h);
+}
+
+.scatter-toolbar .scatter-view-toggle .btn,
+.timeseries-zoom-cluster .btn {
+  height: calc(var(--analysis-control-h) - 4px);
+  min-height: calc(var(--analysis-control-h) - 4px);
+}
+
+.scatter-toolbar {
+  gap: 0;
+  row-gap: 8px;
+  padding: 8px var(--workspace-pad);
+}
+
+.scatter-toolbar__segment {
+  min-height: calc(var(--analysis-control-h) + 10px);
+  padding: 0 12px;
+  border: 0;
+  border-right: 1px solid var(--tb-divider);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.scatter-toolbar .scatter-toolbar__field .modal-select,
+.scatter-toolbar .scatter-toolbar__field .dropdown,
+.scatter-toolbar .scatter-toolbar__field .dropdown__trigger,
+.scatter-toolbar .scatter-toolbar__field .modal-input {
+  height: var(--analysis-control-h);
+  min-height: var(--analysis-control-h);
+}
+
+.scatter-toolbar__segment:first-child {
+  padding-left: 0;
+}
+
+.scatter-toolbar__segment:last-child {
+  padding-right: 0;
+  border-right: 0;
+}
+
+.scatter-toolbar__segment:hover {
+  border-color: var(--tb-divider);
+}
+
+.scatter-toolbar__eyebrow {
+  min-width: auto;
+  padding: 0 8px 0 0;
+  border: 0;
+  color: var(--text-muted);
+  letter-spacing: 0.065em;
+}
+
+.scatter-toolbar__segment > .scatter-toolbar__controls,
+.scatter-toolbar__segment > .scatter-toolbar__fields {
+  padding: 0;
+}
+
+.toolbar-label,
+.toolbar-field__label,
+.scatter-toolbar .toolbar-label,
+.scatter-toolbar .toolbar-disclosure__summary .toolbar-label,
+.scatter-toolbar__eyebrow,
+.scatter-stats-bar__eyebrow {
+  letter-spacing: 0.055em;
+}
+
+.scatter-toolbar .toolbar-disclosure__summary,
+.scatter-link-toggle,
+.timeseries-utility-shelf .btn,
+.timeseries-utility-shelf .dropdown__trigger,
+.timeseries-utility-shelf .toolbar-panel-open,
+.timeseries-utility-shelf .zoom-range-badge {
+  background: var(--surface-1);
+  border-color: var(--border);
+  box-shadow: none;
+}
+
+.scatter-toolbar .toolbar-disclosure__summary:hover,
+.scatter-toolbar .toolbar-disclosure[open] .toolbar-disclosure__summary,
+.scatter-link-toggle:has(input:checked) {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  background: var(--accent-dim);
+  color: var(--text-strong);
+}
+
+.scatter-toolbar .scatter-link-toggle {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.scatter-toolbar .scatter-link-toggle > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeseries-command-bar {
+  min-height: 54px;
+  padding: 6px var(--workspace-pad);
+  background: var(--surface-0);
+}
+
+.timeseries-command-bar__left {
+  min-width: 220px;
+}
+
+.timeseries-filter-shell {
+  border-radius: 6px;
+  background: var(--surface-1);
+}
+
+.timeseries-utility-shelf {
+  padding: 7px var(--workspace-pad);
+  border-bottom: var(--workspace-rule);
+  background: var(--surface-0);
+}
+
+.timeseries-utility-shelf > .analysis-secondary-disclosure__content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  width: 100%;
+}
+
+.timeseries-utility-shelf__primary,
+.timeseries-utility-shelf__secondary {
+  width: 100%;
+  gap: 0;
+}
+
+.timeseries-utility-shelf .scatter-toolbar__segment {
+  padding-inline: 10px;
+  min-height: calc(var(--analysis-control-h) + 10px);
+}
+
+.timeseries-utility-shelf .scatter-toolbar__segment:first-child {
+  padding-left: 0;
+}
+
+.timeseries-utility-shelf .scatter-toolbar__segment:last-child {
+  padding-right: 0;
+}
+
+.timeseries-utility-shelf .btn.btn-sm,
+.timeseries-utility-shelf .toolbar-panel-open,
+.timeseries-utility-shelf .dropdown__trigger,
+.timeseries-utility-shelf #draw-color,
+.timeseries-utility-shelf #draw-width,
+.timeseries-utility-shelf .zoom-range-badge {
+  height: var(--analysis-control-h);
+  min-height: var(--analysis-control-h);
+}
+
+@media (max-width: 1599px) and (min-width: 1025px) {
+  .timeseries-utility-shelf .toolbar-disclosure__value {
+    display: none !important;
+  }
+}
+
+@media (min-width: 1280px) {
+  .timeseries-utility-shelf__secondary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(260px, 0.95fr) minmax(305px, 1.05fr);
+  }
+
+  .timeseries-utility-shelf__secondary > .scatter-toolbar__segment {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+/* The responsive overflow manager temporarily clones the four range
+   controls before retiring the static fallback set. Keep a single visible
+   canonical set while both are present during live layout reconciliation. */
+.quick-range-toolbar .scatter-toolbar__controls > button:nth-of-type(n + 5) {
+  display: none;
+}
+
+.analysis-secondary-disclosure__summary {
+  background: var(--surface-0);
+}
+
+.main--analysis-chart,
+#page-scatter .scatter-view > .main,
+#page-heatmap .main,
+#page-causal > .main,
+#page-drift > .main {
+  background: var(--workspace-result);
+}
+
+.plot-empty-state {
+  background: var(--empty-state-bg);
+  border-color: var(--empty-state-border);
+}
+
+/* Overview */
+#page-home .home-hero {
+  display: grid;
+  grid-template-columns: auto minmax(280px, 1fr) auto;
+  grid-template-rows: auto auto;
+  justify-content: stretch;
+  gap: 2px 18px;
+  padding: 24px var(--workspace-pad);
+  text-align: left;
+  background: var(--surface-0);
+}
+
+#page-home .home-hero-icon {
+  grid-row: 1 / 3;
+  align-self: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  box-shadow: none;
+  color: var(--accent);
+}
+
+#page-home .home-hero-icon svg {
+  stroke: currentColor;
+}
+
+#page-home .home-title {
+  align-self: end;
+  color: var(--text-strong);
+  font-size: 1.25rem;
+  font-weight: 650;
+}
+
+#page-home .home-tagline {
+  align-self: start;
+  font-size: 0.8125rem;
+}
+
+#page-home .home-hero > .btn {
+  grid-column: 3;
+  grid-row: 1 / 3;
+  align-self: center;
+}
+
+#page-home .home-card,
+#page-home .home-dataset-card {
+  border-color: var(--border);
+  border-radius: 8px;
+  background: var(--surface-0);
+  box-shadow: none;
+}
+
+#page-home .home-card:hover,
+#page-home .home-dataset-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
+  box-shadow: none;
+  transform: none;
+}
+
+#page-home .home-section-title {
+  color: var(--text-strong);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Data source */
+#page-upload .upload-inner {
+  padding: 16px var(--workspace-pad) 24px;
+}
+
+#page-upload .drop-zone,
+#page-upload .partial-section,
+#page-upload .upload-actions {
+  border-color: var(--border);
+  border-radius: 8px;
+  background: var(--surface-0);
+  box-shadow: none;
+}
+
+#page-upload .drop-zone::before {
+  display: none;
+}
+
+#page-upload .drop-zone:hover,
+#page-upload .drop-zone.dragover {
+  border-color: var(--accent);
+  background: var(--surface-1);
+  box-shadow: none;
+  transform: none;
+}
+
+#page-upload .upload-actions {
+  padding: 14px;
+}
+
+#page-upload .upload-actions .btn-primary {
+  width: 100%;
+  justify-content: center;
+  box-shadow: none;
+}
+
+/* Preparation */
+#page-prepare .prepare-workspace {
+  gap: 12px;
+}
+
+#page-prepare .prepare-workspace__identity,
+#page-prepare .prepare-workspace__quality,
+#page-prepare .prepare-workspace__graph,
+#page-prepare .prepare-workspace__stages {
+  border-color: var(--border);
+  border-radius: 8px;
+  background: var(--surface-0);
+}
+
+#page-prepare .prepare-workspace__local-nav,
+#page-prepare .prepare-workspace__history {
+  position: static;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: var(--surface-0);
+}
+
+#page-prepare .prepare-workspace__header > div {
+  min-width: 0;
+}
+
+/* Relationship pages */
+#page-scatter .scatter-stats-bar {
+  padding: 6px var(--workspace-pad);
+  background: var(--surface-0);
+}
+
+/* Density mode has no color/refine controls. Do not reserve an empty
+   toolbar row when the feature owner has hidden all three fields. */
+#page-scatter .scatter-toolbar__segment--refine:has(#scatter-color-column-field[style*="display: none"]):has(#scatter-color-scale-field[style*="display: none"]):has(#scatter-density-controls[hidden]) {
+  display: none;
+}
+
+#page-scatter .scatter-stats-bar__suggestions,
+#page-scatter .scatter-stats-bar__correlations {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#page-scatter .scatter-stats-bar__correlations {
+  border-left: 1px solid var(--border-subtle);
+}
+
+#page-heatmap .main--padded {
+  padding: 12px var(--workspace-pad);
+}
+
+#page-heatmap .heatmap-header,
+#page-heatmap .heatmap-row-label,
+#page-heatmap .heatmap-corner__axis,
+#page-heatmap .heatmap-scale {
+  color: var(--accent);
+}
+
+/* Desktop Correlation toolbar: the responsive details wrapper previously used
+   display:contents. Combined with flex stretching, that made the Metric block
+   as tall as three stacked neighboring groups and left the controls visibly
+   squeezed into half the available width. Treat the secondary controls as one
+   real flex region and let the four groups share the full row. */
+@media (min-width: 1280px) {
+  #page-heatmap > .scatter-toolbar {
+    display: grid;
+    grid-template-columns: 430px minmax(0, 1fr);
+    align-items: center;
+    column-gap: 0;
+  }
+
+  #page-heatmap > .scatter-toolbar > .scatter-toolbar__segment--view {
+    width: auto;
+    height: auto;
+  }
+
+  #page-heatmap .heatmap-secondary-controls {
+    display: block;
+    min-width: 0;
+  }
+
+  #page-heatmap .heatmap-secondary-controls > .analysis-secondary-disclosure__summary {
+    display: none;
+  }
+
+  #page-heatmap .heatmap-secondary-controls > .analysis-secondary-disclosure__content {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  #page-heatmap .heatmap-secondary-controls .scatter-toolbar__segment {
+    width: auto;
+    height: auto;
+  }
+
+  #page-heatmap .heatmap-secondary-controls .scatter-toolbar__segment--display {
+    flex: 0 0 540px;
+    min-width: 540px;
+  }
+
+  #page-heatmap .scatter-toolbar__field--range {
+    flex: 0 0 230px;
+    min-width: 230px;
+  }
+
+  #page-heatmap .scatter-toolbar__field--fit > .toolbar-field__label {
+    /* The segment eyebrow already names this control group, while both
+       buttons have complete labels. Removing the repeated tiny "Fit" label
+       gives the range value a reliable gutter at mid-size desktop widths. */
+    display: none;
+  }
+
+  #page-heatmap .heatmap-secondary-controls .toolbar-group--push {
+    margin-left: 0;
+  }
+}
+
+/* The same wrapper pattern is used by Pair plot and Drift. Give it a real
+   horizontal layout on desktop so child segments sit beside one another
+   instead of inheriting the wrapper's full stretched height. */
+@media (min-width: 1025px) {
+  #page-scatter .scatter-secondary-controls,
+  #page-drift .drift-secondary-controls {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+
+  #page-scatter .scatter-secondary-controls > .analysis-secondary-disclosure__summary,
+  #page-drift .drift-secondary-controls > .analysis-secondary-disclosure__summary {
+    display: none;
+  }
+
+  #page-scatter .scatter-secondary-controls > .analysis-secondary-disclosure__content,
+  #page-drift .drift-secondary-controls > .analysis-secondary-disclosure__content {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+
+  #page-scatter > .scatter-toolbar > .scatter-toolbar__segment--actions,
+  #page-drift > .drift-toolbar > .scatter-toolbar__segment--actions {
+    align-self: center;
+  }
+
+  #page-drift .drift-secondary-controls .scatter-toolbar__segment {
+    height: auto;
+  }
+
+  #page-drift > .drift-toolbar > .scatter-toolbar__segment--display {
+    flex: 1 1 0;
+    width: auto;
+  }
+
+  #page-drift > .drift-toolbar > .scatter-toolbar__segment--actions {
+    order: 1;
+    flex: 0 0 auto;
+  }
+
+  #page-drift .drift-secondary-controls {
+    order: 2;
+    flex: 1 1 100%;
+  }
+
+  #page-spectrogram .spectrogram-secondary-controls {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+
+  #page-spectrogram .spectrogram-secondary-controls > .analysis-secondary-disclosure__summary {
+    display: none;
+  }
+
+  #page-spectrogram .spectrogram-secondary-controls > .analysis-secondary-disclosure__content {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  #page-causal > .scatter-toolbar {
+    flex-wrap: nowrap;
+  }
+
+  #page-causal .causal-params-segment {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    min-width: 0;
+    height: auto;
+  }
+
+  #page-causal .causal-params-segment > .analysis-secondary-disclosure__summary {
+    display: none;
+  }
+
+  #page-causal .causal-params-content,
+  #page-causal .causal-parameter-grid,
+  #page-causal .causal-parameter-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: nowrap;
+    min-width: 0;
+    gap: 6px;
+  }
+
+  #page-causal .causal-params-content {
+    padding: 0 6px;
+  }
+
+  #page-causal .causal-parameter-grid {
+    flex: 1 1 auto;
+  }
+
+  #page-causal .causal-params-heading {
+    flex: 0 0 auto;
+  }
+
+  #page-causal .causal-parameter-row .scatter-toolbar__field {
+    flex: 0 1 auto;
+  }
+
+  #page-causal .causal-parameter-row .modal-input {
+    width: 64px;
+  }
+}
+
+/* The selected signal is a short, high-value name. Do not allow the compact
+   dropdown's chevron to consume all of its label at desktop density. */
+#page-spectrogram #spectrogram-col-select {
+  width: 96px;
+  min-width: 96px;
+}
+
+@media (min-width: 641px) {
+  #page-spectrogram .scatter-toolbar__field:first-child {
+    min-width: 154px;
+  }
+}
+
+/* Drift already owns an accessible popover selector for narrow screens.
+   Reusing it at every size prevents the inline chip rail from colliding with
+   the analysis parameters and keeps the toolbar stable after a resize. */
+#page-drift .drift-col-picker-trigger {
+  display: inline-flex;
+}
+
+#page-drift .drift-col-picker--inline {
+  min-width: 0;
+}
+
+@media (min-width: 1025px) and (max-width: 1399px) {
+  #page-drift > .drift-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  #page-drift > .drift-toolbar > .scatter-toolbar__segment--display {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  #page-drift .drift-secondary-controls {
+    grid-column: 1;
+    grid-row: 2;
+    display: block;
+    width: 100%;
+    min-height: calc(var(--analysis-control-h) + 10px);
+    padding: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  #page-drift .drift-secondary-controls > .analysis-secondary-disclosure__summary {
+    display: flex;
+    min-height: calc(var(--analysis-control-h) + 10px);
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-inline: 10px;
+    color: var(--text);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  #page-drift .drift-secondary-controls > .analysis-secondary-disclosure__summary span:last-child {
+    overflow: hidden;
+    color: var(--text-dim);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #page-drift .drift-secondary-controls:not([open]) > .analysis-secondary-disclosure__content {
+    display: none;
+  }
+
+  #page-drift .drift-secondary-controls[open] > .analysis-secondary-disclosure__content {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0 8px 8px;
+  }
+
+  #page-drift > .drift-toolbar > .scatter-toolbar__segment--actions {
+    grid-column: 2;
+    grid-row: 2;
+    order: 0;
+  }
+}
+
+/* Diagnostic run actions */
+#spectrogram-compute-btn,
+#causal-compute-btn,
+#drift-compute-btn {
+  height: var(--analysis-control-h);
+  min-height: var(--analysis-control-h);
+  padding-inline: 14px;
+}
+
+#page-causal .causal-result-toolbar {
+  background: var(--surface-0);
+}
+
+.analysis-status:not(:empty) {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 3px var(--workspace-pad) 6px;
+  background: var(--surface-0);
+  color: var(--text-dim);
+  font-size: 0.75rem;
+}
+
+/* Light theme is intentionally paper-like rather than an inversion. */
+:root[data-theme="light"] #page-home .home-hero,
+:root[data-theme="light"] .toolbar,
+:root[data-theme="light"] .scatter-toolbar,
+:root[data-theme="light"] .timeseries-command-bar,
+:root[data-theme="light"] .timeseries-utility-shelf {
+  background: #FFFFFF;
+}
+
+@media (max-width: 1024px) {
+  .app-layout:not(.sidebar-collapsed) {
+    grid-template-columns: 188px minmax(0, 1fr);
+  }
+
+  .page-header {
+    min-height: 60px;
+  }
+
+  .scatter-toolbar__segment {
+    padding-inline: 9px;
+  }
+
+  #page-drift .drift-toolbar > .scatter-toolbar__segment--display {
+    flex: 1 1 100%;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  #page-drift .drift-toolbar > .scatter-toolbar__segment--display .scatter-toolbar__fields {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  #page-drift .drift-toolbar > .scatter-toolbar__segment--display .scatter-toolbar__field,
+  #page-drift .drift-toolbar > .scatter-toolbar__segment--display .modal-select {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+
+  #page-drift .drift-toolbar > .scatter-toolbar__segment--display .scatter-toolbar__field:first-child {
+    margin-right: 0;
+    padding-right: 0;
+    border-right: 0;
+  }
+}
+
+@media (max-width: 900px) and (min-width: 641px) {
+  .workspace-bar-title {
+    display: none;
+  }
+
+  .nav-item {
+    height: auto;
+    min-height: 38px;
+    padding-block: 6px;
+  }
+
+  .nav-text {
+    overflow: visible;
+    line-height: 1.2;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  #page-prepare .prepare-workspace__header {
+    flex-wrap: wrap;
+  }
+
+  #page-prepare .prepare-workspace__header > div {
+    flex: 1 1 340px;
+  }
+
+  #page-drift .drift-toolbar > .scatter-toolbar__segment--display .scatter-toolbar__fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .app-layout,
+  .app-layout:not(.sidebar-collapsed) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  header.app-topbar {
+    height: 56px;
+    padding-inline: 8px;
+  }
+
+  .app-topbar .header-brand .brand-icon,
+  .app-topbar .header-brand .brand-name {
+    display: flex;
+  }
+
+  .workspace-bar-title {
+    display: none;
+  }
+
+  .page-header {
+    min-height: 58px;
+    padding: 8px 14px;
+  }
+
+  .page-header__description,
+  .page-help-trigger__label {
+    display: none;
+  }
+
+  .page-header__title {
+    font-size: 1rem;
+  }
+
+  .page-help-trigger {
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+    min-height: 40px;
+    padding: 0;
+  }
+
+  .scatter-toolbar {
+    padding: 6px 8px;
+  }
+
+  .scatter-toolbar__segment,
+  .scatter-toolbar__segment:first-child,
+  .scatter-toolbar__segment:last-child {
+    padding: 4px;
+    border-right: 0;
+  }
+
+  .timeseries-command-bar {
+    padding-inline: 8px;
+  }
+
+  .timeseries-filter-shell:not(:focus-within) .column-filter-input,
+  .timeseries-filter-shell:not(:focus-within) .column-filter-input::placeholder {
+    color: transparent;
+  }
+
+  .timeseries-filter-shell::before {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: var(--text-dim);
+    content: "⌕";
+    pointer-events: none;
+  }
+
+  .timeseries-filter-shell:focus-within::before {
+    display: none;
+  }
+
+  #page-scatter .scatter-view-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+
+  #page-scatter .scatter-view-toggle .btn {
+    width: auto;
+    min-width: 0;
+    padding-inline: 4px;
+    overflow: hidden;
+  }
+
+  #page-drift .drift-toolbar > .scatter-toolbar__segment--display .scatter-toolbar__fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #page-home .home-hero {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    gap: 8px;
+    padding: 20px 16px;
+  }
+
+  #page-home .home-hero-icon {
+    display: none;
+  }
+
+  #page-home .home-title,
+  #page-home .home-tagline,
+  #page-home .home-hero > .btn {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  #page-home .home-title {
+    font-size: 1.25rem;
+  }
+
+  #page-home .home-hero > .btn {
+    width: 100%;
+    justify-content: center;
+    margin-top: 5px;
+  }
+
+  #page-upload .upload-inner {
+    padding-inline: 14px;
+  }
+
+  #spectrogram-compute-btn,
+  #causal-compute-btn,
+  #drift-compute-btn {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-item,
+  .btn,
+  .sidebar,
+  .mobile-sidebar-backdrop {
+    transition: none;
+  }
+}

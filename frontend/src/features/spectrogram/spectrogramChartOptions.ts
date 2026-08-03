@@ -2,6 +2,7 @@ import type { SpectrogramResult } from '../../services/api/index.js';
 import { formatFrequencyInUnit, pickFrequencyAxisUnit } from '../../utils/spectralPresets.js';
 import { formatSpectrogramTime } from './spectrogramAnalysis.js';
 import type { SpectrogramPoint, SpectrogramValueRange } from './spectrogramPointFilter.js';
+import { getChartPalette } from '../../utils/theme.js';
 
 export interface SpectrogramChartOptionsInput {
     result: SpectrogramResult;
@@ -40,11 +41,12 @@ export function buildSpectrogramChartOptions({
     const frequencyUnit = pickFrequencyAxisUnit(maxFrequency);
     const formatFrequency = (value: number) => formatFrequencyInUnit(value, frequencyUnit);
     const totalSpanMs = Math.max(0, Number(timeAxis[timeAxis.length - 1] ?? 0) - Number(timeAxis[0] ?? 0));
+    const chartPalette = getChartPalette();
 
     return {
         formatFrequency,
         option: {
-            backgroundColor: 'transparent',
+            backgroundColor: chartPalette.background,
             animation: false,
             grid: { left: 104, right: 40, top: 36, bottom: 88 },
             toolbox: {
@@ -56,9 +58,9 @@ export function buildSpectrogramChartOptions({
             },
             tooltip: {
                 trigger: 'item',
-                backgroundColor: 'rgba(8, 12, 20, 0.94)',
-                borderColor: 'rgba(126, 158, 212, 0.28)',
-                textStyle: { color: '#eef4ff' },
+                backgroundColor: chartPalette.surfaceElevated,
+                borderColor: chartPalette.borderHi,
+                textStyle: { color: chartPalette.text },
                 formatter: (params: { value?: number[] }) => {
                     const value = params?.value || [];
                     const xIndex = Number(value[0]);
@@ -83,7 +85,7 @@ export function buildSpectrogramChartOptions({
                 nameLocation: 'middle',
                 nameGap: 48,
                 axisLabel: {
-                    color: '#9fb1d1',
+                    color: chartPalette.textDim,
                     hideOverlap: true,
                     rotate: totalSpanMs > 48 * 60 * 60_000 ? 0 : 15,
                     interval: xTickInterval,
@@ -95,6 +97,7 @@ export function buildSpectrogramChartOptions({
                         return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
                     },
                 },
+                axisLine: { lineStyle: { color: chartPalette.borderHi } },
                 splitLine: { show: false },
             },
             yAxis: {
@@ -104,11 +107,12 @@ export function buildSpectrogramChartOptions({
                 nameLocation: 'middle',
                 nameGap: 84,
                 axisLabel: {
-                    color: '#9fb1d1',
+                    color: chartPalette.textDim,
                     hideOverlap: true,
                     interval: yTickInterval,
                     formatter: (value: string | number) => formatFrequency(Number(value)),
                 },
+                axisLine: { lineStyle: { color: chartPalette.borderHi } },
                 splitLine: { show: false },
             },
             visualMap: {
@@ -133,7 +137,7 @@ export function buildSpectrogramChartOptions({
                 type: 'heatmap',
                 progressive: 4000,
                 progressiveThreshold: 8000,
-                emphasis: { itemStyle: { borderColor: '#ffffff', borderWidth: 1 } },
+                emphasis: { itemStyle: { borderColor: chartPalette.text, borderWidth: 1 } },
                 data: points,
             }],
         },

@@ -69,8 +69,8 @@ export function createModalController(opts: {
         previousOverflow = document.body.style.overflow;
         document.body.style.overflow = 'hidden';
         if (!modal) return;
-        Array.from(document.body.children).forEach((child) => {
-            if (!(child instanceof HTMLElement) || child === modal) return;
+
+        const blockElement = (child: HTMLElement) => {
             blockedSiblings.push({
                 element: child,
                 ariaHidden: child.getAttribute('aria-hidden'),
@@ -78,7 +78,24 @@ export function createModalController(opts: {
             });
             child.setAttribute('aria-hidden', 'true');
             setElementInert(child, true);
-        });
+        };
+
+        // A few long-lived application modals are authored inside the app
+        // shell rather than as direct body children. Block siblings along the
+        // modal's ancestor path instead of making the ancestor—and therefore
+        // the dialog itself—inert.
+        let activeBranch: HTMLElement = modal;
+        while (activeBranch.parentElement && activeBranch.parentElement !== document.body) {
+            const parent = activeBranch.parentElement;
+            for (const sibling of Array.from(parent.children)) {
+                if (sibling instanceof HTMLElement && sibling !== activeBranch) blockElement(sibling);
+            }
+            activeBranch = parent;
+        }
+
+        for (const child of Array.from(document.body.children)) {
+            if (child instanceof HTMLElement && child !== activeBranch) blockElement(child);
+        }
     };
 
     const handleKeydown = (event: KeyboardEvent) => {

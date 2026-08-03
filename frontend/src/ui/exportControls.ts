@@ -18,7 +18,6 @@ interface ToolbarPanel {
     modalId: string;
     closeBtn: string;
     doneBtn: string | null;
-    isDrawer?: boolean;
 }
 
 export interface ToolbarModalActions {
@@ -30,20 +29,16 @@ export function initToolbarModals(actions: ToolbarModalActions): void {
     const panels: ToolbarPanel[] = [
         { openBtn: 'open-labels-panel-btn', modalId: 'chart-labels-modal', closeBtn: 'chart-labels-close-btn', doneBtn: 'chart-labels-done-btn' },
         { openBtn: 'open-export-options-btn', modalId: 'export-options-modal', closeBtn: 'export-options-close-btn', doneBtn: 'export-options-done-btn' },
-        { openBtn: 'open-analytics-panel-btn', modalId: 'analytics-drawer', closeBtn: 'analytics-close-btn', doneBtn: null, isDrawer: true },
     ];
 
     for (const panel of panels) {
         const openButton = document.getElementById(panel.openBtn);
         if (openButton && !openButton.dataset.bound) {
             openButton.addEventListener('click', () => {
-                if (panel.isDrawer) return; // analytics handled by analyticsDrawer
                 openToolbarModal(panel.modalId);
             });
             openButton.dataset.bound = '1';
         }
-
-        if (panel.isDrawer) continue; // skip modal logic for drawer
 
         const closeButton = document.getElementById(panel.closeBtn);
         if (closeButton && !closeButton.dataset.bound) {

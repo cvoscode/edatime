@@ -33,6 +33,7 @@ import {
 } from './layout.js';
 import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
 import { getChartPalette } from '../../utils/theme.js';
+import { buildChartGpuTheme, getChartGpuColorPalette } from '../../chart/chartThemeOptions.js';
 import {
     buildDensityMarginalCounts,
     buildDensitySeries,
@@ -383,7 +384,8 @@ export function buildOption(points: [number, number][], container: HTMLElement |
     scatterState.lastOptionSeries = series;
 
     const option: any = {
-        theme: 'dark',
+        theme: buildChartGpuTheme(),
+        palette: getChartGpuColorPalette(),
         grid: { ...SCATTER_PLOT_GRID },
         xAxis: { type: 'value', name: ctl.x || 'x', min: scatterState.view.xMin, max: scatterState.view.xMax, tickFormatter: xTickFormatter },
         yAxis: { type: 'value', name: ctl.y || 'y', min: scatterState.view.yMin, max: scatterState.view.yMax, tickFormatter: yTickFormatter },

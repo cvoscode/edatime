@@ -13,7 +13,7 @@ describe('heatmap color scale', () => {
     it('provides semantic cell presentation and escaped attributes', () => {
         expect(correlationToneClass(null)).toBe('heatmap-cell--missing');
         expect(correlationToneClass(-0.2)).toBe('heatmap-cell--negative');
-        expect(correlationTextColor(0.6)).toBe('#fff');
+        expect(correlationTextColor(0.6)).toBe('#FFFFFF');
         expect(escapeHtmlAttribute('A & "B"')).toBe('A &amp; &quot;B&quot;');
     });
 });

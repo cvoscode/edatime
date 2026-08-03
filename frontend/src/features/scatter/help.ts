@@ -14,7 +14,7 @@
 import { initPageHelp, type PageHelpContent } from '../../ui/pageHelp.js';
 
 export const SCATTER_HELP: PageHelpContent = {
-    pageName: 'Scatter',
+    pageName: 'Pair plot',
     intro:
         'Deep-dive view for a chosen pair of numeric columns. Switch between Scatter (every point) and Density (binned heatmap), optionally color points by a third column, and use the linked filters to scope both axes.',
     sections: [
@@ -42,10 +42,10 @@ export const SCATTER_HELP: PageHelpContent = {
         {
             title: 'Linked filters and color',
             body:
-                'When you scope the chart on the Timeseries page (zoom, time range, numeric filter, adaptive line), the Scatter page receives the same scope automatically. The linked filter chips at the top of the page mirror the Timeseries state and can be cleared from here too.',
+                'When you scope the chart on Signals (zoom, time range, numeric filter, adaptive line), Pair plot receives the same scope automatically. The linked filter chips at the top of the page mirror the Signals state and can be cleared from here too.',
             bullets: [
                 'Linked chips show the active filters — time range, numeric range, adaptive line',
-                'Clearing a chip on Scatter also clears it on Timeseries (and vice-versa)',
+                'Clearing a chip on Pair plot also clears it on Signals (and vice-versa)',
                 'Color-by column changes are local to this page and do not propagate',
             ],
         },

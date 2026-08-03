@@ -23,7 +23,7 @@ describe('scatter page help button', () => {
     });
 
     it('ships a real <button> with id "scatter-help-btn" inside #page-scatter', () => {
-        expect(indexHtml).toMatch(/<button[^>]*id="scatter-help-btn"[^>]*>\?<\/button>/);
+        expect(indexHtml).toMatch(/<button[^>]*id="scatter-help-btn"[^>]*>/);
         const match = indexHtml.match(/<section[^>]*id="page-scatter"[\s\S]*?<\/section>/);
         expect(match?.[0] ?? '').toContain('id="scatter-help-btn"');
     });
@@ -34,12 +34,12 @@ describe('scatter page help button', () => {
 
         const trigger = document.getElementById('scatter-help-btn') as HTMLButtonElement;
         expect(trigger.getAttribute('data-page-help-bound')).toBe('true');
-        expect(trigger.getAttribute('aria-label')).toBe('Show help for the Scatter page');
+        expect(trigger.getAttribute('aria-label')).toBe('Show help for the Pair plot page');
 
         trigger.click();
         const modal = document.getElementById('page-help-modal');
         expect(modal).not.toBeNull();
-        expect(modal?.textContent).toContain('Scatter — Help');
+        expect(modal?.textContent).toContain('Pair plot — Help');
         // Section headings should be present.
         expect(modal?.textContent).toContain('View toolbar');
         expect(modal?.textContent).toContain('Display segment');

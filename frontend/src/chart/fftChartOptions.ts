@@ -8,6 +8,7 @@ import {
     useCyclesPerDayFrequencyAxis,
 } from '../utils/spectralPresets.js';
 import { scaleModeLabel, type SpectralScaleOptions } from '../utils/spectralScaling.js';
+import { getChartPalette } from '../utils/theme.js';
 
 const FFT_GRID = { left: 112, right: 32, top: 52, bottom: 52 };
 
@@ -31,6 +32,7 @@ export function buildFftChartOptions(input: {
     const useScaledY = scaleOptions.mode !== 'none';
     const yRange = Number.isFinite(model.yMax) && Number.isFinite(model.yMin) ? model.yMax - model.yMin : 0;
     const yTickPrecision = yRange >= 100 ? 0 : yRange >= 10 ? 1 : 2;
+    const palette = getChartPalette();
 
     return {
         grid: FFT_GRID,
@@ -38,13 +40,14 @@ export function buildFftChartOptions(input: {
             type: 'value', min: xMin, max: xMax,
             name: cyclesPerDay ? 'Frequency (cycles/day)' : `Frequency (${unit})`,
             nameLocation: 'middle', nameGap: 32,
-            nameTextStyle: { color: '#cfd9f1', fontSize: 12, fontWeight: 600, padding: [8, 0, 0, 0] },
+            nameTextStyle: { color: palette.text, fontSize: 12, fontWeight: 600, padding: [8, 0, 0, 0] },
             axisLabel: {
-                color: '#9fb1d1', fontSize: 11, hideOverlap: true, margin: 8,
+                color: palette.textDim, fontSize: 11, hideOverlap: true, margin: 8,
                 formatter: (value: number) => cyclesPerDay
                     ? formatCyclesPerDay(value, tickPrecision).replace(/\s+cycles\/day$/, '')
                     : formatFrequencyInUnit(value, unit, tickPrecision).replace(/\s+[A-Za-zµ]+$/, ''),
             },
+            axisLine: { lineStyle: { color: palette.borderHi } },
             axisTick: { alignWithLabel: true }, splitLine: { show: false },
         },
         yAxis: {
@@ -55,15 +58,19 @@ export function buildFftChartOptions(input: {
                 ? (useScaledY ? `scaled (${scaleLabel})` : `log10(${mode === 'psd' ? 'PSD' : 'Magnitude'})`)
                 : (useScaledY ? `scaled (${scaleLabel})` : mode === 'psd' ? 'PSD' : 'Magnitude'),
             nameLocation: 'middle', nameGap: 76,
-            nameTextStyle: { color: '#cfd9f1', fontSize: 12, fontWeight: 600, padding: [0, 0, 8, 0] },
+            nameTextStyle: { color: palette.text, fontSize: 12, fontWeight: 600, padding: [0, 0, 8, 0] },
             axisLabel: {
-                color: '#9fb1d1', fontSize: 11, hideOverlap: true, margin: 8,
+                color: palette.textDim, fontSize: 11, hideOverlap: true, margin: 8,
                 formatter: logScale ? formatLogAxisTick : (value: number) => value.toFixed(yTickPrecision),
             },
+            axisLine: { lineStyle: { color: palette.borderHi } },
             axisTick: { alignWithLabel: true }, splitLine: { show: false },
         },
         tooltip: {
             show: true, trigger: 'axis',
+            backgroundColor: palette.surfaceElevated,
+            borderColor: palette.borderHi,
+            textStyle: { color: palette.text },
             formatter: (params: unknown) => formatFftTooltip(params, { xMax, unit, scaleMode: scaleOptions.mode, scaleLabel }),
         },
         series: model.series,

@@ -15,6 +15,7 @@ import {
     exportScatterSVG,
     exportScatterHTML,
     exportScatterData,
+    renderCurrentOption,
 } from './rendering.js';
 import { getEl } from './helpers.js';
 import { datasetState } from '../../store/datasetState.js';
@@ -25,10 +26,12 @@ import { defaultGpuPowerPreference, requestGpuAdapter } from '../../utils/platfo
 import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
 import { emitFeatureEvent } from '../../platform/featureEvents.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
+import { onThemeChange } from '../../utils/theme.js';
 
 /** Module-level runtime handle for the scatter page lifecycle. */
 let scatterRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
 let disposeScatterRuntime: (() => void) | null = null;
+let disposeScatterTheme: (() => void) | null = null;
 
 let scatterEmptyStateController: ReturnType<typeof createEmptyStateController> | null = null;
 let workspace: Pick<WorkspaceStore, 'getSnapshot'> | null = null;
@@ -72,7 +75,7 @@ function syncScatterFilterBanner(): void {
     if (hasZoomRange) parts.push('zoom range');
     if (columnCount > 0) parts.push(`${columnCount} column filter${columnCount === 1 ? '' : 's'}`);
     if (adaptiveCount >= 0) parts.push(`${adaptiveCount} adaptive filter${adaptiveCount === 1 ? '' : 's'}`);
-    text.textContent = `Timeseries filters carry over here: ${parts.join(', ')}`;
+    text.textContent = `Signals filters carry over here: ${parts.join(', ')}`;
 
     if (!clearButton.dataset.bound) {
         clearButton.addEventListener('click', () => {
@@ -248,6 +251,10 @@ export function initScatterPageRuntime(): ReturnType<typeof createAnalysisPageRu
     });
 
     disposeScatterRuntime = scatterRuntime.mount();
+    disposeScatterTheme?.();
+    disposeScatterTheme = onThemeChange(() => {
+        if (scatterState.chart && scatterState.points.length > 0) renderCurrentOption();
+    });
     return scatterRuntime;
 }
 
@@ -262,6 +269,8 @@ export function initScatterPageRuntime(): ReturnType<typeof createAnalysisPageRu
 export function disposeScatterPageRuntime(): void {
     disposeScatterRuntime?.();
     disposeScatterRuntime = null;
+    disposeScatterTheme?.();
+    disposeScatterTheme = null;
     scatterRuntime = null;
     scatterEmptyStateController?.dispose();
     scatterEmptyStateController = null;

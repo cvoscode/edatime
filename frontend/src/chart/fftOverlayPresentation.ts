@@ -6,6 +6,7 @@ import {
     formatFrequencyInUnit,
     frequencyToPeriod,
 } from '../utils/spectralPresets.js';
+import { getChartPalette } from '../utils/theme.js';
 
 export interface FftOverlayRenderState {
     xMin: number;
@@ -28,6 +29,7 @@ export function renderFftOverlay(
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const palette = getChartPalette();
 
     const { xMin, xMax } = state;
     if (xMax <= xMin) return;
@@ -47,7 +49,7 @@ export function renderFftOverlay(
     for (const freqHz of state.annotations) {
         if (freqHz < xMin || freqHz > xMax) continue;
         const ax = plotL + ((freqHz - xMin) / (xMax - xMin)) * plotW;
-        ctx.strokeStyle = 'rgba(255,220,80,0.85)';
+        ctx.strokeStyle = palette.warning;
         ctx.lineWidth = 1;
         ctx.setLineDash([4, 3]);
         ctx.beginPath();
@@ -56,7 +58,7 @@ export function renderFftOverlay(
         ctx.stroke();
         ctx.setLineDash([]);
         const label = formatFrequencyInUnit(freqHz, state.unit);
-        ctx.fillStyle = 'rgba(255,220,80,0.95)';
+        ctx.fillStyle = palette.warning;
         ctx.textAlign = ax > canvas.width / 2 ? 'right' : 'left';
         ctx.fillText(label, ax + (ax > canvas.width / 2 ? -5 : 5), plotT + 14);
     }
@@ -75,6 +77,7 @@ function renderPeakLabels(
     if (!Number.isFinite(yMin) || !Number.isFinite(yMax) || yMax <= yMin) return;
 
     ctx.save();
+    const palette = getChartPalette();
     ctx.font = '10px Inter, system-ui, sans-serif';
     ctx.textBaseline = 'middle';
 
@@ -103,7 +106,7 @@ function renderPeakLabels(
     const labelTop = plotT + 12;
     let rowIndex = 0;
     for (const { peak, ax, ay } of clustered.slice(0, 2)) {
-        ctx.fillStyle = 'rgba(255, 100, 100, 0.9)';
+        ctx.fillStyle = palette.danger;
         ctx.beginPath();
         ctx.arc(ax, ay, 4, 0, Math.PI * 2);
         ctx.fill();
@@ -115,7 +118,7 @@ function renderPeakLabels(
         const lineEndX = labelX + (alignRight ? -4 : 4);
         rowIndex += 1;
 
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.42)';
+        ctx.strokeStyle = palette.borderHi;
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(ax, ay - 6);
@@ -126,13 +129,13 @@ function renderPeakLabels(
         const period = frequencyToPeriod(peak.frequency_hz);
         const plateWidth = Math.max(ctx.measureText(label).width, ctx.measureText(`(${period})`).width) + 10;
         const plateX = alignRight ? labelX - plateWidth : labelX;
-        ctx.fillStyle = 'rgba(11, 17, 28, 0.78)';
+        ctx.fillStyle = palette.surfaceElevated;
         ctx.fillRect(plateX, labelY - 8, plateWidth, 18);
 
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+        ctx.fillStyle = palette.text;
         ctx.textAlign = alignRight ? 'right' : 'left';
         ctx.fillText(label, labelX, labelY);
-        ctx.fillStyle = 'rgba(180, 180, 180, 0.85)';
+        ctx.fillStyle = palette.textDim;
         ctx.fillText(`(${period})`, labelX, periodY);
     }
 

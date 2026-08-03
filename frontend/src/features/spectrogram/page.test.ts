@@ -400,7 +400,7 @@ describe('spectrogramPage colorbar filter', () => {
             expect.objectContaining({ normalize: 'zscore' }),
         );
         expect(toastMock).toHaveBeenCalledWith(
-            'Loaded HUFL automatically. Pick another column and press Compute to switch.',
+            'Loaded HUFL automatically. Pick another column and update the spectrogram to switch.',
             'info',
             expect.anything(),
         );

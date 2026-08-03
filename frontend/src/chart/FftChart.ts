@@ -27,6 +27,8 @@ import {
     type SpectralScaleOptions,
 } from '../utils/spectralScaling.js';
 import { buildFftDataModel, type FftDataModel, type FftTrace } from './fftDataModel.js';
+import { buildChartGpuTheme, getChartGpuColorPalette, withChartGpuTheme } from './chartThemeOptions.js';
+import { onThemeChange } from '../utils/theme.js';
 
 const FFT_GRID: GridLayout = { left: 112, right: 32, top: 52, bottom: 52 };
 
@@ -52,6 +54,7 @@ export class FftChart {
     private _sampleRateHz = 0;
     private _nyquistHz = 0;
     private _dominantPeaks: FrequencyPeak[] = [];
+    private _themeUnsubscribe: (() => void) | null = null;
 
     /** Called with true when zoomed, false when view reset to full range. */
     onZoomChange: ((isZoomed: boolean) => void) | null = null;
@@ -72,6 +75,8 @@ export class FftChart {
 
         const chartOptions: Record<string, unknown> = {
             grid: FFT_GRID,
+            theme: buildChartGpuTheme(),
+            palette: getChartGpuColorPalette(),
             xAxis: { type: 'value' },
             yAxis: { type: 'value' },
             legend: { show: false, position: 'right' },
@@ -83,6 +88,13 @@ export class FftChart {
 
         this._overlayResources.mount(container, () => this._renderOverlay());
         this._initInteractions();
+        this._themeUnsubscribe?.();
+        this._themeUnsubscribe = onThemeChange(() => {
+            if (!this._chart) return;
+            if (this._traces.length > 0) this._applyCurrentOption();
+            else this._chart.setOption(withChartGpuTheme({ series: [] }));
+            this._renderOverlay();
+        });
     }
 
     /* ── Frequency unit helpers ────────────────────────── */
@@ -127,15 +139,21 @@ export class FftChart {
             peaks: this._dominantPeaks,
         });
 
-        this._chart.setOption(buildFftChartOptions({
+        this._applyCurrentOption();
+        this._renderOverlay();
+    }
+
+    private _applyCurrentOption(): void {
+        const model = this._overlayModel;
+        if (!this._chart || !model) return;
+        this._chart.setOption(withChartGpuTheme(buildFftChartOptions({
             model,
             xMin: this._getXMin(),
             xMax: this._getXMax(),
             mode: this._mode,
             logScale: this._logScale,
             scaleOptions: this._scaleOptions,
-        }));
-        this._renderOverlay();
+        })) as any);
     }
 
     /**
@@ -199,6 +217,8 @@ export class FftChart {
     }
 
     destroy(): void {
+        this._themeUnsubscribe?.();
+        this._themeUnsubscribe = null;
         this._interactionResources.dispose();
         this._overlayResources.dispose();
         this._chart?.dispose?.();

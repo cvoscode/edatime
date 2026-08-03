@@ -25,7 +25,7 @@ describe('home page help button', () => {
     it('ships a real <button> with id "home-help-btn" inside #page-home', () => {
         // Index-level assertion: a structural change to the home page
         // shouldn't accidentally drop the help trigger.
-        expect(indexHtml).toMatch(/<button[^>]*id="home-help-btn"[^>]*>\?<\/button>/);
+        expect(indexHtml).toMatch(/<button[^>]*id="home-help-btn"[^>]*>/);
         const match = indexHtml.match(/<section[^>]*id="page-home"[\s\S]*?<\/section>/);
         expect(match?.[0] ?? '').toContain('id="home-help-btn"');
     });
@@ -36,12 +36,12 @@ describe('home page help button', () => {
 
         const trigger = document.getElementById('home-help-btn') as HTMLButtonElement;
         expect(trigger.getAttribute('data-page-help-bound')).toBe('true');
-        expect(trigger.getAttribute('aria-label')).toBe('Show help for the Home page');
+        expect(trigger.getAttribute('aria-label')).toBe('Show help for the Overview page');
 
         trigger.click();
         const modal = document.getElementById('page-help-modal');
         expect(modal).not.toBeNull();
-        expect(modal?.textContent).toContain('Home — Help');
+        expect(modal?.textContent).toContain('Overview — Help');
         // Intro and at least the "Sections on this page" heading should be present.
         expect(modal?.textContent).toContain('Sections on this page');
         expect(modal?.textContent).toContain('ETTm2');

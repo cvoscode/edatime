@@ -104,3 +104,6 @@
 /* ── Feature / Page (static — always loaded) ─────────────── */
 
 /* Page-owned CSS is loaded lazily via frontend/src/utils/pageStyles.ts */
+
+/* Final visual hierarchy pass shared by every route. */
+@import "modules/workspace.css";

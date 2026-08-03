@@ -23,7 +23,7 @@ describe('heatmap (Correlations) page help button', () => {
     });
 
     it('ships a real <button> with id "heatmap-help-btn" inside #page-heatmap', () => {
-        expect(indexHtml).toMatch(/<button[^>]*id="heatmap-help-btn"[^>]*>\?<\/button>/);
+        expect(indexHtml).toMatch(/<button[^>]*id="heatmap-help-btn"[^>]*>/);
         const match = indexHtml.match(/<section[^>]*id="page-heatmap"[\s\S]*?<\/section>/);
         expect(match?.[0] ?? '').toContain('id="heatmap-help-btn"');
     });
@@ -34,12 +34,12 @@ describe('heatmap (Correlations) page help button', () => {
 
         const trigger = document.getElementById('heatmap-help-btn') as HTMLButtonElement;
         expect(trigger.getAttribute('data-page-help-bound')).toBe('true');
-        expect(trigger.getAttribute('aria-label')).toBe('Show help for the Correlations page');
+        expect(trigger.getAttribute('aria-label')).toBe('Show help for the Correlation matrix page');
 
         trigger.click();
         const modal = document.getElementById('page-help-modal');
         expect(modal).not.toBeNull();
-        expect(modal?.textContent).toContain('Correlations — Help');
+        expect(modal?.textContent).toContain('Correlation matrix — Help');
         // Section headings should be present.
         expect(modal?.textContent).toContain('Metric toolbar');
         expect(modal?.textContent).toContain('Display segment');

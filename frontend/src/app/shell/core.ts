@@ -19,6 +19,7 @@ import { initPageNavigation, type PageNavigationDeps } from '../../ui/pageNaviga
 import { wireHomeNavigationCards } from '../../features/home/index.js';
 import { initMobileHeaderMenu } from '../../ui/mobileHeaderMenu.js';
 import { initActionProxies, initResponsiveDisclosures } from '../../ui/responsiveDisclosure.js';
+import { initToolbarCollapse } from '../../ui/toolbarCollapse.js';
 
 export interface ShellCoreInitDeps {
     showPage: (pageName: string) => void;
@@ -39,6 +40,7 @@ export function initShellCore(deps: ShellCoreInitDeps): () => void {
     const disposeKeyboardHelpButton = initKeyboardHelpButton();
     const disposeMobileHeaderMenu = initMobileHeaderMenu();
     const disposeResponsiveDisclosures = initResponsiveDisclosures();
+    const disposeToolbarCollapse = initToolbarCollapse();
     const disposeActionProxies = initActionProxies();
 
     const layout = document.querySelector('.app-layout') as HTMLElement | null;
@@ -51,6 +53,7 @@ export function initShellCore(deps: ShellCoreInitDeps): () => void {
         disposeHomeNavigation();
         disposeMobileHeaderMenu();
         disposeResponsiveDisclosures();
+        disposeToolbarCollapse();
         disposeActionProxies();
         disposeKeyboardHelpButton();
         disposeAccessibilityShortcuts();

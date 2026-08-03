@@ -23,7 +23,7 @@ describe('timeseries page help button', () => {
     });
 
     it('ships a real <button> with id "timeseries-help-btn" inside #page-timeseries', () => {
-        expect(indexHtml).toMatch(/<button[^>]*id="timeseries-help-btn"[^>]*>\?<\/button>/);
+        expect(indexHtml).toMatch(/<button[^>]*id="timeseries-help-btn"[^>]*>/);
         const match = indexHtml.match(/<section[^>]*id="page-timeseries"[\s\S]*?<\/section>/);
         expect(match?.[0] ?? '').toContain('id="timeseries-help-btn"');
     });
@@ -34,12 +34,12 @@ describe('timeseries page help button', () => {
 
         const trigger = document.getElementById('timeseries-help-btn') as HTMLButtonElement;
         expect(trigger.getAttribute('data-page-help-bound')).toBe('true');
-        expect(trigger.getAttribute('aria-label')).toBe('Show help for the Timeseries page');
+        expect(trigger.getAttribute('aria-label')).toBe('Show help for the Signals page');
 
         trigger.click();
         const modal = document.getElementById('page-help-modal');
         expect(modal).not.toBeNull();
-        expect(modal?.textContent).toContain('Timeseries — Help');
+        expect(modal?.textContent).toContain('Signals — Help');
         // Each section heading should appear in the modal.
         expect(modal?.textContent).toContain('Command bar (top)');
         expect(modal?.textContent).toContain('Utility shelf');

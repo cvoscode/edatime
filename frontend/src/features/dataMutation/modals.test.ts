@@ -79,6 +79,7 @@ describe('dataMutationModals', () => {
 
     it('adds a derived-column stage instead of invoking the destructive transform endpoint', async () => {
         document.body.innerHTML = `
+            <button id="transform-open-btn"></button>
             <button id="transform-apply-btn"></button>
             <input id="transform-expression" value="sqrt(value) + 1" />
             <input id="transform-output-name" value="score" />
@@ -91,6 +92,9 @@ describe('dataMutationModals', () => {
         const refreshDataset = vi.fn().mockResolvedValue(undefined);
         const onPlanChanged = vi.fn();
         initTransformModal({ refreshDataset, planStore, onPlanChanged });
+
+        (document.getElementById('transform-open-btn') as HTMLButtonElement).click();
+        expect(openMock).toHaveBeenCalledOnce();
 
         (document.getElementById('transform-apply-btn') as HTMLButtonElement).click();
 

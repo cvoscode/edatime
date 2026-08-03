@@ -148,4 +148,39 @@ describe('createModalController', () => {
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }));
         expect(document.activeElement).toBe(last);
     });
+
+    it('keeps a nested dialog interactive while blocking the surrounding shell', () => {
+        document.body.innerHTML = `
+      <div class="app-layout">
+        <nav id="sidebar"><button type="button">Navigate</button></nav>
+        <main id="content">
+          <button id="outside-btn" type="button">Outside</button>
+          <div id="nested-modal" hidden>
+            <div role="dialog">
+              <button id="nested-close-btn" type="button">Close</button>
+            </div>
+          </div>
+        </main>
+      </div>
+    `;
+        const controller = createModalController({
+            modalId: 'nested-modal',
+            closeButtonIds: ['nested-close-btn'],
+        });
+        const layout = document.querySelector('.app-layout') as HTMLElement;
+        const content = document.getElementById('content') as HTMLElement;
+        const sidebar = document.getElementById('sidebar') as HTMLElement;
+        const modal = document.getElementById('nested-modal') as HTMLElement;
+
+        controller.open();
+
+        expect(layout.hasAttribute('inert')).toBe(false);
+        expect(content.hasAttribute('inert')).toBe(false);
+        expect(sidebar.hasAttribute('inert')).toBe(true);
+        expect(modal.hasAttribute('inert')).toBe(false);
+        expect(document.activeElement).toBe(document.getElementById('nested-close-btn'));
+
+        controller.close();
+        expect(sidebar.hasAttribute('inert')).toBe(false);
+    });
 });

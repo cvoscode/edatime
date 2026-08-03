@@ -13,7 +13,7 @@
 import { initPageHelp, type PageHelpContent } from '../../ui/pageHelp.js';
 
 export const FFT_HELP: PageHelpContent = {
-    pageName: 'FFT',
+    pageName: 'Spectrum',
     intro:
         'Frequency-domain view of the selected numeric columns. Every visible series on the Timeseries page gets its own FFT trace here; choose Magnitude or PSD, scale, then look for peaks that dominate the spectrum.',
     sections: [

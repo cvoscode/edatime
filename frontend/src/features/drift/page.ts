@@ -75,6 +75,7 @@ import { buildDriftInvestigationRequest } from './requestPayload.js';
 import { buildDriftSummaryPanelHtml } from './summaryPanels.js';
 import { buildDriftCsv, buildDriftJsonExport } from './exportPayloads.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
+import { onThemeChange } from '../../utils/theme.js';
 
 // Re-export for test isolation
 export { _setEchartsModule };
@@ -223,6 +224,9 @@ export async function initDriftPage(
         });
     }
 
+    const unsubscribeTheme = onThemeChange(() => scheduleDriftChartRefresh());
+    pageAbortController.signal.addEventListener('abort', unsubscribeTheme, { once: true });
+
     function syncEmptyState(show: boolean, message?: string): void {
         if (!emptyState) return;
         if (message) emptyState.innerHTML = `<strong>No drift data</strong><span>${message}</span>`;
@@ -232,7 +236,7 @@ export async function initDriftPage(
 
     function setIdleStatus(): void {
         if (!statusEl) return;
-        statusEl.textContent = 'Select one or more columns, choose a baseline, and press Compute.';
+        statusEl.textContent = 'Select one or more columns, choose a baseline, and run the analysis.';
     }
 
     function setComputedStatus(
@@ -382,7 +386,7 @@ export async function initDriftPage(
         }
 
         computeBtnEl.disabled = true;
-        computeBtnEl.textContent = 'Computing...';
+        computeBtnEl.textContent = 'Running analysis…';
         syncEmptyState(false);
 
         // Load the chart runtime in parallel with the API request. Drift results
@@ -434,7 +438,7 @@ export async function initDriftPage(
             // Reset button state regardless of whether the run completed,
             // errored, or was superseded by another run() call.
             computeBtnEl.disabled = false;
-            computeBtnEl.textContent = 'Compute';
+            computeBtnEl.textContent = 'Run drift analysis';
         }
     }
 

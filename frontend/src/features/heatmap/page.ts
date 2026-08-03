@@ -273,7 +273,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
             // where one cluster ends and the next begins, instead of
             // relying on the slight text-color shift which was barely
             // visible in dark mode.
-            const clusterStyle = isFirstInCluster ? 'border-left: 2px solid #88aef2; padding-left: 4px;' : '';
+            const clusterStyle = isFirstInCluster ? 'border-left: 2px solid var(--accent); padding-left: 4px;' : '';
             cells.push(
                 `<div class="${headerClass}" draggable="true" data-drag-axis="col" data-drag-name="${escapeAttr(colName)}" data-drag-original="${colOriginal}" style="grid-column:${colGridFor(c)};grid-row:1;${clusterStyle}--heatmap-header-cell:${headerCellSize}px;" title="${escapeAttr(colName)}" data-cluster-col="${colOriginal}">${escapeAttr(colName)}</div>`,
             );
@@ -285,7 +285,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
             const isFirstInCluster = r > 0 && clusters.some((cl) => cl.startIndex === r);
             const labelClass = isFirstInCluster ? ' heatmap-row-label--cluster-start' : '';
             // Cluster separator for the row at the same position.
-            const clusterStyle = isFirstInCluster ? 'border-top: 2px solid #88aef2;' : '';
+            const clusterStyle = isFirstInCluster ? 'border-top: 2px solid var(--accent);' : '';
             // Row label sits in column 1 of this row.
             cells.push(
                 `<div class="heatmap-row-label${labelClass}" draggable="true" data-drag-axis="row" data-drag-name="${escapeAttr(rowName)}" data-drag-original="${rowOriginal}" style="grid-column:1;grid-row:${rowGridFor(r)};${clusterStyle}min-height:${headerCellSize}px;height:${headerCellSize}px;" title="${escapeAttr(rowName)}" data-cluster-row="${rowOriginal}">${escapeAttr(rowName)}</div>`,

@@ -49,6 +49,45 @@
   gap: 14px;
 }
 
+.analytics-modal__dialog {
+  width: min(620px, 100%);
+}
+
+.analytics-modal__subtitle {
+  margin-top: 3px;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.analytics-modal__body {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  max-height: min(68vh, 560px);
+  overflow-y: auto;
+}
+
+.analytics-modal__body .toolbar-field--actions {
+  grid-column: 1 / -1;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.analytics-modal__body .scatter-link-toggle {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 560px) {
+  .analytics-modal__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .analytics-modal__body .toolbar-field--actions {
+    grid-column: 1;
+  }
+}
+
 .cleaning-plan-modal { width: min(1120px, 100%); max-width: min(1120px, 100%); }
 .cleaning-plan-status, .cleaning-plan-preview { margin: 0; color: var(--text-dim); font-size: 0.8125rem; }
 .cleaning-plan-stages { display: grid; gap: 8px; max-height: min(32vh, 300px); overflow: auto; }

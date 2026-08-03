@@ -4,6 +4,7 @@
  */
 
 import { getActiveSeriesPalette } from '../utils/seriesColors.js';
+import { getChartPalette, onThemeChange } from '../utils/theme.js';
 import type { ChartInstance, FilteredDataObject, CrosshairData, ClickData, ViewSnapshot } from '../types/chart.js';
 
 const FALLBACK_GRID = { left: 28, right: 28, top: 28, bottom: 28 };
@@ -13,6 +14,7 @@ export class FallbackChart implements ChartInstance {
     private canvas: HTMLCanvasElement | null = null;
     private ctx: CanvasRenderingContext2D | null = null;
     private resizeObserver: ResizeObserver | null = null;
+    private themeUnsubscribe: (() => void) | null = null;
     private selectionBox: (HTMLElement & { dispose?: () => void }) | null = null;
     private onZoomCallback: ((view: ViewSnapshot, sourceKind: string) => void) | null;
     private onYRangeCallback: ((min: number, max: number, sourceKind: string) => void) | null;
@@ -61,11 +63,14 @@ export class FallbackChart implements ChartInstance {
             const h = Math.max(1, container.clientHeight);
             this.canvas!.width = w;
             this.canvas!.height = h;
+            this.redraw();
         };
         resize();
 
         this.resizeObserver = new ResizeObserver(() => resize());
         this.resizeObserver.observe(container);
+        this.themeUnsubscribe?.();
+        this.themeUnsubscribe = onThemeChange(() => this.redraw());
         const { initBoxZoom } = await import('../chart/chartInteractions.js');
         this.selectionBox = initBoxZoom({
             container,
@@ -157,13 +162,14 @@ export class FallbackChart implements ChartInstance {
         const width = this.canvas.width;
         const height = this.canvas.height;
         const pad = FALLBACK_GRID.left;
+        const theme = getChartPalette();
 
         ctx.clearRect(0, 0, width, height);
-        ctx.fillStyle = '#080a10';
+        ctx.fillStyle = theme.background;
         ctx.fillRect(0, 0, width, height);
 
         if (!dataObj) {
-            ctx.fillStyle = '#7a86a4';
+            ctx.fillStyle = theme.textDim;
             ctx.font = '12px sans-serif';
             ctx.fillText('No data to display', pad, pad + 2);
             return;
@@ -211,7 +217,7 @@ export class FallbackChart implements ChartInstance {
         }
 
         if (seriesToDraw.length === 0 || !hasFiniteDomain) {
-            ctx.fillStyle = '#7a86a4';
+            ctx.fillStyle = theme.textDim;
             ctx.font = '12px sans-serif';
             ctx.fillText('No data to display', pad, pad + 2);
             return;
@@ -222,7 +228,7 @@ export class FallbackChart implements ChartInstance {
         const viewYMin = this.yMin ?? yMin;
         const viewYMax = this.yMax ?? yMax;
 
-        ctx.strokeStyle = '#272d45';
+        ctx.strokeStyle = theme.borderHi;
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(pad, height - pad);
@@ -265,6 +271,8 @@ export class FallbackChart implements ChartInstance {
     destroy(): void {
         this.resizeObserver?.disconnect();
         this.resizeObserver = null;
+        this.themeUnsubscribe?.();
+        this.themeUnsubscribe = null;
         this.selectionBox?.dispose?.();
         this.selectionBox = null;
         this.ctx = null;

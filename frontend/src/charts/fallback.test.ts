@@ -6,6 +6,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { FallbackChart } from './fallback';
 import type { FilteredDataObject } from '../types/chart.js';
+import { setResolvedTheme } from '../utils/theme.js';
 
 describe('FallbackChart', () => {
     describe('construction', () => {
@@ -62,6 +63,32 @@ describe('FallbackChart', () => {
         it('throws when container not found', async () => {
             const chart = new FallbackChart('nonexistent');
             await expect(chart.init()).rejects.toThrow('not found');
+        });
+
+        it('redraws with the shared light palette when the theme changes', async () => {
+            const fillStyles: string[] = [];
+            let fillStyle = '';
+            const context = {
+                clearRect: vi.fn(), fillRect: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(),
+                lineTo: vi.fn(), stroke: vi.fn(), fillText: vi.fn(), strokeStyle: '', lineWidth: 1, font: '',
+                get fillStyle() { return fillStyle; },
+                set fillStyle(value: string) { fillStyle = value; fillStyles.push(value); },
+            };
+            const contextSpy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as any);
+            const chart = new FallbackChart('test-container');
+            try {
+                setResolvedTheme('dark');
+                await chart.init();
+                fillStyles.length = 0;
+
+                setResolvedTheme('light');
+
+                expect(fillStyles).toContain('#FFFFFF');
+            } finally {
+                chart.destroy();
+                contextSpy.mockRestore();
+                setResolvedTheme('dark');
+            }
         });
     });
 

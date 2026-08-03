@@ -19,7 +19,7 @@ import { initPageHelp, type PageHelpContent } from '../../ui/pageHelp.js';
  * fourth covers ingest behavior; tips and shortcuts round it out.
  */
 export const UPLOAD_HELP: PageHelpContent = {
-    pageName: 'Upload',
+    pageName: 'Data source',
     intro:
         'Bring data into EdaTime. Pick a File or a Database source, optionally preview and trim columns, then ingest. The active dataset stays in memory until you upload again or load a sample.',
     sections: [

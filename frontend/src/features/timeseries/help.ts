@@ -17,7 +17,7 @@ import { initPageHelp, type PageHelpContent } from '../../ui/pageHelp.js';
  * long on actionable detail — this is the page new users get lost on.
  */
 export const TIMESERIES_HELP: PageHelpContent = {
-    pageName: 'Timeseries',
+    pageName: 'Signals',
     intro:
         'Multi-series time-series chart with zoom, drawing, adaptive filters, and overlays. Pick the columns you care about, narrow the time window, then layer in analytics.',
     sections: [

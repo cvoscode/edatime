@@ -15,7 +15,7 @@ import { initPageHelp, type PageHelpContent } from '../../ui/pageHelp.js';
 import '../../../css/modules/prepare.css';
 
 export const PREPARE_HELP: PageHelpContent = {
-    pageName: 'Prepare',
+    pageName: 'Preparation',
     intro: 'Review and refine the reversible cleaning plan that EdaTime applies before analysis. Nothing here replaces the source dataset until you explicitly materialize a new version.',
     sections: [
         {
@@ -284,11 +284,16 @@ function renderPrepareWorkspace(
     const heading = createElement('div');
     const titleRow = createElement('div', 'prepare-workspace__title-row');
     const title = createElement('h1', 'page-header__title');
-    title.textContent = 'Prepare';
+    title.textContent = 'Preparation';
     const help = createElement('button', 'page-help-trigger');
     help.id = 'prepare-help-btn';
     help.type = 'button';
-    help.textContent = '?';
+    const helpIcon = createElement('span');
+    helpIcon.setAttribute('aria-hidden', 'true');
+    helpIcon.textContent = '?';
+    const helpLabel = createElement('span', 'page-help-trigger__label');
+    helpLabel.textContent = 'Help';
+    help.append(helpIcon, helpLabel);
     titleRow.append(title, help);
     const copy = createElement('p', 'prepare-workspace__copy');
     copy.textContent = 'Review the reversible preprocessing pipeline before materializing a new dataset version.';

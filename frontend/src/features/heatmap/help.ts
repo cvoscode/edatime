@@ -14,7 +14,7 @@
 import { initPageHelp, type PageHelpContent } from '../../ui/pageHelp.js';
 
 export const HEATMAP_HELP: PageHelpContent = {
-    pageName: 'Correlations',
+    pageName: 'Correlation matrix',
     intro:
         'A correlation matrix that shows how every numeric column in the dataset moves with every other one. Pick a metric, scan for strong off-diagonal cells, then click any cell to jump to a detailed scatter view.',
     sections: [

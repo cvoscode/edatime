@@ -23,7 +23,7 @@ describe('causal page help button', () => {
     });
 
     it('ships a real <button> with id "causal-help-btn" inside #page-causal', () => {
-        expect(indexHtml).toMatch(/<button[^>]*id="causal-help-btn"[^>]*>\?<\/button>/);
+        expect(indexHtml).toMatch(/<button[^>]*id="causal-help-btn"[^>]*>/);
         const match = indexHtml.match(/<section[^>]*id="page-causal"[\s\S]*?<\/section>/);
         expect(match?.[0] ?? '').toContain('id="causal-help-btn"');
     });
@@ -34,12 +34,12 @@ describe('causal page help button', () => {
 
         const trigger = document.getElementById('causal-help-btn') as HTMLButtonElement;
         expect(trigger.getAttribute('data-page-help-bound')).toBe('true');
-        expect(trigger.getAttribute('aria-label')).toBe('Show help for the Causal page');
+        expect(trigger.getAttribute('aria-label')).toBe('Show help for the Causality page');
 
         trigger.click();
         const modal = document.getElementById('page-help-modal');
         expect(modal).not.toBeNull();
-        expect(modal?.textContent).toContain('Causal — Help');
+        expect(modal?.textContent).toContain('Causality — Help');
         expect(modal?.textContent).toContain('Method picker');
         expect(modal?.textContent).toContain('PCMCI');
         expect(modal?.textContent).toContain('PCMCI+');

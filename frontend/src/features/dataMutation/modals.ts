@@ -26,6 +26,7 @@ interface OutlierModalDeps extends DataMutationModalDeps {
 }
 
 export function initTransformModal(deps: TransformModalDeps): void {
+    const openBtn = document.getElementById('transform-open-btn');
     const applyBtn = document.getElementById('transform-apply-btn') as HTMLButtonElement | null;
     const exprInput = document.getElementById('transform-expression') as HTMLInputElement | null;
     const nameInput = document.getElementById('transform-output-name') as HTMLInputElement | null;
@@ -37,6 +38,10 @@ export function initTransformModal(deps: TransformModalDeps): void {
         onOpen: () => {
             if (errorEl) errorEl.textContent = '';
         },
+    });
+
+    openBtn?.addEventListener('click', () => {
+        controller.open();
     });
 
     applyBtn?.addEventListener('click', async () => {

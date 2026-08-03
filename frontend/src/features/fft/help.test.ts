@@ -23,7 +23,7 @@ describe('FFT page help button', () => {
     });
 
     it('ships a real <button> with id "fft-help-btn" inside #page-fft', () => {
-        expect(indexHtml).toMatch(/<button[^>]*id="fft-help-btn"[^>]*>\?<\/button>/);
+        expect(indexHtml).toMatch(/<button[^>]*id="fft-help-btn"[^>]*>/);
         const match = indexHtml.match(/<section[^>]*id="page-fft"[\s\S]*?<\/section>/);
         expect(match?.[0] ?? '').toContain('id="fft-help-btn"');
     });
@@ -34,12 +34,12 @@ describe('FFT page help button', () => {
 
         const trigger = document.getElementById('fft-help-btn') as HTMLButtonElement;
         expect(trigger.getAttribute('data-page-help-bound')).toBe('true');
-        expect(trigger.getAttribute('aria-label')).toBe('Show help for the FFT page');
+        expect(trigger.getAttribute('aria-label')).toBe('Show help for the Spectrum page');
 
         trigger.click();
         const modal = document.getElementById('page-help-modal');
         expect(modal).not.toBeNull();
-        expect(modal?.textContent).toContain('FFT — Help');
+        expect(modal?.textContent).toContain('Spectrum — Help');
         // Section headings should be present.
         expect(modal?.textContent).toContain('Display segment');
         expect(modal?.textContent).toContain('Pre-scaling segment');

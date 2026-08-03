@@ -7,8 +7,6 @@
   <title>EdaTime</title>
   <link rel="icon"
     href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f1720'/%3E%3Cpath d='M7 21l5-6 4 4 9-11' fill='none' stroke='%2300d4ff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <!-- Load critical CSS via main stylesheet -->
   <link rel="stylesheet" href="/css/style.css">
   <script>
@@ -61,7 +59,7 @@
 
     <nav class="sidebar" id="sidebar">
       <div class="sidebar-title">EdaTime</div>
-      <button class="nav-item active" type="button" data-page="home" title="Home" aria-label="Home">
+      <button class="nav-item active" type="button" data-page="home" title="Overview" aria-label="Overview">
         <span class="nav-icon">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
             stroke-linejoin="round" aria-hidden="true">
@@ -69,10 +67,10 @@
             <rect x="6" y="9" width="4" height="6" rx="0.5" />
           </svg>
         </span>
-        <span class="nav-text">Home</span>
+        <span class="nav-text">Overview</span>
       </button>
-      <div class="sidebar-section-label">Core workflow</div>
-      <button class="nav-item" type="button" data-page="upload" title="Upload (Alt+1)" aria-label="Upload">
+      <div class="sidebar-section-label">Workspace</div>
+      <button class="nav-item" type="button" data-page="upload" title="Data source (Alt+1)" aria-label="Data source">
         <span class="nav-icon">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
             stroke-linejoin="round" aria-hidden="true">
@@ -81,10 +79,10 @@
             <line x1="8" y1="2" x2="8" y2="11" />
           </svg>
         </span>
-        <span class="nav-text">Upload</span>
+        <span class="nav-text">Data source</span>
         <kbd class="nav-shortcut">⌥1</kbd>
       </button>
-      <button class="nav-item" type="button" data-page="timeseries" title="Timeseries (Alt+2)" aria-label="Timeseries">
+      <button class="nav-item" type="button" data-page="timeseries" title="Signals (Alt+2)" aria-label="Signals">
         <span class="nav-icon">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
             stroke-linejoin="round" aria-hidden="true">
@@ -92,7 +90,7 @@
               d="M1 9C2.6 6 4.1 4.8 5.7 6.1C6.6 6.8 7.2 8.2 8 8.2C9.1 8.2 9.7 4.2 11 4.2C12.2 4.2 12.6 7.2 13.5 8.1C14 8.6 14.5 8.4 15 7.2" />
           </svg>
         </span>
-        <span class="nav-text">Timeseries</span>
+        <span class="nav-text">Signals</span>
         <kbd class="nav-shortcut">⌥2</kbd>
       </button>
       <button class="nav-item" type="button" data-page="prepare" title="Prepare data" aria-label="Prepare data">
@@ -105,10 +103,10 @@
             <circle cx="8" cy="13" r="1" fill="var(--shell-bg)" />
           </svg>
         </span>
-        <span class="nav-text">Prepare</span>
+        <span class="nav-text">Preparation</span>
       </button>
-      <button class="nav-item" type="button" data-page="correlations" title="Correlations (Alt+7)"
-        aria-label="Correlations">
+      <button class="nav-item" type="button" data-page="correlations" title="Correlation matrix (Alt+7)"
+        aria-label="Correlation matrix">
         <span class="nav-icon">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
             stroke-linejoin="round" aria-hidden="true">
@@ -123,10 +121,10 @@
             <rect x="11" y="11" width="4" height="4" rx="0.5" />
           </svg>
         </span>
-        <span class="nav-text">Correlations</span>
+        <span class="nav-text">Correlation matrix</span>
         <kbd class="nav-shortcut">⌥7</kbd>
       </button>
-      <button class="nav-item" type="button" data-page="scatter" title="Scatter (Alt+3)" aria-label="Scatter">
+      <button class="nav-item" type="button" data-page="scatter" title="Pair plot (Alt+3)" aria-label="Pair plot">
         <span class="nav-icon">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
             stroke-linejoin="round" aria-hidden="true">
@@ -137,22 +135,22 @@
             <circle cx="11" cy="3" r="1.2" />
           </svg>
         </span>
-        <span class="nav-text">Scatter</span>
+        <span class="nav-text">Pair plot</span>
         <kbd class="nav-shortcut">⌥3</kbd>
       </button>
-      <div class="sidebar-section-label sidebar-section-label--spaced">Advanced analysis</div>
-      <button class="nav-item" type="button" data-page="fft" title="FFT / PSD (Alt+6)" aria-label="FFT / PSD">
+      <div class="sidebar-section-label sidebar-section-label--spaced">Spectrum &amp; diagnose</div>
+      <button class="nav-item" type="button" data-page="fft" title="Spectrum (Alt+6)" aria-label="Spectrum">
         <span class="nav-icon">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
             stroke-linejoin="round" aria-hidden="true">
             <polyline points="1,8 3,4 5,10 7,2 9,12 11,6 13,8 15,8" />
           </svg>
         </span>
-        <span class="nav-text">FFT</span>
+        <span class="nav-text">Spectrum</span>
         <kbd class="nav-shortcut">⌥6</kbd>
       </button>
-      <button class="nav-item" type="button" data-page="spectrogram" title="Spectrogram (Alt+8)"
-        aria-label="Spectrogram">
+      <button class="nav-item" type="button" data-page="spectrogram" title="Time-frequency (Alt+8)"
+        aria-label="Time-frequency">
         <span class="nav-icon">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
             stroke-linejoin="round" aria-hidden="true">
@@ -163,10 +161,10 @@
             <rect x="13" y="3" width="2" height="10" rx="0.3" />
           </svg>
         </span>
-        <span class="nav-text">Spectrogram</span>
+        <span class="nav-text">Time-frequency</span>
         <kbd class="nav-shortcut">⌥8</kbd>
       </button>
-      <button class="nav-item" type="button" data-page="causal" title="Causal Graph (Alt+9)" aria-label="Causal Graph">
+      <button class="nav-item" type="button" data-page="causal" title="Causality (Alt+9)" aria-label="Causality">
         <span class="nav-icon">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
             stroke-linejoin="round" aria-hidden="true">
@@ -177,11 +175,10 @@
             <line x1="5" y1="8.8" x2="11" y2="11.2" />
           </svg>
         </span>
-        <span class="nav-text">Causal</span>
+        <span class="nav-text">Causality</span>
         <kbd class="nav-shortcut">⌥9</kbd>
       </button>
-      <button class="nav-item" type="button" data-page="drift" title="Drift Analysis (Alt+0)"
-        aria-label="Drift Analysis">
+      <button class="nav-item" type="button" data-page="drift" title="Drift (Alt+0)" aria-label="Drift">
         <span class="nav-icon">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
             stroke-linejoin="round" aria-hidden="true">
@@ -245,6 +242,7 @@
             </svg>
           </div>
           <span class="brand-name">EdaTime</span>
+          <span class="workspace-bar-title">Analysis workspace</span>
         </div>
 
         <div class="header-meta" id="header-meta">
@@ -275,14 +273,14 @@
           </button>
           <button class="btn btn-ghost btn-sm" id="workflow-toggle-btn" type="button" title="Open guided workflow panel"
             aria-label="Open guided workflow panel" aria-pressed="false">
-            Workflow
+            Guide
           </button>
           <button class="btn btn-ghost btn-sm" id="open-cleaning-plan-btn" type="button"
             title="Open the preprocessing pipeline workbench" aria-label="Open preprocessing pipeline workbench">
-            Plan
+            Preparation
           </button>
           <button class="btn btn-ghost btn-sm theme-toggle" id="theme-toggle-btn" type="button"
-            title="Toggle light/dark theme">
+            title="Toggle light/dark theme" aria-label="Toggle light or dark theme">
             <svg id="theme-icon-dark" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
               stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
               <path d="M14 8.5A6.5 6.5 0 017.5 2 6.5 6.5 0 1014 8.5z" />
@@ -308,7 +306,7 @@
               <line x1="8" y1="5" x2="8" y2="11" />
               <circle cx="8" cy="3.5" r="0.5" fill="currentColor" stroke="none" />
             </svg>
-            <span class="provenance-btn-label">Context</span>
+            <span class="provenance-btn-label">Analysis context</span>
           </button>
           <div class="mobile-header-menu" id="mobile-header-menu">
             <button class="btn btn-ghost btn-sm mobile-header-menu__toggle" id="mobile-header-menu-btn" type="button"
@@ -321,9 +319,9 @@
               </svg>
             </button>
             <div class="mobile-header-menu__popover" id="mobile-header-menu-popover" role="menu" hidden>
-              <button type="button" role="menuitem" data-mobile-header-action="workflow-toggle-btn">Workflow</button>
-              <button type="button" role="menuitem" data-mobile-header-action="open-cleaning-plan-btn">Plan</button>
-              <button type="button" role="menuitem" data-mobile-header-action="provenance-toggle-btn">Context</button>
+              <button type="button" role="menuitem" data-mobile-header-action="workflow-toggle-btn">Guided workflow</button>
+              <button type="button" role="menuitem" data-mobile-header-action="open-cleaning-plan-btn">Preparation plan</button>
+              <button type="button" role="menuitem" data-mobile-header-action="provenance-toggle-btn">Analysis context</button>
               <button type="button" role="menuitem" data-mobile-header-action="keyboard-help-btn">Keyboard help</button>
               <button type="button" role="menuitem" data-mobile-header-page="settings">Settings</button>
             </div>
@@ -333,11 +331,14 @@
 
       <section id="workflow-panel" class="workflow-panel"></section>
 
-      <section class="page page--analysis-scroll" id="page-timeseries" data-page-name="timeseries" hidden>
+      <section class="page page--analysis-scroll" id="page-timeseries" data-page-name="timeseries" data-toolbar-collapse hidden>
         <div class="page-header">
-          <h1 class="page-header__title">Timeseries</h1>
+          <div class="page-header__copy">
+            <h1 class="page-header__title">Signals</h1>
+            <p class="page-header__description">Inspect behavior, ranges, and anomalies over time.</p>
+          </div>
           <button id="timeseries-help-btn" class="page-help-trigger" type="button"
-            aria-label="Show help for the Timeseries page" title="Show help for the Timeseries page (?)">?</button>
+            aria-label="Show help for the Signals page" title="Show help for the Signals page (?)"><span aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
         </div>
         <div class="toolbar toolbar--series timeseries-command-bar">
           <div class="timeseries-command-bar__left toolbar-group" role="group" aria-label="Series selection tools">
@@ -350,7 +351,7 @@
           <div class="timeseries-command-bar__center">
             <div class="series-toggles timeseries-chip-rail" id="column-toggles"></div>
           </div>
-          <div class="timeseries-command-bar__right" aria-label="Timeseries context">
+          <div class="timeseries-command-bar__right" aria-label="Signals context">
             <div id="timeseries-color-slot" class="timeseries-color-slot"></div>
           </div>
         </div>
@@ -368,7 +369,7 @@
         <details class="toolbar toolbar--tools scatter-toolbar timeseries-utility-shelf analysis-secondary-disclosure analysis-collapse-tablet"
           data-responsive-collapse="1024" open>
           <summary class="analysis-secondary-disclosure__summary">
-            <span>Tools</span><span>Draw, labels, notes, analytics, export</span>
+            <span>Chart tools</span><span>Annotations, analytics, display, export</span>
           </summary>
           <div class="analysis-secondary-disclosure__content">
           <div class="timeseries-utility-shelf__primary">
@@ -420,7 +421,7 @@
               <div class="scatter-toolbar__controls">
                 <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-labels-panel-btn" type="button"
                   title="Edit chart title and axis labels">
-                  <span class="toolbar-label">Edit</span>
+                  <span class="toolbar-label">Edit labels</span>
                   <span class="toolbar-disclosure__value">Title + axes</span>
                 </button>
               </div>
@@ -432,7 +433,7 @@
               <div class="scatter-toolbar__controls">
                 <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-notes-panel-btn" type="button"
                   title="Open annotation tools">
-                  <span class="toolbar-label">Open</span>
+                  <span class="toolbar-label">Manage</span>
                   <span class="toolbar-disclosure__value">Annotations</span>
                 </button>
               </div>
@@ -450,7 +451,7 @@
                   title="Export filtered data as CSV (E)" aria-label="Export filtered data as CSV">CSV</button>
                 <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-export-options-btn" type="button"
                   title="More export options">
-                  <span class="toolbar-label">More</span>
+                  <span class="toolbar-label">More formats</span>
                   <span class="toolbar-disclosure__value">SVG, JSON, Parquet</span>
                 </button>
                 <details class="scatter-toolbar__overflow" hidden>
@@ -469,7 +470,7 @@
               <div class="scatter-toolbar__controls">
                 <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-analytics-panel-btn" type="button"
                   title="Open analytics controls">
-                  <span class="toolbar-label">Open</span>
+                  <span class="toolbar-label">Configure</span>
                   <span class="toolbar-disclosure__value">Bands, anomalies, cleanup</span>
                 </button>
               </div>
@@ -479,16 +480,17 @@
               role="group" aria-label="Zoom controls">
               <span class="scatter-toolbar__eyebrow">Zoom</span>
               <div class="scatter-toolbar__controls">
-                <button class="btn btn-ghost btn-sm" id="zoom-out-btn" type="button" title="Zoom out">−</button>
+                <button class="btn btn-ghost btn-sm" id="zoom-out-btn" type="button" title="Zoom out"
+                  aria-label="Zoom out">−</button>
                 <span class="zoom-range-badge" id="zoom-range-badge">Viewing 100%</span>
                 <button class="btn btn-ghost btn-sm" id="zoom-reset-btn" type="button"
-                  title="Reset zoom to initial view">↺</button>
+                  title="Reset zoom to initial view">Reset</button>
               </div>
             </div>
 
             <div class="scatter-toolbar__segment scatter-toolbar__segment--range quick-range-toolbar" role="group"
               aria-label="Quick range">
-              <span class="scatter-toolbar__eyebrow">Quick range</span>
+              <span class="scatter-toolbar__eyebrow">Time range</span>
               <div class="scatter-toolbar__controls">
                 <button class="btn btn-ghost btn-sm" id="quick-range-24h" type="button" title="Last 24 hours (UTC)"
                   disabled>24h</button>
@@ -567,24 +569,27 @@
         </main>
       </section>
 
-      <section class="page page--analysis-scroll page-prepare" id="page-prepare" data-page-name="prepare" hidden>
+      <section class="page page--analysis-scroll page-prepare" id="page-prepare" data-page-name="prepare" data-toolbar-collapse hidden>
         <div id="prepare-workspace"></div>
       </section>
 
-      <section class="page" id="page-scatter" data-page-name="scatter" hidden>
+      <section class="page" id="page-scatter" data-page-name="scatter" data-toolbar-collapse hidden>
         <div class="page-header">
-          <h1 class="page-header__title">Scatter</h1>
+          <div class="page-header__copy">
+            <h1 class="page-header__title">Pair plot</h1>
+            <p class="page-header__description">Compare two signals, examine density, and understand inherited filters.</p>
+          </div>
           <button id="scatter-help-btn" class="page-help-trigger" type="button"
-            aria-label="Show help for the Scatter page" title="Show help for the Scatter page (?)">?</button>
+            aria-label="Show help for the Pair plot page" title="Show help for the Pair plot page (?)"><span aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
         </div>
         <div class="toolbar scatter-toolbar">
           <div id="scatter-analytics-group" class="scatter-toolbar__cluster">
             <div class="scatter-toolbar__segment scatter-toolbar__segment--view">
               <span class="scatter-toolbar__eyebrow">View</span>
               <div class="scatter-toolbar__fields">
-                <div class="btn-toggle-group scatter-view-toggle" role="group" aria-label="Scatter page view">
-                  <button type="button" class="btn active" id="scatter-view-plot-btn" aria-pressed="true"
-                    data-scatter-view="plot">Plot</button>
+                <div class="btn-toggle-group scatter-view-toggle" role="group" aria-label="Pair plot view">
+                  <button type="button" class="btn active" id="scatter-view-plot-btn" aria-label="Show pair plot"
+                    aria-pressed="true" data-scatter-view="plot">Plot</button>
                   <button type="button" class="btn" id="scatter-view-matrix-btn" aria-pressed="false"
                     data-scatter-view="matrix">Matrix</button>
                 </div>
@@ -694,12 +699,12 @@
           </div>
 
           <div class="scatter-toolbar__segment scatter-toolbar__segment--actions toolbar-group--push">
-            <span class="scatter-toolbar__eyebrow">Export</span>
+            <span class="scatter-toolbar__eyebrow">Result</span>
             <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
               <details class="toolbar-disclosure toolbar-disclosure--end scatter-export-group">
                 <summary class="toolbar-disclosure__summary">
-                  <span class="toolbar-label">Export</span>
-                  <span class="toolbar-disclosure__value">PNG, CSV, JSON</span>
+                  <span class="toolbar-label">Export result</span>
+                  <span class="toolbar-disclosure__value">Image or data</span>
                 </summary>
                 <div class="toolbar-disclosure__menu">
                   <button class="btn btn-ghost btn-sm" id="scatter-export-png-btn" type="button">PNG</button>
@@ -717,10 +722,11 @@
         <div class="analysis-toolbar scatter-stats-bar">
           <div id="scatter-filter-banner" class="scatter-filter-banner" hidden>
             <span id="scatter-filter-banner-text" class="scatter-filter-banner__text"></span>
-            <button id="scatter-filter-banner-clear" class="btn btn-ghost btn-sm" type="button">Clear all</button>
+            <button id="scatter-filter-banner-clear" class="btn btn-ghost btn-sm" type="button"
+              aria-label="Clear all inherited filters">Clear</button>
           </div>
           <div class="scatter-stats-bar__suggestions scatter-suggestions-bar">
-            <span id="scatter-suggestions-label" class="toolbar-label">Base-column suggestions (|corr| ≥ 0.70)</span>
+            <span id="scatter-suggestions-label" class="toolbar-label">Suggested pairs (|corr| ≥ 0.70)</span>
             <div class="scatter-suggestions-controls">
               <label class="scatter-inline-label" for="scatter-suggestion-threshold">Threshold</label>
               <input id="scatter-suggestion-threshold" type="range" min="0.30" max="0.95" step="0.05" value="0.70"
@@ -814,11 +820,14 @@
 
       </section>
 
-      <section class="page page--analysis-scroll" id="page-fft" data-page-name="fft" hidden>
+      <section class="page page--analysis-scroll" id="page-fft" data-page-name="fft" data-toolbar-collapse hidden>
         <div class="page-header">
-          <h1 class="page-header__title">FFT / PSD</h1>
+          <div class="page-header__copy">
+            <h1 class="page-header__title">Spectrum</h1>
+            <p class="page-header__description">Find dominant frequencies and recurring cycles.</p>
+          </div>
           <button id="fft-help-btn" class="page-help-trigger" type="button" aria-label="Show help for the FFT page"
-            title="Show help for the FFT page (?)">?</button>
+            title="Show help for the Spectrum page (?)"><span aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
         </div>
         <div class="toolbar scatter-toolbar">
           <div class="scatter-toolbar__segment scatter-toolbar__segment--view">
@@ -902,7 +911,7 @@
               </div>
               <div class="fft-filter-actions">
                 <button id="fft-filter-apply-btn" class="btn btn-ghost btn-sm" type="button"
-                  title="Preview filtered signal on timeseries page">Preview</button>
+                  title="Preview filtered signal on the Signals page">Preview filter on Signals</button>
                 <span id="fft-filter-status" class="scatter-panel-status"></span>
               </div>
             </div>
@@ -969,11 +978,14 @@
         </main>
       </section>
 
-      <section class="page" id="page-heatmap" data-page-name="heatmap" hidden>
+      <section class="page" id="page-heatmap" data-page-name="heatmap" data-toolbar-collapse hidden>
         <div class="page-header">
-          <h1 class="page-header__title">Correlations</h1>
+          <div class="page-header__copy">
+            <h1 class="page-header__title">Correlation matrix</h1>
+            <p class="page-header__description">Screen relationships across numeric signals before opening a pair.</p>
+          </div>
           <button id="heatmap-help-btn" class="page-help-trigger" type="button"
-            aria-label="Show help for the Correlations page" title="Show help for the Correlations page (?)">?</button>
+            aria-label="Show help for the Correlation matrix page" title="Show help for the Correlation matrix page (?)"><span aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
         </div>
         <div class="toolbar scatter-toolbar">
           <div class="scatter-toolbar__segment scatter-toolbar__segment--view">
@@ -1123,11 +1135,14 @@
         </div>
       </dialog>
 
-      <section class="page page--analysis-scroll" id="page-spectrogram" data-page-name="spectrogram" hidden>
+      <section class="page page--analysis-scroll" id="page-spectrogram" data-page-name="spectrogram" data-toolbar-collapse hidden>
         <div class="page-header">
-          <h1 class="page-header__title">Spectrogram</h1>
+          <div class="page-header__copy">
+            <h1 class="page-header__title">Time-frequency</h1>
+            <p class="page-header__description">See how a signal's frequency content changes over time.</p>
+          </div>
           <button id="spectrogram-help-btn" class="page-help-trigger" type="button"
-            aria-label="Show help for the Spectrogram page" title="Show help for the Spectrogram page (?)">?</button>
+            aria-label="Show help for the Time-frequency page" title="Show help for the Time-frequency page (?)"><span aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
         </div>
         <div class="toolbar scatter-toolbar">
           <div class="scatter-toolbar__segment scatter-toolbar__segment--display">
@@ -1228,8 +1243,7 @@
 
           <div class="scatter-toolbar__segment scatter-toolbar__segment--actions toolbar-group--push">
             <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
-              <button id="spectrogram-compute-btn" class="btn btn-accent btn-sm" type="button">▶
-                Compute</button>
+              <button id="spectrogram-compute-btn" class="btn btn-accent btn-sm" type="button">Update spectrogram</button>
             </div>
           </div>
         </div>
@@ -1276,7 +1290,7 @@
                 stroke-linejoin="round" stroke-linecap="round" opacity="0.9" />
             </svg>
             <strong>No spectrogram yet</strong>
-            <span>Pick a numeric column, keep the current time range, and click Compute.</span>
+            <span>Pick a numeric column, keep the current time range, and update the spectrogram.</span>
           </div>
           <div id="spectrogram-loading" class="chart-loading-overlay" hidden>
             <div class="chart-loading-spinner"></div>
@@ -1285,11 +1299,14 @@
         </main>
       </section>
 
-      <section class="page" id="page-causal" data-page-name="causal" hidden>
+      <section class="page" id="page-causal" data-page-name="causal" data-toolbar-collapse hidden>
         <div class="page-header">
-          <h1 class="page-header__title">Causal</h1>
+          <div class="page-header__copy">
+            <h1 class="page-header__title">Causality</h1>
+            <p class="page-header__description">Test directional lag relationships with explicit method settings.</p>
+          </div>
           <button id="causal-help-btn" class="page-help-trigger" type="button"
-            aria-label="Show help for the Causal page" title="Show help for the Causal page (?)">?</button>
+            aria-label="Show help for the Causality page" title="Show help for the Causality page (?)"><span aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
         </div>
         <div class="toolbar scatter-toolbar">
           <div class="scatter-toolbar__segment scatter-toolbar__segment--display">
@@ -1312,7 +1329,7 @@
           </div>
 
           <details class="scatter-toolbar__segment scatter-toolbar__segment--refine causal-params-segment analysis-secondary-disclosure analysis-collapse-tablet"
-            data-responsive-collapse="1024" open>
+            data-responsive-collapse="1024">
             <summary class="analysis-secondary-disclosure__summary">
               <span>Parameters</span><span>ParCorr · τ 3 · α .05 · PC .2 · no FDR</span>
             </summary>
@@ -1375,8 +1392,7 @@
           <div class="scatter-toolbar__segment scatter-toolbar__segment--actions toolbar-group--push">
             <span class="scatter-toolbar__eyebrow">Graph</span>
             <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
-              <button id="causal-compute-btn" class="btn btn-accent btn-sm" type="button">▶
-                Compute</button>
+              <button id="causal-compute-btn" class="btn btn-accent btn-sm" type="button">Run discovery</button>
             </div>
           </div>
         </div>
@@ -1395,7 +1411,7 @@
           <div id="causal-chart" style="width:100%;height:100%;"></div>
           <div id="causal-empty-state" class="plot-empty-state" data-empty-reason="no-columns-selected">
             <strong>No causal graph yet</strong>
-            <span>Select at least two numeric columns above, then click Compute to build the graph.</span>
+            <span>Select at least two numeric columns above, then run discovery to build the graph.</span>
           </div>
           <div id="causal-loading" class="chart-loading-overlay" hidden>
             <div class="chart-loading-spinner"></div>
@@ -1453,11 +1469,14 @@
       </section>
 
       <!-- ── Drift Analysis page ───────────────────────── -->
-      <section class="page" id="page-drift" data-page-name="drift" hidden>
+      <section class="page" id="page-drift" data-page-name="drift" data-toolbar-collapse hidden>
         <div class="page-header">
-          <h1 class="page-header__title">Drift</h1>
+          <div class="page-header__copy">
+            <h1 class="page-header__title">Drift</h1>
+            <p class="page-header__description">Compare windows and locate distribution shifts.</p>
+          </div>
           <button id="drift-help-btn" class="page-help-trigger" type="button" aria-label="Show help for the Drift page"
-            title="Show help for the Drift page (?)">?</button>
+            title="Show help for the Drift page (?)"><span aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
         </div>
         <div class="toolbar scatter-toolbar drift-toolbar">
           <div class="scatter-toolbar__segment scatter-toolbar__segment--display">
@@ -1474,7 +1493,7 @@
                     </svg>
                   </button>
                   <div id="drift-col-picker-panel" class="drift-col-picker-panel drift-col-picker-panel--inline"
-                    role="group" aria-label="Numeric columns">
+                    role="group" aria-label="Numeric columns" hidden>
                     <div class="drift-col-picker-header">
                       <span class="toolbar-label">Columns</span>
                       <div class="drift-col-picker-actions">
@@ -1535,7 +1554,7 @@
             </div>
           </div>
 
-          <details class="drift-secondary-controls analysis-secondary-disclosure analysis-collapse-tablet" data-responsive-collapse="1024" open>
+          <details class="drift-secondary-controls analysis-secondary-disclosure analysis-collapse-tablet" data-responsive-collapse="1399" open>
             <summary class="analysis-secondary-disclosure__summary">
               <span>More</span><span>Baseline dates, thresholds, export, zoom</span>
             </summary>
@@ -1572,7 +1591,7 @@
               <details class="toolbar-disclosure toolbar-disclosure--end">
                 <summary class="toolbar-disclosure__summary">
                   <span class="toolbar-label">Composite</span>
-                  <span class="toolbar-disclosure__value">PSI + Wass + KS + E-S</span>
+                  <span class="toolbar-disclosure__value">4 tests</span>
                 </summary>
                 <div class="toolbar-disclosure__menu">
                   <label class="toolbar-field">
@@ -1611,7 +1630,7 @@
               <details class="toolbar-disclosure toolbar-disclosure--end">
                 <summary class="toolbar-disclosure__summary">
                   <span class="toolbar-label">Format</span>
-                  <span class="toolbar-disclosure__value">Timeline + detail + stats</span>
+                  <span class="toolbar-disclosure__value">Image + data</span>
                 </summary>
                 <div class="toolbar-disclosure__menu">
                   <button id="drift-export-png" class="btn btn-ghost btn-sm" type="button"
@@ -1648,12 +1667,12 @@
           <div class="scatter-toolbar__segment scatter-toolbar__segment--actions toolbar-group--push">
             <span class="scatter-toolbar__eyebrow">Run</span>
             <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
-              <button id="drift-compute-btn" class="btn btn-accent btn-sm" type="button">▶ Compute</button>
+              <button id="drift-compute-btn" class="btn btn-accent btn-sm" type="button">Run drift analysis</button>
             </div>
           </div>
         </div>
         <div id="drift-status" class="analysis-status" role="status" aria-live="polite">
-          Select one or more columns, choose a baseline, and press Compute.
+          Select one or more columns, choose a baseline, and run the analysis.
         </div>
         <main class="main main--chart">
           <div id="drift-summary-strip" class="drift-summary-strip" aria-live="polite"></div>
@@ -1700,7 +1719,7 @@
 
           <div id="drift-empty" class="plot-empty-state" data-empty-reason="no-compute">
             <strong>No drift analysis yet</strong>
-            <span>Select a column, adjust the reference window, and press Compute.</span>
+            <span>Select a column, adjust the reference window, and run the drift analysis.</span>
           </div>
           <div id="drift-loading" class="chart-loading-overlay" hidden>
             <div class="chart-loading-spinner"></div>
@@ -1710,11 +1729,14 @@
       </section>
 
       <!-- ── Home page ───────────────────────────────────── -->
-      <section class="page page-home" id="page-home" data-page-name="home" hidden>
+      <section class="page page-home" id="page-home" data-page-name="home" data-toolbar-collapse hidden>
         <div class="page-header">
-          <h1 class="page-header__title">Home</h1>
-          <button id="home-help-btn" class="page-help-trigger" type="button" aria-label="Show help for the Home page"
-            title="Show help for the Home page (?)">?</button>
+          <div class="page-header__copy">
+            <h1 class="page-header__title">Overview</h1>
+            <p class="page-header__description">Choose a starting point and keep the analysis path clear.</p>
+          </div>
+          <button id="home-help-btn" class="page-help-trigger" type="button" aria-label="Show help for the Overview page"
+            title="Show help for the Overview page (?)"><span aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
         </div>
         <div class="home-hero">
           <div class="home-hero-icon">
@@ -1723,8 +1745,8 @@
               <polyline points="2,18 7,10 12,22 17,6 22,16 27,12 30,12" />
             </svg>
           </div>
-          <h1 class="home-title">EdaTime</h1>
-          <p class="home-tagline">Interactive time-series analytics — upload a CSV or Parquet, explore, and export.</p>
+          <h2 class="home-title">Understand the signal before you model it.</h2>
+          <p class="home-tagline">Load, prepare, visualize, and document time-series data in one focused workspace.</p>
           <button class="btn btn-primary" type="button" data-home-nav="upload">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
               stroke-linejoin="round" width="14" height="14">
@@ -1732,7 +1754,7 @@
               <polyline points="11 5 8 2 5 5" />
               <line x1="8" y1="2" x2="8" y2="11" />
             </svg>
-            Upload a file to get started
+            Load a dataset
           </button>
         </div>
 
@@ -1761,7 +1783,7 @@
                 and power metrics.</p>
               <div class="home-dataset-tags">
                 <span class="home-dataset-tag">Time-series</span>
-                <span class="home-dataset-tag home-dataset-tag--primary">Best first stop: Timeseries</span>
+                <span class="home-dataset-tag home-dataset-tag--primary">Best first stop: Signals</span>
                 <span class="home-dataset-tag home-dataset-tag--rows">69K rows</span>
                 <span class="home-dataset-tag home-dataset-tag--size">7 columns</span>
               </div>
@@ -1810,7 +1832,7 @@
               <p class="home-dataset-desc">Environmental sensor data with correlated temperature, humidity, and pressure
                 readings.</p>
               <div class="home-dataset-tags">
-                <span class="home-dataset-tag">Correlations</span>
+                <span class="home-dataset-tag">Correlation matrix</span>
                 <span class="home-dataset-tag home-dataset-tag--rows">50K rows</span>
                 <span class="home-dataset-tag home-dataset-tag--size">6 columns</span>
               </div>
@@ -1834,9 +1856,23 @@
                 <line x1="8" y1="2" x2="8" y2="11" />
               </svg>
             </div>
-            <h3 class="home-card-title">Upload <kbd>⌥1</kbd></h3>
+            <h3 class="home-card-title">Data source <kbd>⌥1</kbd></h3>
             <p class="home-card-desc">Drag &amp; drop CSV or Parquet files. Preview column profiles before ingesting.
               Select a column subset and time slice for partial loads.</p>
+          </div>
+          <div class="home-card" data-home-nav="prepare" tabindex="0" role="button">
+            <div class="home-card-icon">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+                stroke-linejoin="round">
+                <path d="M2 3h12M4 8h8M6 13h4" />
+                <circle cx="4" cy="3" r="1" />
+                <circle cx="11" cy="8" r="1" />
+                <circle cx="8" cy="13" r="1" />
+              </svg>
+            </div>
+            <h3 class="home-card-title">Preparation</h3>
+            <p class="home-card-desc">Build a reviewable cleaning pipeline, inspect data quality, and preview each
+              transformation before materializing a dashboard- or model-ready dataset.</p>
           </div>
           <div class="home-card" data-home-nav="timeseries" tabindex="0" role="button">
             <div class="home-card-icon">
@@ -1846,7 +1882,7 @@
                   d="M1 9C2.6 6 4.1 4.8 5.7 6.1C6.6 6.8 7.2 8.2 8 8.2C9.1 8.2 9.7 4.2 11 4.2C12.2 4.2 12.6 7.2 13.5 8.1C14 8.6 14.5 8.4 15 7.2" />
               </svg>
             </div>
-            <h3 class="home-card-title">Timeseries <kbd>⌥2</kbd></h3>
+            <h3 class="home-card-title">Signals <kbd>⌥2</kbd></h3>
             <p class="home-card-desc">WebGPU-accelerated multi-series chart with zoom, custom colors, and a guided path
               into deeper rolling, anomaly, and filter tools.</p>
           </div>
@@ -1865,7 +1901,7 @@
                 <rect x="11" y="11" width="4" height="4" rx="0.5" />
               </svg>
             </div>
-            <h3 class="home-card-title">Correlations <kbd>⌥7</kbd></h3>
+            <h3 class="home-card-title">Correlation matrix <kbd>⌥7</kbd></h3>
             <p class="home-card-desc">Screen pairs in the correlation heatmap, then jump into the detailed scatter view
               for the promising relationships.</p>
           </div>
@@ -1880,7 +1916,7 @@
                 <circle cx="11" cy="3" r="1.2" />
               </svg>
             </div>
-            <h3 class="home-card-title">Scatter / Density <kbd>⌥3</kbd></h3>
+            <h3 class="home-card-title">Pair plot <kbd>⌥3</kbd></h3>
             <p class="home-card-desc">Inspect the selected pair in detail, color by an extra column, and switch to
               matrix view with <kbd>⌥4</kbd> for pairwise screening inside the same workspace.</p>
           </div>
@@ -1900,7 +1936,7 @@
                 <polyline points="1,8 3,4 5,10 7,2 9,12 11,6 13,8 15,8" />
               </svg>
             </div>
-            <h3 class="home-card-title">FFT / PSD <kbd>⌥6</kbd></h3>
+            <h3 class="home-card-title">Spectrum <kbd>⌥6</kbd></h3>
             <p class="home-card-desc">Frequency-domain analysis with magnitude or power spectral density. Log scale,
               multi-trace overlay, zoom, and PNG/SVG/CSV export.</p>
           </div>
@@ -1915,7 +1951,7 @@
                 <rect x="13" y="3" width="2" height="10" rx="0.3" />
               </svg>
             </div>
-            <h3 class="home-card-title">Spectrogram <kbd>⌥8</kbd></h3>
+            <h3 class="home-card-title">Time-frequency <kbd>⌥8</kbd></h3>
             <p class="home-card-desc">Time-frequency heatmap using short-time FFT. Adjustable window size, log scale,
               zoom, and PNG export.</p>
           </div>
@@ -1930,7 +1966,7 @@
                 <line x1="5" y1="8.8" x2="11" y2="11.2" />
               </svg>
             </div>
-            <h3 class="home-card-title">Causal Discovery <kbd>⌥9</kbd></h3>
+            <h3 class="home-card-title">Causality <kbd>⌥9</kbd></h3>
             <p class="home-card-desc">PCMCI, PCMCI+, FullCI, BivCI, and LPCMCI via Tigramite. Directed graph with edge
               lag and p-value labels. Export to JSON or torch_geometric.</p>
           </div>
@@ -1945,7 +1981,7 @@
                 <polyline points="1,5 5,2 9,4 13,1" stroke-dasharray="2 1.5" />
               </svg>
             </div>
-            <h3 class="home-card-title">Drift Analysis <kbd>⌥0</kbd></h3>
+            <h3 class="home-card-title">Drift <kbd>⌥0</kbd></h3>
             <p class="home-card-desc">Compare windows and detect distribution or score shifts once the main workflow has
               identified the slices worth monitoring.</p>
           </div>
@@ -1983,11 +2019,14 @@
         </details>
       </section>
 
-      <section class="page page-upload" id="page-upload" data-page-name="upload">
+      <section class="page page-upload" id="page-upload" data-page-name="upload" data-toolbar-collapse>
         <div class="page-header">
-          <h1 class="page-header__title">Upload</h1>
+          <div class="page-header__copy">
+            <h1 class="page-header__title">Data source</h1>
+            <p class="page-header__description">Review a file or database table before loading it into the workspace.</p>
+          </div>
           <button id="upload-help-btn" class="page-help-trigger" type="button"
-            aria-label="Show help for the Upload page" title="Show help for the Upload page (?)">?</button>
+            aria-label="Show help for the Data source page" title="Show help for the Data source page (?)"><span aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
         </div>
         <div id="upload-panel" class="open">
           <div class="upload-inner">
@@ -2073,7 +2112,7 @@
                     <path d="M8 11V3M5 6l3-3 3 3" />
                     <path d="M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1" />
                   </svg>
-                  Upload & Ingest
+                  Load as active dataset
                 </button>
                 <div class="progress-bar-wrap" id="progress-wrap" style="display:none" role="progressbar"
                   aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Upload progress">
@@ -2386,13 +2425,17 @@
         </div>
       </div>
 
-      <!-- Analytics Drawer -->
-      <div id="analytics-drawer" class="drawer" hidden>
-        <div class="drawer-header">
-          <div class="drawer-title" id="analytics-title">Analytics</div>
-          <button class="modal-close" id="analytics-close-btn" type="button" aria-label="Close">&times;</button>
-        </div>
-        <div class="drawer-body">
+      <!-- Analytics Modal -->
+      <div id="signals-analytics-modal" class="modal-backdrop analytics-modal" hidden>
+        <div class="modal analytics-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="analytics-title">
+          <div class="modal-header">
+            <div>
+              <div class="modal-title" id="analytics-title">Analytics</div>
+              <div class="analytics-modal__subtitle">Configure visual analysis overlays and preparation tools.</div>
+            </div>
+            <button class="modal-close" id="analytics-close-btn" type="button" aria-label="Close analytics">&times;</button>
+          </div>
+          <div class="modal-body analytics-modal__body">
           <label class="toolbar-field toolbar-field--toggle" for="rolling-enabled">
             <span class="toolbar-field__label">Rolling bands</span>
             <span class="toolbar-field__control scatter-link-toggle" title="Show rolling mean ± σ bands">
@@ -2440,6 +2483,11 @@
                 title="Propose reviewable outlier ranges for selected columns">Outliers…</button>
             </div>
           </div>
+          </div>
+          <div class="modal-actions">
+            <div></div>
+            <button class="btn btn-primary btn-sm" id="analytics-done-btn" type="button">Done</button>
+          </div>
         </div>
       </div>
 
@@ -2456,7 +2504,7 @@
           <div class="settings-tabs">
             <button class="settings-tab-btn active" data-tab="appearance" type="button">Appearance</button>
             <button class="settings-tab-btn" data-tab="analytics" type="button">Analytics</button>
-            <button class="settings-tab-btn" data-tab="timeseries" type="button">Timeseries</button>
+            <button class="settings-tab-btn" data-tab="timeseries" type="button">Signals</button>
           </div>
 
           <!-- Appearance Tab -->

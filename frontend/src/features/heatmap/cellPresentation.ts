@@ -24,7 +24,7 @@ export function buildHeatmapCellPresentation(options: {
         toneClass: correlationToneClass(value),
         signedValue,
         background: value === null ? 'transparent' : correlationColor(value, colorDomainMax),
-        textColor: correlationTextColor(value),
+        textColor: correlationTextColor(value, colorDomainMax),
         tooltip: `${rowName} × ${columnName}: ${signedValue}${interactive ? ' — click to explore in Scatter' : ''}`,
         interactive,
     };

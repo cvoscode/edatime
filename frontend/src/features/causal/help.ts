@@ -13,7 +13,7 @@
 import { initPageHelp, type PageHelpContent } from '../../ui/pageHelp.js';
 
 export const CAUSAL_HELP: PageHelpContent = {
-    pageName: 'Causal',
+    pageName: 'Causality',
     intro:
         'Causal discovery via Tigramite. Pick a method, choose your columns and lags, then run the algorithm to get a directed graph with per-edge lags and p-values. Use it to test "does X cause Y, with what lag, and how confident are we?".',
     sections: [

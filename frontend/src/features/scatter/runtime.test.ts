@@ -165,7 +165,7 @@ describe('syncScatterFilterBadge', () => {
         const banner = document.getElementById('scatter-filter-banner') as HTMLElement;
         const text = document.getElementById('scatter-filter-banner-text') as HTMLElement;
         expect(banner.hidden).toBe(false);
-        expect(text.textContent).toContain('Timeseries filters carry over');
+        expect(text.textContent).toContain('Signals filters carry over');
         expect(text.textContent).toContain('zoom range');
         expect(text.textContent).toContain('1 column filter');
         expect(text.textContent).toContain('1 adaptive filter');

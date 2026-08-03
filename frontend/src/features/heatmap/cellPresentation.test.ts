@@ -5,7 +5,7 @@ describe('heatmap cell presentation', () => {
     it('formats an interactive negative correlation accessibly', () => {
         const cell = buildHeatmapCellPresentation({ value: -0.64, colorDomainMax: 1, rowName: 'temperature', columnName: 'pressure', interactive: true });
 
-        expect(cell).toMatchObject({ toneClass: 'heatmap-cell--negative', signedValue: '−0.64', textColor: '#fff', interactive: true });
+        expect(cell).toMatchObject({ toneClass: 'heatmap-cell--negative', signedValue: '−0.64', textColor: '#15202B', interactive: true });
         expect(cell.tooltip).toContain('click to explore in Scatter');
     });
 

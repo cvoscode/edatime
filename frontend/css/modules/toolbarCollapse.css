@@ -1,0 +1,38 @@
+.toolbar-collapse-toggle {
+  min-width: 0;
+  height: 30px;
+  min-height: 30px;
+  margin-left: auto;
+  padding-inline: 10px;
+  color: var(--text-dim);
+}
+
+.toolbar-collapse-toggle[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  background: var(--accent-dim);
+  color: var(--text-strong);
+}
+
+.page[data-toolbar-collapse].workspace-controls-collapsed > :is(.toolbar, .timeseries-range-menu, .scatter-stats-bar, .fft-traces-bar, .analysis-status),
+#page-home.workspace-controls-collapsed > .home-hero,
+#page-upload.workspace-controls-collapsed .upload-advanced-options,
+#page-prepare.workspace-controls-collapsed .prepare-workspace__local-nav,
+#page-prepare.workspace-controls-collapsed .prepare-workspace__identity,
+#page-prepare.workspace-controls-collapsed .prepare-workspace__quality,
+#page-prepare.workspace-controls-collapsed .prepare-workspace__stages {
+  display: none !important;
+}
+
+@media (max-width: 640px) {
+  .toolbar-collapse-toggle {
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+    min-height: 40px;
+    padding: 0;
+  }
+
+  .toolbar-collapse-toggle__label { font-size: 0; }
+  .toolbar-collapse-toggle__label::before { content: "⌃"; font-size: 1rem; }
+  .toolbar-collapse-toggle[aria-pressed="true"] .toolbar-collapse-toggle__label::before { content: "⌄"; }
+}

@@ -25,7 +25,7 @@ describe('upload page help button', () => {
     it('ships a real <button> with id "upload-help-btn" inside #page-upload', () => {
         // Index-level assertion: a structural change to the upload page
         // shouldn't accidentally drop the help trigger.
-        expect(indexHtml).toMatch(/<button[^>]*id="upload-help-btn"[^>]*>\?<\/button>/);
+        expect(indexHtml).toMatch(/<button[^>]*id="upload-help-btn"[^>]*>/);
         const match = indexHtml.match(/<section[^>]*id="page-upload"[\s\S]*?<\/section>/);
         expect(match?.[0] ?? '').toContain('id="upload-help-btn"');
     });
@@ -36,12 +36,12 @@ describe('upload page help button', () => {
 
         const trigger = document.getElementById('upload-help-btn') as HTMLButtonElement;
         expect(trigger.getAttribute('data-page-help-bound')).toBe('true');
-        expect(trigger.getAttribute('aria-label')).toBe('Show help for the Upload page');
+        expect(trigger.getAttribute('aria-label')).toBe('Show help for the Data source page');
 
         trigger.click();
         const modal = document.getElementById('page-help-modal');
         expect(modal).not.toBeNull();
-        expect(modal?.textContent).toContain('Upload — Help');
+        expect(modal?.textContent).toContain('Data source — Help');
         // Both tab sections and the preview section should be present.
         expect(modal?.textContent).toContain('File tab');
         expect(modal?.textContent).toContain('Database tab');

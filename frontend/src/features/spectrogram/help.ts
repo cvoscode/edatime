@@ -13,7 +13,7 @@
 import { initPageHelp, type PageHelpContent } from '../../ui/pageHelp.js';
 
 export const SPECTROGRAM_HELP: PageHelpContent = {
-    pageName: 'Spectrogram',
+    pageName: 'Time-frequency',
     intro:
         'Time-frequency heatmap of the selected numeric column. The page slides a short FFT window across the signal and stacks the resulting spectra into a heatmap; use it to see how the frequency content of a signal evolves over time.',
     sections: [

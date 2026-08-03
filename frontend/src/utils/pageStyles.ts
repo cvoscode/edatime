@@ -1,11 +1,11 @@
-const STYLE_MODULE_NAMES = ['drift', 'home', 'scatter'] as const;
+const STYLE_MODULE_NAMES = ['causal', 'drift', 'home', 'scatter', 'toolbarCollapse'] as const;
 
 export type StyleModuleName = typeof STYLE_MODULE_NAMES[number];
 
 export type PageName = keyof typeof PAGE_STYLE_MODULES;
 
 const PAGE_STYLE_MODULES = {
-    causal: ['drift'],
+    causal: ['drift', 'causal'],
     correlations: ['scatter'],
     drift: ['drift'],
     home: ['home'],
