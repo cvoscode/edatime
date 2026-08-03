@@ -13,6 +13,8 @@ use deadpool_postgres::{Config as PgConfig, ManagerConfig, Pool, RecyclingMethod
 use futures_util::{StreamExt, pin_mut};
 use polars::prelude::{DataFrame, DataType, NamedFrom, Series, TimeUnit};
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
+use tokio::time::timeout;
 use tokio_postgres::{NoTls, Row};
 
 use edatime_core::error::AppError;
@@ -58,6 +60,13 @@ pub struct ColumnInfo {
 /// query.  Returns an error if the credentials are wrong or the host is
 /// unreachable.
 pub async fn connect(connection_string: &str) -> Result<DbPool, AppError> {
+    connect_with_timeout(connection_string, Duration::from_secs(30)).await
+}
+
+pub async fn connect_with_timeout(
+    connection_string: &str,
+    timeout_duration: Duration,
+) -> Result<DbPool, AppError> {
     let mut cfg = PgConfig::new();
     // Parse a plain postgres:// URI into the deadpool config.
     cfg.url = Some(connection_string.to_string());
@@ -67,18 +76,18 @@ pub async fn connect(connection_string: &str) -> Result<DbPool, AppError> {
 
     let pool = cfg
         .create_pool(Some(deadpool_postgres::Runtime::Tokio1), NoTls)
-        .map_err(|e| AppError::internal(format!("Failed to create DB pool: {e}")))?;
+        .map_err(|e| AppError::database_configuration(format!("Failed to create DB pool: {e}")))?;
 
     // Smoke-test the connection.
-    let client = pool
-        .get()
+    let client = timeout(timeout_duration, pool.get())
         .await
-        .map_err(|e| AppError::internal(format!("DB connection failed: {e}")))?;
+        .map_err(|_| AppError::database_timeout("Database connection timed out"))?
+        .map_err(|e| AppError::database_unavailable(format!("DB connection failed: {e}")))?;
 
-    client
-        .execute("SELECT 1", &[])
+    timeout(timeout_duration, client.execute("SELECT 1", &[]))
         .await
-        .map_err(|e| AppError::internal(format!("DB ping failed: {e}")))?;
+        .map_err(|_| AppError::database_timeout("Database ping timed out"))?
+        .map_err(|e| AppError::database_unavailable(format!("DB ping failed: {e}")))?;
 
     tracing::info!("TimescaleDB/Postgres connection pool ready");
     Ok(DbPool(pool))
@@ -92,7 +101,7 @@ pub async fn list_tables(pool: &DbPool) -> Result<Vec<TableInfo>, AppError> {
         .pool()
         .get()
         .await
-        .map_err(|e| AppError::internal(format!("DB pool error: {e}")))?;
+        .map_err(|e| AppError::database_unavailable(format!("DB pool unavailable: {e}")))?;
 
     // Check if TimescaleDB extension is present.
     let has_timescale: bool = client
@@ -154,7 +163,7 @@ pub async fn list_tables(pool: &DbPool) -> Result<Vec<TableInfo>, AppError> {
             &[],
         )
         .await
-        .map_err(|e| AppError::internal(format!("list_tables query failed: {e}")))?;
+        .map_err(|e| AppError::database_query(format!("Table list query failed: {e}")))?;
 
     let existing: std::collections::HashSet<String> = tables
         .iter()
@@ -187,7 +196,7 @@ pub async fn list_columns(
         .pool()
         .get()
         .await
-        .map_err(|e| AppError::internal(format!("DB pool error: {e}")))?;
+        .map_err(|e| AppError::database_unavailable(format!("DB pool unavailable: {e}")))?;
 
     let rows = client
         .query(
@@ -199,7 +208,7 @@ pub async fn list_columns(
             &[&schema, &table],
         )
         .await
-        .map_err(|e| AppError::internal(format!("list_columns query failed: {e}")))?;
+        .map_err(|e| AppError::database_query(format!("Column list query failed: {e}")))?;
 
     Ok(rows
         .into_iter()
@@ -247,6 +256,10 @@ pub struct IngestOptions {
     pub limit: Option<usize>,
     /// Columns to SELECT. Empty = all.
     pub columns: Vec<String>,
+    /// Maximum retained value bytes while constructing the bounded snapshot.
+    pub max_bytes: Option<usize>,
+    /// Server- and client-side statement timeout.
+    pub statement_timeout_ms: Option<u64>,
 }
 
 /// Fetch rows from `schema.table` and return a Polars DataFrame.
@@ -261,11 +274,19 @@ pub async fn ingest_table(
     time_col: Option<&str>,
     opts: &IngestOptions,
 ) -> Result<DataFrame, AppError> {
-    let client = pool
-        .pool()
-        .get()
+    let timeout_duration =
+        Duration::from_millis(opts.statement_timeout_ms.unwrap_or(30_000).max(1));
+    let client = timeout(timeout_duration, pool.pool().get())
         .await
-        .map_err(|e| AppError::internal(format!("DB pool error: {e}")))?;
+        .map_err(|_| AppError::database_timeout("Database pool acquisition timed out"))?
+        .map_err(|e| AppError::database_unavailable(format!("DB pool error: {e}")))?;
+    client
+        .batch_execute(&format!(
+            "SET statement_timeout = {}",
+            timeout_duration.as_millis().min(u128::from(u32::MAX))
+        ))
+        .await
+        .map_err(|e| AppError::database_query(format!("Set statement timeout failed: {e}")))?;
 
     // Validate and sanitise identifiers upfront (no borrows held).
     // Identifiers are double-quoted per SQL standard — this is the only safe
@@ -355,18 +376,25 @@ pub async fn ingest_table(
             std::iter::empty::<&(dyn tokio_postgres::types::ToSql + Sync)>(),
         )
         .await
-        .map_err(|e| AppError::internal(format!("TimescaleDB query failed: {e}")))?;
+        .map_err(|e| AppError::database_query(format!("TimescaleDB query failed: {e}")))?;
     pin_mut!(rows);
     let mut accumulators = sel_cols
         .iter()
         .map(|(_, pg_type)| ColumnAccumulator::new(pg_type))
         .collect::<Vec<_>>();
+    let mut estimated_bytes = 0usize;
     while let Some(row) = rows.next().await {
         let row = row.map_err(|error| {
-            AppError::internal(format!("TimescaleDB row stream failed: {error}"))
+            AppError::database_query(format!("TimescaleDB row stream failed: {error}"))
         })?;
         for (index, accumulator) in accumulators.iter_mut().enumerate() {
-            accumulator.push(&row, index);
+            estimated_bytes = estimated_bytes.saturating_add(accumulator.push(&row, index));
+        }
+        if opts.max_bytes.is_some_and(|limit| estimated_bytes > limit) {
+            return Err(AppError::Validation(format!(
+                "database snapshot byte budget exceeded: estimated={estimated_bytes}, limit={}",
+                opts.max_bytes.unwrap_or_default()
+            )));
         }
     }
     accumulators_to_dataframe(accumulators, &sel_cols)
@@ -412,7 +440,7 @@ async fn list_columns_raw(
             &[&schema, &table],
         )
         .await
-        .map_err(|e| AppError::internal(format!("Column list query failed: {e}")))?;
+        .map_err(|e| AppError::database_query(format!("Column list query failed: {e}")))?;
 
     Ok(rows
         .into_iter()
@@ -454,19 +482,40 @@ impl ColumnAccumulator {
         }
     }
 
-    fn push(&mut self, row: &Row, index: usize) {
+    fn push(&mut self, row: &Row, index: usize) -> usize {
         match self {
-            Self::I16(values) => values.push(row.try_get(index).ok()),
-            Self::I32(values) => values.push(row.try_get(index).ok()),
-            Self::I64(values) => values.push(row.try_get(index).ok()),
-            Self::F32(values) => values.push(row.try_get(index).ok()),
-            Self::F64(values) => values.push(row.try_get(index).ok()),
-            Self::Bool(values) => values.push(row.try_get(index).ok()),
-            Self::Datetime(values) => values.push(
-                row.try_get::<_, chrono::DateTime<chrono::Utc>>(index)
-                    .ok()
-                    .map(|value| value.timestamp_micros()),
-            ),
+            Self::I16(values) => {
+                values.push(row.try_get(index).ok());
+                std::mem::size_of::<Option<i16>>()
+            }
+            Self::I32(values) => {
+                values.push(row.try_get(index).ok());
+                std::mem::size_of::<Option<i32>>()
+            }
+            Self::I64(values) => {
+                values.push(row.try_get(index).ok());
+                std::mem::size_of::<Option<i64>>()
+            }
+            Self::F32(values) => {
+                values.push(row.try_get(index).ok());
+                std::mem::size_of::<Option<f32>>()
+            }
+            Self::F64(values) => {
+                values.push(row.try_get(index).ok());
+                std::mem::size_of::<Option<f64>>()
+            }
+            Self::Bool(values) => {
+                values.push(row.try_get(index).ok());
+                std::mem::size_of::<Option<bool>>()
+            }
+            Self::Datetime(values) => {
+                values.push(
+                    row.try_get::<_, chrono::DateTime<chrono::Utc>>(index)
+                        .ok()
+                        .map(|value| value.timestamp_micros()),
+                );
+                std::mem::size_of::<Option<i64>>()
+            }
             Self::Date(values) => {
                 let epoch = chrono::NaiveDate::from_ymd_opt(1970, 1, 1);
                 values.push(
@@ -475,8 +524,31 @@ impl ColumnAccumulator {
                         .zip(epoch)
                         .map(|(value, epoch)| (value - epoch).num_days() as i32),
                 );
+                std::mem::size_of::<Option<i32>>()
             }
-            Self::String(values) => values.push(row.try_get(index).ok()),
+            Self::String(values) => {
+                let value: Option<String> = row.try_get(index).ok();
+                let bytes = value
+                    .as_ref()
+                    .map_or(0, String::len)
+                    .saturating_add(std::mem::size_of::<Option<String>>());
+                values.push(value);
+                bytes
+            }
+        }
+    }
+
+    fn len(&self) -> usize {
+        match self {
+            Self::I16(values) => values.len(),
+            Self::I32(values) => values.len(),
+            Self::I64(values) => values.len(),
+            Self::F32(values) => values.len(),
+            Self::F64(values) => values.len(),
+            Self::Bool(values) => values.len(),
+            Self::Datetime(values) => values.len(),
+            Self::Date(values) => values.len(),
+            Self::String(values) => values.len(),
         }
     }
 
@@ -505,13 +577,41 @@ fn accumulators_to_dataframe(
     cols: &[(String, String)],
 ) -> Result<DataFrame, AppError> {
     use polars::prelude::Column;
+    let height = accumulators
+        .first()
+        .map(ColumnAccumulator::len)
+        .unwrap_or(0);
     let columns: Vec<Column> = accumulators
         .into_iter()
         .zip(cols)
         .map(|(accumulator, (name, _))| accumulator.into_series(name).map(Into::into))
         .collect::<Result<_, _>>()?;
 
-    let n = columns.len();
-    DataFrame::new(n, columns)
+    DataFrame::new(height, columns)
         .map_err(|e| AppError::internal(format!("DataFrame build failed: {e}")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ColumnAccumulator, accumulators_to_dataframe};
+
+    #[test]
+    fn accumulator_dataframe_height_is_the_streamed_row_count() {
+        let frame = accumulators_to_dataframe(
+            vec![
+                ColumnAccumulator::I64(vec![Some(1), Some(2), None]),
+                ColumnAccumulator::String(vec![Some("a".into()), None, Some("c".into())]),
+            ],
+            &[
+                ("number".into(), "bigint".into()),
+                ("label".into(), "text".into()),
+            ],
+        )
+        .expect("dataframe");
+
+        assert_eq!(frame.height(), 3);
+        assert_eq!(frame.width(), 2);
+        assert_eq!(frame.column("number").expect("number").null_count(), 1);
+        assert_eq!(frame.column("label").expect("label").null_count(), 1);
+    }
 }

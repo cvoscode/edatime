@@ -45,7 +45,41 @@ pub enum ErrorCode {
     PayloadTooLarge,
     UnprocessableEntity,
     ServiceUnavailable,
+    DatabaseConfiguration,
+    DatabaseUnavailable,
+    DatabaseTimeout,
+    DatabaseQuery,
     NotImplemented,
+}
+
+impl ErrorCode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::InvalidRequest => "invalid_request",
+            Self::InvalidTimeRange => "invalid_time_range",
+            Self::InvalidWidth => "invalid_width",
+            Self::InvalidBuckets => "invalid_buckets",
+            Self::InvalidScatterLimit => "invalid_scatter_limit",
+            Self::InvalidColumnSelection => "invalid_column_selection",
+            Self::WorkBudgetExceeded => "work_budget_exceeded",
+            Self::ColumnNotFound => "column_not_found",
+            Self::UploadTooLarge => "upload_too_large",
+            Self::RateLimitExceeded => "rate_limit_exceeded",
+            Self::NotFound => "not_found",
+            Self::StalePlan => "stale_plan",
+            Self::Internal => "internal",
+            Self::MethodNotAllowed => "method_not_allowed",
+            Self::UnsupportedMediaType => "unsupported_media_type",
+            Self::PayloadTooLarge => "payload_too_large",
+            Self::UnprocessableEntity => "unprocessable_entity",
+            Self::ServiceUnavailable => "service_unavailable",
+            Self::DatabaseConfiguration => "database_configuration",
+            Self::DatabaseUnavailable => "database_unavailable",
+            Self::DatabaseTimeout => "database_timeout",
+            Self::DatabaseQuery => "database_query",
+            Self::NotImplemented => "not_implemented",
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -201,6 +235,10 @@ impl IntoResponse for AppError {
         response
             .headers_mut()
             .insert("x-edatime-error", axum::http::HeaderValue::from_static("1"));
+        response.headers_mut().insert(
+            "x-edatime-error-code",
+            axum::http::HeaderValue::from_static(self.code.as_str()),
+        );
         if let Ok(value) = axum::http::HeaderValue::from_str(&self.correlation_id) {
             response.headers_mut().insert("x-request-id", value);
         }
@@ -276,6 +314,22 @@ impl From<edatime_core::error::AppError> for AppError {
                 ErrorCode::ServiceUnavailable,
                 message,
             ),
+            edatime_core::error::AppError::DatabaseConfiguration(message) => AppError::new(
+                ErrorKind::Validation,
+                ErrorCode::DatabaseConfiguration,
+                message,
+            ),
+            edatime_core::error::AppError::DatabaseUnavailable(message) => AppError::new(
+                ErrorKind::Unavailable,
+                ErrorCode::DatabaseUnavailable,
+                message,
+            ),
+            edatime_core::error::AppError::DatabaseTimeout(message) => {
+                AppError::new(ErrorKind::Unavailable, ErrorCode::DatabaseTimeout, message)
+            }
+            edatime_core::error::AppError::DatabaseQuery(message) => {
+                AppError::new(ErrorKind::Validation, ErrorCode::DatabaseQuery, message)
+            }
             edatime_core::error::AppError::Query(message)
             | edatime_core::error::AppError::Io(message)
             | edatime_core::error::AppError::Internal(message) => AppError::internal(message),

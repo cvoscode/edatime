@@ -131,7 +131,7 @@ async fn health_returns_ok() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn health_v1_alias_works() {
+async fn health_v1_route_works() {
     let app = test_app();
     let req = Request::builder()
         .uri("/api/v1/health")
@@ -576,6 +576,40 @@ async fn metrics_returns_counters() {
     let body = resp.into_body().collect().await.unwrap().to_bytes();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert!(json.is_object());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn prometheus_metrics_expose_handler_and_full_body_latency() {
+    let app = test_app();
+    let health = Request::builder()
+        .uri("/api/v1/health")
+        .body(Body::empty())
+        .unwrap();
+    let health_response = app.clone().oneshot(health).await.unwrap();
+    health_response
+        .into_body()
+        .collect()
+        .await
+        .expect("consume health response");
+
+    let request = Request::builder()
+        .uri("/api/v1/metrics/prometheus")
+        .body(Body::empty())
+        .unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(
+        response
+            .headers()
+            .get("content-type")
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| value.starts_with("text/plain"))
+    );
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let text = std::str::from_utf8(&body).expect("prometheus is utf-8");
+    assert!(text.contains("edatime_route_handler_latency_ms_count"));
+    assert!(text.contains("edatime_route_body_latency_ms_count"));
+    assert!(text.contains("route=\"GET /api/v1/health\""));
 }
 
 // ─── Scatter endpoints ────────────────────────────────────────────────────────

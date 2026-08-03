@@ -207,7 +207,7 @@ Causal graph discovery using Tigramite-style algorithms (PCMCI, PCMCI+, FullCI, 
 
 **Compute causal graph:**
 ```
-POST /api/causal/compute
+POST /api/v1/analytics/causal
 Body: {
   "columns": ["colA", "colB", "colC"],
   "method": "pcmci"|"pcmciplus"|"fullci"|"bivci"|"lpcmci",

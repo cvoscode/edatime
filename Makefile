@@ -1,4 +1,4 @@
-.PHONY: build build-release run dev dev-dist check test docs docs-clean clean docker bench-contract
+.PHONY: build build-release run dev dev-dist check test docs docs-clean clean docker bench-contract bench-http bench-cancel bench-soak check-contract test-contract check-backend-hygiene
 
 # Default target
 build:
@@ -22,9 +22,11 @@ dev-dist:
 
 # Type-check and lint
 check:
-	cargo check
+	cargo check --workspace --all-targets
 	node scripts/check_api_contract.mjs
-	cargo clippy -- -D warnings
+	node scripts/generate_api_reference.mjs --check
+	node scripts/check_backend_hygiene.mjs
+	cargo clippy --workspace --all-targets -- -D warnings
 	@if command -v node >/dev/null 2>&1; then cd frontend && npx tsc --noEmit; fi
 	@if command -v node >/dev/null 2>&1; then node scripts/check-frontend-architecture.mjs; fi
 
@@ -62,6 +64,8 @@ bench-http:
 	    --target "$$EDATIME_TARGET" \
 	    --seconds $${BENCH_SECONDS:-30} \
 	    --concurrency $${BENCH_CONCURRENCY:-4} \
+	    --scenario $${BENCH_SCENARIO:-steady} \
+	    --seed $${BENCH_SEED:-0xA5A5A5A55A5A5A5A} \
 	    --out benchmarks/run.http.json
 	node scripts/bench_http.mjs snapshot \
 	    --target "$$EDATIME_TARGET" \
@@ -73,6 +77,34 @@ bench-contract:
 	node scripts/bench_http.mjs preflight \
 	    --target "$$EDATIME_TARGET" \
 	    --out benchmarks/preflight.json
+
+check-contract:
+	node scripts/check_api_contract.mjs
+	node scripts/generate_api_reference.mjs --check
+
+test-contract:
+	cargo test --test api_integration
+	npm test -- frontend/src/services/api/__contract__.test.ts frontend/src/contracts/api/v1/routes.test.ts frontend/src/services/api/http.test.ts
+
+check-backend-hygiene:
+	node scripts/check_backend_hygiene.mjs
+
+bench-soak:
+	@if [ -z "$$EDATIME_TARGET" ]; then echo "EDATIME_TARGET is required, e.g. http://127.0.0.1:3000"; exit 1; fi
+	node scripts/bench_http.mjs run \
+	    --target "$$EDATIME_TARGET" \
+	    --seconds $${BENCH_SECONDS:-1800} \
+	    --concurrency $${BENCH_CONCURRENCY:-16} \
+	    --scenario soak \
+	    --seed $${BENCH_SEED:-0xA5A5A5A55A5A5A5A} \
+	    --out benchmarks/soak.http.json
+
+bench-cancel:
+	@if [ -z "$$EDATIME_TARGET" ]; then echo "EDATIME_TARGET is required, e.g. http://127.0.0.1:3000"; exit 1; fi
+	node scripts/bench_http.mjs cancel \
+	    --target "$$EDATIME_TARGET" \
+	    --concurrency $${BENCH_CONCURRENCY:-32} \
+	    --out benchmarks/cancellation.http.json
 
 # Build frontend for production (requires Node)
 frontend-prod:

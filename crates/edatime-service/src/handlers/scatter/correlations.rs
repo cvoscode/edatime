@@ -456,7 +456,8 @@ fn map_pair_indices<T: Send>(
     }
 }
 
-fn compute_correlation_matrix_for_mode(
+#[doc(hidden)]
+pub fn compute_correlation_matrix_for_mode(
     lf: LazyFrame,
     mode: CorrelationMode,
     metrics: Arc<AppMetrics>,

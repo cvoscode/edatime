@@ -12,6 +12,7 @@ export const apiV1Routes = {
     contract: '/api/v1/contract',
     capabilities: '/api/v1/capabilities',
     metrics: '/api/v1/metrics',
+    metricsPrometheus: '/api/v1/metrics/prometheus',
     metadata: '/api/v1/metadata',
     profile: '/api/v1/profile',
     profileSample: '/api/v1/profile/sample',

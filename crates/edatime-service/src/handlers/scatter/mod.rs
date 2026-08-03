@@ -18,7 +18,8 @@ pub use collect::{
 
 // Re-export route handlers for the router.
 pub use correlations::{
-    post_correlation_matrix, post_scatter_correlations, spawn_correlation_matrix_warmup,
+    CorrelationMode, post_correlation_matrix, post_scatter_correlations,
+    spawn_correlation_matrix_warmup,
 };
 // Phase 0.2: re-export the inner matrix computation under a
 // `_bench_target` suffix so the Criterion bench under
@@ -32,11 +33,15 @@ pub use correlations::{
 pub use correlations::CorrelationMatrixData as CorrelationMatrixDataBenchTarget;
 #[doc(hidden)]
 pub use correlations::compute_correlation_matrix as compute_correlation_matrix_bench_target;
+#[doc(hidden)]
+pub use correlations::compute_correlation_matrix_for_mode as compute_correlation_mode_bench_target;
 pub use export::post_scatter_export_parquet;
 pub use matrix::post_scatter_matrix;
 pub use points::post_scatter_points;
 
 // Re-export sampling helpers for tests and downstream consumers.
+#[doc(hidden)]
+pub use sample::collect_sampled_matrix_rows_streaming as collect_sampled_matrix_rows_bench_target;
 pub use sample::{ScatterColorKind, TimeColorMode, collect_sampled_xyc_rows};
 
 // ── Shared types ─────────────────────────────────────────────────────────────

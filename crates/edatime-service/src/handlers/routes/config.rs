@@ -1,4 +1,4 @@
-//! `GET /api/config/database`  — read current database configuration
+//! `GET /api/v1/config/database` — read current database configuration
 //! Database configuration is read-only at runtime.
 
 use axum::{Json, extract::State, response::IntoResponse};

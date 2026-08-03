@@ -4,7 +4,7 @@
 **Route:** `#page=drift`  
 **Frontend entrypoint:** `frontend/src/features/drift/entrypoint.ts`  
 **Page controller:** `frontend/src/drift/driftPage.ts`  
-**Backend route:** `POST /api/drift/stats`
+**Backend route:** `POST /api/v1/drift/stats`
 
 ## Purpose
 
@@ -26,10 +26,10 @@ The backend converts those triggers into `green`, `yellow`, or `red` severity an
 
 ## Real Compute Contract
 
-The drift page does **not** call `/api/drift/compute`. The real contract is:
+The drift page does **not** call a page-local compute route. The real contract is:
 
 ```http
-POST /api/drift/stats
+POST /api/v1/drift/stats
 Content-Type: application/json
 ```
 
@@ -53,7 +53,7 @@ Important behavior:
 
 - the frontend issues **one request per selected column**
 - `referenceStart` / `referenceEnd` are camelCase on the wire
-- the route remains `/api/drift/stats`
+- the route remains `/api/v1/drift/stats`
 - the backend returns all later windows; the frontend can filter them for evaluation modes like `latest` or `latest-n`
 
 ## Backend Output
@@ -85,7 +85,7 @@ Each window includes:
 `frontend/src/drift/driftPage.ts` owns the page workflow:
 
 1. read selected columns and reference settings
-2. POST `/api/drift/stats` once per column
+2. POST `/api/v1/drift/stats` once per column
 3. keep raw per-column responses
 4. apply frontend-side evaluation mode filtering
 5. render:

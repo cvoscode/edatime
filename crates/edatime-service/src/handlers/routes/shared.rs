@@ -4,6 +4,7 @@ use axum::http::{HeaderValue, Response};
 use chrono::{DateTime, Utc};
 
 use crate::error::AppError;
+use edatime_core::http::ResponseMeta;
 use edatime_query::pipeline;
 use edatime_query::query;
 use edatime_query::validation::{validate_numeric_columns_lazy, validate_time_window};
@@ -39,17 +40,10 @@ mod budget_tests {
     }
 }
 use edatime_store::versions::DatasetVersionRecord;
-use polars::prelude::DataFrame;
+use polars::prelude::{Column, DataFrame, DataType, IdxCa, NamedFrom, Series};
+use serde::Serialize;
 
 use crate::handlers::routes::cleaning::{PlanRequestEnvelope, compile_request_frame};
-
-/// Metadata for edatime HTTP response headers.
-#[derive(Debug, Clone)]
-pub struct ResponseMeta {
-    pub is_downsampled: bool,
-    pub returned_rows: usize,
-    pub target_points: Option<usize>,
-}
 
 /// Immutable provenance for a dataset-derived response.
 ///
@@ -215,23 +209,152 @@ pub async fn filter_preamble_with_plan(
     ))
 }
 
-/// Downsample a DataFrame by taking every Nth row when it exceeds `max_pts`.
-pub fn downsample_by_stride(
+#[derive(Debug, Clone, Serialize)]
+pub struct AnalysisSampling {
+    pub method: &'static str,
+    pub input_points: usize,
+    pub output_points: usize,
+    pub aggregation_factor: f64,
+}
+
+/// Anti-aliased bounded sampling for frequency-domain analytics. Consecutive
+/// buckets are averaged for numeric/time columns; non-numeric columns use the
+/// bucket midpoint. This avoids the deterministic spectral aliases introduced
+/// by taking every Nth source row.
+pub fn downsample_for_analysis(
     df: DataFrame,
     max_pts: usize,
     label: &str,
-) -> Result<DataFrame, AppError> {
+) -> Result<(DataFrame, AnalysisSampling), AppError> {
+    let input_points = df.height();
     if df.height() <= max_pts {
-        return Ok(df);
+        return Ok((
+            df,
+            AnalysisSampling {
+                method: "exact",
+                input_points,
+                output_points: input_points,
+                aggregation_factor: 1.0,
+            },
+        ));
     }
-    let step = df.height() / max_pts;
-    let indices: Vec<u32> = (0..df.height())
-        .step_by(step.max(1))
-        .take(max_pts)
-        .map(|i| i as u32)
-        .collect();
-    use polars::prelude::NamedFrom;
-    let idx_ca = polars::prelude::IdxCa::new("idx".into(), &indices);
-    df.take(&idx_ca)
-        .map_err(|e| AppError::internal(format!("{label} downsample: {e}")))
+    let target = max_pts.max(2).min(input_points);
+    let midpoint_indices = (0..target)
+        .map(|bucket| {
+            let start = bucket.saturating_mul(input_points) / target;
+            let end = ((bucket + 1).saturating_mul(input_points) / target).max(start + 1);
+            ((start + end - 1) / 2) as u32
+        })
+        .collect::<Vec<_>>();
+    let midpoint_indices = IdxCa::new("__sample_index".into(), &midpoint_indices);
+    let mut output = Vec::<Column>::with_capacity(df.width());
+    for column in df.materialized_column_iter() {
+        let dtype = column.dtype().clone();
+        if dtype.is_numeric() || matches!(dtype, DataType::Datetime(_, _) | DataType::Date) {
+            let casted = column.cast(&DataType::Float64).map_err(|error| {
+                AppError::internal(format!("{label} sample cast '{}': {error}", column.name()))
+            })?;
+            let values = casted.f64().map_err(|error| {
+                AppError::internal(format!(
+                    "{label} sample values '{}': {error}",
+                    column.name()
+                ))
+            })?;
+            let means = (0..target)
+                .map(|bucket| {
+                    let start = bucket.saturating_mul(input_points) / target;
+                    let end = ((bucket + 1).saturating_mul(input_points) / target).max(start + 1);
+                    let mut sum = 0.0;
+                    let mut count = 0usize;
+                    for index in start..end {
+                        if let Some(value) = values.get(index)
+                            && value.is_finite()
+                        {
+                            sum += value;
+                            count += 1;
+                        }
+                    }
+                    (count > 0).then_some(sum / count as f64)
+                })
+                .collect::<Vec<_>>();
+            let averaged = Series::new(column.name().clone(), means);
+            let averaged = if matches!(dtype, DataType::Datetime(_, _) | DataType::Date) {
+                averaged.cast(&dtype).map_err(|error| {
+                    AppError::internal(format!(
+                        "{label} restore sampled dtype '{}': {error}",
+                        column.name()
+                    ))
+                })?
+            } else {
+                averaged
+            };
+            output.push(averaged.into());
+        } else {
+            output.push(
+                column
+                    .take(&midpoint_indices)
+                    .map_err(|error| {
+                        AppError::internal(format!("{label} sample '{}': {error}", column.name()))
+                    })?
+                    .into(),
+            );
+        }
+    }
+    let sampled = DataFrame::new(target, output)
+        .map_err(|error| AppError::internal(format!("{label} sampled frame: {error}")))?;
+    Ok((
+        sampled,
+        AnalysisSampling {
+            method: "block_mean",
+            input_points,
+            output_points: target,
+            aggregation_factor: input_points as f64 / target as f64,
+        },
+    ))
+}
+
+#[cfg(test)]
+mod sampling_tests {
+    use polars::prelude::{DataFrame, NamedFrom, Series};
+
+    use super::downsample_for_analysis;
+
+    #[test]
+    fn analysis_sampling_uses_bucket_means_instead_of_stride_aliasing() {
+        let frame = DataFrame::new(
+            8,
+            vec![
+                Series::new("ts".into(), (0_i64..8).collect::<Vec<_>>()).into(),
+                Series::new("value".into(), vec![0.0, 2.0, 0.0, 2.0, 0.0, 2.0, 0.0, 2.0]).into(),
+                Series::new("label".into(), vec!["a", "b", "c", "d", "e", "f", "g", "h"]).into(),
+            ],
+        )
+        .expect("frame");
+
+        let (sampled, metadata) = downsample_for_analysis(frame, 4, "test").expect("sample frame");
+        assert_eq!(metadata.method, "block_mean");
+        assert_eq!(metadata.input_points, 8);
+        assert_eq!(metadata.output_points, 4);
+        assert_eq!(sampled.height(), 4);
+        assert_eq!(
+            sampled
+                .column("value")
+                .expect("value")
+                .f64()
+                .expect("float values")
+                .into_no_null_iter()
+                .collect::<Vec<_>>(),
+            vec![1.0, 1.0, 1.0, 1.0]
+        );
+        assert_eq!(
+            sampled
+                .column("label")
+                .expect("label")
+                .str()
+                .expect("labels")
+                .into_no_null_iter()
+                .collect::<Vec<_>>(),
+            vec!["a", "c", "e", "g"]
+        );
+    }
 }

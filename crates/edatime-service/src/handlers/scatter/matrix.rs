@@ -1,4 +1,4 @@
-//! Scatter matrix batch handler — POST /api/scatter/matrix.
+//! Scatter matrix batch handler — POST /api/v1/scatter/matrix.
 
 use axum::{Json, extract::State, response::Response};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};

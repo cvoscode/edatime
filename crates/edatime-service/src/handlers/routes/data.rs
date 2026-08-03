@@ -1,4 +1,4 @@
-//! `GET /api/data` — full dataset
+//! `POST /api/v1/data` — plan-aware dataset window
 
 use axum::{Json, extract::State, response::Response};
 use serde::Deserialize;

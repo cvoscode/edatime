@@ -87,7 +87,7 @@ The heatmap itself is rendered as an HTML table or canvas inside `heatmap-contai
 
 **Correlation matrix:**
 ```
-GET /api/correlations/matrix?metric=pearson
+POST /api/v1/scatter/correlations/matrix
 Response: {
   "columns": ["colA", "colB", "colC"],
   "matrix": [[1.0, 0.72, -0.31], [0.72, 1.0, 0.45], [-0.31, 0.45, 1.0]]
@@ -96,7 +96,7 @@ Response: {
 
 **Correlation suggestions** (used by scatter page too):
 ```
-GET /api/correlations/suggestions?threshold=0.70
+POST /api/v1/scatter/correlations
 Response: { "pairs": [{ "x": "colA", "y": "colB", "pearson": 0.85, "spearman": 0.81 }, ...] }
 ```
 

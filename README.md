@@ -249,7 +249,7 @@ Navigate via the sidebar (**S**) or press `Alt+3`.
 
 ## Runtime metrics
 
-`GET /api/metrics` returns a JSON snapshot of server-side counters:
+`GET /api/v1/metrics` returns a JSON snapshot of server-side counters; Prometheus-compatible text is available at `GET /api/v1/metrics/prometheus`:
 
 - Total request counts per endpoint
 - Cache hit/miss counts and current entry count
@@ -294,7 +294,7 @@ edatime/
 │   ├── query.rs          — Shared query parsing helpers
 │   ├── cache.rs          — In-memory response cache
 │   ├── rates.rs          — Per-client rate limiting
-│   ├── metrics.rs        — Runtime counters
+│   ├── middleware.rs     — Request identity and response/body telemetry
 │   └── routes/           — HTTP route handlers
 ├── frontend/
 │   ├── index.html        — Application shell

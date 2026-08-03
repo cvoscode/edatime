@@ -7,8 +7,7 @@
 //! - edatime-service: HTTP handlers, routing, middleware
 //! - edatime-ingest: data ingestion
 //!
-//! This root crate re-exports the owning workspace crates so the historical
-//! `edatime::*` paths keep resolving for tests and downstream consumers.
+//! This root crate exposes the small public facade used by integration tests.
 
 // analytics — analytics service implementations
 pub use edatime_service::analytics;
@@ -26,7 +25,7 @@ pub use edatime_core::error;
 pub use edatime_query::filters;
 
 // metrics — runtime metrics
-pub use edatime_service::metrics;
+pub use edatime_core::metrics;
 
 // pipeline — query pipeline reductions and time filtering
 pub use edatime_query::pipeline;

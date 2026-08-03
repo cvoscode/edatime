@@ -107,7 +107,7 @@ Time-frequency heatmap (spectrogram) for a single numeric column. Shows how the 
 
 **Compute spectrogram:**
 ```
-POST /api/spectrogram/compute
+POST /api/v1/analytics/spectrogram
 Body: {
   "column": "colA",
   "start": "ISO",

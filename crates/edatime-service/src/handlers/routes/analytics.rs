@@ -13,8 +13,8 @@ use serde::Deserialize;
 use crate::analytics;
 use crate::error::AppError;
 use crate::handlers::routes::shared::{
-    ExecutionIdentity, add_execution_identity_headers, downsample_by_stride, enforce_work_budget,
-    filter_preamble_with_plan,
+    ExecutionIdentity, add_execution_identity_headers, downsample_for_analysis,
+    enforce_work_budget, filter_preamble_with_plan,
 };
 use edatime_query::query;
 use edatime_query::validation::validate_numeric_columns_lazy;
@@ -206,8 +206,16 @@ async fn fft_response(state: AppState, params: FftQuery) -> Result<Response, App
     )
     .await?;
 
-    let max_pts = params.max_points.unwrap_or(8192).max(64);
-    let work_df = downsample_by_stride(filtered, max_pts, "FFT")?;
+    let max_pts = params.max_points.unwrap_or(8192);
+    enforce_work_budget(
+        "FFT input points",
+        max_pts as u128,
+        state.config.budgets.max_analytics_points as u128,
+    )?;
+    if max_pts < 64 {
+        return Err(AppError::bad_request("FFT max_points must be at least 64"));
+    }
+    let (work_df, sampling) = downsample_for_analysis(filtered, max_pts, "FFT")?;
 
     let results = state
         .query_executor
@@ -222,6 +230,7 @@ async fn fft_response(state: AppState, params: FftQuery) -> Result<Response, App
     Ok(analytics_response(
         serde_json::json!({
             "sample_count": work_df.height(),
+            "sampling": sampling,
             "results": results,
         }),
         &identity,
@@ -274,8 +283,18 @@ async fn spectrogram_response(
     .await?;
     let col = &value_cols[0];
 
-    let max_pts = params.max_points.unwrap_or(32768).max(256);
-    let work_df = downsample_by_stride(filtered, max_pts, "Spectrogram")?;
+    let max_pts = params.max_points.unwrap_or(32768);
+    enforce_work_budget(
+        "spectrogram input points",
+        max_pts as u128,
+        state.config.budgets.max_analytics_points as u128,
+    )?;
+    if max_pts < 256 {
+        return Err(AppError::bad_request(
+            "Spectrogram max_points must be at least 256",
+        ));
+    }
+    let (work_df, sampling) = downsample_for_analysis(filtered, max_pts, "Spectrogram")?;
 
     let win_size = params.window_size.unwrap_or(256).clamp(16, 4096);
     let hop = params.hop_size.unwrap_or(win_size / 2).clamp(1, win_size);
@@ -316,6 +335,7 @@ async fn spectrogram_response(
     Ok(analytics_response(
         serde_json::json!({
             "sample_count": work_df.height(),
+            "sampling": sampling,
             "result": result,
         }),
         &identity,
@@ -422,8 +442,18 @@ async fn spectral_filter_response(
     .await?;
     let col = &value_cols[0];
 
-    let max_pts = params.max_points.unwrap_or(16384).clamp(64, 65536);
-    let work_df = downsample_by_stride(filtered, max_pts, "SpectralFilter")?;
+    let max_pts = params.max_points.unwrap_or(16384);
+    enforce_work_budget(
+        "spectral filter input points",
+        max_pts as u128,
+        state.config.budgets.max_analytics_points as u128,
+    )?;
+    if max_pts < 64 {
+        return Err(AppError::bad_request(
+            "Spectral filter max_points must be at least 64",
+        ));
+    }
+    let (work_df, sampling) = downsample_for_analysis(filtered, max_pts, "SpectralFilter")?;
 
     let filter_type: analytics::FilterType = match params.filter_type.as_str() {
         "lowpass" => analytics::FilterType::Lowpass,
@@ -436,6 +466,44 @@ async fn spectral_filter_response(
             )));
         }
     };
+
+    if params
+        .sample_rate_hz
+        .is_some_and(|rate| !rate.is_finite() || rate <= 0.0)
+    {
+        return Err(AppError::bad_request(
+            "sample_rate_hz must be finite and greater than zero",
+        ));
+    }
+    if params
+        .low_hz
+        .is_some_and(|cutoff| !cutoff.is_finite() || cutoff < 0.0)
+        || params
+            .high_hz
+            .is_some_and(|cutoff| !cutoff.is_finite() || cutoff <= 0.0)
+    {
+        return Err(AppError::bad_request(
+            "filter cutoffs must be finite and non-negative",
+        ));
+    }
+    match params.filter_type.as_str() {
+        "lowpass" if params.high_hz.is_none() => {
+            return Err(AppError::bad_request("lowpass requires high_hz"));
+        }
+        "highpass" if params.low_hz.is_none() => {
+            return Err(AppError::bad_request("highpass requires low_hz"));
+        }
+        "bandpass" | "bandstop"
+            if params.low_hz.is_none()
+                || params.high_hz.is_none()
+                || params.low_hz >= params.high_hz =>
+        {
+            return Err(AppError::bad_request(
+                "band filters require low_hz < high_hz",
+            ));
+        }
+        _ => {}
+    }
 
     let low_hz = params.low_hz;
     let high_hz = params.high_hz;
@@ -462,6 +530,7 @@ async fn spectral_filter_response(
             "low_hz": low_hz,
             "high_hz": high_hz,
             "sample_count": ts_ms.len(),
+            "sampling": sampling,
         }),
         &identity,
     ))

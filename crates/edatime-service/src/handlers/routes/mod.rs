@@ -53,6 +53,7 @@ pub fn api_router(max_json_body_bytes: usize) -> Router<AppState> {
             get(metadata::get_sample_profile).post(metadata::start_sample_profile),
         )
         .route("/metrics", get(metrics::get_metrics))
+        .route("/metrics/prometheus", get(metrics::get_prometheus))
         .route("/jobs", get(jobs::list_jobs))
         .route("/jobs/{id}", get(jobs::get_job).delete(jobs::cancel_job))
         .route("/scatter/points", post(scatter::post_scatter_points))
@@ -150,10 +151,22 @@ pub async fn capabilities(State(state): State<AppState>) -> impl IntoResponse {
             "scatter_matrix_points": budgets.max_scatter_matrix_points,
             "rolling_cells": budgets.max_rolling_cells,
             "spectrogram_cells": budgets.max_spectrogram_cells,
+            "analytics_points": budgets.max_analytics_points,
             "causal_work_units": budgets.max_causal_work_units,
             "cleaning_stages": budgets.max_cleaning_stages,
             "database_rows": budgets.max_database_rows,
+            "database_bytes": budgets.max_database_bytes,
+            "database_timeout_seconds": budgets.database_timeout_seconds,
             "json_body_bytes": budgets.max_json_body_bytes
+        },
+        "retention": {
+            "resident_versions": state.config.retention.max_resident_versions,
+            "resident_bytes": state.config.retention.max_resident_bytes,
+            "terminal_jobs": state.config.retention.max_terminal_jobs,
+            "terminal_job_ttl_seconds": state.config.retention.terminal_job_ttl_seconds,
+            "profile_entries": state.config.retention.max_profile_entries,
+            "artifact_versions": state.config.data.max_artifact_versions,
+            "artifact_bytes": state.config.data.max_artifact_bytes
         }
     }))
 }

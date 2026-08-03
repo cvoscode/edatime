@@ -282,7 +282,7 @@ From `frontend/css/modules/scatter.css`:
 
 **Scatter data fetch:**
 ```
-POST /api/scatter/range
+POST /api/v1/scatter/points
 Body: { "xCol": "colA", "yCol": "colB", "start": "ISO", "end": "ISO",
         "width": 1200, "colorCol": "colC" | null,
         "renderMode": "density"|"scatter",
@@ -293,7 +293,7 @@ Response: { "x": [...], "y": [...], "colorBy": [...] }  // for scatter mode
 
 **Correlation suggestions:**
 ```
-GET /api/correlations/suggestions?threshold=0.70
+POST /api/v1/scatter/correlations
 Response: { "pairs": [{ "x": "colA", "y": "colB", "pearson": 0.85 }, ...] }
 ```
 

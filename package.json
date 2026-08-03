@@ -7,6 +7,8 @@
     "check:frontend:budgets": "node scripts/check-frontend-budgets.mjs",
     "check:frontend:assets": "node scripts/check-frontend-asset-graph.mjs",
     "check:api-contract": "node scripts/check_api_contract.mjs",
+    "check:api-docs": "node scripts/generate_api_reference.mjs --check",
+    "check:backend-hygiene": "node scripts/check_backend_hygiene.mjs",
     "check:frontend:all": "npm run check:frontend && npm run check:frontend:arch && npm run check:frontend:budgets && npm run check:frontend:assets",
     "validate": "npm run check:frontend:all",
     "typecheck": "tsc --noEmit -p tsconfig.json",

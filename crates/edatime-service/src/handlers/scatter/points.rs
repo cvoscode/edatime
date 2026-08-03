@@ -1,4 +1,4 @@
-//! Scatter points handler — plan-aware POST /api/scatter/points.
+//! Scatter points handler — plan-aware POST /api/v1/scatter/points.
 //!
 //! All business logic is delegated to:
 //!   - `collect.rs` — `collect_filtered_scatter_frame`

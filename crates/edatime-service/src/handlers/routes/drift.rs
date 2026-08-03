@@ -1,4 +1,4 @@
-//! `POST /api/drift/stats` and `POST /api/drift/investigate`.
+//! `POST /api/v1/drift/stats` and `POST /api/v1/drift/investigate`.
 
 use axum::{
     Json,

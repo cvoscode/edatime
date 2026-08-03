@@ -2,12 +2,20 @@
 
 use std::collections::HashSet;
 use std::net::SocketAddr;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use axum::{extract::ConnectInfo, http::HeaderValue, middleware::Next, response::IntoResponse};
+use axum::{
+    body::{Body, Bytes, HttpBody},
+    extract::ConnectInfo,
+    http::HeaderValue,
+    middleware::Next,
+    response::IntoResponse,
+};
+use http_body::{Frame, SizeHint};
 use tracing::Instrument;
 
 use crate::error::AppError;
@@ -183,7 +191,7 @@ pub fn rate_limit_middleware(
 
         Box::pin(async move {
             let method = req.method().to_string();
-            let path = req.uri().path().to_string();
+            let path = normalized_route(req.uri().path());
             let started_at = Instant::now();
             let client_ip = extract_client_ip(&req, &trusted_proxy_ips);
 
@@ -201,13 +209,16 @@ pub fn rate_limit_middleware(
                         .headers_mut()
                         .insert(axum::http::header::RETRY_AFTER, value);
                 }
-                metrics.record_request(
+                let route_key = metrics.record_route_response(
                     &method,
                     &path,
                     response.status().as_u16(),
                     started_at.elapsed().as_nanos() as u64,
+                    Some("rate_limit_exceeded"),
                 );
-                return Ok(response);
+                return Ok(track_response_body(
+                    response, metrics, route_key, started_at,
+                ));
             }
 
             let mut response = next.run(req).await;
@@ -216,14 +227,115 @@ pub fn rate_limit_middleware(
                     .headers_mut()
                     .insert("x-ratelimit-remaining", value);
             }
-            metrics.record_request(
+            let error_code = response
+                .headers()
+                .get("x-edatime-error-code")
+                .and_then(|value| value.to_str().ok());
+            let route_key = metrics.record_route_response(
                 &method,
                 &path,
                 response.status().as_u16(),
                 started_at.elapsed().as_nanos() as u64,
+                error_code,
             );
-            Ok(response)
+            Ok(track_response_body(
+                response, metrics, route_key, started_at,
+            ))
         })
+    }
+}
+
+fn normalized_route(path: &str) -> String {
+    if !path.starts_with("/api/v1/") {
+        return "/frontend".to_string();
+    }
+    let mut parts = path.split('/').collect::<Vec<_>>();
+    if parts.len() >= 5 && parts.get(3) == Some(&"jobs") {
+        parts[4] = "{id}";
+    } else if parts.len() >= 5 && parts.get(3) == Some(&"sample") {
+        parts[4] = "{name}";
+    }
+    parts.join("/")
+}
+
+fn track_response_body(
+    response: axum::response::Response,
+    metrics: Arc<AppMetrics>,
+    route_key: String,
+    request_started: Instant,
+) -> axum::response::Response {
+    let (parts, body) = response.into_parts();
+    let tracked = TrackedBody {
+        inner: body,
+        metrics,
+        route_key,
+        request_started,
+        bytes: 0,
+        finished: false,
+    };
+    axum::response::Response::from_parts(parts, Body::new(tracked))
+}
+
+struct TrackedBody {
+    inner: Body,
+    metrics: Arc<AppMetrics>,
+    route_key: String,
+    request_started: Instant,
+    bytes: u64,
+    finished: bool,
+}
+
+impl TrackedBody {
+    fn finish(&mut self, abandoned: bool) {
+        if self.finished {
+            return;
+        }
+        self.finished = true;
+        self.metrics.record_body_completion(
+            &self.route_key,
+            self.bytes,
+            self.request_started.elapsed().as_nanos() as u64,
+            abandoned,
+        );
+    }
+}
+
+impl HttpBody for TrackedBody {
+    type Data = Bytes;
+    type Error = axum::Error;
+
+    fn poll_frame(
+        self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
+        let this = self.get_mut();
+        match Pin::new(&mut this.inner).poll_frame(cx) {
+            std::task::Poll::Ready(Some(Ok(frame))) => {
+                if let Some(data) = frame.data_ref() {
+                    this.bytes = this.bytes.saturating_add(data.len() as u64);
+                }
+                std::task::Poll::Ready(Some(Ok(frame)))
+            }
+            std::task::Poll::Ready(None) => {
+                this.finish(false);
+                std::task::Poll::Ready(None)
+            }
+            other => other,
+        }
+    }
+
+    fn is_end_stream(&self) -> bool {
+        self.inner.is_end_stream()
+    }
+
+    fn size_hint(&self) -> SizeHint {
+        self.inner.size_hint()
+    }
+}
+
+impl Drop for TrackedBody {
+    fn drop(&mut self) {
+        self.finish(true);
     }
 }
 

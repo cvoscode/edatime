@@ -13,6 +13,9 @@ use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 // scatter module surface (`#[doc(hidden)]`).
 use edatime_core::metrics::AppMetrics;
 use edatime_service::handlers::scatter::compute_correlation_matrix_bench_target as compute_correlation_matrix;
+use edatime_service::handlers::scatter::{
+    CorrelationMode, compute_correlation_mode_bench_target as compute_correlation_mode,
+};
 use polars::prelude::*;
 use std::sync::Arc;
 
@@ -74,5 +77,36 @@ fn bench_correlations(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_correlations);
+fn bench_wide_correlation_modes(c: &mut Criterion) {
+    let mut group = c.benchmark_group("correlations_wide_modes");
+    group.sample_size(10);
+    for &cols in &[32usize, 64] {
+        let rows = 1_000;
+        let df = synth_wide_frame(cols, rows);
+        let lazy = df.lazy();
+        for mode in [
+            CorrelationMode::PearsonRaw,
+            CorrelationMode::PearsonDiff,
+            CorrelationMode::SpearmanRaw,
+            CorrelationMode::SpearmanDiff,
+            CorrelationMode::KendallRaw,
+            CorrelationMode::KendallDiff,
+        ] {
+            let metrics = Arc::new(AppMetrics::new());
+            group.bench_with_input(
+                BenchmarkId::new(format!("{mode:?}"), format!("{cols}c_{rows}r")),
+                &cols,
+                |bench, _| {
+                    bench.iter(|| {
+                        compute_correlation_mode(lazy.clone(), mode, Arc::clone(&metrics))
+                            .expect("correlation mode");
+                    });
+                },
+            );
+        }
+    }
+    group.finish();
+}
+
+criterion_group!(benches, bench_correlations, bench_wide_correlation_modes);
 criterion_main!(benches);

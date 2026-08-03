@@ -133,7 +133,7 @@ Frequency-domain analysis of selected time-series traces. Compute FFT magnitude 
 
 **Compute FFT:**
 ```
-POST /api/fft/compute
+POST /api/v1/analytics/fft
 Body: {
   "columns": ["colA", "colB"],
   "start": "ISO",
@@ -152,7 +152,7 @@ Response: {
 
 **Spectral filter preview:**
 ```
-POST /api/fft/filter
+POST /api/v1/analytics/spectral-filter
 Body: {
   "column": "colA",
   "start": "ISO",

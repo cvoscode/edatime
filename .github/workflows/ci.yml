@@ -50,5 +50,11 @@ jobs:
       - name: Check API contract coverage
         run: npm run check:api-contract
 
+      - name: Check generated API reference
+        run: npm run check:api-docs
+
+      - name: Check backend ownership and stale surfaces
+        run: npm run check:backend-hygiene
+
       - name: Compile benchmark harness
         run: cargo bench --workspace --no-run

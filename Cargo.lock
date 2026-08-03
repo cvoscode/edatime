@@ -1344,6 +1344,7 @@ dependencies = [
  "edatime-query",
  "edatime-store",
  "futures-util",
+ "http-body",
  "minmaxlttb",
  "ndarray",
  "polars",

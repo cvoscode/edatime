@@ -24,3 +24,7 @@ criterion = "0.5.1"
 [[bench]]
 name = "downsample"
 harness = false
+
+[[bench]]
+name = "multi_envelope"
+harness = false

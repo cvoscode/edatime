@@ -4,6 +4,7 @@ use std::sync::Mutex;
 
 use chrono::Utc;
 use polars::prelude::{DataFrame, DataType, LazyFrame, ScanArgsParquet, SchemaExt, len};
+use serde::Serialize;
 use serde_json::Value;
 use tokio::sync::RwLock;
 
@@ -12,7 +13,9 @@ use crate::cache::{CorrelationMatrixCacheEntry, ResponseCache};
 use crate::db::DbPool;
 use crate::jobs::{JobHandle, JobRegistry};
 use crate::repository::{DataRepository, DatasetMeta, InMemoryDataRepository};
-use crate::versions::{DatasetVersionRecord, DatasetVersionRegistry, fingerprints_for_frame};
+use crate::versions::{
+    DatasetVersionRecord, DatasetVersionRegistry, VersionRetentionSnapshot, fingerprints_for_frame,
+};
 use edatime_core::config::AppConfig;
 use edatime_core::error::AppError;
 use edatime_core::metrics::{AppMetrics, CpuStage};
@@ -20,7 +23,7 @@ use edatime_core::temporal::{TsContext, ts_context};
 use edatime_query::executor::{ExecutionContext, QueryExecutor};
 use edatime_query::query::QueryEntry;
 
-/// Live database connection state, set after a successful `/api/database/connect`.
+/// Live database connection state, set after a successful `/api/v1/database/connect`.
 #[derive(Clone, Debug)]
 pub struct DbConnectionInfo {
     pub schema: String,
@@ -35,6 +38,16 @@ pub struct DbConnectionInfo {
 pub struct ProfileCacheEntry {
     pub job_id: String,
     pub result: Option<Value>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RetainedStateSnapshot {
+    pub versions: VersionRetentionSnapshot,
+    pub artifacts: ArtifactStorageUsage,
+    pub jobs: crate::jobs::JobRegistrySnapshot,
+    pub profile_entries: usize,
+    pub immediate_metadata_entries: usize,
 }
 
 #[allow(clippy::clone_on_ref_ptr)]
@@ -212,6 +225,28 @@ impl AppState {
         self.dataset_versions.list()
     }
 
+    pub fn version_retention_snapshot(&self) -> Result<VersionRetentionSnapshot, AppError> {
+        self.dataset_versions.retention_snapshot()
+    }
+
+    pub fn retained_state_snapshot(&self) -> Result<RetainedStateSnapshot, AppError> {
+        Ok(RetainedStateSnapshot {
+            versions: self.version_retention_snapshot()?,
+            artifacts: self.artifact_storage_usage()?,
+            jobs: self.jobs.snapshot(),
+            profile_entries: self
+                .profile_cache
+                .lock()
+                .map(|cache| cache.len())
+                .unwrap_or_else(|error| error.into_inner().len()),
+            immediate_metadata_entries: self
+                .immediate_metadata_cache
+                .lock()
+                .map(|cache| cache.len())
+                .unwrap_or_else(|error| error.into_inner().len()),
+        })
+    }
+
     pub fn artifact_storage_usage(&self) -> Result<ArtifactStorageUsage, AppError> {
         match &self.artifact_store {
             Some(store) => store.usage(),
@@ -333,8 +368,18 @@ impl AppState {
             self.enforce_artifact_retention(&record.id)?;
             rev
         } else {
+            self.dataset_versions.ensure_resident_registration_fits(
+                None,
+                df.estimated_size() as u64,
+                self.config.retention.max_resident_versions,
+                self.config.retention.max_resident_bytes,
+            )?;
             let rev = self.repository.replace_from_dataframe(df.clone())?;
             self.dataset_versions.register_root(df, rev, None)?;
+            self.dataset_versions.enforce_resident_retention(
+                self.config.retention.max_resident_versions,
+                self.config.retention.max_resident_bytes,
+            )?;
             rev
         };
         // Invalidate cached responses so stale data is never served after upload.
@@ -473,9 +518,21 @@ impl AppState {
             self.enforce_artifact_retention(&record.id)?;
             record
         } else {
+            self.dataset_versions.ensure_resident_registration_fits(
+                Some(parent_id),
+                df.estimated_size() as u64,
+                self.config.retention.max_resident_versions,
+                self.config.retention.max_resident_bytes,
+            )?;
             let revision = self.repository.replace_from_dataframe(df.clone())?;
-            self.dataset_versions
-                .register_child(parent_id, df, revision, plan_hash)?
+            let record = self
+                .dataset_versions
+                .register_child(parent_id, df, revision, plan_hash)?;
+            self.dataset_versions.enforce_resident_retention(
+                self.config.retention.max_resident_versions,
+                self.config.retention.max_resident_bytes,
+            )?;
+            record
         };
         self.cache.invalidate_all().await;
         self.clear_correlation_matrix_cache();

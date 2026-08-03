@@ -77,7 +77,7 @@ Below 900px viewport the hero collapses to a stacked column layout (icon centere
 - `.home-dataset-tags` — Tags: type, row count, column count
 
 **Data attributes:**
-- `data-sample-dataset="ettm2"` — Loads ETTm2.csv from `/api/sample/ETTm2.csv`
+- `data-sample-dataset="ettm2"` — Loads ETTm2.csv from `/api/v1/sample/ETTm2.csv`
 - `data-sample-dataset="sinusoidal"` — Generates sinusoidal CSV client-side
 - `data-sample-dataset="weather"` — Generates weather CSV client-side
 
@@ -312,7 +312,7 @@ async function loadSampleDataset(datasetId: string, showPage: (pageName: string)
 
 **ETTm2 workflow:**
 1. Show loading toast: "Loading ETTm2 sample dataset..."
-2. Fetch `/api/sample/ETTm2.csv` from backend
+2. Fetch `/api/v1/sample/ETTm2.csv` from backend
 3. Create a `File` object from the blob
 4. Hide the home page
 5. Call `showPage('upload')` to navigate to Upload
@@ -362,7 +362,7 @@ Generates a CSV with columns: `timestamp,temperature,humidity,pressure,wind_spee
     │
     └── click sample dataset card
             │
-            ├── "ETTm2 Sensor Data" ──> fetch /api/sample/ETTm2.csv
+            ├── "ETTm2 Sensor Data" ──> fetch /api/v1/sample/ETTm2.csv
             ├── "Sinusoidal Waves" ──> generate client-side CSV
             └── "Weather Patterns" ──> generate client-side CSV
                     │
@@ -376,7 +376,7 @@ Generates a CSV with columns: `timestamp,temperature,humidity,pressure,wind_spee
 The ETTm2 sample dataset requires a backend endpoint:
 
 ```
-GET /api/sample/ETTm2.csv
+GET /api/v1/sample/ETTm2.csv
 ```
 
 This endpoint should serve the static file `ETTm2.csv` from the server's static assets or data directory.
@@ -674,7 +674,7 @@ To recreate the homepage, copy this complete HTML structure:
 | `router.ts` | Default route is `home` when no hash is present |
 | `guidedWorkflow.ts` | Tracks home as a possible workflow step |
 | `toast.ts` | Shows loading/feedback toasts during sample dataset load |
-| `/api/sample/ETTm2.csv` | Backend endpoint for ETTm2 sample data |
+| `/api/v1/sample/ETTm2.csv` | Backend endpoint for ETTm2 sample data |
 
 ---
 

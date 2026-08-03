@@ -1,16 +1,17 @@
 //! Database connection routes.
 //!
-//! `POST /api/database/connect`        — connect to TimescaleDB / Postgres and
+//! `POST /api/v1/database/connect`        — connect to TimescaleDB / Postgres and
 //!                                       optionally ingest a table snapshot into
 //!                                       the in-memory DataFrame.
-//! `DELETE /api/database/connect`      — disconnect and clear the pool.
-//! `GET  /api/database/status`         — connection status.
-//! `GET  /api/database/tables`         — list available tables/hypertables.
-//! `GET  /api/database/columns`        — list columns for a table.
-//! `POST /api/database/load`           — pull (or refresh) a table snapshot
+//! `DELETE /api/v1/database/connect`      — disconnect and clear the pool.
+//! `GET  /api/v1/database/status`         — connection status.
+//! `GET  /api/v1/database/tables`         — list available tables/hypertables.
+//! `GET  /api/v1/database/columns`        — list columns for a table.
+//! `POST /api/v1/database/load`           — pull (or refresh) a table snapshot
 //!                                       into the in-memory DataFrame.
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use axum::{
     Json,
@@ -23,7 +24,7 @@ use crate::handlers::routes::shared::enforce_work_budget;
 use edatime_store::db::{self, IngestOptions};
 use edatime_store::state::{AppState, DbConnectionInfo};
 
-// ── POST /api/database/connect ─────────────────────────────────────────────
+// ── POST /api/v1/database/connect ──────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -83,7 +84,9 @@ pub async fn post_connect(
         ));
     }
 
-    let pool = Arc::new(db::connect(&body.connection_string).await?);
+    let database_timeout =
+        Duration::from_secs(state.config.budgets.database_timeout_seconds.max(1));
+    let pool = Arc::new(db::connect_with_timeout(&body.connection_string, database_timeout).await?);
 
     let mut rows_loaded: Option<usize> = None;
 
@@ -92,16 +95,24 @@ pub async fn post_connect(
     {
         let opts = IngestOptions {
             limit: Some(snapshot_limit),
+            max_bytes: Some(state.config.budgets.max_database_bytes),
+            statement_timeout_ms: Some(database_timeout.as_millis() as u64),
             ..Default::default()
         };
-        let df: polars::prelude::DataFrame = db::ingest_table(
-            &pool,
-            &body.schema,
-            table,
-            body.time_column.as_deref(),
-            &opts,
+        let df: polars::prelude::DataFrame = tokio::time::timeout(
+            database_timeout,
+            db::ingest_table(
+                &pool,
+                &body.schema,
+                table,
+                body.time_column.as_deref(),
+                &opts,
+            ),
         )
-        .await?;
+        .await
+        .map_err(|_| {
+            edatime_core::error::AppError::database_timeout("Database snapshot timed out")
+        })??;
         let n = df.height();
         state.replace_dataset(df).await?;
         if let Some(ref tc) = body.time_column {
@@ -141,7 +152,7 @@ pub async fn post_connect(
     }))
 }
 
-// ── DELETE /api/database/connect ──────────────────────────────────────────
+// ── DELETE /api/v1/database/connect ───────────────────────────────────────
 
 #[tracing::instrument(skip(state))]
 pub async fn delete_connect(
@@ -159,7 +170,7 @@ pub async fn delete_connect(
     Ok(Json(serde_json::json!({ "status": "ok", "message": msg })))
 }
 
-// ── GET /api/database/status ──────────────────────────────────────────────
+// ── GET /api/v1/database/status ───────────────────────────────────────────
 
 #[derive(Serialize)]
 pub struct StatusResponse {
@@ -189,7 +200,7 @@ pub async fn get_status(State(state): State<AppState>) -> Result<Json<StatusResp
     }
 }
 
-// ── GET /api/database/tables ──────────────────────────────────────────────
+// ── GET /api/v1/database/tables ───────────────────────────────────────────
 
 #[tracing::instrument(skip(state))]
 pub async fn get_tables(
@@ -207,7 +218,7 @@ pub async fn get_tables(
     Ok(Json(serde_json::json!({ "tables": tables })))
 }
 
-// ── GET /api/database/columns?schema=public&table=mytable ─────────────────
+// ── GET /api/v1/database/columns?schema=public&table=mytable ──────────────
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -234,7 +245,7 @@ pub async fn get_columns(
     Ok(Json(serde_json::json!({ "columns": cols })))
 }
 
-// ── POST /api/database/load ───────────────────────────────────────────────
+// ── POST /api/v1/database/load ────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -274,16 +285,22 @@ pub async fn post_load(
         end_ms: body.end_ms,
         limit: Some(limit),
         columns: body.columns.unwrap_or_default(),
+        max_bytes: Some(state.config.budgets.max_database_bytes),
+        statement_timeout_ms: Some(state.config.budgets.database_timeout_seconds.max(1) * 1_000),
     };
 
-    let df = db::ingest_table(
-        &pool,
-        &body.schema,
-        &body.table,
-        body.time_column.as_deref(),
-        &opts,
+    let df = tokio::time::timeout(
+        Duration::from_secs(state.config.budgets.database_timeout_seconds.max(1)),
+        db::ingest_table(
+            &pool,
+            &body.schema,
+            &body.table,
+            body.time_column.as_deref(),
+            &opts,
+        ),
     )
-    .await?;
+    .await
+    .map_err(|_| edatime_core::error::AppError::database_timeout("Database load timed out"))??;
 
     let n = df.height();
     let numeric_cols: Vec<String> = df

@@ -81,8 +81,8 @@ impl Default for DataSettings {
     fn default() -> Self {
         Self {
             artifact_dir: None,
-            max_artifact_bytes: None,
-            max_artifact_versions: None,
+            max_artifact_bytes: Some(20 * 1024 * 1024 * 1024),
+            max_artifact_versions: Some(12),
             require_sorted_scan_backed: true,
         }
     }
@@ -134,9 +134,12 @@ pub struct WorkBudgetSettings {
     pub max_scatter_matrix_points: usize,
     pub max_rolling_cells: usize,
     pub max_spectrogram_cells: usize,
+    pub max_analytics_points: usize,
     pub max_causal_work_units: u64,
     pub max_cleaning_stages: usize,
     pub max_database_rows: usize,
+    pub max_database_bytes: usize,
+    pub database_timeout_seconds: u64,
     pub max_json_body_bytes: usize,
 }
 
@@ -147,9 +150,12 @@ impl Default for WorkBudgetSettings {
             max_scatter_matrix_points: 1_000_000,
             max_rolling_cells: 2_000_000,
             max_spectrogram_cells: 2_000_000,
+            max_analytics_points: 65_536,
             max_causal_work_units: 250_000_000,
             max_cleaning_stages: 50,
             max_database_rows: 1_000_000,
+            max_database_bytes: 512 * 1024 * 1024,
+            database_timeout_seconds: 30,
             max_json_body_bytes: 2 * 1024 * 1024,
         }
     }
@@ -161,6 +167,8 @@ pub struct RetentionSettings {
     pub max_terminal_jobs: usize,
     pub terminal_job_ttl_seconds: u64,
     pub max_profile_entries: usize,
+    pub max_resident_versions: usize,
+    pub max_resident_bytes: u64,
 }
 
 impl Default for RetentionSettings {
@@ -169,6 +177,8 @@ impl Default for RetentionSettings {
             max_terminal_jobs: 256,
             terminal_job_ttl_seconds: 3_600,
             max_profile_entries: 32,
+            max_resident_versions: 8,
+            max_resident_bytes: 1024 * 1024 * 1024,
         }
     }
 }
@@ -427,6 +437,60 @@ impl AppConfig {
             && timeout_ms > 0
         {
             self.query.queue_timeout_ms = timeout_ms;
+        }
+        if let Ok(max_versions) = env::var("EDATIME_MAX_RESIDENT_VERSIONS")
+            && let Ok(max_versions) = max_versions.parse::<usize>()
+            && max_versions > 0
+        {
+            self.retention.max_resident_versions = max_versions;
+        }
+        if let Ok(max_bytes) = env::var("EDATIME_MAX_RESIDENT_BYTES")
+            && let Ok(max_bytes) = max_bytes.parse::<u64>()
+            && max_bytes > 0
+        {
+            self.retention.max_resident_bytes = max_bytes;
+        }
+        if let Ok(max_jobs) = env::var("EDATIME_MAX_TERMINAL_JOBS")
+            && let Ok(max_jobs) = max_jobs.parse::<usize>()
+            && max_jobs > 0
+        {
+            self.retention.max_terminal_jobs = max_jobs;
+        }
+        if let Ok(ttl_seconds) = env::var("EDATIME_TERMINAL_JOB_TTL_SECONDS")
+            && let Ok(ttl_seconds) = ttl_seconds.parse::<u64>()
+            && ttl_seconds > 0
+        {
+            self.retention.terminal_job_ttl_seconds = ttl_seconds;
+        }
+        if let Ok(max_profiles) = env::var("EDATIME_MAX_PROFILE_ENTRIES")
+            && let Ok(max_profiles) = max_profiles.parse::<usize>()
+            && max_profiles > 0
+        {
+            self.retention.max_profile_entries = max_profiles;
+        }
+        if let Ok(max_points) = env::var("EDATIME_MAX_ANALYTICS_POINTS")
+            && let Ok(max_points) = max_points.parse::<usize>()
+            && max_points > 0
+        {
+            self.budgets.max_analytics_points = max_points;
+        }
+        if let Ok(max_rows) = env::var("EDATIME_MAX_DATABASE_ROWS")
+            && let Ok(max_rows) = max_rows.parse::<usize>()
+            && max_rows > 0
+        {
+            self.budgets.max_database_rows = max_rows;
+        }
+        if let Ok(max_bytes) = env::var("EDATIME_MAX_DATABASE_BYTES")
+            && let Ok(max_bytes) = max_bytes.parse::<usize>()
+            && max_bytes > 0
+        {
+            self.budgets.max_database_bytes = max_bytes;
+        }
+        if let Ok(timeout_seconds) = env::var("EDATIME_DATABASE_TIMEOUT_SECONDS")
+            && let Ok(timeout_seconds) = timeout_seconds.parse::<u64>()
+            && timeout_seconds > 0
+        {
+            self.budgets.database_timeout_seconds = timeout_seconds;
         }
         if let Ok(min_width) = env::var("EDATIME_MIN_VIEWPORT_WIDTH")
             && let Ok(min_width) = min_width.parse::<usize>()

@@ -1,12 +1,15 @@
 //! Immutable dataset-version snapshots used by reversible cleaning plans.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::io::Write;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 
 use chrono::{DateTime, Utc};
-use polars::prelude::{DataFrame, IntoLazy, LazyFrame, ScanArgsParquet, SchemaExt};
+use polars::prelude::{
+    DataFrame, IntoLazy, IpcStreamWriter, LazyFrame, ScanArgsParquet, SchemaExt, SerWriter,
+};
 use serde::Serialize;
 
 use edatime_core::error::AppError;
@@ -37,14 +40,14 @@ struct DatasetVersionEntry {
 /// workflow or reopened from a durable artifact every time it is requested.
 #[derive(Clone)]
 enum DatasetVersionSource {
-    Resident(LazyFrame),
+    Resident { frame: LazyFrame, bytes: u64 },
     Parquet(PathBuf),
 }
 
 impl DatasetVersionSource {
     fn snapshot(&self) -> Result<LazyFrame, AppError> {
         match self {
-            Self::Resident(frame) => Ok(frame.clone()),
+            Self::Resident { frame, .. } => Ok(frame.clone()),
             Self::Parquet(path) => LazyFrame::scan_parquet(
                 path.to_string_lossy().as_ref().into(),
                 ScanArgsParquet::default(),
@@ -68,6 +71,16 @@ pub struct DatasetVersionRegistry {
     entries: Arc<RwLock<BTreeMap<String, DatasetVersionEntry>>>,
     current_id: Arc<RwLock<String>>,
     next_id: Arc<AtomicU64>,
+    resident_evictions: Arc<AtomicU64>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct VersionRetentionSnapshot {
+    pub total_versions: usize,
+    pub resident_versions: usize,
+    pub resident_bytes: u64,
+    pub resident_evictions: u64,
 }
 
 fn fnv1a(input: &str) -> String {
@@ -83,6 +96,32 @@ fn fnv1a_bytes(input: &[u8]) -> String {
     format!("fnv1a-{hash:016x}")
 }
 
+struct FnvWriter(u64);
+
+impl FnvWriter {
+    fn new() -> Self {
+        Self(0xcbf2_9ce4_8422_2325)
+    }
+
+    fn fingerprint(&self) -> String {
+        format!("fnv1a-content-{:016x}", self.0)
+    }
+}
+
+impl Write for FnvWriter {
+    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+        for byte in buffer {
+            self.0 ^= u64::from(*byte);
+            self.0 = self.0.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+        Ok(buffer.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 /// Return the stable content and schema identities used by dataset versions.
 /// Artifact publishers use this before the version is registered so a durable
 /// file and its registry record share exactly one content identity.
@@ -94,15 +133,14 @@ pub fn fingerprints_for_frame(df: &DataFrame) -> (String, String) {
         .collect::<Vec<_>>()
         .join("|");
     let schema_fingerprint = fnv1a(&columns);
-    // A baseline must identify its values as well as its shape. The prior
-    // `rows + schema` fingerprint allowed two same-shaped uploads to share a
-    // plan/cache identity. Arrow IPC is the canonical in-memory
-    // representation used by this application, and includes column order,
-    // logical dtypes, row order, nulls, and values. The bytes are hashed only
-    // while a complete resident frame is already required; scan-backed
-    // ingestion will replace this with streaming hashing in Milestone D.
-    let dataset_fingerprint = edatime_query::arrow_export::dataframe_to_arrow_ipc(df.clone())
-        .map(|bytes| format!("fnv1a-content-{}", &fnv1a_bytes(&bytes)[6..]))
+    // Stream the canonical Arrow IPC representation directly through the
+    // hasher. This keeps content identity stable without allocating a second
+    // frame-sized byte buffer during upload/materialization.
+    let mut writer = FnvWriter::new();
+    let mut frame = df.clone();
+    let dataset_fingerprint = IpcStreamWriter::new(&mut writer)
+        .finish(&mut frame)
+        .map(|_| writer.fingerprint())
         // DataFrames admitted to the registry are Arrow-serializable. Keep a
         // deterministic diagnostic fallback for an unexpected serializer
         // failure rather than making source registration panic.
@@ -134,6 +172,7 @@ impl DatasetVersionRegistry {
             entries: Arc::new(RwLock::new(BTreeMap::new())),
             current_id: Arc::new(RwLock::new(String::new())),
             next_id: Arc::new(AtomicU64::new(1)),
+            resident_evictions: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -156,13 +195,17 @@ impl DatasetVersionRegistry {
             id.clone(),
             DatasetVersionEntry {
                 record,
-                source: DatasetVersionSource::Resident(initial.lazy()),
+                source: DatasetVersionSource::Resident {
+                    bytes: initial.estimated_size() as u64,
+                    frame: initial.lazy(),
+                },
             },
         );
         Self {
             entries: Arc::new(RwLock::new(entries)),
             current_id: Arc::new(RwLock::new(id)),
             next_id: Arc::new(AtomicU64::new(1)),
+            resident_evictions: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -204,6 +247,130 @@ impl DatasetVersionRegistry {
             .values()
             .map(|entry| entry.record.clone())
             .collect())
+    }
+
+    pub fn retention_snapshot(&self) -> Result<VersionRetentionSnapshot, AppError> {
+        let entries = self
+            .entries
+            .read()
+            .map_err(|_| AppError::internal("dataset version registry lock poisoned"))?;
+        let resident_versions = entries
+            .values()
+            .filter(|entry| matches!(entry.source, DatasetVersionSource::Resident { .. }))
+            .count();
+        let resident_bytes = entries
+            .values()
+            .filter_map(|entry| match &entry.source {
+                DatasetVersionSource::Resident { bytes, .. } => Some(*bytes),
+                DatasetVersionSource::Parquet(_) => None,
+            })
+            .sum();
+        Ok(VersionRetentionSnapshot {
+            total_versions: entries.len(),
+            resident_versions,
+            resident_bytes,
+            resident_evictions: self.resident_evictions.load(Ordering::Relaxed),
+        })
+    }
+
+    /// Check a prospective resident root/child before the active repository is
+    /// mutated. Independent roots can replace older roots, while a child must
+    /// fit together with every resident ancestor in its active lineage.
+    pub fn ensure_resident_registration_fits(
+        &self,
+        parent_id: Option<&str>,
+        pending_bytes: u64,
+        max_versions: usize,
+        max_bytes: u64,
+    ) -> Result<(), AppError> {
+        let lineage = match parent_id {
+            Some(parent) => self.lineage_ids(parent)?,
+            None => BTreeSet::new(),
+        };
+        let entries = self
+            .entries
+            .read()
+            .map_err(|_| AppError::internal("dataset version registry lock poisoned"))?;
+        let lineage_versions = lineage
+            .iter()
+            .filter(|id| {
+                entries.get(*id).is_some_and(|entry| {
+                    matches!(entry.source, DatasetVersionSource::Resident { .. })
+                })
+            })
+            .count();
+        let lineage_bytes = lineage
+            .iter()
+            .filter_map(|id| entries.get(id))
+            .filter_map(|entry| match &entry.source {
+                DatasetVersionSource::Resident { bytes, .. } => Some(*bytes),
+                DatasetVersionSource::Parquet(_) => None,
+            })
+            .sum::<u64>();
+        let required_versions = lineage_versions.saturating_add(1);
+        let required_bytes = lineage_bytes.saturating_add(pending_bytes);
+        if required_versions > max_versions.max(1) || required_bytes > max_bytes.max(1) {
+            return Err(AppError::Validation(format!(
+                "resident dataset retention budget exceeded: versions={required_versions}/{}, bytes={required_bytes}/{}; configure managed artifact storage or raise the retention limit",
+                max_versions.max(1),
+                max_bytes.max(1)
+            )));
+        }
+        Ok(())
+    }
+
+    /// Remove the oldest resident versions outside the active lineage until
+    /// both configured caps are met. Parquet-backed entries are governed by
+    /// artifact retention and do not consume resident-memory budget.
+    pub fn enforce_resident_retention(
+        &self,
+        max_versions: usize,
+        max_bytes: u64,
+    ) -> Result<Vec<String>, AppError> {
+        let current = self
+            .current_id
+            .read()
+            .map_err(|_| AppError::internal("dataset version selection lock poisoned"))?
+            .clone();
+        let protected = self.lineage_ids(&current)?;
+        let mut entries = self
+            .entries
+            .write()
+            .map_err(|_| AppError::internal("dataset version registry lock poisoned"))?;
+        let mut candidates = entries
+            .iter()
+            .filter(|(id, entry)| {
+                !protected.contains(*id)
+                    && matches!(entry.source, DatasetVersionSource::Resident { .. })
+            })
+            .map(|(id, entry)| (id.clone(), entry.record.created_at))
+            .collect::<Vec<_>>();
+        candidates.sort_by_key(|(_, created_at)| *created_at);
+        let resident_usage = |entries: &BTreeMap<String, DatasetVersionEntry>| {
+            entries
+                .values()
+                .fold((0usize, 0u64), |(count, bytes), entry| {
+                    match &entry.source {
+                        DatasetVersionSource::Resident { bytes: size, .. } => {
+                            (count.saturating_add(1), bytes.saturating_add(*size))
+                        }
+                        DatasetVersionSource::Parquet(_) => (count, bytes),
+                    }
+                })
+        };
+        let mut removed = Vec::new();
+        for (id, _) in candidates {
+            let (count, bytes) = resident_usage(&entries);
+            if count <= max_versions.max(1) && bytes <= max_bytes.max(1) {
+                break;
+            }
+            if entries.remove(&id).is_some() {
+                removed.push(id);
+            }
+        }
+        self.resident_evictions
+            .fetch_add(removed.len() as u64, Ordering::Relaxed);
+        Ok(removed)
     }
 
     /// Return a root-to-leaf lineage for `version_id`. Retention must keep
@@ -257,6 +424,7 @@ impl DatasetVersionRegistry {
         source_name: Option<String>,
     ) -> Result<DatasetVersionRecord, AppError> {
         let id = self.allocate_version_id();
+        let resident_bytes = frame.estimated_size() as u64;
         let (dataset_fingerprint, schema_fingerprint) = fingerprints_for_frame(&frame);
         let record = DatasetVersionRecord {
             id: id.clone(),
@@ -276,7 +444,10 @@ impl DatasetVersionRegistry {
                 id.clone(),
                 DatasetVersionEntry {
                     record: record.clone(),
-                    source: DatasetVersionSource::Resident(frame.lazy()),
+                    source: DatasetVersionSource::Resident {
+                        frame: frame.lazy(),
+                        bytes: resident_bytes,
+                    },
                 },
             );
         *self
@@ -294,6 +465,7 @@ impl DatasetVersionRegistry {
         plan_hash: String,
     ) -> Result<DatasetVersionRecord, AppError> {
         let parent = self.record(parent_id)?;
+        let resident_bytes = frame.estimated_size() as u64;
         let id = self.allocate_version_id();
         let (dataset_fingerprint, schema_fingerprint) = fingerprints_for_frame(&frame);
         let record = DatasetVersionRecord {
@@ -314,7 +486,10 @@ impl DatasetVersionRegistry {
                 id.clone(),
                 DatasetVersionEntry {
                     record: record.clone(),
-                    source: DatasetVersionSource::Resident(frame.lazy()),
+                    source: DatasetVersionSource::Resident {
+                        frame: frame.lazy(),
+                        bytes: resident_bytes,
+                    },
                 },
             );
         *self
@@ -655,6 +830,50 @@ mod tests {
         assert_eq!(first.schema_fingerprint, second.schema_fingerprint);
         assert_ne!(first.dataset_fingerprint, second.dataset_fingerprint);
         assert!(first.dataset_fingerprint.starts_with("fnv1a-content-"));
+    }
+
+    #[test]
+    fn resident_retention_evicts_old_independent_roots_but_keeps_active_lineage() {
+        let registry = DatasetVersionRegistry::new(frame(vec![1]), 0, None);
+        let first = registry.current().expect("first root");
+        let second = registry
+            .register_root(frame(vec![2]), 1, None)
+            .expect("second root");
+        let child = registry
+            .register_child(&second.id, frame(vec![3]), 2, "plan".into())
+            .expect("active child");
+
+        let removed = registry
+            .enforce_resident_retention(2, u64::MAX)
+            .expect("enforce retention");
+        assert_eq!(removed, vec![first.id.clone()]);
+        assert!(registry.record(&first.id).is_err());
+        assert!(registry.record(&second.id).is_ok());
+        assert!(registry.record(&child.id).is_ok());
+        let snapshot = registry.retention_snapshot().expect("retention snapshot");
+        assert_eq!(snapshot.resident_versions, 2);
+        assert_eq!(snapshot.resident_evictions, 1);
+    }
+
+    #[test]
+    fn prospective_child_is_rejected_when_its_required_lineage_cannot_fit() {
+        let registry = DatasetVersionRegistry::new(frame(vec![1, 2]), 0, None);
+        let root = registry.current().expect("root");
+        let root_bytes = registry
+            .retention_snapshot()
+            .expect("retention snapshot")
+            .resident_bytes;
+
+        let error = registry
+            .ensure_resident_registration_fits(Some(&root.id), 1, 1, root_bytes)
+            .expect_err("root plus child must exceed the version cap");
+        assert!(
+            error
+                .to_string()
+                .contains("resident dataset retention budget exceeded")
+        );
+        assert_eq!(registry.list().expect("unchanged registry").len(), 1);
+        assert_eq!(registry.current().expect("unchanged current").id, root.id);
     }
 
     #[test]

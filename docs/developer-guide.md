@@ -168,53 +168,11 @@ Current chart and navigation shortcuts:
 
 ## API reference
 
-All routes are available under both `/api/` and `/api/v1/`.
-
-### Data
-
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/api/data` | Time-filtered, downsampled series data (Arrow IPC) |
-| `GET` | `/api/metadata` | Dataset schema, numeric columns, time range, profiles |
-| `GET` | `/api/health` | Health check |
-| `GET` | `/api/metrics` | Runtime metrics (request counts, caching, rate limiting) |
-
-Query params for `/api/data`: `start`, `end`, `width`, `columns`.
-
-### Aggregation
-
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/api/aggregate` | Aggregated stats (Arrow IPC or JSON) |
-
-### Scatter analytics
-
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/api/scatter/correlations` | Correlation suggestions and candidate columns |
-| `GET` | `/api/scatter/correlations/matrix` | Full NxN Pearson + Spearman correlation matrix |
-| `GET`/`POST` | `/api/scatter/points` | Scatter data points with optional color column |
-
-### Analytics
-
-| Method | Path | Description |
-|---|---|---|
-| `POST` | `/api/analytics/remove_outliers` | Remove outliers (zscore/IQR, optional windowed) |
-| `GET` | `/api/analytics/time_distributions` | Distribution histograms across time windows |
-| `POST` | `/api/analytics/transform` | Apply column transforms |
-
-### Upload
-
-| Method | Path | Description |
-|---|---|---|
-| `POST` | `/api/upload` | Upload CSV/Parquet with optional column subset and time slicing |
-| `POST` | `/api/upload/preview` | Preview upload metadata and column profiles |
-
-### Export
-
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/api/export/parquet` | Export filtered dataset as Parquet |
+The application exposes only the versioned `/api/v1` contract. The canonical
+method/path/request/response table is generated from `contracts/api-v1.json` in
+the [API reference](reference/api.md). Run `make check-contract` to verify that
+the router, frontend route table, contract artifact, and generated reference
+remain aligned.
 
 ### Configuration
 

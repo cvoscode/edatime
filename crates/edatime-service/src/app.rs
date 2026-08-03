@@ -18,7 +18,7 @@ use tower_http::{
     trace::TraceLayer,
 };
 
-use crate::{middleware, rates, routes};
+use crate::{middleware, rates, router};
 use edatime_store::state::AppState;
 
 /// Assemble the exact middleware and route stack used in production.
@@ -70,7 +70,7 @@ pub fn build_app(state: AppState, frontend_dir: PathBuf) -> Router {
     Router::new()
         .nest(
             "/api/v1",
-            routes::api_router(state.config.budgets.max_json_body_bytes),
+            router::api_router(state.config.budgets.max_json_body_bytes),
         )
         .fallback_service(ServeDir::new(frontend_dir))
         .layer(from_fn(frontend_cache_control_middleware))

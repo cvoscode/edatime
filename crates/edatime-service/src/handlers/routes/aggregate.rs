@@ -1,4 +1,4 @@
-//! `GET /api/aggregate` — bucket-aggregated data for bar / heatmap charts.
+//! `GET /api/v1/aggregate` — bucket-aggregated data for bar / heatmap charts.
 
 use axum::{
     extract::{Query, State},
@@ -162,7 +162,7 @@ pub async fn get_aggregate(
     state.push_query(QueryEntry {
         id: qid,
         timestamp: Utc::now(),
-        route: "/api/aggregate".to_string(),
+        route: "/api/v1/aggregate".to_string(),
         start_ms: Some(params.start.timestamp_millis()),
         end_ms: Some(params.end.timestamp_millis()),
         width: None,

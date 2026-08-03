@@ -23,6 +23,7 @@ import { existsSync, openSync, readSync, closeSync } from "node:fs";
 import { performance } from "node:perf_hooks";
 import process from "node:process";
 import path from "node:path";
+import { createHash } from "node:crypto";
 
 // ── Argument parsing ────────────────────────────────────────────────────────
 //
@@ -33,13 +34,14 @@ function parseArgs(argv) {
     const args = {
         cmd: argv[2],
         fixture: null,
+        scenario: "steady",
         seconds: 30,
         requests: null,
         concurrency: 4,
         target: process.env.EDATIME_TARGET ?? "http://localhost:3000",
         out: null,
-        rows: 5000,
-        cols: 16,
+        rows: null,
+        cols: null,
         seed: "0xA5A5A5A55A5A5A5A",
         pid: null,
         rundown: 15,
@@ -54,6 +56,7 @@ function parseArgs(argv) {
         const value = argv[i + 1];
         switch (flag) {
             case "--fixture": args.fixture = value; i += 1; break;
+            case "--scenario": args.scenario = value; i += 1; break;
             case "--seconds": args.seconds = Number(value); i += 1; break;
             case "--requests": args.requests = Number(value); i += 1; break;
             case "--concurrency": args.concurrency = Number(value); i += 1; break;
@@ -78,11 +81,15 @@ cmds:
   upload    POST a synthetic CSV fixture to /api/v1/upload
   preflight validate the build, contract, and measured request shapes
   run       drive the request mix at the configured concurrency
+  cancel    abort concurrent rolling requests, then verify normal recovery
   snapshot  fetch /api/v1/metrics once and write to --out
   csv       generate a synthetic CSV fixture (no upload)
 
 flags:
-  --fixture <name>     long_numeric | wide_frame (upload cmd)
+  --fixture <name>     tiny_contract | long_numeric | long_1m | wide_frame |
+                       wide_5k | wide_100k | categorical_100k | long_10m
+  --scenario <name>    steady | data | scatter | correlations | rolling |
+                       cold-burst | overload | soak (default steady)
   --seconds <N>        run duration (default 30)
   --requests <N>       fixed request count; overrides the duration stop condition
   --concurrency <N>    concurrent in-flight requests (default 4)
@@ -175,6 +182,59 @@ function generateWideFrame({ rows, cols, seedHex }) {
     return lines.join("\n") + "\n";
 }
 
+function generateTinyContract({ rows, seedHex }) {
+    let state = BigInt(seedHex);
+    const lines = ["ts,value,secondary,category"];
+    for (let index = 0; index < rows; index += 1) {
+        state = lcgNext(state);
+        const value = index % 17 === 0 ? "" : index % 29 === 0 ? "NaN" : (noise01(state) * 10).toFixed(6);
+        lines.push(`${index},${value},${(index * 0.25).toFixed(3)},category-${index % 7}`);
+    }
+    return lines.join("\n") + "\n";
+}
+
+function generateCategorical({ rows, seedHex }) {
+    const base = generateWideFrame({ rows, cols: 2, seedHex }).trimEnd().split("\n");
+    base[0] += ",color";
+    for (let index = 1; index < base.length; index += 1) {
+        base[index] += `,category-${(index - 1) % 1_000}`;
+    }
+    return base.join("\n") + "\n";
+}
+
+function fixtureSpec(name, requestedRows, requestedCols) {
+    const specs = {
+        tiny_contract: { generator: generateTinyContract, rows: 100, cols: 3, policy: "mixed null and non-finite numeric values; seven categories" },
+        long_numeric: { generator: generateLongNumeric, rows: 1_048_576, cols: 3, policy: "finite deterministic numeric series" },
+        long_1m: { generator: generateLongNumeric, rows: 1_048_576, cols: 8, policy: "finite deterministic numeric series" },
+        wide_frame: { generator: generateWideFrame, rows: 5_000, cols: 16, policy: "finite deterministic wide frame" },
+        wide_5k: { generator: generateWideFrame, rows: 5_000, cols: 16, policy: "finite deterministic wide frame" },
+        wide_100k: { generator: generateWideFrame, rows: 100_000, cols: 64, policy: "finite deterministic wide frame" },
+        categorical_100k: { generator: generateCategorical, rows: 100_000, cols: 3, policy: "1,000 deterministic categorical labels" },
+        long_10m: { generator: generateLongNumeric, rows: 10_000_000, cols: 8, policy: "finite deterministic numeric series; enable managed artifacts to benchmark Parquet-backed retention" },
+    };
+    const spec = specs[name];
+    if (!spec) throw new Error(`unknown fixture: ${name}`);
+    return {
+        ...spec,
+        rows: requestedRows ?? spec.rows,
+        cols: requestedCols ?? spec.cols,
+    };
+}
+
+function fixtureManifest(args, spec, csv) {
+    return {
+        fixture: args.fixture,
+        seed: args.seed,
+        rows: spec.rows,
+        columns: spec.cols + 1,
+        schema: "CSV header is authoritative; ts is integer milliseconds",
+        null_non_finite_policy: spec.policy,
+        sha256: createHash("sha256").update(csv).digest("hex"),
+        bytes: Buffer.byteLength(csv),
+    };
+}
+
 // ── Multipart upload helper ─────────────────────────────────────────────────
 
 function buildMultipart({ boundary, fileFieldName, fileName, fileBytes, fields }) {
@@ -207,18 +267,12 @@ async function cmdUpload(args) {
     if (!args.fixture) throw new Error("--fixture is required for upload");
     if (!args.out) throw new Error("--out is required for upload");
 
-    const generator =
-        args.fixture === "long_numeric"
-            ? generateLongNumeric
-            : args.fixture === "wide_frame"
-                ? generateWideFrame
-                : null;
-    if (!generator) throw new Error(`unknown fixture: ${args.fixture}`);
-
-    const rows = args.rows;
-    const cols = args.fixture === "long_numeric" ? 3 : args.cols;
-    const csv = generator({ rows, cols, seedHex: args.seed });
+    const spec = fixtureSpec(args.fixture, args.rows, args.cols);
+    const { rows, cols } = spec;
+    const csv = spec.generator({ rows, cols, seedHex: args.seed });
     await writeFile(args.out, csv);
+    const manifest = fixtureManifest(args, spec, csv);
+    await writeFile(`${args.out}.manifest.json`, JSON.stringify(manifest, null, 2));
 
     const boundary = "----FormBoundary7MA41YWsqSbuR0OH";
     const body = buildMultipart({
@@ -256,6 +310,7 @@ async function cmdUpload(args) {
         status: resp.status,
         elapsed_ms: Math.round(elapsedMs),
         response_preview: text.slice(0, 512),
+        manifest,
     };
     process.stdout.write(JSON.stringify(result, null, 2) + "\n");
     if (resp.status >= 400) {
@@ -271,33 +326,59 @@ async function cmdCsv(args) {
         // Default to wide_frame when generating a CSV file standalone.
         args.fixture = "wide_frame";
     }
-    const generator =
-        args.fixture === "long_numeric" ? generateLongNumeric : generateWideFrame;
-    const csv = generator({
-        rows: args.rows,
-        cols: args.cols,
+    const spec = fixtureSpec(args.fixture, args.rows, args.cols);
+    const csv = spec.generator({
+        rows: spec.rows,
+        cols: spec.cols,
         seedHex: args.seed,
     });
     await writeFile(args.out, csv);
+    const manifest = fixtureManifest(args, spec, csv);
+    await writeFile(`${args.out}.manifest.json`, JSON.stringify(manifest, null, 2));
     process.stdout.write(
         JSON.stringify({
             cmd: "csv",
             fixture: args.fixture,
-            rows: args.rows,
-            cols: args.cols,
+            rows: spec.rows,
+            cols: spec.cols,
             out: args.out,
-            bytes: Buffer.byteLength(csv),
+            manifest,
         }) + "\n",
     );
 }
 
 // ── Subcommand: run (request mix) ───────────────────────────────────────────
 
-const REQUEST_MIX = [
+const REQUEST_MIXES = {
+  steady: [
     { route: "data", weight: 70 },
     { route: "scatter_points", weight: 20 },
     { route: "scatter_correlations", weight: 10 },
-];
+  ],
+  data: [{ route: "data", weight: 1 }],
+  scatter: [{ route: "scatter_points", weight: 1 }],
+  correlations: [{ route: "scatter_correlations", weight: 1 }],
+  rolling: [{ route: "rolling", weight: 1 }],
+  "cold-burst": [{ route: "data", weight: 1 }],
+  overload: [
+    { route: "data", weight: 35 },
+    { route: "scatter_points", weight: 25 },
+    { route: "scatter_correlations", weight: 20 },
+    { route: "rolling", weight: 20 },
+  ],
+  soak: [
+    { route: "data", weight: 55 },
+    { route: "scatter_points", weight: 20 },
+    { route: "scatter_correlations", weight: 15 },
+    { route: "rolling", weight: 10 },
+  ],
+};
+
+function requestMix(scenario) {
+    const mix = REQUEST_MIXES[scenario];
+    if (!mix) throw new Error(`unknown scenario: ${scenario}`);
+    return mix;
+}
 
 function makeRng(seedHex) {
     let state = BigInt(seedHex);
@@ -379,13 +460,18 @@ async function probeBenchmarkContext(target) {
     };
 }
 
-async function executeMeasuredRequest(request) {
+async function executeMeasuredRequest(request, abortAfterMs = null) {
     const t0 = performance.now();
+    const controller = abortAfterMs == null ? null : new AbortController();
+    const abortTimer = controller == null
+        ? null
+        : setTimeout(() => controller.abort(), abortAfterMs);
     try {
         const resp = await fetch(request.url, {
             method: 'POST',
             headers: { 'content-type': 'application/json', accept: request.expectedContentType === 'arrow' ? 'application/vnd.apache.arrow.stream' : 'application/json' },
             body: JSON.stringify(request.body),
+            signal: controller?.signal,
         });
         const buffer = new Uint8Array(await resp.arrayBuffer());
         const contentType = resp.headers.get('content-type') ?? '';
@@ -398,15 +484,18 @@ async function executeMeasuredRequest(request) {
             try { errorCode = JSON.parse(Buffer.from(buffer).toString('utf8')).code ?? null; } catch { /* bounded diagnostic only */ }
         }
         return { status: resp.status, latency_ms: performance.now() - t0, bytes: buffer.byteLength, content_type_ok: contentTypeOk, provenance_ok: provenanceOk, error_code: errorCode };
-    } catch {
-        return { status: -1, latency_ms: performance.now() - t0, bytes: 0, content_type_ok: false, provenance_ok: false, error_code: 'transport_error' };
+    } catch (error) {
+        const aborted = controller?.signal.aborted || error?.name === 'AbortError';
+        return { status: -1, latency_ms: performance.now() - t0, bytes: 0, content_type_ok: false, provenance_ok: false, error_code: aborted ? 'client_aborted' : 'transport_error' };
+    } finally {
+        if (abortTimer != null) clearTimeout(abortTimer);
     }
 }
 
 async function cmdPreflight(args) {
     const context = await probeBenchmarkContext(args.target);
     const results = {};
-    for (const kind of [...REQUEST_MIX.map((entry) => entry.route), 'rolling']) {
+    for (const kind of ['data', 'scatter_points', 'scatter_correlations', 'rolling']) {
         results[kind] = await executeMeasuredRequest(buildRequest(args.target, kind, context));
     }
     const failures = Object.entries(results).filter(([, sample]) => sample.status < 200 || sample.status >= 300 || !sample.content_type_ok || !sample.provenance_ok);
@@ -416,16 +505,16 @@ async function cmdPreflight(args) {
     if (failures.length) throw new Error(`preflight failed for: ${failures.map(([kind]) => kind).join(', ')}`);
 }
 
-function pickKind(rng) {
+function pickKind(rng, mix) {
     let total = 0;
-    for (const entry of REQUEST_MIX) total += entry.weight;
+    for (const entry of mix) total += entry.weight;
     const target = rng() * total;
     let acc = 0;
-    for (const entry of REQUEST_MIX) {
+    for (const entry of mix) {
         acc += entry.weight;
         if (target <= acc) return entry.route;
     }
-    return REQUEST_MIX[REQUEST_MIX - 1].route;
+    return mix[mix.length - 1].route;
 }
 
 function percentile(sorted, q) {
@@ -445,6 +534,7 @@ async function cmdRun(args) {
     // server has no dataset yet (run started before upload) we fall back
     // to a default window so requests still exercise the routes.
     const context = await probeBenchmarkContext(args.target);
+    const mix = requestMix(args.scenario);
     const rng = makeRng(args.seed);
     const startMetrics = await fetchMetrics(args.target);
     // Capture both wall-clock and monotonic start separately so the run
@@ -488,8 +578,8 @@ async function cmdRun(args) {
     const fixedSchedule = args.requests == null
         ? null
         : Array.from({ length: args.requests }, (_, index) => {
-            if (index < 4) return [...REQUEST_MIX.map((entry) => entry.route), 'rolling'][index];
-            return pickKind(rng);
+            if (args.scenario === 'steady' && index < 4) return ['data', 'scatter_points', 'scatter_correlations', 'rolling'][index];
+            return pickKind(rng, mix);
         });
     let scheduleIndex = 0;
 
@@ -504,7 +594,7 @@ async function cmdRun(args) {
             rollingCounter += 1;
             nextRollingMs = start + rollingCounter * (args.seconds * 1000) / Math.max(1, args.seconds);
         } else {
-            kind = pickKind(rng);
+            kind = pickKind(rng, mix);
         }
         const sample = await executeMeasuredRequest(buildRequest(args.target, kind, context));
         samples.push({ kind, ...sample });
@@ -601,6 +691,7 @@ async function cmdRun(args) {
         seconds: args.seconds,
         configured_requests: args.requests,
         concurrency: args.concurrency,
+        scenario: args.scenario,
         seed: args.seed,
         build: context.build,
         contract_version: context.contractVersion,
@@ -636,6 +727,34 @@ async function cmdRun(args) {
     process.stdout.write(JSON.stringify(result, null, 2) + "\n");
     const failures = Object.entries(perRoute).filter(([, route]) => route.requests === 0 || route.errors !== 0);
     if (failures.length) throw new Error(`benchmark correctness gate failed: ${failures.map(([kind]) => kind).join(', ')}`);
+}
+
+async function cmdCancel(args) {
+    if (!args.out) throw new Error("--out is required for cancel");
+    const context = await probeBenchmarkContext(args.target);
+    const startMetrics = await fetchMetrics(args.target);
+    const request = buildRequest(args.target, 'rolling', context);
+    const cancelled = await Promise.all(
+        Array.from({ length: args.concurrency }, () => executeMeasuredRequest(request, 5)),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const recovery = await executeMeasuredRequest(buildRequest(args.target, 'data', context));
+    const endMetrics = await fetchMetrics(args.target);
+    const result = {
+        cmd: 'cancel',
+        target: args.target,
+        concurrency: args.concurrency,
+        aborted_requests: cancelled.filter((sample) => sample.error_code === 'client_aborted').length,
+        cancellation_latency_ms: cancelled.map((sample) => sample.latency_ms),
+        recovery,
+        metrics_delta: numericDelta(startMetrics, endMetrics),
+    };
+    await writeFile(args.out, JSON.stringify(result, null, 2));
+    process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+    if (result.aborted_requests === 0) throw new Error('cancellation scenario did not abort any request');
+    if (recovery.status < 200 || recovery.status >= 300 || !recovery.content_type_ok || !recovery.provenance_ok) {
+        throw new Error('normal request did not recover after cancellation burst');
+    }
 }
 
 function numericDelta(start, end) {
@@ -707,6 +826,7 @@ async function main() {
         case "upload": await cmdUpload(args); break;
         case "preflight": await cmdPreflight(args); break;
         case "run": await cmdRun(args); break;
+        case "cancel": await cmdCancel(args); break;
         case "snapshot": await cmdSnapshot(args); break;
         case "csv": await cmdCsv(args); break;
         default:

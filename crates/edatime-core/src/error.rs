@@ -26,6 +26,14 @@ pub enum AppError {
     NotFound(String),
     #[error("service overloaded: {0}")]
     Overloaded(String),
+    #[error("database configuration error: {0}")]
+    DatabaseConfiguration(String),
+    #[error("database unavailable: {0}")]
+    DatabaseUnavailable(String),
+    #[error("database timeout: {0}")]
+    DatabaseTimeout(String),
+    #[error("database query error: {0}")]
+    DatabaseQuery(String),
     #[error("query error: {0}")]
     Query(String),
     #[error("io error: {0}")]
@@ -49,6 +57,22 @@ impl AppError {
 
     pub fn overloaded(msg: impl Into<String>) -> Self {
         Self::Overloaded(msg.into())
+    }
+
+    pub fn database_configuration(msg: impl Into<String>) -> Self {
+        Self::DatabaseConfiguration(msg.into())
+    }
+
+    pub fn database_unavailable(msg: impl Into<String>) -> Self {
+        Self::DatabaseUnavailable(msg.into())
+    }
+
+    pub fn database_timeout(msg: impl Into<String>) -> Self {
+        Self::DatabaseTimeout(msg.into())
+    }
+
+    pub fn database_query(msg: impl Into<String>) -> Self {
+        Self::DatabaseQuery(msg.into())
     }
 }
 

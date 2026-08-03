@@ -50,7 +50,7 @@ Understand the frontend module graph, backend routes, shared runtime state, buil
 :link-type: doc
 :class-card: edatime-card
 
-Jump straight to API routes, configuration knobs, and route families available under `/api` and `/api/v1`.
+Jump straight to API routes, configuration knobs, and route families available under `/api/v1`.
 :::
 
 ::::

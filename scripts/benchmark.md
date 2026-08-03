@@ -159,7 +159,7 @@ counts. Duration-based runs remain available for soak testing with
 - **`latency_ms`** — p50, p95, p99 per route and aggregated.
 - **`throughput_rps`** — total successful requests per second.
 - **`peak_rss_mib`** — max `/proc/<pid>/status` `VmRSS` during the run.
-- **`error_rate`** — fraction of requests with status >= 500.
+- **`error_rate`** — fraction of requests with a non-2xx status, invalid content type, missing provenance, or transport failure.
 - **`cache_hit_rate`** — `/api/v1/metrics` `scatter_stages.cache_hit_total
   / (cache_hit_total + cache_miss_total)` ratio at the end of the run
   (use this only for routes whose snapshots expose those counters —

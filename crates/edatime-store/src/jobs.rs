@@ -74,6 +74,18 @@ pub struct JobRegistry {
     jobs: Mutex<BTreeMap<String, ManagedJob>>,
     max_terminal_jobs: usize,
     terminal_ttl: chrono::Duration,
+    expired_total: AtomicU64,
+    evicted_total: AtomicU64,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct JobRegistrySnapshot {
+    pub queued: usize,
+    pub running: usize,
+    pub terminal: usize,
+    pub total: usize,
+    pub expired_total: u64,
+    pub evicted_total: u64,
 }
 
 impl Default for JobRegistry {
@@ -93,6 +105,8 @@ impl JobRegistry {
             jobs: Mutex::new(BTreeMap::new()),
             max_terminal_jobs: max_terminal_jobs.max(1),
             terminal_ttl: chrono::Duration::seconds(terminal_ttl_seconds.max(1) as i64),
+            expired_total: AtomicU64::new(0),
+            evicted_total: AtomicU64::new(0),
         }
     }
 
@@ -205,6 +219,33 @@ impl JobRegistry {
             .collect()
     }
 
+    pub fn snapshot(&self) -> JobRegistrySnapshot {
+        self.prune();
+        let jobs = lock_recover(&self.jobs);
+        let queued = jobs
+            .values()
+            .filter(|job| job.record.status == JobStatus::Queued)
+            .count();
+        let running = jobs
+            .values()
+            .filter(|job| {
+                matches!(
+                    job.record.status,
+                    JobStatus::Running | JobStatus::Cancelling
+                )
+            })
+            .count();
+        let terminal = jobs.len().saturating_sub(queued).saturating_sub(running);
+        JobRegistrySnapshot {
+            queued,
+            running,
+            terminal,
+            total: jobs.len(),
+            expired_total: self.expired_total.load(Ordering::Relaxed),
+            evicted_total: self.evicted_total.load(Ordering::Relaxed),
+        }
+    }
+
     fn finish(&self, handle: &JobHandle, status: JobStatus, message: Option<String>) -> bool {
         let mut jobs = lock_recover(&self.jobs);
         let Some(job) = jobs.get_mut(handle.id()) else {
@@ -226,11 +267,16 @@ impl JobRegistry {
     fn prune(&self) {
         let now = Utc::now();
         let mut jobs = lock_recover(&self.jobs);
+        let before_expiry = jobs.len();
         jobs.retain(|_, job| {
             job.record
                 .finished_at
                 .is_none_or(|finished| now.signed_duration_since(finished) < self.terminal_ttl)
         });
+        self.expired_total.fetch_add(
+            before_expiry.saturating_sub(jobs.len()) as u64,
+            Ordering::Relaxed,
+        );
         let terminal_ids = jobs
             .iter()
             .filter(|(_, job)| job.record.finished_at.is_some())
@@ -240,6 +286,8 @@ impl JobRegistry {
         for id in terminal_ids.into_iter().take(excess) {
             jobs.remove(&id);
         }
+        self.evicted_total
+            .fetch_add(excess as u64, Ordering::Relaxed);
     }
 }
 
@@ -299,5 +347,9 @@ mod tests {
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].id, second.id());
         assert!(jobs.record(first.id()).is_none());
+        let snapshot = jobs.snapshot();
+        assert_eq!(snapshot.total, 1);
+        assert_eq!(snapshot.terminal, 1);
+        assert_eq!(snapshot.evicted_total, 1);
     }
 }

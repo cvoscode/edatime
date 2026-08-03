@@ -1,6 +1,6 @@
 # Backend and Backend/Frontend Contract Improvements
 
-Reviewed against commit `2e5404877136a00d6fa258c61d9e76f3800b33b5` on 2026-08-03. The P0 implementation pass and the first P1 implementation pass described below were completed on 2026-08-03. The ledger distinguishes implemented foundations from the remaining benchmark-driven refinements.
+Reviewed against commit `2e5404877136a00d6fa258c61d9e76f3800b33b5` on 2026-08-03. The P0, P1, and P2 implementation passes described below were completed on 2026-08-03. Performance acceptance numbers remain a separate measurement pass because the implementation sandbox cannot bind a loopback listener or provide a live PostgreSQL service.
 
 ## P1 implementation ledger
 
@@ -23,37 +23,68 @@ Reviewed against commit `2e5404877136a00d6fa258c61d9e76f3800b33b5` on 2026-08-03
   its cache and its key includes format and every reduction parameter. Cache
   policy is private and metrics expose entries, bytes, evictions, expirations,
   waiters, computes, and in-flight producers.
-- **P1.4 bounded multi-series path implemented:** small `/data` windows are
+- **P1.4 complete:** small `/data` windows are
   exact after one bounded probe instead of count plus collection. Large windows
   use one shared multi-series/color time envelope with exact filtered counts,
   bounded candidates, aligned columns, extrema, and explicit approximation
-  headers. The large path currently performs the bounded probe followed by the
-  shared source scan; the benchmark pass should determine whether a custom
-  streaming sink is worth removing that small probe.
-- **P1.5 matrix scan implemented:** scatter matrix validates total pair/output
+  headers. Large windows perform a bounded early-exit probe followed by one
+  shared source scan; this preserves exact small responses without an
+  unbounded count scan. A custom Polars sink is intentionally deferred unless
+  measurement shows the bounded probe is material.
+- **P1.5 complete:** scatter matrix validates total pair/output
   work, projects the union of required columns once, and feeds all deterministic
-  per-cell reservoirs from one streaming scan. Wide-correlation extraction and
-  mode reuse still need the planned measured algorithm pass.
-- **P1.6 partially implemented:** analytics DTOs reject unknown fields,
+  per-cell reservoirs from one streaming scan. Correlations project and extract
+  each numeric column once, reuse aligned raw/difference buffers across pairs,
+  and compute only the requested mode unless populating the revision cache.
+- **P1.6 complete:** analytics DTOs reject unknown fields,
   spectral-filter bounds use a lazy scalar min/max query, rolling serializes
-  once, and rolling/spectrogram outputs are budgeted. Arrow analytics payloads
-  and anti-aliasing improvements remain benchmark-driven work.
-- **P1.7 partially implemented:** immediate metadata is cached by immutable
+  once, rolling/spectrogram outputs are budgeted, and FFT/spectrogram/spectral
+  filter use bounded block-mean anti-alias sampling with explicit sampling
+  metadata. Large tabular `/data` and scatter responses remain Arrow; bounded
+  nested analytics stay JSON to avoid a second frontend transport shape.
+- **P1.7 complete:** immediate metadata is cached by immutable
   dataset fingerprint and display-time identity, completed profiles are bounded,
   cleaning preview collects scalar counts rather than full frames and removes
   its redundant final scan, and outlier bounds use lazy aggregate/quantile
-  expressions instead of per-column resident vectors. Persisting immediate
-  facts directly in the version catalog remains useful for restart-warm reads.
-- **P1.8 partially implemented:** terminal jobs have finite count/TTL retention
-  and completed profile/immediate-metadata caches have finite defaults. Resident
-  version admission and incremental resident-frame fingerprinting remain to be
-  implemented and soak-tested.
-- **P1.9 foundation implemented:** explicit database row limits are enforced
+  expressions instead of per-column resident vectors. Warm metadata performs
+  zero scans; durable artifact provenance stores row count and column identity
+  for recovery while the first post-restart metadata read repopulates the
+  bounded cache.
+- **P1.8 complete:** terminal jobs have finite count/TTL retention, completed
+  profile/immediate-metadata caches have finite defaults, artifact storage has
+  finite byte/version defaults when configured, and resident versions have
+  pre-mutation count/byte admission plus active-lineage-safe eviction.
+  Fingerprints stream Arrow IPC directly through the hasher instead of
+  allocating a second frame-sized byte vector. Retained counts/bytes,
+  expirations, rejections, and evictions are observable.
+- **P1.9 complete:** explicit database row/byte/time limits are enforced
   before connection/load work, request DTOs reject unknown fields, frontend
   connect/status/table/column/load contracts are typed, and PostgreSQL ingestion
   streams rows directly into typed column accumulators rather than retaining a
-  full `Vec<Row>` and then allocating a second copy. Batch-to-Parquet ingestion,
-  statement timeouts, and a live PostgreSQL benchmark remain.
+  full `Vec<Row>` and then allocating a second copy. Pool acquisition and the
+  whole ingestion request are timed out, PostgreSQL receives a statement
+  timeout, stable database error codes distinguish configuration/unavailable/
+  timeout/query failures, and connection/load publication is atomic. The
+  deterministic `postgres_benchmark_fixture.sql` supports the live measurement
+  pass; direct database-to-Parquet is reserved for snapshots larger than the
+  configured in-memory byte budget.
+
+## P2 implementation ledger
+
+- **P2.1 complete:** one core metrics implementation now owns fixed
+  low-cardinality per-route handler/body latency histograms and p50/p95/p99,
+  status/error counts, response bytes, completed/abandoned streams, admission,
+  cache, job, and retained-state metrics. Body telemetry wraps the actual HTTP
+  body, so it ends on stream completion/drop rather than handler return.
+  `GET /api/v1/metrics/prometheus` exports Prometheus text while the compact
+  JSON snapshot remains available.
+- **P2.2 complete:** the empty service DTO module, duplicate service metrics
+  module, duplicate `ResponseMeta`, root metrics re-export, and stale route
+  alias are removed. Aggregate logging uses the versioned path. The API
+  reference is generated from `contracts/api-v1.json`; CI checks its snapshot,
+  the 51-operation router/frontend contract, one binary/metrics owner, stale
+  production paths, and exclusive `QueryExecutor` ownership of
+  `spawn_blocking`.
 
 ### P1 benchmark entry points
 
@@ -81,13 +112,26 @@ curl -s http://127.0.0.1:3000/api/v1/capabilities | jq .
 cargo bench -p edatime-service --bench rolling_bands
 cargo bench -p edatime-service --bench correlations
 cargo bench -p edatime-service --bench scatter_sample
-# Add dedicated data multi-envelope, scatter-matrix, metadata warm-read, and
-# streamed-Postgres benches during the measurement pass.
+cargo bench -p edatime-query --bench multi_envelope
+cargo bench -p edatime-service --bench scatter_matrix
+
+# Deterministic fixture manifests include seed, shape, schema/null policy,
+# byte count, and SHA-256. Set EDATIME_BENCH_LARGE=1 for 10M Criterion cases.
+node scripts/bench_http.mjs csv --fixture long_1m --out /tmp/long_1m.csv
+node scripts/bench_http.mjs csv --fixture wide_100k --out /tmp/wide_100k.csv
+psql "$EDATIME_BENCH_DATABASE_URL" -v ON_ERROR_STOP=1 \
+  -f scripts/postgres_benchmark_fixture.sql
+
+# HTTP classes: steady/data/scatter/correlations/rolling/cold-burst/overload/soak.
+BENCH_SCENARIO=cold-burst BENCH_CONCURRENCY=32 make bench-http
+BENCH_CONCURRENCY=32 make bench-cancel
+BENCH_SECONDS=1800 BENCH_CONCURRENCY=16 make bench-soak
 ```
 
 The P1 pass is verified by the full Rust workspace tests and doctests, strict
 Clippy, Rust formatting, all 1,342 frontend tests, TypeScript/architecture/
-bundle/asset checks, the 50-operation API contract check, and compilation of
+bundle/asset checks, the 51-operation API contract/reference check, backend
+hygiene checks, and compilation of
 every workspace benchmark target. The production release binary also builds.
 The live HTTP run must be repeated outside the restricted implementation
 sandbox because that environment denied a loopback listener (`EPERM`).
@@ -589,9 +633,11 @@ The highest-value sequence is therefore:
 - Track clean release build time, binary size, duplicate dependencies (`cargo tree -d`), and public API docs before/after.
 - Require documentation examples to pass as contract smoke tests.
 
-## Proposed benchmark suite for the implementation pass
+## Implemented benchmark suite for the measurement pass
 
-The commands below describe the target interface to add in the second pass. The current `bench_http.mjs` must not be used for acceptance until P0.1 is complete.
+The driver validates the live build/contract and immutable dataset identity,
+uses bounded concurrency and seeded schedules, consumes full response bodies,
+and fails normal load runs on every non-2xx, content-type, or provenance error.
 
 ### Deterministic fixtures
 
@@ -599,13 +645,16 @@ The commands below describe the target interface to add in the second pass. The 
 | --- | --- | --- |
 | `tiny_contract` | 100 rows, mixed dtypes/nulls/non-finite values | Fast contract and error tests |
 | `long_1m` | 1,048,576 rows × 8 numeric columns | Data, rolling, FFT, upload |
-| `long_10m_parquet` | 10,000,000 rows × 8, scan-backed | Streaming and RSS stress |
+| `long_10m` | 10,000,000 rows × 8; scan-backed when managed artifacts are enabled | Streaming and RSS stress |
 | `wide_5k` | 5,000 rows × 16 numeric columns | Existing correlation comparison |
 | `wide_100k` | 100,000 rows × 64 numeric columns | Wide correlation/matrix stress |
 | `categorical_100k` | Numeric x/y plus 1,000 categories | Scatter color/cardinality |
 | `postgres_1m` | 1,000,000 rows × 16 columns | Database streaming |
 
-Every fixture generator must record seed, row/column count, schema, null/non-finite policy, and a content hash.
+Every CSV fixture generator writes a sidecar manifest containing its seed,
+row/column count, schema policy, null/non-finite policy, byte count, and SHA-256.
+The PostgreSQL fixture is generated deterministically by
+`scripts/postgres_benchmark_fixture.sql`.
 
 ### Scenario classes
 
@@ -638,13 +687,21 @@ cargo bench -p edatime-query --bench downsample
 cargo bench -p edatime-service --bench scatter_sample
 cargo bench -p edatime-service --bench rolling_bands
 cargo bench -p edatime-service --bench correlations
-cargo bench -p edatime-service --bench scatter_matrix   # add in second pass
+cargo bench -p edatime-service --bench scatter_matrix
+cargo bench -p edatime-query --bench multi_envelope
 
-# End-to-end runs; each command starts/verifies the canonical release binary
-make bench-http FIXTURE=long_1m SCENARIO=cold-warm CONCURRENCY=8 SEED=1
-make bench-http FIXTURE=wide_100k SCENARIO=cold-burst CONCURRENCY=32 SEED=1
-make bench-http FIXTURE=long_10m_parquet SCENARIO=cancel-overload CONCURRENCY=16 SEED=1
-make bench-soak FIXTURE=long_1m MINUTES=30 SEED=1
+# Against an already-running canonical release binary: generate/upload one
+# fixture outside the timed interval, preflight, then select a scenario.
+node scripts/bench_http.mjs upload --fixture long_1m --out /tmp/long_1m.csv \
+  --target "$EDATIME_TARGET"
+make bench-contract
+BENCH_SCENARIO=data BENCH_CONCURRENCY=8 BENCH_SEED=1 make bench-http
+
+node scripts/bench_http.mjs upload --fixture wide_100k --out /tmp/wide_100k.csv \
+  --target "$EDATIME_TARGET"
+BENCH_SCENARIO=cold-burst BENCH_CONCURRENCY=32 BENCH_SEED=1 make bench-http
+BENCH_CONCURRENCY=32 make bench-cancel
+BENCH_SECONDS=1800 BENCH_CONCURRENCY=16 BENCH_SEED=1 make bench-soak
 ```
 
 ### Comparison protocol and acceptance gates

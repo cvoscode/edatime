@@ -299,7 +299,7 @@ Categorical legend (`timeseries-categorical-wrap`) is shown when `appState.selec
 
 **Fetch time range data:**
 ```
-GET /api/timeseries/range?start=<ISO>&end=<ISO>&width=<px>&cols=<comma,sep,names>&colorCol=<colname>
+POST /api/v1/data
 ```
 
 Response:
@@ -319,7 +319,7 @@ computeFrontendRollingBands(filtered, selectedCols, windowSize) → { ts: number
 
 **Anomaly detection** (backend):
 ```
-POST /api/analytics/anomalies
+POST /api/v1/analytics/anomalies
 Body: { "column": "colA", "start": "ISO", "end": "ISO", "method": "zscore", "threshold": 3 }
 Response: { "regions": [{ "start": 1538784060000, "end": 1538784120000, "score": 4.2 }, ...] }
 ```
@@ -331,10 +331,10 @@ Response: { "regions": [{ "start": 1538784060000, "end": 1538784120000, "score":
 | State Key | Source | Effect |
 |---|---|---|
 | `appState.selectedCols` | Chip toggles | Triggers `fetchAndRender()` |
-| `appState.currentStart/End` | Zoom / range controls | Passed as query params to `/api/timeseries/range` |
+| `appState.currentStart/End` | Zoom / range controls | Sent in the plan-aware body to `/api/v1/data` |
 | `appState.selectedColorColumn` | Color column selector | Changes colorbar + re-renders |
 | `appState.rollingEnabled` + `rollingWindow` | Analytics drawer | Triggers `computeFrontendRollingBands()` |
-| `appState.anomalyEnabled` + `anomalyMethod` + `anomalyThreshold` | Analytics drawer | Calls `/api/analytics/anomalies` |
+| `appState.anomalyEnabled` + `anomalyMethod` + `anomalyThreshold` | Analytics drawer | Calls `/api/v1/analytics/anomalies` |
 | `appState.spectralFilterPreview` | FFT page "Preview" button | Appends filtered series to chart |
 | `appState.zoomHistory` | Zoom events | Enables zoom-reset back-navigation |
 | `appState.chart` | `DataChart` instance | Used for `setXRange`, `updateDataMulti`, overlay render |
@@ -604,7 +604,7 @@ This section documents all features implemented by the reference chart (`old_fro
 | PNG | `exportPNG()` | DPR-scaled canvas, downloads as `edatime_chart.png` |
 | SVG | `exportSVG()` | PNG embedded + drawings as `<rect>`/`<path>`, includes `_exportSVGDrawings()` |
 | HTML | `exportHTML()` | Single-page with embedded PNG |
-| CSV | (in toolbar) | Exports filtered data via `/api/export` |
+| CSV | (in toolbar) | Exports plan-aware filtered data via `/api/v1/cleaning/export/data` |
 
 ---
 
@@ -628,13 +628,13 @@ This section documents all features implemented by the reference chart (`old_fro
 
 | Feature | Endpoint | Response |
 |---------|----------|----------|
-| Time series data | `GET /api/data?start=&end=&width=&columns=` | Arrow IPC |
-| Rolling bands | `GET /api/analytics/rolling?start=&end=&columns=&window=` | `{ bands: [{ column, ts, mean, upper1, lower1, upper2, lower2 }] }` |
-| Anomaly regions | `GET /api/analytics/anomalies?start=&end=&columns=&method=&threshold=` | `{ method, threshold, regions: [{ start_ms, end_ms, score }] }` |
-| FFT | `GET /api/analytics/fft?start=&end=&columns=&max_points=` | `{ results: [{ frequencies, magnitudes, psd }] }` |
-| Spectrogram | `GET /api/analytics/spectrogram?start=&end=&column=&window_size=&hop_size=&max_points=&normalize=&clip=&clip_param=` | `{ sample_count, result: { column, times_ms, frequencies, magnitudes } }` — `normalize` ∈ `none` / `minmax` / `zscore` / `robust`; `clip` ∈ `none` / `percentile` / `iqr`; `clip_param` is percent-per-tail for `percentile` and k for `iqr`. Frontend scales by default; pass the params to request server-side pre-scaling instead. |
-| Spectral filter | `POST /api/analytics/spectral-filter` | Filtered series preview |
-| Export CSV | `GET /api/export/parquet?...` | Parquet file (also supports CSV format param) |
+| Time series data | `POST /api/v1/data` | Plan-aware Arrow IPC or JSON |
+| Rolling bands | `POST /api/v1/analytics/rolling` | `{ bands: [{ column, ts, mean, upper1, lower1, upper2, lower2 }] }` |
+| Anomaly regions | `POST /api/v1/analytics/anomalies` | `{ method, threshold, regions: [{ start_ms, end_ms, score }] }` |
+| FFT | `POST /api/v1/analytics/fft` | `{ results: [{ frequencies, magnitudes, psd }] }` |
+| Spectrogram | `POST /api/v1/analytics/spectrogram` | `{ sample_count, result: { column, times_ms, frequencies, magnitudes } }`; request scaling remains explicit. |
+| Spectral filter | `POST /api/v1/analytics/spectral-filter` | Filtered series preview |
+| Export data | `POST /api/v1/cleaning/export/data` | Plan-aware file response |
 
 ---
 

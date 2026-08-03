@@ -39,6 +39,7 @@
     {"method":"GET","path":"/api/v1/profile/sample","response":"ProfileResponse","contentType":"application/json"},
     {"method":"POST","path":"/api/v1/profile/sample","response":"ProfileResponse","contentType":"application/json"},
     {"method":"GET","path":"/api/v1/metrics","response":"MetricsResponse","contentType":"application/json"},
+    {"method":"GET","path":"/api/v1/metrics/prometheus","response":"PrometheusMetrics","contentType":"text/plain"},
     {"method":"GET","path":"/api/v1/jobs","response":"JobListResponse","contentType":"application/json"},
     {"method":"GET","path":"/api/v1/jobs/{id}","response":"JobResponse","contentType":"application/json"},
     {"method":"DELETE","path":"/api/v1/jobs/{id}","response":"JobResponse","contentType":"application/json"},

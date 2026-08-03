@@ -352,7 +352,7 @@ Validates file before preview or upload:
 
 #### `runFilePreview(file: File)`
 
-Fetches column profiles by calling `POST /api/upload/preview` with `FormData` containing the file and optional `time_column`.
+Fetches column profiles by calling `POST /api/v1/upload/preview` with `FormData` containing the file and optional `time_column`.
 
 **On success:**
 1. Sets `appState.metadata = previewMetadata`
@@ -384,7 +384,7 @@ uploadBtn.click()
        ├─ time_end (if set)
        ├─ columns (JSON array of selected column names)
        └─ time_column
-  └─ POST /api/upload
+  └─ POST /api/v1/upload
   └─ On success:
        ├─ Parse { rows, ... }
        ├─ Show success status
@@ -409,14 +409,14 @@ Updates the status text element below the upload button or in the preview header
 
 ```
 dbConnectBtn.click()
-  └─ POST /api/database/connect { connection_string, schema, load_snapshot: false }
+  └─ POST /api/v1/database/connect { connection_string, schema, load_snapshot: false }
   └─ On success:
        ├─ Enable #db-load-btn
        ├─ Show #db-disconnect-btn
-       └─ Call refreshDbTables() → GET /api/database/tables
+       └─ Call refreshDbTables() → GET /api/v1/database/tables
 
 dbLoadBtn.click()
-  └─ POST /api/database/load { schema, table, time_column, limit: 1_000_000 }
+  └─ POST /api/v1/database/load { schema, table, time_column, limit: 1_000_000 }
   └─ On success:
        └─ Dispatch 'edatime:dataset-changed' event
 ```
@@ -511,13 +511,13 @@ columnProfiles: ProfileRow[]          // Current column profiles
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/api/upload/preview` | POST | Scan file, return column profiles + metadata |
-| `/api/upload` | POST | Ingest file, replace in-memory dataset |
-| `/api/database/connect` | POST | Establish DB connection pool |
-| `/api/database/connect` | DELETE | Close DB connection pool |
-| `/api/database/tables` | GET | List tables in connected DB |
-| `/api/database/load` | POST | Load table data into memory |
-| `/api/database/status` | GET | Check existing DB connection state |
+| `/api/v1/upload/preview` | POST | Scan file, return column profiles + metadata |
+| `/api/v1/upload` | POST | Ingest file, replace in-memory dataset |
+| `/api/v1/database/connect` | POST | Establish DB connection pool |
+| `/api/v1/database/connect` | DELETE | Close DB connection pool |
+| `/api/v1/database/tables` | GET | List tables in connected DB |
+| `/api/v1/database/load` | POST | Load table data into memory |
+| `/api/v1/database/status` | GET | Check existing DB connection state |
 
 ### Upload Preview Response
 

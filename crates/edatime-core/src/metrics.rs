@@ -7,7 +7,7 @@
 //! used as labels. Use these counts to drive Phase 0.3 baseline gates
 //! before any algorithmic change.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard};
 use std::time::Instant;
@@ -178,6 +178,39 @@ pub struct CpuAdmissionStageSnapshot {
     pub queue_wait_ns: u64,
 }
 
+/// Fixed, low-cardinality latency histogram used for route and body timing.
+/// Bounds are milliseconds and intentionally stay constant across releases so
+/// JSON and Prometheus snapshots can be compared directly.
+#[derive(Debug, Default, Clone, Serialize)]
+pub struct LatencyHistogramSnapshot {
+    pub count: u64,
+    pub sum_ns: u64,
+    pub bounds_ms: Vec<u64>,
+    pub cumulative_counts: Vec<u64>,
+    pub p50_ms: u64,
+    pub p95_ms: u64,
+    pub p99_ms: u64,
+}
+
+#[derive(Debug, Default, Clone, Serialize)]
+pub struct RouteMetricsSnapshot {
+    pub requests: u64,
+    pub errors: u64,
+    pub response_bytes: u64,
+    pub bodies_completed: u64,
+    pub bodies_abandoned: u64,
+    pub handler_latency: LatencyHistogramSnapshot,
+    pub body_latency: LatencyHistogramSnapshot,
+}
+
+#[derive(Debug, Default, Clone, Serialize)]
+pub struct BodyMetricsSnapshot {
+    pub completed: u64,
+    pub abandoned: u64,
+    pub bytes: u64,
+    pub latency: LatencyHistogramSnapshot,
+}
+
 #[derive(Debug, Serialize)]
 pub struct MetricsSnapshot {
     pub uptime_seconds: u64,
@@ -190,6 +223,9 @@ pub struct MetricsSnapshot {
     pub correlations_stages: CorrelationsStagesSnapshot,
     pub rolling_stages: RollingStagesSnapshot,
     pub cpu_admission: CpuAdmissionSnapshot,
+    pub routes: BTreeMap<String, RouteMetricsSnapshot>,
+    pub body_streaming: BodyMetricsSnapshot,
+    pub errors_by_code: BTreeMap<String, u64>,
     pub request_counts: HashMap<String, u64>,
     pub average_request_ms: f64,
     pub dataset_rows: usize,
@@ -241,6 +277,86 @@ pub struct AppMetrics {
     rolling_compute_ns: AtomicU64,
     // CPU admission by stage.
     cpu_admission: Mutex<CpuAdmissionState>,
+    route_metrics: Mutex<BTreeMap<String, RouteMetricsState>>,
+    body_metrics: Mutex<BodyMetricsState>,
+    errors_by_code: Mutex<BTreeMap<String, u64>>,
+}
+
+const LATENCY_BOUNDS_MS: [u64; 12] = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1_000, 5_000, 30_000];
+
+#[derive(Debug, Default, Clone)]
+struct LatencyHistogramState {
+    count: u64,
+    sum_ns: u64,
+    buckets: [u64; LATENCY_BOUNDS_MS.len() + 1],
+}
+
+impl LatencyHistogramState {
+    fn record(&mut self, duration_ns: u64) {
+        self.count = self.count.saturating_add(1);
+        self.sum_ns = self.sum_ns.saturating_add(duration_ns);
+        let duration_ms = duration_ns / 1_000_000;
+        let bucket = LATENCY_BOUNDS_MS
+            .iter()
+            .position(|bound| duration_ms <= *bound)
+            .unwrap_or(LATENCY_BOUNDS_MS.len());
+        self.buckets[bucket] = self.buckets[bucket].saturating_add(1);
+    }
+
+    fn snapshot(&self) -> LatencyHistogramSnapshot {
+        let mut cumulative = 0u64;
+        let cumulative_counts = self
+            .buckets
+            .iter()
+            .map(|count| {
+                cumulative = cumulative.saturating_add(*count);
+                cumulative
+            })
+            .collect::<Vec<_>>();
+        LatencyHistogramSnapshot {
+            count: self.count,
+            sum_ns: self.sum_ns,
+            bounds_ms: LATENCY_BOUNDS_MS.to_vec(),
+            cumulative_counts,
+            p50_ms: histogram_quantile_ms(self.count, &self.buckets, 0.50),
+            p95_ms: histogram_quantile_ms(self.count, &self.buckets, 0.95),
+            p99_ms: histogram_quantile_ms(self.count, &self.buckets, 0.99),
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+struct RouteMetricsState {
+    requests: u64,
+    errors: u64,
+    response_bytes: u64,
+    bodies_completed: u64,
+    bodies_abandoned: u64,
+    handler_latency: LatencyHistogramState,
+    body_latency: LatencyHistogramState,
+}
+
+#[derive(Debug, Default)]
+struct BodyMetricsState {
+    completed: u64,
+    abandoned: u64,
+    bytes: u64,
+    latency: LatencyHistogramState,
+}
+
+fn histogram_quantile_ms(count: u64, buckets: &[u64], quantile: f64) -> u64 {
+    if count == 0 {
+        return 0;
+    }
+    let target = ((count as f64) * quantile).ceil() as u64;
+    let mut cumulative = 0u64;
+    for (index, bucket) in buckets.iter().enumerate() {
+        cumulative = cumulative.saturating_add(*bucket);
+        if cumulative >= target {
+            return LATENCY_BOUNDS_MS.get(index).copied().unwrap_or(30_001);
+        }
+    }
+    30_001
 }
 
 #[derive(Debug, Default)]
@@ -302,6 +418,9 @@ impl AppMetrics {
             rolling_response_bytes: AtomicU64::new(0),
             rolling_compute_ns: AtomicU64::new(0),
             cpu_admission: Mutex::new(CpuAdmissionState::default()),
+            route_metrics: Mutex::new(BTreeMap::new()),
+            body_metrics: Mutex::new(BodyMetricsState::default()),
+            errors_by_code: Mutex::new(BTreeMap::new()),
         }
     }
 
@@ -312,6 +431,59 @@ impl AppMetrics {
         let key = format!("{} {} {}", method, path, status);
         let mut counts = lock_recover(&self.request_counts, "request_counts");
         *counts.entry(key).or_insert(0) += 1;
+    }
+
+    pub fn record_route_response(
+        &self,
+        method: &str,
+        route: &str,
+        status: u16,
+        duration_ns: u64,
+        error_code: Option<&str>,
+    ) -> String {
+        self.record_request(method, route, status, duration_ns);
+        let key = format!("{method} {route}");
+        let mut routes = lock_recover(&self.route_metrics, "route_metrics");
+        let entry = routes.entry(key.clone()).or_default();
+        entry.requests = entry.requests.saturating_add(1);
+        entry.handler_latency.record(duration_ns);
+        if status >= 400 {
+            entry.errors = entry.errors.saturating_add(1);
+        }
+        drop(routes);
+        if let Some(code) = error_code {
+            let mut errors = lock_recover(&self.errors_by_code, "errors_by_code");
+            *errors.entry(code.to_string()).or_insert(0) += 1;
+        }
+        key
+    }
+
+    pub fn record_body_completion(
+        &self,
+        route_key: &str,
+        response_bytes: u64,
+        duration_ns: u64,
+        abandoned: bool,
+    ) {
+        let mut routes = lock_recover(&self.route_metrics, "route_metrics");
+        let route = routes.entry(route_key.to_string()).or_default();
+        route.response_bytes = route.response_bytes.saturating_add(response_bytes);
+        route.body_latency.record(duration_ns);
+        if abandoned {
+            route.bodies_abandoned = route.bodies_abandoned.saturating_add(1);
+        } else {
+            route.bodies_completed = route.bodies_completed.saturating_add(1);
+        }
+        drop(routes);
+
+        let mut body = lock_recover(&self.body_metrics, "body_metrics");
+        body.bytes = body.bytes.saturating_add(response_bytes);
+        body.latency.record(duration_ns);
+        if abandoned {
+            body.abandoned = body.abandoned.saturating_add(1);
+        } else {
+            body.completed = body.completed.saturating_add(1);
+        }
     }
 
     pub fn record_cache_hit(&self) {
@@ -510,6 +682,32 @@ impl AppMetrics {
         )
         .clone();
         let cpu_admission = build_cpu_admission_snapshot(&self.cpu_admission);
+        let routes = lock_recover(&self.route_metrics, "route_metrics")
+            .iter()
+            .map(|(key, value)| {
+                (
+                    key.clone(),
+                    RouteMetricsSnapshot {
+                        requests: value.requests,
+                        errors: value.errors,
+                        response_bytes: value.response_bytes,
+                        bodies_completed: value.bodies_completed,
+                        bodies_abandoned: value.bodies_abandoned,
+                        handler_latency: value.handler_latency.snapshot(),
+                        body_latency: value.body_latency.snapshot(),
+                    },
+                )
+            })
+            .collect();
+        let body = lock_recover(&self.body_metrics, "body_metrics");
+        let body_streaming = BodyMetricsSnapshot {
+            completed: body.completed,
+            abandoned: body.abandoned,
+            bytes: body.bytes,
+            latency: body.latency.snapshot(),
+        };
+        drop(body);
+        let errors_by_code = lock_recover(&self.errors_by_code, "errors_by_code").clone();
         MetricsSnapshot {
             uptime_seconds: self.started_at.elapsed().as_secs(),
             total_requests: total,
@@ -556,6 +754,9 @@ impl AppMetrics {
                 compute_ns_total: self.rolling_compute_ns.load(Ordering::Relaxed),
             },
             cpu_admission,
+            routes,
+            body_streaming,
+            errors_by_code,
             request_counts,
             average_request_ms: avg_ms,
             dataset_rows,
@@ -751,5 +952,29 @@ mod metrics_stage_tests {
             snap.correlations_stages.mode_breakdown.get("pearson_raw"),
             Some(&1)
         );
+    }
+
+    #[test]
+    fn route_and_streaming_metrics_capture_latency_bytes_and_stable_errors() {
+        let m = AppMetrics::new();
+        let route =
+            m.record_route_response("POST", "/api/v1/data", 503, 2_500_000, Some("overloaded"));
+        m.record_body_completion(&route, 4_096, 8_000_000, true);
+        let route = m.record_route_response("POST", "/api/v1/data", 200, 500_000, None);
+        m.record_body_completion(&route, 1_024, 1_000_000, false);
+
+        let snap = m.snapshot(0, 0);
+        let route = snap.routes.get("POST /api/v1/data").expect("route metrics");
+        assert_eq!(route.requests, 2);
+        assert_eq!(route.errors, 1);
+        assert_eq!(route.response_bytes, 5_120);
+        assert_eq!(route.bodies_completed, 1);
+        assert_eq!(route.bodies_abandoned, 1);
+        assert_eq!(route.handler_latency.count, 2);
+        assert_eq!(route.body_latency.count, 2);
+        assert_eq!(snap.body_streaming.bytes, 5_120);
+        assert_eq!(snap.body_streaming.completed, 1);
+        assert_eq!(snap.body_streaming.abandoned, 1);
+        assert_eq!(snap.errors_by_code.get("overloaded"), Some(&1));
     }
 }

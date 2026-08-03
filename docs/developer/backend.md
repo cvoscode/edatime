@@ -2,9 +2,8 @@
 
 ## Server Setup
 
-`src/main.rs` loads configuration, ingests optional sample data, constructs shared application state, and mounts the router twice:
+`crates/edatime-bin/src/main.rs` loads configuration, ingests optional sample data, constructs shared application state, and mounts one versioned router:
 
-- `/api/*`
 - `/api/v1/*`
 
 The same binary also serves the frontend static files from `frontend/`.
@@ -23,7 +22,7 @@ The backend also owns:
 
 ## Route Families
 
-`src/routes/mod.rs` groups the API into these families:
+`crates/edatime-service/src/handlers/routes/mod.rs` groups the API into these families:
 
 - `data`
 - `aggregate`
