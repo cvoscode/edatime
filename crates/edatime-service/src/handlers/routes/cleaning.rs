@@ -400,7 +400,10 @@ fn generate_python_polars(
                     *embargo_ms,
                     time_dtype,
                 )?;
-                lines.push(format!("    # Compare physical Int64 time values using the source column's native unit."));
+                lines.push(
+                    "    # Compare physical Int64 time values using the source column's native unit."
+                        .to_string(),
+                );
                 lines.push(format!("    lf = lf.with_columns(pl.when(pl.col({time}).cast(pl.Int64).is_null()).then(pl.lit(\"unassigned\")).when(pl.col({time}).cast(pl.Int64) <= {train_end}).then(pl.lit(\"train\")).when(pl.col({time}).cast(pl.Int64) <= {train_embargo_end}).then(pl.lit(\"embargo\")).when(pl.col({time}).cast(pl.Int64) <= {validation_end}).then(pl.lit(\"validation\")).when(pl.col({time}).cast(pl.Int64) <= {validation_embargo_end}).then(pl.lit(\"embargo\")).otherwise(pl.lit(\"test\")).alias({}))", code_quote(output_column)));
             }
             CleaningStageDto::DerivedColumn {

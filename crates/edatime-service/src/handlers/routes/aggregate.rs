@@ -173,7 +173,7 @@ pub async fn get_aggregate(
                         let ca = series
                             .cast(&DataType::Float64)
                             .ok()
-                            .and_then(|s| s.f64().ok().map(|ca| ca.clone()));
+                            .and_then(|s| s.f64().ok().cloned());
                         match ca {
                             Some(ca) => ca
                                 .into_iter()
@@ -189,7 +189,7 @@ pub async fn get_aggregate(
                         let ca = series
                             .cast(&DataType::Int64)
                             .ok()
-                            .and_then(|s| s.i64().ok().map(|ca| ca.clone()));
+                            .and_then(|s| s.i64().ok().cloned());
                         match ca {
                             Some(ca) => ca
                                 .into_iter()
@@ -205,7 +205,7 @@ pub async fn get_aggregate(
                         let ca = series
                             .cast(&DataType::String)
                             .ok()
-                            .and_then(|s| s.str().ok().map(|ca| ca.clone()));
+                            .and_then(|s| s.str().ok().cloned());
                         match ca {
                             Some(ca) => ca
                                 .into_iter()

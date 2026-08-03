@@ -188,17 +188,15 @@ impl AppState {
 
     /// Resolve an immutable source/baseline snapshot for a plan-aware request.
     pub fn dataset_snapshot_for_version(&self, version_id: &str) -> Result<LazyFrame, AppError> {
-        self.dataset_versions
-            .snapshot(version_id)
-            .map_err(AppError::from)
+        self.dataset_versions.snapshot(version_id)
     }
 
     pub fn current_dataset_version(&self) -> Result<DatasetVersionRecord, AppError> {
-        self.dataset_versions.current().map_err(AppError::from)
+        self.dataset_versions.current()
     }
 
     pub fn dataset_versions(&self) -> Result<Vec<DatasetVersionRecord>, AppError> {
-        self.dataset_versions.list().map_err(AppError::from)
+        self.dataset_versions.list()
     }
 
     pub fn artifact_storage_usage(&self) -> Result<ArtifactStorageUsage, AppError> {
@@ -315,19 +313,16 @@ impl AppState {
                 AppError::internal(format!("Failed to join artifact write: {error}"))
             })??;
             let rev = self.repository.replace_from_dataframe(df)?;
-            let record = self
-                .dataset_versions
-                .register_root_artifact(descriptor.clone(), rev, None)
-                .map_err(AppError::from)?;
+            let record =
+                self.dataset_versions
+                    .register_root_artifact(descriptor.clone(), rev, None)?;
             descriptor.provenance = Some(provenance_from_record(&record, row_count, column_names));
             store.publish(descriptor)?;
             self.enforce_artifact_retention(&record.id)?;
             rev
         } else {
             let rev = self.repository.replace_from_dataframe(df.clone())?;
-            self.dataset_versions
-                .register_root(df, rev, None)
-                .map_err(AppError::from)?;
+            self.dataset_versions.register_root(df, rev, None)?;
             rev
         };
         // Invalidate cached responses so stale data is never served after upload.
@@ -412,10 +407,11 @@ impl AppState {
                 return Err(error);
             }
         };
-        let record = self
-            .dataset_versions
-            .register_root_artifact(descriptor.clone(), revision, source_name)
-            .map_err(AppError::from)?;
+        let record = self.dataset_versions.register_root_artifact(
+            descriptor.clone(),
+            revision,
+            source_name,
+        )?;
         descriptor.provenance = Some(provenance_from_record(&record, row_count, column_names));
         store.publish(descriptor)?;
         self.enforce_artifact_retention(&record.id)?;
@@ -434,10 +430,7 @@ impl AppState {
     ) -> Result<DatasetVersionRecord, AppError> {
         // Resolve the parent before replacing the compatibility repository so
         // a bad/stale ID cannot mutate the live working dataset.
-        let _parent = self
-            .dataset_versions
-            .record(parent_id)
-            .map_err(AppError::from)?;
+        let _parent = self.dataset_versions.record(parent_id)?;
         let record = if let Some(store) = &self.artifact_store {
             let version_id = self.dataset_versions.allocate_artifact_version_id();
             let (content_fingerprint, _) = fingerprints_for_frame(&df);
@@ -458,10 +451,12 @@ impl AppState {
                 AppError::internal(format!("Failed to join artifact write: {error}"))
             })??;
             let revision = self.repository.replace_from_dataframe(df)?;
-            let record = self
-                .dataset_versions
-                .register_child_artifact(parent_id, descriptor.clone(), revision, plan_hash)
-                .map_err(AppError::from)?;
+            let record = self.dataset_versions.register_child_artifact(
+                parent_id,
+                descriptor.clone(),
+                revision,
+                plan_hash,
+            )?;
             descriptor.provenance = Some(provenance_from_record(&record, row_count, column_names));
             store.publish(descriptor)?;
             self.enforce_artifact_retention(&record.id)?;
@@ -469,8 +464,7 @@ impl AppState {
         } else {
             let revision = self.repository.replace_from_dataframe(df.clone())?;
             self.dataset_versions
-                .register_child(parent_id, df, revision, plan_hash)
-                .map_err(AppError::from)?
+                .register_child(parent_id, df, revision, plan_hash)?
         };
         self.cache.invalidate_all().await;
         self.clear_correlation_matrix_cache();
@@ -489,10 +483,7 @@ impl AppState {
         job: Option<&JobHandle>,
     ) -> Result<DatasetVersionRecord, AppError> {
         ensure_job_not_cancelled(job)?;
-        let _parent = self
-            .dataset_versions
-            .record(parent_id)
-            .map_err(AppError::from)?;
+        let _parent = self.dataset_versions.record(parent_id)?;
         let store = self.artifact_store.as_ref().ok_or_else(|| {
             AppError::internal("Lazy materialization requires managed artifact storage")
         })?;
@@ -564,10 +555,12 @@ impl AppState {
                 return Err(error);
             }
         };
-        let record = self
-            .dataset_versions
-            .register_child_artifact(parent_id, descriptor.clone(), revision, plan_hash)
-            .map_err(AppError::from)?;
+        let record = self.dataset_versions.register_child_artifact(
+            parent_id,
+            descriptor.clone(),
+            revision,
+            plan_hash,
+        )?;
         descriptor.provenance = Some(provenance_from_record(&record, row_count, column_names));
         store.publish(descriptor)?;
         self.enforce_artifact_retention(&record.id)?;
@@ -582,16 +575,9 @@ impl AppState {
         version_id: &str,
     ) -> Result<DatasetVersionRecord, AppError> {
         let snapshot = self.dataset_snapshot_for_version(version_id)?;
-        let data = self
-            .query_executor
-            .execute_async(snapshot)
-            .await
-            .map_err(AppError::from)?;
+        let data = self.query_executor.execute_async(snapshot).await?;
         self.repository.replace_from_dataframe(data)?;
-        let record = self
-            .dataset_versions
-            .select(version_id)
-            .map_err(AppError::from)?;
+        let record = self.dataset_versions.select(version_id)?;
         self.cache.invalidate_all().await;
         self.clear_correlation_matrix_cache();
         Ok(record)

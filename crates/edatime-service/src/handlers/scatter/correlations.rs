@@ -475,8 +475,8 @@ fn compute_correlation_matrix_for_mode(
     );
 
     let pair_start = std::time::Instant::now();
-    for i in 0..n {
-        selected[i][i] = Some(1.0);
+    for (i, row) in selected.iter_mut().enumerate().take(n) {
+        row[i] = Some(1.0);
     }
     for (i, j, value) in map_pair_indices(&upper_triangle_indices(n), |(i, j)| {
         compute_mode_pair_correlation(i, j, mode, &values)
@@ -708,15 +708,15 @@ fn top_pairs_from_matrix(
         return Vec::new();
     }
     let mut pairs: Vec<TopPairItem> = Vec::with_capacity(n * (n - 1) / 2);
-    for i in 0..n {
-        for j in (i + 1)..n {
-            let Some(value) = selected[i][j] else {
+    for (i, row) in selected.iter().enumerate().take(n) {
+        for (j, value) in row.iter().enumerate().take(n).skip(i + 1) {
+            let Some(value) = value else {
                 continue;
             };
             pairs.push(TopPairItem {
                 x: data.columns[i].clone(),
                 y: data.columns[j].clone(),
-                correlation: value,
+                correlation: *value,
                 count: data.counts[i][j],
             });
         }

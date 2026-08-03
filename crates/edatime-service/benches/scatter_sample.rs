@@ -32,7 +32,7 @@ fn synth_frame(numeric_columns: usize, rows: usize) -> DataFrame {
         // the value, only the row count.
         ts.push(i as i64);
         // Column j is a phase-shifted sinusoid + per-row noise.
-        for j in 0..numeric_columns {
+        for (j, col) in cols.iter_mut().enumerate() {
             let phase = j as f64 * 0.37;
             let trend = (i as f64 * 0.001 + phase).sin();
             state = state
@@ -40,7 +40,7 @@ fn synth_frame(numeric_columns: usize, rows: usize) -> DataFrame {
                 .wrapping_add(1442695040888963407);
             let noise = ((state >> 33) as f64) / (u32::MAX as f64) - 0.5;
             let value = 50.0 + trend * 20.0 + noise;
-            cols[j].push(value);
+            col.push(value);
         }
     }
 

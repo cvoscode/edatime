@@ -978,14 +978,7 @@ fn build_change_point_rank(response: &DriftResponse) -> Option<DriftChangePointR
 
 fn build_quality_summary(response: &DriftResponse) -> DriftQualitySummary {
     let latest = response.windows.last();
-    let reference_zero_rate = zero_rate(
-        &response
-            .reference
-            .ecdf_x
-            .iter()
-            .copied()
-            .collect::<Vec<f64>>(),
-    );
+    let reference_zero_rate = zero_rate(&response.reference.ecdf_x.to_vec());
     let mut issues = Vec::new();
     let latest_missing_rate = latest
         .map(|window| 1.0 - window.distribution.completeness)

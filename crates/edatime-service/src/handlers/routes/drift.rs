@@ -78,7 +78,7 @@ fn validate_drift_stats_query(
     query: &DriftQuery,
     limits: &edatime_core::config::ValidationSettings,
 ) -> Result<(String, i64), AppError> {
-    let columns = validate_numeric_columns_lazy(lf, &[query.column.clone()], limits)
+    let columns = validate_numeric_columns_lazy(lf, std::slice::from_ref(&query.column), limits)
         .map_err(AppError::from)?;
     let column = columns
         .first()

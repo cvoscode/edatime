@@ -121,7 +121,7 @@ pub fn series_to_time_bucket_labels(
                         // Day-boundary guard: anchor epoch so modulo math is
                         // stable for Date columns whose raw value is days
                         // since epoch (not ms).
-                        let secs_of_day = ((ms.rem_euclid(86_400_000)) / 1000) as i64;
+                        let secs_of_day = (ms.rem_euclid(86_400_000)) / 1000;
                         let hour = (secs_of_day / 3600).clamp(0, 23);
                         let next_hour = (hour + 1) % 24;
                         format!("{:02}\u{2013}{:02}", hour, next_hour)

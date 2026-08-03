@@ -321,12 +321,10 @@ impl DatasetArtifactStore {
             let name = entry.file_name();
             let name = name.to_string_lossy();
             let path = entry.path();
-            if name == "catalog.json.tmp" || name.ends_with(".parquet.tmp") {
-                if path.is_file() {
-                    std::fs::remove_file(path).map_err(|error| {
-                        AppError::Io(format!("Remove incomplete artifact: {error}"))
-                    })?;
-                }
+            if (name == "catalog.json.tmp" || name.ends_with(".parquet.tmp")) && path.is_file() {
+                std::fs::remove_file(path).map_err(|error| {
+                    AppError::Io(format!("Remove incomplete artifact: {error}"))
+                })?;
             }
         }
         Ok(())

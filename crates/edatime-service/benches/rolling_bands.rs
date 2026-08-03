@@ -21,14 +21,14 @@ fn synth_long_frame(rows: usize, columns: usize) -> DataFrame {
 
     for i in 0..rows {
         ts.push(i as i64);
-        for j in 0..columns {
+        for (j, col) in cols.iter_mut().enumerate() {
             let trend = ((i as f64) * 0.0001 + j as f64 * 0.17).sin();
             let quarterly = ((i % 1440) as f64 / 1440.0 * std::f64::consts::TAU).cos();
             state = state
                 .wrapping_mul(6364136223846793005)
                 .wrapping_add(1442695040888963407);
             let noise = ((state >> 33) as f64) / (u32::MAX as f64) - 0.5;
-            cols[j].push(100.0 + trend * 30.0 + quarterly * 5.0 + noise * 0.5);
+            col.push(100.0 + trend * 30.0 + quarterly * 5.0 + noise * 0.5);
         }
     }
 

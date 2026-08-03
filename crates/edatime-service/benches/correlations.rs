@@ -28,14 +28,14 @@ fn synth_wide_frame(columns: usize, rows: usize) -> DataFrame {
 
     for i in 0..rows {
         ts.push(i as i64);
-        for j in 0..columns {
+        for (j, col) in cols.iter_mut().enumerate() {
             let trend = ((i as f64) * 0.001 + j as f64 * 0.5).cos();
             let shared = ((i as f64) * 0.0003).sin() * (j as f64 * 0.2).cos() * 25.0;
             state = state
                 .wrapping_mul(6364136223846793005)
                 .wrapping_add(1442695040888963407);
             let noise = ((state >> 33) as f64) / (u32::MAX as f64) - 0.5;
-            cols[j].push(50.0 + trend * 15.0 + shared + noise);
+            col.push(50.0 + trend * 15.0 + shared + noise);
         }
     }
 

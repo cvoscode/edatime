@@ -692,7 +692,7 @@ pub fn build_dataset_metadata(
             profile.finite_count = Some(finite_values.len());
             profile.zero_count = Some(zero_count);
             profile.distinct_count = Some(distinct_values.len());
-            profile.is_constant = Some(finite_values.len() > 0 && min == max);
+            profile.is_constant = Some(!finite_values.is_empty() && min == max);
         } else if matches!(dtype, DataType::Datetime(_, _) | DataType::Date) {
             let casted = series.cast(&DataType::Int64)?;
             let ints = casted.i64()?;

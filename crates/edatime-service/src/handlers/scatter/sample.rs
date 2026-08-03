@@ -248,6 +248,7 @@ fn sample_frame_into_reservoir(
 
 /// Sample a materialized frame. This is kept for small callers and focused
 /// unit tests; request handlers should use the streaming helper below.
+#[allow(clippy::too_many_arguments)]
 pub fn collect_sampled_xyc_rows(
     df: &DataFrame,
     x: &str,

@@ -101,7 +101,9 @@ describe('API client fetch helpers', () => {
                 json: () => Promise.resolve(null),
             });
 
-            await expect(fetchMetadata()).rejects.toThrow('not an object');
+            await expect(fetchMetadata()).rejects.toThrow(
+                'does not match the contracted JSON container shape',
+            );
         });
 
         it('throws on missing total_rows', async () => {

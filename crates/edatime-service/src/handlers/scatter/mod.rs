@@ -245,8 +245,10 @@ mod tests {
     /// handler should resolve through `resolved_scatter_limit`.
     #[test]
     fn resolved_scatter_limit_uses_configured_default() {
-        let mut validation = ValidationSettings::default();
-        validation.default_scatter_limit = 42_000;
+        let mut validation = ValidationSettings {
+            default_scatter_limit: 42_000,
+            ..ValidationSettings::default()
+        };
         assert_eq!(resolved_scatter_limit(&validation), 42_000);
 
         // Zero / missing default falls back to 1 so the handler can never

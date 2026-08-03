@@ -754,9 +754,8 @@ mod tests {
     fn streaming_histogram_matches_slice_histogram() {
         let values = [1.0, 2.0, 3.0, 4.0, 5.0];
         let from_slice = build_histogram(&values, 1.0, 5.0).expect("slice histogram");
-        let from_iter =
-            build_histogram_from_finite_iter(values.into_iter(), 1.0, 5.0, values.len())
-                .expect("streaming histogram");
+        let from_iter = build_histogram_from_finite_iter(values, 1.0, 5.0, values.len())
+            .expect("streaming histogram");
 
         assert_eq!(from_iter.bin_edges, from_slice.bin_edges);
         assert_eq!(from_iter.counts, from_slice.counts);
