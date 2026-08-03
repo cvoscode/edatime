@@ -24,7 +24,10 @@ pub struct SummaryStats {
     pub max: f64,
 }
 
-pub fn compute_summary_stats(df: &DataFrame, columns: &[String]) -> Result<Option<SummaryStats>, AppError> {
+pub fn compute_summary_stats(
+    df: &DataFrame,
+    columns: &[String],
+) -> Result<Option<SummaryStats>, AppError> {
     let mut finite_vals = Vec::new();
     for col_name in columns {
         finite_vals.extend(extract_f64_column_opt(df, col_name)?.into_iter().flatten());
@@ -34,10 +37,17 @@ pub fn compute_summary_stats(df: &DataFrame, columns: &[String]) -> Result<Optio
     }
     let n = finite_vals.len() as f64;
     let mean = finite_vals.iter().sum::<f64>() / n;
-    let variance = finite_vals.iter().map(|value| (value - mean).powi(2)).sum::<f64>() / n;
+    let variance = finite_vals
+        .iter()
+        .map(|value| (value - mean).powi(2))
+        .sum::<f64>()
+        / n;
     let std = variance.sqrt();
     let min = finite_vals.iter().copied().fold(f64::INFINITY, f64::min);
-    let max = finite_vals.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    let max = finite_vals
+        .iter()
+        .copied()
+        .fold(f64::NEG_INFINITY, f64::max);
     Ok(Some(SummaryStats {
         mean,
         std,

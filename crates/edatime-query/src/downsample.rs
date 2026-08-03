@@ -566,7 +566,11 @@ mod tests {
         let mut sorted = padded.clone();
         sorted.sort();
         sorted.dedup();
-        assert_eq!(sorted.len(), padded.len(), "padding must not introduce duplicates");
+        assert_eq!(
+            sorted.len(),
+            padded.len(),
+            "padding must not introduce duplicates"
+        );
     }
 
     #[test]

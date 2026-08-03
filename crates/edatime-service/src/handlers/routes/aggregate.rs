@@ -11,8 +11,8 @@ use edatime_core::types;
 use crate::error::AppError;
 use edatime_query::pipeline::{self, Reduction};
 use edatime_query::query::{
-    self, output_format, AggFn, AggregateQuery, AggregateWindowMode, OutputFormat, QueryEntry,
-    ReductionSpec,
+    self, AggFn, AggregateQuery, AggregateWindowMode, OutputFormat, QueryEntry, ReductionSpec,
+    output_format,
 };
 use edatime_query::validation::{
     validate_bucket_count, validate_numeric_columns_lazy, validate_time_window, validate_window_ms,

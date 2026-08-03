@@ -28,8 +28,9 @@ pub fn normalize_temporal_columns_to_ms(lf: LazyFrame) -> LazyFrame {
         }
         let new_expr = match dtype {
             // Polars rescales Datetime casts automatically.
-            DataType::Datetime(_, _) => col(name.as_str())
-                .cast(DataType::Datetime(TimeUnit::Milliseconds, None)),
+            DataType::Datetime(_, _) => {
+                col(name.as_str()).cast(DataType::Datetime(TimeUnit::Milliseconds, None))
+            }
             // Date is days since epoch. Cast through Int64 to make
             // the unit conversion explicit.
             DataType::Date => col(name.as_str())
@@ -58,19 +59,12 @@ mod tests {
             .expect("cast us ts");
         let df = DataFrame::new(
             2,
-            vec![
-                ts_series.into(),
-                Series::new("x".into(), xs).into(),
-            ],
+            vec![ts_series.into(), Series::new("x".into(), xs).into()],
         )
         .expect("build df");
         let lf = normalize_temporal_columns_to_ms(df.lazy());
         let collected = lf.collect().expect("collect after normalize");
-        let dtype = collected
-            .column("ts")
-            .expect("ts column")
-            .dtype()
-            .clone();
+        let dtype = collected.column("ts").expect("ts column").dtype().clone();
         assert!(
             matches!(dtype, DataType::Datetime(TimeUnit::Milliseconds, None)),
             "ts must be normalized to datetime[ms], got {dtype:?}"
@@ -87,6 +81,9 @@ mod tests {
         let lf = normalize_temporal_columns_to_ms(df.lazy());
         let collected = lf.collect().expect("collect after normalize");
         let dtype = collected.column("ts").unwrap().dtype().clone();
-        assert!(matches!(dtype, DataType::Datetime(TimeUnit::Milliseconds, None)));
+        assert!(matches!(
+            dtype,
+            DataType::Datetime(TimeUnit::Milliseconds, None)
+        ));
     }
 }

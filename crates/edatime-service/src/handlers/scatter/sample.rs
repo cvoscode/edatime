@@ -259,15 +259,8 @@ pub fn collect_sampled_xyc_rows(
     time_color_mode: TimeColorMode,
 ) -> Result<(usize, Vec<SampledScatterRow>, Option<ScatterColorKind>), AppError> {
     let mut reservoir = ScatterReservoir::new(effective_limit, scatter_reservoir_seed("frame"));
-    let color_kind = sample_frame_into_reservoir(
-        &mut reservoir,
-        df,
-        x,
-        y,
-        color,
-        size,
-        time_color_mode,
-    )?;
+    let color_kind =
+        sample_frame_into_reservoir(&mut reservoir, df, x, y, color, size, time_color_mode)?;
     let (total_points, sampled_rows) = reservoir.finish();
     Ok((total_points, sampled_rows, color_kind))
 }
@@ -289,19 +282,23 @@ pub fn collect_sampled_xyc_rows_streaming(
         .clone()
         .collect_schema()
         .map_err(|error| AppError::bad_request(format!("scatter schema: {error}")))?;
-    let color_kind = color.map(|color_name| {
-        let dtype = schema
-            .get(color_name)
-            .ok_or_else(|| AppError::bad_request(format!("Unknown column '{color_name}'")))?;
-        Ok::<ScatterColorKind, AppError>(if dtype.is_numeric()
-            || (matches!(dtype, DataType::Datetime(_, _) | DataType::Date)
-                && matches!(time_color_mode, TimeColorMode::Raw))
-        {
-            ScatterColorKind::Continuous
-        } else {
-            ScatterColorKind::Categorical
+    let color_kind = color
+        .map(|color_name| {
+            let dtype = schema
+                .get(color_name)
+                .ok_or_else(|| AppError::bad_request(format!("Unknown column '{color_name}'")))?;
+            Ok::<ScatterColorKind, AppError>(
+                if dtype.is_numeric()
+                    || (matches!(dtype, DataType::Datetime(_, _) | DataType::Date)
+                        && matches!(time_color_mode, TimeColorMode::Raw))
+                {
+                    ScatterColorKind::Continuous
+                } else {
+                    ScatterColorKind::Categorical
+                },
+            )
         })
-    }).transpose()?;
+        .transpose()?;
 
     let reservoir = Arc::new(Mutex::new(ScatterReservoir::new(
         effective_limit,
@@ -313,9 +310,9 @@ pub fn collect_sampled_xyc_rows_streaming(
     let color = color.map(str::to_owned);
     let size = size.map(str::to_owned);
     let callback = PlanCallback::new(move |batch: DataFrame| {
-        let mut reservoir = callback_reservoir.lock().map_err(|_| {
-            PolarsError::ComputeError("scatter reservoir lock poisoned".into())
-        })?;
+        let mut reservoir = callback_reservoir
+            .lock()
+            .map_err(|_| PolarsError::ComputeError("scatter reservoir lock poisoned".into()))?;
         sample_frame_into_reservoir(
             &mut reservoir,
             &batch,
@@ -330,11 +327,7 @@ pub fn collect_sampled_xyc_rows_streaming(
     });
     lazy_frame
         .with_new_streaming(true)
-        .sink_batches(
-            callback,
-            true,
-            NonZeroUsize::new(SCATTER_BATCH_ROWS),
-        )
+        .sink_batches(callback, true, NonZeroUsize::new(SCATTER_BATCH_ROWS))
         .map_err(|error| AppError::io(format!("build scatter stream: {error}")))?
         .collect()
         .map_err(|error| AppError::io(format!("stream scatter rows: {error}")))?;
@@ -584,7 +577,9 @@ mod tests {
             .map(|row| row.x as u64)
             .collect::<std::collections::HashSet<_>>();
         assert!(
-            first.iter().all(|row| wider_points.contains(&(row.x as u64))),
+            first
+                .iter()
+                .all(|row| wider_points.contains(&(row.x as u64))),
             "reducing capacity must retain a subset of the same seeded reservoir"
         );
     }
