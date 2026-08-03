@@ -34,6 +34,7 @@ function parseArgs(argv) {
         cmd: argv[2],
         fixture: null,
         seconds: 30,
+        requests: null,
         concurrency: 4,
         target: process.env.EDATIME_TARGET ?? "http://localhost:3000",
         out: null,
@@ -54,6 +55,7 @@ function parseArgs(argv) {
         switch (flag) {
             case "--fixture": args.fixture = value; i += 1; break;
             case "--seconds": args.seconds = Number(value); i += 1; break;
+            case "--requests": args.requests = Number(value); i += 1; break;
             case "--concurrency": args.concurrency = Number(value); i += 1; break;
             case "--target": args.target = value; i += 1; break;
             case "--out": args.out = value; i += 1; break;
@@ -74,6 +76,7 @@ function printHelp() {
 
 cmds:
   upload    POST a synthetic CSV fixture to /api/v1/upload
+  preflight validate the build, contract, and measured request shapes
   run       drive the request mix at the configured concurrency
   snapshot  fetch /api/v1/metrics once and write to --out
   csv       generate a synthetic CSV fixture (no upload)
@@ -81,6 +84,7 @@ cmds:
 flags:
   --fixture <name>     long_numeric | wide_frame (upload cmd)
   --seconds <N>        run duration (default 30)
+  --requests <N>       fixed request count; overrides the duration stop condition
   --concurrency <N>    concurrent in-flight requests (default 4)
   --target <url>       server base URL (default $EDATIME_TARGET or :3000)
   --out <path>         output path for the result JSON
@@ -211,7 +215,7 @@ async function cmdUpload(args) {
                 : null;
     if (!generator) throw new Error(`unknown fixture: ${args.fixture}`);
 
-    const rows = args.fixture === "long_numeric" ? 100_000 : args.rows;
+    const rows = args.rows;
     const cols = args.fixture === "long_numeric" ? 3 : args.cols;
     const csv = generator({ rows, cols, seedHex: args.seed });
     await writeFile(args.out, csv);
@@ -295,23 +299,121 @@ const REQUEST_MIX = [
     { route: "scatter_correlations", weight: 10 },
 ];
 
-function buildRequestUrl(target, kind, tsBounds) {
-    // Build URLs that match the contract exercised by
-    // tests/api_integration.rs. `ts` is the time column in the synthetic
-    // fixtures so it is NOT included in the `columns=` list — it is not
-    // a numeric column for the `/data` endpoint and would 400 the
-    // request otherwise.
+function makeRng(seedHex) {
+    let state = BigInt(seedHex);
+    return () => {
+        state = lcgNext(state);
+        return Number(state >> 11n) / 9007199254740992;
+    };
+}
+
+function buildRequest(target, kind, context) {
     const base = target.replace(/\/$/, "");
+    const [x, y, color] = context.numericColumns;
+    const cleaning_plan = context.cleaningPlan;
     switch (kind) {
         case "data":
-            return `${base}/api/v1/data?start=${encodeURIComponent(tsBounds.start)}&end=${encodeURIComponent(tsBounds.end)}&width=500&columns=c0,c1,c2`;
+            return { url: `${base}/api/v1/data`, body: {
+                start: context.bounds.start, end: context.bounds.end, width: 500,
+                columns: [x, y, color].filter(Boolean).join(','), format: 'arrow', cleaning_plan,
+            }, expectedContentType: 'arrow' };
         case "scatter_points":
-            return `${base}/api/v1/scatter/points?x=c0&y=c1&color=c2&limit=200000&format=arrow`;
+            return { url: `${base}/api/v1/scatter/points`, body: {
+                x, y, color, limit: 200000, format: 'arrow', cleaning_plan,
+            }, expectedContentType: 'arrow' };
         case "scatter_correlations":
-            return `${base}/api/v1/scatter/correlations`;
+            return { url: `${base}/api/v1/scatter/correlations`, body: {
+                base: x, threshold: 0.5, mode: 'pearson_raw', cleaning_plan,
+            }, expectedContentType: 'json' };
         case "rolling":
-            return `${base}/api/v1/analytics/rolling?start=${encodeURIComponent(tsBounds.start)}&end=${encodeURIComponent(tsBounds.end)}&columns=c0,c1&window=50`;
+            return { url: `${base}/api/v1/analytics/rolling`, body: {
+                start: context.bounds.start, end: context.bounds.end,
+                columns: [x, y].join(','), window: 50, cleaning_plan,
+            }, expectedContentType: 'json' };
     }
+}
+
+async function probeBenchmarkContext(target) {
+    const base = target.replace(/\/$/, '');
+    const [buildResp, contractResp, metadataResp] = await Promise.all([
+        fetch(`${base}/api/v1/build`),
+        fetch(`${base}/api/v1/contract`),
+        fetch(`${base}/api/v1/metadata`),
+    ]);
+    if (!buildResp.ok || !contractResp.ok || !metadataResp.ok) {
+        throw new Error(`benchmark preflight failed: build=${buildResp.status}, contract=${contractResp.status}, metadata=${metadataResp.status}`);
+    }
+    const [build, contract, metadata] = await Promise.all([
+        buildResp.json(), contractResp.json(), metadataResp.json(),
+    ]);
+    if (build.contract_version !== contract.version) throw new Error('server build and API contract versions differ');
+    if (!metadata.source_version_id || !metadata.schema_fingerprint || !metadata.time_column) {
+        throw new Error('metadata lacks immutable dataset identity; upload a fixture before benchmarking');
+    }
+    if (!Array.isArray(metadata.numeric_columns) || metadata.numeric_columns.length < 2) {
+        throw new Error('benchmark requires at least two numeric columns');
+    }
+    const range = metadata.time_range;
+    if (!range || !Number.isFinite(range.min) || !Number.isFinite(range.max) || range.min >= range.max) {
+        throw new Error('metadata lacks a valid time range');
+    }
+    const now = new Date().toISOString();
+    const revision = metadata.source_version_revision ?? metadata.revision;
+    return {
+        build,
+        contractVersion: contract.version,
+        numericColumns: metadata.numeric_columns.slice(0, 3),
+        bounds: { start: new Date(range.min).toISOString(), end: new Date(range.max).toISOString() },
+        cleaningPlan: {
+            plan: {
+                schemaVersion: 1, id: 'http-benchmark', planRevision: 1,
+                sourceVersionId: metadata.source_version_id, datasetRevision: revision,
+                datasetFingerprint: metadata.dataset_fingerprint ?? null,
+                schemaFingerprint: metadata.schema_fingerprint, timeColumn: metadata.time_column,
+                sourceName: metadata.source_name ?? null, stages: [], createdAt: now, updatedAt: now,
+            },
+            expectedPlanHash: null,
+            expectedSourceVersionId: metadata.source_version_id,
+            expectedDatasetRevision: revision,
+        },
+    };
+}
+
+async function executeMeasuredRequest(request) {
+    const t0 = performance.now();
+    try {
+        const resp = await fetch(request.url, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', accept: request.expectedContentType === 'arrow' ? 'application/vnd.apache.arrow.stream' : 'application/json' },
+            body: JSON.stringify(request.body),
+        });
+        const buffer = new Uint8Array(await resp.arrayBuffer());
+        const contentType = resp.headers.get('content-type') ?? '';
+        const expectedType = request.expectedContentType === 'arrow' ? 'arrow' : 'json';
+        const contentTypeOk = expectedType === 'arrow' ? contentType.includes('arrow') : contentType.includes('json');
+        const provenanceOk = ['x-edatime-source-version', 'x-edatime-source-revision', 'x-edatime-schema-fingerprint', 'x-edatime-plan-hash']
+            .every((header) => Boolean(resp.headers.get(header)));
+        let errorCode = null;
+        if (!resp.ok && contentType.includes('json')) {
+            try { errorCode = JSON.parse(Buffer.from(buffer).toString('utf8')).code ?? null; } catch { /* bounded diagnostic only */ }
+        }
+        return { status: resp.status, latency_ms: performance.now() - t0, bytes: buffer.byteLength, content_type_ok: contentTypeOk, provenance_ok: provenanceOk, error_code: errorCode };
+    } catch {
+        return { status: -1, latency_ms: performance.now() - t0, bytes: 0, content_type_ok: false, provenance_ok: false, error_code: 'transport_error' };
+    }
+}
+
+async function cmdPreflight(args) {
+    const context = await probeBenchmarkContext(args.target);
+    const results = {};
+    for (const kind of [...REQUEST_MIX.map((entry) => entry.route), 'rolling']) {
+        results[kind] = await executeMeasuredRequest(buildRequest(args.target, kind, context));
+    }
+    const failures = Object.entries(results).filter(([, sample]) => sample.status < 200 || sample.status >= 300 || !sample.content_type_ok || !sample.provenance_ok);
+    const output = { cmd: 'preflight', target: args.target, build: context.build, contract_version: context.contractVersion, results };
+    if (args.out) await writeFile(args.out, JSON.stringify(output, null, 2));
+    process.stdout.write(JSON.stringify(output, null, 2) + '\n');
+    if (failures.length) throw new Error(`preflight failed for: ${failures.map(([kind]) => kind).join(', ')}`);
 }
 
 function pickKind(rng) {
@@ -342,8 +444,9 @@ async function cmdRun(args) {
     // against the actual dataset's time range when present. When the
     // server has no dataset yet (run started before upload) we fall back
     // to a default window so requests still exercise the routes.
-    const tsBounds = await probeTsBounds(args.target);
-    const rng = Math.random; // run mix is not deterministic; that's fine.
+    const context = await probeBenchmarkContext(args.target);
+    const rng = makeRng(args.seed);
+    const startMetrics = await fetchMetrics(args.target);
     // Capture both wall-clock and monotonic start separately so the run
     // mix maths uses a stable monotonic clock while the `started_at`
     // field is a real ISO-8601 timestamp. `performance.now()` is
@@ -354,7 +457,6 @@ async function cmdRun(args) {
     const end = start + args.seconds * 1000;
     const runStartedAt = new Date().toISOString();
 
-    const inflight = new Set();
     const samples = [];
     const rssSamples = [];
     let rollingCounter = 0;
@@ -383,47 +485,50 @@ async function cmdRun(args) {
         if (rss != null) rssSamples.push({ t: performance.now() - start, rss_bytes: rss });
     }, 1000);
 
-    async function dispatchOnce() {
+    const fixedSchedule = args.requests == null
+        ? null
+        : Array.from({ length: args.requests }, (_, index) => {
+            if (index < 4) return [...REQUEST_MIX.map((entry) => entry.route), 'rolling'][index];
+            return pickKind(rng);
+        });
+    let scheduleIndex = 0;
+
+    async function dispatchOnce(scheduledKind = null) {
         // Mix in a small fraction of rolling requests at low frequency, so
         // the workload is not dominated by /data.
         let kind;
-        if (rollingCounter < args.seconds && performance.now() >= nextRollingMs) {
+        if (scheduledKind) {
+            kind = scheduledKind;
+        } else if (rollingCounter < args.seconds && performance.now() >= nextRollingMs) {
             kind = "rolling";
             rollingCounter += 1;
             nextRollingMs = start + rollingCounter * (args.seconds * 1000) / Math.max(1, args.seconds);
         } else {
             kind = pickKind(rng);
         }
-        const url = buildRequestUrl(args.target, kind, tsBounds);
-        const t0 = performance.now();
-        let status = 0;
-        let bytes = 0;
-        try {
-            const resp = await fetch(url);
-            status = resp.status;
-            const buf = new Uint8Array(await resp.arrayBuffer());
-            bytes = buf.byteLength;
-        } catch (err) {
-            status = -1;
-            bytes = 0;
-        }
-        const t1 = performance.now();
-        samples.push({ kind, status, latency_ms: t1 - t0, bytes });
+        const sample = await executeMeasuredRequest(buildRequest(args.target, kind, context));
+        samples.push({ kind, ...sample });
     }
 
     async function workerLoop() {
-        while (performance.now() < end) {
-            const p = dispatchOnce();
-            inflight.add(p);
-            p.finally(() => inflight.delete(p));
-            // Yield to the event loop so workers can fan out.
-            await new Promise((r) => setImmediate(r));
+        while (true) {
+            let kind = null;
+            if (fixedSchedule) {
+                if (scheduleIndex >= fixedSchedule.length) break;
+                kind = fixedSchedule[scheduleIndex];
+                scheduleIndex += 1;
+            } else if (performance.now() >= end) {
+                break;
+            }
+            // Awaiting here is the concurrency bound: exactly one in-flight
+            // request per worker, with no hidden promise backlog.
+            await dispatchOnce(kind);
         }
     }
 
     const workers = Array.from({ length: args.concurrency }, () => workerLoop());
     await Promise.all(workers);
-    await Promise.all([...inflight]);
+    const loadElapsedSeconds = (performance.now() - start) / 1000;
     clearInterval(rssTimer);
 
     // Drain the spawn_blocking queue so the cpu_admission counters
@@ -445,7 +550,9 @@ async function cmdRun(args) {
             const submitted = m.cpu_admission.submitted_total ?? 0;
             const started = m.cpu_admission.started_total ?? 0;
             const completed = m.cpu_admission.completed_total ?? 0;
-            const pending = submitted - started - completed;
+            const queued = submitted - started;
+            const running = started - completed;
+            const pending = queued + running;
             if (pending === lastPending) {
                 if (stableSinceMs === null) stableSinceMs = performance.now();
                 if (performance.now() - stableSinceMs >= 2000) break;
@@ -476,7 +583,9 @@ async function cmdRun(args) {
         const sorted = arr.map((s) => s.latency_ms).sort((a, b) => a - b);
         perRoute[kind] = {
             requests: arr.length,
-            errors: arr.filter((s) => s.status >= 500 || s.status < 0).length,
+            errors: arr.filter((s) => s.status < 200 || s.status >= 300 || !s.content_type_ok || !s.provenance_ok).length,
+            status_classes: Object.fromEntries([1, 2, 3, 4, 5].map((n) => [`${n}xx`, arr.filter((s) => Math.floor(s.status / 100) === n).length])),
+            error_codes: [...new Set(arr.map((s) => s.error_code).filter(Boolean))].slice(0, 10),
             p50_ms: percentile(sorted, 0.5),
             p95_ms: percentile(sorted, 0.95),
             p99_ms: percentile(sorted, 0.99),
@@ -490,10 +599,15 @@ async function cmdRun(args) {
         cmd: "run",
         target: args.target,
         seconds: args.seconds,
+        configured_requests: args.requests,
         concurrency: args.concurrency,
+        seed: args.seed,
+        build: context.build,
+        contract_version: context.contractVersion,
         rundown_seconds: args.rundown,
         total_requests: samples.length,
-        throughput_rps: samples.length / args.seconds,
+        load_elapsed_seconds: loadElapsedSeconds,
+        throughput_rps: samples.length / loadElapsedSeconds,
         per_route: perRoute,
         aggregate: {
             p50_ms: percentile(allSorted, 0.5),
@@ -512,12 +626,27 @@ async function cmdRun(args) {
                     - (endMetrics.cpu_admission.completed_total ?? 0)),
             }
             : null,
-        metrics: endMetrics,
-        ts_bounds_used: tsBounds,
+        metrics_start: startMetrics,
+        metrics_end: endMetrics,
+        metrics_delta: numericDelta(startMetrics, endMetrics),
+        ts_bounds_used: context.bounds,
         started_at: runStartedAt,
     };
     await writeFile(args.out, JSON.stringify(result, null, 2));
     process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+    const failures = Object.entries(perRoute).filter(([, route]) => route.requests === 0 || route.errors !== 0);
+    if (failures.length) throw new Error(`benchmark correctness gate failed: ${failures.map(([kind]) => kind).join(', ')}`);
+}
+
+function numericDelta(start, end) {
+    if (typeof start === 'number' && typeof end === 'number') return end - start;
+    if (!start || !end || typeof start !== 'object' || typeof end !== 'object') return null;
+    const result = {};
+    for (const key of Object.keys(end)) {
+        const delta = numericDelta(start[key], end[key]);
+        if (delta !== null && (typeof delta !== 'object' || Object.keys(delta).length)) result[key] = delta;
+    }
+    return result;
 }
 
 // ── Subcommand: snapshot ────────────────────────────────────────────────────
@@ -529,30 +658,6 @@ async function fetchMetrics(target) {
         return await resp.json();
     } catch {
         return null;
-    }
-}
-
-async function probeTsBounds(target) {
-    // Pull /api/v1/metadata and try to use its time_range.start /
-    // time_range.end as bounds. Fall back to a wide ISO-8601 window when
-    // metadata is unavailable or has no time_range (e.g. server has no
-    // dataset yet). The fallback is ISO-8601 because `/api/v1/data` and
-    // `/api/v1/analytics/rolling` use `DateTime<Utc>` params and reject
-    // bare integer Unix-ms values; RFC 3339 strings are the only shape
-    // that deserializes through `chrono::DateTime<Utc>`.
-    const fallback = {
-        start: "1970-01-01T00:00:00Z",
-        end: "2024-12-31T23:59:59Z",
-    };
-    try {
-        const resp = await fetch(`${target.replace(/\/$/, "")}/api/v1/metadata`);
-        if (!resp.ok) return fallback;
-        const body = await resp.json();
-        const range = body?.time_range;
-        if (!range || !range.start || !range.end) return fallback;
-        return { start: range.start, end: range.end };
-    } catch {
-        return fallback;
     }
 }
 
@@ -600,6 +705,7 @@ async function main() {
     }
     switch (args.cmd) {
         case "upload": await cmdUpload(args); break;
+        case "preflight": await cmdPreflight(args); break;
         case "run": await cmdRun(args); break;
         case "snapshot": await cmdSnapshot(args); break;
         case "csv": await cmdCsv(args); break;

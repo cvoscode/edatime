@@ -24,6 +24,8 @@ use edatime_store::state::AppState;
 pub fn api_router() -> Router<AppState> {
     Router::new()
         .route("/health", get(health))
+        .route("/build", get(build_identity))
+        .route("/contract", get(api_contract))
         .route("/data", post(data::post_data))
         .route("/cleaning/validate", post(cleaning::validate))
         .route("/cleaning/preview", post(cleaning::preview))
@@ -58,7 +60,10 @@ pub fn api_router() -> Router<AppState> {
             "/scatter/export/parquet",
             post(scatter::post_scatter_export_parquet),
         )
-        .route("/scatter/correlations", post(scatter::post_scatter_correlations))
+        .route(
+            "/scatter/correlations",
+            post(scatter::post_scatter_correlations),
+        )
         .route(
             "/scatter/correlations/matrix",
             post(scatter::post_correlation_matrix),
@@ -76,10 +81,7 @@ pub fn api_router() -> Router<AppState> {
         .route("/database/columns", get(database::get_columns))
         .route("/database/load", post(database::post_load))
         // Config endpoints
-        .route(
-            "/config/database",
-            get(config::get_database_config).post(config::post_database_config),
-        )
+        .route("/config/database", get(config::get_database_config))
         // Aggregate endpoint
         .route("/aggregate", get(aggregate::get_aggregate))
         // Analytics endpoints
@@ -103,4 +105,23 @@ fn analytics_router() -> Router<AppState> {
 pub async fn health() -> impl IntoResponse {
     tracing::debug!("health check");
     Json(serde_json::json!({ "status": "ok" }))
+}
+
+#[tracing::instrument]
+pub async fn build_identity() -> impl IntoResponse {
+    Json(serde_json::json!({
+        "package": "edatime",
+        "version": env!("CARGO_PKG_VERSION"),
+        "git_sha": option_env!("EDATIME_BUILD_SHA").unwrap_or("unknown"),
+        "profile": option_env!("EDATIME_BUILD_PROFILE").unwrap_or("unknown"),
+        "contract_version": "v1"
+    }))
+}
+
+#[tracing::instrument]
+pub async fn api_contract() -> impl IntoResponse {
+    (
+        [(axum::http::header::CONTENT_TYPE, "application/json")],
+        include_str!("../../../../../contracts/api-v1.json"),
+    )
 }

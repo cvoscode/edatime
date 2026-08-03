@@ -1,27 +1,10 @@
-//! edatime-bin — main binary entry point.
-//! Re-exports the application from the root src/ crate for backwards compatibility.
+//! Canonical edatime production binary.
 
-use std::sync::Arc;
-
-use axum::{
-    Router,
-    extract::{DefaultBodyLimit, Request},
-    http::{Method, header},
-    middleware::{Next, from_fn},
-    response::Response,
-};
-use tower_http::{
-    compression::CompressionLayer,
-    cors::{Any, CorsLayer},
-    services::ServeDir,
-    trace::TraceLayer,
-};
+use std::net::SocketAddr;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
 use edatime_core::config::AppConfig;
-use edatime_service::middleware;
-use edatime_service::rates;
-use edatime_service::routes;
+use edatime_service::app::build_app;
 use edatime_service::state::AppState;
 
 #[tokio::main]
@@ -42,27 +25,13 @@ async fn main() {
         }
     };
 
-    let max_upload_bytes = config.upload.max_upload_bytes;
+    if let Err(error) = config.validate_bind_security() {
+        tracing::error!("{error}");
+        std::process::exit(2);
+    }
+
     let bind_address = config.bind_address();
     let state = AppState::new(polars::prelude::DataFrame::default(), config.clone());
-
-    let rate_limiter = Arc::new(rates::RateLimiter::new(
-        config.rate_limit.max_requests,
-        config.rate_limit.window_seconds,
-    ));
-
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods([Method::GET, Method::POST])
-        .allow_headers([axum::http::header::CONTENT_TYPE]);
-
-    let csp_layer = tower_http::set_header::SetResponseHeaderLayer::overriding(
-        axum::http::header::CONTENT_SECURITY_POLICY,
-        middleware::csp_header_value(&config.server.csp_extra_origins),
-    );
-
-    let rate_limit_fn =
-        middleware::rate_limit_middleware(rate_limiter, std::sync::Arc::clone(&state.metrics));
 
     let frontend_dir = std::env::var("EDATIME_FRONTEND_DIR")
         .map(std::path::PathBuf::from)
@@ -72,17 +41,7 @@ async fn main() {
                 .join("dist")
         });
 
-    let app = Router::new()
-        .nest("/api/v1", routes::api_router())
-        .fallback_service(ServeDir::new(&frontend_dir))
-        .layer(from_fn(frontend_cache_control_middleware))
-        .layer(DefaultBodyLimit::max(max_upload_bytes))
-        .layer(CompressionLayer::new().gzip(true))
-        .layer(TraceLayer::new_for_http())
-        .layer(cors)
-        .layer(csp_layer)
-        .layer(from_fn(rate_limit_fn))
-        .with_state(state);
+    let app = build_app(state, frontend_dir.clone());
 
     let listener = match tokio::net::TcpListener::bind(&bind_address).await {
         Ok(l) => l,
@@ -100,30 +59,43 @@ async fn main() {
     };
 
     tracing::info!("edatime listening on {}", local_addr);
-    tracing::info!(" serving frontend from {}", frontend_dir.display());
-    tracing::info!(" bind address: {}", bind_address);
+    tracing::info!("serving frontend from {}", frontend_dir.display());
+    tracing::info!("bind address: {}", bind_address);
 
-    axum::serve(listener, app).await.unwrap();
+    if let Err(error) = axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await
+    {
+        tracing::error!("server error: {error}");
+        std::process::exit(1);
+    }
 }
 
-async fn frontend_cache_control_middleware(req: Request, next: Next) -> Response {
-    let path = req.uri().path().to_owned();
-    let is_frontend_request =
-        matches!(*req.method(), Method::GET | Method::HEAD) && !path.starts_with("/api");
-    let mut response = next.run(req).await;
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        if let Err(error) = tokio::signal::ctrl_c().await {
+            tracing::error!("failed to install Ctrl+C handler: {error}");
+        }
+    };
 
-    if is_frontend_request && response.status().is_success() {
-        response.headers_mut().insert(
-            header::CACHE_CONTROL,
-            header::HeaderValue::from_static("no-store, no-cache, must-revalidate"),
-        );
-        response
-            .headers_mut()
-            .insert(header::PRAGMA, header::HeaderValue::from_static("no-cache"));
-        response
-            .headers_mut()
-            .insert(header::EXPIRES, header::HeaderValue::from_static("0"));
+    #[cfg(unix)]
+    let terminate = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut signal) => {
+                signal.recv().await;
+            }
+            Err(error) => tracing::error!("failed to install SIGTERM handler: {error}"),
+        }
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        () = ctrl_c => tracing::info!("received Ctrl+C, shutting down"),
+        () = terminate => tracing::info!("received SIGTERM, shutting down"),
     }
-
-    response
 }

@@ -7,6 +7,10 @@
  * concerns.
  */
 export const apiV1Routes = {
+    health: '/api/v1/health',
+    build: '/api/v1/build',
+    contract: '/api/v1/contract',
+    metrics: '/api/v1/metrics',
     metadata: '/api/v1/metadata',
     profile: '/api/v1/profile',
     profileSample: '/api/v1/profile/sample',
@@ -34,7 +38,9 @@ export const apiV1Routes = {
         connect: '/api/v1/database/connect',
         status: '/api/v1/database/status',
         tables: '/api/v1/database/tables',
+        columns: '/api/v1/database/columns',
         load: '/api/v1/database/load',
+        config: '/api/v1/config/database',
     },
     scatter: {
         points: '/api/v1/scatter/points',
@@ -55,6 +61,7 @@ export const apiV1Routes = {
         stats: '/api/v1/drift/stats',
         investigate: '/api/v1/drift/investigate',
     },
+    aggregate: '/api/v1/aggregate',
 } as const;
 
 /** Adds a query string without making route-family modules rebuild paths. */

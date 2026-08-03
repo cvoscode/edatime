@@ -23,7 +23,7 @@ Clone the repository and compile in release mode for best performance:
 ```bash
 git clone <repo-url>
 cd edatime
-cargo build --release
+cargo build --release -p edatime-bin --bin edatime
 ```
 
 The compiled binary lands at `target/release/edatime`.
@@ -31,7 +31,7 @@ The compiled binary lands at `target/release/edatime`.
 For a quick development build (faster compile, slower runtime):
 
 ```bash
-cargo build
+cargo build -p edatime-bin --bin edatime
 ```
 
 **Note:** The build process is pure Rust - no npm or Node.js required for distribution. ChartGPU is fully vendored in `frontend/libs/chartgpu/`.
@@ -43,7 +43,7 @@ cargo build
 ### Start the server
 
 ```bash
-cargo run --release --bin edatime
+cargo run --release -p edatime-bin --bin edatime
 ```
 
 Or run the pre-built binary directly:
@@ -65,7 +65,7 @@ The server binds to `127.0.0.1:3000` by default.
 Set `EDATIME_SAMPLE_DATA` to a CSV or Parquet file path and the dataset will be loaded automatically on startup — no manual upload needed:
 
 ```bash
-EDATIME_SAMPLE_DATA=./my_data.csv cargo run --release --bin edatime
+EDATIME_SAMPLE_DATA=./my_data.csv cargo run --release -p edatime-bin --bin edatime
 ```
 
 ### Configuration
@@ -75,7 +75,7 @@ You can tune the server via a `config.toml` file or environment variables. All s
 **Using a config file:**
 
 ```bash
-EDATIME_CONFIG=./config.toml cargo run --release --bin edatime
+EDATIME_CONFIG=./config.toml cargo run --release -p edatime-bin --bin edatime
 ```
 
 **Example `config.toml`:**
@@ -84,6 +84,7 @@ EDATIME_CONFIG=./config.toml cargo run --release --bin edatime
 [server]
 host = "0.0.0.0"
 port = 8080
+allow_insecure_public = true # explicit opt-in: edatime has no built-in authentication
 
 [cache]
 ttl_seconds = 120
@@ -93,6 +94,7 @@ max_bytes = 67108864   # 64 MB
 [rate_limit]
 max_requests = 200
 window_seconds = 60
+max_clients = 10000
 
 [upload]
 max_upload_bytes = 536870912   # 512 MB
@@ -113,6 +115,9 @@ max_background_concurrency = 1  # sink-backed materialization/export work
 | Variable | Default | Description |
 |---|---|---|
 | `EDATIME_HOST` | `127.0.0.1` | Bind address |
+| `EDATIME_ALLOW_INSECURE_PUBLIC` | `false` | Permit a non-loopback bind without built-in authentication |
+| `EDATIME_CORS_ALLOWED_ORIGINS` | unset | Comma-separated cross-origin allowlist |
+| `EDATIME_TRUSTED_PROXY_IPS` | unset | Direct proxy peers trusted to supply forwarding headers |
 | `EDATIME_PORT` | `3000` | Listen port |
 | `EDATIME_SAMPLE_DATA` | *(none)* | CSV/Parquet file to load on startup |
 | `EDATIME_CACHE_TTL_SECONDS` | `60` | How long query cache entries live |
@@ -343,7 +348,7 @@ npm run typecheck
 npm run build:frontend:prod
 
 # Run benchmarks
-cargo bench --bench pipeline_bench
+cargo bench --workspace
 
 # Security audit
 cargo install cargo-audit --locked

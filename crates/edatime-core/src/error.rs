@@ -4,6 +4,20 @@ use thiserror::Error;
 
 #[derive(Debug, Clone, Error)]
 pub enum AppError {
+    #[error("invalid time range: {0}")]
+    InvalidTimeRange(String),
+    #[error("invalid viewport width: {0}")]
+    InvalidWidth(String),
+    #[error("invalid bucket count: {0}")]
+    InvalidBuckets(String),
+    #[error("invalid scatter limit: {0}")]
+    InvalidScatterLimit(String),
+    #[error("invalid column selection: {0}")]
+    InvalidColumnSelection(String),
+    #[error("column not found: {0}")]
+    ColumnNotFound(String),
+    #[error("upload too large: {0}")]
+    UploadTooLarge(String),
     #[error("validation error: {0}")]
     Validation(String),
     #[error("bad request: {0}")]

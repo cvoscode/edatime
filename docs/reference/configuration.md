@@ -7,7 +7,7 @@ EdaTime loads configuration from defaults, an optional `config.toml`, and enviro
 Use:
 
 ```bash
-EDATIME_CONFIG=./config.toml cargo run --bin edatime
+EDATIME_CONFIG=./config.toml cargo run -p edatime-bin --bin edatime
 ```
 
 Example:
@@ -16,6 +16,9 @@ Example:
 [server]
 host = "0.0.0.0"
 port = 8080
+allow_insecure_public = true # required for a public bind without built-in auth
+cors_allowed_origins = ["https://analytics.example.com"]
+trusted_proxy_ips = ["10.0.0.10"]
 
 [cache]
 ttl_seconds = 120
@@ -25,6 +28,7 @@ max_bytes = 67108864
 [rate_limit]
 max_requests = 200
 window_seconds = 60
+max_clients = 10000
 
 [upload]
 max_upload_bytes = 536870912
@@ -49,6 +53,10 @@ require_sorted_scan_backed = true      # false opts into Polars streaming sort
 | `EDATIME_CACHE_MAX_BYTES` | Cache size limit | `67108864` |
 | `EDATIME_RATE_LIMIT_MAX_REQUESTS` | Per-client request budget | `1000` |
 | `EDATIME_RATE_LIMIT_WINDOW_SECONDS` | Rate-limit window | `60` |
+| `EDATIME_RATE_LIMIT_MAX_CLIENTS` | Hard cap on retained client buckets | `10000` |
+| `EDATIME_CORS_ALLOWED_ORIGINS` | Comma-separated cross-origin allowlist | unset (same-origin only) |
+| `EDATIME_TRUSTED_PROXY_IPS` | Comma-separated direct peers allowed to set forwarding headers | unset |
+| `EDATIME_ALLOW_INSECURE_PUBLIC` | Permit a non-loopback bind without built-in authentication | `false` |
 | `EDATIME_MAX_UPLOAD_BYTES` | Maximum upload size in bytes | `268435456` |
 | `EDATIME_ARTIFACT_DIR` | Managed directory for durable Parquet versions | unset |
 | `EDATIME_MAX_ARTIFACT_BYTES` | Aggregate managed-artifact disk cap in bytes | unset |

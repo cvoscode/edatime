@@ -138,7 +138,7 @@ describe('api http request options', () => {
         await expect(freshRequest).resolves.toEqual({ ok: true });
     });
 
-    it('readApiError surfaces JSON error payloads with code and correlation_id', async () => {
+    it('readApiError surfaces JSON error payloads with code and request identity', async () => {
         const response = {
             ok: false,
             status: 422,
@@ -157,7 +157,7 @@ describe('api http request options', () => {
 
         expect(error.message).toContain('Upload failed (422)');
         expect(error.message).toContain('[invalid_filter]');
-        expect(error.message).toContain('(correlation_id=req-123)');
+        expect(error.message).toContain('(request_id=req-123)');
         expect(error.message).toContain('invalid filter');
         expect((error as Error & { status?: number }).status).toBe(422);
     });

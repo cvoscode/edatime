@@ -1,13 +1,16 @@
 # ── Build stage ────────────────────────────────────────────────
-FROM rust:1.86-bookworm AS builder
+FROM rust:bookworm AS builder
 
 WORKDIR /build
 COPY Cargo.toml Cargo.lock* ./
-COPY src/ src/
-COPY benches/ benches/
-COPY frontend/ frontend/
+COPY src/lib.rs src/lib.rs
+COPY crates/ crates/
+COPY contracts/ contracts/
 
-RUN cargo build --release --bin edatime
+ARG EDATIME_BUILD_SHA=unknown
+ENV EDATIME_BUILD_SHA=${EDATIME_BUILD_SHA}
+ENV EDATIME_BUILD_PROFILE=release
+RUN cargo build --release -p edatime-bin --bin edatime
 
 # ── Runtime stage ─────────────────────────────────────────────
 FROM debian:bookworm-slim
@@ -16,12 +19,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /build/target/release/edatime /usr/local/bin/edatime
-COPY --from=builder /build/frontend/ /app/frontend/
+COPY --from=builder /build/crates/edatime-bin/frontend/dist/ /app/frontend/
 
 RUN useradd -r -s /bin/false edatime
 
 WORKDIR /app
 ENV EDATIME_HOST=0.0.0.0
+ENV EDATIME_ALLOW_INSECURE_PUBLIC=true
 ENV EDATIME_PORT=3000
 ENV EDATIME_FRONTEND_DIR=/app/frontend
 EXPOSE 3000

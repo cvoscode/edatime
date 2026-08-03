@@ -1303,7 +1303,10 @@ pub async fn apply(
     Json(envelope): Json<PlanRequestEnvelope>,
 ) -> Result<Response, AppError> {
     let (version, plan_hash, frame) = compile_request_frame(&state, &envelope)?;
-    let job = state.jobs.create(JobKind::Materialization);
+    let job = state.jobs.create_with_request_id(
+        JobKind::Materialization,
+        crate::middleware::current_request_id(),
+    );
     if !state.jobs.start(&job) {
         return Err(AppError::internal(
             "Could not start plan materialization job",

@@ -1,4 +1,4 @@
-import { deleteJson, getJson, postJson } from './http.js';
+import { deleteJson, getJson, postJson, readApiError } from './http.js';
 import { cleaningPlanStore } from '../../cleaning/store.js';
 import { buildPlanRequestSnapshot } from '../../cleaning/compiler.js';
 import type { ApiRequestOptions } from './http.js';
@@ -7,11 +7,15 @@ import { apiV1Routes } from '../../contracts/api/v1/routes.js';
 // ── Upload ─────────────────────────────────────────────────────────────────
 
 export async function previewUpload(formData: FormData, options?: ApiRequestOptions): Promise<Response> {
-    return globalThis.fetch(apiV1Routes.uploadPreview, { method: 'POST', body: formData, signal: options?.signal });
+    const response = await globalThis.fetch(apiV1Routes.uploadPreview, { method: 'POST', body: formData, signal: options?.signal });
+    if (!response.ok) throw await readApiError(response, 'Upload preview');
+    return response;
 }
 
 export async function uploadDataset(formData: FormData): Promise<Response> {
-    return globalThis.fetch(apiV1Routes.upload, { method: 'POST', body: formData });
+    const response = await globalThis.fetch(apiV1Routes.upload, { method: 'POST', body: formData });
+    if (!response.ok) throw await readApiError(response, 'Dataset upload');
+    return response;
 }
 
 // ── Database ────────────────────────────────────────────────────────────────

@@ -7,6 +7,7 @@ import {
     resolveTimestampColumnName,
     toEpochMs,
     readExecutionIdentity,
+    readApiError,
     dbg,
     DEBUG,
 } from './http.js';
@@ -94,8 +95,7 @@ export async function fetchData(
     }
 
     if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(`Data fetch failed (${res.status}) ${text}`);
+        throw await readApiError(res, 'Data fetch');
     }
 
     const buffer = await res.arrayBuffer();

@@ -6,7 +6,7 @@ use edatime_core::error::AppError;
 
 pub fn validate_time_window(start: DateTime<Utc>, end: DateTime<Utc>) -> Result<(), AppError> {
     if start >= end {
-        return Err(AppError::BadRequest(
+        return Err(AppError::InvalidTimeRange(
             "Start time must be before end time".to_string(),
         ));
     }
@@ -19,7 +19,7 @@ pub fn validate_width(width: usize, limits: &ValidationSettings) -> Result<(), A
     // calls. The frontend already clamps to 50 in
     // `services/api/timeseries.ts`; this makes the backend authoritative.
     if width < limits.min_viewport_width || width > limits.max_viewport_width {
-        return Err(AppError::BadRequest(format!(
+        return Err(AppError::InvalidWidth(format!(
             "Width must be between {} and {} pixels",
             limits.min_viewport_width, limits.max_viewport_width
         )));
@@ -29,7 +29,7 @@ pub fn validate_width(width: usize, limits: &ValidationSettings) -> Result<(), A
 
 pub fn validate_bucket_count(buckets: usize, limits: &ValidationSettings) -> Result<(), AppError> {
     if buckets == 0 || buckets > limits.max_buckets {
-        return Err(AppError::BadRequest(format!(
+        return Err(AppError::InvalidBuckets(format!(
             "Buckets must be between 1 and {}",
             limits.max_buckets
         )));
@@ -55,7 +55,7 @@ pub fn validate_window_ms(window_ms: i64, step_ms: Option<i64>) -> Result<(), Ap
 
 pub fn validate_scatter_limit(limit: usize, limits: &ValidationSettings) -> Result<(), AppError> {
     if limit == 0 || limit > limits.max_scatter_limit {
-        return Err(AppError::BadRequest(format!(
+        return Err(AppError::InvalidScatterLimit(format!(
             "Scatter limit must be between 1 and {}",
             limits.max_scatter_limit
         )));
@@ -68,7 +68,7 @@ pub fn validate_upload_size_with_limit(
     max_upload_bytes: usize,
 ) -> Result<(), AppError> {
     if total_bytes > max_upload_bytes {
-        return Err(AppError::BadRequest(format!(
+        return Err(AppError::UploadTooLarge(format!(
             "Upload exceeds the {} MB limit",
             max_upload_bytes / (1024 * 1024)
         )));
@@ -82,7 +82,7 @@ pub fn validate_numeric_columns(
     limits: &ValidationSettings,
 ) -> Result<Vec<String>, AppError> {
     if columns.len() > limits.max_selected_columns {
-        return Err(AppError::BadRequest(format!(
+        return Err(AppError::InvalidColumnSelection(format!(
             "At most {} columns may be requested at once",
             limits.max_selected_columns
         )));
@@ -97,10 +97,10 @@ pub fn validate_numeric_columns(
 
         let series = df
             .column(name)
-            .map_err(|_| AppError::BadRequest(format!("Unknown column '{}'", name)))?;
+            .map_err(|_| AppError::ColumnNotFound(format!("Unknown column '{}'", name)))?;
 
         if !series.dtype().is_numeric() {
-            return Err(AppError::BadRequest(format!(
+            return Err(AppError::InvalidColumnSelection(format!(
                 "Column '{}' must be numeric for this endpoint",
                 name
             )));
@@ -110,7 +110,7 @@ pub fn validate_numeric_columns(
     }
 
     if out.is_empty() {
-        return Err(AppError::BadRequest(
+        return Err(AppError::InvalidColumnSelection(
             "No valid numeric columns were requested".to_string(),
         ));
     }
@@ -124,7 +124,7 @@ pub fn validate_numeric_columns_lazy(
     limits: &ValidationSettings,
 ) -> Result<Vec<String>, AppError> {
     if columns.len() > limits.max_selected_columns {
-        return Err(AppError::BadRequest(format!(
+        return Err(AppError::InvalidColumnSelection(format!(
             "At most {} columns may be requested at once",
             limits.max_selected_columns
         )));
@@ -144,10 +144,10 @@ pub fn validate_numeric_columns_lazy(
 
         let dtype = schema
             .get(name)
-            .ok_or_else(|| AppError::BadRequest(format!("Unknown column '{}'", name)))?;
+            .ok_or_else(|| AppError::ColumnNotFound(format!("Unknown column '{}'", name)))?;
 
         if !dtype.is_numeric() {
-            return Err(AppError::BadRequest(format!(
+            return Err(AppError::InvalidColumnSelection(format!(
                 "Column '{}' must be numeric for this endpoint",
                 name
             )));
@@ -157,7 +157,7 @@ pub fn validate_numeric_columns_lazy(
     }
 
     if out.is_empty() {
-        return Err(AppError::BadRequest(
+        return Err(AppError::InvalidColumnSelection(
             "No valid numeric columns were requested".to_string(),
         ));
     }

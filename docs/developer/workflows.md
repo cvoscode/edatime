@@ -5,7 +5,7 @@
 ### Run The App
 
 ```bash
-cargo run --bin edatime
+cargo run -p edatime-bin --bin edatime
 ```
 
 ### Live Frontend Development

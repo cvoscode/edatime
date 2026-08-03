@@ -124,6 +124,12 @@ function isObject(v: unknown): v is Record<string, unknown> {
     return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
+function assertJsonContainer(data: unknown, label: string): void {
+    if (!isObject(data) && !Array.isArray(data)) {
+        throw new Error(`${label} response does not match the contracted JSON container shape`);
+    }
+}
+
 function assertDatasetMetadata(data: unknown): asserts data is DatasetMetadata {
     if (!isObject(data)) throw new Error('Metadata response is not an object');
     if (typeof data.total_rows !== 'number') throw new Error('Metadata missing total_rows');
@@ -144,11 +150,12 @@ function assertScatterCorrelations(data: unknown): asserts data is ScatterCorrel
 
 // ── Structured API error parsing ───────────────────────────────────────────
 
-interface ApiErrorPayload {
+export interface ApiErrorPayload {
     error?: unknown;
     message?: unknown;
     code?: unknown;
     correlation_id?: unknown;
+    request_id?: unknown;
 }
 
 /**
@@ -183,8 +190,9 @@ export async function readApiError(response: Response, label: string): Promise<E
             if (typeof parsed?.code === 'string' && parsed.code.trim().length > 0) {
                 code = parsed.code;
             }
-            if (typeof parsed?.correlation_id === 'string' && parsed.correlation_id.trim().length > 0) {
-                correlationId = parsed.correlation_id;
+            const requestId = parsed?.request_id ?? parsed?.correlation_id;
+            if (typeof requestId === 'string' && requestId.trim().length > 0) {
+                correlationId = requestId;
             }
         } else {
             const text = await response.text().catch(() => '');
@@ -197,7 +205,7 @@ export async function readApiError(response: Response, label: string): Promise<E
 
     const suffix = detail ? ` ${detail}` : '';
     const tag = code ? `[${code}]` : '';
-    const correlationTag = correlationId ? ` (correlation_id=${correlationId})` : '';
+    const correlationTag = correlationId ? ` (request_id=${correlationId})` : '';
     const error = new Error(
         `${label} failed (${status})${tag ? ' ' + tag : ''}${correlationTag}${suffix}`.trim(),
     );
@@ -228,9 +236,10 @@ function getJson<T>(
         if (!res.ok) {
             throw await readApiError(res, label);
         }
-        const data = await res.json() as T;
+        const data: unknown = await res.json();
+        assertJsonContainer(data, label);
         if (scope !== null) assertDatasetRequestScopeActive(scope);
-        return data;
+        return data as T;
     });
 }
 
@@ -281,9 +290,10 @@ function postJson<T>(
         if (!res.ok) {
             throw await readApiError(res, label);
         }
-        const data = await res.json() as T;
+        const data: unknown = await res.json();
+        assertJsonContainer(data, label);
         if (scope !== null) assertDatasetRequestScopeActive(scope);
-        return data;
+        return data as T;
     });
 }
 
@@ -333,9 +343,10 @@ function deleteJson<T>(
         });
         if (scope !== null) assertDatasetRequestScopeActive(scope);
         if (!res.ok) throw await readApiError(res, label);
-        const data = await res.json() as T;
+        const data: unknown = await res.json();
+        assertJsonContainer(data, label);
         if (scope !== null) assertDatasetRequestScopeActive(scope);
-        return data;
+        return data as T;
     });
 }
 

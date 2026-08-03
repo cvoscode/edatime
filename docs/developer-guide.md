@@ -5,13 +5,13 @@
 Run the app:
 
 ```bash
-cargo run
+cargo run -p edatime-bin --bin edatime
 ```
 
 Use a custom config file:
 
 ```bash
-EDATIME_CONFIG=./config.toml cargo run
+EDATIME_CONFIG=./config.toml cargo run -p edatime-bin --bin edatime
 ```
 
 The app serves the frontend from `frontend/` and listens on `127.0.0.1:3000` by default.
@@ -78,7 +78,7 @@ The repository exposes a reusable library target so internal pipeline code can b
 Compile and run the Criterion benchmarks:
 
 ```bash
-cargo bench --bench pipeline_bench
+cargo bench --workspace
 ```
 
 Current benchmark coverage:
@@ -96,7 +96,7 @@ The main CI workflow lives in `.github/workflows/ci.yml` and runs:
 - `cargo check --all-targets`
 - `cargo test`
 - `npm run check:frontend`
-- `cargo bench --bench pipeline_bench --no-run`
+- `cargo bench --workspace --no-run`
 
 This is intentionally a validation pipeline, not a deployment pipeline. There is no production release automation in the repository yet.
 

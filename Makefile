@@ -1,14 +1,14 @@
-.PHONY: build build-release run dev dev-dist check test docs docs-clean clean docker
+.PHONY: build build-release run dev dev-dist check test docs docs-clean clean docker bench-contract
 
 # Default target
 build:
-	cargo build
+	cargo build -p edatime-bin --bin edatime
 
 build-release:
-	cargo build --release
+	cargo build --release -p edatime-bin --bin edatime
 
 run:
-	cargo run --release -p edatime-bin
+	cargo run --release -p edatime-bin --bin edatime
 
 # Development: run Rust API + Vite frontend so CSS/JS update live.
 dev:
@@ -18,11 +18,12 @@ dev:
 dev-dist:
 	rm -rf crates/edatime-bin/frontend/dist
 	@if command -v node >/dev/null 2>&1; then node scripts/build-frontend.mjs; fi
-	EDATIME_FRONTEND_DIR=$(PWD)/crates/edatime-bin/frontend/dist cargo run -p edatime-bin
+	EDATIME_FRONTEND_DIR=$(PWD)/crates/edatime-bin/frontend/dist cargo run -p edatime-bin --bin edatime
 
 # Type-check and lint
 check:
 	cargo check
+	node scripts/check_api_contract.mjs
 	cargo clippy -- -D warnings
 	@if command -v node >/dev/null 2>&1; then cd frontend && npx tsc --noEmit; fi
 	@if command -v node >/dev/null 2>&1; then node scripts/check-frontend-architecture.mjs; fi
@@ -65,6 +66,13 @@ bench-http:
 	node scripts/bench_http.mjs snapshot \
 	    --target "$$EDATIME_TARGET" \
 	    --out benchmarks/run.metrics.json
+
+# Fast correctness gate required before a timed HTTP benchmark.
+bench-contract:
+	@if [ -z "$$EDATIME_TARGET" ]; then echo "EDATIME_TARGET is required, e.g. http://127.0.0.1:3000"; exit 1; fi
+	node scripts/bench_http.mjs preflight \
+	    --target "$$EDATIME_TARGET" \
+	    --out benchmarks/preflight.json
 
 # Build frontend for production (requires Node)
 frontend-prod:

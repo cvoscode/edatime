@@ -53,7 +53,7 @@ console.log(`Starting EdaTime backend API on http://127.0.0.1:${backendPort}`);
 console.log(`Starting Vite frontend on http://${frontendHost}:${frontendPort}`);
 console.log(`Vite proxies /api to ${apiOrigin}; open the Vite URL for live CSS/HMR.`);
 
-spawnProcess('backend', 'cargo', ['run', '-p', 'edatime-bin'], {
+spawnProcess('backend', 'cargo', ['run', '-p', 'edatime-bin', '--bin', 'edatime'], {
   EDATIME_PORT: backendPort,
 });
 

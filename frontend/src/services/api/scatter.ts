@@ -66,8 +66,7 @@ export async function fetchScatterPoints(
     });
     assertDatasetRequestScopeActive(requestScope);
     if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(`Scatter points failed (${res.status}) ${text}`);
+        throw await readApiError(res, 'Scatter points');
     }
 
     const ct = res.headers.get('Content-Type') ?? '';
@@ -86,22 +85,27 @@ export async function fetchScatterPoints(
         const yCol = table.getChild('y') ?? (yHeader ? table.getChild(yHeader) : null);
         const colorValueCol = table.getChild('color_value') ?? (colorHeader ? table.getChild(colorHeader) : null);
         const colorLabelCol = table.getChild('color_label');
+        const sizeValueCol = table.getChild('size_value');
 
         const n = table.numRows;
         const points: [number, number][] = new Array(n);
         const color_values: number[] | null = colorValueCol ? [] : null;
         const color_labels: (string | null)[] | null = colorLabelCol ? [] : null;
+        const size_values: number[] | null = sizeValueCol ? [] : null;
 
         for (let i = 0; i < n; i++) {
             points[i] = [xCol?.get(i) as number, yCol?.get(i) as number];
             if (color_values) color_values.push((colorValueCol as ArrowColumn).get(i) as number);
             if (color_labels) color_labels.push((colorLabelCol as ArrowColumn).get(i) as string | null);
+            if (size_values) size_values.push((sizeValueCol as ArrowColumn).get(i) as number);
         }
 
         const total = Number(res.headers.get('x-edatime-scatter-total') ?? n);
         const returned = Number(res.headers.get('x-edatime-scatter-returned') ?? n);
         const color_min = res.headers.get('x-edatime-color-min');
         const color_max = res.headers.get('x-edatime-color-max');
+        const size_min = res.headers.get('x-edatime-size-min');
+        const size_max = res.headers.get('x-edatime-size-max');
         // Audit issue 2.2: surface the cardinality summary on the
         // response. Headers take priority over a hypothetical body
         // field for the Arrow path; both are kept in sync by the
@@ -130,6 +134,9 @@ export async function fetchScatterPoints(
             color_labels,
             color_min: color_min !== null ? Number(color_min) : null,
             color_max: color_max !== null ? Number(color_max) : null,
+            size_values,
+            size_min: size_min !== null ? Number(size_min) : null,
+            size_max: size_max !== null ? Number(size_max) : null,
             color_cardinality,
             executionIdentity,
         };

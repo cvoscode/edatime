@@ -985,7 +985,9 @@ async fn start_profile_mode(
         snapshot = snapshot.limit(cap);
     }
 
-    let job = state.jobs.create(JobKind::Profile);
+    let job = state
+        .jobs
+        .create_with_request_id(JobKind::Profile, crate::middleware::current_request_id());
     state.store_profile(
         key.clone(),
         ProfileCacheEntry {

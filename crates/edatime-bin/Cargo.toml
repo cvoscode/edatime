@@ -3,6 +3,10 @@ name = "edatime-bin"
 version.workspace = true
 edition.workspace = true
 
+[[bin]]
+name = "edatime"
+path = "src/main.rs"
+
 [dependencies]
 edatime-core = { path = "../edatime-core" }
 edatime-query = { path = "../edatime-query" }

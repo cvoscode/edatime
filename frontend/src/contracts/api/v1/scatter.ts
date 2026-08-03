@@ -34,6 +34,9 @@ export interface ScatterPointsResponse {
     color_labels: (string | null)[] | null;
     color_min: number | null;
     color_max: number | null;
+    size_values: number[] | null;
+    size_min: number | null;
+    size_max: number | null;
     color_cardinality?: ColorCardinality | null;
     executionIdentity?: ExecutionIdentity;
 }

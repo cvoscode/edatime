@@ -9,15 +9,15 @@
 use axum::{
     Router,
     body::Body,
-    extract::DefaultBodyLimit,
     http::{Method, Request, StatusCode},
 };
 use http_body_util::BodyExt;
 use tower::ServiceExt;
 
 use edatime_core::config::AppConfig;
-use edatime_service::routes;
+use edatime_service::app::build_app;
 use edatime_store::state::AppState;
+use edatime_store::versions::fingerprints_for_frame;
 use polars::prelude::*;
 
 /// Build a deterministic test fixture: hourly data for 30 days, 3 numeric columns.
@@ -57,21 +57,59 @@ fn non_numeric_dataframe() -> DataFrame {
     .unwrap()
 }
 
-/// Build a test router identical to production but without middleware layers
-/// that would interfere with testing (rate limiting, compression, etc.).
+/// Build the exact production route and middleware stack.
 fn test_app() -> Router {
     test_app_with_dataframe(test_dataframe())
 }
 
 fn test_app_with_dataframe(df: DataFrame) -> Router {
     let config = AppConfig::default();
-    let max_upload = config.upload.max_upload_bytes;
     let state = AppState::new(df, config);
+    build_app(state, std::path::PathBuf::from("__missing_test_frontend__"))
+}
 
-    Router::new()
-        .nest("/api/v1", routes::api_router())
-        .layer(DefaultBodyLimit::max(max_upload))
-        .with_state(state)
+fn plan_envelope(df: &DataFrame, time_column: &str) -> serde_json::Value {
+    let (dataset_fingerprint, schema_fingerprint) = fingerprints_for_frame(df);
+    serde_json::json!({
+        "plan": {
+            "schemaVersion": 1,
+            "id": "api-integration-plan",
+            "planRevision": 1,
+            "sourceVersionId": "source-0",
+            "datasetRevision": 0,
+            "datasetFingerprint": dataset_fingerprint,
+            "schemaFingerprint": schema_fingerprint,
+            "timeColumn": time_column,
+            "sourceName": null,
+            "stages": [],
+            "createdAt": "2024-01-01T00:00:00Z",
+            "updatedAt": "2024-01-01T00:00:00Z"
+        },
+        "expectedPlanHash": null,
+        "expectedSourceVersionId": "source-0",
+        "expectedDatasetRevision": 0
+    })
+}
+
+fn plan_post(
+    path: &str,
+    mut body: serde_json::Value,
+    df: &DataFrame,
+    time_column: &str,
+) -> Request<Body> {
+    body.as_object_mut()
+        .expect("plan-aware request body must be an object")
+        .insert("cleaning_plan".to_string(), plan_envelope(df, time_column));
+    Request::builder()
+        .method(Method::POST)
+        .uri(path)
+        .header("content-type", "application/json")
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap()
+}
+
+fn test_plan_post(path: &str, body: serde_json::Value) -> Request<Body> {
+    plan_post(path, body, &test_dataframe(), "ts")
 }
 
 // ─── Health endpoint ──────────────────────────────────────────────────────────
@@ -140,7 +178,10 @@ async fn metadata_is_immediate_and_defers_column_profiles() {
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     let profiles = json["column_profiles"].as_array().unwrap();
-    assert!(profiles.is_empty(), "exact per-column profiles belong to /profile jobs");
+    assert!(
+        profiles.is_empty(),
+        "exact per-column profiles belong to /profile jobs"
+    );
     assert!(!json["columns"].as_array().unwrap().is_empty());
     assert!(json["time_range"]["min"].as_i64().is_some());
 }
@@ -170,8 +211,8 @@ async fn metadata_v1_returns_well_formed_profile() {
     );
 
     let bytes = resp.into_body().collect().await.unwrap().to_bytes();
-    let value: serde_json::Value = serde_json::from_slice(&bytes)
-        .expect("metadata body must be valid JSON");
+    let value: serde_json::Value =
+        serde_json::from_slice(&bytes).expect("metadata body must be valid JSON");
     assert!(
         value.get("columns").and_then(|v| v.as_array()).is_some(),
         "metadata must expose a `columns` array"
@@ -256,12 +297,13 @@ async fn sampled_profile_v1_returns_estimated_metadata() {
 #[tokio::test(flavor = "multi_thread")]
 async fn data_returns_arrow_ipc() {
     let app = test_app();
-    let req = Request::builder()
-        .uri(
-            "/api/v1/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=500&columns=col_a",
-        )
-        .body(Body::empty())
-        .unwrap();
+    let req = test_plan_post(
+        "/api/v1/data",
+        serde_json::json!({
+            "start": "2024-01-01T00:00:00Z", "end": "2024-01-30T00:00:00Z",
+            "width": 500, "columns": "col_a"
+        }),
+    );
 
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
@@ -286,12 +328,13 @@ async fn data_returns_arrow_ipc() {
 async fn data_rejects_invalid_time_window() {
     let app = test_app();
     // end before start
-    let req = Request::builder()
-        .uri(
-            "/api/v1/data?start=2024-01-30T00:00:00Z&end=2024-01-01T00:00:00Z&width=500&columns=col_a",
-        )
-        .body(Body::empty())
-        .unwrap();
+    let req = test_plan_post(
+        "/api/v1/data",
+        serde_json::json!({
+            "start": "2024-01-30T00:00:00Z", "end": "2024-01-01T00:00:00Z",
+            "width": 500, "columns": "col_a"
+        }),
+    );
 
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
@@ -304,10 +347,13 @@ async fn data_rejects_invalid_time_window() {
 #[tokio::test(flavor = "multi_thread")]
 async fn data_rejects_zero_width() {
     let app = test_app();
-    let req = Request::builder()
-        .uri("/api/v1/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=0&columns=col_a")
-        .body(Body::empty())
-        .unwrap();
+    let req = test_plan_post(
+        "/api/v1/data",
+        serde_json::json!({
+            "start": "2024-01-01T00:00:00Z", "end": "2024-01-30T00:00:00Z",
+            "width": 0, "columns": "col_a"
+        }),
+    );
 
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
@@ -320,10 +366,13 @@ async fn data_rejects_zero_width() {
 #[tokio::test(flavor = "multi_thread")]
 async fn data_rejects_unknown_column() {
     let app = test_app();
-    let req = Request::builder()
-        .uri("/api/v1/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=500&columns=nonexistent")
-        .body(Body::empty())
-        .unwrap();
+    let req = test_plan_post(
+        "/api/v1/data",
+        serde_json::json!({
+            "start": "2024-01-01T00:00:00Z", "end": "2024-01-30T00:00:00Z",
+            "width": 500, "columns": "nonexistent"
+        }),
+    );
 
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
@@ -336,10 +385,13 @@ async fn data_rejects_unknown_column() {
 #[tokio::test(flavor = "multi_thread")]
 async fn data_rejects_missing_columns_without_hardcoded_default() {
     let app = test_app();
-    let req = Request::builder()
-        .uri("/api/v1/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=500")
-        .body(Body::empty())
-        .unwrap();
+    let req = test_plan_post(
+        "/api/v1/data",
+        serde_json::json!({
+            "start": "2024-01-01T00:00:00Z", "end": "2024-01-30T00:00:00Z",
+            "width": 500
+        }),
+    );
 
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
@@ -358,12 +410,13 @@ async fn data_rejects_missing_columns_without_hardcoded_default() {
 #[tokio::test(flavor = "multi_thread")]
 async fn data_sets_downsample_headers() {
     let app = test_app();
-    let req = Request::builder()
-        .uri(
-            "/api/v1/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=100&columns=col_a",
-        )
-        .body(Body::empty())
-        .unwrap();
+    let req = test_plan_post(
+        "/api/v1/data",
+        serde_json::json!({
+            "start": "2024-01-01T00:00:00Z", "end": "2024-01-30T00:00:00Z",
+            "width": 100, "columns": "col_a"
+        }),
+    );
 
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
@@ -376,10 +429,13 @@ async fn data_sets_downsample_headers() {
 #[tokio::test(flavor = "multi_thread")]
 async fn data_multiple_columns() {
     let app = test_app();
-    let req = Request::builder()
-        .uri("/api/v1/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=500&columns=col_a,col_b")
-        .body(Body::empty())
-        .unwrap();
+    let req = test_plan_post(
+        "/api/v1/data",
+        serde_json::json!({
+            "start": "2024-01-01T00:00:00Z", "end": "2024-01-30T00:00:00Z",
+            "width": 500, "columns": "col_a,col_b"
+        }),
+    );
 
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
@@ -394,12 +450,13 @@ async fn data_downsampled_response_is_non_empty_with_epoch_timestamps() {
     // LTTB's coordinate axis from the caller's real x so the lookup is
     // bounded and the selection stays non-empty.
     let app = test_app();
-    let req = Request::builder()
-        .uri(
-            "/api/v1/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=100&columns=col_a",
-        )
-        .body(Body::empty())
-        .unwrap();
+    let req = test_plan_post(
+        "/api/v1/data",
+        serde_json::json!({
+            "start": "2024-01-01T00:00:00Z", "end": "2024-01-30T00:00:00Z",
+            "width": 100, "columns": "col_a"
+        }),
+    );
 
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
@@ -468,10 +525,13 @@ async fn data_downsampled_response_is_non_empty_with_narrow_width() {
     // `min_viewport_width`) because widths below the bound are rejected
     // by validation (audit issue 1.2).
     let app = test_app();
-    let req = Request::builder()
-        .uri("/api/v1/data?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&width=50&columns=col_a")
-        .body(Body::empty())
-        .unwrap();
+    let req = test_plan_post(
+        "/api/v1/data",
+        serde_json::json!({
+            "start": "2024-01-01T00:00:00Z", "end": "2024-01-30T00:00:00Z",
+            "width": 50, "columns": "col_a"
+        }),
+    );
 
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
@@ -523,10 +583,10 @@ async fn metrics_returns_counters() {
 #[tokio::test(flavor = "multi_thread")]
 async fn scatter_correlations_returns_suggestions() {
     let app = test_app();
-    let req = Request::builder()
-        .uri("/api/v1/scatter/correlations")
-        .body(Body::empty())
-        .unwrap();
+    let req = test_plan_post(
+        "/api/v1/scatter/correlations",
+        serde_json::json!({"base": "col_a", "threshold": 0.5, "mode": "pearson_raw"}),
+    );
 
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
@@ -540,10 +600,13 @@ async fn scatter_correlations_returns_suggestions() {
 #[tokio::test(flavor = "multi_thread")]
 async fn correlation_matrix_returns_ok_with_empty_payload_when_no_numeric_columns_exist() {
     let app = test_app_with_dataframe(non_numeric_dataframe());
-    let req = Request::builder()
-        .uri("/api/v1/scatter/correlations/matrix")
-        .body(Body::empty())
-        .unwrap();
+    let df = non_numeric_dataframe();
+    let req = plan_post(
+        "/api/v1/scatter/correlations/matrix",
+        serde_json::json!({}),
+        &df,
+        "label",
+    );
 
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
@@ -563,7 +626,9 @@ async fn scatter_points_post() {
     let body_json = serde_json::json!({
         "x": "col_a",
         "y": "col_b",
-        "limit": 1000
+        "limit": 1000,
+        "format": "arrow",
+        "cleaning_plan": plan_envelope(&test_dataframe(), "ts")
     });
 
     let req = Request::builder()
@@ -605,10 +670,13 @@ async fn scatter_points_post() {
 #[tokio::test(flavor = "multi_thread")]
 async fn analytics_fft() {
     let app = test_app();
-    let req = Request::builder()
-        .uri("/api/v1/analytics/fft?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&columns=col_a")
-        .body(Body::empty())
-        .unwrap();
+    let req = test_plan_post(
+        "/api/v1/analytics/fft",
+        serde_json::json!({
+            "start": "2024-01-01T00:00:00Z", "end": "2024-01-30T00:00:00Z",
+            "columns": "col_a"
+        }),
+    );
 
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
@@ -621,10 +689,13 @@ async fn analytics_fft() {
 #[tokio::test(flavor = "multi_thread")]
 async fn analytics_rolling() {
     let app = test_app();
-    let req = Request::builder()
-        .uri("/api/v1/analytics/rolling?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&columns=col_a&window=10")
-        .body(Body::empty())
-        .unwrap();
+    let req = test_plan_post(
+        "/api/v1/analytics/rolling",
+        serde_json::json!({
+            "start": "2024-01-01T00:00:00Z", "end": "2024-01-30T00:00:00Z",
+            "columns": "col_a", "window": 10
+        }),
+    );
 
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
@@ -633,10 +704,13 @@ async fn analytics_rolling() {
 #[tokio::test(flavor = "multi_thread")]
 async fn analytics_anomalies() {
     let app = test_app();
-    let req = Request::builder()
-        .uri("/api/v1/analytics/anomalies?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&columns=col_a&method=zscore&threshold=3.0")
-        .body(Body::empty())
-        .unwrap();
+    let req = test_plan_post(
+        "/api/v1/analytics/anomalies",
+        serde_json::json!({
+            "start": "2024-01-01T00:00:00Z", "end": "2024-01-30T00:00:00Z",
+            "columns": "col_a", "method": "zscore", "threshold": 3.0
+        }),
+    );
 
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
@@ -645,10 +719,13 @@ async fn analytics_anomalies() {
 #[tokio::test(flavor = "multi_thread")]
 async fn analytics_spectrogram_default() {
     let app = test_app();
-    let req = Request::builder()
-        .uri("/api/v1/analytics/spectrogram?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&column=col_a&window_size=64")
-        .body(Body::empty())
-        .unwrap();
+    let req = test_plan_post(
+        "/api/v1/analytics/spectrogram",
+        serde_json::json!({
+            "start": "2024-01-01T00:00:00Z", "end": "2024-01-30T00:00:00Z",
+            "column": "col_a", "window_size": 64
+        }),
+    );
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = resp.into_body().collect().await.unwrap().to_bytes();
@@ -667,10 +744,13 @@ async fn analytics_spectrogram_default() {
 #[tokio::test(flavor = "multi_thread")]
 async fn analytics_spectrogram_normalize_minmax() {
     let app = test_app();
-    let req = Request::builder()
-        .uri("/api/v1/analytics/spectrogram?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&column=col_a&window_size=64&normalize=minmax")
-        .body(Body::empty())
-        .unwrap();
+    let req = test_plan_post(
+        "/api/v1/analytics/spectrogram",
+        serde_json::json!({
+            "start": "2024-01-01T00:00:00Z", "end": "2024-01-30T00:00:00Z",
+            "column": "col_a", "window_size": 64, "normalize": "minmax"
+        }),
+    );
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = resp.into_body().collect().await.unwrap().to_bytes();
@@ -694,10 +774,13 @@ async fn analytics_spectrogram_clip_percentile() {
     let app = test_app();
     // 10% per-tail clip should be a no-op on this signal but the response
     // must still be valid. We mainly assert status 200 and shape.
-    let req = Request::builder()
-        .uri("/api/v1/analytics/spectrogram?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&column=col_a&window_size=64&clip=percentile&clip_param=10")
-        .body(Body::empty())
-        .unwrap();
+    let req = test_plan_post(
+        "/api/v1/analytics/spectrogram",
+        serde_json::json!({
+            "start": "2024-01-01T00:00:00Z", "end": "2024-01-30T00:00:00Z",
+            "column": "col_a", "window_size": 64, "clip": "percentile", "clip_param": 10
+        }),
+    );
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = resp.into_body().collect().await.unwrap().to_bytes();
@@ -713,10 +796,14 @@ async fn analytics_spectrogram_clip_percentile() {
 #[tokio::test(flavor = "multi_thread")]
 async fn analytics_spectrogram_clip_iqr_with_k() {
     let app = test_app();
-    let req = Request::builder()
-        .uri("/api/v1/analytics/spectrogram?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&column=col_a&window_size=64&normalize=minmax&clip=iqr&clip_param=1.5")
-        .body(Body::empty())
-        .unwrap();
+    let req = test_plan_post(
+        "/api/v1/analytics/spectrogram",
+        serde_json::json!({
+            "start": "2024-01-01T00:00:00Z", "end": "2024-01-30T00:00:00Z",
+            "column": "col_a", "window_size": 64, "normalize": "minmax",
+            "clip": "iqr", "clip_param": 1.5
+        }),
+    );
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = resp.into_body().collect().await.unwrap().to_bytes();
@@ -740,10 +827,13 @@ async fn analytics_spectrogram_clip_iqr_with_k() {
 #[tokio::test(flavor = "multi_thread")]
 async fn analytics_spectrogram_invalid_normalize_returns_400() {
     let app = test_app();
-    let req = Request::builder()
-        .uri("/api/v1/analytics/spectrogram?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&column=col_a&window_size=64&normalize=bogus")
-        .body(Body::empty())
-        .unwrap();
+    let req = test_plan_post(
+        "/api/v1/analytics/spectrogram",
+        serde_json::json!({
+            "start": "2024-01-01T00:00:00Z", "end": "2024-01-30T00:00:00Z",
+            "column": "col_a", "window_size": 64, "normalize": "bogus"
+        }),
+    );
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 }
@@ -751,10 +841,13 @@ async fn analytics_spectrogram_invalid_normalize_returns_400() {
 #[tokio::test(flavor = "multi_thread")]
 async fn analytics_spectrogram_invalid_clip_returns_400() {
     let app = test_app();
-    let req = Request::builder()
-        .uri("/api/v1/analytics/spectrogram?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&column=col_a&window_size=64&clip=bogus")
-        .body(Body::empty())
-        .unwrap();
+    let req = test_plan_post(
+        "/api/v1/analytics/spectrogram",
+        serde_json::json!({
+            "start": "2024-01-01T00:00:00Z", "end": "2024-01-30T00:00:00Z",
+            "column": "col_a", "window_size": 64, "clip": "bogus"
+        }),
+    );
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 }
@@ -901,10 +994,10 @@ async fn aggregate_returns_json_by_default() {
 #[tokio::test(flavor = "multi_thread")]
 async fn export_parquet_returns_data() {
     let app = test_app();
-    let req = Request::builder()
-        .uri("/api/v1/export/parquet?start=2024-01-01T00:00:00Z&end=2024-01-30T00:00:00Z&columns=col_a,col_b")
-        .body(Body::empty())
-        .unwrap();
+    let req = test_plan_post(
+        "/api/v1/scatter/export/parquet",
+        serde_json::json!({"x": "col_a", "y": "col_b", "limit": 1000}),
+    );
 
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
@@ -923,19 +1016,18 @@ async fn export_parquet_returns_data() {
 #[tokio::test(flavor = "multi_thread")]
 async fn second_data_request_hits_cache() {
     let config = AppConfig::default();
-    let max_upload = config.upload.max_upload_bytes;
     let state = AppState::new(test_dataframe(), config);
-
-    let app = Router::new()
-        .nest("/api/v1", routes::api_router())
-        .layer(DefaultBodyLimit::max(max_upload))
-        .with_state(state.clone());
-
-    let uri =
-        "/api/v1/data?start=2024-01-01T00:00:00Z&end=2024-01-15T00:00:00Z&width=200&columns=col_a";
+    let app = build_app(
+        state.clone(),
+        std::path::PathBuf::from("__missing_test_frontend__"),
+    );
+    let payload = serde_json::json!({
+        "start": "2024-01-01T00:00:00Z", "end": "2024-01-15T00:00:00Z",
+        "width": 200, "columns": "col_a"
+    });
 
     // First request — miss
-    let req = Request::builder().uri(uri).body(Body::empty()).unwrap();
+    let req = test_plan_post("/api/v1/data", payload.clone());
     let resp = app.clone().oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let cache_header = resp.headers().get("x-edatime-cache");
@@ -943,7 +1035,7 @@ async fn second_data_request_hits_cache() {
     assert!(cache_header.is_none() || cache_header.unwrap().to_str().unwrap() != "hit");
 
     // Second request — same params → should hit cache
-    let req = Request::builder().uri(uri).body(Body::empty()).unwrap();
+    let req = test_plan_post("/api/v1/data", payload);
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let cache_header = resp
@@ -969,4 +1061,92 @@ async fn database_status_without_connection() {
     let body = resp.into_body().collect().await.unwrap().to_bytes();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["connected"], false);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn framework_rejections_use_the_structured_error_and_request_id() {
+    let app = test_app();
+    let req = Request::builder()
+        .method(Method::GET)
+        .uri("/api/v1/data")
+        .header("x-request-id", "integration-request-42")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+    assert_eq!(
+        resp.headers().get("x-request-id").unwrap(),
+        "integration-request-42"
+    );
+    let body = resp.into_body().collect().await.unwrap().to_bytes();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(json["code"], "method_not_allowed");
+    assert_eq!(json["request_id"], "integration-request-42");
+    assert_eq!(json["correlation_id"], "integration-request-42");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn database_config_never_returns_the_connection_string() {
+    let mut config = AppConfig::default();
+    config.database.connection_string = Some("postgres://user:secret@db/private".to_string());
+    let state = AppState::new(test_dataframe(), config);
+    let app = build_app(state, std::path::PathBuf::from("__missing_test_frontend__"));
+    let req = Request::builder()
+        .uri("/api/v1/config/database")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = resp.into_body().collect().await.unwrap().to_bytes();
+    let text = String::from_utf8(body.to_vec()).unwrap();
+    assert!(!text.contains("secret"));
+    assert!(!text.contains("postgres://"));
+    let json: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(json["configured"], true);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn cors_defaults_to_same_origin_only() {
+    let app = test_app();
+    let req = Request::builder()
+        .method(Method::OPTIONS)
+        .uri("/api/v1/database/connect")
+        .header("origin", "https://untrusted.example")
+        .header("access-control-request-method", "DELETE")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert!(resp.headers().get("access-control-allow-origin").is_none());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn cors_allowlist_supports_delete_preflight() {
+    let mut config = AppConfig::default();
+    config.server.cors_allowed_origins = vec!["https://trusted.example".to_string()];
+    let state = AppState::new(test_dataframe(), config);
+    let app = build_app(state, std::path::PathBuf::from("__missing_test_frontend__"));
+    let req = Request::builder()
+        .method(Method::OPTIONS)
+        .uri("/api/v1/database/connect")
+        .header("origin", "https://trusted.example")
+        .header("access-control-request-method", "DELETE")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(
+        resp.headers().get("access-control-allow-origin").unwrap(),
+        "https://trusted.example"
+    );
+    assert!(
+        resp.headers()
+            .get("access-control-allow-methods")
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .contains("DELETE")
+    );
 }

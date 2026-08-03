@@ -38,6 +38,7 @@ pub enum JobStatus {
 #[serde(rename_all = "camelCase")]
 pub struct JobRecord {
     pub id: String,
+    pub request_id: Option<String>,
     pub kind: JobKind,
     pub status: JobStatus,
     pub created_at: DateTime<Utc>,
@@ -88,10 +89,15 @@ impl JobRegistry {
     }
 
     pub fn create(&self, kind: JobKind) -> JobHandle {
+        self.create_with_request_id(kind, None)
+    }
+
+    pub fn create_with_request_id(&self, kind: JobKind, request_id: Option<String>) -> JobHandle {
         let id = format!("job-{:016x}", self.next_id.fetch_add(1, Ordering::Relaxed));
         let cancelled = Arc::new(AtomicBool::new(false));
         let record = JobRecord {
             id: id.clone(),
+            request_id,
             kind,
             status: JobStatus::Queued,
             created_at: Utc::now(),

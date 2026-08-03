@@ -72,10 +72,6 @@ export function createUploadPreviewController(): UploadPreviewController {
 
         const res = await previewUpload(formData, { signal: controller.signal });
         if (disposed || controller.signal.aborted || request !== controller) return;
-        if (!res.ok) {
-            const txt = await res.text().catch(() => 'Preview failed');
-            throw new Error(txt || 'Preview failed');
-        }
         const result = await res.json();
         const previewMetadata = result?.metadata as DatasetMetadata;
         if (!previewMetadata || !Array.isArray(previewMetadata.columns)) {

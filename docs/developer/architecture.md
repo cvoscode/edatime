@@ -1,6 +1,8 @@
 # Backend Refactor Plan — 2026-05-21
 
-> **Status**: Draft — awaiting team review
+> **Status**: Historical plan. The workspace split and single `edatime-bin`
+> executable described below are now implemented; use
+> `backend_improvments.md` for the current backlog.
 > **Scope**: Full backend restructuring in the `edatime` Rust workspace
 > **Driver**: Analytical workloads, LazyFrame-first pipeline architecture, long-term maintainability
 
@@ -2494,7 +2496,7 @@ Week 11-12: Phase 6 — Performance optimization + benchmarks
 **Baseline metrics** (before Phase 1):
 ```bash
 # Data query latency
-cargo run --release --bin edatime-bin &
+cargo run --release -p edatime-bin --bin edatime &
 wrk -t4 -c100 -d30s http://localhost:8080/api/data?start=0\&end=1000000
 
 # Scatter query latency

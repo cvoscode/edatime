@@ -1,6 +1,7 @@
 //! edatime-service — Axum HTTP service layer.
 
 pub mod analytics;
+pub mod app;
 pub mod causal;
 pub mod dto;
 pub mod error;

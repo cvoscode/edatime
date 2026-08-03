@@ -19,7 +19,6 @@ async function loadSampleDataset(
 ): Promise<void> {
     const { toast } = await import('../../utils/toast.js');
     const { fetchSampleDataset, uploadDataset } = await import('../../services/api/index.js');
-    const { readApiError } = await import('../../services/api/http.js');
 
     const labels: Record<string, string> = {
         ettm2: 'ETTm2',
@@ -49,15 +48,6 @@ async function loadSampleDataset(
         formData.append('file', file);
 
         const response = await uploadDataset(formData);
-        if (!response.ok) {
-            // Use the structured API error parser so backend `code` /
-            // `correlation_id` fields surface in the toast.
-            const error = await readApiError(response, `Sample upload (${label})`);
-            dismissLoading();
-            toast(`Could not load ${label}: ${error.message}`, 'error');
-            return;
-        }
-
         const result = await response.json().catch(() => ({}));
         if (refreshDatasetAfterMutation) {
             await refreshDatasetAfterMutation();

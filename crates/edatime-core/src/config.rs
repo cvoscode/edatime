@@ -27,6 +27,14 @@ pub struct ServerConfig {
     pub host: String,
     pub port: u16,
     pub csp_extra_origins: Vec<String>,
+    /// Origins allowed to make cross-origin API requests. Empty means that
+    /// browsers may use only the normal same-origin application surface.
+    pub cors_allowed_origins: Vec<String>,
+    /// Direct peer IPs which are allowed to supply forwarding headers.
+    pub trusted_proxy_ips: Vec<String>,
+    /// Explicit escape hatch for deployments which bind publicly without an
+    /// authentication layer in front of edatime.
+    pub allow_insecure_public: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -42,6 +50,7 @@ pub struct CacheSettings {
 pub struct RateLimitSettings {
     pub max_requests: usize,
     pub window_seconds: u64,
+    pub max_clients: usize,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -136,6 +145,9 @@ impl Default for ServerConfig {
             host: "127.0.0.1".to_string(),
             port: 3000,
             csp_extra_origins: Vec::new(),
+            cors_allowed_origins: Vec::new(),
+            trusted_proxy_ips: Vec::new(),
+            allow_insecure_public: false,
         }
     }
 }
@@ -157,6 +169,7 @@ impl Default for RateLimitSettings {
             // against runaway loops, not public traffic.
             max_requests: 1000,
             window_seconds: 60,
+            max_clients: 10_000,
         }
     }
 }
@@ -223,6 +236,20 @@ impl AppConfig {
         SocketAddr::new(ip, self.server.port)
     }
 
+    /// Refuse an accidentally public unauthenticated listener. Operators that
+    /// intentionally put edatime behind a trusted authenticated gateway must
+    /// opt in explicitly.
+    pub fn validate_bind_security(&self) -> Result<(), AppError> {
+        let address = self.bind_address();
+        if !address.ip().is_loopback() && !self.server.allow_insecure_public {
+            return Err(AppError::bad_request(format!(
+                "Refusing public bind on {} without server.allow_insecure_public=true",
+                address.ip()
+            )));
+        }
+        Ok(())
+    }
+
     fn apply_env_overrides(&mut self) {
         if let Ok(host) = env::var("EDATIME_HOST") {
             let host = host.trim().to_string();
@@ -259,6 +286,33 @@ impl AppConfig {
             && let Ok(window_seconds) = window_seconds.parse::<u64>()
         {
             self.rate_limit.window_seconds = window_seconds;
+        }
+        if let Ok(max_clients) = env::var("EDATIME_RATE_LIMIT_MAX_CLIENTS")
+            && let Ok(max_clients) = max_clients.parse::<usize>()
+            && max_clients > 0
+        {
+            self.rate_limit.max_clients = max_clients;
+        }
+        if let Ok(origins) = env::var("EDATIME_CORS_ALLOWED_ORIGINS") {
+            self.server.cors_allowed_origins = origins
+                .split(',')
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string)
+                .collect();
+        }
+        if let Ok(proxies) = env::var("EDATIME_TRUSTED_PROXY_IPS") {
+            self.server.trusted_proxy_ips = proxies
+                .split(',')
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string)
+                .collect();
+        }
+        if let Ok(allow_public) = env::var("EDATIME_ALLOW_INSECURE_PUBLIC")
+            && let Ok(allow_public) = allow_public.parse::<bool>()
+        {
+            self.server.allow_insecure_public = allow_public;
         }
         if let Ok(max_upload_bytes) = env::var("EDATIME_MAX_UPLOAD_BYTES")
             && let Ok(max_upload_bytes) = max_upload_bytes.parse::<usize>()
@@ -523,6 +577,21 @@ mod tests {
             Some(value) => unsafe { env::set_var("EDATIME_MAX_BACKGROUND_JOBS", value) },
             None => unsafe { env::remove_var("EDATIME_MAX_BACKGROUND_JOBS") },
         }
+    }
+
+    #[test]
+    fn public_bind_requires_explicit_insecure_opt_in() {
+        let mut config = AppConfig::default();
+        config.server.host = "0.0.0.0".to_string();
+        assert!(config.validate_bind_security().is_err());
+
+        config.server.allow_insecure_public = true;
+        assert!(config.validate_bind_security().is_ok());
+    }
+
+    #[test]
+    fn loopback_bind_is_allowed_by_default() {
+        assert!(AppConfig::default().validate_bind_security().is_ok());
     }
 }
 

@@ -2,6 +2,7 @@
 name = "edatime"
 version = "0.1.0"
 edition = "2024"
+autobins = false
 
 [workspace]
 members = [
@@ -98,4 +99,3 @@ lto = true
 # toolchains without waiting for polars to bump the dependency.
 [patch.crates-io]
 ethnum = { git = "https://github.com/nlordell/ethnum-rs", tag = "v1.5.3" }
-

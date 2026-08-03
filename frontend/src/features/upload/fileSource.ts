@@ -143,48 +143,32 @@ export async function submitFileUpload(params: FileUploadParams): Promise<void> 
 
     try {
         const res = await uploadDataset(formData);
-        if (!res.ok) {
-            const txt = await res.text();
-            let message = txt;
-            try {
-                const parsed = JSON.parse(txt);
-                if (parsed && typeof parsed.error === 'string' && parsed.error.trim().length > 0) {
-                    message = parsed.error;
-                }
-            } catch { /* ignore */ }
-            if (statusEl) {
-                statusEl.textContent = 'Error: ' + message;
-                statusEl.className = 'upload-status error';
-            }
-            toast(`Upload failed: ${message}`, 'error', {});
-        } else {
-            const result = await res.json();
-            if (statusEl) {
-                statusEl.className = 'upload-status';
-            }
-            toast(`${formatCount(Number(result.rows || 0))} rows loaded. Dataset ready.`, 'success', {});
-            fileInput.value = '';
-            fileDisplay.textContent = '';
+        const result = await res.json();
+        if (statusEl) {
+            statusEl.className = 'upload-status';
+        }
+        toast(`${formatCount(Number(result.rows || 0))} rows loaded. Dataset ready.`, 'success', {});
+        fileInput.value = '';
+        fileDisplay.textContent = '';
 
-            try {
-                if (deps.refreshDatasetAfterMutation) {
-                    await deps.refreshDatasetAfterMutation();
-                } else {
-                    const { fetchMetadata } = await import('../../services/api/index.js');
-                    const freshMetadata = await fetchMetadata();
-                    setMetadata(freshMetadata);
-                    const revision = freshMetadata?.revision;
-                    setDatasetRevision(typeof revision === 'number' ? revision : 0);
-                    hydrateColumnProfiles(freshMetadata);
-                    renderColumnProfilesGrid(true);
-                    deps.buildColumnToggles();
-                    deps.buildRangeControls();
-                    setProfileMode('dataset');
-                }
-            } catch {
-                // Fall back to reload if metadata refresh fails
-                setTimeout(() => window.location.reload(), 1200);
+        try {
+            if (deps.refreshDatasetAfterMutation) {
+                await deps.refreshDatasetAfterMutation();
+            } else {
+                const { fetchMetadata } = await import('../../services/api/index.js');
+                const freshMetadata = await fetchMetadata();
+                setMetadata(freshMetadata);
+                const revision = freshMetadata?.revision;
+                setDatasetRevision(typeof revision === 'number' ? revision : 0);
+                hydrateColumnProfiles(freshMetadata);
+                renderColumnProfilesGrid(true);
+                deps.buildColumnToggles();
+                deps.buildRangeControls();
+                setProfileMode('dataset');
             }
+        } catch {
+            // Fall back to reload if metadata refresh fails
+            setTimeout(() => window.location.reload(), 1200);
         }
     } catch (e: unknown) {
         if (statusEl) {

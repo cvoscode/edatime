@@ -106,7 +106,7 @@ stdout.
 
 ```bash
 # 1. Build and start the server in release mode.
-cargo build --release -p edatime-bin
+cargo build --release -p edatime-bin --bin edatime
 EDATIME_FRONTEND_DIR=$(pwd)/crates/edatime-bin/frontend/dist \
     ./target/release/edatime \
     &
@@ -130,6 +130,29 @@ node scripts/bench_http.mjs run --seconds 60 --concurrency 16
 node scripts/bench_http.mjs snapshot --out benchmarks/run.metrics.json
 kill "$SERVER_PID"
 ```
+
+Before every timed run, validate the executable identity and the exact
+plan-aware request/response shapes:
+
+```bash
+node scripts/bench_http.mjs preflight \
+  --target http://127.0.0.1:3000 \
+  --out benchmarks/preflight.json
+```
+
+Run the long-series and wide-frame fixtures as separate server sessions; do
+not replace the active dataset during a timed interval. For a deterministic
+route schedule, use a fixed request count and seed:
+
+```bash
+node scripts/bench_http.mjs run --target http://127.0.0.1:3000 \
+  --requests 1000 --concurrency 8 --seed 0xA5A5A5A55A5A5A5A \
+  --out benchmarks/long.requests.json
+```
+
+Repeat the command with the same seed to require identical per-route request
+counts. Duration-based runs remain available for soak testing with
+`--seconds`; their total count naturally depends on server throughput.
 
 ### What to record (write into the result file)
 
