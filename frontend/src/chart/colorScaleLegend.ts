@@ -1,6 +1,6 @@
 import { formatTwoDecimals } from '../formatUtils.js';
-import { getSetting } from '../utils/settings.js';
-import { COLOR_SCALES, type ColorScaleName } from '../utils/colorScales.js';
+import { getPlotColorScale } from '../utils/settings.js';
+import { COLOR_SCALES } from '../utils/colorScales.js';
 import { categoryColorFor, type ColorScaleInfo } from './colorScale.js';
 
 export function renderColorScaleLegend(column: string | null, scaleInfo: ColorScaleInfo | null): void {
@@ -16,7 +16,7 @@ export function renderColorScaleLegend(column: string | null, scaleInfo: ColorSc
         document.getElementById('timeseries-colorbar-name')!.textContent = column;
         document.getElementById('timeseries-colorbar-min')!.textContent = formatTwoDecimals(scaleInfo.min);
         document.getElementById('timeseries-colorbar-max')!.textContent = formatTwoDecimals(scaleInfo.max);
-        const scale = getSetting('colorScale') as ColorScaleName;
+        const scale = getPlotColorScale('signals');
         const colors = COLOR_SCALES[scale] ?? COLOR_SCALES.viridis;
         document.getElementById('timeseries-colorbar')!.style.background = `linear-gradient(90deg, ${colors.join(',')})`;
         return;

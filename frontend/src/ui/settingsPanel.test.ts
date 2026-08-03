@@ -34,10 +34,12 @@ function buildSettingsDom(): void {
                     <option value="spearman_raw">Spearman</option>
                 </select>
                 <input id="settings-draw-auto-reset" type="checkbox" />
-                <select id="settings-color-scale">
-                    <option value="viridis">Viridis</option>
-                    <option value="plasma">Plasma</option>
-                </select>
+                <select id="settings-scale-signals" data-plot-color-scale="signals"><option value="viridis">Viridis</option><option value="plasma">Plasma</option></select>
+                <select id="settings-scale-pair-plot" data-plot-color-scale="pairPlot"><option value="viridis">Viridis</option><option value="magma">Magma</option></select>
+                <select id="settings-scale-correlation" data-plot-color-scale="correlationMatrix"><option value="coolwarm">Cool-Warm</option><option value="plasma">Plasma</option></select>
+                <select id="settings-scale-time-frequency" data-plot-color-scale="timeFrequency"><option value="viridis">Viridis</option><option value="inferno">Inferno</option></select>
+                <div data-scale-preview="signals"></div><div data-scale-preview="pairPlot"></div>
+                <div data-scale-preview="correlationMatrix"></div><div data-scale-preview="timeFrequency"></div>
                 <input id="settings-sidebar-collapsed" type="checkbox" />
             </div>
         </div>
@@ -139,6 +141,25 @@ describe('settingsPanel', () => {
 
         document.getElementById('settings-cancel-btn')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         expect(document.getElementById('settings-apply-indicator')?.hidden).toBe(true);
+    });
+
+    it('persists independent plot color scales from the centralized form', async () => {
+        const settingsModule = await import('../utils/settings.js');
+        vi.spyOn(settingsModule, 'loadSettings').mockReturnValue(settingsModule.DEFAULT_SETTINGS);
+        vi.spyOn(settingsModule, 'applyTheme').mockImplementation(() => {});
+        vi.spyOn(settingsModule, 'applyLayoutDensity').mockImplementation(() => {});
+        const saveSettings = vi.spyOn(settingsModule, 'saveSettings').mockImplementation(() => {});
+
+        const panelModule = await import('./settingsPanel.js');
+        panelModule.initSettingsPanel();
+        panelModule.openSettingsModal();
+        (document.getElementById('settings-scale-pair-plot') as HTMLSelectElement).value = 'magma';
+        (document.getElementById('settings-scale-correlation') as HTMLSelectElement).value = 'plasma';
+        document.getElementById('settings-apply-btn')?.click();
+
+        expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({
+            plotColorScales: expect.objectContaining({ pairPlot: 'magma', correlationMatrix: 'plasma' }),
+        }));
     });
 
     it('releases settings shortcuts when the owning shell is disposed', async () => {

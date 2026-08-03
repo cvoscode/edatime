@@ -20,7 +20,7 @@ pub fn series_to_finite_f64(series: &Series, label: &str) -> Result<Vec<f64>, Ap
 }
 
 /// Histogram with bin edges and counts.
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Histogram {
     pub bin_edges: Vec<f64>,
     pub counts: Vec<u64>,

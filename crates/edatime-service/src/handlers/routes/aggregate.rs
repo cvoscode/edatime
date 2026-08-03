@@ -17,7 +17,7 @@ use edatime_query::query::{
 use edatime_query::validation::{
     validate_bucket_count, validate_numeric_columns_lazy, validate_time_window, validate_window_ms,
 };
-use edatime_store::cache::CachedResponse;
+use edatime_store::cache::{CacheReservation, CachedResponse};
 use edatime_store::state::AppState;
 
 #[tracing::instrument(skip(state))]
@@ -75,6 +75,33 @@ pub async fn get_aggregate(
         }
     };
 
+    let cache_key = format!(
+        "agg:v2:{}:{}:{}:{}:{:?}:{:?}:{}:{}:{}:{}",
+        state.dataset_revision(),
+        params.start.timestamp_millis(),
+        params.end.timestamp_millis(),
+        value_cols.join(","),
+        params.agg,
+        params.window_mode,
+        params.buckets,
+        params.window_ms.unwrap_or_default(),
+        params.step_ms.unwrap_or_default(),
+        params.format.as_deref().unwrap_or("arrow"),
+    );
+    let _cache_producer = match state.cache.reserve(&cache_key).await {
+        CacheReservation::Hit {
+            response,
+            coalesced,
+        } => {
+            state.metrics.record_cache_hit();
+            return Ok(response.into_response(if coalesced { "coalesced" } else { "hit" }));
+        }
+        CacheReservation::Producer(producer) => {
+            state.metrics.record_cache_miss();
+            producer
+        }
+    };
+
     // ── Lazy pipeline: time filter + column projection (with ts_col) ────────
     // Reuse `filter_time_range` so the time column is always projected alongside
     // the requested value columns. `apply_reduction` / `bucket_aggregate` need
@@ -93,17 +120,19 @@ pub async fn get_aggregate(
     let filtered_for_reduction = filtered.clone();
     let value_cols_for_reduction = value_cols.clone();
     let ts_col_for_reduction = ts_col.clone();
-    let (aggregated, _) = tokio::task::spawn_blocking(move || {
-        pipeline::apply_reduction(
-            &filtered_for_reduction,
-            &value_cols_for_reduction,
-            &[],
-            &reduction,
-            &ts_col_for_reduction,
-        )
-    })
-    .await
-    .map_err(|e| AppError::internal(format!("Reduction join error: {e}")))??;
+    let (aggregated, _) = state
+        .query_executor
+        .run_interactive(edatime_core::metrics::CpuStage::Query, move || {
+            pipeline::apply_reduction(
+                &filtered_for_reduction,
+                &value_cols_for_reduction,
+                &[],
+                &reduction,
+                &ts_col_for_reduction,
+            )
+        })
+        .await
+        .map_err(AppError::from)??;
     let returned_rows = aggregated.height();
 
     // Log query
@@ -143,18 +172,6 @@ pub async fn get_aggregate(
         reduction: Some(reduction_spec),
         ts_dtype: dtype.to_string(),
     });
-
-    #[allow(clippy::format_in_format_args)]
-    // pre-existing: cache key construction predates the lint
-    let cache_key = format!(
-        "agg:v{}:{}:{}:{}:{}:{}",
-        state.dataset_revision(),
-        params.start.timestamp_millis(),
-        params.end.timestamp_millis(),
-        value_cols.join(","),
-        format!("{:?}", params.agg),
-        format!("{:?}", params.window_mode),
-    );
 
     let cached = match output_format(params.format.as_deref()) {
         OutputFormat::Json => {

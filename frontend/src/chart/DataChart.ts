@@ -125,6 +125,13 @@ export class DataChart {
     _lastChartOptions: ChartGPUOptions | null = null;
     _lastAppliedTheme: ResolvedTheme | null = null;
     _themeUnsub: (() => void) | null = null;
+    _settingsUnsub: (() => void) | null = null;
+    _lastDataInput: {
+        dataObj: FilteredDataObject;
+        columns: string[];
+        colorColumn: string | null;
+        adaptiveLines: AdaptiveLineFilter[];
+    } | null = null;
     _currentGrid: GridLayout = { ...DEFAULT_CHART_GRID };
     _legendOverlay: LegendOverlayController | null = null;
 
@@ -152,6 +159,8 @@ export class DataChart {
         this._chartResizeObserver = null;
         this._themeUnsub?.();
         this._themeUnsub = null;
+        this._settingsUnsub?.();
+        this._settingsUnsub = null;
         this._overlays = null;
         this._textOverlays?.destroy();
         this._textOverlays = null;
@@ -213,9 +222,12 @@ export class DataChart {
         this._lastXDomainMax = null;
         this._lastChartOptions = null;
         this._lastAppliedTheme = null;
+        this._lastDataInput = null;
 
         this._themeUnsub?.();
         this._themeUnsub = null;
+        this._settingsUnsub?.();
+        this._settingsUnsub = null;
     }
 
     setChartText(title: string, xLabel: string, yLabel: string): void {
@@ -273,6 +285,8 @@ export class DataChart {
         const themeUnsub = this._themeUnsub;
         themeUnsub?.();
         this._themeUnsub = null;
+        this._settingsUnsub?.();
+        this._settingsUnsub = null;
         try { this.chartInstance?.dispose?.(); } catch { /* already disposed */ }
         this.chartInstance = null;
         container.replaceChildren();
@@ -309,6 +323,13 @@ export class DataChart {
         this._themeUnsub = onThemeChange((next: ResolvedTheme) => {
             this._onThemeChanged(next);
         });
+        const onSettingsChanged = () => {
+            if (!this._lastDataInput) return;
+            const { dataObj, columns, colorColumn, adaptiveLines } = this._lastDataInput;
+            this.updateDataMulti(dataObj, columns, colorColumn, adaptiveLines);
+        };
+        document.addEventListener('edatime:settings-changed', onSettingsChanged);
+        this._settingsUnsub = () => document.removeEventListener('edatime:settings-changed', onSettingsChanged);
         requestAnimationFrame(() => this.resize());
     }
 
@@ -446,6 +467,12 @@ export class DataChart {
         colorColumn: string | null = null,
         adaptiveLines: readonly AdaptiveLineFilter[] = [],
     ): void {
+        this._lastDataInput = {
+            dataObj,
+            columns: [...columns],
+            colorColumn,
+            adaptiveLines: adaptiveLines.map((filter) => ({ ...filter })),
+        };
         this._activeColumns = [...columns];
         this._adaptiveLineFilters = adaptiveLines.map((filter) => ({ ...filter }));
         this._overlays?.setSelectedColumns(this._activeColumns);

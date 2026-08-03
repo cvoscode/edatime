@@ -33,6 +33,7 @@ pub enum ErrorCode {
     InvalidBuckets,
     InvalidScatterLimit,
     InvalidColumnSelection,
+    WorkBudgetExceeded,
     ColumnNotFound,
     UploadTooLarge,
     RateLimitExceeded,
@@ -203,6 +204,12 @@ impl IntoResponse for AppError {
         if let Ok(value) = axum::http::HeaderValue::from_str(&self.correlation_id) {
             response.headers_mut().insert("x-request-id", value);
         }
+        if self.kind == ErrorKind::Unavailable {
+            response.headers_mut().insert(
+                axum::http::header::RETRY_AFTER,
+                axum::http::HeaderValue::from_static("1"),
+            );
+        }
         response
     }
 }
@@ -264,6 +271,11 @@ impl From<edatime_core::error::AppError> for AppError {
             edatime_core::error::AppError::NotFound(message) => {
                 AppError::new(ErrorKind::NotFound, ErrorCode::NotFound, message)
             }
+            edatime_core::error::AppError::Overloaded(message) => AppError::new(
+                ErrorKind::Unavailable,
+                ErrorCode::ServiceUnavailable,
+                message,
+            ),
             edatime_core::error::AppError::Query(message)
             | edatime_core::error::AppError::Io(message)
             | edatime_core::error::AppError::Internal(message) => AppError::internal(message),

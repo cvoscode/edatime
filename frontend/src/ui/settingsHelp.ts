@@ -29,12 +29,23 @@ export const SETTINGS_HELP: PageHelpContent = {
             ],
         },
         {
+            title: 'Plot colors tab',
+            body:
+                'Independent continuous scales for numeric color encodings. Each preview shows the exact palette applied to that plot.',
+            bullets: [
+                'Signals — numeric Color by gradients',
+                'Pair plot — density and numeric point colors',
+                'Correlation matrix — negative-to-positive matrix scale',
+                'Time-frequency — spectrogram magnitude or power',
+                'Spectrum uses the categorical Chart palette; Causality and Drift retain stable semantic colors',
+            ],
+        },
+        {
             title: 'Analytics tab',
             body:
                 'Defaults for the analytics overlays and the correlation page.',
             bullets: [
                 'Default correlation metric — Pearson / Spearman / Kendall on raw values or first differences',
-                'Default color scale — palette used by the scatter colorbar when you have not picked one yet',
             ],
         },
         {

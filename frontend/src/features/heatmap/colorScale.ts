@@ -1,14 +1,14 @@
+import { getPlotColorScale } from '../../utils/settings.js';
+import { getColorFromScale, paletteForColorScale, type ColorScaleName } from '../../utils/colorScales.js';
+
 export function correlationColor(value: number, maxAbs = 1): string {
     const domain = Math.max(1e-6, maxAbs);
     const clamped = Math.max(-1, Math.min(1, value / domain));
-    if (clamped >= 0) {
-        const r = Math.round(245 - clamped * 55);
-        const g = Math.round(245 - clamped * 227);
-        const b = Math.round(245 - clamped * 199);
-        return `rgb(${r},${g},${b})`;
-    }
-    const t = -clamped;
-    return `rgb(${Math.round(245 - t * 210)},${Math.round(245 - t * 133)},${Math.round(245 - t * 65)})`;
+    return getColorFromScale((clamped + 1) / 2, getPlotColorScale('correlationMatrix'));
+}
+
+export function correlationScaleGradient(scale: ColorScaleName = getPlotColorScale('correlationMatrix')): string {
+    return `linear-gradient(180deg, ${[...paletteForColorScale(scale)].reverse().join(',')})`;
 }
 
 export function getColorDomainMax(data: (number | null)[][], fitAxis: boolean): number {
@@ -37,8 +37,8 @@ export function correlationToneClass(value: number | null): string {
 
 export function correlationTextColor(value: number | null, maxAbs = 1): string {
     if (value === null || !Number.isFinite(value)) return 'var(--text-dim)';
-    const match = correlationColor(value, maxAbs).match(/\d+/g)?.map(Number) ?? [255, 255, 255];
-    const [red = 255, green = 255, blue = 255] = match;
+    const hex = correlationColor(value, maxAbs).replace('#', '');
+    const [red, green, blue] = [0, 2, 4].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16));
     const luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
     return luminance < 0.54 ? '#FFFFFF' : '#15202B';
 }

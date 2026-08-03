@@ -19,12 +19,14 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
+use crate::handlers::routes::shared::enforce_work_budget;
 use edatime_store::db::{self, IngestOptions};
 use edatime_store::state::{AppState, DbConnectionInfo};
 
 // ── POST /api/database/connect ─────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ConnectRequest {
     /// postgres:// connection URL.
     pub connection_string: String,
@@ -62,6 +64,16 @@ pub async fn post_connect(
     State(state): State<AppState>,
     Json(body): Json<ConnectRequest>,
 ) -> Result<Json<ConnectResponse>, AppError> {
+    let snapshot_limit = body
+        .snapshot_limit
+        .unwrap_or(state.config.budgets.max_database_rows);
+    if body.load_snapshot {
+        enforce_work_budget(
+            "database snapshot rows",
+            snapshot_limit as u128,
+            state.config.budgets.max_database_rows as u128,
+        )?;
+    }
     // Validate connection string format superficially.
     if !body.connection_string.starts_with("postgres")
         && !body.connection_string.starts_with("postgresql")
@@ -79,7 +91,7 @@ pub async fn post_connect(
         && let Some(table) = &body.table
     {
         let opts = IngestOptions {
-            limit: Some(body.snapshot_limit.unwrap_or(1_000_000)),
+            limit: Some(snapshot_limit),
             ..Default::default()
         };
         let df: polars::prelude::DataFrame = db::ingest_table(
@@ -198,6 +210,7 @@ pub async fn get_tables(
 // ── GET /api/database/columns?schema=public&table=mytable ─────────────────
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ColumnsQuery {
     #[serde(default = "default_schema")]
     pub schema: String,
@@ -224,6 +237,7 @@ pub async fn get_columns(
 // ── POST /api/database/load ───────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LoadRequest {
     #[serde(default = "default_schema")]
     pub schema: String,
@@ -240,6 +254,12 @@ pub async fn post_load(
     State(state): State<AppState>,
     Json(body): Json<LoadRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    let limit = body.limit.unwrap_or(state.config.budgets.max_database_rows);
+    enforce_work_budget(
+        "database load rows",
+        limit as u128,
+        state.config.budgets.max_database_rows as u128,
+    )?;
     // Clone the Arc out of the guard so we don't hold the lock across awaits.
     let pool: Arc<db::DbPool> = {
         let guard = state.db_pool.read().await;
@@ -252,7 +272,7 @@ pub async fn post_load(
     let opts = IngestOptions {
         start_ms: body.start_ms,
         end_ms: body.end_ms,
-        limit: Some(body.limit.unwrap_or(1_000_000)),
+        limit: Some(limit),
         columns: body.columns.unwrap_or_default(),
     };
 

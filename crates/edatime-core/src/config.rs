@@ -19,6 +19,8 @@ pub struct AppConfig {
     pub validation: ValidationSettings,
     pub database: DatabaseSettings,
     pub query: QuerySettings,
+    pub budgets: WorkBudgetSettings,
+    pub retention: RetentionSettings,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -117,6 +119,58 @@ pub struct QuerySettings {
     pub max_interactive_concurrency: usize,
     /// Maximum concurrent sink-backed materialization/export calls.
     pub max_background_concurrency: usize,
+    /// Maximum concurrent filesystem/parser blocking operations.
+    pub max_blocking_io_concurrency: usize,
+    /// Maximum waiters admitted per workload class before immediate rejection.
+    pub max_queued_per_class: usize,
+    /// Maximum time a worker may wait for an execution slot.
+    pub queue_timeout_ms: u64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct WorkBudgetSettings {
+    pub max_scatter_matrix_pairs: usize,
+    pub max_scatter_matrix_points: usize,
+    pub max_rolling_cells: usize,
+    pub max_spectrogram_cells: usize,
+    pub max_causal_work_units: u64,
+    pub max_cleaning_stages: usize,
+    pub max_database_rows: usize,
+    pub max_json_body_bytes: usize,
+}
+
+impl Default for WorkBudgetSettings {
+    fn default() -> Self {
+        Self {
+            max_scatter_matrix_pairs: 64,
+            max_scatter_matrix_points: 1_000_000,
+            max_rolling_cells: 2_000_000,
+            max_spectrogram_cells: 2_000_000,
+            max_causal_work_units: 250_000_000,
+            max_cleaning_stages: 50,
+            max_database_rows: 1_000_000,
+            max_json_body_bytes: 2 * 1024 * 1024,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct RetentionSettings {
+    pub max_terminal_jobs: usize,
+    pub terminal_job_ttl_seconds: u64,
+    pub max_profile_entries: usize,
+}
+
+impl Default for RetentionSettings {
+    fn default() -> Self {
+        Self {
+            max_terminal_jobs: 256,
+            terminal_job_ttl_seconds: 3_600,
+            max_profile_entries: 32,
+        }
+    }
 }
 
 impl Default for QuerySettings {
@@ -125,6 +179,9 @@ impl Default for QuerySettings {
             max_stored: 512,
             max_interactive_concurrency: 4,
             max_background_concurrency: 1,
+            max_blocking_io_concurrency: 2,
+            max_queued_per_class: 16,
+            queue_timeout_ms: 2_000,
         }
     }
 }
@@ -352,6 +409,24 @@ impl AppConfig {
             && max_background > 0
         {
             self.query.max_background_concurrency = max_background;
+        }
+        if let Ok(max_io) = env::var("EDATIME_MAX_BLOCKING_IO")
+            && let Ok(max_io) = max_io.parse::<usize>()
+            && max_io > 0
+        {
+            self.query.max_blocking_io_concurrency = max_io;
+        }
+        if let Ok(max_queued) = env::var("EDATIME_MAX_QUEUED_WORK")
+            && let Ok(max_queued) = max_queued.parse::<usize>()
+            && max_queued > 0
+        {
+            self.query.max_queued_per_class = max_queued;
+        }
+        if let Ok(timeout_ms) = env::var("EDATIME_WORK_QUEUE_TIMEOUT_MS")
+            && let Ok(timeout_ms) = timeout_ms.parse::<u64>()
+            && timeout_ms > 0
+        {
+            self.query.queue_timeout_ms = timeout_ms;
         }
         if let Ok(min_width) = env::var("EDATIME_MIN_VIEWPORT_WIDTH")
             && let Ok(min_width) = min_width.parse::<usize>()

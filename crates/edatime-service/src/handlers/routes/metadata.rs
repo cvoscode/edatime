@@ -5,7 +5,7 @@ use polars::prelude::{
     DataFrame, DataType, Expr, LazyCsvReader, LazyFileListReader, LazyFrame, ScanArgsParquet,
     SchemaExt, col, len,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
 use edatime_core::stats;
@@ -30,7 +30,7 @@ pub struct ProfileResponse {
     pub metadata: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatasetMetadata {
     pub revision: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -60,13 +60,13 @@ pub struct DatasetMetadata {
     pub column_profiles: Vec<ColumnProfile>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ColumnMetadata {
     pub name: String,
     pub dtype: String,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TimeRange {
     pub min: i64,
     pub max: i64,
@@ -77,7 +77,7 @@ pub struct TimeRange {
 /// These facts are deliberately only produced by a completed sampled or exact
 /// profile. Immediate metadata reports the time range without pretending it
 /// has inspected source ordering or duplicate timestamps.
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TimeQuality {
     pub non_null_count: usize,
     pub null_count: usize,
@@ -95,7 +95,7 @@ pub struct TimeQuality {
     pub max_gap_ms: Option<i64>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ColumnProfile {
     pub name: String,
     pub dtype: String,
@@ -851,21 +851,34 @@ pub fn build_immediate_dataset_metadata_from_path_with_time_column(
 pub async fn get_metadata(
     State(state): State<AppState>,
 ) -> Result<Json<DatasetMetadata>, AppError> {
-    // Capture state handles for spawn_blocking — snapshot must run on blocking thread.
+    let version = state.current_dataset_version()?;
+    let display_name = state.time_column_display_name_sync();
+    let metadata_key = format!(
+        "{}:{}",
+        version.dataset_fingerprint,
+        display_name.as_deref().unwrap_or("")
+    );
+    if let Some(cached) = state.cached_immediate_metadata(&metadata_key) {
+        let metadata = serde_json::from_value(cached)
+            .map_err(|error| AppError::internal(format!("Decode cached metadata: {error}")))?;
+        return Ok(Json(metadata));
+    }
+    // Capture state handles for the admitted worker.
     let repo = state.repository.clone();
 
-    let metadata = tokio::task::spawn_blocking(move || {
-        let lf = repo.snapshot();
-        let time_col_display = repo.time_column_display_name_sync();
-        let mut metadata = build_immediate_dataset_metadata_from_lazyframe(lf, None)?;
-        apply_time_column_display_name(&mut metadata, time_col_display.as_deref());
-        Ok::<_, AppError>(metadata)
-    })
-    .await
-    .map_err(|e| AppError::internal(format!("Failed to join metadata task: {e:?}")))??;
+    let metadata = state
+        .query_executor
+        .run_interactive(edatime_core::metrics::CpuStage::Query, move || {
+            let lf = repo.snapshot();
+            let time_col_display = repo.time_column_display_name_sync();
+            let mut metadata = build_immediate_dataset_metadata_from_lazyframe(lf, None)?;
+            apply_time_column_display_name(&mut metadata, time_col_display.as_deref());
+            Ok::<_, AppError>(metadata)
+        })
+        .await
+        .map_err(AppError::from)??;
 
     let revision = state.repository.revision();
-    let version = state.current_dataset_version()?;
     let mut metadata = metadata;
     metadata.revision = revision;
     metadata.source_version_id = Some(version.id);
@@ -875,6 +888,7 @@ pub async fn get_metadata(
     metadata.dataset_fingerprint = Some(version.dataset_fingerprint);
     metadata.schema_fingerprint = Some(version.schema_fingerprint);
     metadata.source_name = version.source_name;
+    state.store_immediate_metadata(metadata_key, serde_json::to_value(&metadata)?);
     Ok(Json(metadata))
 }
 
@@ -1041,10 +1055,12 @@ async fn start_profile_mode(
             }),
         );
         let display_name = worker_state.time_column_display_name_sync();
-        let report = match tokio::task::spawn_blocking(move || {
-            build_dataset_metadata(&frame, true, display_name.as_deref())
-        })
-        .await
+        let report = match worker_state
+            .query_executor
+            .run_background(edatime_core::metrics::CpuStage::Analytics, move || {
+                build_dataset_metadata(&frame, true, display_name.as_deref())
+            })
+            .await
         {
             Ok(Ok(report)) => report,
             Ok(Err(error)) => {
@@ -1052,9 +1068,7 @@ async fn start_profile_mode(
                 return;
             }
             Err(error) => {
-                worker_state
-                    .jobs
-                    .fail(&job, format!("Failed to join profile task: {error}"));
+                worker_state.jobs.fail(&job, error.to_string());
                 return;
             }
         };

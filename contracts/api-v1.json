@@ -19,6 +19,7 @@
     {"method":"GET","path":"/api/v1/health","response":"HealthResponse","contentType":"application/json"},
     {"method":"GET","path":"/api/v1/build","response":"BuildIdentity","contentType":"application/json"},
     {"method":"GET","path":"/api/v1/contract","response":"ApiContract","contentType":"application/json"},
+    {"method":"GET","path":"/api/v1/capabilities","response":"Capabilities","contentType":"application/json"},
     {"method":"POST","path":"/api/v1/data","request":"DataRequest","response":"ArrowData|JsonData","contentType":"application/vnd.apache.arrow.stream|application/json","planAware":true},
     {"method":"POST","path":"/api/v1/cleaning/validate","request":"CleaningPlanEnvelope","response":"ValidationResponse","contentType":"application/json"},
     {"method":"POST","path":"/api/v1/cleaning/preview","request":"CleaningPreviewRequest","response":"CleaningPreviewResponse","contentType":"application/json"},

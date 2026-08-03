@@ -7,7 +7,15 @@ pub async fn get_metrics(State(state): State<AppState>) -> Json<serde_json::Valu
     let revision = state.dataset_revision();
     let snapshot = state.metrics.snapshot(rows, revision);
     match serde_json::to_value(snapshot) {
-        Ok(json) => Json(json),
+        Ok(mut json) => {
+            if let Some(object) = json.as_object_mut() {
+                object.insert(
+                    "response_cache".to_string(),
+                    serde_json::to_value(state.cache.snapshot()).unwrap_or_default(),
+                );
+            }
+            Json(json)
+        }
         Err(err) => Json(serde_json::json!({
             "error": format!("Failed to serialize metrics: {err}")
         })),

@@ -72,6 +72,8 @@ struct ManagedJob {
 pub struct JobRegistry {
     next_id: AtomicU64,
     jobs: Mutex<BTreeMap<String, ManagedJob>>,
+    max_terminal_jobs: usize,
+    terminal_ttl: chrono::Duration,
 }
 
 impl Default for JobRegistry {
@@ -82,9 +84,15 @@ impl Default for JobRegistry {
 
 impl JobRegistry {
     pub fn new() -> Self {
+        Self::with_retention(256, 3_600)
+    }
+
+    pub fn with_retention(max_terminal_jobs: usize, terminal_ttl_seconds: u64) -> Self {
         Self {
             next_id: AtomicU64::new(1),
             jobs: Mutex::new(BTreeMap::new()),
+            max_terminal_jobs: max_terminal_jobs.max(1),
+            terminal_ttl: chrono::Duration::seconds(terminal_ttl_seconds.max(1) as i64),
         }
     }
 
@@ -93,6 +101,7 @@ impl JobRegistry {
     }
 
     pub fn create_with_request_id(&self, kind: JobKind, request_id: Option<String>) -> JobHandle {
+        self.prune();
         let id = format!("job-{:016x}", self.next_id.fetch_add(1, Ordering::Relaxed));
         let cancelled = Arc::new(AtomicBool::new(false));
         let record = JobRecord {
@@ -182,12 +191,14 @@ impl JobRegistry {
     }
 
     pub fn record(&self, id: &str) -> Option<JobRecord> {
+        self.prune();
         lock_recover(&self.jobs)
             .get(id)
             .map(|job| job.record.clone())
     }
 
     pub fn list(&self) -> Vec<JobRecord> {
+        self.prune();
         lock_recover(&self.jobs)
             .values()
             .map(|job| job.record.clone())
@@ -210,6 +221,25 @@ impl JobRegistry {
         }
         job.record.finished_at = Some(Utc::now());
         true
+    }
+
+    fn prune(&self) {
+        let now = Utc::now();
+        let mut jobs = lock_recover(&self.jobs);
+        jobs.retain(|_, job| {
+            job.record
+                .finished_at
+                .is_none_or(|finished| now.signed_duration_since(finished) < self.terminal_ttl)
+        });
+        let terminal_ids = jobs
+            .iter()
+            .filter(|(_, job)| job.record.finished_at.is_some())
+            .map(|(id, _)| id.clone())
+            .collect::<Vec<_>>();
+        let excess = terminal_ids.len().saturating_sub(self.max_terminal_jobs);
+        for id in terminal_ids.into_iter().take(excess) {
+            jobs.remove(&id);
+        }
     }
 }
 
@@ -253,5 +283,21 @@ mod tests {
             jobs.record(handle.id()).unwrap().status,
             JobStatus::Cancelled
         );
+    }
+
+    #[test]
+    fn terminal_jobs_are_pruned_to_the_configured_count() {
+        let jobs = JobRegistry::with_retention(1, 3_600);
+        let first = jobs.create(JobKind::Profile);
+        assert!(jobs.start(&first));
+        assert!(jobs.complete(&first));
+        let second = jobs.create(JobKind::Profile);
+        assert!(jobs.start(&second));
+        assert!(jobs.complete(&second));
+
+        let records = jobs.list();
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].id, second.id());
+        assert!(jobs.record(first.id()).is_none());
     }
 }

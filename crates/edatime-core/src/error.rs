@@ -24,6 +24,8 @@ pub enum AppError {
     BadRequest(String),
     #[error("not found: {0}")]
     NotFound(String),
+    #[error("service overloaded: {0}")]
+    Overloaded(String),
     #[error("query error: {0}")]
     Query(String),
     #[error("io error: {0}")]
@@ -43,6 +45,10 @@ impl AppError {
 
     pub fn internal(msg: impl Into<String>) -> Self {
         Self::Internal(msg.into())
+    }
+
+    pub fn overloaded(msg: impl Into<String>) -> Self {
+        Self::Overloaded(msg.into())
     }
 }
 

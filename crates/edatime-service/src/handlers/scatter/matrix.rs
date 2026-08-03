@@ -8,16 +8,17 @@ use std::sync::Arc;
 use crate::error::AppError;
 use edatime_query::arrow_export::dataframe_to_arrow_ipc;
 use edatime_query::validation::{validate_scatter_limit, validate_time_window};
-use edatime_store::cache::CachedResponse;
+use edatime_store::cache::{CacheReservation, CachedResponse};
 use edatime_store::state::AppState;
 
-use super::sample::collect_sampled_xyc_rows_streaming;
+use super::sample::collect_sampled_matrix_rows_streaming;
 use super::{
     ScatterColorKind, ScatterMatrixPair, ScatterMatrixQuery, TimeColorMode, clamp_limit,
-    collect_filtered_scatter_frame, resolved_scatter_limit,
+    collect_filtered_scatter_columns_frame, resolved_scatter_limit,
 };
 use crate::handlers::routes::cleaning::compile_request_frame;
 use crate::handlers::routes::shared::ExecutionIdentity;
+use crate::handlers::routes::shared::enforce_work_budget;
 
 #[derive(Debug, serde::Serialize)]
 struct ScatterMatrixCellMeta {
@@ -127,11 +128,19 @@ async fn scatter_matrix_response(
         identity.plan_hash.as_deref().unwrap_or("none"),
     );
     let cache_key = format!("{cache_key}:{limit}");
-    if let Some(cached) = state.cache.get(&cache_key).await {
-        state.metrics.record_cache_hit();
-        return Ok(cached.into_response("hit"));
-    }
-    state.metrics.record_cache_miss();
+    let _cache_producer = match state.cache.reserve(&cache_key).await {
+        CacheReservation::Hit {
+            response,
+            coalesced,
+        } => {
+            state.metrics.record_cache_hit();
+            return Ok(response.into_response(if coalesced { "coalesced" } else { "hit" }));
+        }
+        CacheReservation::Producer(producer) => {
+            state.metrics.record_cache_miss();
+            producer
+        }
+    };
 
     let time_column = if requires_time_column {
         Some(state.ts_context(&lf)?.ts_col)
@@ -139,11 +148,46 @@ async fn scatter_matrix_response(
         None
     };
     let effective_limit = limit.min(state.config.validation.max_scatter_effective_points);
+    enforce_work_budget(
+        "scatter matrix pair count",
+        pairs.len() as u128,
+        state.config.budgets.max_scatter_matrix_pairs as u128,
+    )?;
+    enforce_work_budget(
+        "scatter matrix output points",
+        (pairs.len() as u128).saturating_mul(effective_limit as u128),
+        state.config.budgets.max_scatter_matrix_points as u128,
+    )?;
+    let mut projected_columns = Vec::new();
+    for pair in &pairs {
+        for name in [&pair.x, &pair.y] {
+            if !projected_columns.contains(name) {
+                projected_columns.push(name.clone());
+            }
+        }
+    }
+    if let Some(color) = color_col.as_ref()
+        && !projected_columns.contains(color)
+    {
+        projected_columns.push(color.clone());
+    }
+    let lazy_frame = collect_filtered_scatter_columns_frame(
+        lf,
+        &projected_columns,
+        time_column.as_deref(),
+        start,
+        end,
+    )?;
+    let pair_axes = pairs
+        .iter()
+        .map(|pair| (pair.x.clone(), pair.y.clone()))
+        .collect::<Vec<_>>();
     let metrics = Arc::clone(&state.metrics);
     let color_col_for_headers = color_col.clone();
 
-    let (metadata, returned_points, total_points, arrow_bytes) =
-        tokio::task::spawn_blocking(move || {
+    let (metadata, returned_points, total_points, arrow_bytes) = state
+        .query_executor
+        .run_interactive(edatime_core::metrics::CpuStage::Scatter, move || {
             let mut cell_ids: Vec<String> = Vec::new();
             let mut x_values: Vec<f64> = Vec::new();
             let mut y_values: Vec<f64> = Vec::new();
@@ -153,28 +197,17 @@ async fn scatter_matrix_response(
             let mut total_points = 0_usize;
             let mut returned_points = 0_usize;
 
-            for pair in pairs {
-                let lazy_frame = collect_filtered_scatter_frame(
-                    lf.clone(),
-                    &pair.x,
-                    &pair.y,
-                    color_col.as_deref(),
-                    None,
-                    time_column.as_deref(),
-                    start,
-                    end,
-                )?;
-                let sample_seed_scope = format!("{sample_seed_prefix}:{}:{}", pair.x, pair.y);
-                let (cell_total, sampled_rows, color_kind) = collect_sampled_xyc_rows_streaming(
-                    lazy_frame,
-                    &pair.x,
-                    &pair.y,
-                    color_col.as_deref(),
-                    None,
-                    effective_limit,
-                    time_color_mode,
-                    &sample_seed_scope,
-                )?;
+            let sampled_cells = collect_sampled_matrix_rows_streaming(
+                lazy_frame,
+                &pair_axes,
+                color_col.as_deref(),
+                effective_limit,
+                time_color_mode,
+                &sample_seed_prefix,
+            )?;
+            for (pair, (cell_total, sampled_rows, color_kind)) in
+                pairs.into_iter().zip(sampled_cells)
+            {
                 let returned_for_cell = sampled_rows.len();
 
                 total_points += cell_total;
@@ -241,9 +274,7 @@ async fn scatter_matrix_response(
             Ok::<_, AppError>((metadata, returned_points, total_points, arrow_bytes))
         })
         .await
-        .map_err(|error| {
-            AppError::internal(format!("Failed to join scatter matrix task: {error:?}"))
-        })??;
+        .map_err(AppError::from)??;
 
     metrics.record_scatter_sampling(total_points, returned_points);
 

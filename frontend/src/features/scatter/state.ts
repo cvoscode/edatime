@@ -13,6 +13,7 @@ import { buildAdaptiveLineFiltersForQueryState } from '../../services/timeseries
 import type { WorkspaceSnapshot } from '../../contracts/workspace.js';
 import { getScatterPlotMetrics } from './layout.js';
 import { getDropdownValue, setDropdownOptions } from '../../ui/primitives/Dropdown.js';
+import { getPlotColorScale } from '../../utils/settings.js';
 
 // Import scatterState locally as `state` for use in helper functions defined
 // in this module, and re-export it so external callers can also use it as `state`.
@@ -59,6 +60,7 @@ export function currentControls(): ScatterControls {
 
     const renderMode = getDropdownValue('scatter-render-mode') || 'density';
     const selectedColorColumn = getDropdownValue('scatter-color-column') || '';
+    const colorScale = getPlotColorScale('pairPlot');
 
     return {
         x: getDropdownValue('scatter-x-col') || '',
@@ -69,13 +71,13 @@ export function currentControls(): ScatterControls {
         // below MUST stay aligned with `COLOR_SCALES` in
         // `utils/settings.ts` so density mode and the color-by-column
         // scale start in sync.
-        colormap: 'viridis',
+        colormap: colorScale,
         normalization: getDropdownValue('scatter-normalization') || 'linear',
         renderMode,
         diagonalMode: getDropdownValue('scatter-diagonal-mode') || 'histogram',
         colorColumn: renderMode === 'density' ? '' : selectedColorColumn,
         selectedColorColumn,
-        colorScale: getDropdownValue('scatter-color-scale') || 'viridis',
+        colorScale,
         matrixMode: getDropdownValue('scatter-matrix-mode') || 'scatter',
         matrixCellSize: Math.max(80, Math.min(400, Number(matrixSizeInput?.value ?? 160))),
     };

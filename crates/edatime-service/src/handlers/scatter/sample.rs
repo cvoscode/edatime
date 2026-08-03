@@ -59,6 +59,8 @@ pub struct SampledScatterRow {
     pub size_value: Option<f64>,
 }
 
+pub type SampledScatterCell = (usize, Vec<SampledScatterRow>, Option<ScatterColorKind>);
+
 // ── Core sampling ───────────────────────────────────────────────────────────
 
 const SCATTER_BATCH_ROWS: usize = 16_384;
@@ -338,6 +340,87 @@ pub fn collect_sampled_xyc_rows_streaming(
         .map_err(|_| AppError::internal("scatter reservoir lock poisoned"))?;
     let (total_points, sampled_rows) = reservoir.finish();
     Ok((total_points, sampled_rows, color_kind))
+}
+
+/// Feed every scatter-matrix cell from one projected source stream. Memory is
+/// bounded by the configured total matrix-point budget across all reservoirs.
+pub fn collect_sampled_matrix_rows_streaming(
+    lazy_frame: LazyFrame,
+    pairs: &[(String, String)],
+    color: Option<&str>,
+    effective_limit: usize,
+    time_color_mode: TimeColorMode,
+    seed_scope: &str,
+) -> Result<Vec<SampledScatterCell>, AppError> {
+    let schema = lazy_frame
+        .clone()
+        .collect_schema()
+        .map_err(|error| AppError::bad_request(format!("scatter matrix schema: {error}")))?;
+    let color_kind = color
+        .map(|color_name| {
+            let dtype = schema
+                .get(color_name)
+                .ok_or_else(|| AppError::bad_request(format!("Unknown column '{color_name}'")))?;
+            Ok::<ScatterColorKind, AppError>(
+                if dtype.is_numeric()
+                    || (matches!(dtype, DataType::Datetime(_, _) | DataType::Date)
+                        && matches!(time_color_mode, TimeColorMode::Raw))
+                {
+                    ScatterColorKind::Continuous
+                } else {
+                    ScatterColorKind::Categorical
+                },
+            )
+        })
+        .transpose()?;
+    let reservoirs = pairs
+        .iter()
+        .map(|(x, y)| {
+            ScatterReservoir::new(
+                effective_limit,
+                scatter_reservoir_seed(&format!("{seed_scope}:{x}:{y}")),
+            )
+        })
+        .collect::<Vec<_>>();
+    let reservoirs = Arc::new(Mutex::new(reservoirs));
+    let callback_reservoirs = Arc::clone(&reservoirs);
+    let pairs = pairs.to_vec();
+    let color = color.map(str::to_owned);
+    let callback = PlanCallback::new(move |batch: DataFrame| {
+        let mut reservoirs = callback_reservoirs.lock().map_err(|_| {
+            PolarsError::ComputeError("scatter matrix reservoirs lock poisoned".into())
+        })?;
+        for ((x, y), reservoir) in pairs.iter().zip(reservoirs.iter_mut()) {
+            sample_frame_into_reservoir(
+                reservoir,
+                &batch,
+                x,
+                y,
+                color.as_deref(),
+                None,
+                time_color_mode,
+            )
+            .map_err(|error| PolarsError::ComputeError(error.to_string().into()))?;
+        }
+        Ok(false)
+    });
+    lazy_frame
+        .with_new_streaming(true)
+        .sink_batches(callback, true, NonZeroUsize::new(SCATTER_BATCH_ROWS))
+        .map_err(|error| AppError::io(format!("build scatter matrix stream: {error}")))?
+        .collect()
+        .map_err(|error| AppError::io(format!("stream scatter matrix rows: {error}")))?;
+    let reservoirs = Arc::try_unwrap(reservoirs)
+        .map_err(|_| AppError::internal("scatter matrix stream retained its reservoirs"))?
+        .into_inner()
+        .map_err(|_| AppError::internal("scatter matrix reservoirs lock poisoned"))?;
+    Ok(reservoirs
+        .into_iter()
+        .map(|reservoir| {
+            let (total, rows) = reservoir.finish();
+            (total, rows, color_kind)
+        })
+        .collect())
 }
 
 #[cfg(test)]

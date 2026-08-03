@@ -10,6 +10,7 @@ export const apiV1Routes = {
     health: '/api/v1/health',
     build: '/api/v1/build',
     contract: '/api/v1/contract',
+    capabilities: '/api/v1/capabilities',
     metrics: '/api/v1/metrics',
     metadata: '/api/v1/metadata',
     profile: '/api/v1/profile',

@@ -231,8 +231,8 @@ describe('contract: every endpoint targets /api/v1', () => {
             await previewUpload(fd);
             await uploadDataset(fd);
             await fetchDatabaseTables();
-            await connectDatabase({});
-            await loadDatabaseTable({});
+            await connectDatabase({ connection_string: 'postgres://test' });
+            await loadDatabaseTable({ table: 'test' });
             await deleteDatabaseConnection();
             await fetchDatabaseStatus();
             await fetchDriftStats({});

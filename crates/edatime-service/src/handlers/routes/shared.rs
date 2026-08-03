@@ -8,6 +8,36 @@ use edatime_query::pipeline;
 use edatime_query::query;
 use edatime_query::validation::{validate_numeric_columns_lazy, validate_time_window};
 use edatime_store::state::AppState;
+
+pub(crate) fn enforce_work_budget(
+    workload: &str,
+    estimated: u128,
+    limit: u128,
+) -> Result<(), AppError> {
+    if estimated > limit {
+        return Err(AppError::bad_request_code(
+            crate::error::ErrorCode::WorkBudgetExceeded,
+            format!(
+                "{workload} exceeds the configured work budget: estimated={estimated}, limit={limit}"
+            ),
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod budget_tests {
+    use super::enforce_work_budget;
+    use crate::error::ErrorCode;
+
+    #[test]
+    fn work_budget_accepts_boundary_and_rejects_one_over() {
+        assert!(enforce_work_budget("test", 100, 100).is_ok());
+        let error = enforce_work_budget("test", 101, 100).expect_err("one over must reject");
+        assert_eq!(error.code, ErrorCode::WorkBudgetExceeded);
+        assert!(error.message.contains("estimated=101, limit=100"));
+    }
+}
 use edatime_store::versions::DatasetVersionRecord;
 use polars::prelude::DataFrame;
 

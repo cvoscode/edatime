@@ -156,6 +156,10 @@ pub struct CpuAdmissionSnapshot {
     pub submitted_total: u64,
     pub started_total: u64,
     pub completed_total: u64,
+    pub rejected_total: u64,
+    pub cancelled_total: u64,
+    pub queued: u64,
+    pub running: u64,
     /// nanoseconds spent waiting in queues before a worker started
     pub queue_wait_ns_total: u64,
     pub by_stage: HashMap<String, CpuAdmissionStageSnapshot>,
@@ -166,6 +170,10 @@ pub struct CpuAdmissionStageSnapshot {
     pub submitted: u64,
     pub started: u64,
     pub completed: u64,
+    pub rejected: u64,
+    pub cancelled: u64,
+    pub queued: u64,
+    pub running: u64,
     /// nanoseconds
     pub queue_wait_ns: u64,
 }
@@ -240,6 +248,10 @@ struct CpuAdmissionState {
     submitted_total: u64,
     started_total: u64,
     completed_total: u64,
+    rejected_total: u64,
+    cancelled_total: u64,
+    queued: u64,
+    running: u64,
     queue_wait_ns_total: u64,
     by_stage: HashMap<String, CpuAdmissionStageSnapshot>,
 }
@@ -424,8 +436,10 @@ impl AppMetrics {
         let label = cpu_stage_label(stage);
         let mut state = lock_recover(&self.cpu_admission, "cpu_admission");
         state.submitted_total += 1;
+        state.queued += 1;
         let entry = state.by_stage.entry(label.to_string()).or_default();
         entry.submitted += 1;
+        entry.queued += 1;
     }
 
     pub fn record_cpu_started(&self, stage: CpuStage, queue_wait_ns: u64) {
@@ -433,17 +447,43 @@ impl AppMetrics {
         let mut state = lock_recover(&self.cpu_admission, "cpu_admission");
         state.started_total += 1;
         state.queue_wait_ns_total += queue_wait_ns;
+        state.queued = state.queued.saturating_sub(1);
+        state.running += 1;
         let entry = state.by_stage.entry(label.to_string()).or_default();
         entry.started += 1;
         entry.queue_wait_ns += queue_wait_ns;
+        entry.queued = entry.queued.saturating_sub(1);
+        entry.running += 1;
     }
 
     pub fn record_cpu_completed(&self, stage: CpuStage) {
         let label = cpu_stage_label(stage);
         let mut state = lock_recover(&self.cpu_admission, "cpu_admission");
         state.completed_total += 1;
+        state.running = state.running.saturating_sub(1);
         let entry = state.by_stage.entry(label.to_string()).or_default();
         entry.completed += 1;
+        entry.running = entry.running.saturating_sub(1);
+    }
+
+    pub fn record_cpu_rejected(&self, stage: CpuStage) {
+        let label = cpu_stage_label(stage);
+        let mut state = lock_recover(&self.cpu_admission, "cpu_admission");
+        state.rejected_total += 1;
+        state.queued = state.queued.saturating_sub(1);
+        let entry = state.by_stage.entry(label.to_string()).or_default();
+        entry.rejected += 1;
+        entry.queued = entry.queued.saturating_sub(1);
+    }
+
+    pub fn record_cpu_cancelled(&self, stage: CpuStage) {
+        let label = cpu_stage_label(stage);
+        let mut state = lock_recover(&self.cpu_admission, "cpu_admission");
+        state.cancelled_total += 1;
+        state.queued = state.queued.saturating_sub(1);
+        let entry = state.by_stage.entry(label.to_string()).or_default();
+        entry.cancelled += 1;
+        entry.queued = entry.queued.saturating_sub(1);
     }
 
     pub fn record_requests(&self, count: u64) {
@@ -530,6 +570,10 @@ fn build_cpu_admission_snapshot(state: &Mutex<CpuAdmissionState>) -> CpuAdmissio
         submitted_total: guard.submitted_total,
         started_total: guard.started_total,
         completed_total: guard.completed_total,
+        rejected_total: guard.rejected_total,
+        cancelled_total: guard.cancelled_total,
+        queued: guard.queued,
+        running: guard.running,
         queue_wait_ns_total: guard.queue_wait_ns_total,
         by_stage: guard.by_stage.clone(),
     }

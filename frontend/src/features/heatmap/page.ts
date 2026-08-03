@@ -15,6 +15,7 @@ import {
 import { getSetting, updateSetting } from '../../utils/settings.js';
 import {
     escapeHtmlAttribute as escapeAttr,
+    correlationScaleGradient,
     formatScaleTick,
     getColorDomainMax,
 } from './colorScale.js';
@@ -313,7 +314,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
         html += '</div>';
         html += '<div class="heatmap-scale" aria-label="Correlation color scale">';
         html += `<span class="heatmap-scale__tick heatmap-scale__tick--positive">+${formatScaleTick(colorDomainMax)}</span>`;
-        html += '<div class="heatmap-scale__bar" aria-hidden="true"></div>';
+        html += `<div class="heatmap-scale__bar" aria-hidden="true" style="background:${correlationScaleGradient()}"></div>`;
         html += `<span class="heatmap-scale__tick heatmap-scale__tick--negative">-${formatScaleTick(colorDomainMax)}</span>`;
         html += '</div>';
         html += '</div>';
@@ -618,6 +619,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
                 axisFitToggle.classList.toggle('is-active', heatmapAxisFit);
                 renderHeatmap();
             }, listenerOptions);
+            document.addEventListener('edatime:settings-changed', renderHeatmap, listenerOptions);
             heatmapResizeObserver?.disconnect();
             if (typeof ResizeObserver !== 'undefined') {
                 heatmapResizeObserver = new ResizeObserver(() => {

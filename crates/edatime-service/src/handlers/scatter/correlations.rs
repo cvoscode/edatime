@@ -143,23 +143,37 @@ async fn scatter_correlations_response(
         ));
     }
 
+    let _single_flight = if identity.plan_hash.is_none() {
+        let guard = state.acquire_correlation_single_flight(revision).await;
+        if let Some(entry) = state.cached_correlation_matrix(revision) {
+            metrics.record_correlation_single_flight();
+            metrics.record_correlation_request(true, mode_telemetry);
+            metrics.record_correlation_input(entry.columns.len() as u64, 0);
+            return Ok(json_with_execution_identity(
+                build_scatter_correlations_from_cached_matrix(
+                    entry,
+                    requested_base.as_deref(),
+                    threshold,
+                    mode,
+                )?,
+                &identity,
+            ));
+        }
+        Some(guard)
+    } else {
+        None
+    };
+
     metrics.record_correlation_request(false, mode_telemetry);
 
-    let queue_start = std::time::Instant::now();
-    metrics.record_cpu_submit(CpuStage::Correlations);
-
+    let executor = Arc::clone(&state.query_executor);
     let closure_metrics = Arc::clone(&metrics);
-    let data = tokio::task::spawn_blocking(move || {
-        let queue_wait_ns = queue_start.elapsed().as_nanos() as u64;
-        closure_metrics.record_cpu_started(CpuStage::Correlations, queue_wait_ns);
-        let result = compute_correlation_matrix(lf, Arc::clone(&closure_metrics));
-        closure_metrics.record_cpu_completed(CpuStage::Correlations);
-        result
-    })
-    .await
-    .map_err(|e| {
-        AppError::internal(format!("Failed to join scatter correlation task: {:?}", e))
-    })??;
+    let data = executor
+        .run_interactive(CpuStage::Correlations, move || {
+            compute_correlation_matrix(lf, Arc::clone(&closure_metrics))
+        })
+        .await
+        .map_err(AppError::from)??;
     if identity.plan_hash.is_none() {
         state.store_correlation_matrix_if_current(revision, data.clone().into_cache());
     }
@@ -753,19 +767,18 @@ pub fn spawn_correlation_matrix_warmup(state: AppState) -> tokio::task::JoinHand
         let lf = state.dataset_snapshot();
         let metrics = Arc::clone(&state.metrics);
         metrics.record_correlation_warmup_dispatched();
-        let queue_start = std::time::Instant::now();
-        metrics.record_cpu_submit(CpuStage::Correlations);
+        let _single_flight = state.acquire_correlation_single_flight(revision).await;
+        if state.cached_correlation_matrix(revision).is_some() {
+            metrics.record_correlation_single_flight();
+            return;
+        }
         let closure_metrics = Arc::clone(&metrics);
-        match tokio::task::spawn_blocking(move || {
-            closure_metrics.record_cpu_started(
-                CpuStage::Correlations,
-                queue_start.elapsed().as_nanos() as u64,
-            );
-            let result = compute_correlation_matrix(lf, Arc::clone(&closure_metrics));
-            closure_metrics.record_cpu_completed(CpuStage::Correlations);
-            result
-        })
-        .await
+        match state
+            .query_executor
+            .run_background(CpuStage::Correlations, move || {
+                compute_correlation_matrix(lf, Arc::clone(&closure_metrics))
+            })
+            .await
         {
             Ok(Ok(data)) => {
                 state.store_correlation_matrix_if_current(revision, data.into_cache());
@@ -774,7 +787,7 @@ pub fn spawn_correlation_matrix_warmup(state: AppState) -> tokio::task::JoinHand
                 tracing::debug!("correlation matrix warmup skipped: {}", error);
             }
             Err(error) => {
-                tracing::warn!("correlation matrix warmup task failed: {:?}", error);
+                tracing::warn!("correlation matrix warmup admission failed: {:?}", error);
             }
         }
     })
@@ -809,45 +822,52 @@ async fn correlation_matrix_response(
         ));
     }
 
+    let _single_flight = if identity.plan_hash.is_none() {
+        let guard = state.acquire_correlation_single_flight(revision).await;
+        if let Some(entry) = state.cached_correlation_matrix(revision) {
+            let numeric_columns = entry.columns.len() as u64;
+            let data = CorrelationMatrixData::from_cache(entry);
+            metrics.record_correlation_single_flight();
+            let mode_telemetry = mode
+                .map(|m| m.telemetry_mode())
+                .unwrap_or(CorrelationTelemetryMode::AllModes);
+            metrics.record_correlation_request(true, mode_telemetry);
+            metrics.record_correlation_input(numeric_columns, 0);
+            return Ok(json_with_execution_identity(
+                match mode {
+                    Some(mode) => data.to_response_for_mode(mode),
+                    None => data.to_response(),
+                },
+                &identity,
+            ));
+        }
+        Some(guard)
+    } else {
+        None
+    };
+
     if let Some(mode) = mode {
         metrics.record_correlation_request(false, mode.telemetry_mode());
-        let queue_start = std::time::Instant::now();
-        metrics.record_cpu_submit(CpuStage::Correlations);
         let closure_metrics = Arc::clone(&metrics);
-        let response = tokio::task::spawn_blocking(move || {
-            closure_metrics.record_cpu_started(
-                CpuStage::Correlations,
-                queue_start.elapsed().as_nanos() as u64,
-            );
-            let result =
-                compute_correlation_matrix_for_mode(lf, mode, Arc::clone(&closure_metrics));
-            closure_metrics.record_cpu_completed(CpuStage::Correlations);
-            result
-        })
-        .await
-        .map_err(|e| {
-            AppError::internal(format!("Failed to join correlation matrix task: {:?}", e))
-        })??;
+        let response = state
+            .query_executor
+            .run_interactive(CpuStage::Correlations, move || {
+                compute_correlation_matrix_for_mode(lf, mode, Arc::clone(&closure_metrics))
+            })
+            .await
+            .map_err(AppError::from)??;
         return Ok(json_with_execution_identity(response, &identity));
     }
 
     metrics.record_correlation_request(false, CorrelationTelemetryMode::AllModes);
-    let queue_start = std::time::Instant::now();
-    metrics.record_cpu_submit(CpuStage::Correlations);
     let closure_metrics = Arc::clone(&metrics);
-    let data = tokio::task::spawn_blocking(move || {
-        closure_metrics.record_cpu_started(
-            CpuStage::Correlations,
-            queue_start.elapsed().as_nanos() as u64,
-        );
-        let result = compute_correlation_matrix(lf, Arc::clone(&closure_metrics));
-        closure_metrics.record_cpu_completed(CpuStage::Correlations);
-        result
-    })
-    .await
-    .map_err(|e| {
-        AppError::internal(format!("Failed to join correlation matrix task: {:?}", e))
-    })??;
+    let data = state
+        .query_executor
+        .run_interactive(CpuStage::Correlations, move || {
+            compute_correlation_matrix(lf, Arc::clone(&closure_metrics))
+        })
+        .await
+        .map_err(AppError::from)??;
     if identity.plan_hash.is_none() {
         state.store_correlation_matrix_if_current(revision, data.clone().into_cache());
     }

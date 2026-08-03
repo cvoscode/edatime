@@ -777,6 +777,11 @@ pub(crate) fn compile_request_frame(
     state: &AppState,
     envelope: &PlanRequestEnvelope,
 ) -> Result<(DatasetVersionRecord, String, polars::prelude::LazyFrame), AppError> {
+    crate::handlers::routes::shared::enforce_work_budget(
+        "cleaning plan stages",
+        envelope.plan.stages.len() as u128,
+        state.config.budgets.max_cleaning_stages as u128,
+    )?;
     let (version, plan_hash) = validate_envelope(state, envelope)?;
     let source = state.dataset_snapshot_for_version(&version.id)?;
     let frame = compile_cleaning_plan(source, &envelope.plan).map_err(AppError::from)?;
@@ -800,17 +805,34 @@ pub async fn preview(
     State(state): State<AppState>,
     Json(envelope): Json<PlanRequestEnvelope>,
 ) -> Result<Json<CleaningPreviewResponse>, AppError> {
-    let (version, plan_hash, frame) = compile_request_frame(&state, &envelope)?;
+    let (version, plan_hash, mut frame) = compile_request_frame(&state, &envelope)?;
     let source = state.dataset_snapshot_for_version(&version.id)?;
     let source_schema = source.clone().collect_schema().map_err(|error| {
         AppError::bad_request(format!("Cleaning source schema unavailable: {error}"))
     })?;
-    let rows_before = state
-        .query_executor
-        .execute_async(source.clone())
-        .await
-        .map_err(AppError::from)?
-        .height();
+    async fn count_rows(
+        state: &AppState,
+        frame: polars::prelude::LazyFrame,
+    ) -> Result<usize, AppError> {
+        let count = state
+            .query_executor
+            .execute_async(
+                frame.select([polars::prelude::len()
+                    .cast(polars::prelude::DataType::UInt64)
+                    .alias("__rows")]),
+            )
+            .await
+            .map_err(AppError::from)?;
+        count
+            .column("__rows")
+            .ok()
+            .and_then(|column| column.u64().ok())
+            .and_then(|column| column.get(0))
+            .and_then(|value| usize::try_from(value).ok())
+            .ok_or_else(|| AppError::internal("Cleaning preview row count unavailable"))
+    }
+
+    let rows_before = count_rows(&state, source.clone()).await?;
     let mut stage_frame = source.clone();
     let mut prior_rows = rows_before;
     let mut stage_impacts = Vec::with_capacity(envelope.plan.stages.len());
@@ -827,12 +849,7 @@ pub async fn preview(
             };
             stage_frame =
                 compile_cleaning_plan(stage_frame, &one_stage_plan).map_err(AppError::from)?;
-            state
-                .query_executor
-                .execute_async(stage_frame.clone())
-                .await
-                .map_err(AppError::from)?
-                .height()
+            count_rows(&state, stage_frame.clone()).await?
         } else {
             prior_rows
         };
@@ -845,12 +862,10 @@ pub async fn preview(
         });
         prior_rows = rows_after;
     }
-    let result = state
-        .query_executor
-        .execute_async(frame)
-        .await
-        .map_err(AppError::from)?;
-    let rows_after = result.height();
+    let result_schema = frame.collect_schema().map_err(|error| {
+        AppError::bad_request(format!("Cleaning result schema unavailable: {error}"))
+    })?;
+    let rows_after = prior_rows;
     Ok(Json(CleaningPreviewResponse {
         dataset_revision: version.revision,
         source_version: version,
@@ -859,7 +874,7 @@ pub async fn preview(
         rows_after,
         rows_removed: rows_before.saturating_sub(rows_after),
         columns_before: source_schema.len(),
-        columns_after: result.width(),
+        columns_after: result_schema.len(),
         stage_impacts,
         warnings: preview_warnings(&envelope.plan),
     }))
@@ -914,61 +929,66 @@ pub async fn propose_outliers(
             )));
         }
     }
-    let data = state
+    let mut aggregate_expressions = Vec::with_capacity(columns.len() * 2);
+    for (index, column) in columns.iter().enumerate() {
+        let values = polars::prelude::col(column).cast(DataType::Float64).filter(
+            polars::prelude::col(column)
+                .cast(DataType::Float64)
+                .is_finite(),
+        );
+        if method == "iqr" {
+            aggregate_expressions.push(
+                values
+                    .clone()
+                    .quantile(
+                        polars::prelude::lit(0.25),
+                        polars::prelude::QuantileMethod::Linear,
+                    )
+                    .alias(format!("__{index}_q1")),
+            );
+            aggregate_expressions.push(
+                values
+                    .quantile(
+                        polars::prelude::lit(0.75),
+                        polars::prelude::QuantileMethod::Linear,
+                    )
+                    .alias(format!("__{index}_q3")),
+            );
+        } else {
+            aggregate_expressions.push(values.clone().mean().alias(format!("__{index}_mean")));
+            aggregate_expressions.push(values.std(0).alias(format!("__{index}_std")));
+        }
+    }
+    let aggregates = state
         .query_executor
-        .execute_async(frame)
+        .execute_async(frame.select(aggregate_expressions))
         .await
         .map_err(AppError::from)?;
     let mut ranges = Vec::new();
-    for column in columns {
-        let values = data
-            .column(&column)
-            .map_err(|error| {
-                AppError::internal(format!(
-                    "Outlier proposal column '{column}' is unavailable: {error}"
-                ))
-            })?
-            .as_materialized_series()
-            .cast(&DataType::Float64)
-            .map_err(|error| {
-                AppError::internal(format!(
-                    "Outlier proposal could not cast '{column}': {error}"
-                ))
-            })?
-            .f64()
-            .map_err(|error| {
-                AppError::internal(format!(
-                    "Outlier proposal could not read '{column}': {error}"
-                ))
-            })?
-            .into_iter()
-            .flatten()
-            .filter(|value| value.is_finite())
-            .collect::<Vec<_>>();
+    for (index, column) in columns.into_iter().enumerate() {
+        let read = |suffix: &str| {
+            aggregates
+                .column(&format!("__{index}_{suffix}"))
+                .ok()
+                .and_then(|value| value.f64().ok())
+                .and_then(|value| value.get(0))
+                .filter(|value| value.is_finite())
+        };
         let bounds = if method == "iqr" {
-            let stats = edatime_core::stats::compute_column_stats(&values);
-            match (stats.q1, stats.q3) {
+            match (read("q1"), read("q3")) {
                 (Some(q1), Some(q3)) => {
                     let iqr = q3 - q1;
                     Some((q1 - request.threshold * iqr, q3 + request.threshold * iqr))
                 }
                 _ => None,
             }
-        } else if values.len() < 2 {
-            None
         } else {
-            let n = values.len() as f64;
-            let mean = values.iter().sum::<f64>() / n;
-            let std = (values
-                .iter()
-                .map(|value| (value - mean).powi(2))
-                .sum::<f64>()
-                / n)
-                .sqrt();
-            (std >= f64::EPSILON).then_some((
-                mean - request.threshold * std,
-                mean + request.threshold * std,
-            ))
+            read("mean").zip(read("std")).and_then(|(mean, std)| {
+                (std >= f64::EPSILON).then_some((
+                    mean - request.threshold * std,
+                    mean + request.threshold * std,
+                ))
+            })
         };
         if let Some((from, to)) = bounds {
             ranges.push(OutlierRangeProposal {

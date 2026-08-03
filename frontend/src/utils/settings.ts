@@ -10,7 +10,7 @@ import {
     normalizeCorrelationMetric,
     type CorrelationMetric,
 } from './correlationModes.js';
-import type { ColorScaleName } from './colorScales.js';
+import { isColorScaleName, type ColorScaleName } from './colorScales.js';
 import {
     normalizeSeriesPaletteName,
     setActiveSeriesPalette,
@@ -21,6 +21,9 @@ export { COLOR_SCALES, getColorFromScale, type ColorScaleName } from './colorSca
 export type ThemeMode = 'dark' | 'light' | 'auto';
 export type LayoutDensity = 'compact' | 'roomy' | 'spacious';
 export type { CorrelationMetric } from './correlationModes.js';
+export type PlotColorScaleKey = 'signals' | 'pairPlot' | 'correlationMatrix' | 'timeFrequency';
+
+export type PlotColorScales = Record<PlotColorScaleKey, ColorScaleName>;
 
 export interface AppSettings {
     // Appearance
@@ -31,11 +34,18 @@ export interface AppSettings {
     // Analytics
     defaultCorrelationMetric: CorrelationMetric;
 
-    // Timeseries chart preferences
+    // Chart preferences
     drawAutoReset: boolean;
-    colorScale: ColorScaleName;
+    plotColorScales: PlotColorScales;
     sidebarCollapsed: boolean;
 }
+
+export const DEFAULT_PLOT_COLOR_SCALES: PlotColorScales = {
+    signals: 'viridis',
+    pairPlot: 'viridis',
+    correlationMatrix: 'coolwarm',
+    timeFrequency: 'viridis',
+};
 
 export const DEFAULT_SETTINGS: AppSettings = {
     theme: 'dark',
@@ -43,29 +53,44 @@ export const DEFAULT_SETTINGS: AppSettings = {
     defaultPalette: 'default',
     defaultCorrelationMetric: 'pearson_raw',
     drawAutoReset: false,
-    colorScale: 'viridis',
+    plotColorScales: { ...DEFAULT_PLOT_COLOR_SCALES },
     sidebarCollapsed: false,
 };
 
 const STORAGE_KEY = 'edatime-settings';
 
+function defaultSettings(): AppSettings {
+    return { ...DEFAULT_SETTINGS, plotColorScales: { ...DEFAULT_PLOT_COLOR_SCALES } };
+}
+
 /** Load settings from localStorage, falling back to defaults. */
 export function loadSettings(): AppSettings {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return { ...DEFAULT_SETTINGS };
-        const parsed = JSON.parse(raw) as Partial<AppSettings>;
+        if (!raw) return defaultSettings();
+        const parsed = JSON.parse(raw) as Partial<AppSettings> & { colorScale?: unknown };
+        const legacyScale = isColorScaleName(String(parsed.colorScale ?? ''))
+            ? parsed.colorScale as ColorScaleName
+            : DEFAULT_PLOT_COLOR_SCALES.signals;
+        const storedScales = parsed.plotColorScales;
+        const plotColorScales = (Object.keys(DEFAULT_PLOT_COLOR_SCALES) as PlotColorScaleKey[])
+            .reduce<PlotColorScales>((resolved, key) => {
+                const stored = storedScales?.[key];
+                const fallback = key === 'correlationMatrix' ? DEFAULT_PLOT_COLOR_SCALES[key] : legacyScale;
+                resolved[key] = isColorScaleName(String(stored ?? '')) ? stored! : fallback;
+                return resolved;
+            }, { ...DEFAULT_PLOT_COLOR_SCALES });
         return {
             theme: parsed.theme ?? DEFAULT_SETTINGS.theme,
             layoutDensity: parsed.layoutDensity ?? DEFAULT_SETTINGS.layoutDensity,
             defaultPalette: normalizeSeriesPaletteName(parsed.defaultPalette),
             defaultCorrelationMetric: normalizeCorrelationMetric(parsed.defaultCorrelationMetric),
             drawAutoReset: parsed.drawAutoReset ?? DEFAULT_SETTINGS.drawAutoReset,
-            colorScale: parsed.colorScale ?? DEFAULT_SETTINGS.colorScale,
+            plotColorScales,
             sidebarCollapsed: parsed.sidebarCollapsed ?? DEFAULT_SETTINGS.sidebarCollapsed,
         };
     } catch {
-        return { ...DEFAULT_SETTINGS };
+        return defaultSettings();
     }
 }
 
@@ -73,9 +98,15 @@ export function loadSettings(): AppSettings {
 export function saveSettings(settings: AppSettings): void {
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+        document.dispatchEvent(new CustomEvent<AppSettings>('edatime:settings-changed', { detail: settings }));
     } catch {
         // quota exceeded — silent
     }
+}
+
+/** Resolve the continuous scale owned by one visualization. */
+export function getPlotColorScale(plot: PlotColorScaleKey): ColorScaleName {
+    return loadSettings().plotColorScales[plot] ?? DEFAULT_PLOT_COLOR_SCALES[plot];
 }
 
 /** Get a single setting value. */

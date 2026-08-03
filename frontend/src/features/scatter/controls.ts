@@ -128,7 +128,6 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
     const renderModeSelect = getEl('scatter-render-mode') as HTMLElement | null;
     const diagonalModeSelect = getEl('scatter-diagonal-mode') as HTMLElement | null;
     const colorColumnSelect = getEl('scatter-color-column') as HTMLElement | null;
-    const colorScaleSelect = getEl('scatter-color-scale') as HTMLElement | null;
     const linkBrushInput = getEl('scatter-link-brush') as HTMLInputElement | null;
     const suggestionThresholdInput = getEl('scatter-suggestion-threshold') as HTMLInputElement | null;
     const suggestionThresholdValue = getEl('scatter-suggestion-threshold-value');
@@ -175,7 +174,10 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
         rerender();
     });
     if (colorColumnSelect) listen(colorColumnSelect, 'change', () => { void cb.renderScatter(); });
-    if (colorScaleSelect) listen(colorScaleSelect, 'change', () => { rerender(); updateColorbarUI(); });
+    listen(document, 'edatime:settings-changed', () => {
+        if (scatterState.activeView === 'matrix') void cb.refreshActiveScatterView();
+        else rerender();
+    });
     if (suggestionThresholdInput) listen(suggestionThresholdInput, 'input', () => {
         scatterState.suggestionThreshold = normalizeScatterSuggestionThreshold(suggestionThresholdInput.value);
         suggestionThresholdInput.value = scatterState.suggestionThreshold.toFixed(2);

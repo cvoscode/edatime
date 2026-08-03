@@ -13,7 +13,7 @@ use serde::Deserialize;
 use crate::analytics;
 use crate::error::AppError;
 use crate::handlers::routes::shared::{
-    ExecutionIdentity, add_execution_identity_headers, downsample_by_stride,
+    ExecutionIdentity, add_execution_identity_headers, downsample_by_stride, enforce_work_budget,
     filter_preamble_with_plan,
 };
 use edatime_query::query;
@@ -23,6 +23,7 @@ use edatime_store::state::AppState;
 // ── Rolling Statistics ─────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RollingQuery {
     pub start: DateTime<Utc>,
     pub end: DateTime<Utc>,
@@ -48,55 +49,61 @@ async fn rolling_response(state: AppState, params: RollingQuery) -> Result<Respo
     let params = Arc::new(params);
     let metrics = Arc::clone(&state.metrics);
 
-    // Phase 0.1: capture the route-level window clamp bounds before the
-    // window is moved into the spawn_blocking closure so the telemetry
+    // Capture the route-level window clamp bounds before the window is moved
+    // into the admitted worker so the telemetry
     // record reflects the same value the worker actually computed on.
     let window = params.window.unwrap_or(50).clamp(2, 10_000);
     let rows_in = filtered.height() as u64;
     let columns_in = value_cols.len() as u64;
+    enforce_work_budget(
+        "rolling output cells",
+        rows_in.saturating_mul(columns_in).saturating_mul(5) as u128,
+        state.config.budgets.max_rolling_cells as u128,
+    )?;
 
-    let queue_start = std::time::Instant::now();
-    metrics.record_cpu_submit(edatime_core::metrics::CpuStage::Analytics);
-    let closure_metrics = Arc::clone(&metrics);
     // Carry compute_ns out of the closure so the single rolling telemetry
-    // record reflects both the worker compute time and the post-spawn
+    // record reflects both the worker compute time and post-worker
     // response-byte measurement.
     let compute_ns_holder = Arc::new(std::sync::atomic::AtomicU64::new(0));
     let holder_for_closure = Arc::clone(&compute_ns_holder);
-    let bands = tokio::task::spawn_blocking({
-        let filtered = filtered.clone();
-        let value_cols = value_cols.clone();
-        move || {
-            let queue_wait_ns = queue_start.elapsed().as_nanos() as u64;
-            closure_metrics
-                .record_cpu_started(edatime_core::metrics::CpuStage::Analytics, queue_wait_ns);
-            let compute_start = std::time::Instant::now();
-            let result = analytics::compute_rolling_bands(&filtered, &value_cols, window);
-            let compute_ns = compute_start.elapsed().as_nanos() as u64;
-            closure_metrics.record_cpu_completed(edatime_core::metrics::CpuStage::Analytics);
-            // Stash compute_ns for the outer-scope record. We only stash
-            // on the success path so the metric describes a real
-            // computation, not a validation failure bubbling up.
-            if result.is_ok() {
-                holder_for_closure.store(compute_ns, std::sync::atomic::Ordering::Relaxed);
+    let bands = state
+        .query_executor
+        .run_interactive(edatime_core::metrics::CpuStage::Analytics, {
+            let filtered = filtered.clone();
+            let value_cols = value_cols.clone();
+            move || {
+                let compute_start = std::time::Instant::now();
+                let result = analytics::compute_rolling_bands(&filtered, &value_cols, window);
+                let compute_ns = compute_start.elapsed().as_nanos() as u64;
+                // Stash compute_ns for the outer-scope record. We only stash
+                // on the success path so the metric describes a real
+                // computation, not a validation failure bubbling up.
+                if result.is_ok() {
+                    holder_for_closure.store(compute_ns, std::sync::atomic::Ordering::Relaxed);
+                }
+                result
             }
-            result
-        }
-    })
-    .await
-    .map_err(|e| AppError::internal(format!("Join error: {e}")))??;
+        })
+        .await
+        .map_err(AppError::from)??;
 
     // Phase 0.1: emit a single rolling telemetry record that combines
     // worker compute time (from the closure) and response bytes (from
     // serializing the final payload once here for size measurement only).
     let response_payload = serde_json::json!({ "bands": &bands });
-    let response_bytes = serde_json::to_vec(&response_payload)
-        .map(|b| b.len() as u64)
-        .unwrap_or(0);
+    let encoded = serde_json::to_vec(&response_payload)?;
+    let response_bytes = encoded.len() as u64;
     let compute_ns = compute_ns_holder.load(std::sync::atomic::Ordering::Relaxed);
     metrics.record_rolling(rows_in, columns_in, response_bytes, compute_ns);
 
-    Ok(analytics_response(response_payload, &identity))
+    Ok(add_execution_identity_headers(
+        (
+            [(axum::http::header::CONTENT_TYPE, "application/json")],
+            encoded,
+        )
+            .into_response(),
+        &identity,
+    ))
 }
 
 pub async fn post_rolling(
@@ -109,6 +116,7 @@ pub async fn post_rolling(
 // ── Anomaly Detection ──────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AnomalyQuery {
     pub start: DateTime<Utc>,
     pub end: DateTime<Utc>,
@@ -132,28 +140,30 @@ async fn anomalies_response(state: AppState, params: AnomalyQuery) -> Result<Res
     .await?;
 
     let method = params.method.as_deref().unwrap_or("zscore");
-    let (regions, summary_stats) = tokio::task::spawn_blocking({
-        let params = params.clone();
-        let filtered = filtered.clone();
-        let value_cols = value_cols.clone();
-        let method = method.to_string();
-        move || {
-            let regions = match method.as_str() {
-                "iqr" => {
-                    let k = params.threshold.unwrap_or(1.5);
-                    analytics::detect_anomalies_iqr(&filtered, &value_cols, k)
-                }
-                _ => {
-                    let threshold = params.threshold.unwrap_or(3.0);
-                    analytics::detect_anomalies_zscore(&filtered, &value_cols, threshold)
-                }
-            }?;
-            let summary_stats = analytics::compute_summary_stats(&filtered, &value_cols)?;
-            Ok::<_, AppError>((regions, summary_stats))
-        }
-    })
-    .await
-    .map_err(|e| AppError::internal(format!("Join error: {e}")))??;
+    let (regions, summary_stats) = state
+        .query_executor
+        .run_interactive(edatime_core::metrics::CpuStage::Analytics, {
+            let params = params.clone();
+            let filtered = filtered.clone();
+            let value_cols = value_cols.clone();
+            let method = method.to_string();
+            move || {
+                let regions = match method.as_str() {
+                    "iqr" => {
+                        let k = params.threshold.unwrap_or(1.5);
+                        analytics::detect_anomalies_iqr(&filtered, &value_cols, k)
+                    }
+                    _ => {
+                        let threshold = params.threshold.unwrap_or(3.0);
+                        analytics::detect_anomalies_zscore(&filtered, &value_cols, threshold)
+                    }
+                }?;
+                let summary_stats = analytics::compute_summary_stats(&filtered, &value_cols)?;
+                Ok::<_, AppError>((regions, summary_stats))
+            }
+        })
+        .await
+        .map_err(AppError::from)??;
 
     Ok(analytics_response(
         serde_json::json!({
@@ -176,6 +186,7 @@ pub async fn post_anomalies(
 // ── FFT / PSD ──────────────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FftQuery {
     pub start: DateTime<Utc>,
     pub end: DateTime<Utc>,
@@ -198,13 +209,15 @@ async fn fft_response(state: AppState, params: FftQuery) -> Result<Response, App
     let max_pts = params.max_points.unwrap_or(8192).max(64);
     let work_df = downsample_by_stride(filtered, max_pts, "FFT")?;
 
-    let results = tokio::task::spawn_blocking({
-        let work_df = work_df.clone();
-        let value_cols = value_cols.clone();
-        move || analytics::compute_fft(&work_df, &value_cols, None)
-    })
-    .await
-    .map_err(|e| AppError::internal(format!("Join error: {e}")))??;
+    let results = state
+        .query_executor
+        .run_interactive(edatime_core::metrics::CpuStage::Analytics, {
+            let work_df = work_df.clone();
+            let value_cols = value_cols.clone();
+            move || analytics::compute_fft(&work_df, &value_cols, None)
+        })
+        .await
+        .map_err(AppError::from)??;
 
     Ok(analytics_response(
         serde_json::json!({
@@ -225,6 +238,7 @@ pub async fn post_fft(
 // ── Spectrogram (STFT) ────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SpectrogramQuery {
     pub start: DateTime<Utc>,
     pub end: DateTime<Utc>,
@@ -265,25 +279,39 @@ async fn spectrogram_response(
 
     let win_size = params.window_size.unwrap_or(256).clamp(16, 4096);
     let hop = params.hop_size.unwrap_or(win_size / 2).clamp(1, win_size);
+    let windows = if work_df.height() < win_size {
+        0
+    } else {
+        1 + (work_df.height() - win_size) / hop
+    };
+    enforce_work_budget(
+        "spectrogram output cells",
+        (windows as u128).saturating_mul((win_size / 2 + 1) as u128),
+        state.config.budgets.max_spectrogram_cells as u128,
+    )?;
     let scale = analytics::ScaleOptions::from_query(
         params.normalize.as_deref(),
         params.clip.as_deref(),
         params.clip_param,
     )?;
 
-    let result = tokio::task::spawn_blocking({
-        let work_df = work_df.clone();
-        let col = col.to_string();
-        move || {
-            let mut result = analytics::compute_spectrogram(&work_df, &col, win_size, hop)?;
-            if scale.mode != analytics::ScaleMode::None || scale.clip != analytics::ClipMode::None {
-                analytics::apply_spectrogram_scale(&mut result, scale)?;
+    let result = state
+        .query_executor
+        .run_interactive(edatime_core::metrics::CpuStage::Analytics, {
+            let work_df = work_df.clone();
+            let col = col.to_string();
+            move || {
+                let mut result = analytics::compute_spectrogram(&work_df, &col, win_size, hop)?;
+                if scale.mode != analytics::ScaleMode::None
+                    || scale.clip != analytics::ClipMode::None
+                {
+                    analytics::apply_spectrogram_scale(&mut result, scale)?;
+                }
+                Ok::<_, AppError>(result)
             }
-            Ok::<_, AppError>(result)
-        }
-    })
-    .await
-    .map_err(|e| AppError::internal(format!("Join error: {e}")))??;
+        })
+        .await
+        .map_err(AppError::from)??;
 
     Ok(analytics_response(
         serde_json::json!({
@@ -305,6 +333,7 @@ pub async fn post_spectrogram(
 
 /// Apply a frequency-domain filter and return the filtered signal.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SpectralFilterQuery {
     /// Start of the time range. Defaults to the dataset's earliest timestamp when omitted.
     pub start: Option<DateTime<Utc>>,
@@ -343,25 +372,33 @@ async fn spectral_filter_response(
             let ctx = edatime_core::temporal::ts_context(&lf_snap, &time_column)?;
             let ts_col = ctx.ts_col;
             let multiplier = ctx.multiplier;
+            let bounds = lf_snap.select([
+                polars::prelude::col(&ts_col)
+                    .cast(polars::prelude::DataType::Int64)
+                    .min()
+                    .alias("__min_ts"),
+                polars::prelude::col(&ts_col)
+                    .cast(polars::prelude::DataType::Int64)
+                    .max()
+                    .alias("__max_ts"),
+            ]);
             let df_snap = state
                 .query_executor
-                .execute_async(lf_snap)
+                .execute_async(bounds)
                 .await
                 .map_err(|e| AppError::io(format!("ts probe failed: {e}")))?;
-            let ts_col_series = df_snap
-                .column(&ts_col)
-                .map_err(|e| {
-                    AppError::bad_request(format!("Missing ts column '{}': {}", ts_col, e))
-                })?
-                .as_materialized_series();
-            let cast = ts_col_series
-                .cast(&polars::prelude::DataType::Int64)
-                .map_err(|e| AppError::internal(format!("ts cast failed: {e}")))?;
-            let ca = cast
-                .i64()
-                .map_err(|e| AppError::internal(format!("ts i64 failed: {e}")))?;
-            let min_native = ca.into_iter().flatten().min().unwrap_or(0);
-            let max_native = ca.into_iter().flatten().max().unwrap_or(0);
+            let min_native = df_snap
+                .column("__min_ts")
+                .ok()
+                .and_then(|column| column.i64().ok())
+                .and_then(|column| column.get(0))
+                .unwrap_or(0);
+            let max_native = df_snap
+                .column("__max_ts")
+                .ok()
+                .and_then(|column| column.i64().ok())
+                .and_then(|column| column.get(0))
+                .unwrap_or(0);
             let min_ms = min_native / multiplier;
             let max_ms = max_native / multiplier;
             let epoch_zero = || -> DateTime<Utc> {
@@ -404,13 +441,17 @@ async fn spectral_filter_response(
     let high_hz = params.high_hz;
     let sr = params.sample_rate_hz;
 
-    let (ts_ms, filtered_values) = tokio::task::spawn_blocking({
-        let work_df = work_df.clone();
-        let col = col.to_string();
-        move || analytics::apply_spectral_filter(&work_df, &col, filter_type, low_hz, high_hz, sr)
-    })
-    .await
-    .map_err(|e| AppError::internal(format!("Join error: {e}")))??;
+    let (ts_ms, filtered_values) = state
+        .query_executor
+        .run_interactive(edatime_core::metrics::CpuStage::Analytics, {
+            let work_df = work_df.clone();
+            let col = col.to_string();
+            move || {
+                analytics::apply_spectral_filter(&work_df, &col, filter_type, low_hz, high_hz, sr)
+            }
+        })
+        .await
+        .map_err(AppError::from)??;
 
     Ok(analytics_response(
         serde_json::json!({
@@ -523,8 +564,6 @@ pub struct CausalGraphRequest {
 }
 
 const MAX_CAUSAL_TAU_MAX: usize = 128;
-const MAX_CAUSAL_WORK_UNITS: u128 = 25_000_000;
-
 fn parse_causal_tau_max(requested: Option<usize>) -> Result<usize, AppError> {
     let tau_max = requested.unwrap_or(3);
     if !(1..=MAX_CAUSAL_TAU_MAX).contains(&tau_max) {
@@ -627,68 +666,74 @@ pub async fn post_causal_graph(
         test_kind,
         sig_samples,
     );
-    if work_units > MAX_CAUSAL_WORK_UNITS {
-        return Err(AppError::bad_request(format!(
-            "causal request is too large for stable runtime at tau_max={tau_max}; reduce columns, tau max, or max points"
-        )));
-    }
+    enforce_work_budget(
+        "causal analysis work units",
+        work_units,
+        state.config.budgets.max_causal_work_units as u128,
+    )?;
 
     let n_preliminary_iterations = params.n_preliminary_iterations.unwrap_or(1).clamp(0, 5);
     let knn = params.knn.unwrap_or(10).clamp(1, 100);
-    let result = tokio::task::spawn_blocking(move || -> Result<serde_json::Value, AppError> {
-        use crate::causal::pcmci::PcmciConfig;
-        use crate::causal::{CondIndTest, Pcmci, PcmciPlus};
+    let result = state
+        .query_executor
+        .run_interactive(
+            edatime_core::metrics::CpuStage::Analytics,
+            move || -> Result<serde_json::Value, AppError> {
+                use crate::causal::pcmci::PcmciConfig;
+                use crate::causal::{CondIndTest, Pcmci, PcmciPlus};
 
-        let causal_df = crate::causal::CausalDataFrame::from_polars(&df, &value_cols, max_pts)?;
+                let causal_df =
+                    crate::causal::CausalDataFrame::from_polars(&df, &value_cols, max_pts)?;
 
-        let mut cond_test = CondIndTest::new(test_kind);
-        cond_test.knn = knn;
-        cond_test.sig_samples = sig_samples;
+                let mut cond_test = CondIndTest::new(test_kind);
+                cond_test.knn = knn;
+                cond_test.sig_samples = sig_samples;
 
-        let config = PcmciConfig {
-            tau_min: if method == "pcmciplus" || method == "lpcmci" {
-                0
-            } else {
-                1
+                let config = PcmciConfig {
+                    tau_min: if method == "pcmciplus" || method == "lpcmci" {
+                        0
+                    } else {
+                        1
+                    },
+                    tau_max,
+                    pc_alpha,
+                    alpha_level: alpha,
+                    max_conds_dim,
+                    max_combinations: 1,
+                    max_conds_py: None,
+                    max_conds_px: None,
+                    fdr_method,
+                };
+
+                let causal_result = match method.as_str() {
+                    "pcmciplus" => {
+                        let engine = PcmciPlus::new(&causal_df, &cond_test);
+                        engine.run(&config)
+                    }
+                    "fullci" => {
+                        let engine = Pcmci::new(&causal_df, &cond_test);
+                        engine.run_fullci(&config)
+                    }
+                    "bivci" => {
+                        let engine = Pcmci::new(&causal_df, &cond_test);
+                        engine.run_bivci(&config)
+                    }
+                    "lpcmci" => {
+                        let engine = crate::causal::Lpcmci::new(&causal_df, &cond_test);
+                        engine.run(&config, n_preliminary_iterations)
+                    }
+                    _ => {
+                        let engine = Pcmci::new(&causal_df, &cond_test);
+                        engine.run(&config)
+                    }
+                };
+
+                serde_json::to_value(&causal_result)
+                    .map_err(|e| AppError::internal(format!("Serialize causal result: {e}")))
             },
-            tau_max,
-            pc_alpha,
-            alpha_level: alpha,
-            max_conds_dim,
-            max_combinations: 1,
-            max_conds_py: None,
-            max_conds_px: None,
-            fdr_method,
-        };
-
-        let causal_result = match method.as_str() {
-            "pcmciplus" => {
-                let engine = PcmciPlus::new(&causal_df, &cond_test);
-                engine.run(&config)
-            }
-            "fullci" => {
-                let engine = Pcmci::new(&causal_df, &cond_test);
-                engine.run_fullci(&config)
-            }
-            "bivci" => {
-                let engine = Pcmci::new(&causal_df, &cond_test);
-                engine.run_bivci(&config)
-            }
-            "lpcmci" => {
-                let engine = crate::causal::Lpcmci::new(&causal_df, &cond_test);
-                engine.run(&config, n_preliminary_iterations)
-            }
-            _ => {
-                let engine = Pcmci::new(&causal_df, &cond_test);
-                engine.run(&config)
-            }
-        };
-
-        serde_json::to_value(&causal_result)
-            .map_err(|e| AppError::internal(format!("Serialize causal result: {e}")))
-    })
-    .await
-    .map_err(|e| AppError::internal(format!("Join error: {e}")))??;
+        )
+        .await
+        .map_err(AppError::from)??;
 
     Ok(analytics_response(result, &identity))
 }
@@ -871,7 +916,9 @@ mod tests {
             })
             .collect();
         let df = DataFrame::new(row_count, columns).expect("test dataframe should build");
-        let state = AppState::new(df, AppConfig::default());
+        let mut config = AppConfig::default();
+        config.budgets.max_causal_work_units = 40_000_000;
+        let state = AppState::new(df, config);
         let cleaning_plan = empty_envelope(&state);
 
         let err = post_causal_graph(
@@ -902,13 +949,7 @@ mod tests {
             .await
             .expect("response body should read");
         let json: Value = serde_json::from_slice(&body).expect("response should be json");
-        assert!(
-            json["message"]
-                .as_str()
-                .unwrap_or_default()
-                .contains("causal request is too large"),
-            "unexpected error body: {json}"
-        );
+        assert_eq!(json["code"], "work_budget_exceeded");
     }
 
     #[test]

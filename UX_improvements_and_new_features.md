@@ -199,3 +199,16 @@ For wider datasets, add compact small multiples or a sortable profile table with
 - Keep expert controls available, but make scope and the primary question understandable first.
 - Preserve current URLs and export/API contracts when consolidating visible workspaces.
 - Validate every new visualization on ETTm2, irregular data, missing/non-finite data, and very long time series.
+
+## Further settings abstraction candidates
+
+The new per-plot color-scale settings establish a useful boundary: presentation defaults belong in Settings, while analytical scope stays beside the result. The next preferences worth centralizing are:
+
+- **Export presets:** default image format, pixel scale, transparent or theme-matched background, CSV delimiter, timestamp format, and whether exports include the active scope summary.
+- **Number and time formatting:** timezone, timestamp display, decimal precision, engineering notation, and locale. These should apply consistently to axes, tooltips, tables, and exports.
+- **Accessibility:** reduced motion, minimum chart contrast, color-vision-safe palette filtering, stronger focus indicators, and a text-pattern fallback for semantic colors.
+- **Performance defaults:** point budget, downsampling strategy, matrix sample ceiling, and whether expensive analyses auto-run. The applied sampling decision must still be visible beside each result.
+- **Annotation defaults:** drawing color, line width, note color, and whether a drawing tool resets after use.
+- **Workspace startup:** initial page, sidebar state, restore-last-session behavior, and default Focus view state per analysis page.
+
+Keep these controls local because they define the current question or change computation: selected columns, time range, filters, correlation method for the current result, spectral window and normalization, causal lags and significance thresholds, drift baseline, and preparation stages. Settings may provide defaults for those controls later, but the active value must remain visible beside the result and be included in exports.

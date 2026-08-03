@@ -79,14 +79,15 @@ describe('scatter toolbar layout shell', () => {
         expect(normalized).toMatch(/@media\s*\(max-width:\s*940px\)[^}]*\.scatter-toolbar__eyebrow\s*\{[^}]*display:\s*none/);
     });
 
-    it('flattens the Refine segment: no Color disclosure popout, just inline column + scale selects', () => {
+    it('keeps color-by inline while moving the plot scale into Settings', () => {
         // The previous design wrapped color-by-column in a <details>
         // popout labelled "Color" with a hidden "By column" value.
-        // The new design flattens both selects directly into the
-        // Refine segment body.
+        // The numeric color column remains local because it changes
+        // analytical scope; the presentation-only scale is centralized.
         expect(indexHtml).not.toContain('id="scatter-color-controls"');
         expect(indexHtml).toContain('id="scatter-color-column"');
-        expect(indexHtml).toContain('id="scatter-color-scale"');
+        expect(indexHtml).not.toContain('id="scatter-color-scale"');
+        expect(indexHtml).toContain('data-plot-color-scale="pairPlot"');
     });
 
     it('keeps the density sub-group inside the Refine segment', () => {

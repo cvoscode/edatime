@@ -369,6 +369,32 @@ pub fn collect_filtered_scatter_frame<I: Into<LazyFrame>>(
     Ok(lf.select(select_exprs))
 }
 
+pub fn collect_filtered_scatter_columns_frame<I: Into<LazyFrame>>(
+    df: I,
+    columns: &[String],
+    time_column: Option<&str>,
+    start: Option<f64>,
+    end: Option<f64>,
+) -> Result<LazyFrame, AppError> {
+    let lf: LazyFrame = df.into();
+    let schema = lf
+        .clone()
+        .collect_schema()
+        .map_err(|error| AppError::bad_request(format!("schema: {error}")))?;
+    for name in columns {
+        if !schema.contains(name) {
+            return Err(AppError::bad_request(format!("Unknown column '{name}'")));
+        }
+    }
+    let lf = match (time_column, start, end) {
+        (Some(column), Some(start), Some(end)) => {
+            apply_time_range_stage(lf, column, start, end, true)?
+        }
+        _ => lf,
+    };
+    Ok(lf.select(columns.iter().map(col).collect::<Vec<_>>()))
+}
+
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {

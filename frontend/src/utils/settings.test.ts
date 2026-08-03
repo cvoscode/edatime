@@ -45,6 +45,20 @@ describe('settings correlation mode', () => {
         expect(getActiveSeriesPalette()).toEqual(getSeriesPalette('ocean'));
     });
 
+    it('migrates the legacy global scale and preserves per-plot overrides', () => {
+        localStorage.setItem('edatime-settings', JSON.stringify({
+            colorScale: 'plasma',
+            plotColorScales: { pairPlot: 'magma', correlationMatrix: 'coolwarm' },
+        }));
+
+        expect(loadSettings().plotColorScales).toEqual({
+            signals: 'plasma',
+            pairPlot: 'magma',
+            correlationMatrix: 'coolwarm',
+            timeFrequency: 'plasma',
+        });
+    });
+
     it('drops retired stored preferences that have no runtime owner', () => {
         localStorage.setItem('edatime-settings', JSON.stringify({
             defaultExportFormat: 'png',

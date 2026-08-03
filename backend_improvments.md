@@ -1,6 +1,96 @@
 # Backend and Backend/Frontend Contract Improvements
 
-Reviewed against commit `2e5404877136a00d6fa258c61d9e76f3800b33b5` on 2026-08-03. The P0 implementation pass described below was completed on 2026-08-03; P1 and P2 remain a review and measurement plan.
+Reviewed against commit `2e5404877136a00d6fa258c61d9e76f3800b33b5` on 2026-08-03. The P0 implementation pass and the first P1 implementation pass described below were completed on 2026-08-03. The ledger distinguishes implemented foundations from the remaining benchmark-driven refinements.
+
+## P1 implementation ledger
+
+- **P1.1 foundation implemented:** every production `spawn_blocking` path now
+  enters `QueryExecutor`. Interactive CPU, background/materialization, and
+  blocking-I/O classes have independent concurrency and bounded waiting slots,
+  a queue timeout, structured `503` plus `Retry-After`, and cancellation-safe
+  queued/running/rejected/cancelled metrics. Only the executor owns a production
+  `spawn_blocking`; remaining occurrences are test helpers.
+- **P1.2 foundation implemented:** composite limits cover scatter-matrix pairs
+  and total points, rolling cells, spectrogram cells, causal work, cleaning
+  stages, and database rows. JSON routes have a 2 MiB default body limit while
+  multipart upload keeps its streaming upload limit. Effective admission and
+  work limits are published by `GET /api/v1/capabilities`; over-budget work is
+  rejected before its expensive worker starts with `work_budget_exceeded`.
+- **P1.3 implemented:** data, aggregate, scatter points, and scatter matrix use
+  cancellation-safe per-key single-flight. A cold 32-caller unit burst elects
+  exactly one producer, and producer cancellation elects one retry. Active
+  correlation matrices use revision-scoped single-flight. Aggregate now reads
+  its cache and its key includes format and every reduction parameter. Cache
+  policy is private and metrics expose entries, bytes, evictions, expirations,
+  waiters, computes, and in-flight producers.
+- **P1.4 bounded multi-series path implemented:** small `/data` windows are
+  exact after one bounded probe instead of count plus collection. Large windows
+  use one shared multi-series/color time envelope with exact filtered counts,
+  bounded candidates, aligned columns, extrema, and explicit approximation
+  headers. The large path currently performs the bounded probe followed by the
+  shared source scan; the benchmark pass should determine whether a custom
+  streaming sink is worth removing that small probe.
+- **P1.5 matrix scan implemented:** scatter matrix validates total pair/output
+  work, projects the union of required columns once, and feeds all deterministic
+  per-cell reservoirs from one streaming scan. Wide-correlation extraction and
+  mode reuse still need the planned measured algorithm pass.
+- **P1.6 partially implemented:** analytics DTOs reject unknown fields,
+  spectral-filter bounds use a lazy scalar min/max query, rolling serializes
+  once, and rolling/spectrogram outputs are budgeted. Arrow analytics payloads
+  and anti-aliasing improvements remain benchmark-driven work.
+- **P1.7 partially implemented:** immediate metadata is cached by immutable
+  dataset fingerprint and display-time identity, completed profiles are bounded,
+  cleaning preview collects scalar counts rather than full frames and removes
+  its redundant final scan, and outlier bounds use lazy aggregate/quantile
+  expressions instead of per-column resident vectors. Persisting immediate
+  facts directly in the version catalog remains useful for restart-warm reads.
+- **P1.8 partially implemented:** terminal jobs have finite count/TTL retention
+  and completed profile/immediate-metadata caches have finite defaults. Resident
+  version admission and incremental resident-frame fingerprinting remain to be
+  implemented and soak-tested.
+- **P1.9 foundation implemented:** explicit database row limits are enforced
+  before connection/load work, request DTOs reject unknown fields, frontend
+  connect/status/table/column/load contracts are typed, and PostgreSQL ingestion
+  streams rows directly into typed column accumulators rather than retaining a
+  full `Vec<Row>` and then allocating a second copy. Batch-to-Parquet ingestion,
+  statement timeouts, and a live PostgreSQL benchmark remain.
+
+### P1 benchmark entry points
+
+```bash
+# Admission sweep and bounded overload/cancellation recovery. Metrics now
+# include cpu_admission.{queued,running,rejected_total,cancelled_total}.
+for concurrency in 1 2 4 8 16 32; do
+  node scripts/bench_http.mjs run --target http://127.0.0.1:3000 \
+    --requests 1000 --concurrency "$concurrency" --seed 0x5eed \
+    --out "benchmarks/p1-admission-c${concurrency}.json"
+done
+
+# Cold single-flight bursts: clear/restart between runs and assert
+# response_cache.computes increases by one for each identical-key burst.
+node scripts/bench_http.mjs run --target http://127.0.0.1:3000 \
+  --requests 32 --concurrency 32 --seed 0x5eed \
+  --out benchmarks/p1-cold-burst.json
+
+# Boundary tests should set each capabilities budget to N and issue 0.9N, N,
+# and 1.1N composite shapes. The 1.1N case must return work_budget_exceeded
+# before cpu_admission.started_total increases.
+curl -s http://127.0.0.1:3000/api/v1/capabilities | jq .
+
+# Inner-loop and route-path comparisons.
+cargo bench -p edatime-service --bench rolling_bands
+cargo bench -p edatime-service --bench correlations
+cargo bench -p edatime-service --bench scatter_sample
+# Add dedicated data multi-envelope, scatter-matrix, metadata warm-read, and
+# streamed-Postgres benches during the measurement pass.
+```
+
+The P1 pass is verified by the full Rust workspace tests and doctests, strict
+Clippy, Rust formatting, all 1,342 frontend tests, TypeScript/architecture/
+bundle/asset checks, the 50-operation API contract check, and compilation of
+every workspace benchmark target. The production release binary also builds.
+The live HTTP run must be repeated outside the restricted implementation
+sandbox because that environment denied a loopback listener (`EPERM`).
 
 ## P0 implementation ledger
 
@@ -13,7 +103,7 @@ Reviewed against commit `2e5404877136a00d6fa258c61d9e76f3800b33b5` on 2026-08-03
   schedules. CI compiles the real workspace benchmark targets.
 - **P0.2 complete:** [`contracts/api-v1.json`](contracts/api-v1.json) is the
   checked machine-readable v1 operation/header/error contract and is served by
-  `GET /api/v1/contract`. `scripts/check_api_contract.mjs` checks all 49
+  `GET /api/v1/contract`. `scripts/check_api_contract.mjs` checks all 50
   method/path pairs against the backend router and frontend route table in CI.
   Missing frontend routes and scatter size fields were added, and JSON
   transports reject non-container payloads at runtime while route-specific

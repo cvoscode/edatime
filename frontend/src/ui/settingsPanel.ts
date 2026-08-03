@@ -10,6 +10,7 @@ import {
     type LayoutDensity,
     type CorrelationMetric,
     type ColorScaleName,
+    type PlotColorScaleKey,
     loadSettings,
     saveSettings,
     applyTheme,
@@ -18,6 +19,7 @@ import {
     DEFAULT_SETTINGS,
 } from '../utils/settings.js';
 import { getSeriesPalette } from '../utils/seriesColors.js';
+import { paletteForColorScale } from '../utils/colorScales.js';
 import { createModalController } from './shell/createModalController';
 import { getDropdownValue, setDropdownValue } from './primitives/Dropdown.js';
 import { initSettingsHelp } from './settingsHelp.js';
@@ -108,13 +110,19 @@ function populateSettingsForm(settings: AppSettings): void {
     // Analytics tab
     setSelectValue('settings-correlation', settings.defaultCorrelationMetric);
 
+    // Plot colors tab
+    setSelectValue('settings-scale-signals', settings.plotColorScales.signals);
+    setSelectValue('settings-scale-pair-plot', settings.plotColorScales.pairPlot);
+    setSelectValue('settings-scale-correlation', settings.plotColorScales.correlationMatrix);
+    setSelectValue('settings-scale-time-frequency', settings.plotColorScales.timeFrequency);
+
     // Timeseries tab
     setCheckboxValue('settings-draw-auto-reset', settings.drawAutoReset);
-    setSelectValue('settings-color-scale', settings.colorScale);
     setCheckboxValue('settings-sidebar-collapsed', settings.sidebarCollapsed);
 
     // Render palette preview
     renderPalettePreview(settings.defaultPalette);
+    renderPlotScalePreviews(settings.plotColorScales);
 }
 
 /** Collect form values into a settings object. */
@@ -125,7 +133,12 @@ function collectSettingsFromForm(): AppSettings {
         defaultPalette: (getSelectValue('settings-palette') as AppSettings['defaultPalette']) || DEFAULT_SETTINGS.defaultPalette,
         defaultCorrelationMetric: getSelectValue('settings-correlation') as CorrelationMetric || DEFAULT_SETTINGS.defaultCorrelationMetric,
         drawAutoReset: getCheckboxValue('settings-draw-auto-reset'),
-        colorScale: getSelectValue('settings-color-scale') as ColorScaleName || DEFAULT_SETTINGS.colorScale,
+        plotColorScales: {
+            signals: getSelectValue('settings-scale-signals') as ColorScaleName || DEFAULT_SETTINGS.plotColorScales.signals,
+            pairPlot: getSelectValue('settings-scale-pair-plot') as ColorScaleName || DEFAULT_SETTINGS.plotColorScales.pairPlot,
+            correlationMatrix: getSelectValue('settings-scale-correlation') as ColorScaleName || DEFAULT_SETTINGS.plotColorScales.correlationMatrix,
+            timeFrequency: getSelectValue('settings-scale-time-frequency') as ColorScaleName || DEFAULT_SETTINGS.plotColorScales.timeFrequency,
+        },
         sidebarCollapsed: getCheckboxValue('settings-sidebar-collapsed'),
     };
 }
@@ -138,13 +151,12 @@ function syncDraftSettings(): AppSettings {
 /** Apply settings and close modal. */
 function applySettings(): void {
     const settings = syncDraftSettings();
-    saveSettings(settings);
-
-    // Apply immediately
+    // Apply runtime choices before persisting. Saving emits the shared
+    // settings-changed event, so every chart sees the new palette state.
     applyTheme(settings.theme);
     applyLayoutDensity(settings.layoutDensity);
-
     applyDefaultPalette(settings.defaultPalette);
+    saveSettings(settings);
 
     currentSettings = { ...settings };
     skipPreviewRevertOnClose = true;
@@ -154,11 +166,20 @@ function applySettings(): void {
 
 /** Reset settings to defaults. */
 function resetSettings(): void {
-    draftSettings = { ...DEFAULT_SETTINGS };
+    draftSettings = { ...DEFAULT_SETTINGS, plotColorScales: { ...DEFAULT_SETTINGS.plotColorScales } };
     populateSettingsForm(draftSettings);
     applyTheme(draftSettings.theme);
     applyLayoutDensity(draftSettings.layoutDensity);
     markUnsavedChanges();
+}
+
+function renderPlotScalePreviews(scales: AppSettings['plotColorScales']): void {
+    (Object.keys(scales) as PlotColorScaleKey[]).forEach((plot) => {
+        const preview = document.querySelector<HTMLElement>(`[data-scale-preview="${plot}"]`);
+        if (!preview) return;
+        const colors = paletteForColorScale(scales[plot]);
+        preview.style.background = `linear-gradient(90deg, ${colors.join(',')})`;
+    });
 }
 
 /** Render a preview of the selected color palette. */
@@ -251,7 +272,13 @@ export function initSettingsPanel(): () => void {
 
     document.getElementById('settings-correlation')?.addEventListener('change', markUnsavedChanges, listenerOptions);
     document.getElementById('settings-draw-auto-reset')?.addEventListener('change', markUnsavedChanges, listenerOptions);
-    document.getElementById('settings-color-scale')?.addEventListener('change', markUnsavedChanges, listenerOptions);
+    document.querySelectorAll<HTMLElement>('[data-plot-color-scale]').forEach((select) => {
+        select.addEventListener('change', () => {
+            const draft = syncDraftSettings();
+            renderPlotScalePreviews(draft.plotColorScales);
+            markUnsavedChanges();
+        }, listenerOptions);
+    });
     document.getElementById('settings-sidebar-collapsed')?.addEventListener('change', markUnsavedChanges, listenerOptions);
 
     // Settings button in header

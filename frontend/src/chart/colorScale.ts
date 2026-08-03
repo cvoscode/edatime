@@ -4,7 +4,7 @@
  * segments to avoid creating thousands of individual ChartGPU series.
  */
 
-import { getSetting } from '../utils/settings.js';
+import { getPlotColorScale } from '../utils/settings.js';
 import { COLOR_SCALES, type ColorScaleName } from '../utils/colorScales.js';
 export { COLOR_SCALES as VIRIDIS } from '../utils/colorScales.js';
 import { getSeriesColor } from '../utils/seriesColors.js';
@@ -27,7 +27,7 @@ function _hexToRgb(hex: string): [number, number, number] {
 }
 
 /** Get the user's preferred colormap name. */
-const _userScale = (): ColorScaleName => getSetting('colorScale');
+const _userScale = (): ColorScaleName => getPlotColorScale('signals');
 
 /** Interpolate a color from the active colormap for t ∈ [0, 1]. */
 export function getInterpolatedColor(t: number, scaleName?: ColorScaleName): string {

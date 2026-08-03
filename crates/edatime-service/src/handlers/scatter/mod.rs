@@ -12,7 +12,8 @@ use serde::{Deserialize, Serialize};
 
 // Re-export data helpers from collect.rs.
 pub use collect::{
-    ColorCardinality, cap_categorical_cardinality, collect_filtered_scatter_frame, collect_xy_pairs,
+    ColorCardinality, cap_categorical_cardinality, collect_filtered_scatter_columns_frame,
+    collect_filtered_scatter_frame, collect_xy_pairs,
 };
 
 // Re-export route handlers for the router.

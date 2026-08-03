@@ -25,24 +25,88 @@ export async function uploadDataset(formData: FormData): Promise<Response> {
 // scope dedupe / invalidation pipeline. The `loadDatabaseTable` call DOES
 // mutate the active dataset snapshot, so it remains dataset-scoped.
 
-export async function fetchDatabaseTables(): Promise<unknown> {
-    return getJson<unknown>(apiV1Routes.database.tables, 'Database tables', { datasetScoped: false });
+export interface DatabaseConnectRequest {
+    connection_string: string;
+    schema?: string;
+    table?: string;
+    time_column?: string | null;
+    load_snapshot?: boolean;
+    snapshot_limit?: number;
 }
 
-export async function connectDatabase(body: unknown): Promise<unknown> {
-    return postJson<unknown>(apiV1Routes.database.connect, body, 'Database connect', { datasetScoped: false });
+export interface DatabaseConnectResponse {
+    status: 'ok';
+    schema: string;
+    table: string | null;
+    time_column: string | null;
+    rows_loaded: number | null;
+    message: string;
 }
 
-export async function loadDatabaseTable(body: unknown): Promise<unknown> {
-    return postJson<unknown>(apiV1Routes.database.load, body, 'Database load');
+export interface DatabaseStatus {
+    connected: boolean;
+    schema: string | null;
+    table: string | null;
+    time_column: string | null;
 }
 
-export function deleteDatabaseConnection(): Promise<unknown> {
-    return deleteJson<unknown>(apiV1Routes.database.connect, 'Database disconnect', { datasetScoped: false });
+export interface DatabaseTable {
+    schema: string;
+    name: string;
+    kind: 'hypertable' | 'table' | 'view';
+    row_estimate: number | null;
 }
 
-export async function fetchDatabaseStatus(): Promise<unknown> {
-    return getJson<unknown>(apiV1Routes.database.status, 'Database status', { datasetScoped: false });
+export interface DatabaseColumn {
+    name: string;
+    pg_type: string;
+    polars_dtype: string;
+    is_nullable: boolean;
+}
+
+export interface DatabaseLoadRequest {
+    schema?: string;
+    table: string;
+    time_column?: string | null;
+    columns?: string[];
+    limit?: number;
+    start_ms?: number;
+    end_ms?: number;
+}
+
+export interface DatabaseLoadResponse {
+    status: 'ok';
+    rows: number;
+    numeric_columns: string[];
+    timestamp_column: string | null;
+    revision: number;
+    table: string;
+    schema: string;
+}
+
+export async function fetchDatabaseTables(): Promise<{ tables: DatabaseTable[] }> {
+    return getJson(apiV1Routes.database.tables, 'Database tables', { datasetScoped: false });
+}
+
+export async function fetchDatabaseColumns(schema: string, table: string): Promise<{ columns: DatabaseColumn[] }> {
+    const query = new URLSearchParams({ schema, table });
+    return getJson(`${apiV1Routes.database.columns}?${query}`, 'Database columns', { datasetScoped: false });
+}
+
+export async function connectDatabase(body: DatabaseConnectRequest): Promise<DatabaseConnectResponse> {
+    return postJson(apiV1Routes.database.connect, body, 'Database connect', { datasetScoped: false });
+}
+
+export async function loadDatabaseTable(body: DatabaseLoadRequest): Promise<DatabaseLoadResponse> {
+    return postJson(apiV1Routes.database.load, body, 'Database load');
+}
+
+export function deleteDatabaseConnection(): Promise<{ status: 'ok'; message: string }> {
+    return deleteJson(apiV1Routes.database.connect, 'Database disconnect', { datasetScoped: false });
+}
+
+export async function fetchDatabaseStatus(): Promise<DatabaseStatus> {
+    return getJson(apiV1Routes.database.status, 'Database status', { datasetScoped: false });
 }
 
 // ── Drift ──────────────────────────────────────────────────────────────────

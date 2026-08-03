@@ -98,6 +98,119 @@ pub fn lazy_time_envelope(
         ]))
 }
 
+/// Build one shared time-bucket scan for every requested series and extra
+/// column. Each bucket carries first/min/max/last numeric values, first/last
+/// extras, and an exact row count. The bounded result is expanded in memory.
+pub fn lazy_multi_time_envelope(
+    lf: LazyFrame,
+    ts_col: &str,
+    value_cols: &[String],
+    extra_cols: &[String],
+    bucket_width_ms: i64,
+) -> Result<LazyFrame, AppError> {
+    let every = Duration::try_parse(&format!("{}ms", bucket_width_ms.max(1)))
+        .map_err(|error| AppError::BadRequest(format!("Invalid overview bucket width: {error}")))?;
+    let mut aggregates = Vec::with_capacity(value_cols.len() * 4 + extra_cols.len() * 2 + 1);
+    for (index, name) in value_cols.iter().enumerate() {
+        aggregates.extend([
+            col(name).first().alias(format!("__value_{index}_first")),
+            col(name)
+                .filter(col(name).is_finite())
+                .min()
+                .alias(format!("__value_{index}_min")),
+            col(name)
+                .filter(col(name).is_finite())
+                .max()
+                .alias(format!("__value_{index}_max")),
+            col(name).last().alias(format!("__value_{index}_last")),
+        ]);
+    }
+    for (index, name) in extra_cols.iter().enumerate() {
+        aggregates.extend([
+            col(name).first().alias(format!("__extra_{index}_first")),
+            col(name).last().alias(format!("__extra_{index}_last")),
+        ]);
+    }
+    aggregates.push(len().cast(DataType::UInt64).alias("__rows"));
+    Ok(lf
+        .group_by_dynamic(
+            col(ts_col),
+            [],
+            DynamicGroupOptions {
+                every,
+                period: every,
+                offset: Duration::try_parse("0ns").expect("zero duration is valid"),
+                label: Label::Left,
+                include_boundaries: false,
+                closed_window: ClosedWindow::Left,
+                start_by: StartBy::WindowBound,
+                ..Default::default()
+            },
+        )
+        .agg(aggregates))
+}
+
+pub fn expand_multi_time_envelope(
+    envelope: &DataFrame,
+    ts_col: &str,
+    value_cols: &[String],
+    extra_cols: &[String],
+) -> Result<(DataFrame, usize), AppError> {
+    let filtered_rows = envelope
+        .column("__rows")
+        .map_err(|error| AppError::BadRequest(format!("Envelope count missing: {error}")))?
+        .u64()
+        .map_err(|error| AppError::Io(format!("Envelope count read: {error}")))?
+        .into_iter()
+        .flatten()
+        .fold(0_u64, u64::saturating_add) as usize;
+    let stats = ["first", "min", "max", "last"];
+    let mut expanded: Option<DataFrame> = None;
+    for (stat_index, stat) in stats.iter().enumerate() {
+        let mut columns = Vec::with_capacity(1 + value_cols.len() + extra_cols.len());
+        columns.push(
+            envelope
+                .column(ts_col)
+                .map_err(|error| AppError::BadRequest(format!("Envelope time missing: {error}")))?
+                .clone(),
+        );
+        for (index, name) in value_cols.iter().enumerate() {
+            let mut column = envelope
+                .column(&format!("__value_{index}_{stat}"))
+                .map_err(|error| AppError::BadRequest(format!("Envelope value missing: {error}")))?
+                .clone();
+            column.rename(name.into());
+            columns.push(column);
+        }
+        let extra_stat = if stat_index < 2 { "first" } else { "last" };
+        for (index, name) in extra_cols.iter().enumerate() {
+            let mut column = envelope
+                .column(&format!("__extra_{index}_{extra_stat}"))
+                .map_err(|error| AppError::BadRequest(format!("Envelope extra missing: {error}")))?
+                .clone();
+            column.rename(name.into());
+            columns.push(column);
+        }
+        let frame = DataFrame::new(envelope.height(), columns)
+            .map_err(|error| AppError::Io(format!("Build multi-series envelope: {error}")))?;
+        if let Some(output) = expanded.as_mut() {
+            output
+                .vstack_mut(&frame)
+                .map_err(|error| AppError::Io(format!("Stack multi-series envelope: {error}")))?;
+        } else {
+            expanded = Some(frame);
+        }
+    }
+    let mut output = expanded.unwrap_or_default();
+    output = output
+        .sort(
+            [ts_col],
+            SortMultipleOptions::default().with_maintain_order(true),
+        )
+        .map_err(|error| AppError::Io(format!("Sort multi-series envelope: {error}")))?;
+    Ok((output, filtered_rows))
+}
+
 /// Convert a bounded bucket envelope into the ordinary two-column frame used
 /// by the existing deterministic LTTB/serializer path. Bucket labels preserve
 /// chronological ordering while first/min/max/last preserve visible extrema.
@@ -583,7 +696,10 @@ pub fn serialize_json(
 
 #[cfg(test)]
 mod tests {
-    use super::{Reduction, apply_reduction, serialize_json};
+    use super::{
+        Reduction, apply_reduction, expand_multi_time_envelope, lazy_multi_time_envelope,
+        serialize_json,
+    };
     use crate::query::AggFn;
     use polars::prelude::*;
 
@@ -680,5 +796,54 @@ mod tests {
             result.is_err(),
             "oversized sparse window grid must fail fast"
         );
+    }
+
+    #[test]
+    fn multi_time_envelope_is_bounded_aligned_and_counts_source_rows() {
+        let rows = 8;
+        let ts = Series::new(
+            "ts".into(),
+            (0..rows)
+                .map(|index| index as i64 * 1_000)
+                .collect::<Vec<_>>(),
+        )
+        .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))
+        .expect("datetime");
+        let frame = DataFrame::new(
+            rows,
+            vec![
+                ts.into(),
+                Series::new("a".into(), (0..rows).map(|v| v as f64).collect::<Vec<_>>()).into(),
+                Series::new(
+                    "b".into(),
+                    (0..rows).map(|v| (rows - v) as f64).collect::<Vec<_>>(),
+                )
+                .into(),
+                Series::new("color".into(), ["x", "x", "y", "y", "z", "z", "q", "q"]).into(),
+            ],
+        )
+        .expect("frame");
+        let envelope = lazy_multi_time_envelope(
+            frame.lazy(),
+            "ts",
+            &["a".to_string(), "b".to_string()],
+            &["color".to_string()],
+            4_000,
+        )
+        .expect("plan")
+        .collect()
+        .expect("envelope");
+        let (expanded, filtered_rows) = expand_multi_time_envelope(
+            &envelope,
+            "ts",
+            &["a".to_string(), "b".to_string()],
+            &["color".to_string()],
+        )
+        .expect("expand");
+
+        assert_eq!(filtered_rows, rows);
+        assert_eq!(expanded.height(), envelope.height() * 4);
+        assert_eq!(expanded.width(), 4);
+        assert!(expanded.column("color").is_ok());
     }
 }

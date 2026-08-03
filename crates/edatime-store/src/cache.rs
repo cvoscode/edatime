@@ -1,5 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use axum::body::Body;
@@ -110,7 +111,7 @@ impl CachedResponse {
         );
         headers.insert(
             header::CACHE_CONTROL,
-            HeaderValue::from_static("public, max-age=60"),
+            HeaderValue::from_static("private, max-age=60"),
         );
         headers.insert("x-edatime-cache", HeaderValue::from_static(cache_status));
         let meta = ResponseMeta {
@@ -160,6 +161,50 @@ struct CacheState {
     last_pruned: Instant,
 }
 
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct CacheSnapshot {
+    pub entries: usize,
+    pub resident_bytes: usize,
+    pub evictions: u64,
+    pub expirations: u64,
+    pub coalesced_waiters: u64,
+    pub computes: u64,
+    pub in_flight: usize,
+}
+
+#[derive(Debug)]
+pub enum CacheReservation {
+    Hit {
+        response: CachedResponse,
+        coalesced: bool,
+    },
+    Producer(CacheProducer),
+}
+
+#[derive(Debug)]
+pub struct CacheProducer {
+    cache: Arc<ResponseCache>,
+    key: String,
+    sender: Option<tokio::sync::watch::Sender<bool>>,
+}
+
+impl Drop for CacheProducer {
+    fn drop(&mut self) {
+        let Ok(mut flights) = self
+            .cache
+            .in_flight
+            .lock()
+            .map_err(|error| error.into_inner())
+        else {
+            return;
+        };
+        flights.remove(&self.key);
+        if let Some(sender) = self.sender.take() {
+            let _ = sender.send(true);
+        }
+    }
+}
+
 impl Default for CacheState {
     fn default() -> Self {
         Self {
@@ -181,6 +226,11 @@ pub struct ResponseCache {
     // No .await inside critical sections — std::sync::Mutex is cheaper and
     // correctly conveys "blocking, not async" to the Tokio executor.
     state: std::sync::Mutex<CacheState>,
+    in_flight: std::sync::Mutex<HashMap<String, tokio::sync::watch::Receiver<bool>>>,
+    evictions: AtomicU64,
+    expirations: AtomicU64,
+    coalesced_waiters: AtomicU64,
+    computes: AtomicU64,
 }
 
 impl ResponseCache {
@@ -188,6 +238,52 @@ impl ResponseCache {
         Self {
             config,
             state: std::sync::Mutex::new(CacheState::default()),
+            in_flight: std::sync::Mutex::new(HashMap::new()),
+            evictions: AtomicU64::new(0),
+            expirations: AtomicU64::new(0),
+            coalesced_waiters: AtomicU64::new(0),
+            computes: AtomicU64::new(0),
+        }
+    }
+
+    /// Return a warm response or reserve one producer slot for a cold key.
+    /// Waiters never duplicate work: they observe producer completion, then
+    /// read the immutable cached bytes. If a producer is cancelled or fails,
+    /// exactly one waiter is elected to retry.
+    pub async fn reserve(self: &Arc<Self>, key: &str) -> CacheReservation {
+        let mut coalesced = false;
+        loop {
+            if let Some(response) = self.get(key).await {
+                return CacheReservation::Hit {
+                    response,
+                    coalesced,
+                };
+            }
+
+            let receiver = {
+                let mut flights = self
+                    .in_flight
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner());
+                if let Some(receiver) = flights.get(key) {
+                    Some(receiver.clone())
+                } else {
+                    let (sender, receiver) = tokio::sync::watch::channel(false);
+                    flights.insert(key.to_string(), receiver);
+                    self.computes.fetch_add(1, Ordering::Relaxed);
+                    return CacheReservation::Producer(CacheProducer {
+                        cache: Arc::clone(self),
+                        key: key.to_string(),
+                        sender: Some(sender),
+                    });
+                }
+            };
+
+            if let Some(mut receiver) = receiver {
+                self.coalesced_waiters.fetch_add(1, Ordering::Relaxed);
+                coalesced = true;
+                let _ = receiver.changed().await;
+            }
         }
     }
 
@@ -228,6 +324,7 @@ impl ResponseCache {
             };
             if let Some(entry) = state.entries.remove(&oldest_key) {
                 state.total_bytes = state.total_bytes.saturating_sub(entry.response.body_len());
+                self.evictions.fetch_add(1, Ordering::Relaxed);
             }
         }
     }
@@ -238,13 +335,16 @@ impl ResponseCache {
         let now = Instant::now();
         let half_ttl = self.config.ttl / 2;
         if now.duration_since(state.last_pruned) >= half_ttl {
-            Self::prune_expired(state, self.config.ttl);
+            let expired = Self::prune_expired(state, self.config.ttl);
+            self.expirations
+                .fetch_add(expired as u64, Ordering::Relaxed);
             state.last_pruned = now;
         }
     }
 
-    fn prune_expired(state: &mut CacheState, ttl: Duration) {
+    fn prune_expired(state: &mut CacheState, ttl: Duration) -> usize {
         let now = Instant::now();
+        let mut expired = 0;
         state.order.retain(|key| {
             let keep = state
                 .entries
@@ -253,9 +353,28 @@ impl ResponseCache {
                 .unwrap_or(false);
             if !keep && let Some(entry) = state.entries.remove(key) {
                 state.total_bytes = state.total_bytes.saturating_sub(entry.response.body_len());
+                expired += 1;
             }
             keep
         });
+        expired
+    }
+
+    pub fn snapshot(&self) -> CacheSnapshot {
+        let state = self.state.lock().unwrap_or_else(|error| error.into_inner());
+        let flights = self
+            .in_flight
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        CacheSnapshot {
+            entries: state.entries.len(),
+            resident_bytes: state.total_bytes,
+            evictions: self.evictions.load(Ordering::Relaxed),
+            expirations: self.expirations.load(Ordering::Relaxed),
+            coalesced_waiters: self.coalesced_waiters.load(Ordering::Relaxed),
+            computes: self.computes.load(Ordering::Relaxed),
+            in_flight: flights.len(),
+        }
     }
 
     /// Clear all cached entries.
@@ -266,5 +385,86 @@ impl ResponseCache {
         state.entries.clear();
         state.order.clear();
         state.total_bytes = 0;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CacheConfig, CacheReservation, CachedResponse, ResponseCache};
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    fn test_cache() -> Arc<ResponseCache> {
+        Arc::new(ResponseCache::new(CacheConfig {
+            ttl: Duration::from_secs(60),
+            max_entries: 8,
+            max_bytes: 1024 * 1024,
+        }))
+    }
+
+    #[tokio::test]
+    async fn cold_burst_elects_exactly_one_producer() {
+        let cache = test_cache();
+        let producer = match cache.reserve("same-key").await {
+            CacheReservation::Producer(producer) => producer,
+            CacheReservation::Hit { .. } => panic!("cold cache unexpectedly hit"),
+        };
+        let mut waiters = Vec::new();
+        for _ in 0..31 {
+            let cache = Arc::clone(&cache);
+            waiters.push(tokio::spawn(async move { cache.reserve("same-key").await }));
+        }
+        for _ in 0..100 {
+            if cache.snapshot().coalesced_waiters == 31 {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(cache.snapshot().coalesced_waiters, 31);
+
+        cache
+            .insert(
+                "same-key".to_string(),
+                CachedResponse::json(vec![1, 2, 3], false, 1, 1, None),
+            )
+            .await;
+        drop(producer);
+
+        for waiter in waiters {
+            match waiter.await.expect("waiter join") {
+                CacheReservation::Hit {
+                    response,
+                    coalesced,
+                } => {
+                    assert!(coalesced);
+                    assert_eq!(response.body.as_ref().as_ref(), &[1, 2, 3]);
+                }
+                CacheReservation::Producer(_) => panic!("waiter duplicated successful work"),
+            }
+        }
+        let snapshot = cache.snapshot();
+        assert_eq!(snapshot.computes, 1);
+        assert_eq!(snapshot.in_flight, 0);
+    }
+
+    #[tokio::test]
+    async fn cancelled_producer_allows_one_waiter_to_retry() {
+        let cache = test_cache();
+        let producer = match cache.reserve("retry-key").await {
+            CacheReservation::Producer(producer) => producer,
+            CacheReservation::Hit { .. } => panic!("cold cache unexpectedly hit"),
+        };
+        let waiter_cache = Arc::clone(&cache);
+        let waiter = tokio::spawn(async move { waiter_cache.reserve("retry-key").await });
+        for _ in 0..100 {
+            if cache.snapshot().coalesced_waiters == 1 {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+        drop(producer);
+        let retry = waiter.await.expect("waiter join");
+        assert!(matches!(retry, CacheReservation::Producer(_)));
+        assert_eq!(cache.snapshot().computes, 2);
     }
 }

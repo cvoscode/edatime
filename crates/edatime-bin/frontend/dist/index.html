@@ -45,9 +45,9 @@
       });
     }
   </script>
-  <script type="module" crossorigin src="/assets/index-CcFx-I_X.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/settings-Dr4mdff0.js">
-  <link rel="stylesheet" crossorigin href="/assets/index-vMhhU_jx.css">
+  <script type="module" crossorigin src="/assets/index-DzB9jv3t.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/settings-DzUf4x4S.js">
+  <link rel="stylesheet" crossorigin href="/assets/index-BQ4EVd6R.css">
 </head>
 
 <body>
@@ -662,14 +662,6 @@
                     <option value="">None</option>
                   </select>
                 </label>
-                <div id="scatter-color-scale-field" class="toolbar-field scatter-toolbar__field">
-                  <label for="scatter-color-scale" class="toolbar-field__label">Scale</label>
-                  <select id="scatter-color-scale" class="modal-select" aria-label="Scatter color scale">
-                    <option value="viridis">Viridis</option>
-                    <option value="plasma">Plasma</option>
-                    <option value="inferno">Inferno</option>
-                  </select>
-                </div>
                 <div id="scatter-density-controls" class="scatter-toolbar-group-inline scatter-toolbar__density" hidden>
                   <label class="toolbar-field scatter-toolbar__field scatter-toolbar__field--range"
                     for="scatter-bin-size">
@@ -2505,6 +2497,7 @@
 
           <div class="settings-tabs">
             <button class="settings-tab-btn active" data-tab="appearance" type="button">Appearance</button>
+            <button class="settings-tab-btn" data-tab="plot-colors" type="button">Plot colors</button>
             <button class="settings-tab-btn" data-tab="analytics" type="button">Analytics</button>
             <button class="settings-tab-btn" data-tab="timeseries" type="button">Signals</button>
           </div>
@@ -2559,6 +2552,58 @@
             </div>
           </div>
 
+          <!-- Plot Colors Tab -->
+          <div class="settings-tab-panel" data-tab="plot-colors" hidden>
+            <div class="settings-section">
+              <div class="settings-section-title">Continuous color scales</div>
+              <p class="settings-section-copy">Choose each plot independently. These scales affect numeric color encodings, not categorical series colors or semantic warning states.</p>
+              <div class="settings-row settings-row--palette">
+                <label class="settings-label" for="settings-scale-signals">Signals</label>
+                <div class="settings-control">
+                  <select id="settings-scale-signals" class="modal-select" data-plot-color-scale="signals">
+                    <option value="viridis">Viridis</option><option value="plasma">Plasma</option><option value="magma">Magma</option><option value="coolwarm">Cool-Warm</option><option value="inferno">Inferno</option>
+                  </select>
+                  <div class="settings-scale-preview" data-scale-preview="signals" aria-hidden="true"></div>
+                  <div class="settings-hint">Numeric Color by gradients on the Signals chart.</div>
+                </div>
+              </div>
+              <div class="settings-row settings-row--palette">
+                <label class="settings-label" for="settings-scale-pair-plot">Pair plot</label>
+                <div class="settings-control">
+                  <select id="settings-scale-pair-plot" class="modal-select" data-plot-color-scale="pairPlot">
+                    <option value="viridis">Viridis</option><option value="plasma">Plasma</option><option value="magma">Magma</option><option value="coolwarm">Cool-Warm</option><option value="inferno">Inferno</option>
+                  </select>
+                  <div class="settings-scale-preview" data-scale-preview="pairPlot" aria-hidden="true"></div>
+                  <div class="settings-hint">Density rendering and numeric point colors.</div>
+                </div>
+              </div>
+              <div class="settings-row settings-row--palette">
+                <label class="settings-label" for="settings-scale-correlation">Correlation matrix</label>
+                <div class="settings-control">
+                  <select id="settings-scale-correlation" class="modal-select" data-plot-color-scale="correlationMatrix">
+                    <option value="coolwarm">Cool-Warm</option><option value="viridis">Viridis</option><option value="plasma">Plasma</option><option value="magma">Magma</option><option value="inferno">Inferno</option>
+                  </select>
+                  <div class="settings-scale-preview" data-scale-preview="correlationMatrix" aria-hidden="true"></div>
+                  <div class="settings-hint">Full negative-to-positive correlation range. Cool-Warm is the clearest default.</div>
+                </div>
+              </div>
+              <div class="settings-row settings-row--palette">
+                <label class="settings-label" for="settings-scale-time-frequency">Time-frequency</label>
+                <div class="settings-control">
+                  <select id="settings-scale-time-frequency" class="modal-select" data-plot-color-scale="timeFrequency">
+                    <option value="viridis">Viridis</option><option value="plasma">Plasma</option><option value="magma">Magma</option><option value="coolwarm">Cool-Warm</option><option value="inferno">Inferno</option>
+                  </select>
+                  <div class="settings-scale-preview" data-scale-preview="timeFrequency" aria-hidden="true"></div>
+                  <div class="settings-hint">Spectrogram magnitude or power.</div>
+                </div>
+              </div>
+            </div>
+            <div class="settings-section settings-section--note">
+              <div class="settings-section-title">Other plots</div>
+              <p class="settings-section-copy">Spectrum uses the categorical Chart palette. Causality and Drift keep semantic colors for sign, confidence, and severity so those meanings remain stable.</p>
+            </div>
+          </div>
+
           <!-- Analytics Tab -->
           <div class="settings-tab-panel" data-tab="analytics" hidden>
             <div class="settings-section">
@@ -2590,19 +2635,6 @@
                   <input id="settings-draw-auto-reset" type="checkbox"
                     aria-label="Auto-reset draw tool after annotation">
                   <span>Auto-reset draw tool after placing an annotation</span>
-                </div>
-              </div>
-              <div class="settings-row">
-                <label class="settings-label" for="settings-color-scale">Color scale</label>
-                <div class="settings-control">
-                  <select id="settings-color-scale" class="modal-select">
-                    <option value="viridis">Viridis</option>
-                    <option value="plasma">Plasma</option>
-                    <option value="magma">Magma</option>
-                    <option value="coolwarm">Cool-Warm</option>
-                    <option value="inferno">Inferno</option>
-                  </select>
-                  <div class="settings-hint">Used for gradient color-by on timeseries chart</div>
                 </div>
               </div>
               <div class="settings-row">

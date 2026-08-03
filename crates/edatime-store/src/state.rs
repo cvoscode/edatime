@@ -15,7 +15,7 @@ use crate::repository::{DataRepository, DatasetMeta, InMemoryDataRepository};
 use crate::versions::{DatasetVersionRecord, DatasetVersionRegistry, fingerprints_for_frame};
 use edatime_core::config::AppConfig;
 use edatime_core::error::AppError;
-use edatime_core::metrics::AppMetrics;
+use edatime_core::metrics::{AppMetrics, CpuStage};
 use edatime_core::temporal::{TsContext, ts_context};
 use edatime_query::executor::{ExecutionContext, QueryExecutor};
 use edatime_query::query::QueryEntry;
@@ -50,7 +50,10 @@ pub struct AppState {
     pub db_pool: Arc<RwLock<Option<Arc<DbPool>>>>,
     pub db_info: Arc<RwLock<Option<DbConnectionInfo>>>,
     pub correlation_matrix_cache: Arc<Mutex<Option<(u64, CorrelationMatrixCacheEntry)>>>,
+    correlation_single_flight:
+        Arc<tokio::sync::Mutex<BTreeMap<u64, std::sync::Weak<tokio::sync::Mutex<()>>>>>,
     pub profile_cache: Arc<Mutex<BTreeMap<String, ProfileCacheEntry>>>,
+    immediate_metadata_cache: Arc<Mutex<BTreeMap<String, Value>>>,
     pub query_log: Arc<Mutex<VecDeque<QueryEntry>>>,
     pub query_counter: Arc<std::sync::atomic::AtomicU64>,
 }
@@ -69,7 +72,9 @@ impl Clone for AppState {
             db_pool: Arc::clone(&self.db_pool),
             db_info: Arc::clone(&self.db_info),
             correlation_matrix_cache: Arc::clone(&self.correlation_matrix_cache),
+            correlation_single_flight: Arc::clone(&self.correlation_single_flight),
             profile_cache: Arc::clone(&self.profile_cache),
+            immediate_metadata_cache: Arc::clone(&self.immediate_metadata_cache),
             query_log: Arc::clone(&self.query_log),
             query_counter: Arc::clone(&self.query_counter),
         }
@@ -155,9 +160,15 @@ impl AppState {
                 .with_admission(
                     config.query.max_interactive_concurrency,
                     config.query.max_background_concurrency,
+                    config.query.max_blocking_io_concurrency,
+                    config.query.max_queued_per_class,
+                    std::time::Duration::from_millis(config.query.queue_timeout_ms.max(1)),
                 ),
         );
-        let jobs = Arc::new(JobRegistry::new());
+        let jobs = Arc::new(JobRegistry::with_retention(
+            config.retention.max_terminal_jobs,
+            config.retention.terminal_job_ttl_seconds,
+        ));
         Self {
             repository,
             dataset_versions,
@@ -170,7 +181,9 @@ impl AppState {
             db_pool: Arc::new(RwLock::new(None)),
             db_info: Arc::new(RwLock::new(None)),
             correlation_matrix_cache: Arc::new(Mutex::new(None)),
+            correlation_single_flight: Arc::new(tokio::sync::Mutex::new(BTreeMap::new())),
             profile_cache: Arc::new(Mutex::new(BTreeMap::new())),
+            immediate_metadata_cache: Arc::new(Mutex::new(BTreeMap::new())),
             query_log: Arc::new(Mutex::new(VecDeque::with_capacity(max_stored))),
             query_counter: Arc::new(std::sync::atomic::AtomicU64::new(0)),
         }
@@ -300,18 +313,17 @@ impl AppState {
             let store = Arc::clone(store);
             let writer_store = Arc::clone(&store);
             let artifact_frame = df.clone();
-            let mut descriptor = tokio::task::spawn_blocking(move || {
-                writer_store.write_parquet(
-                    version_id,
-                    content_fingerprint,
-                    Utc::now(),
-                    artifact_frame,
-                )
-            })
-            .await
-            .map_err(|error| {
-                AppError::internal(format!("Failed to join artifact write: {error}"))
-            })??;
+            let mut descriptor = self
+                .query_executor
+                .run_background(CpuStage::Materialization, move || {
+                    writer_store.write_parquet(
+                        version_id,
+                        content_fingerprint,
+                        Utc::now(),
+                        artifact_frame,
+                    )
+                })
+                .await??;
             let rev = self.repository.replace_from_dataframe(df)?;
             let record =
                 self.dataset_versions
@@ -438,18 +450,17 @@ impl AppState {
             let store = Arc::clone(store);
             let writer_store = Arc::clone(&store);
             let artifact_frame = df.clone();
-            let mut descriptor = tokio::task::spawn_blocking(move || {
-                writer_store.write_parquet(
-                    version_id,
-                    content_fingerprint,
-                    Utc::now(),
-                    artifact_frame,
-                )
-            })
-            .await
-            .map_err(|error| {
-                AppError::internal(format!("Failed to join artifact write: {error}"))
-            })??;
+            let mut descriptor = self
+                .query_executor
+                .run_background(CpuStage::Materialization, move || {
+                    writer_store.write_parquet(
+                        version_id,
+                        content_fingerprint,
+                        Utc::now(),
+                        artifact_frame,
+                    )
+                })
+                .await??;
             let revision = self.repository.replace_from_dataframe(df)?;
             let record = self.dataset_versions.register_child_artifact(
                 parent_id,
@@ -628,6 +639,24 @@ impl AppState {
         }
     }
 
+    pub async fn acquire_correlation_single_flight(
+        &self,
+        revision: u64,
+    ) -> tokio::sync::OwnedMutexGuard<()> {
+        let lock = {
+            let mut flights = self.correlation_single_flight.lock().await;
+            flights.retain(|_, weak| weak.strong_count() > 0);
+            if let Some(existing) = flights.get(&revision).and_then(std::sync::Weak::upgrade) {
+                existing
+            } else {
+                let lock = Arc::new(tokio::sync::Mutex::new(()));
+                flights.insert(revision, Arc::downgrade(&lock));
+                lock
+            }
+        };
+        lock.lock_owned().await
+    }
+
     /// Return a cloned exact-profile entry for an immutable source/profile
     /// algorithm key. Cache entries deliberately survive source selection so
     /// returning to a retained source can reuse its completed profile.
@@ -650,6 +679,46 @@ impl AppState {
             .map_err(|error| error.into_inner())
         {
             cache.insert(key, entry);
+            while cache
+                .values()
+                .filter(|entry| entry.result.is_some())
+                .count()
+                > self.config.retention.max_profile_entries.max(1)
+            {
+                let Some(oldest_completed) = cache
+                    .iter()
+                    .find(|(_, entry)| entry.result.is_some())
+                    .map(|(key, _)| key.clone())
+                else {
+                    break;
+                };
+                cache.remove(&oldest_completed);
+            }
+        }
+    }
+
+    pub fn cached_immediate_metadata(&self, key: &str) -> Option<Value> {
+        self.immediate_metadata_cache
+            .lock()
+            .map_err(|error| error.into_inner())
+            .ok()?
+            .get(key)
+            .cloned()
+    }
+
+    pub fn store_immediate_metadata(&self, key: String, value: Value) {
+        if let Ok(mut cache) = self
+            .immediate_metadata_cache
+            .lock()
+            .map_err(|error| error.into_inner())
+        {
+            cache.insert(key, value);
+            while cache.len() > self.config.retention.max_profile_entries.max(1) {
+                let Some(oldest) = cache.keys().next().cloned() else {
+                    break;
+                };
+                cache.remove(&oldest);
+            }
         }
     }
 

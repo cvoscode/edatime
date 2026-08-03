@@ -653,7 +653,7 @@ header.app-topbar {
 
 /* Density mode has no color/refine controls. Do not reserve an empty
    toolbar row when the feature owner has hidden all three fields. */
-#page-scatter .scatter-toolbar__segment--refine:has(#scatter-color-column-field[style*="display: none"]):has(#scatter-color-scale-field[style*="display: none"]):has(#scatter-density-controls[hidden]) {
+#page-scatter .scatter-toolbar__segment--refine:has(#scatter-color-column-field[style*="display: none"]):has(#scatter-density-controls[hidden]) {
   display: none;
 }
 

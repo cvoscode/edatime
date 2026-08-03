@@ -525,7 +525,6 @@ export function syncModeUI(onToolbarLayoutChange?: () => void): void {
     // density mode to avoid orphan labels and free toolbar space
     // for the density sub-group (Bins / Scale Linear-Log).
     toggle(getEl('scatter-color-column-field'), isScatter);
-    toggle(getEl('scatter-color-scale-field'), isScatter);
     toggle(document.querySelector('.scatter-export-group'), isPlot);
     toggle(document.querySelector('.scatter-stats-bar'), isPlot);
     toggle(document.querySelector('.scatter-suggestions-bar'), !isMatrix);

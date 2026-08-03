@@ -68,7 +68,10 @@ pub fn build_app(state: AppState, frontend_dir: PathBuf) -> Router {
     );
 
     Router::new()
-        .nest("/api/v1", routes::api_router())
+        .nest(
+            "/api/v1",
+            routes::api_router(state.config.budgets.max_json_body_bytes),
+        )
         .fallback_service(ServeDir::new(frontend_dir))
         .layer(from_fn(frontend_cache_control_middleware))
         .layer(DefaultBodyLimit::max(max_upload_bytes))

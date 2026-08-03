@@ -9,7 +9,7 @@
 > (documentation, ownership, history, decisions). **Always verify against
 > actual source files before making changes** — the index may be stale.
 
-Last indexed: 2026-07-17 (commit 0a6a29b)
+Last indexed: 2026-08-03 (commit 2e54048)
 ### Entry Points
 - `frontend/src/store/index.ts`
 - `docs/developer/index.md`
@@ -27,7 +27,7 @@ Last indexed: 2026-07-17 (commit 0a6a29b)
 | File | Churn | 90d Commits | Owner |
 |------|-------|-------------|-------|
 | `frontend/js/app.js` | 100.0th %ile | 40 | cvoscode |
-| `frontend/index.html` | 100.0th %ile | 62 | cvoscode |
+| `frontend/index.html` | 100.0th %ile | 52 | cvoscode |
 | `frontend/src/app.ts` | 99.9th %ile | 105 | cvoscode |
 | `frontend/src/chart/DataChart.ts` | 99.9th %ile | 67 | cvoscode |
 | `crates/edatime-bin/frontend/dist/js/app.js` | 99.9th %ile | 18 | cvoscode |

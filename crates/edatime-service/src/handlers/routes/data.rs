@@ -11,7 +11,7 @@ use edatime_query::query::{self, DataQuery};
 use edatime_query::validation::{
     validate_numeric_columns_lazy, validate_time_window, validate_width,
 };
-use edatime_store::cache::CachedResponse;
+use edatime_store::cache::{CacheReservation, CachedResponse};
 use edatime_store::state::AppState;
 
 use super::{
@@ -110,11 +110,19 @@ async fn data_response(
         format,
     );
 
-    if let Some(cached) = state.cache.get(&cache_key).await {
-        state.metrics.record_cache_hit();
-        return Ok(cached.into_response("hit"));
-    }
-    state.metrics.record_cache_miss();
+    let _cache_producer = match state.cache.reserve(&cache_key).await {
+        CacheReservation::Hit {
+            response,
+            coalesced,
+        } => {
+            state.metrics.record_cache_hit();
+            return Ok(response.into_response(if coalesced { "coalesced" } else { "hit" }));
+        }
+        CacheReservation::Producer(producer) => {
+            state.metrics.record_cache_miss();
+            producer
+        }
+    };
 
     // ── Lazy pipeline: time filter + column projection ───────────────────────
     let time_filter = TimeFilterStage::optional(ts_col.clone(), Some(start_ts), Some(end_ts))
@@ -131,51 +139,39 @@ async fn data_response(
     let pipeline = Pipeline::new().then(time_filter).then(project);
     let filtered_plan = pipeline.apply(lf);
 
-    // A scalar streaming count decides between the exact small-frame path and
-    // the bounded overview envelope without materializing all candidates.
     let target_points = params.width * 2;
     let candidate_cap = target_points.saturating_mul(4).max(target_points);
-    let count = state
+    // One bounded probe preserves exact behavior for small windows without a
+    // separate full count scan. Large windows then use one shared multi-series
+    // envelope scan that also returns the exact filtered-row count.
+    let bounded_probe = state
         .query_executor
-        .execute_async(
-            filtered_plan.clone().select([polars::prelude::len()
-                .cast(polars::prelude::DataType::UInt64)
-                .alias("__rows")]),
-        )
+        .execute_async(filtered_plan.clone().slice(0, (candidate_cap + 1) as u32))
         .await?;
-    let filtered_rows = count
-        .column("__rows")
-        .ok()
-        .and_then(|column| column.u64().ok())
-        .and_then(|column| column.get(0))
-        .and_then(|value| usize::try_from(value).ok())
-        .ok_or_else(|| AppError::internal("Filtered candidate count unavailable"))?;
     let extra_cols = color_column
         .iter()
         .filter(|color_col| !value_cols.iter().any(|value_col| value_col == *color_col))
         .cloned()
         .collect::<Vec<String>>();
-    // The initial lazy envelope preserves one numeric line exactly enough for
-    // overview use. Multi-series and colour requests retain their current
-    // aligned exact path until their source-row envelope is implemented.
-    let use_envelope =
-        filtered_rows > candidate_cap && value_cols.len() == 1 && color_column.is_none();
-    let (candidates, envelope_used) = if use_envelope {
+    let use_envelope = bounded_probe.height() > candidate_cap;
+    let (candidates, filtered_rows, envelope_used) = if use_envelope {
         let bucket_count = (candidate_cap / 4).max(1) as i64;
         let span = end_ts.saturating_sub(start_ts).saturating_add(1);
         let bucket_width = (span / bucket_count).max(1);
-        let envelope =
-            pipeline::lazy_time_envelope(filtered_plan, &ts_col, &value_cols[0], bucket_width)?;
+        let envelope = pipeline::lazy_multi_time_envelope(
+            filtered_plan,
+            &ts_col,
+            &value_cols,
+            &extra_cols,
+            bucket_width,
+        )?;
         let collected = state.query_executor.execute_async(envelope).await?;
-        (
-            pipeline::expand_time_envelope(&collected, &ts_col, &value_cols[0])?,
-            true,
-        )
+        let (expanded, filtered_rows) =
+            pipeline::expand_multi_time_envelope(&collected, &ts_col, &value_cols, &extra_cols)?;
+        (expanded, filtered_rows, true)
     } else {
-        (
-            state.query_executor.execute_async(filtered_plan).await?,
-            false,
-        )
+        let filtered_rows = bounded_probe.height();
+        (bounded_probe, filtered_rows, false)
     };
     let candidate_rows = candidates.height();
     let (reduced, was_downsampled) = pipeline::apply_reduction(

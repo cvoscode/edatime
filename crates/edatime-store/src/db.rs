@@ -10,6 +10,7 @@
 //!   existing Arrow IPC routes unchanged
 
 use deadpool_postgres::{Config as PgConfig, ManagerConfig, Pool, RecyclingMethod};
+use futures_util::{StreamExt, pin_mut};
 use polars::prelude::{DataFrame, DataType, NamedFrom, Series, TimeUnit};
 use serde::{Deserialize, Serialize};
 use tokio_postgres::{NoTls, Row};
@@ -349,11 +350,26 @@ pub async fn ingest_table(
     tracing::debug!(sql = %sql, "TimescaleDB query");
 
     let rows = client
-        .query(&sql as &str, &[])
+        .query_raw(
+            &sql as &str,
+            std::iter::empty::<&(dyn tokio_postgres::types::ToSql + Sync)>(),
+        )
         .await
         .map_err(|e| AppError::internal(format!("TimescaleDB query failed: {e}")))?;
-
-    rows_to_dataframe(rows, &sel_cols)
+    pin_mut!(rows);
+    let mut accumulators = sel_cols
+        .iter()
+        .map(|(_, pg_type)| ColumnAccumulator::new(pg_type))
+        .collect::<Vec<_>>();
+    while let Some(row) = rows.next().await {
+        let row = row.map_err(|error| {
+            AppError::internal(format!("TimescaleDB row stream failed: {error}"))
+        })?;
+        for (index, accumulator) in accumulators.iter_mut().enumerate() {
+            accumulator.push(&row, index);
+        }
+    }
+    accumulators_to_dataframe(accumulators, &sel_cols)
 }
 
 // ── Internal helpers ───────────────────────────
@@ -408,97 +424,92 @@ async fn list_columns_raw(
         .collect())
 }
 
-/// Convert tokio-postgres `Row`s into a Polars `DataFrame`.
-fn rows_to_dataframe(rows: Vec<Row>, cols: &[(String, String)]) -> Result<DataFrame, AppError> {
-    use polars::prelude::Column;
+enum ColumnAccumulator {
+    I16(Vec<Option<i16>>),
+    I32(Vec<Option<i32>>),
+    I64(Vec<Option<i64>>),
+    F32(Vec<Option<f32>>),
+    F64(Vec<Option<f64>>),
+    Bool(Vec<Option<bool>>),
+    Datetime(Vec<Option<i64>>),
+    Date(Vec<Option<i32>>),
+    String(Vec<Option<String>>),
+}
 
-    if rows.is_empty() {
-        // Return an empty DataFrame with the right schema.
-        let columns: Vec<Column> = cols
-            .iter()
-            .map(|(name, _)| Series::new(name.as_str().into(), Vec::<f64>::new()).into())
-            .collect();
-        let n = columns.len();
-        return DataFrame::new(n, columns)
-            .map_err(|e| AppError::internal(format!("Empty DataFrame build failed: {e}")));
-    }
-
-    // Build one Column per source column.
-    let mut columns: Vec<Column> = Vec::with_capacity(cols.len());
-
-    for (col_idx, (col_name, pg_type)) in cols.iter().enumerate() {
-        let series: Series = match pg_type.as_str() {
-            "smallint" | "smallserial" => {
-                let vals: Vec<Option<i16>> = rows.iter().map(|r| r.try_get(col_idx).ok()).collect();
-                Series::new(col_name.as_str().into(), vals)
-            }
-            "integer" | "serial" => {
-                let vals: Vec<Option<i32>> = rows.iter().map(|r| r.try_get(col_idx).ok()).collect();
-                Series::new(col_name.as_str().into(), vals)
-            }
-            "bigint" | "bigserial" => {
-                let vals: Vec<Option<i64>> = rows.iter().map(|r| r.try_get(col_idx).ok()).collect();
-                Series::new(col_name.as_str().into(), vals)
-            }
-            "real" => {
-                let vals: Vec<Option<f32>> = rows.iter().map(|r| r.try_get(col_idx).ok()).collect();
-                Series::new(col_name.as_str().into(), vals)
-            }
-            "double precision" | "numeric" | "decimal" => {
-                let vals: Vec<Option<f64>> = rows.iter().map(|r| r.try_get(col_idx).ok()).collect();
-                Series::new(col_name.as_str().into(), vals)
-            }
-            "boolean" => {
-                let vals: Vec<Option<bool>> =
-                    rows.iter().map(|r| r.try_get(col_idx).ok()).collect();
-                Series::new(col_name.as_str().into(), vals)
-            }
+impl ColumnAccumulator {
+    fn new(pg_type: &str) -> Self {
+        match pg_type {
+            "smallint" | "smallserial" => Self::I16(Vec::new()),
+            "integer" | "serial" => Self::I32(Vec::new()),
+            "bigint" | "bigserial" => Self::I64(Vec::new()),
+            "real" => Self::F32(Vec::new()),
+            "double precision" | "numeric" | "decimal" => Self::F64(Vec::new()),
+            "boolean" => Self::Bool(Vec::new()),
             "timestamp without time zone"
             | "timestamp with time zone"
             | "timestamptz"
-            | "timestamp" => {
-                // Get as chrono::DateTime<Utc>, convert to microsecond epoch.
-                use chrono::{DateTime, Utc};
-                let vals: Vec<Option<i64>> = rows
-                    .iter()
-                    .map(|r| {
-                        r.try_get::<_, DateTime<Utc>>(col_idx)
-                            .ok()
-                            .map(|dt| dt.timestamp_micros())
-                    })
-                    .collect();
-                Series::new(col_name.as_str().into(), vals)
-                    .cast(&DataType::Datetime(TimeUnit::Microseconds, None))
-                    .map_err(|e| AppError::internal(format!("Datetime cast failed: {e}")))?
-            }
-            "date" => {
-                use chrono::NaiveDate;
-                // Days since epoch (Polars Date is i32 days).
-                let epoch = NaiveDate::from_ymd_opt(1970, 1, 1)
-                    .ok_or_else(|| AppError::internal("Failed to create epoch date"))?;
-                let vals: Vec<Option<i32>> = rows
-                    .iter()
-                    .map(|r| {
-                        r.try_get::<_, NaiveDate>(col_idx)
-                            .ok()
-                            .map(|d| (d - epoch).num_days() as i32)
-                    })
-                    .collect();
-                Series::new(col_name.as_str().into(), vals)
-                    .cast(&DataType::Date)
-                    .map_err(|e| AppError::internal(format!("Date cast failed: {e}")))?
-            }
-            _ => {
-                // Everything else as String.
-                let vals: Vec<Option<String>> = rows
-                    .iter()
-                    .map(|r| r.try_get::<_, String>(col_idx).ok())
-                    .collect();
-                Series::new(col_name.as_str().into(), vals)
-            }
-        };
-        columns.push(series.into());
+            | "timestamp" => Self::Datetime(Vec::new()),
+            "date" => Self::Date(Vec::new()),
+            _ => Self::String(Vec::new()),
+        }
     }
+
+    fn push(&mut self, row: &Row, index: usize) {
+        match self {
+            Self::I16(values) => values.push(row.try_get(index).ok()),
+            Self::I32(values) => values.push(row.try_get(index).ok()),
+            Self::I64(values) => values.push(row.try_get(index).ok()),
+            Self::F32(values) => values.push(row.try_get(index).ok()),
+            Self::F64(values) => values.push(row.try_get(index).ok()),
+            Self::Bool(values) => values.push(row.try_get(index).ok()),
+            Self::Datetime(values) => values.push(
+                row.try_get::<_, chrono::DateTime<chrono::Utc>>(index)
+                    .ok()
+                    .map(|value| value.timestamp_micros()),
+            ),
+            Self::Date(values) => {
+                let epoch = chrono::NaiveDate::from_ymd_opt(1970, 1, 1);
+                values.push(
+                    row.try_get::<_, chrono::NaiveDate>(index)
+                        .ok()
+                        .zip(epoch)
+                        .map(|(value, epoch)| (value - epoch).num_days() as i32),
+                );
+            }
+            Self::String(values) => values.push(row.try_get(index).ok()),
+        }
+    }
+
+    fn into_series(self, name: &str) -> Result<Series, AppError> {
+        let series = match self {
+            Self::I16(values) => Series::new(name.into(), values),
+            Self::I32(values) => Series::new(name.into(), values),
+            Self::I64(values) => Series::new(name.into(), values),
+            Self::F32(values) => Series::new(name.into(), values),
+            Self::F64(values) => Series::new(name.into(), values),
+            Self::Bool(values) => Series::new(name.into(), values),
+            Self::Datetime(values) => Series::new(name.into(), values)
+                .cast(&DataType::Datetime(TimeUnit::Microseconds, None))
+                .map_err(|error| AppError::internal(format!("Datetime cast failed: {error}")))?,
+            Self::Date(values) => Series::new(name.into(), values)
+                .cast(&DataType::Date)
+                .map_err(|error| AppError::internal(format!("Date cast failed: {error}")))?,
+            Self::String(values) => Series::new(name.into(), values),
+        };
+        Ok(series)
+    }
+}
+
+fn accumulators_to_dataframe(
+    accumulators: Vec<ColumnAccumulator>,
+    cols: &[(String, String)],
+) -> Result<DataFrame, AppError> {
+    use polars::prelude::Column;
+    let columns: Vec<Column> = accumulators
+        .into_iter()
+        .zip(cols)
+        .map(|(accumulator, (name, _))| accumulator.into_series(name).map(Into::into))
+        .collect::<Result<_, _>>()?;
 
     let n = columns.len();
     DataFrame::new(n, columns)

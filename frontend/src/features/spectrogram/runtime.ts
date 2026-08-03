@@ -23,7 +23,7 @@ import {
 } from '../../utils/spectralScaling.js';
 import { createAnalysisPageRuntime } from '../../platform/analysisRuntime.js';
 import { toast } from '../../utils/toast.js';
-import { getSetting } from '../../utils/settings.js';
+import { getPlotColorScale } from '../../utils/settings.js';
 import { paletteForColorScale } from '../../utils/colorScales.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import {
@@ -267,7 +267,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     logRequested: logCheck?.checked ?? true,
                     allowLogScale: spectrogramAppliedScaleMode === 'none',
                     scaleLabel,
-                    palette: paletteForColorScale(getSetting('colorScale')),
+                    palette: paletteForColorScale(getPlotColorScale('timeFrequency')),
                     range: colorbar.getRange(),
                 });
                 currentScaleBounds = rendered.bounds;
@@ -301,7 +301,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 colorbar.update({
                     bounds: currentScaleBounds,
                     label: logScale ? 'log10' : scaleLabel,
-                    palette: paletteForColorScale(getSetting('colorScale')),
+                    palette: paletteForColorScale(getPlotColorScale('timeFrequency')),
                 });
                 syncSpectrogramSummary();
                 syncSpectrogramEmptyState();
@@ -310,6 +310,9 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             const disposeTheme = onThemeChange(() => {
                 if (spectrogramResult) void renderSpectrogramChart();
             });
+            document.addEventListener('edatime:settings-changed', () => {
+                if (spectrogramResult) void renderSpectrogramChart();
+            }, listenerOptions);
 
             const computeSpectrogram = async () => {
                 const column = getDropdownValue('spectrogram-col-select');

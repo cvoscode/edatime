@@ -11,7 +11,7 @@ use std::sync::Arc;
 use crate::error::AppError;
 use edatime_query::arrow_export::dataframe_to_arrow_ipc;
 use edatime_query::validation::{validate_scatter_limit, validate_time_window};
-use edatime_store::cache::CachedResponse;
+use edatime_store::cache::{CacheReservation, CachedResponse};
 use edatime_store::state::AppState;
 
 use super::collect::collect_filtered_scatter_frame;
@@ -130,13 +130,21 @@ async fn scatter_points_response(
     }
     let metrics = Arc::clone(&state.metrics);
 
-    if let Some(cached) = state.cache.get(&cache_key).await {
-        state.metrics.record_cache_hit();
-        metrics.record_scatter_cache(true);
-        return Ok(cached.into_response("hit"));
-    }
-    state.metrics.record_cache_miss();
-    metrics.record_scatter_cache(false);
+    let _cache_producer = match state.cache.reserve(&cache_key).await {
+        CacheReservation::Hit {
+            response,
+            coalesced,
+        } => {
+            state.metrics.record_cache_hit();
+            metrics.record_scatter_cache(true);
+            return Ok(response.into_response(if coalesced { "coalesced" } else { "hit" }));
+        }
+        CacheReservation::Producer(producer) => {
+            state.metrics.record_cache_miss();
+            metrics.record_scatter_cache(false);
+            producer
+        }
+    };
 
     let lazy_frame = collect_filtered_scatter_frame(
         lf,
@@ -149,13 +157,7 @@ async fn scatter_points_response(
         end,
     )?;
 
-    // Time only the period after this job is submitted to the blocking pool.
-    // Filter planning above remains on the async side and is not queue wait.
-    let queue_start = std::time::Instant::now();
-    metrics.record_cpu_submit(edatime_core::metrics::CpuStage::Scatter);
-
-    // `inner_metrics` is moved into the spawn_blocking closure; we keep
-    // `metrics` for post-await recorders so the Arc is not lost.
+    let executor = Arc::clone(&state.query_executor);
     let inner_metrics = Arc::clone(&metrics);
     let (
         total_points,
@@ -171,126 +173,125 @@ async fn scatter_points_response(
         color_strings, // Vec<Option<String>>: None for continuous-color rows.
         sv_buf,
         color_cardinality,
-    ) = tokio::task::spawn_blocking(move || {
-        let queue_wait_ns = queue_start.elapsed().as_nanos() as u64;
-        inner_metrics.record_cpu_started(edatime_core::metrics::CpuStage::Scatter, queue_wait_ns);
-        let result = (|| {
-            let collect_start = std::time::Instant::now();
-            let effective_limit = limit.min(state.config.validation.max_scatter_effective_points);
+    ) = executor
+        .run_interactive(edatime_core::metrics::CpuStage::Scatter, move || {
+            (|| {
+                let collect_start = std::time::Instant::now();
+                let effective_limit =
+                    limit.min(state.config.validation.max_scatter_effective_points);
 
-            let (total, sampled_rows, color_kind) = collect_sampled_xyc_rows_streaming(
-                lazy_frame,
-                &x_col,
-                &y_col,
-                color_col.as_deref(),
-                size_col.as_deref(),
-                effective_limit,
-                time_color_mode,
-                &sample_seed_scope,
-            )?;
-            let collect_ns = collect_start.elapsed().as_nanos() as u64;
-            inner_metrics
-                .record_scatter_stage(edatime_core::metrics::ScatterStage::Collect, collect_ns);
-            inner_metrics.record_scatter_filtered_rows(total as u64);
-            let sample_start = std::time::Instant::now();
+                let (total, sampled_rows, color_kind) = collect_sampled_xyc_rows_streaming(
+                    lazy_frame,
+                    &x_col,
+                    &y_col,
+                    color_col.as_deref(),
+                    size_col.as_deref(),
+                    effective_limit,
+                    time_color_mode,
+                    &sample_seed_scope,
+                )?;
+                let collect_ns = collect_start.elapsed().as_nanos() as u64;
+                inner_metrics
+                    .record_scatter_stage(edatime_core::metrics::ScatterStage::Collect, collect_ns);
+                inner_metrics.record_scatter_filtered_rows(total as u64);
+                let sample_start = std::time::Instant::now();
 
-            let n = sampled_rows.len();
-            let mut x_buf = Vec::with_capacity(n);
-            let mut y_buf = Vec::with_capacity(n);
-            let mut cv_buf: Vec<f64> = Vec::with_capacity(n);
-            // Audit issue 2.2: keep categorical labels as `Option<String>`
-            // (None for continuous-color rows) so we can apply the
-            // cardinality cap *after* sampling without losing the row
-            // alignment with `x_buf` / `cv_buf`.
-            let mut color_strings: Vec<Option<String>> = Vec::with_capacity(n);
-            let mut sv_buf: Vec<f64> = Vec::with_capacity(n);
+                let n = sampled_rows.len();
+                let mut x_buf = Vec::with_capacity(n);
+                let mut y_buf = Vec::with_capacity(n);
+                let mut cv_buf: Vec<f64> = Vec::with_capacity(n);
+                // Audit issue 2.2: keep categorical labels as `Option<String>`
+                // (None for continuous-color rows) so we can apply the
+                // cardinality cap *after* sampling without losing the row
+                // alignment with `x_buf` / `cv_buf`.
+                let mut color_strings: Vec<Option<String>> = Vec::with_capacity(n);
+                let mut sv_buf: Vec<f64> = Vec::with_capacity(n);
 
-            let mut cmin = f64::INFINITY;
-            let mut cmax = f64::NEG_INFINITY;
-            let mut smin = f64::INFINITY;
-            let mut smax = f64::NEG_INFINITY;
+                let mut cmin = f64::INFINITY;
+                let mut cmax = f64::NEG_INFINITY;
+                let mut smin = f64::INFINITY;
+                let mut smax = f64::NEG_INFINITY;
 
-            for row in sampled_rows {
-                x_buf.push(row.x);
-                y_buf.push(row.y);
-                match row.color_value {
-                    Some(v) if v.is_finite() => {
-                        cv_buf.push(v);
-                        color_strings.push(None);
-                        if v < cmin {
-                            cmin = v;
+                for row in sampled_rows {
+                    x_buf.push(row.x);
+                    y_buf.push(row.y);
+                    match row.color_value {
+                        Some(v) if v.is_finite() => {
+                            cv_buf.push(v);
+                            color_strings.push(None);
+                            if v < cmin {
+                                cmin = v;
+                            }
+                            if v > cmax {
+                                cmax = v;
+                            }
                         }
-                        if v > cmax {
-                            cmax = v;
+                        _ => {
+                            cv_buf.push(f64::NAN);
+                            color_strings.push(row.color_label);
                         }
                     }
-                    _ => {
-                        cv_buf.push(f64::NAN);
-                        color_strings.push(row.color_label);
+                    if let Some(sv) = row.size_value {
+                        sv_buf.push(sv);
+                        if sv < smin {
+                            smin = sv;
+                        }
+                        if sv > smax {
+                            smax = sv;
+                        }
                     }
                 }
-                if let Some(sv) = row.size_value {
-                    sv_buf.push(sv);
-                    if sv < smin {
-                        smin = sv;
-                    }
-                    if sv > smax {
-                        smax = sv;
-                    }
-                }
-            }
 
-            // Apply the cardinality cap on categorical color so a
-            // high-cardinality column doesn't blow up the legend (audit
-            // issue 2.2). The cap is a no-op for the continuous path
-            // because no row in `color_strings` is `Some` there.
-            let (color_strings, color_cardinality) =
-                if matches!(color_kind, Some(ScatterColorKind::Categorical)) {
-                    let cap = state.config.validation.max_color_cardinality;
-                    let (rewritten, info) = super::cap_categorical_cardinality(color_strings, cap);
-                    (rewritten, Some(info))
-                } else {
-                    (color_strings, None)
-                };
+                // Apply the cardinality cap on categorical color so a
+                // high-cardinality column doesn't blow up the legend (audit
+                // issue 2.2). The cap is a no-op for the continuous path
+                // because no row in `color_strings` is `Some` there.
+                let (color_strings, color_cardinality) =
+                    if matches!(color_kind, Some(ScatterColorKind::Categorical)) {
+                        let cap = state.config.validation.max_color_cardinality;
+                        let (rewritten, info) =
+                            super::cap_categorical_cardinality(color_strings, cap);
+                        (rewritten, Some(info))
+                    } else {
+                        (color_strings, None)
+                    };
 
-            let color_min = if cmin.is_finite() { Some(cmin) } else { None };
-            let color_max = if cmax.is_finite() { Some(cmax) } else { None };
-            let size_min = if smin.is_finite() { Some(smin) } else { None };
-            let size_max = if smax.is_finite() { Some(smax) } else { None };
+                let color_min = if cmin.is_finite() { Some(cmin) } else { None };
+                let color_max = if cmax.is_finite() { Some(cmax) } else { None };
+                let size_min = if smin.is_finite() { Some(smin) } else { None };
+                let size_max = if smax.is_finite() { Some(smax) } else { None };
 
-            // Phase 0.1: stop the sample timer and emit the valid-points
-            // total BEFORE the result tuple is constructed so the counter
-            // belongs unambiguously to sampling work.
-            let sample_ns = sample_start.elapsed().as_nanos() as u64;
-            inner_metrics
-                .record_scatter_stage(edatime_core::metrics::ScatterStage::Sample, sample_ns);
-            inner_metrics.record_scatter_valid_points(total as u64);
+                // Phase 0.1: stop the sample timer and emit the valid-points
+                // total BEFORE the result tuple is constructed so the counter
+                // belongs unambiguously to sampling work.
+                let sample_ns = sample_start.elapsed().as_nanos() as u64;
+                inner_metrics
+                    .record_scatter_stage(edatime_core::metrics::ScatterStage::Sample, sample_ns);
+                inner_metrics.record_scatter_valid_points(total as u64);
 
-            // NOTE: Arrow serialization happens later, after the format
-            // decision. This keeps the buffers available for both
-            // `application/vnd.apache.arrow.stream` (Arrow) and
-            // `application/json` (point arrays) responses.
-            Ok::<_, AppError>((
-                total,
-                n,
-                color_min,
-                color_max,
-                size_min,
-                size_max,
-                color_kind,
-                x_buf,
-                y_buf,
-                cv_buf,
-                color_strings,
-                sv_buf,
-                color_cardinality,
-            ))
-        })();
-        inner_metrics.record_cpu_completed(edatime_core::metrics::CpuStage::Scatter);
-        result
-    })
-    .await
-    .map_err(|e| AppError::internal(format!("Failed to join scatter points task: {:?}", e)))??;
+                // NOTE: Arrow serialization happens later, after the format
+                // decision. This keeps the buffers available for both
+                // `application/vnd.apache.arrow.stream` (Arrow) and
+                // `application/json` (point arrays) responses.
+                Ok::<_, AppError>((
+                    total,
+                    n,
+                    color_min,
+                    color_max,
+                    size_min,
+                    size_max,
+                    color_kind,
+                    x_buf,
+                    y_buf,
+                    cv_buf,
+                    color_strings,
+                    sv_buf,
+                    color_cardinality,
+                ))
+            })()
+        })
+        .await
+        .map_err(AppError::from)??;
 
     metrics.record_scatter_sampling(total_points, returned_points);
 

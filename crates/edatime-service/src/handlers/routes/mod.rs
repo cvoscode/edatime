@@ -14,18 +14,19 @@ pub mod upload;
 // Re-export scatter from parent module (handlers::scatter)
 pub use crate::handlers::scatter;
 
-use axum::Json;
 use axum::Router;
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
+use axum::{Json, extract::DefaultBodyLimit, extract::State};
 
 use edatime_store::state::AppState;
 
-pub fn api_router() -> Router<AppState> {
-    Router::new()
+pub fn api_router(max_json_body_bytes: usize) -> Router<AppState> {
+    let json_routes = Router::new()
         .route("/health", get(health))
         .route("/build", get(build_identity))
         .route("/contract", get(api_contract))
+        .route("/capabilities", get(capabilities))
         .route("/data", post(data::post_data))
         .route("/cleaning/validate", post(cleaning::validate))
         .route("/cleaning/preview", post(cleaning::preview))
@@ -68,9 +69,6 @@ pub fn api_router() -> Router<AppState> {
             "/scatter/correlations/matrix",
             post(scatter::post_correlation_matrix),
         )
-        .route("/upload", post(upload::upload_data))
-        .route("/upload/preview", post(upload::preview_upload_data))
-        .route("/sample/{name}", get(upload::serve_sample_file))
         // Database / TimescaleDB endpoints
         .route(
             "/database/connect",
@@ -89,6 +87,14 @@ pub fn api_router() -> Router<AppState> {
         // Drift endpoint
         .route("/drift/stats", post(drift::post_drift_stats))
         .route("/drift/investigate", post(drift::post_drift_investigate))
+        .layer(DefaultBodyLimit::max(max_json_body_bytes.max(1024)));
+
+    let upload_routes = Router::new()
+        .route("/upload", post(upload::upload_data))
+        .route("/upload/preview", post(upload::preview_upload_data))
+        .route("/sample/{name}", get(upload::serve_sample_file));
+
+    json_routes.merge(upload_routes)
 }
 
 fn analytics_router() -> Router<AppState> {
@@ -124,4 +130,30 @@ pub async fn api_contract() -> impl IntoResponse {
         [(axum::http::header::CONTENT_TYPE, "application/json")],
         include_str!("../../../../../contracts/api-v1.json"),
     )
+}
+
+#[tracing::instrument(skip(state))]
+pub async fn capabilities(State(state): State<AppState>) -> impl IntoResponse {
+    let query = &state.config.query;
+    let budgets = &state.config.budgets;
+    Json(serde_json::json!({
+        "contract_version": "v1",
+        "admission": {
+            "interactive_concurrency": query.max_interactive_concurrency,
+            "background_concurrency": query.max_background_concurrency,
+            "blocking_io_concurrency": query.max_blocking_io_concurrency,
+            "max_queued_per_class": query.max_queued_per_class,
+            "queue_timeout_ms": query.queue_timeout_ms
+        },
+        "budgets": {
+            "scatter_matrix_pairs": budgets.max_scatter_matrix_pairs,
+            "scatter_matrix_points": budgets.max_scatter_matrix_points,
+            "rolling_cells": budgets.max_rolling_cells,
+            "spectrogram_cells": budgets.max_spectrogram_cells,
+            "causal_work_units": budgets.max_causal_work_units,
+            "cleaning_stages": budgets.max_cleaning_stages,
+            "database_rows": budgets.max_database_rows,
+            "json_body_bytes": budgets.max_json_body_bytes
+        }
+    }))
 }

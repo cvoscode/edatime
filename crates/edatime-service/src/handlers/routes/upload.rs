@@ -29,7 +29,9 @@ pub async fn upload_data(
         .is_some()
     {
         let require_sorted_scan_backed = state.config.data.require_sorted_scan_backed;
-        let lazy = tokio::task::spawn_blocking(move || {
+        let lazy = state
+            .query_executor
+            .run_blocking_io(edatime_core::metrics::CpuStage::Materialization, move || {
                 let lazy = edatime_ingest::ingest::load_lazyframe_scan_backed(
                     &source_path,
                     &ingest_params,
@@ -53,7 +55,7 @@ pub async fn upload_data(
                 Ok(lazy)
             })
             .await
-            .map_err(|error| AppError::internal(format!("Failed to join upload task: {error:?}")))?
+            .map_err(AppError::from)?
             .map_err(|error| {
                 AppError::bad_request(format!("Failed to parse uploaded file: {error}"))
             })?;
@@ -77,14 +79,19 @@ pub async fn upload_data(
             Some(time_column_name),
         )
     } else {
-        let loaded = tokio::task::spawn_blocking(move || {
-            edatime_ingest::ingest::load_dataframe_partial(&source_path, &ingest_params)
-        })
-        .await
-        .map_err(|error| AppError::internal(format!("Failed to join upload task: {error:?}")))?
-        .map_err(|error| {
-            AppError::bad_request(format!("Failed to parse uploaded file: {error}"))
-        })?;
+        let loaded = state
+            .query_executor
+            .run_blocking_io(
+                edatime_core::metrics::CpuStage::Materialization,
+                move || {
+                    edatime_ingest::ingest::load_dataframe_partial(&source_path, &ingest_params)
+                },
+            )
+            .await
+            .map_err(AppError::from)?
+            .map_err(|error| {
+                AppError::bad_request(format!("Failed to parse uploaded file: {error}"))
+            })?;
         let row_count = loaded.df.height();
         state
             .replace_dataset(loaded.df)
@@ -126,29 +133,36 @@ pub async fn preview_upload_data(
     tracing::info!("Received upload preview request");
 
     let (path, time_column) = extract_preview_file(&state, multipart).await?;
-    let metadata = tokio::task::spawn_blocking(move || {
-        let raw = build_immediate_dataset_metadata_from_path_with_time_column(
-            path.as_ref(),
-            time_column.as_deref(),
-        )?;
-        // Normalize temporal dtypes in the returned metadata so the
-        // preview aligns with the post-ingest dtype that the rest of
-        // the pipeline assumes. (Audit issue 4.1.)
-        let mut metadata = raw;
-        for profile in &mut metadata.column_profiles {
-            if profile.dtype.starts_with("datetime") && !profile.dtype.starts_with("datetime[ms]") {
-                profile.dtype = "datetime[ms]".to_string();
-            }
-        }
-        for col in &mut metadata.columns {
-            if col.dtype.starts_with("datetime") && !col.dtype.starts_with("datetime[ms]") {
-                col.dtype = "datetime[ms]".to_string();
-            }
-        }
-        Ok::<_, AppError>(metadata)
-    })
-    .await
-    .map_err(|error| AppError::internal(format!("Failed to join preview task: {error:?}")))??;
+    let metadata = state
+        .query_executor
+        .run_blocking_io(
+            edatime_core::metrics::CpuStage::Materialization,
+            move || {
+                let raw = build_immediate_dataset_metadata_from_path_with_time_column(
+                    path.as_ref(),
+                    time_column.as_deref(),
+                )?;
+                // Normalize temporal dtypes in the returned metadata so the
+                // preview aligns with the post-ingest dtype that the rest of
+                // the pipeline assumes. (Audit issue 4.1.)
+                let mut metadata = raw;
+                for profile in &mut metadata.column_profiles {
+                    if profile.dtype.starts_with("datetime")
+                        && !profile.dtype.starts_with("datetime[ms]")
+                    {
+                        profile.dtype = "datetime[ms]".to_string();
+                    }
+                }
+                for col in &mut metadata.columns {
+                    if col.dtype.starts_with("datetime") && !col.dtype.starts_with("datetime[ms]") {
+                        col.dtype = "datetime[ms]".to_string();
+                    }
+                }
+                Ok::<_, AppError>(metadata)
+            },
+        )
+        .await
+        .map_err(AppError::from)??;
 
     Ok(Json(serde_json::json!({
         "status": "ok",
@@ -342,9 +356,9 @@ fn create_temp_upload_file(
 
 /// Serve a built-in sample dataset file (e.g. ETTm2.csv).
 /// Used by the "Try with sample data" cards on the home page.
-#[tracing::instrument(skip(_state))]
+#[tracing::instrument(skip(state))]
 pub async fn serve_sample_file(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     axum::extract::Path(name): axum::extract::Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
     // Sandbox: only allow known sample dataset names
@@ -362,9 +376,14 @@ pub async fn serve_sample_file(
         return Err(AppError::bad_request("Sample dataset file not found"));
     }
 
-    let body = tokio::task::spawn_blocking(move || std::fs::read(&file_path))
+    let body = state
+        .query_executor
+        .run_blocking_io(
+            edatime_core::metrics::CpuStage::Materialization,
+            move || std::fs::read(&file_path),
+        )
         .await
-        .map_err(|e| AppError::internal(format!("{e:?}")))?;
+        .map_err(AppError::from)?;
 
     match body {
         Ok(bytes) => {

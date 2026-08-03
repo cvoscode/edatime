@@ -63,6 +63,23 @@
     margin-bottom: 12px;
 }
 
+.settings-section-copy {
+    max-width: 620px;
+    margin: -4px 0 16px;
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    line-height: 1.5;
+}
+
+.settings-section--note {
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-1);
+}
+
+.settings-section--note .settings-section-copy { margin-bottom: 0; }
+
 .settings-row {
     display: flex;
     align-items: center;
@@ -110,6 +127,14 @@
     height: 24px;
     border-radius: var(--radius);
     border: 1px solid var(--border);
+}
+
+.settings-scale-preview {
+    width: min(240px, 100%);
+    height: 8px;
+    margin-top: 8px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
 }
 
 /* Layout density adjustments */
