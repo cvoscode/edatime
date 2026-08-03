@@ -1,9 +1,18 @@
-# ── Build stage ────────────────────────────────────────────────
+# ── Frontend build stage ───────────────────────────────────────
+FROM node:22-bookworm-slim AS frontend-builder
+
+WORKDIR /build
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY frontend/ frontend/
+COPY scripts/ scripts/
+RUN npm run build:prod
+
+# ── Rust build stage ───────────────────────────────────────────
 FROM rust:bookworm AS builder
 
 WORKDIR /build
 COPY Cargo.toml Cargo.lock* ./
-COPY src/lib.rs src/lib.rs
 COPY crates/ crates/
 COPY contracts/ contracts/
 
@@ -19,7 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /build/target/release/edatime /usr/local/bin/edatime
-COPY --from=builder /build/crates/edatime-bin/frontend/dist/ /app/frontend/
+COPY --from=frontend-builder /build/crates/edatime-bin/frontend/dist/ /app/frontend/
 
 RUN useradd -r -s /bin/false edatime
 

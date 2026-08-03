@@ -13,6 +13,7 @@
 
 import { uiState } from '../store/uiState.js';
 import { setSeriesColors } from '../store/uiState.js';
+import { datasetState } from '../store/datasetState.js';
 
 /**
  * Named palette choices exposed by Settings. Every chart renderer and chip
@@ -101,6 +102,74 @@ export function getSeriesColor(column: string, fallbackIndex = 0): string {
     if (custom) return custom;
     const palette = getActiveSeriesPalette();
     return palette[Math.abs(fallbackIndex) % palette.length]!;
+}
+
+function hslToHex(hue: number, saturation: number, lightness: number): string {
+    const s = saturation / 100;
+    const l = lightness / 100;
+    const chroma = (1 - Math.abs(2 * l - 1)) * s;
+    const section = ((hue % 360) + 360) % 360 / 60;
+    const intermediate = chroma * (1 - Math.abs((section % 2) - 1));
+    const [red, green, blue] = section < 1 ? [chroma, intermediate, 0]
+        : section < 2 ? [intermediate, chroma, 0]
+            : section < 3 ? [0, chroma, intermediate]
+                : section < 4 ? [0, intermediate, chroma]
+                    : section < 5 ? [intermediate, 0, chroma]
+                        : [chroma, 0, intermediate];
+    const match = l - chroma / 2;
+    const channel = (value: number) => Math.round((value + match) * 255).toString(16).padStart(2, '0');
+    return `#${channel(red)}${channel(green)}${channel(blue)}`;
+}
+
+/**
+ * Return a scalable initial color for a canonical dataset-column slot.
+ * The configured palette supplies its native colors first. Additional slots
+ * use golden-angle hues and independent saturation/lightness steps, avoiding
+ * palette wraparound while remaining deterministic for arbitrarily wide data.
+ */
+export function getSeriesScaleColor(index: number): string {
+    const slot = Math.max(0, Math.trunc(index));
+    const palette = getActiveSeriesPalette();
+    if (slot < palette.length) return palette[slot]!;
+
+    const overflow = slot - palette.length;
+    const paletteSeed = activePaletteName.split('').reduce(
+        (hash, character) => Math.imul(hash ^ character.charCodeAt(0), 16777619) >>> 0,
+        2166136261,
+    );
+    const hue = (paletteSeed % 360 + overflow * 137.507764) % 360;
+    const saturationStep = (overflow * 0.38196601125) % 1;
+    const lightnessStep = (overflow * 0.61803398875) % 1;
+    const saturation = activePaletteName === 'monochrome' ? 4 : 62 + saturationStep * 25;
+    const lightness = activePaletteName === 'monochrome'
+        ? 18 + lightnessStep * 72
+        : 42 + lightnessStep * 24;
+    return hslToHex(hue, saturation, lightness);
+}
+
+/**
+ * Resolve the canonical identity color for a data column.
+ *
+ * Chip overrides are authoritative. Unconfigured columns use a stable hash of
+ * its canonical dataset slot, so filtering, reordering, or selecting a subset
+ * cannot change the color seen by chips, raw traces, hulls, legends, or exports.
+ * A user-selected chip color always overrides that initial scale assignment.
+ */
+export function getColumnSeriesColor(column: string): string {
+    const name = String(column || '').trim();
+    const custom = normalizeSeriesColor(uiState.seriesColors?.[name]);
+    if (custom) return custom;
+    const datasetIndex = datasetState.numericCols.indexOf(name);
+    if (datasetIndex >= 0) return getSeriesScaleColor(datasetIndex);
+
+    // Derived/non-dataset traces still need a stable slot without depending on
+    // the current selection order.
+    let hash = 2166136261;
+    for (let index = 0; index < name.length; index++) {
+        hash ^= name.charCodeAt(index);
+        hash = Math.imul(hash, 16777619);
+    }
+    return getSeriesScaleColor(hash >>> 0);
 }
 
 /**

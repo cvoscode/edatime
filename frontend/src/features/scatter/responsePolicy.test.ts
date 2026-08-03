@@ -48,4 +48,15 @@ describe('applyScatterPointsResponse', () => {
             colorCardinality: null,
         });
     });
+
+    it('does not accept count metadata that contradicts returned points', () => {
+        const target = state();
+        applyScatterPointsResponse(target, {
+            points: [[1, 2], [3, 4]],
+            total_points: 0,
+        } as any);
+
+        expect(target.totalPoints).toBe(2);
+        expect(target.allPoints).toHaveLength(2);
+    });
 });

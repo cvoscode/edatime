@@ -11,7 +11,7 @@ import {
     setPendingAdaptivePoint,
     uiState,
 } from '../../store/uiState.js';
-import { getSeriesColor, setSeriesColor } from '../../utils/seriesColors.js';
+import { getColumnSeriesColor, setSeriesColor } from '../../utils/seriesColors.js';
 import { chartState } from '../../store/chartState.js';
 import { datasetState } from '../../store/datasetState.js';
 import { ensureAdaptiveTargetStillValid } from './columnSelection.js';
@@ -51,8 +51,7 @@ export function composeChipListItems(options: ChipCompositionOptions): ChipListI
     if (visibleCols.length === 0) return [];
 
     return visibleCols.map((col) => {
-        const colIdx = datasetState.numericCols.indexOf(col);
-        const color = getSeriesColor(col, colIdx >= 0 ? colIdx : 0);
+        const color = getColumnSeriesColor(col);
         const isActive = selection.includes(col);
         const isAdaptiveTarget = isActive && uiState.adaptiveFilterColumn === col;
 
@@ -67,20 +66,23 @@ export function composeChipListItems(options: ChipCompositionOptions): ChipListI
             adaptiveTarget: isAdaptiveTarget,
             title: chipTitle,
             onToggle: (checked: boolean) => {
-                if (checked) {
-                    if (!selection.includes(col)) setTimeseriesSelection(workspace, [...selection, col]);
-                } else {
-                    setTimeseriesSelection(workspace, selection.filter((column) => column !== col));
-                }
+                const currentSelection = getTimeseriesSelection(workspace);
+                const nextSelection = checked
+                    ? (currentSelection.includes(col) ? currentSelection : [...currentSelection, col])
+                    : currentSelection.filter((column) => column !== col);
+                setTimeseriesSelection(workspace, nextSelection);
                 ensureAdaptiveTargetStillValid(workspace);
                 buildRangeControlsFn();
-                (chartState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
-                fetchAndRender();
+                const updatedIncrementally = chartState.chart?.setVisibleColumns?.(nextSelection) ?? false;
+                chartState.chart?.requestOverlayRender?.();
+                if (!updatedIncrementally) fetchAndRender();
             },
             onColorInput: (nextColor: string) => {
                 const updated = setSeriesColor(col, nextColor);
                 if (!updated) return;
-                renderCurrentDataFn?.();
+                const updatedIncrementally = chartState.chart?.setColumnColor?.(col, updated) ?? false;
+                chartState.chart?.requestOverlayRender?.();
+                if (!updatedIncrementally) renderCurrentDataFn?.();
             },
             onMenuClick: () => {
                 openColumnFilter(col);

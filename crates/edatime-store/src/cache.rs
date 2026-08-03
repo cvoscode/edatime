@@ -3,8 +3,6 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
-use axum::body::Body;
-use axum::http::{HeaderValue, Response, StatusCode, header};
 use bytes::Bytes;
 
 /// Revision-scoped cache payload for full raw and first-difference correlation matrices.
@@ -19,8 +17,6 @@ pub struct CorrelationMatrixCacheEntry {
     pub kendall_diff: Vec<Vec<Option<f64>>>,
     pub counts: Vec<Vec<usize>>,
 }
-
-use edatime_core::http::ResponseMeta;
 
 #[derive(Debug, Clone, Copy)]
 pub struct CacheConfig {
@@ -41,7 +37,6 @@ impl Default for CacheConfig {
 
 #[derive(Debug, Clone)]
 pub struct CachedResponse {
-    pub status: StatusCode,
     pub content_type: &'static str,
     pub body: Arc<Bytes>,
     pub is_downsampled: bool,
@@ -60,7 +55,6 @@ impl CachedResponse {
         time_column: Option<String>,
     ) -> Self {
         Self {
-            status: StatusCode::OK,
             content_type: "application/json",
             body: Arc::new(Bytes::from(body)),
             is_downsampled,
@@ -79,7 +73,6 @@ impl CachedResponse {
         time_column: Option<String>,
     ) -> Self {
         Self {
-            status: StatusCode::OK,
             content_type: "application/vnd.apache.arrow.stream",
             body: Arc::new(Bytes::from(body)),
             is_downsampled,
@@ -97,53 +90,6 @@ impl CachedResponse {
 
     pub fn body_len(&self) -> usize {
         self.body.as_ref().len()
-    }
-
-    pub fn into_response(self, cache_status: &'static str) -> Response<Body> {
-        // `Bytes` is cheap to clone (shared refcounted buffer); move a cloned
-        // `Bytes` into the `Body` so we avoid copying the underlying data.
-        let mut response = Response::new(Body::from(self.body.as_ref().clone()));
-        *response.status_mut() = self.status;
-        let headers = response.headers_mut();
-        headers.insert(
-            header::CONTENT_TYPE,
-            HeaderValue::from_static(self.content_type),
-        );
-        headers.insert(
-            header::CACHE_CONTROL,
-            HeaderValue::from_static("private, max-age=60"),
-        );
-        headers.insert("x-edatime-cache", HeaderValue::from_static(cache_status));
-        let meta = ResponseMeta {
-            is_downsampled: self.is_downsampled,
-            returned_rows: self.returned_rows,
-            target_points: Some(self.target_points),
-        };
-        headers.insert(
-            "x-edatime-downsampled",
-            HeaderValue::from_static(if meta.is_downsampled { "1" } else { "0" }),
-        );
-        if let Ok(v) = HeaderValue::from_str(&meta.returned_rows.to_string()) {
-            headers.insert("x-edatime-returned-rows", v);
-        }
-        if let Some(tp) = meta.target_points
-            && let Ok(v) = HeaderValue::from_str(&tp.to_string())
-        {
-            headers.insert("x-edatime-target-points", v);
-        }
-        if let Some(time_column) = self.time_column.as_deref()
-            && let Ok(v) = HeaderValue::from_str(time_column)
-        {
-            headers.insert("x-edatime-time-column", v);
-        }
-        for (key, value) in &self.extra_headers {
-            if let Ok(header_name) = header::HeaderName::from_bytes(key.as_bytes())
-                && let Ok(header_value) = HeaderValue::from_str(value)
-            {
-                headers.insert(header_name, header_value);
-            }
-        }
-        response
     }
 }
 

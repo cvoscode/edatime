@@ -7,7 +7,7 @@
 import { analyticsState } from '../store/analyticsState.js';
 import { buildAdaptiveLineY } from '../services/timeseries/filtering.js';
 import { getChartPalette } from '../utils/theme.js';
-import { getSeriesColor } from '../utils/seriesColors.js';
+import { getColumnSeriesColor } from '../utils/seriesColors.js';
 import { getAnnotationsForPage } from './annotations.js';
 import type { AdaptiveLineFilter } from '../types/store.js';
 
@@ -85,7 +85,12 @@ export class ChartOverlays {
 
     private _renderRollingBandsToCtx(ctx: CanvasRenderingContext2D, scale: { x: number; y: number }): void {
         const bands = analyticsState.rollingBands;
-        if (!bands || bands.length === 0 || !analyticsState.rollingEnabled) return;
+        if (
+            !bands
+            || bands.length === 0
+            || !analyticsState.rollingEnabled
+            || analyticsState.rollingDisplayMode === 'raw'
+        ) return;
 
         const xMin = this._opts.getXMin();
         const xMax = this._opts.getXMax();
@@ -102,10 +107,12 @@ export class ChartOverlays {
 
         ctx.save();
         const rollingPalette = getChartPalette();
+        const selectedColumns = new Set(this._selectedColumns);
         for (const band of bands) {
+            if (!selectedColumns.has(band.column)) continue;
             const n = band.ts.length;
             if (n < 2) continue;
-            const bandColor = band.color || getSeriesColor(band.column, this._selectedColumns.indexOf(band.column));
+            const bandColor = getColumnSeriesColor(band.column);
 
             ctx.fillStyle = this._applyAlphaToColor(bandColor, 0.18) || rollingPalette.rollingBandOuter;
             ctx.beginPath();
@@ -194,6 +201,7 @@ export class ChartOverlays {
         }
 
         for (const region of regions) {
+            if (!this._selectedColumns.includes(region.column)) continue;
             const rStart = Math.max(xMin, region.start_ms);
             const rEnd = Math.min(xMax, region.end_ms);
             if (rStart >= rEnd) continue;
@@ -201,7 +209,7 @@ export class ChartOverlays {
             const sx = plotLeft + ((rStart - xMin) / (xMax - xMin)) * plotWidth;
             const ex = plotLeft + ((rEnd - xMin) / (xMax - xMin)) * plotWidth;
             const w = Math.max(2, ex - sx);
-            const regionColor = getSeriesColor(region.column, this._selectedColumns.indexOf(region.column));
+            const regionColor = getColumnSeriesColor(region.column);
             ctx.fillStyle = this._applyAlphaToColor(regionColor, 0.16) || anomalyPalette.anomalyFill;
             ctx.strokeStyle = this._applyAlphaToColor(regionColor, 0.55) || anomalyPalette.anomalyStroke;
             ctx.fillRect(sx, plotTop, w, plotHeight);

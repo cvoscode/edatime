@@ -22,7 +22,8 @@ function syncAdaptiveClearButton(workspace: Pick<WorkspaceStore, 'getSnapshot'>)
 
 export function initDrawControls(
     fetchAndRender: () => void,
-    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'subscribe'>,
+    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'subscribe'>
+        & Partial<Pick<WorkspaceStore, 'subscribeSelector'>>,
 ): void {
     const drawTool = document.getElementById('draw-tool') as HTMLElement | null;
     const drawColor = document.getElementById('draw-color') as HTMLInputElement | null;
@@ -78,5 +79,12 @@ export function initDrawControls(
         drawHelpBtn.dataset.bound = '1';
     }
     syncAdaptiveClearButton(workspace);
-    workspace.subscribe(() => syncAdaptiveClearButton(workspace));
+    if (workspace.subscribeSelector) {
+        workspace.subscribeSelector(
+            (snapshot) => snapshot.filters.adaptiveLines.length,
+            () => syncAdaptiveClearButton(workspace),
+        );
+    } else {
+        workspace.subscribe(() => syncAdaptiveClearButton(workspace));
+    }
 }

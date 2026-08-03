@@ -53,6 +53,29 @@ describe('scatter query context builders', () => {
         expect(result.end).toBe(200);
     });
 
+    it('carries a linked Timeseries Y viewport to intersecting scatter axes', () => {
+        document.body.innerHTML = '<input id="scatter-link-brush" type="checkbox" checked />';
+        setMetadata({
+            time_column: 'timestamp',
+            time_range: { min: 0, max: 200 },
+            columns: [],
+            numeric_columns: ['HUFL', 'HULL'],
+            column_profiles: [
+                { name: 'HUFL', min: -2, max: 110 },
+                { name: 'HULL', min: 0, max: 37 },
+            ],
+        } as any);
+        const intent = makeWorkspaceSnapshot({
+            viewport: { xMin: 100, xMax: 200, yMin: 80, yMax: 109 },
+        });
+
+        const result = buildScatterQueryContext({ x: 'HUFL', y: 'HULL' }, intent);
+
+        expect(result.start).toBe(100);
+        expect(result.end).toBe(200);
+        expect(result.filters).toEqual([{ column: 'HUFL', from: 80, to: 109 }]);
+    });
+
     it('uses the explicit workspace filters and viewport', () => {
         document.body.innerHTML = '<input id="scatter-link-brush" type="checkbox" checked />';
         setMetadata({ time_column: 'timestamp', column_profiles: [], columns: [], numeric_columns: [], time_range: { min: 0, max: 100 } } as any);

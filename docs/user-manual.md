@@ -288,7 +288,7 @@ The top row lets you choose:
 - distribution mode: `Histogram`, `KDE`, or `Box Plot`
 - `Link chart range`
 
-When `Link chart range` is enabled, the current time window from the Timeseries page is used in the scatter query.
+When `Link chart range` is enabled, the current time window and visible value window from the Timeseries page are used in the scatter query. The value window is applied only to scatter axes whose dataset domain overlaps it, so a HUFL-focused Y zoom does not incorrectly eliminate a differently scaled HULL axis.
 
 If Scatter returns no points, first check the linked time range, numeric filters, and adaptive filters before assuming the X/Y pair itself is wrong.
 

@@ -81,6 +81,18 @@ describe('buildColumnToggles', () => {
         expect(workspace.getSnapshot().selection.columns).toEqual(['HUFL', 'OT']);
     });
 
+    it('accumulates rapid chip changes from the live workspace selection', () => {
+        const fetchAndRender = vi.fn();
+        buildColumnToggles(fetchAndRender, vi.fn(), null, workspace);
+
+        const chipFor = (column: string) => Array.from(document.querySelectorAll<HTMLLabelElement>('#column-toggles .series-chip'))
+            .find((chip) => chip.querySelector('.chip-label')?.textContent === column)!;
+        chipFor('LUFL').click();
+        chipFor('LULL').click();
+
+        expect(workspace.getSnapshot().selection.columns).toEqual(['HUFL', 'HULL', 'OT', 'LUFL', 'LULL']);
+    });
+
     it('publishes color-by changes to the workspace selection intent', () => {
         const fetchAndRender = vi.fn();
         buildColumnToggles(fetchAndRender, vi.fn(), null, workspace);

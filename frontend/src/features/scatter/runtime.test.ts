@@ -171,6 +171,23 @@ describe('syncScatterFilterBadge', () => {
         expect(text.textContent).toContain('1 adaptive filter');
     });
 
+    it('does not describe an empty adaptive-filter set as active', async () => {
+        const { getActiveScatterFilterColumns } = await import('./state.js');
+        (getActiveScatterFilterColumns as ReturnType<typeof vi.fn>).mockReturnValue([]);
+        scatterState.totalPoints = 42;
+        configureScatterRuntime({
+            getSnapshot: () => ({
+                filters: { columnRanges: {}, adaptiveLines: [] },
+                viewport: { xMin: 0, xMax: 1_000, yMin: null, yMax: null },
+            }),
+        } as any);
+
+        syncScatterEmptyState();
+
+        const text = document.getElementById('scatter-filter-banner-text') as HTMLElement;
+        expect(text.textContent).toBe('Signals filters carry over here: zoom range');
+    });
+
     it('does nothing when badge element does not exist', () => {
         document.body.innerHTML = '<div id="scatter-x-col"></div>';
         expect(() => syncScatterFilterBadge()).not.toThrow();
@@ -182,6 +199,7 @@ describe('syncScatterEmptyState', () => {
         vi.clearAllMocks();
         buildDom();
         setGpuUnavailable(false);
+        scatterState.points = [];
     });
 
     it('shows no-columns-selected when axes are not chosen', () => {
@@ -214,10 +232,11 @@ describe('syncScatterEmptyState', () => {
         // Ensure GPU unavailable is reset so this test runs in a clean state
         setGpuUnavailable(false);
         scatterState.totalPoints = 100;
+        scatterState.points = [[1, 2]];
         scatterState.loading = false;
         scatterState.chart = {} as any; // chart exists to satisfy the gpu-unavailable guard
         syncScatterEmptyState();
-        // visible: false because hasAxes=true and totalPoints > 0 and chart exists
+        // visible: false because axes and renderable points are present.
         expect(emptyStateUpdateMock).toHaveBeenCalledWith(
             expect.objectContaining({
                 visible: false,

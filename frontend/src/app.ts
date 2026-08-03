@@ -92,6 +92,8 @@ export function createApp(): AppRoot {
     let dataChartCtor: DataChartCtorType | null = null;
     let sessionPersistenceStarted = false;
     let disposeSessionPersistence: (() => void) | null = null;
+    let cleaningPanelLoad: Promise<void> | null = null;
+    let disposeCleaningPanel: (() => void) | null = null;
 
     async function ensurePrimaryChartCtor(): Promise<DataChartCtorType> {
         if (dataChartCtor) return dataChartCtor;
@@ -114,6 +116,26 @@ export function createApp(): AppRoot {
             sessionPersistenceStarted = false;
         });
         sessionPersistenceStarted = true;
+    }
+
+    async function ensureCleaningPanelMounted(refreshCleaningPlanConsumers: () => void): Promise<void> {
+        if (disposeCleaningPanel || appDisposed) return;
+        if (!cleaningPanelLoad) {
+            cleaningPanelLoad = import('./cleaning/panel.js').then(({ mountCleaningPlanPanel }) => {
+                if (appDisposed || disposeCleaningPanel) return;
+                disposeCleaningPanel = mountCleaningPlanPanel({
+                    planStore: cleaningPlanStore,
+                    getViewport: () => workspace.getSnapshot().viewport,
+                    onPlanChanged: refreshCleaningPlanConsumers,
+                    onPlanApplied: () => timeseriesModule.refreshAfterMutation(),
+                });
+                runtime.registerCleanup(() => {
+                    disposeCleaningPanel?.();
+                    disposeCleaningPanel = null;
+                });
+            });
+        }
+        await cleaningPanelLoad;
     }
 
     async function init(): Promise<void> {
@@ -202,17 +224,17 @@ export function createApp(): AppRoot {
             onCleaningPlanChanged: refreshCleaningPlanConsumers,
         });
 
-        // The workbench owns its graph/editor/export implementation, so keep
-        // it out of the initial chart shell. The global Plan trigger is
-        // already present in markup and becomes active as soon as this small
-        // feature chunk is ready.
-        const { mountCleaningPlanPanel } = await import('./cleaning/panel.js');
-        runtime.registerCleanup(mountCleaningPlanPanel({
-            planStore: cleaningPlanStore,
-            getViewport: () => workspace.getSnapshot().viewport,
-            onPlanChanged: refreshCleaningPlanConsumers,
-            onPlanApplied: () => timeseriesModule.refreshAfterMutation(),
-        }));
+        // The workbench is a large, isolated feature. Keep it entirely out of
+        // startup and mount it only when the existing global Plan trigger is
+        // first used. Re-dispatch that first click after mounting so the user
+        // sees the workbench immediately rather than needing a second click.
+        const planTrigger = document.getElementById('open-cleaning-plan-btn') as HTMLButtonElement | null;
+        const openCleaningPanel = () => {
+            planTrigger?.removeEventListener('click', openCleaningPanel);
+            void ensureCleaningPanelMounted(refreshCleaningPlanConsumers).then(() => planTrigger?.click());
+        };
+        planTrigger?.addEventListener('click', openCleaningPanel);
+        runtime.registerCleanup(() => planTrigger?.removeEventListener('click', openCleaningPanel));
 
         // Descriptor registration is independent of the primary shell and is
         // itself deferred so every advanced page factory stays outside the
@@ -222,7 +244,7 @@ export function createApp(): AppRoot {
         await loadPageDescriptors(featureRegistry, {
             getRenderTimeseries: () => timeseriesModule.renderCurrentData(),
             showPage,
-            chipColor: (col, idx) => getAnalyticsChipColor(col, idx),
+            chipColor: (col) => getAnalyticsChipColor(col),
             setLoading: setComputeLoading,
             onCleaningPlanChanged: refreshCleaningPlanConsumers,
             cleaningPlanStore,

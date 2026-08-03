@@ -1,4 +1,4 @@
-import { access, readFile } from 'node:fs/promises';
+import { access, readFile, readdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 const DEFAULT_DIST_ROOT = resolve('crates/edatime-bin/frontend/dist');
@@ -46,6 +46,14 @@ export async function verifyPackagedFrontendAssetGraph(distRoot = DEFAULT_DIST_R
   const entry = manifestEntry(manifest);
   const htmlReferences = collectHtmlAssetReferences(html);
   const missing = [];
+  const packagedFiles = await readdir(distRoot, { recursive: true });
+  const forbiddenArtifacts = packagedFiles.filter((file) => (
+    file.endsWith('.map') || file === 'libs' || file.startsWith('libs/')
+  ));
+
+  if (forbiddenArtifacts.length > 0) {
+    throw new Error(`Packaged frontend contains forbidden generated artifacts: ${forbiddenArtifacts.join(', ')}`);
+  }
 
   for (const reference of htmlReferences) {
     if (!await fileExists(distRoot, reference)) missing.push(reference);

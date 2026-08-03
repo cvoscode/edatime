@@ -225,7 +225,7 @@ Styles are spread across multiple CSS modules:
 
 ## JavaScript Modules
 
-### `frontend/src/pages/timeseriesPage.ts`
+### `frontend/src/features/timeseries/module.ts`
 
 `createTimeseriesPageController(deps)` — main controller factory:
 

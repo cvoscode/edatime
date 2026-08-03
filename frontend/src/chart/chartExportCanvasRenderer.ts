@@ -1,4 +1,4 @@
-import type { SeriesConfig } from '../../libs/chartgpu/dist/index.js';
+import type { SeriesConfig } from 'chartgpu';
 import { getChartPalette } from '../utils/theme.js';
 import { scaleGridLayout } from './gridLayout.js';
 import type { GridLayout } from './chartInteractions.js';

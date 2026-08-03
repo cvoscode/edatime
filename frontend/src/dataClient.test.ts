@@ -640,15 +640,28 @@ describe('API client fetch helpers', () => {
             });
 
             try {
-                await fetchScatterCorrelations('col_a', 0.5, 'pearson_raw');
+                await fetchScatterCorrelations('col_a', 0.5, 'pearson_raw', {
+                    start: 100,
+                    end: 200,
+                    filters: [
+                        { column: 'col_a', from: 2, to: 4 },
+                        { column: 'col_b', from: 10, to: 20 },
+                    ],
+                    lineFilters: [],
+                });
 
                 const request = mockFetch.mock.calls[0]?.[1] as RequestInit | undefined;
                 const envelope = JSON.parse(String(request?.body ?? '{}')).cleaning_plan;
                 expect(envelope).toMatchObject({
                     expectedSourceVersionId: 'source-9',
                     expectedDatasetRevision: 9,
-                    plan: { stages: [{ kind: 'columnRange' }] },
                 });
+                expect(envelope.plan.stages).toEqual(expect.arrayContaining([
+                    expect.objectContaining({ kind: 'columnRange', column: 'col_a', from: 1, to: 5 }),
+                    expect.objectContaining({ kind: 'columnRange', column: 'col_a', from: 2, to: 4 }),
+                    expect.objectContaining({ kind: 'timeRange', startMs: 100, endMs: 200 }),
+                    expect.objectContaining({ kind: 'columnRange', column: 'col_b', from: 10, to: 20 }),
+                ]));
                 expect(request).toMatchObject({ method: 'POST' });
             } finally {
                 cleaningPlanStore.clear();
@@ -696,7 +709,7 @@ describe('API client fetch helpers', () => {
             );
         });
 
-        it('does not lower adaptive lines into scatter transport fields', async () => {
+        it('lowers linked workspace filters into the canonical scatter plan', async () => {
             const { fetchScatterPoints } = await import('./services/api/index.js');
 
             mockFetch.mockResolvedValueOnce({
@@ -717,6 +730,9 @@ describe('API client fetch helpers', () => {
             });
 
             await fetchScatterPoints('col_a', 'col_b', 5000, null, {
+                filters: [
+                    { column: 'col_a', from: 10, to: 20 },
+                ],
                 lineFilters: [
                     { id: 'adaptive-1', column: 'col_a', x1: 1, y1: 2, x2: 3, y2: 4, keepAbove: true } as any,
                 ],
@@ -725,7 +741,11 @@ describe('API client fetch helpers', () => {
             const request = mockFetch.mock.calls.at(-1)?.[1] as RequestInit | undefined;
             const payload = JSON.parse(String(request?.body ?? '{}'));
             expect(payload.line_filters).toBeUndefined();
-            expect(payload.cleaning_plan).toBeDefined();
+            expect(payload.filters).toBeUndefined();
+            expect(payload.cleaning_plan.plan.stages).toEqual(expect.arrayContaining([
+                expect.objectContaining({ kind: 'columnRange', column: 'col_a', from: 10, to: 20 }),
+                expect.objectContaining({ kind: 'adaptiveLine', column: 'col_a', x1Ms: 1, x2Ms: 3 }),
+            ]));
         });
 
         it('reads scatter Arrow responses using the declared axis columns', async () => {
@@ -807,7 +827,8 @@ describe('API client fetch helpers', () => {
                 expect.stringContaining('/api/v1/scatter/matrix'),
                 expect.objectContaining({ method: 'POST' }),
             );
-            expect(JSON.parse(String(request?.body ?? '{}'))).toMatchObject({
+            const payload = JSON.parse(String(request?.body ?? '{}'));
+            expect(payload).toMatchObject({
                 pairs: [
                     { x: 'HUFL', y: 'HULL' },
                     { x: 'OT', y: 'MUFL' },
@@ -818,6 +839,10 @@ describe('API client fetch helpers', () => {
                 limit: 4096,
                 cleaning_plan: { expectedSourceVersionId: 'source-baseline' },
             });
+            expect(payload.cleaning_plan.plan.stages).toEqual(expect.arrayContaining([
+                expect.objectContaining({ kind: 'columnRange', column: 'HUFL', from: 1, to: 9 }),
+                expect.objectContaining({ kind: 'adaptiveLine', column: 'HUFL', x1Ms: 1, x2Ms: 3 }),
+            ]));
         });
 
         it('decodes Arrow rows into per-cell datasets using matrix metadata headers', async () => {

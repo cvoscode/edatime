@@ -1,4 +1,4 @@
-import type { SeriesConfig } from '../../libs/chartgpu/dist/index.js';
+import type { SeriesConfig } from 'chartgpu';
 import type { ChartExportDomains } from './chartExportLayout.js';
 
 export interface ExportPlotBounds {

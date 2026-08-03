@@ -60,7 +60,8 @@ export interface ScatterRenderCallbacks {
     syncScatterFilterBadge: () => void;
     refreshToolbarOverflow?: () => void;
     exportScatterParquet?: () => Promise<boolean>;
-    workspace?: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'subscribe'>;
+    workspace?: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'subscribe'>
+        & Partial<Pick<WorkspaceStore, 'subscribeSelector'>>;
     shouldIgnoreWorkspaceChange?: () => boolean;
 }
 
@@ -248,24 +249,38 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
     };
 
     if (cb.workspace) {
+        const onWorkspaceChange = async (requireLinkedBrush: boolean) => {
+            if (cb.shouldIgnoreWorkspaceChange?.()) return;
+            await handleFilterEvent(requireLinkedBrush);
+        };
         let previousFilters = filterSignature(cb.workspace.getSnapshot().filters);
         let previousViewport = viewportSignature(cb.workspace.getSnapshot().viewport);
-        const unsubscribeWorkspace = cb.workspace.subscribe((snapshot) => {
-            const nextFilters = filterSignature(snapshot.filters);
-            const nextViewport = viewportSignature(snapshot.viewport);
-            const filtersChanged = nextFilters !== previousFilters;
-            const viewportChanged = nextViewport !== previousViewport;
-            previousFilters = nextFilters;
-            previousViewport = nextViewport;
-            if (cb.shouldIgnoreWorkspaceChange?.()) return;
-
-            if (filtersChanged) {
-                void handleFilterEvent(false);
-            } else if (viewportChanged) {
-                void handleFilterEvent(true);
-            }
-        });
-        controller.signal.addEventListener('abort', unsubscribeWorkspace, { once: true });
+        const unsubscribeFilters = cb.workspace.subscribeSelector
+            ? cb.workspace.subscribeSelector(
+                (snapshot) => filterSignature(snapshot.filters),
+                () => { void onWorkspaceChange(false); },
+            )
+            : cb.workspace.subscribe((snapshot) => {
+                const nextFilters = filterSignature(snapshot.filters);
+                if (nextFilters === previousFilters) return;
+                previousFilters = nextFilters;
+                void onWorkspaceChange(false);
+            });
+        const unsubscribeViewport = cb.workspace.subscribeSelector
+            ? cb.workspace.subscribeSelector(
+                (snapshot) => viewportSignature(snapshot.viewport),
+                () => { void onWorkspaceChange(true); },
+            )
+            : cb.workspace.subscribe((snapshot) => {
+                const nextViewport = viewportSignature(snapshot.viewport);
+                if (nextViewport === previousViewport) return;
+                previousViewport = nextViewport;
+                void onWorkspaceChange(true);
+            });
+        controller.signal.addEventListener('abort', () => {
+            unsubscribeFilters();
+            unsubscribeViewport();
+        }, { once: true });
     }
     controller.signal.addEventListener('abort', onFeatureEvent('filters:clear', async () => {
         const filters = cb.workspace?.getSnapshot().filters;

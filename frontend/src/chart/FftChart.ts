@@ -6,7 +6,7 @@
  * frequency data instead of a time axis.
  */
 
-import { createChart } from '../../libs/chartgpu/dist/index.js';
+import { createChart } from 'chartgpu';
 import { defaultGpuPowerPreference } from '../utils/platform.js';
 import {
     type GridLayout,

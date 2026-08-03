@@ -6,6 +6,14 @@
  * contract be checked without coupling it to fetch, Arrow decoding, or DOM
  * concerns.
  */
+export {
+    apiContractVersion,
+    apiV1Operations,
+    type ApiV1Operation,
+    type ApiV1OperationId,
+    type ApiV1OperationMethod,
+} from './generated.js';
+
 export const apiV1Routes = {
     health: '/api/v1/health',
     build: '/api/v1/build',

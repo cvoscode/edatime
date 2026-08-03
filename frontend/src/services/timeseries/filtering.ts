@@ -3,6 +3,7 @@ import type {
     ColumnRange,
 } from '../../types/store.js';
 import type { DataObject } from '../../types/api.js';
+import type { DatasetMetadata } from '../../types/api.js';
 import type { FilteredDataObject } from '../../types/chart.js';
 import type { ScatterLineFilterSpec } from '../../types/scatter.js';
 import type { WorkspaceSnapshot, WorkspaceStore } from '../../contracts/workspace.js';
@@ -10,22 +11,29 @@ import type { WorkspaceSnapshot, WorkspaceStore } from '../../contracts/workspac
 export type TimeseriesFilterIntent = Pick<WorkspaceSnapshot, 'selection' | 'filters'>;
 
 /**
- * Ensure column ranges are populated from data for any selected column
- * that doesn't already have a range.
+ * Populate neutral range-control bounds without creating an effective filter.
+ * Dataset profile bounds are stable across viewport/downsampling changes and
+ * are also what Scatter uses to recognize a full-range no-op.
  */
-export function ensureRangeStateFromData(
-    dataObj: DataObject,
+export function ensureRangeStateFromMetadata(
+    metadata: DatasetMetadata | null | undefined,
     workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters'>,
 ): void {
     const intent = workspace.getSnapshot();
-    const next = ensureRangeStateFromDataState(
-        dataObj,
-        [...intent.selection.columns],
-        intent.filters.columnRanges,
-    );
-    const currentRanges = intent.filters.columnRanges;
-    if (next === currentRanges) return;
-    workspace.setFilters({ ...intent.filters, columnRanges: next });
+    let next = intent.filters.columnRanges;
+    const profiles = Array.isArray(metadata?.column_profiles) ? metadata.column_profiles : [];
+    const profilesByName = new Map(profiles.map((profile) => [profile.name, profile]));
+    for (const column of intent.selection.columns) {
+        if (next[column]) continue;
+        const profile = profilesByName.get(column);
+        const min = Number(profile?.min);
+        const max = Number(profile?.max);
+        if (!Number.isFinite(min) || !Number.isFinite(max) || max < min) continue;
+        next = { ...next, [column]: { from: min, to: max } };
+    }
+    if (next !== intent.filters.columnRanges) {
+        workspace.setFilters({ ...intent.filters, columnRanges: next });
+    }
 }
 
 export function computeBounds(values: ArrayLike<number>): { min: number; max: number } | null {
@@ -39,22 +47,6 @@ export function computeBounds(values: ArrayLike<number>): { min: number; max: nu
     }
     if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
     return { min, max };
-}
-
-export function ensureRangeStateFromDataState(
-    dataObj: DataObject,
-    selectedCols: string[],
-    columnRanges: Record<string, ColumnRange>,
-): Record<string, ColumnRange> {
-    let next = columnRanges;
-    for (const col of selectedCols) {
-        const values = dataObj.values?.[col];
-        if (!values || values.length === 0 || next[col]) continue;
-        const bounds = computeBounds(values);
-        if (!bounds) continue;
-        next = { ...next, [col]: { from: bounds.min, to: bounds.max } };
-    }
-    return next;
 }
 
 export function buildAdaptiveLineY(filter: AdaptiveLineFilter, tsMs: number): number | null {

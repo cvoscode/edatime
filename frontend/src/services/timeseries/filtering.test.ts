@@ -7,7 +7,7 @@ import {
     buildAdaptiveLineY,
     clipDataToViewport,
     computeBounds,
-    ensureRangeStateFromData,
+    ensureRangeStateFromMetadata,
 } from './filtering.js';
 
 describe('timeseries filtering helpers', () => {
@@ -15,16 +15,17 @@ describe('timeseries filtering helpers', () => {
         expect(computeBounds(Float64Array.from([NaN, 4, 2, 8]))).toEqual({ min: 2, max: 8 });
     });
 
-    it('publishes missing selected-column bounds to the workspace', () => {
+    it('initializes neutral ranges from dataset profiles instead of fetched viewport data', () => {
         const workspace = createWorkspaceStore();
         workspace.setSelection(['value']);
 
-        ensureRangeStateFromData({
-            ts: Float64Array.from([0, 1, 2]),
-            values: { value: Float64Array.from([4, 2, 8]) },
+        ensureRangeStateFromMetadata({
+            column_profiles: [{ name: 'value', min: -10, max: 20 }],
         } as any, workspace);
 
-        expect(workspace.getSnapshot().filters.columnRanges).toEqual({ value: { from: 2, to: 8 } });
+        expect(workspace.getSnapshot().filters.columnRanges).toEqual({
+            value: { from: -10, to: 20 },
+        });
     });
 
     it('normalizes adaptive line filters for query payloads', () => {

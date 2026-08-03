@@ -13,19 +13,6 @@ const SERVICE_WORKER_SRC = path.join(FRONTEND_DIR, 'sw.js');
 const isWatch = process.argv.includes('--watch');
 const isProd = process.argv.includes('--prod');
 
-function copyDir(src, dest) {
-  fs.mkdirSync(dest, { recursive: true });
-  for (const entry of fs.readdirSync(src)) {
-    const srcPath = path.join(src, entry);
-    const destPath = path.join(dest, entry);
-    if (fs.statSync(srcPath).isDirectory()) {
-      copyDir(srcPath, destPath);
-    } else {
-      fs.copyFileSync(srcPath, destPath);
-    }
-  }
-}
-
 /**
  * Read sw.js, substitute __BUILD_ID__ from the Vite manifest if present,
  * and write the result to PACKAGE_DIST/sw.js. In production, a missing
@@ -73,14 +60,6 @@ async function writeServiceWorker() {
   fs.writeFileSync(path.join(PACKAGE_DIST, 'sw.js'), outText);
 }
 
-function copyRuntimeAssets() {
-  const libsSrc = path.join(FRONTEND_DIR, 'libs');
-  if (fs.existsSync(libsSrc)) {
-    copyDir(libsSrc, path.join(PACKAGE_DIST, 'libs'));
-    console.log('Copied libs to packaged frontend dist');
-  }
-}
-
 if (!fs.existsSync(VITE_BIN)) {
   console.error('Vite is not installed. Run `npm ci` from the repository root, then retry.');
   process.exit(1);
@@ -106,8 +85,6 @@ if (result.status !== 0) {
     console.error('Failed to materialize sw.js:', err?.message ?? err);
     process.exit(1);
   }
-  copyRuntimeAssets();
-
   if (isWatch) {
     process.exit(0);
   }

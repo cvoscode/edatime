@@ -64,6 +64,8 @@ export interface ChartInstance {
     exportSVG(): void;
     exportHTML(): void;
     requestOverlayRender?(): void;
+    setVisibleColumns?(columns: readonly string[]): boolean;
+    setColumnColor?(column: string, color: string): boolean;
     cssPointToData?(clientX: number, clientY: number): { x: number; y: number } | null;
     destroy?(): void;
 }

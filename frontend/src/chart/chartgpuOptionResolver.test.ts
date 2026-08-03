@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveOptions } from '../../libs/chartgpu/dist/index.js';
+import { resolveOptions } from 'chartgpu';
 
 describe('ChartGPU option resolver', () => {
     it('preserves explicit scatter density rawBounds for viewport-scaled binning', () => {

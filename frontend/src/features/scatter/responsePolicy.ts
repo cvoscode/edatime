@@ -15,7 +15,13 @@ export function applyScatterPointsResponse(
     response: ScatterPointsResponse,
 ): void {
     const points: [number, number][] = Array.isArray(response.points) ? response.points : [];
-    state.totalPoints = Number(response.total_points ?? points.length);
+    const reportedTotal = Number(response.total_points);
+    // Transport metadata must never make the UI claim an empty result while
+    // the response contains renderable rows. `total_points` describes the
+    // pre-sampling population, so it is necessarily at least points.length.
+    state.totalPoints = Number.isFinite(reportedTotal)
+        ? Math.max(0, reportedTotal, points.length)
+        : points.length;
     state.allPoints = points;
     state.allColorValues = Array.isArray(response.color_values) ? response.color_values : null;
     state.allColorLabels = Array.isArray(response.color_labels) ? response.color_labels : null;

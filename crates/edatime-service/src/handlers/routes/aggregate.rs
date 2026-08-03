@@ -20,6 +20,8 @@ use edatime_query::validation::{
 use edatime_store::cache::{CacheReservation, CachedResponse};
 use edatime_store::state::AppState;
 
+use super::shared::cached_response;
+
 #[tracing::instrument(skip(state))]
 pub async fn get_aggregate(
     State(state): State<AppState>,
@@ -94,7 +96,10 @@ pub async fn get_aggregate(
             coalesced,
         } => {
             state.metrics.record_cache_hit();
-            return Ok(response.into_response(if coalesced { "coalesced" } else { "hit" }));
+            return Ok(cached_response(
+                response,
+                if coalesced { "coalesced" } else { "hit" },
+            ));
         }
         CacheReservation::Producer(producer) => {
             state.metrics.record_cache_miss();
@@ -262,5 +267,5 @@ pub async fn get_aggregate(
     };
 
     state.cache.insert(cache_key, cached.clone()).await;
-    Ok(cached.into_response("miss"))
+    Ok(cached_response(cached, "miss"))
 }

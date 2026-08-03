@@ -4,7 +4,7 @@ const { createChartMock } = vi.hoisted(() => ({
     createChartMock: vi.fn(),
 }));
 
-vi.mock('../../libs/chartgpu/dist/index.js', () => ({
+vi.mock('chartgpu', () => ({
     createChart: createChartMock,
 }));
 

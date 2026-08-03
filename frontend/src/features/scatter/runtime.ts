@@ -74,7 +74,7 @@ function syncScatterFilterBanner(): void {
     const parts: string[] = [];
     if (hasZoomRange) parts.push('zoom range');
     if (columnCount > 0) parts.push(`${columnCount} column filter${columnCount === 1 ? '' : 's'}`);
-    if (adaptiveCount >= 0) parts.push(`${adaptiveCount} adaptive filter${adaptiveCount === 1 ? '' : 's'}`);
+    if (adaptiveCount > 0) parts.push(`${adaptiveCount} adaptive filter${adaptiveCount === 1 ? '' : 's'}`);
     text.textContent = `Signals filters carry over here: ${parts.join(', ')}`;
 
     if (!clearButton.dataset.bound) {
@@ -132,6 +132,7 @@ export function setGpuUnavailable(val: boolean): void {
 export function syncScatterEmptyState(message?: string): void {
     const emptyState = getScatterEmptyStateController();
     const hasAxes = !!getDropdownValue('scatter-x-col') && !!getDropdownValue('scatter-y-col');
+    const hasRenderablePoints = scatterState.points.length > 0;
     const isLoading = scatterState.loading && hasAxes && !(_gpuUnavailable && !scatterState.chart);
     syncScatterFilterBadge();
     syncScatterFilterBanner();
@@ -149,7 +150,7 @@ export function syncScatterEmptyState(message?: string): void {
         reason = 'no-columns-selected';
     } else if (isLoading) {
         reason = 'loading';
-    } else if (scatterState.totalPoints === 0) {
+    } else if (!hasRenderablePoints) {
         reason = linkedRangeOutside ? 'linked-range-outside-dataset' : 'no-data-after-filters';
     } else {
         reason = '';
@@ -180,7 +181,7 @@ export function syncScatterEmptyState(message?: string): void {
                             : 'No points match the current query.');
 
     emptyState.update({
-        visible: !isLoading && !(hasAxes && scatterState.totalPoints > 0 && !(_gpuUnavailable && !scatterState.chart)),
+        visible: !isLoading && !(hasAxes && hasRenderablePoints && !(_gpuUnavailable && !scatterState.chart)),
         reason,
         title: _gpuUnavailable && !scatterState.chart
             ? 'WebGPU unavailable'

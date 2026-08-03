@@ -16,7 +16,7 @@ use edatime_store::state::AppState;
 
 use super::{
     cleaning::{PlanRequestEnvelope, compile_request_frame},
-    shared::ExecutionIdentity,
+    shared::{ExecutionIdentity, cached_response},
 };
 
 #[derive(Debug, Deserialize)]
@@ -116,7 +116,10 @@ async fn data_response(
             coalesced,
         } => {
             state.metrics.record_cache_hit();
-            return Ok(response.into_response(if coalesced { "coalesced" } else { "hit" }));
+            return Ok(cached_response(
+                response,
+                if coalesced { "coalesced" } else { "hit" },
+            ));
         }
         CacheReservation::Producer(producer) => {
             state.metrics.record_cache_miss();
@@ -262,7 +265,7 @@ async fn data_response(
     let cached = cached.with_extra_headers(extra_headers);
 
     state.cache.insert(cache_key, cached.clone()).await;
-    Ok(cached.into_response("miss"))
+    Ok(cached_response(cached, "miss"))
 }
 
 #[cfg(test)]

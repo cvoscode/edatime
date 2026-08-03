@@ -83,9 +83,19 @@ describe('frontend build contract', () => {
         expect(assetGraphScript).toContain('manifest entry');
     });
 
-    it('keeps check:frontend:budgets wired into check:frontend:all', () => {
+    it('keeps reachability and bundle checks wired into check:frontend:all', () => {
         const pkg = readRepoFile('package.json');
-        expect(pkg).toMatch(/"check:frontend:all"\s*:\s*"npm run check:frontend && npm run check:frontend:arch && npm run check:frontend:budgets && npm run check:frontend:assets"/);
+        expect(pkg).toMatch(/"check:frontend:all"\s*:\s*"npm run check:frontend && npm run check:frontend:arch && npm run check:frontend:reachability && npm run check:frontend:budgets && npm run check:frontend:assets"/);
+    });
+
+    it('ships one bundled ChartGPU graph without production source maps', () => {
+        const buildScript = readRepoFile('scripts/build-frontend.mjs');
+        const viteConfig = readRepoFile('frontend/vite.config.ts');
+        const pkg = readRepoFile('package.json');
+
+        expect(pkg).toContain('"chartgpu": "file:frontend/libs/chartgpu"');
+        expect(buildScript).not.toContain('copyRuntimeAssets');
+        expect(viteConfig).toContain("sourcemap: mode !== 'production'");
     });
 
     it('uses Vite for the default dev workflow so CSS updates are served live', () => {

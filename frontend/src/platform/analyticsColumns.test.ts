@@ -20,9 +20,9 @@ describe('analytics page utilities', () => {
     });
 
     it('uses a caller override before falling back to the stable shared palette', () => {
-        expect(getAnalyticsChipColor('load', 2, { load: '#123456' })).toBe('#123456');
-        expect(getAnalyticsChipColor('load', 0)).toMatch(/^#/);
-        expect(getAnalyticsChipColor('load', 0)).toBe(getAnalyticsChipColor('other', 0));
+        expect(getAnalyticsChipColor('load', { load: '#123456' })).toBe('#123456');
+        expect(getAnalyticsChipColor('load')).toMatch(/^#/);
+        expect(getAnalyticsChipColor('load')).not.toBe(getAnalyticsChipColor('other'));
     });
 
     it('selects a likely target after up to two feature columns', () => {

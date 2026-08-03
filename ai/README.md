@@ -33,13 +33,12 @@ interface TimeseriesActionDeps {
 ---
 
 ### `frontend/src/services/timeseries/filtering.ts` { #fe-timeseries-filtering }
-Server-side column range and adaptive line filter helpers. Ensures column range state is populated from data and computes Y-axis interpolation for adaptive line filters.
+Client-side column range and adaptive line filter helpers. Neutral range-control bounds come from stable dataset profiles, while viewport/downsampled response bounds remain display-only. Downstream analysis pages can therefore distinguish neutral defaults from explicit filter intent.
 
 **Functions**
 
-- `ensureRangeStateFromData(dataObj: DataObject): void` — Inspects `appState.selectedCols`, computes bounds for any column missing a range, and calls `setColumnRanges()`.
+- `ensureRangeStateFromMetadata(metadata: DatasetMetadata, workspace: WorkspaceStore): void` — Initializes missing selected-column ranges from full-dataset profile bounds. It never derives cross-page filter state from a viewport-limited or downsampled response.
 - `computeBounds(values: ArrayLike<number>): { min: number; max: number } | null` — Scans a value array (skipping non-finite values) and returns `{ min, max }` or `null`.
-- `ensureRangeStateFromDataState(dataObj: DataObject, selectedCols: string[], columnRanges: Record<string, ColumnRange>): Record<string, ColumnRange>` — Pure version used by `ensureRangeStateFromData`; returns updated ranges map.
 - `buildAdaptiveLineY(filter: AdaptiveLineFilter, tsMs: number): number | null` — Interpolates Y at `tsMs` along the line defined by filter endpoints `(x1, y1)` → `(x2, y2)` using linear interpolation. Returns `null` if inputs are invalid or divide-by-zero would occur.
 
 <!-- internal deps -->

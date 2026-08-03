@@ -53,4 +53,15 @@ describe('packaged frontend asset graph', () => {
 
         await expect(verifyPackagedFrontendAssetGraph(root)).rejects.toThrow(/missing files|manifest entry/i);
     });
+
+    it('rejects shipped source maps and copied runtime libraries', async () => {
+        const root = createDistFixture();
+        writeFixture(root,
+            '<script type="module" src="/assets/app-abc.js"></script>',
+            { 'index.html': { file: 'assets/app-abc.js', isEntry: true } },
+            { 'assets/app-abc.js': 'export {};', 'assets/app-abc.js.map': '{}', 'libs/chartgpu/index.js': 'export {};' },
+        );
+
+        await expect(verifyPackagedFrontendAssetGraph(root)).rejects.toThrow(/forbidden generated artifacts/i);
+    });
 });

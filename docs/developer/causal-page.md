@@ -188,7 +188,7 @@ Causal graph discovery using Tigramite-style algorithms (PCMCI, PCMCI+, FullCI, 
 
 ## JavaScript Modules
 
-### `frontend/src/causal/causalPage.ts` (assumed)
+### `frontend/src/features/causal/page.ts`
 
 `initCausalPage()` — wires:
 - Method select → enables/disables PC α and Max conds controls based on method
@@ -196,7 +196,7 @@ Causal graph discovery using Tigramite-style algorithms (PCMCI, PCMCI+, FullCI, 
 - τ max, α, PC α, Max conds, FDR controls
 - "+ Edge" button → enters edge-addition mode; next two node clicks add an edge
 - "Export ▾" → shows dropdown menu with JSON / GLM / torch_geometric formats
-- "Save Run" → saves current graph to `appState.causalRuns[]`
+- "Save Run" → saves current graph through the causal feature's local selection state
 - "Compute" → calls backend causal API with current settings + selected columns
 - Progress bar updates via `edatime:causal-progress` events
 - Right-click on node/edge → shows context menu

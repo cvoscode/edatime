@@ -5,7 +5,7 @@
  * frontend/src/features/scatter/state.ts. Import from here; do not duplicate.
  */
 
-import type { ChartGPUInstance, SeriesConfig } from '../../libs/chartgpu/dist/index.js';
+import type { ChartGPUInstance, SeriesConfig } from 'chartgpu';
 import type { DatasetMetadata } from '../types/api.js';
 import type { ScatterFilterSpec, ScatterLineFilterSpec, ScatterPairStats, TopPairItem } from '../types/scatter.js';
 import { emitStoreEvent } from './events.js';

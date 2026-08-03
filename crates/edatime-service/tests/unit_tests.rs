@@ -3,20 +3,20 @@
 //! These test internal logic without going through the HTTP layer.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use edatime::analytics;
-use edatime::cache::ResponseCache;
-use edatime::config::AppConfig;
-use edatime::error::AppError;
-use edatime::filters::{RangeFilter, apply_filters, parse_line_filters, parse_range_filters};
-use edatime::metrics::AppMetrics;
-use edatime::pipeline::{Reduction, apply_reduction, filter_time_range};
-use edatime::repository::InMemoryDataRepository;
-use edatime::stats::{build_histogram, compute_column_stats};
-use edatime::temporal::{epoch_ms_to_native, native_to_epoch_ms, unit_multiplier};
-use edatime::validation::{
+use edatime_core::config::AppConfig;
+use edatime_core::error::AppError;
+use edatime_core::metrics::AppMetrics;
+use edatime_core::stats::{build_histogram, compute_column_stats};
+use edatime_core::temporal::{epoch_ms_to_native, native_to_epoch_ms, unit_multiplier};
+use edatime_query::filters::{RangeFilter, apply_filters, parse_line_filters, parse_range_filters};
+use edatime_query::pipeline::{Reduction, apply_reduction, filter_time_range};
+use edatime_query::validation::{
     validate_bucket_count, validate_numeric_columns, validate_scatter_limit, validate_time_window,
     validate_upload_size_with_limit, validate_width,
 };
+use edatime_service::analytics;
+use edatime_store::cache::ResponseCache;
+use edatime_store::repository::InMemoryDataRepository;
 
 use chrono::{TimeZone, Utc};
 use polars::prelude::*;
@@ -354,7 +354,7 @@ fn compute_column_stats_basic() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn cache_stores_and_retrieves() {
-    use edatime::cache::{CacheConfig, CachedResponse};
+    use edatime_store::cache::{CacheConfig, CachedResponse};
     use std::time::Duration;
 
     let cache = ResponseCache::new(CacheConfig {
@@ -371,7 +371,7 @@ async fn cache_stores_and_retrieves() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn cache_miss_on_unknown_key() {
-    use edatime::cache::CacheConfig;
+    use edatime_store::cache::CacheConfig;
     use std::time::Duration;
 
     let cache = ResponseCache::new(CacheConfig {
@@ -417,7 +417,7 @@ fn app_error_validation_is_validation_variant() {
 
 // ─── Drift module ─────────────────────────────────────────────────────────────
 
-use edatime::stats::{epps_singleton_test, ks_test_2sample};
+use edatime_core::stats::{epps_singleton_test, ks_test_2sample};
 
 #[test]
 fn ks_test_identical_distributions() {

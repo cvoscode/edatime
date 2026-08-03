@@ -16,7 +16,6 @@ tokio.workspace = true
 chrono.workspace = true
 rayon.workspace = true
 minmaxlttb.workspace = true
-axum.workspace = true
 
 [dev-dependencies]
 criterion = "0.5.1"

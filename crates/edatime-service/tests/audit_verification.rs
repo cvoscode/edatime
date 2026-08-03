@@ -1,7 +1,7 @@
 //! Audit verification tests
 //!
 //! These tests verify the improvements identified in the 2026-05-05 audit.
-//! Run with: cargo test --test audit_verification
+//! Run with: cargo test -p edatime-service --test audit_verification
 
 use std::time::Duration;
 

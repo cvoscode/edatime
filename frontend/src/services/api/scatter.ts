@@ -23,11 +23,118 @@ import {
 } from './http.js';
 import { cleaningPlanStore } from '../../cleaning/store.js';
 import { buildPlanRequestSnapshot } from '../../cleaning/compiler.js';
+import type { CleaningPlan, CleaningStage } from '../../cleaning/types.js';
 
-function activeCleaningPlan(): ReturnType<typeof buildPlanRequestSnapshot> {
+function appendWorkspaceFilterStages(
+    plan: CleaningPlan,
+    options: ScatterFetchOptions | null,
+): CleaningPlan {
+    if (!options) return plan;
+    const stages: CleaningStage[] = [...plan.stages];
+    const ids = new Set(stages.map((stage) => stage.id));
+    const nextId = (base: string): string => {
+        let id = base;
+        let suffix = 1;
+        while (ids.has(id)) id = `${base}-${suffix++}`;
+        ids.add(id);
+        return id;
+    };
+    const timestamp = plan.updatedAt || plan.createdAt;
+    const start = Number(options.start);
+    const end = Number(options.end);
+    if (Number.isFinite(start) && Number.isFinite(end) && start !== end) {
+        stages.push({
+            id: nextId('workspace-scatter-time-range'),
+            kind: 'timeRange',
+            executionClass: 'polarsExpression',
+            scope: 'row',
+            enabled: true,
+            sourcePage: 'scatter',
+            label: 'Linked chart range',
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            startMs: Math.min(start, end),
+            endMs: Math.max(start, end),
+            mode: 'keepInside',
+        });
+    }
+    const planRangeKeys = new Set(stages.flatMap((stage) => (
+        stage.enabled && stage.kind === 'columnRange' && stage.mode === 'keepInside'
+            ? [[stage.column.trim(), stage.from, stage.to].join('|')]
+            : []
+    )));
+
+    for (const [index, filter] of (options.filters ?? []).entries()) {
+        const column = String(filter?.column ?? '').trim();
+        const from = Number(filter?.from);
+        const to = Number(filter?.to);
+        const normalizedFrom = Math.min(from, to);
+        const normalizedTo = Math.max(from, to);
+        const key = [column, normalizedFrom, normalizedTo].join('|');
+        // Timeseries renders the canonical plan and workspace/view filters as
+        // an intersection. Scatter must preserve that same composition. Only
+        // suppress an exact duplicate already present in the plan.
+        if (!column || !Number.isFinite(from) || !Number.isFinite(to) || planRangeKeys.has(key)) continue;
+        stages.push({
+            id: nextId(`workspace-scatter-range-${index}`),
+            kind: 'columnRange',
+            executionClass: 'polarsExpression',
+            scope: 'row',
+            enabled: true,
+            sourcePage: 'scatter',
+            label: `Linked range for ${column}`,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            column,
+            from: normalizedFrom,
+            to: normalizedTo,
+            mode: 'keepInside',
+        });
+        planRangeKeys.add(key);
+    }
+
+    const planLineKeys = new Set(stages.flatMap((stage) => (
+        stage.enabled && stage.kind === 'adaptiveLine'
+            ? [[stage.column, stage.x1Ms, stage.y1, stage.x2Ms, stage.y2, stage.keepAbove].join('|')]
+            : []
+    )));
+    for (const [index, filter] of (options.lineFilters ?? []).entries()) {
+        const column = String(filter?.column ?? '').trim();
+        const x1 = Number(filter?.x1);
+        const y1 = Number(filter?.y1);
+        const x2 = Number(filter?.x2);
+        const y2 = Number(filter?.y2);
+        if (!column || ![x1, y1, x2, y2].every(Number.isFinite) || x1 === x2) continue;
+        const key = [column, x1, y1, x2, y2, !!filter.keepAbove].join('|');
+        if (planLineKeys.has(key)) continue;
+        stages.push({
+            id: nextId(`workspace-scatter-line-${index}`),
+            kind: 'adaptiveLine',
+            executionClass: 'polarsExpression',
+            scope: 'row',
+            enabled: true,
+            sourcePage: 'scatter',
+            label: `Linked adaptive filter for ${column}`,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            column,
+            x1Ms: x1,
+            y1,
+            x2Ms: x2,
+            y2,
+            keepAbove: !!filter.keepAbove,
+            applyWithinSegmentOnly: true,
+        });
+        planLineKeys.add(key);
+    }
+
+    return stages.length === plan.stages.length ? plan : { ...plan, stages };
+}
+
+export function buildActiveScatterPlanRequest(options: ScatterFetchOptions | null = null): ReturnType<typeof buildPlanRequestSnapshot> {
     const plan = cleaningPlanStore.getSnapshot();
     if (!plan) throw new Error('Scatter requests require an active cleaning plan');
-    return buildPlanRequestSnapshot(plan);
+    return buildPlanRequestSnapshot(appendWorkspaceFilterStages(plan, options));
 }
 
 export async function fetchScatterPoints(
@@ -53,7 +160,7 @@ export async function fetchScatterPoints(
         payload.start = start;
         payload.end = end;
     }
-    payload.cleaning_plan = activeCleaningPlan();
+    payload.cleaning_plan = buildActiveScatterPlanRequest(options);
 
     const url = apiV1Routes.scatter.points;
     dbg('POST (Scatter points)', { url, body: payload });
@@ -225,7 +332,7 @@ export async function fetchScatterMatrix(
         payload.start = start;
         payload.end = end;
     }
-    payload.cleaning_plan = activeCleaningPlan();
+    payload.cleaning_plan = buildActiveScatterPlanRequest(options);
 
     const url = apiV1Routes.scatter.matrix;
     dbg('POST (Scatter matrix)', { url, body: payload });
@@ -312,8 +419,9 @@ export async function fetchScatterCorrelations(
     base: string | null,
     threshold = 0.7,
     mode: CorrelationMetric = 'pearson_raw',
+    options: ScatterFetchOptions | null = null,
 ): Promise<ScatterCorrelationsResponse> {
-    const activePlan = activeCleaningPlan();
+    const activePlan = buildActiveScatterPlanRequest(options);
     const requestScope = captureDatasetRequestScope();
     const res = await globalThis.fetch(apiV1Routes.scatter.correlations, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({

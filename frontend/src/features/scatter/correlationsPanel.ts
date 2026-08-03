@@ -17,6 +17,7 @@ import { getSetting } from '../../utils/settings.js';
 import { getEl } from './helpers.js';
 import { ensureOptions } from './state.js';
 import { updateCorrelationStats, updateColorbarUI } from './rendering.js';
+import type { ScatterFetchOptions } from '../../types/scatter.js';
 
 /**
  * Callback invoked when a correlation pill is clicked. The scatter page
@@ -150,7 +151,11 @@ function buildSuggestionButton(
  * Fetches correlation data for the current X/Y selection and updates the UI.
  */
 export async function refreshCorrelationsAndSuggestions(
-    options: { preferTopPairOnFirstLoad?: boolean; onSuggestionApply?: SuggestionApplyHandler } = {},
+    options: {
+        preferTopPairOnFirstLoad?: boolean;
+        onSuggestionApply?: SuggestionApplyHandler;
+        queryContext?: ScatterFetchOptions;
+    } = {},
 ): Promise<void> {
     const xSelect = getEl('scatter-x-col');
     const ySelect = getEl('scatter-y-col');
@@ -164,7 +169,12 @@ export async function refreshCorrelationsAndSuggestions(
     const currentY = getDropdownValue('scatter-y-col');
     const currentColor = getDropdownValue('scatter-color-column');
     const mode = normalizeCorrelationMetric(getSetting('defaultCorrelationMetric'));
-    const response = await fetchScatterCorrelations(currentX || null, scatterState.suggestionThreshold, mode);
+    const response = await fetchScatterCorrelations(
+        currentX || null,
+        scatterState.suggestionThreshold,
+        mode,
+        options.queryContext ?? null,
+    );
 
     const numeric = Array.isArray(response.numeric_columns) ? response.numeric_columns : [];
     if (numeric.length < 2) throw new Error('Need at least two numeric columns for scatter plotting.');
@@ -211,7 +221,12 @@ export async function refreshCorrelationsAndSuggestions(
         if (familyMode === mode && response.base_column === selectedBase) {
             return [familyMode, response] as const;
         }
-        return [familyMode, await fetchScatterCorrelations(selectedBase, scatterState.suggestionThreshold, familyMode as typeof mode)] as const;
+        return [familyMode, await fetchScatterCorrelations(
+            selectedBase,
+            scatterState.suggestionThreshold,
+            familyMode as typeof mode,
+            options.queryContext ?? null,
+        )] as const;
     }));
     const responsesByMode = new Map<string, typeof response>();
     for (const settled of settledResponses) {

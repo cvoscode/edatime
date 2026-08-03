@@ -1,5 +1,5 @@
 import type { DatasetMetadata } from '../types/api.js';
-import { getActiveSeriesPalette, isLikelyTargetColumn } from '../utils/seriesColors.js';
+import { getColumnSeriesColor, isLikelyTargetColumn } from '../utils/seriesColors.js';
 
 /**
  * Returns the color to use for an analytics chip (FFT/spectrogram/etc.).
@@ -11,12 +11,10 @@ import { getActiveSeriesPalette, isLikelyTargetColumn } from '../utils/seriesCol
  */
 export function getAnalyticsChipColor(
     column: string,
-    fallbackIndex: number,
     overrides?: Record<string, string>,
 ): string {
     if (overrides && overrides[column]) return overrides[column];
-    const palette = getActiveSeriesPalette();
-    return palette[Math.max(0, fallbackIndex) % palette.length]!;
+    return getColumnSeriesColor(column);
 }
 
 export function getNumericColumns(metadata: DatasetMetadata | null): string[] {

@@ -11,6 +11,7 @@ export type StoreEventMap = {
     'analytics:anomalySummaryStats': StoreChange<unknown>;
     'analytics:anomalyThreshold': StoreChange<number>;
     'analytics:rollingBands': StoreChange<unknown>;
+    'analytics:rollingDisplayMode': StoreChange<'raw' | 'smooth' | 'both'>;
     'analytics:rollingEnabled': StoreChange<boolean>;
     'analytics:rollingWindow': StoreChange<number>;
     'analytics:spectralFilterPreview': StoreChange<unknown>;

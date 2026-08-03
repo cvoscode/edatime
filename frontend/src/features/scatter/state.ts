@@ -121,6 +121,31 @@ const collectColumnRangeFilters = (columnRanges: Record<string, { from: number; 
         .filter((f): f is { column: string; from: number; to: number } => f !== null)
 );
 
+function collectLinkedValueRangeFilters(
+    columns: { x?: string; y?: string },
+    intent: Pick<WorkspaceSnapshot, 'viewport'> | undefined,
+): Array<{ column: string; from: number; to: number }> {
+    if (!intent || !isLinkedBrushEnabled()) return [];
+    const lower = Number(intent.viewport?.yMin);
+    const upper = Number(intent.viewport?.yMax);
+    if (!Number.isFinite(lower) || !Number.isFinite(upper) || upper <= lower) return [];
+
+    // A Timeseries Y viewport is shared by every displayed series. Only carry
+    // it to scatter axes whose dataset domain intersects that viewport. This
+    // turns a visible HUFL window such as 80..110 into a HUFL row predicate,
+    // without incorrectly applying the same range to HULL (whose domain may
+    // be 0..37) and emptying the pair plot.
+    return [...new Set([columns.x, columns.y].filter((column): column is string => !!column))]
+        .map((column) => {
+            const profile = getColumnProfileBounds(column);
+            if (!profile) return null;
+            const from = Math.max(lower, profile.min);
+            const to = Math.min(upper, profile.max);
+            return to >= from ? { column, from, to } : null;
+        })
+        .filter((filter): filter is { column: string; from: number; to: number } => filter !== null);
+}
+
 const scopeFiltersToColumns = (
     filters: Array<{ column: string; from: number; to: number }>,
     columns: Array<string>,
@@ -152,9 +177,11 @@ export function buildScatterQueryContext(
     // Cleaning-plan filters are global row predicates. A range on a third
     // column must constrain every scatter pair/matrix cell, not disappear just
     // because that column is not currently drawn on an axis.
-    const filters = columns.scopeToColumns === true
+    const explicitFilters = columns.scopeToColumns === true
         ? scopeFiltersToColumns(allFilters, [columns.x || '', columns.y || '', columns.colorColumn || ''])
         : allFilters;
+    const linkedValueFilters = collectLinkedValueRangeFilters(columns, intent);
+    const filters = [...explicitFilters, ...linkedValueFilters];
 
     const linkedRangeValid = hasTimeColumn
         && isLinkedBrushEnabled()

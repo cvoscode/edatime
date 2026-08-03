@@ -41,9 +41,11 @@ function buildModalDOM(): void {
     <select id="column-filter-col"></select>
     <input id="column-filter-min" type="text" />
     <input id="column-filter-max" type="text" />
-    <input id="column-filter-min-range" type="range" />
-    <input id="column-filter-max-range" type="range" />
-    <div id="column-filter-range-fill"></div>
+    <div id="column-filter-range-control">
+      <input id="column-filter-min-range" type="range" />
+      <input id="column-filter-max-range" type="range" />
+      <div id="column-filter-range-fill"></div>
+    </div>
     <span id="column-filter-range-min-value"></span>
     <span id="column-filter-range-max-value"></span>
     <span id="column-filter-hint"></span>
@@ -361,6 +363,66 @@ describe('initFilterModalController', () => {
 
             const minInput = document.getElementById('column-filter-min') as HTMLInputElement;
             expect(minInput.value).toBe('0.50');
+        });
+
+        it('updates the maximum independently from the minimum handle', () => {
+            initFilterModalController({ renderCurrentData: vi.fn(), updateAnalysisYRange: vi.fn() });
+            openFilterForColumn('HUFL');
+
+            const maxRangeInput = document.getElementById('column-filter-max-range') as HTMLInputElement;
+            maxRangeInput.value = '0.75';
+            maxRangeInput.dispatchEvent(new Event('input'));
+
+            expect((document.getElementById('column-filter-min') as HTMLInputElement).value).toBe('0.00');
+            expect((document.getElementById('column-filter-max') as HTMLInputElement).value).toBe('0.75');
+            expect(maxRangeInput.classList.contains('is-active')).toBe(true);
+        });
+
+        it('clamps a crossing handle without moving the opposite side', () => {
+            setWorkspaceRanges({ HUFL: { from: 0.2, to: 0.8 } });
+            initFilterModalController({ renderCurrentData: vi.fn(), updateAnalysisYRange: vi.fn() });
+            openFilterForColumn('HUFL');
+
+            const minRangeInput = document.getElementById('column-filter-min-range') as HTMLInputElement;
+            const maxRangeInput = document.getElementById('column-filter-max-range') as HTMLInputElement;
+            minRangeInput.value = '0.9';
+            minRangeInput.dispatchEvent(new Event('input'));
+
+            expect(minRangeInput.value).toBe('0.8');
+            expect(maxRangeInput.value).toBe('0.8');
+            expect((document.getElementById('column-filter-max') as HTMLInputElement).value).toBe('0.80');
+        });
+
+        it('moves the nearest end when the range rail is pressed', () => {
+            setWorkspaceRanges({ HUFL: { from: 0.2, to: 0.8 } });
+            initFilterModalController({ renderCurrentData: vi.fn(), updateAnalysisYRange: vi.fn() });
+            openFilterForColumn('HUFL');
+
+            const rangeControl = document.getElementById('column-filter-range-control') as HTMLElement;
+            vi.spyOn(rangeControl, 'getBoundingClientRect').mockReturnValue({
+                x: 0, y: 0, left: 0, top: 0, right: 216, bottom: 32, width: 216, height: 32,
+                toJSON: () => ({}),
+            });
+            rangeControl.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: 58 }));
+
+            expect((document.getElementById('column-filter-min') as HTMLInputElement).value).toBe('0.25');
+            expect((document.getElementById('column-filter-max') as HTMLInputElement).value).toBe('0.80');
+        });
+
+        it('can separate overlapping handles from either side', () => {
+            setWorkspaceRanges({ HUFL: { from: 0.5, to: 0.5 } });
+            initFilterModalController({ renderCurrentData: vi.fn(), updateAnalysisYRange: vi.fn() });
+            openFilterForColumn('HUFL');
+
+            const rangeControl = document.getElementById('column-filter-range-control') as HTMLElement;
+            vi.spyOn(rangeControl, 'getBoundingClientRect').mockReturnValue({
+                x: 0, y: 0, left: 0, top: 0, right: 216, bottom: 32, width: 216, height: 32,
+                toJSON: () => ({}),
+            });
+            rangeControl.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: 168 }));
+
+            expect((document.getElementById('column-filter-min') as HTMLInputElement).value).toBe('0.50');
+            expect((document.getElementById('column-filter-max') as HTMLInputElement).value).toBe('0.80');
         });
     });
 });

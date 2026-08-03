@@ -5,7 +5,8 @@ This guide assumes the repository is already checked out locally.
 ## Run The App
 
 ```bash
-cargo run -p edatime-bin --bin edatime
+npm ci
+make run
 ```
 
 Open <http://127.0.0.1:3000> in your browser.

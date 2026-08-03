@@ -5,14 +5,16 @@ import {
     setAnomalyMethod,
     setAnomalyThreshold,
     setRollingEnabled,
+    setRollingDisplayMode,
     setRollingWindow,
 } from '../store/analyticsState.js';
 import { emitFeatureEvent } from '../platform/featureEvents.js';
-import { getDropdownValue } from './primitives/Dropdown.js';
+import { getDropdownValue, setDropdownValue } from './primitives/Dropdown.js';
 
 export function initAnalyticsControls(): void {
     const rollingCheck = document.getElementById('rolling-enabled') as HTMLInputElement | null;
     const rollingWindowInput = document.getElementById('rolling-window') as HTMLInputElement | null;
+    const rollingDisplayMode = document.getElementById('rolling-display-mode') as HTMLElement | null;
     const anomalyCheck = document.getElementById('anomaly-enabled') as HTMLInputElement | null;
     const anomalyGlobalCheck = document.getElementById('anomaly-global') as HTMLInputElement | null;
     const anomalyMethodSelect = document.getElementById('anomaly-method') as HTMLElement | null;
@@ -40,6 +42,14 @@ export function initAnalyticsControls(): void {
             }
         });
         rollingWindowInput.dataset.bound = '1';
+    }
+    if (rollingDisplayMode && !rollingDisplayMode.dataset.bound) {
+        setDropdownValue('rolling-display-mode', analyticsState.rollingDisplayMode);
+        rollingDisplayMode.addEventListener('change', () => {
+            const mode = getDropdownValue('rolling-display-mode');
+            if (mode === 'raw' || mode === 'smooth' || mode === 'both') setRollingDisplayMode(mode);
+        });
+        rollingDisplayMode.dataset.bound = '1';
     }
     if (anomalyCheck && !anomalyCheck.dataset.bound) {
         anomalyCheck.addEventListener('change', () => {

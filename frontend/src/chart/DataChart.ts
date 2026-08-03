@@ -3,12 +3,14 @@
  * mouse-selection zoom, and PNG / SVG / HTML export.
  */
 
-import { createChart } from '../../libs/chartgpu/dist/index.js';
+import { createChart } from 'chartgpu';
 import { DEBUG, dbg } from '../debug.js';
 import { downloadUrl, downloadBlob } from '../utils/dom.js';
 import { defaultGpuPowerPreference } from '../utils/platform.js';
 import { datasetState } from '../store/datasetState.js';
 import { uiState } from '../store/uiState.js';
+import { analyticsState } from '../store/analyticsState.js';
+import { subscribe } from '../store/events.js';
 import type { AdaptiveLineFilter } from '../types/store.js';
 import type {
     ChartTextOverlays,
@@ -22,7 +24,7 @@ import {
     type ChartGPUOptions,
     type ChartGPUCrosshairMovePayload,
     type SeriesConfig,
-} from '../../libs/chartgpu/dist/index.js';
+} from 'chartgpu';
 
 /* ── Typed wrapper for ChartGPUInstance methods we actually use ── */
 interface ChartInstanceAPI {
@@ -34,9 +36,9 @@ interface ChartInstanceAPI {
     resize(): void;
     dispose(): void;
     on(eventName: 'crosshairMove', callback: (payload: ChartGPUCrosshairMovePayload) => void): void;
-    on(eventName: 'click', callback: (payload: import('../../libs/chartgpu/dist/ChartGPU.js').ChartGPUEventPayload) => void): void;
+    on(eventName: 'click', callback: (payload: import('chartgpu').ChartGPUEventPayload) => void): void;
     off(eventName: 'crosshairMove', callback: (payload: ChartGPUCrosshairMovePayload) => void): void;
-    off(eventName: 'click', callback: (payload: import('../../libs/chartgpu/dist/ChartGPU.js').ChartGPUEventPayload) => void): void;
+    off(eventName: 'click', callback: (payload: import('chartgpu').ChartGPUEventPayload) => void): void;
     setInteractionX?(x: number | null, source?: unknown): void;
     setCrosshairX?(x: number | null, source?: unknown): void;
     getInteractionX?(): number | null;
@@ -64,7 +66,6 @@ import { computeZoomPercentRange } from './zoomRangePolicy.js';
 import { computeDisplayYRange } from './displayYRangePolicy.js';
 import { mapCssPointToChartData } from './chartCoordinateMapper.js';
 import { buildChartGpuTheme, getChartGpuColorPalette, withChartGpuTheme } from './chartThemeOptions.js';
-import { getVisibilityByBaseName } from './seriesVisibility.js';
 import { toggleLegendSeriesVisibility } from './legendVisibilityPolicy.js';
 import { DEFAULT_CHART_GRID } from './gridLayout.js';
 import { buildTimeSeriesAxisPresentation, type TimeSeriesYAxisOption } from './timeSeriesAxisPresentation.js';
@@ -126,6 +127,7 @@ export class DataChart {
     _lastAppliedTheme: ResolvedTheme | null = null;
     _themeUnsub: (() => void) | null = null;
     _settingsUnsub: (() => void) | null = null;
+    _rollingDisplayUnsub: (() => void) | null = null;
     _lastDataInput: {
         dataObj: FilteredDataObject;
         columns: string[];
@@ -161,6 +163,8 @@ export class DataChart {
         this._themeUnsub = null;
         this._settingsUnsub?.();
         this._settingsUnsub = null;
+        this._rollingDisplayUnsub?.();
+        this._rollingDisplayUnsub = null;
         this._overlays = null;
         this._textOverlays?.destroy();
         this._textOverlays = null;
@@ -228,6 +232,8 @@ export class DataChart {
         this._themeUnsub = null;
         this._settingsUnsub?.();
         this._settingsUnsub = null;
+        this._rollingDisplayUnsub?.();
+        this._rollingDisplayUnsub = null;
     }
 
     setChartText(title: string, xLabel: string, yLabel: string): void {
@@ -248,6 +254,76 @@ export class DataChart {
 
     requestOverlayRender(): void {
         this._renderDrawings();
+    }
+
+    /**
+     * Apply a selection change without rebuilding series data. Returns false
+     * when one of the requested columns has not been loaded, allowing the
+     * feature controller to fetch it through the normal path.
+     */
+    setVisibleColumns(columns: readonly string[]): boolean {
+        if (!this.chartInstance) return false;
+        const options = this._lastChartOptions ?? this.chartInstance.options;
+        const series = Array.isArray(options.series) ? options.series : [];
+        const annotations = Array.isArray(options.annotations) ? options.annotations : [];
+        // Point-marker annotations do not retain their owning series name, so
+        // use the full model path when they are present rather than leaving
+        // markers visible for a hidden trace.
+        if (annotations.length > 0) return false;
+
+        const availableColumns = new Set(series.map((entry) => baseSeriesName(entry.name ?? '')));
+        if (!columns.every((column) => availableColumns.has(column))) return false;
+        const selectedColumns = new Set(columns);
+        const showRawData = !analyticsState.rollingEnabled || analyticsState.rollingDisplayMode !== 'smooth';
+        const nextSeries = series.map((entry) => ({
+            ...entry,
+            visible: showRawData && selectedColumns.has(baseSeriesName(entry.name ?? '')),
+        }));
+        const nextOption = { ...options, animation: false, series: nextSeries } as ChartGPUOptions;
+
+        try {
+            this.chartInstance.setOption(nextOption);
+        } catch (error) {
+            console.error('[edatime:chart] incremental selection update failed', error);
+            return false;
+        }
+        this._activeColumns = [...columns];
+        this._overlays?.setSelectedColumns(this._activeColumns);
+        if (this._lastDataInput) this._lastDataInput.columns = [...columns];
+        this._lastChartOptions = nextOption;
+        this._lastSeriesList = nextSeries as SeriesConfig[];
+        this._syncLegendOverlay();
+        this._renderDrawings();
+        return true;
+    }
+
+    /** Update one plain trace color while preserving its loaded data buffers. */
+    setColumnColor(column: string, color: string): boolean {
+        if (!this.chartInstance) return false;
+        const options = this._lastChartOptions ?? this.chartInstance.options;
+        const series = Array.isArray(options.series) ? options.series : [];
+        const annotations = Array.isArray(options.annotations) ? options.annotations : [];
+        if (annotations.length > 0) return false;
+        let found = false;
+        const nextSeries = series.map((entry) => {
+            if (entry.name !== column) return entry;
+            found = true;
+            return { ...entry, color };
+        });
+        if (!found) return false;
+        const nextOption = { ...options, animation: false, series: nextSeries } as ChartGPUOptions;
+
+        try {
+            this.chartInstance.setOption(nextOption);
+        } catch (error) {
+            console.error('[edatime:chart] incremental color update failed', error);
+            return false;
+        }
+        this._lastChartOptions = nextOption;
+        this._lastSeriesList = nextSeries as SeriesConfig[];
+        this._syncLegendOverlay();
+        this._renderDrawings();
+        return true;
     }
 
     resize(): void {
@@ -287,6 +363,8 @@ export class DataChart {
         this._themeUnsub = null;
         this._settingsUnsub?.();
         this._settingsUnsub = null;
+        this._rollingDisplayUnsub?.();
+        this._rollingDisplayUnsub = null;
         try { this.chartInstance?.dispose?.(); } catch { /* already disposed */ }
         this.chartInstance = null;
         container.replaceChildren();
@@ -330,6 +408,17 @@ export class DataChart {
         };
         document.addEventListener('edatime:settings-changed', onSettingsChanged);
         this._settingsUnsub = () => document.removeEventListener('edatime:settings-changed', onSettingsChanged);
+        const refreshRollingView = () => {
+            if (!this._lastDataInput) return;
+            const { dataObj, columns, colorColumn, adaptiveLines } = this._lastDataInput;
+            this.updateDataMulti(dataObj, columns, colorColumn, adaptiveLines);
+        };
+        const unsubscribeDisplayMode = subscribe('analytics:rollingDisplayMode', refreshRollingView);
+        const unsubscribeRollingEnabled = subscribe('analytics:rollingEnabled', refreshRollingView);
+        this._rollingDisplayUnsub = () => {
+            unsubscribeDisplayMode();
+            unsubscribeRollingEnabled();
+        };
         requestAnimationFrame(() => this.resize());
     }
 
@@ -455,7 +544,7 @@ export class DataChart {
         this.chartInstance?.on('crosshairMove', callback);
     }
 
-    onClick(callback: (data: import('../../libs/chartgpu/dist/ChartGPU.js').ChartGPUEventPayload) => void): void {
+    onClick(callback: (data: import('chartgpu').ChartGPUEventPayload) => void): void {
         this.chartInstance?.on('click', callback);
     }
 
@@ -480,10 +569,13 @@ export class DataChart {
         const model = buildTimeSeriesDataModel({
             data: dataObj,
             columns,
-            visibilityByName: this._getVisibilityByBaseNameFromChart(),
+            // Workspace selection is the sole source of trace membership.
+            // Carrying legend visibility into a new selection left selected
+            // columns hidden and made the chip count disagree with the plot.
+            visibilityByName: new Map(),
             selectedColorColumn: colorColumn,
-            numericColumns: datasetState.numericCols,
             showMarkers: dataObj._meta?.downsampled === false,
+            showRawData: !analyticsState.rollingEnabled || analyticsState.rollingDisplayMode !== 'smooth',
         });
         this._lastSeriesList = model.series;
         this._lastDisplayYValues = model.displayYValues;
@@ -643,10 +735,6 @@ export class DataChart {
 
     private _buildChartGpuTheme() {
         return buildChartGpuTheme();
-    }
-
-    private _getVisibilityByBaseNameFromChart(): Map<string, boolean> {
-        return getVisibilityByBaseName(this.chartInstance?.options?.series, baseSeriesName);
     }
 
     private _syncLegendOverlay(): void {

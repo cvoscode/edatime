@@ -2262,18 +2262,22 @@
             </div>
 
             <div class="modal-range-stack">
-              <span class="modal-label">Range slider</span>
-              <div class="modal-range-values" aria-hidden="true">
+              <span class="modal-label">Adjust range</span>
+              <div class="modal-range-values" aria-hidden="true" hidden>
                 <span id="column-filter-range-min-value" class="modal-range-value">0.00</span>
                 <span id="column-filter-range-max-value" class="modal-range-value">1.00</span>
               </div>
-              <div class="modal-range-dual" aria-hidden="true">
-                <div class="modal-range-track"></div>
-                <div id="column-filter-range-fill" class="modal-range-fill"></div>
+              <div id="column-filter-range-control" class="modal-range-dual" role="group"
+                aria-label="Selected minimum and maximum range">
+                <div class="modal-range-track">
+                  <div id="column-filter-range-fill" class="modal-range-fill"></div>
+                </div>
                 <input id="column-filter-min-range" class="modal-range-input modal-range-input--min" type="range"
-                  min="0" max="1" step="0.01" value="0" aria-label="Minimum range slider">
+                  min="0" max="1" step="0.01" value="0" aria-label="Minimum range slider"
+                  aria-describedby="column-filter-hint">
                 <input id="column-filter-max-range" class="modal-range-input modal-range-input--max" type="range"
-                  min="0" max="1" step="0.01" value="1" aria-label="Maximum range slider">
+                  min="0" max="1" step="0.01" value="1" aria-label="Maximum range slider"
+                  aria-describedby="column-filter-hint">
               </div>
               <div class="modal-range-captions">
                 <span>Min</span>
@@ -2439,6 +2443,14 @@
             <span class="toolbar-field__label" title="Rolling window size (number of points)">Window size</span>
             <input id="rolling-window" type="number" class="modal-input" value="50" min="3" max="5000" step="1"
               aria-label="Rolling window size (number of points)">
+          </label>
+          <label class="toolbar-field" for="rolling-display-mode">
+            <span class="toolbar-field__label">Series display</span>
+            <select id="rolling-display-mode" class="modal-select" aria-label="Raw data and smooth hull display">
+              <option value="both">Raw + smooth</option>
+              <option value="smooth">Smooth / hull only</option>
+              <option value="raw">Raw data only</option>
+            </select>
           </label>
           <label class="toolbar-field toolbar-field--toggle" for="anomaly-enabled">
             <span class="toolbar-field__label">Anomalies</span>

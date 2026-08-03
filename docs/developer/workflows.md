@@ -5,7 +5,7 @@
 ### Run The App
 
 ```bash
-cargo run -p edatime-bin --bin edatime
+make run
 ```
 
 ### Live Frontend Development
@@ -66,7 +66,7 @@ make docs
 
 ## When To Rebuild The Frontend Bundle
 
-Rebuild `crates/edatime-bin/frontend/dist/` with `npm run build:frontend` whenever you change:
+Rebuild `crates/edatime-bin/frontend/dist/` with `npm run build:prod` whenever you change:
 
 - anything under `frontend/src/`
 - bundle entry wiring
@@ -86,7 +86,7 @@ rebuilding the bundle after every CSS or TypeScript edit.
 
 ### Frontend changes
 
-1. Run `npm run build:frontend` or `npm run check:frontend`.
+1. Run `npm run build:prod` or `npm run check:frontend`.
 2. Verify the page visually in a browser.
 3. Update user docs if the workflow changed.
 

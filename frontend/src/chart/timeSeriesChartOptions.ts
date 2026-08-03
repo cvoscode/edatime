@@ -1,4 +1,4 @@
-import type { AnnotationConfig, ChartGPUOptions, SeriesConfig } from '../../libs/chartgpu/dist/index.js';
+import type { AnnotationConfig, ChartGPUOptions, SeriesConfig } from 'chartgpu';
 import { formatTimeTick } from './ticks.js';
 import { formatTimeSeriesTooltip } from './timeSeriesTooltip.js';
 

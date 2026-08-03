@@ -17,8 +17,7 @@ use super::{
     collect_filtered_scatter_columns_frame, resolved_scatter_limit,
 };
 use crate::handlers::routes::cleaning::compile_request_frame;
-use crate::handlers::routes::shared::ExecutionIdentity;
-use crate::handlers::routes::shared::enforce_work_budget;
+use crate::handlers::routes::shared::{ExecutionIdentity, cached_response, enforce_work_budget};
 
 #[derive(Debug, serde::Serialize)]
 struct ScatterMatrixCellMeta {
@@ -134,7 +133,10 @@ async fn scatter_matrix_response(
             coalesced,
         } => {
             state.metrics.record_cache_hit();
-            return Ok(response.into_response(if coalesced { "coalesced" } else { "hit" }));
+            return Ok(cached_response(
+                response,
+                if coalesced { "coalesced" } else { "hit" },
+            ));
         }
         CacheReservation::Producer(producer) => {
             state.metrics.record_cache_miss();
@@ -297,7 +299,7 @@ async fn scatter_matrix_response(
     let cached = CachedResponse::arrow(arrow_bytes, false, returned_points, limit, None)
         .with_extra_headers(extra_headers);
     state.cache.insert(cache_key, cached.clone()).await;
-    Ok(cached.into_response("miss"))
+    Ok(cached_response(cached, "miss"))
 }
 
 #[cfg(test)]

@@ -165,6 +165,38 @@ describe('createTimeseriesPageController', () => {
         );
     });
 
+    it('does not publish fetched display bounds as active cross-page filters', async () => {
+        document.body.innerHTML = '<div id="main-chart-loading" hidden></div><div id="main-chart"></div>';
+        setWorkspaceSelection(['value']);
+        setMetadata({
+            columns: [{ name: 'value', dtype: 'Float64' }],
+            numeric_columns: ['value'],
+            time_range: { min: 0, max: 100 },
+            column_profiles: [{ name: 'value', min: -10, max: 20 }],
+        } as any);
+        const controller = createTimeseriesPageController({
+            fetchData: vi.fn().mockResolvedValue({
+                ts: Float64Array.from([0, 50, 100]),
+                values: { value: Float64Array.from([4, 2, 8]) },
+            }),
+            buildRangeControls: vi.fn(),
+            updateAnalysisYRange: vi.fn(),
+            updateAnalysisZoom: vi.fn(),
+            getCurrentView: vi.fn(),
+            fetchAndRenderAnalytics: vi.fn(),
+        });
+
+        await controller.fetchAndRender();
+
+        // Scatter consumes WorkspaceStore.columnRanges as real row
+        // predicates unless they differ from profile bounds. Fetched values
+        // (2..8) must not replace the neutral dataset range (-10..20).
+        expect(defaultWorkspace.getSnapshot().filters).toEqual({
+            columnRanges: { value: { from: -10, to: 20 } },
+            adaptiveLines: [],
+        });
+    });
+
     it('renders data through workspace selection and filter intent', () => {
         const chart = {
             updateDataMulti: vi.fn(),

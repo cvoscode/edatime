@@ -47,6 +47,12 @@ jobs:
       - name: Check frontend architecture
         run: npm run check:frontend:arch
 
+      - name: Check frontend source reachability
+        run: npm run check:frontend:reachability
+
+      - name: Check repository hygiene
+        run: npm run check:repo-hygiene
+
       - name: Check API contract coverage
         run: npm run check:api-contract
 

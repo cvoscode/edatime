@@ -5,7 +5,7 @@
  * Timeseries public index.
  */
 
-import { getSeriesColor } from '../../utils/seriesColors.js';
+import { getColumnSeriesColor } from '../../utils/seriesColors.js';
 import { applyFilterIntentToData, buildAdaptiveLineY } from '../../services/timeseries/filtering.js';
 import {
     setAdaptiveFilterColumn,
@@ -13,7 +13,6 @@ import {
     uiState,
 } from '../../store/uiState.js';
 import { chartState } from '../../store/chartState.js';
-import { datasetState } from '../../store/datasetState.js';
 import type { DataObject } from '../../types/api.js';
 import type { AdaptiveLineFilter } from '../../types/store.js';
 import type { WorkspaceStore, WorkspaceSnapshot } from '../../contracts/workspace.js';
@@ -86,7 +85,8 @@ export function buildAdaptiveFilterFromPoints(
 
 export function initAdaptiveFilterGesture(
     deps: {
-        workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'subscribe'>;
+        workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'subscribe'>
+            & Partial<Pick<WorkspaceStore, 'subscribeSelector'>>;
         buildColumnToggles: () => void;
         buildRangeControls: () => void;
         renderCurrentData: () => void;
@@ -112,10 +112,7 @@ export function initAdaptiveFilterGesture(
         _activePicker = null;
     };
 
-    const colorForColumn = (column: string, selectionIndex: number): string => {
-        const datasetIndex = datasetState.numericCols.indexOf(column);
-        return getSeriesColor(column, datasetIndex >= 0 ? datasetIndex : selectionIndex);
-    };
+    const colorForColumn = (column: string): string => getColumnSeriesColor(column);
 
     const openPicker = (picker: HTMLElement) => {
         dismissPicker();
@@ -188,7 +185,7 @@ export function initAdaptiveFilterGesture(
         deps.buildColumnToggles();
     };
 
-    const showDirectionPicker = (column: string, selectionIndex: number, p1: { x: number; y: number }, p2: { x: number; y: number }) => {
+    const showDirectionPicker = (column: string, p1: { x: number; y: number }, p2: { x: number; y: number }) => {
         const recommendation = buildAdaptiveFilterFromPoints(deps.getCurrentData(), column, p1, p2, deps.workspace.getSnapshot());
         if (!recommendation) return;
         const picker = document.createElement('div');
@@ -204,7 +201,7 @@ export function initAdaptiveFilterGesture(
             const button = document.createElement('button');
             button.className = 'adaptive-trace-picker__option' + (option.keepAbove === recommendation.keepAbove ? ' current' : '');
             button.type = 'button';
-            button.style.setProperty('--pick-accent', colorForColumn(column, selectionIndex));
+            button.style.setProperty('--pick-accent', colorForColumn(column));
             button.textContent = option.label;
             button.addEventListener('click', (event) => {
                 event.stopPropagation();
@@ -219,7 +216,7 @@ export function initAdaptiveFilterGesture(
     const showTracePicker = (p1: { x: number; y: number }, p2: { x: number; y: number }) => {
         const cols = deps.workspace.getSnapshot().selection.columns;
         if (!cols?.length) return;
-        if (cols.length === 1) { showDirectionPicker(cols[0], 0, p1, p2); return; }
+        if (cols.length === 1) { showDirectionPicker(cols[0], p1, p2); return; }
 
         const picker = document.createElement('div');
         picker.className = 'adaptive-trace-picker';
@@ -229,8 +226,8 @@ export function initAdaptiveFilterGesture(
         label.textContent = 'Filter which trace?';
         picker.appendChild(label);
 
-        cols.forEach((col, selectionIndex) => {
-            const color = colorForColumn(col, selectionIndex);
+        cols.forEach((col) => {
+            const color = colorForColumn(col);
             const isCurrentTarget = col === uiState.adaptiveFilterColumn;
             const btn = document.createElement('button');
             btn.className = 'adaptive-trace-picker__option' + (isCurrentTarget ? ' current' : '');
@@ -240,7 +237,7 @@ export function initAdaptiveFilterGesture(
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 dismissPicker();
-                showDirectionPicker(col, selectionIndex, p1, p2);
+                showDirectionPicker(col, p1, p2);
             });
             picker.appendChild(btn);
         });
@@ -282,12 +279,14 @@ export function initAdaptiveFilterGesture(
         ]),
     );
     let previousAdaptiveLines = adaptiveLinesSignature(deps.workspace.getSnapshot() as WorkspaceSnapshot);
-    const unsubscribeWorkspace = deps.workspace.subscribe((snapshot) => {
-        const nextAdaptiveLines = adaptiveLinesSignature(snapshot);
-        if (nextAdaptiveLines === previousAdaptiveLines) return;
-        previousAdaptiveLines = nextAdaptiveLines;
-        onAdaptiveChange();
-    });
+    const unsubscribeWorkspace = deps.workspace.subscribeSelector
+        ? deps.workspace.subscribeSelector(adaptiveLinesSignature, onAdaptiveChange)
+        : deps.workspace.subscribe((snapshot) => {
+            const nextAdaptiveLines = adaptiveLinesSignature(snapshot);
+            if (nextAdaptiveLines === previousAdaptiveLines) return;
+            previousAdaptiveLines = nextAdaptiveLines;
+            onAdaptiveChange();
+        });
 
     container.addEventListener('click', clickHandler, true);
     window.addEventListener('keydown', onEscape);

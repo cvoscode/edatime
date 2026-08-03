@@ -123,8 +123,8 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  min-height: 16px;
-  padding: 0 4px 0 6px;
+  min-height: 26px;
+  padding: 3px 6px 3px 8px;
   border-radius: var(--radius-pill);
   border: 1px solid color-mix(in srgb, var(--chip-accent) 16%, var(--border));
   background:
@@ -169,6 +169,11 @@
   justify-content: center;
   width: 22px;
   height: 18px;
+  /* Override the global 44px touch-target minimum. This control lives inside
+     a larger clickable chip; inheriting that minimum makes every chip with a
+     menu nearly twice as tall as menu-less Spectrum chips. */
+  min-width: 22px;
+  min-height: 18px;
   border-radius: 50%;
   border: none;
   background: rgba(255, 255, 255, 0.05);

@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createAnalyticsOverlayController, initAnalyticsListeners } from './analyticsOverlay.js';
+import {
+    computeFrontendRollingBands,
+    createAnalyticsOverlayController,
+    initAnalyticsListeners,
+} from './analyticsOverlay.js';
 import { analyticsState } from '../../store/analyticsState.js';
+import { getColumnSeriesColor, setSeriesColor } from '../../utils/seriesColors.js';
+import { setSeriesColors } from '../../store/uiState.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 import { emitFeatureEvent } from '../../platform/featureEvents.js';
 import type { ApiRequestOptions } from '../../services/api/http.js';
@@ -29,6 +35,21 @@ describe('fetchAnomalyRegions', () => {
             analyticsState.anomalyThreshold,
             { signal: expect.any(AbortSignal) },
         );
+    });
+
+    it('uses the column chip color for hulls without depending on selection order', () => {
+        setSeriesColors({});
+        setSeriesColor('HULL', '#abcdef');
+        const bands = computeFrontendRollingBands({
+            ts: new Float64Array([0, 1, 2]),
+            series: {
+                HULL: { x: new Float64Array([0, 1, 2]), y: new Float64Array([1, 2, 3]) },
+            },
+        }, ['HULL'], 3);
+
+        expect(bands[0]?.color).toBe('#abcdef');
+        expect(bands[0]?.color).toBe(getColumnSeriesColor('HULL'));
+        setSeriesColors({});
     });
 
     it('refreshes analytics when the typed analytics-change event fires', async () => {

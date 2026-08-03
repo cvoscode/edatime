@@ -117,7 +117,11 @@ for (const file of files) {
   // Route identities are a versioned contract, not an implementation detail
   // of individual transport modules. Keep every production /api/v1 literal
   // in the canonical route map so a cutover cannot drift one endpoint.
-  if (!isTest && rel !== 'frontend/src/contracts/api/v1/routes.ts') {
+  if (
+    !isTest
+    && rel !== 'frontend/src/contracts/api/v1/routes.ts'
+    && rel !== 'frontend/src/contracts/api/v1/generated.ts'
+  ) {
     const versionedRoute = /['"]\/api\/v1(?:\/|['"])/g;
     for (const match of text.matchAll(versionedRoute)) {
       add(file, 'production /api/v1 paths must come from contracts/api/v1/routes.js', lineOf(text, match.index ?? 0));

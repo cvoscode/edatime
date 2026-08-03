@@ -11,7 +11,7 @@ const apiOrigin = process.env.EDATIME_API_ORIGIN
  * directly into the Rust binary's packaged static directory:
  * crates/edatime-bin/frontend/dist.
  */
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   root: 'frontend',
   base: '/',
   publicDir: 'public',
@@ -32,7 +32,9 @@ export default defineConfig({
       },
     },
     target: 'esnext',
-    sourcemap: true,
+    // Production maps are useful only in a separate error-reporting artifact;
+    // never ship them beside the browser assets.
+    sourcemap: mode !== 'production',
     minify: true,
   },
   server: {
@@ -46,7 +48,7 @@ export default defineConfig({
       localsConvention: 'camelCase',
     },
   },
-});
+}));
 
 // ── Dev server ────────────────────────────────────────────
 // Run `npm run dev` from the workspace root to start the Vite dev server.

@@ -9,9 +9,12 @@ import type { RollingBandData, SpectralFilterPreview } from '../types/analytics.
 export type { AnomalyRegionData, SummaryStats } from '../types/api.js';
 export type { RollingBandData, SpectralFilterPreview } from '../types/analytics.js';
 
+export type RollingDisplayMode = 'raw' | 'smooth' | 'both';
+
 export interface AnalyticsState {
     rollingEnabled: boolean;
     rollingWindow: number;
+    rollingDisplayMode: RollingDisplayMode;
     rollingBands: RollingBandData[] | null;
     anomalyEnabled: boolean;
     anomalyGlobalEnabled: boolean;
@@ -25,6 +28,7 @@ export interface AnalyticsState {
 export const analyticsState: AnalyticsState = {
     rollingEnabled: false,
     rollingWindow: 50,
+    rollingDisplayMode: 'both',
     rollingBands: null,
     anomalyEnabled: false,
     anomalyGlobalEnabled: true,
@@ -47,6 +51,12 @@ export function setRollingWindow(n: number): void {
     const previous = analyticsState.rollingWindow;
     analyticsState.rollingWindow = n;
     emitStoreEvent('analytics:rollingWindow', { previous, next: n });
+}
+
+export function setRollingDisplayMode(mode: RollingDisplayMode): void {
+    const previous = analyticsState.rollingDisplayMode;
+    analyticsState.rollingDisplayMode = mode;
+    emitStoreEvent('analytics:rollingDisplayMode', { previous, next: mode });
 }
 
 export function setRollingBands(bands: RollingBandData[] | null): void {

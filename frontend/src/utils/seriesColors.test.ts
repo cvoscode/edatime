@@ -14,8 +14,10 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import {
     SERIES_TARGET_ACCENT,
     getActiveSeriesPalette,
+    getColumnSeriesColor,
     getSeriesColor,
     getSeriesPalette,
+    getSeriesScaleColor,
     getTargetAccent,
     isLikelyTargetColumn,
     normalizeSeriesColor,
@@ -23,12 +25,14 @@ import {
     setSeriesColor,
 } from './seriesColors.js';
 import { setSeriesColors, uiState } from '../store/uiState.js';
+import { setNumericCols } from '../store/datasetState.js';
 
 describe('seriesColors', () => {
     beforeEach(() => {
         // Reset the per-column overrides so tests are independent.
         setSeriesColors({});
         setActiveSeriesPalette('default');
+        setNumericCols([]);
     });
 
     it('exposes at least 10 distinct colors so 7-series datasets get unique hues', () => {
@@ -57,6 +61,34 @@ describe('seriesColors', () => {
         expect(getSeriesColor('HUFL', 0)).toBe('#abcdef');
         // The override does not affect other columns.
         expect(getSeriesColor('HULL', 1)).toBe(getActiveSeriesPalette()[1]);
+    });
+
+    it('resolves a column color without relying on list position', () => {
+        const hullColor = getColumnSeriesColor('HULL');
+        expect(hullColor).toMatch(/^#[0-9a-f]{6}$/);
+        expect(getColumnSeriesColor('HULL')).toBe(hullColor);
+        expect(getColumnSeriesColor('HUFL')).not.toBe(hullColor);
+
+        setSeriesColor('HULL', '#abcdef');
+        expect(getColumnSeriesColor('HULL')).toBe('#abcdef');
+    });
+
+    it('keeps the common ETT traces distinct in every selectable palette', () => {
+        const columns = ['HUFL', 'HULL', 'MUFL', 'MULL', 'LUFL', 'LULL', 'OT'];
+        setNumericCols(columns);
+        for (const paletteName of ['default', 'ocean', 'sunset', 'forest', 'monochrome', 'neon']) {
+            setActiveSeriesPalette(paletteName);
+            const colors = columns.map(getColumnSeriesColor);
+            expect(new Set(colors).size, paletteName).toBe(columns.length);
+        }
+    });
+
+    it('extends every palette without wrapping colors for wide datasets', () => {
+        for (const paletteName of ['default', 'ocean', 'sunset', 'forest', 'monochrome', 'neon']) {
+            setActiveSeriesPalette(paletteName);
+            const colors = Array.from({ length: 128 }, (_, index) => getSeriesScaleColor(index));
+            expect(new Set(colors).size, paletteName).toBe(colors.length);
+        }
     });
 
     it('cycles through the palette for high-indexed columns', () => {

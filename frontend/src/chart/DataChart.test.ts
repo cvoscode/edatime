@@ -146,6 +146,56 @@ describe('requestOverlayRender', () => {
     });
 });
 
+describe('incremental series updates', () => {
+    it('changes visibility for exactly the selected loaded columns without rebuilding data', () => {
+        const chart = makeChart();
+        const setOption = vi.fn();
+        const options = {
+            series: [
+                { type: 'line', name: 'HUFL', color: '#111111', visible: true, data: [[0, 1]] },
+                { type: 'line', name: 'HULL', color: '#222222', visible: true, data: [[0, 2]] },
+                { type: 'line', name: 'OT', color: '#333333', visible: true, data: [[0, 3]] },
+            ],
+            annotations: [],
+        } as any;
+        chart.chartInstance = { options, setOption } as any;
+        (chart as any)._lastChartOptions = options;
+
+        expect(chart.setVisibleColumns(['HUFL', 'OT'])).toBe(true);
+        const nextSeries = setOption.mock.calls[0][0].series;
+        expect(nextSeries.map((series: any) => [series.name, series.visible])).toEqual([
+            ['HUFL', true], ['HULL', false], ['OT', true],
+        ]);
+        expect(nextSeries[0].data).toBe(options.series[0].data);
+    });
+
+    it('requests the full data path when a selected column is not loaded', () => {
+        const chart = makeChart();
+        const setOption = vi.fn();
+        const options = { series: [{ type: 'line', name: 'HUFL', data: [[0, 1]] }], annotations: [] } as any;
+        chart.chartInstance = { options, setOption } as any;
+        (chart as any)._lastChartOptions = options;
+
+        expect(chart.setVisibleColumns(['HUFL', 'HULL'])).toBe(false);
+        expect(setOption).not.toHaveBeenCalled();
+    });
+
+    it('updates a loaded trace color without replacing its data', () => {
+        const chart = makeChart();
+        const setOption = vi.fn();
+        const options = {
+            series: [{ type: 'line', name: 'HUFL', color: '#111111', data: [[0, 1]] }],
+            annotations: [],
+        } as any;
+        chart.chartInstance = { options, setOption } as any;
+        (chart as any)._lastChartOptions = options;
+
+        expect(chart.setColumnColor('HUFL', '#abcdef')).toBe(true);
+        expect(setOption.mock.calls[0][0].series[0]).toMatchObject({ name: 'HUFL', color: '#abcdef' });
+        expect(setOption.mock.calls[0][0].series[0].data).toBe(options.series[0].data);
+    });
+});
+
 // ── setXRange ────────────────────────────────────────────────────────────────
 
 describe('setXRange', () => {
@@ -457,6 +507,32 @@ describe('updateDataMulti', () => {
                 textColor: '#C8D2DC',
             }),
         }));
+    });
+
+    it('shows every selected trace instead of carrying stale legend visibility', () => {
+        const chart = makeChart();
+        const setOption = vi.fn();
+        (chart as any).chartInstance = {
+            options: {
+                series: [{ type: 'line', name: 'temperature', visible: false, data: [[1_000, 10]] }],
+            },
+            setOption,
+            setZoomRange: vi.fn(),
+        };
+
+        chart.updateDataMulti({
+            ts: new Float64Array([1_000, 2_000]),
+            values: { temperature: new Float64Array([10, 20]) },
+            series: {
+                temperature: {
+                    x: new Float64Array([1_000, 2_000]),
+                    y: new Float64Array([10, 20]),
+                },
+            },
+            colorByColumn: {},
+        } as any, ['temperature']);
+
+        expect(setOption.mock.calls[0][0].series[0]).toMatchObject({ name: 'temperature', visible: true });
     });
 
     it('renders a compact legend row that toggles all segments for a trace', () => {

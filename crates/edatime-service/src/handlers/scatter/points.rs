@@ -18,7 +18,7 @@ use super::collect::collect_filtered_scatter_frame;
 use super::sample::{ScatterColorKind, TimeColorMode, collect_sampled_xyc_rows_streaming};
 use super::{ColorCardinalityInfo, ScatterPointsQuery, clamp_limit, resolved_scatter_limit};
 use crate::handlers::routes::cleaning::compile_request_frame;
-use crate::handlers::routes::shared::ExecutionIdentity;
+use crate::handlers::routes::shared::{ExecutionIdentity, cached_response};
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -137,7 +137,10 @@ async fn scatter_points_response(
         } => {
             state.metrics.record_cache_hit();
             metrics.record_scatter_cache(true);
-            return Ok(response.into_response(if coalesced { "coalesced" } else { "hit" }));
+            return Ok(cached_response(
+                response,
+                if coalesced { "coalesced" } else { "hit" },
+            ));
         }
         CacheReservation::Producer(producer) => {
             state.metrics.record_cache_miss();
@@ -432,7 +435,7 @@ async fn scatter_points_response(
     metrics.record_scatter_stage(edatime_core::metrics::ScatterStage::Serialize, serialize_ns);
     metrics.record_scatter_response(cached.body_len() as u64, returned_points as u64);
     state.cache.insert(cache_key, cached.clone()).await;
-    Ok(cached.into_response("miss"))
+    Ok(cached_response(cached, "miss"))
 }
 
 #[cfg(test)]

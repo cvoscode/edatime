@@ -12,6 +12,7 @@ import {
     setAnomalyMethod,
     setAnomalyThreshold,
     setRollingEnabled,
+    setRollingDisplayMode,
     setRollingWindow,
 } from '../store/analyticsState.js';
 import { chartState, setChartText } from '../store/chartState.js';
@@ -52,6 +53,7 @@ export interface SessionSnapshot {
     chartText: { title: string; xLabel: string; yLabel: string };
     rollingEnabled: boolean;
     rollingWindow: number;
+    rollingDisplayMode?: 'raw' | 'smooth' | 'both';
     anomalyEnabled: boolean;
     anomalyMethod: string;
     anomalyThreshold: number;
@@ -104,6 +106,7 @@ export function captureSession(): SessionSnapshot {
         chartText: { ...chartState.chartText },
         rollingEnabled: analyticsState.rollingEnabled,
         rollingWindow: analyticsState.rollingWindow,
+        rollingDisplayMode: analyticsState.rollingDisplayMode,
         anomalyEnabled: analyticsState.anomalyEnabled,
         anomalyMethod: analyticsState.anomalyMethod,
         anomalyThreshold: analyticsState.anomalyThreshold,
@@ -237,6 +240,9 @@ export function applySession(
     if (snap.chartText) setChartText({ ...snap.chartText });
     if (snap.rollingEnabled !== undefined) setRollingEnabled(snap.rollingEnabled);
     if (Number.isFinite(snap.rollingWindow)) setRollingWindow(snap.rollingWindow);
+    if (snap.rollingDisplayMode === 'raw' || snap.rollingDisplayMode === 'smooth' || snap.rollingDisplayMode === 'both') {
+        setRollingDisplayMode(snap.rollingDisplayMode);
+    }
     if (snap.anomalyEnabled !== undefined) setAnomalyEnabled(snap.anomalyEnabled);
     if (snap.anomalyMethod) setAnomalyMethod(snap.anomalyMethod);
     if (Number.isFinite(snap.anomalyThreshold)) setAnomalyThreshold(snap.anomalyThreshold);

@@ -1,6 +1,6 @@
 import { DEBUG, dbg, dbgGroup } from '../../debug.js';
 import {
-    ensureRangeStateFromData,
+    ensureRangeStateFromMetadata,
     applyFilterIntentToData,
     type TimeseriesFilterIntent,
 } from '../../services/timeseries/filtering.js';
@@ -390,7 +390,10 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
                 }
             }
 
-            if (deps.workspace) ensureRangeStateFromData(data, deps.workspace);
+            // Initialize range controls from stable dataset profiles. Do not
+            // derive them from this response: it may be viewport-limited or
+            // downsampled, which would turn display bounds into fake filters.
+            ensureRangeStateFromMetadata(datasetState.metadata, deps.workspace);
             deps.buildRangeControls();
             chartState.chart?.setXRange?.(currentStart, currentEnd);
             renderCurrentData();

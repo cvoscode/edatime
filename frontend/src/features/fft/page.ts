@@ -79,8 +79,8 @@ function fftColumns(): string[] {
     return getNumericColumns(workspace?.getSnapshot().dataset.metadata ?? datasetState.metadata);
 }
 
-function fftColorFor(column: string, fallbackIndex: number): string {
-    return getAnalyticsChipColor(column, fallbackIndex, fftTraceColors);
+function fftColorFor(column: string): string {
+    return getAnalyticsChipColor(column, fftTraceColors);
 }
 
 function loadStoredFftSelection(): string[] | null {
@@ -253,7 +253,7 @@ async function fetchAndAddTrace(column: string): Promise<void> {
     // still stride down on bigger datasets without truncating ETTm2.
     const response = await fetchFft(new Date(viewport.startMs).toISOString(), new Date(viewport.endMs).toISOString(), column, 131072);
     if (!response?.results?.length) throw new Error('No results');
-    const trace = buildFftTrace(response.results[0], fftColorFor(column, fftColumns().indexOf(column)));
+    const trace = buildFftTrace(response.results[0], fftColorFor(column));
     if (!trace) throw new Error('Malformed result');
     fftTraces = fftTraces.filter((trace) => trace.column !== column);
     fftTraces.push(trace);
@@ -298,9 +298,9 @@ function renderChips(): void {
 
     renderSeriesChipList({
         container: bar,
-        items: columns.map((column, index) => {
+        items: columns.map((column) => {
             const isActive = fftTraces.some((trace) => trace.column === column);
-            const color = fftColorFor(column, index);
+            const color = fftColorFor(column);
             return {
                 column,
                 label: column,

@@ -12,17 +12,20 @@ The backend is written in Rust (Axum + Polars) and streams data as Apache Arrow 
 
 | **Rust stable toolchain** | Install from [rustup.rs](https://rustup.rs) |
 | **A modern browser** | Chrome 113+, Edge 113+, or any browser with WebGPU support recommended. Firefox works via a Canvas fallback. |
-| **Node.js** *(optional)* | Only needed for development workflow; runtime does not require npm |
+| **Node.js** | Required to build the packaged browser frontend from source |
 
 There are no native dependencies, no database, and no external services to configure. The backend compiles to a single binary that serves the frontend itself.
 
 ### Build
 
-Clone the repository and compile in release mode for best performance:
+Clone the repository and build the packaged frontend before compiling in release
+mode:
 
 ```bash
 git clone <repo-url>
 cd edatime
+npm ci
+npm run build:prod
 cargo build --release -p edatime-bin --bin edatime
 ```
 
@@ -34,7 +37,9 @@ For a quick development build (faster compile, slower runtime):
 cargo build -p edatime-bin --bin edatime
 ```
 
-**Note:** The build process is pure Rust - no npm or Node.js required for distribution. ChartGPU is fully vendored in `frontend/libs/chartgpu/`.
+`make build-release` performs the frontend build followed by the Rust release
+build. ChartGPU is a local package at `frontend/libs/chartgpu/`; Vite bundles it
+into the application rather than copying a second runtime library tree.
 
 ---
 
@@ -43,7 +48,7 @@ cargo build -p edatime-bin --bin edatime
 ### Start the server
 
 ```bash
-cargo run --release -p edatime-bin --bin edatime
+make run
 ```
 
 Or run the pre-built binary directly:

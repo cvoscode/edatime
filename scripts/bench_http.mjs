@@ -238,7 +238,7 @@ function fixtureManifest(args, spec, csv) {
 // ── Multipart upload helper ─────────────────────────────────────────────────
 
 function buildMultipart({ boundary, fileFieldName, fileName, fileBytes, fields }) {
-    // Matches the exact shape used by tests/api_integration.rs.
+    // Matches the exact shape used by service integration tests.
     const chunks = [];
     chunks.push(Buffer.from(`--${boundary}\r\n`));
     chunks.push(

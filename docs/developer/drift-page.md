@@ -2,8 +2,8 @@
 
 **Page ID:** `drift`  
 **Route:** `#page=drift`  
-**Frontend entrypoint:** `frontend/src/features/drift/entrypoint.ts`  
-**Page controller:** `frontend/src/drift/driftPage.ts`  
+**Frontend entrypoint:** `frontend/src/features/drift/index.ts`
+**Page controller:** `frontend/src/features/drift/page.ts`
 **Backend route:** `POST /api/v1/drift/stats`
 
 ## Purpose
@@ -82,7 +82,7 @@ Each window includes:
 
 ## Frontend Flow
 
-`frontend/src/drift/driftPage.ts` owns the page workflow:
+`frontend/src/features/drift/page.ts` owns the page workflow:
 
 1. read selected columns and reference settings
 2. POST `/api/v1/drift/stats` once per column
@@ -98,11 +98,11 @@ Each window includes:
 
 Supporting modules:
 
-- `frontend/src/drift/controls.ts` handles picker, reference presets, viewport baseline, exports, shortcuts
-- `frontend/src/drift/viewModels.ts` formats tooltips, stats, summaries, and filtered window sets
-- `frontend/src/drift/timelineView.ts` renders the multi-column timeline
-- `frontend/src/drift/detailView.ts` renders the single-column detail view and list
-- `frontend/src/drift/selection.ts` stores the active filtered response state
+- `frontend/src/features/drift/controls.ts` handles picker, reference presets, viewport baseline, exports, shortcuts
+- `frontend/src/features/drift/viewModels.ts` formats tooltips, stats, summaries, and filtered window sets
+- `frontend/src/features/drift/timelineView.ts` renders the multi-column timeline
+- `frontend/src/features/drift/detailView.ts` renders the single-column detail view and list
+- `frontend/src/features/drift/selection.ts` stores the active filtered response state
 
 ## Current UI Contract
 
@@ -121,6 +121,6 @@ The page exposes:
 
 ## Notes for Future Work
 
-- keep route and request fields backward compatible unless there is a concrete need to break them
+- update the generated API contract whenever the route or request fields change
 - prefer page-local drift UI changes over introducing a shared analytics abstraction
-- if drift verdict rules change, update both `crates/edatime-service/src/analytics/drift.rs` and `frontend/src/drift/viewModels.ts` copy together so the UI never misstates the contract
+- if drift verdict rules change, update both `crates/edatime-service/src/analytics/drift.rs` and `frontend/src/features/drift/viewModels.ts` copy together so the UI never misstates the contract

@@ -1,6 +1,9 @@
 //! Shared route helpers used across multiple route modules.
 
-use axum::http::{HeaderValue, Response};
+use axum::{
+    body::Body,
+    http::{HeaderValue, Response, header},
+};
 use chrono::{DateTime, Utc};
 
 use crate::error::AppError;
@@ -8,7 +11,58 @@ use edatime_core::http::ResponseMeta;
 use edatime_query::pipeline;
 use edatime_query::query;
 use edatime_query::validation::{validate_numeric_columns_lazy, validate_time_window};
+use edatime_store::cache::CachedResponse;
 use edatime_store::state::AppState;
+
+/// Convert a framework-neutral cached payload into an HTTP response at the
+/// service boundary. The store owns bytes and result metadata; cache policy
+/// and HTTP headers belong to the transport layer.
+pub(crate) fn cached_response(
+    response: CachedResponse,
+    cache_status: &'static str,
+) -> Response<Body> {
+    let mut http_response = Response::new(Body::from(response.body.as_ref().clone()));
+    let headers = http_response.headers_mut();
+    headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static(response.content_type),
+    );
+    headers.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, max-age=60"),
+    );
+    headers.insert("x-edatime-cache", HeaderValue::from_static(cache_status));
+    let meta = ResponseMeta {
+        is_downsampled: response.is_downsampled,
+        returned_rows: response.returned_rows,
+        target_points: Some(response.target_points),
+    };
+    headers.insert(
+        "x-edatime-downsampled",
+        HeaderValue::from_static(if meta.is_downsampled { "1" } else { "0" }),
+    );
+    if let Ok(value) = HeaderValue::from_str(&meta.returned_rows.to_string()) {
+        headers.insert("x-edatime-returned-rows", value);
+    }
+    if let Some(target_points) = meta.target_points
+        && let Ok(value) = HeaderValue::from_str(&target_points.to_string())
+    {
+        headers.insert("x-edatime-target-points", value);
+    }
+    if let Some(time_column) = response.time_column.as_deref()
+        && let Ok(value) = HeaderValue::from_str(time_column)
+    {
+        headers.insert("x-edatime-time-column", value);
+    }
+    for (key, value) in response.extra_headers {
+        if let Ok(name) = header::HeaderName::from_bytes(key.as_bytes())
+            && let Ok(value) = HeaderValue::from_str(&value)
+        {
+            headers.insert(name, value);
+        }
+    }
+    http_response
+}
 
 pub(crate) fn enforce_work_budget(
     workload: &str,

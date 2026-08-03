@@ -24,7 +24,7 @@ import type { AdaptiveLineFilter } from '../../types/store.js';
 import type { AnomalyResponse, DataObject } from '../../types/api.js';
 import type { RollingBandData } from '../../types/analytics.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
-import { getSeriesColor } from '../../utils/seriesColors.js';
+import { getColumnSeriesColor } from '../../utils/seriesColors.js';
 import { onFeatureEvent } from '../../platform/featureEvents.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -82,7 +82,7 @@ export function computeFrontendRollingBands(
         }
         bands.push({
             column: col,
-            color: getSeriesColor(col, cols.indexOf(col)),
+            color: getColumnSeriesColor(col),
             ts: tsOut,
             mean,
             upper1,

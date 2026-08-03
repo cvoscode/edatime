@@ -4,12 +4,15 @@
   "scripts": {
     "check:frontend": "tsc --noEmit -p tsconfig.json",
     "check:frontend:arch": "node scripts/check-frontend-architecture.mjs",
+    "check:frontend:reachability": "node scripts/check-frontend-reachability.mjs",
     "check:frontend:budgets": "node scripts/check-frontend-budgets.mjs",
     "check:frontend:assets": "node scripts/check-frontend-asset-graph.mjs",
-    "check:api-contract": "node scripts/check_api_contract.mjs",
+    "generate:api-contract": "node scripts/generate_api_contract_types.mjs",
+    "check:api-contract": "node scripts/generate_api_contract_types.mjs --check && node scripts/check_api_contract.mjs",
     "check:api-docs": "node scripts/generate_api_reference.mjs --check",
     "check:backend-hygiene": "node scripts/check_backend_hygiene.mjs",
-    "check:frontend:all": "npm run check:frontend && npm run check:frontend:arch && npm run check:frontend:budgets && npm run check:frontend:assets",
+    "check:repo-hygiene": "node scripts/check-repo-hygiene.mjs",
+    "check:frontend:all": "npm run check:frontend && npm run check:frontend:arch && npm run check:frontend:reachability && npm run check:frontend:budgets && npm run check:frontend:assets",
     "validate": "npm run check:frontend:all",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "dev": "vite --config frontend/vite.config.ts",
@@ -23,10 +26,12 @@
     "test": "vitest run",
     "test:e2e": "npm run build:prod && playwright test",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "bench:app:artifacts": "node scripts/bench_app_structure.mjs artifacts",
+    "bench:workspace": "vitest bench frontend/src/workspace/workspaceStore.bench.ts"
   },
   "dependencies": {
-    "chartgpu": "^0.3.2"
+    "chartgpu": "file:frontend/libs/chartgpu"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",

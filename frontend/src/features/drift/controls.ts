@@ -16,7 +16,7 @@
 import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
 import { renderSeriesChipList } from '../../ui/seriesChipList.js';
 import { formatUtcDatetimeInputValue } from '../../utils/datetimeInput.js';
-import { getSeriesColor } from '../../utils/seriesColors.js';
+import { getColumnSeriesColor } from '../../utils/seriesColors.js';
 import { onNavigationChange } from '../../platform/navigationEvents.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
@@ -94,10 +94,10 @@ function renderColumnChips(colPickerList: HTMLElement | null, allCols: string[])
     if (!colPickerList) return;
     renderSeriesChipList({
         container: colPickerList,
-        items: allCols.map((col, index) => ({
+        items: allCols.map((col) => ({
             column: col,
             checked: selectedCols.has(col),
-            color: getSeriesColor(col, index),
+            color: getColumnSeriesColor(col),
             title: `Toggle ${col} for drift analysis`,
             onToggle: (checked) => {
                 if (checked) {

@@ -103,7 +103,7 @@ vi.mock('../../store/scatterState.js', async (importOriginal) => {
     };
 });
 
-vi.mock('../../../libs/chartgpu/dist/index.js', () => ({
+vi.mock('chartgpu', () => ({
     createChart: (...args: unknown[]) => createChartMock(...args),
 }));
 
@@ -515,6 +515,11 @@ describe('initScatterPage view toggles', () => {
             color: '',
         });
         await initPromise;
+
+        expect(freshScatterState.totalPoints).toBe(2);
+        expect(emptyStateUpdateMock).toHaveBeenLastCalledWith(
+            expect.objectContaining({ visible: false, reason: '' }),
+        );
     });
 
     it('falls back to ECharts when WebGPU is unavailable', async () => {

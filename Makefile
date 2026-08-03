@@ -1,14 +1,14 @@
-.PHONY: build build-release run dev dev-dist check test docs docs-clean clean docker bench-contract bench-http bench-cancel bench-soak check-contract test-contract check-backend-hygiene
+.PHONY: build build-release run dev dev-dist check test docs docs-clean clean docker bench-contract bench-http bench-cancel bench-soak check-contract test-contract check-backend-hygiene frontend-prod
 
 # Default target
-build:
+build: frontend-prod
 	cargo build -p edatime-bin --bin edatime
 
-build-release:
+build-release: frontend-prod
 	cargo build --release -p edatime-bin --bin edatime
 
-run:
-	cargo run --release -p edatime-bin --bin edatime
+run: frontend-prod
+	EDATIME_FRONTEND_DIR=$(PWD)/crates/edatime-bin/frontend/dist cargo run --release -p edatime-bin --bin edatime
 
 # Development: run Rust API + Vite frontend so CSS/JS update live.
 dev:
@@ -16,8 +16,7 @@ dev:
 
 # Development against the packaged dist output.
 dev-dist:
-	rm -rf crates/edatime-bin/frontend/dist
-	@if command -v node >/dev/null 2>&1; then node scripts/build-frontend.mjs; fi
+	@if command -v node >/dev/null 2>&1; then npm run build:prod; else echo "Node.js is required to build the packaged frontend."; exit 1; fi
 	EDATIME_FRONTEND_DIR=$(PWD)/crates/edatime-bin/frontend/dist cargo run -p edatime-bin --bin edatime
 
 # Type-check and lint
@@ -28,11 +27,11 @@ check:
 	node scripts/check_backend_hygiene.mjs
 	cargo clippy --workspace --all-targets -- -D warnings
 	@if command -v node >/dev/null 2>&1; then cd frontend && npx tsc --noEmit; fi
-	@if command -v node >/dev/null 2>&1; then node scripts/check-frontend-architecture.mjs; fi
+	@if command -v node >/dev/null 2>&1; then node scripts/check-frontend-architecture.mjs; node scripts/check-frontend-reachability.mjs; node scripts/check-repo-hygiene.mjs; fi
 
 # Frontend architecture checker only (fast iteration)
 check-arch:
-	@if command -v node >/dev/null 2>&1; then node scripts/check-frontend-architecture.mjs; fi
+	@if command -v node >/dev/null 2>&1; then node scripts/check-frontend-architecture.mjs; node scripts/check-frontend-reachability.mjs; fi
 
 # Run tests and benchmarks
 test:
@@ -83,7 +82,7 @@ check-contract:
 	node scripts/generate_api_reference.mjs --check
 
 test-contract:
-	cargo test --test api_integration
+	cargo test -p edatime-service --test api_integration
 	npm test -- frontend/src/services/api/__contract__.test.ts frontend/src/contracts/api/v1/routes.test.ts frontend/src/services/api/http.test.ts
 
 check-backend-hygiene:

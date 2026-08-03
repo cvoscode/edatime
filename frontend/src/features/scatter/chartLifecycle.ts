@@ -1,4 +1,4 @@
-import { createChart } from '../../../libs/chartgpu/dist/index.js';
+import { createChart } from 'chartgpu';
 import { EchartsScatterChart } from '../../chart/EchartsScatterChart.js';
 import { defaultGpuPowerPreference } from '../../utils/platform.js';
 import { scatterState } from '../../store/scatterState.js';

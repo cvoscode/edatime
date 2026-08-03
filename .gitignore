@@ -11,6 +11,8 @@ __pycache__/
 .python-version
 pyproject.toml
 .playwright-mcp/
+.repowise/state.json
+.repowise/wiki.db
 poetry.lock
 uv.lock
 *.py
@@ -27,3 +29,4 @@ crates/*/frontend/dist/*
 */dist/*
 Modelfile
 tmp/
+/docs/_build/

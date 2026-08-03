@@ -47,11 +47,16 @@ All pages share the same shell (`frontend/index.html`):
 | `settings.css` | Settings modal specific styles |
 | `drift.css` | Drift page specific layout and controls |
 
-### State (appState)
-All pages read `appState` (a composite Proxy) from `frontend/src/store/index.ts` via `frontend/src/store/appStateCompat.ts`. Mutations should go through the focused sub-state setters (e.g. `uiState`, `chartState`, `datasetState`, `analyticsState`, `runtimeState`, `scatterState`). Key fields:
+### State
+
+Cross-feature dataset identity and user intent live in
+`frontend/src/workspace/workspaceStore.ts`. Pages read a defensive snapshot or
+subscribe to a selected workspace slice; they must not mirror the same fields
+into a local store. Focused modules under `frontend/src/store/` hold
+renderer/UI-local state only. Important workspace fields:
 - `selectedCols` — active column selection
 - `currentStart` / `currentEnd` — time range
-- `metadata` — dataset metadata (columns, time range, row count)
+- dataset metadata and revision — dataset identity (columns, time range, row count)
 - `selectedColorColumn` — color-by column
 - `rollingEnabled` / `rollingWindow` — rolling band settings
 - `anomalyEnabled` / `anomalyMethod` / `anomalyThreshold` — anomaly detection

@@ -88,6 +88,12 @@ const scatterTask = createRequestTask({
         scatterState.loading = loading;
         const scatterLoading = getEl('scatter-chart-loading');
         if (scatterLoading) scatterLoading.hidden = !loading;
+        // Keep the empty-state overlay in lockstep with the request lifecycle.
+        // A successful render can populate the chart and marginals without a
+        // subsequent page/view event; if we only clear `loading` here, the
+        // pre-request "No scatter points found" overlay remains over valid
+        // points until another action (such as Clear filters) forces a sync.
+        syncScatterEmptyState();
     },
     onError: (message: string) => {
         showError(message);
@@ -387,7 +393,17 @@ async function applySuggestionPair(): Promise<void> {
 export function refreshCorrelationsAndSuggestions(
     options: { preferTopPairOnFirstLoad?: boolean } = {},
 ): Promise<void> {
-    return refreshCorrelationsPanel({ ...options, onSuggestionApply: applySuggestionPair });
+    const controls = currentControls();
+    const { queryContext } = buildScatterOverviewContext({
+        x: controls.x,
+        y: controls.y,
+        colorColumn: controls.selectedColorColumn || undefined,
+    }, workspace?.getSnapshot());
+    return refreshCorrelationsPanel({
+        ...options,
+        queryContext,
+        onSuggestionApply: applySuggestionPair,
+    });
 }
 
 /* ── Matrix cell click handler ────────────────────────── */

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { initAdaptiveFilterGesture, positionAdaptivePicker } from './adaptiveGesture.js';
 import { setChartInstance } from '../../store/chartState.js';
-import { setNumericCols } from '../../store/datasetState.js';
+import { getColumnSeriesColor } from '../../utils/seriesColors.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 import { createCleaningPlanStore } from '../../cleaning/store.js';
 
@@ -131,11 +131,8 @@ describe('adaptive filter gesture', () => {
         expect((window as any).__edatime).toBeUndefined();
     });
 
-    it('uses the same stable dataset palette indices as the trace chips in the picker', () => {
-        setNumericCols(['HUFL', 'HULL', 'MUFL', 'MULL', 'LUFL', 'LULL', 'OT']);
+    it('uses the same canonical column colors as the trace chips in the picker', () => {
         const workspace = createWorkspaceStore();
-        // This intentionally differs from dataset order: the old picker used
-        // these transient positions and colored OT green and MUFL red.
         workspace.setSelection(['HUFL', 'HULL', 'OT', 'MUFL']);
         initAdaptiveFilterGesture({
             workspace,
@@ -153,9 +150,9 @@ describe('adaptive filter gesture', () => {
 
         const option = (column: string) => Array.from(document.querySelectorAll<HTMLButtonElement>('.adaptive-trace-picker__option'))
             .find((button) => button.textContent === column)!;
-        expect(option('HUFL').style.getPropertyValue('--pick-accent')).toBe('#1f77b4');
-        expect(option('MUFL').style.getPropertyValue('--pick-accent')).toBe('#2ca02c');
-        expect(option('OT').style.getPropertyValue('--pick-accent')).toBe('#e377c2');
+        expect(option('HUFL').style.getPropertyValue('--pick-accent')).toBe(getColumnSeriesColor('HUFL'));
+        expect(option('MUFL').style.getPropertyValue('--pick-accent')).toBe(getColumnSeriesColor('MUFL'));
+        expect(option('OT').style.getPropertyValue('--pick-accent')).toBe(getColumnSeriesColor('OT'));
     });
 
     it('flips and clamps the picker so it remains reachable at chart edges', () => {

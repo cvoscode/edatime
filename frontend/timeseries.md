@@ -265,9 +265,9 @@ fetchAndRender()
   │
   ├─ 6. appState.lastFetchedData = data
   │
-  ├─ 7. ensureRangeStateFromData(data)           // init columnRanges from data bounds
+  ├─ 7. ensureRangeStateFromMetadata(metadata)  // init neutral bounds from dataset profiles
   │
-  ├─ 8. deps.buildRangeControls()               // rebuild time range UI
+  ├─ 8. deps.buildRangeControls()               // rebuild active filter UI
   │
   ├─ 9. appState.chart.setXRange(currentStart, currentEnd)
   │

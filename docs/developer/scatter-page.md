@@ -254,7 +254,7 @@ From `frontend/css/modules/scatter.css`:
 
 ## JavaScript Modules
 
-### `frontend/src/scatter/scatterPage.ts` (679 lines)
+### `frontend/src/features/scatter/page.ts`
 
 `initScatterPage()` — initializes the scatter page:
 

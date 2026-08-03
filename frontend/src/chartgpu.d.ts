@@ -1,6 +1,8 @@
-/** Ambient type declarations for the vendored ChartGPU library. */
+/** Local ChartGPU package augmentation for the Windows adapter policy. */
 
-declare module '../../libs/chartgpu/dist/index.js' {
+import 'chartgpu';
+
+declare module 'chartgpu' {
     export interface ChartGPUOptions {
         powerPreference?: 'low-power' | 'high-performance';
         grid?: {
@@ -53,19 +55,4 @@ declare module '../../libs/chartgpu/dist/index.js' {
         };
     }
 
-    export interface ChartGPUInstance {
-        readonly options: Readonly<ChartGPUOptions>;
-        readonly disposed: boolean;
-        setOption(options: ChartGPUOptions): void;
-        resize(): void;
-        dispose(): void;
-        on(event: string, callback: (payload: unknown) => void): void;
-        getZoomRange?(): { start: number; end: number };
-        setZoomRange?(start: number, end: number, source?: string): void;
-    }
-
-    export function createChart(
-        container: HTMLElement,
-        options: ChartGPUOptions,
-    ): Promise<ChartGPUInstance>;
 }

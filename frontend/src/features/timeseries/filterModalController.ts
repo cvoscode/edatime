@@ -36,6 +36,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
     const maxInput = document.getElementById('column-filter-max') as HTMLInputElement | null;
     const minRangeInput = document.getElementById('column-filter-min-range') as HTMLInputElement | null;
     const maxRangeInput = document.getElementById('column-filter-max-range') as HTMLInputElement | null;
+    const rangeControl = document.getElementById('column-filter-range-control') as HTMLElement | null;
     const rangeFill = document.getElementById('column-filter-range-fill') as HTMLElement | null;
     const rangeMinValue = document.getElementById('column-filter-range-min-value') as HTMLElement | null;
     const rangeMaxValue = document.getElementById('column-filter-range-max-value') as HTMLElement | null;
@@ -45,7 +46,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
 
     if (
         !modal || !closeBtn || !cancelBtn || !applyBtn || !clearBtn ||
-        !colSelect || !minInput || !maxInput || !minRangeInput || !maxRangeInput ||
+        !colSelect || !minInput || !maxInput || !minRangeInput || !maxRangeInput || !rangeControl ||
         !rangeFill || !rangeMinValue || !rangeMaxValue || !hint
     ) return { open: () => {}, dispose: () => {} };
 
@@ -62,6 +63,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
     const maxTextInput = maxInput;
     const minSliderInput = minRangeInput;
     const maxSliderInput = maxRangeInput;
+    const rangeControlEl = rangeControl;
     const rangeFillEl = rangeFill;
     const rangeMinValueEl = rangeMinValue;
     const rangeMaxValueEl = rangeMaxValue;
@@ -232,8 +234,10 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
         let from = Number.parseFloat(minSliderInput.value);
         let to = Number.parseFloat(maxSliderInput.value);
 
-        if (changed === 'min' && from > to) to = from;
-        if (changed === 'max' && to < from) from = to;
+        // Each end of the dual slider owns only its corresponding bound.
+        // Crossing clamps the active handle instead of pushing the other one.
+        if (changed === 'min' && from > to) from = to;
+        if (changed === 'max' && to < from) to = from;
 
         if (activeBounds) {
             from = clampToBounds(from, activeBounds);
@@ -241,6 +245,47 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
         }
 
         syncInputsFromValues(from, to);
+    }
+
+    function setActiveRangeHandle(handle: 'min' | 'max') {
+        minSliderInput.classList.toggle('is-active', handle === 'min');
+        maxSliderInput.classList.toggle('is-active', handle === 'max');
+    }
+
+    function valueFromRangePointer(clientX: number): number | null {
+        if (!activeBounds || !(activeBounds.max > activeBounds.min)) return null;
+
+        const rect = rangeControlEl.getBoundingClientRect();
+        const handleRadius = 8;
+        const usableWidth = Math.max(1, rect.width - (handleRadius * 2));
+        const position = Math.max(0, Math.min(1, (clientX - rect.left - handleRadius) / usableWidth));
+        const rawValue = activeBounds.min + (position * (activeBounds.max - activeBounds.min));
+        const step = Number.parseFloat(minSliderInput.step) || computeSliderStep(activeBounds);
+        const steppedValue = activeBounds.min + (Math.round((rawValue - activeBounds.min) / step) * step);
+        return clampToBounds(steppedValue, activeBounds);
+    }
+
+    function moveNearestRangeHandle(event: PointerEvent) {
+        if (event.button !== 0 || minSliderInput.disabled || maxSliderInput.disabled) return;
+        if (event.target === minSliderInput || event.target === maxSliderInput) return;
+
+        const value = valueFromRangePointer(event.clientX);
+        if (value === null) return;
+
+        const from = Number.parseFloat(minSliderInput.value);
+        const to = Number.parseFloat(maxSliderInput.value);
+        const minDistance = Math.abs(value - from);
+        const maxDistance = Math.abs(value - to);
+        const handle: 'min' | 'max' = minDistance === maxDistance
+            ? (value <= from ? 'min' : 'max')
+            : (minDistance < maxDistance ? 'min' : 'max');
+        const input = handle === 'min' ? minSliderInput : maxSliderInput;
+
+        setActiveRangeHandle(handle);
+        input.value = String(value);
+        syncFromRangeInputs(handle);
+        input.focus();
+        event.preventDefault();
     }
 
     function getFullBoundsForCol(col: string): { min: number; max: number } | null {
@@ -370,8 +415,17 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
     listen(columnSelect, 'change', () => refreshInputsForCol(getDropdownValue('column-filter-col')));
     listen(minTextInput, 'input', syncFromNumericInputs);
     listen(maxTextInput, 'input', syncFromNumericInputs);
-    listen(minSliderInput, 'input', () => syncFromRangeInputs('min'));
-    listen(maxSliderInput, 'input', () => syncFromRangeInputs('max'));
+    listen(minSliderInput, 'input', () => {
+        setActiveRangeHandle('min');
+        syncFromRangeInputs('min');
+    });
+    listen(maxSliderInput, 'input', () => {
+        setActiveRangeHandle('max');
+        syncFromRangeInputs('max');
+    });
+    listen(minSliderInput, 'focus', () => setActiveRangeHandle('min'));
+    listen(maxSliderInput, 'focus', () => setActiveRangeHandle('max'));
+    listen(rangeControlEl, 'pointerdown', moveNearestRangeHandle as EventListener);
 
     listen(clearButton, 'click', () => {
         const col = getDropdownValue('column-filter-col');

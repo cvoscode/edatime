@@ -60,4 +60,28 @@ describe('workspace store', () => {
         store.setViewport({ xMin: 0, xMax: 1 } as any);
         expect(listener).toHaveBeenCalledTimes(1);
     });
+
+    it('publishes only changed selector slices and suppresses no-op updates', () => {
+        const store = createWorkspaceStore();
+        const filters = vi.fn();
+        const viewport = vi.fn();
+        store.subscribeSelector((snapshot) => snapshot.filters.adaptiveLines.length, filters);
+        store.subscribeSelector(
+            (snapshot) => snapshot.viewport ? `${snapshot.viewport.xMin}:${snapshot.viewport.xMax}` : 'none',
+            viewport,
+        );
+
+        store.setViewport({ xMin: 0, xMax: 10 } as any);
+        store.setViewport({ xMin: 0, xMax: 10 } as any);
+        store.setFilters({ columnRanges: {}, adaptiveLines: [] });
+        store.setFilters({
+            columnRanges: {},
+            adaptiveLines: [{ id: 'line', column: 'value', x1: 0, y1: 0, x2: 1, y2: 1, keepAbove: true }],
+        });
+
+        expect(viewport).toHaveBeenCalledTimes(1);
+        expect(viewport.mock.calls[0][1]).toMatchObject({ kind: 'viewport', revision: 1 });
+        expect(filters).toHaveBeenCalledTimes(1);
+        expect(filters.mock.calls[0][1]).toMatchObject({ kind: 'filters', revision: 2 });
+    });
 });

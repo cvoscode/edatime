@@ -26,9 +26,26 @@ export interface WorkspaceSnapshot {
     viewport: ViewSnapshot | null;
 }
 
+export type WorkspaceChangeKind = 'dataset' | 'selection' | 'filters' | 'viewport';
+
+export interface WorkspaceChange {
+    readonly kind: WorkspaceChangeKind;
+    readonly revision: number;
+}
+
 export interface WorkspaceStore {
     getSnapshot(): WorkspaceSnapshot;
     subscribe(listener: (snapshot: WorkspaceSnapshot) => void): () => void;
+    /**
+     * Observe one derived workspace slice. Listeners run only when that slice
+     * changes according to `equals`; use `getSnapshot()` when a defensive
+     * copy of a complete snapshot is needed.
+     */
+    subscribeSelector<T>(
+        selector: (snapshot: Readonly<WorkspaceSnapshot>) => T,
+        listener: (value: T, change: WorkspaceChange) => void,
+        equals?: (previous: T, next: T) => boolean,
+    ): () => void;
     beginDatasetSession(): DatasetSession;
     commitDataset(session: DatasetSession, metadata: DatasetMetadata, revision: number): boolean;
     setSelection(columns: readonly string[], colorColumn?: string | null): void;

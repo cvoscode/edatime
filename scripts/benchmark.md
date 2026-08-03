@@ -240,7 +240,7 @@ cargo bench -- --output-format bencher | tee benchmarks/<env>.bench.txt
 A change is accepted only if **all three** of these hold against the
 representative workload:
 
-1. Contract tests in `tests/api_integration.rs` and the targeted
+1. Contract tests in `crates/edatime-service/tests/api_integration.rs` and the targeted
    per-phase service tests pass.
 2. The change improves the named bottleneck in
    `backend_plan.md`'s "Current evidence" table on the representative

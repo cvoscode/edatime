@@ -1,6 +1,6 @@
-import type { AnnotationConfig, SeriesConfig } from '../../libs/chartgpu/dist/index.js';
+import type { AnnotationConfig, SeriesConfig } from 'chartgpu';
 import type { FilteredDataObject } from '../types/chart.js';
-import { getSeriesColor } from '../utils/seriesColors.js';
+import { getColumnSeriesColor } from '../utils/seriesColors.js';
 import { analyzeColorValues, buildColorizedSeries, type ColorScaleInfo } from './colorScale.js';
 
 export interface TimeSeriesDataModel {
@@ -20,8 +20,8 @@ export interface TimeSeriesDataModelInput {
     columns: readonly string[];
     visibilityByName: ReadonlyMap<string, boolean>;
     selectedColorColumn: string | null;
-    numericColumns: readonly string[];
     showMarkers: boolean;
+    showRawData: boolean;
 }
 
 interface ColorCandidate {
@@ -32,7 +32,7 @@ interface ColorCandidate {
 }
 
 export function buildTimeSeriesDataModel(input: TimeSeriesDataModelInput): TimeSeriesDataModel {
-    const { data, columns, visibilityByName, selectedColorColumn, numericColumns, showMarkers } = input;
+    const { data, columns, visibilityByName, selectedColorColumn, showMarkers, showRawData } = input;
     const displayYValues: number[] = [];
     const annotations: AnnotationConfig[] = [];
     const baseSeries: SeriesConfig[] = [];
@@ -68,7 +68,7 @@ export function buildTimeSeriesDataModel(input: TimeSeriesDataModelInput): TimeS
             dataYMax = Math.max(dataYMax, y);
         }
 
-        const visible = visibilityByName.get(column) !== false;
+        const visible = showRawData && visibilityByName.get(column) !== false;
         const colorValues = Array.isArray(data.colorByColumn?.[column]) ? data.colorByColumn[column] : data.color;
         const wantsColorBy = !!selectedColorColumn && Array.isArray(colorValues) && colorValues.length === points.length;
         if (wantsColorBy) {
@@ -76,8 +76,7 @@ export function buildTimeSeriesDataModel(input: TimeSeriesDataModelInput): TimeS
             continue;
         }
 
-        const numericIndex = numericColumns.indexOf(column);
-        const color = getSeriesColor(column, numericIndex >= 0 ? numericIndex : index);
+        const color = getColumnSeriesColor(column);
         baseSeries.push({ type: 'line', name: column, color, visible, data: points });
         if (showMarkers && visible) {
             for (const [x, y] of points) {

@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 const indexHtml = readFileSync(join(process.cwd(), 'frontend/index.html'), 'utf8');
 const chartCss = readFileSync(join(process.cwd(), 'frontend/css/modules/chart.css'), 'utf8');
 const chipsCss = readFileSync(join(process.cwd(), 'frontend/css/modules/chips.css'), 'utf8');
+const modalsCss = readFileSync(join(process.cwd(), 'frontend/css/modules/modals.css'), 'utf8');
 const toolbarCss = readFileSync(join(process.cwd(), 'frontend/css/modules/toolbar.css'), 'utf8');
 const responsiveCss = readFileSync(join(process.cwd(), 'frontend/css/modules/responsive.css'), 'utf8');
 
@@ -95,5 +96,21 @@ describe('timeseries layout shell', () => {
     it('does not render the obsolete chip-status / adaptive-hint row in the timeseries header', () => {
         expect(chipsCss).not.toContain('.timeseries-chip-status');
         expect(chipsCss).not.toContain('.timeseries-adaptive-hint');
+    });
+
+    it('keeps menu-bearing series chips at the compact Spectrum height', () => {
+        expect(chipsCss).toMatch(/\.series-chip\s*\{[^}]*min-height:\s*26px;[^}]*padding:\s*3px 6px 3px 8px;/s);
+        expect(chipsCss).toMatch(/\.chip-menu-btn\s*\{[^}]*height:\s*18px;[^}]*min-width:\s*22px;[^}]*min-height:\s*18px;/s);
+    });
+
+    it('uses a compact, accessible column-filter range control', () => {
+        expect(indexHtml).toMatch(/class="modal-range-values" aria-hidden="true" hidden/);
+        expect(indexHtml).toMatch(/id="column-filter-range-control" class="modal-range-dual" role="group"/);
+        expect(indexHtml).toMatch(/class="modal-range-track">\s*<div id="column-filter-range-fill"/s);
+        expect(indexHtml).toMatch(/id="column-filter-min-range"[^>]*aria-describedby="column-filter-hint"/s);
+        expect(modalsCss).toMatch(/\.modal-range-dual\s*\{[^}]*height:\s*32px;/s);
+        expect(modalsCss).toMatch(/::-webkit-slider-thumb\s*\{[^}]*width:\s*16px;[^}]*height:\s*16px;/s);
+        expect(modalsCss).toMatch(/\.modal-range-track\s*\{[^}]*left:\s*8px;[^}]*right:\s*8px;/s);
+        expect(modalsCss).toMatch(/\.modal-range-fill\s*\{[^}]*bottom:\s*0;[^}]*background:\s*var\(--accent\);/s);
     });
 });
