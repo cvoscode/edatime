@@ -36,6 +36,14 @@ describe('settings correlation mode', () => {
         expect(loadSettings().defaultCorrelationMetric).toBe('kendall_diff');
     });
 
+    it('loads a valid spectrogram sample limit and rejects unsupported values', () => {
+        localStorage.setItem('edatime-settings', JSON.stringify({ spectrogramMaxPoints: 65_536 }));
+        expect(loadSettings().spectrogramMaxPoints).toBe(65_536);
+
+        localStorage.setItem('edatime-settings', JSON.stringify({ spectrogramMaxPoints: 131_072 }));
+        expect(loadSettings().spectrogramMaxPoints).toBe(32_768);
+    });
+
     it('normalizes the stored palette and applies it as the global series palette', () => {
         localStorage.setItem('edatime-settings', JSON.stringify({ defaultPalette: 'ocean' }));
 

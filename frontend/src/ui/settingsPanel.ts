@@ -17,6 +17,7 @@ import {
     applyLayoutDensity,
     applyDefaultPalette,
     DEFAULT_SETTINGS,
+    normalizeSpectrogramPointLimit,
 } from '../utils/settings.js';
 import { getSeriesPalette } from '../utils/seriesColors.js';
 import { paletteForColorScale } from '../utils/colorScales.js';
@@ -109,6 +110,7 @@ function populateSettingsForm(settings: AppSettings): void {
 
     // Analytics tab
     setSelectValue('settings-correlation', settings.defaultCorrelationMetric);
+    setSelectValue('settings-spectrogram-max-points', String(settings.spectrogramMaxPoints));
 
     // Plot colors tab
     setSelectValue('settings-scale-signals', settings.plotColorScales.signals);
@@ -132,6 +134,7 @@ function collectSettingsFromForm(): AppSettings {
         layoutDensity: getSelectValue('settings-layout') as LayoutDensity || DEFAULT_SETTINGS.layoutDensity,
         defaultPalette: (getSelectValue('settings-palette') as AppSettings['defaultPalette']) || DEFAULT_SETTINGS.defaultPalette,
         defaultCorrelationMetric: getSelectValue('settings-correlation') as CorrelationMetric || DEFAULT_SETTINGS.defaultCorrelationMetric,
+        spectrogramMaxPoints: normalizeSpectrogramPointLimit(getSelectValue('settings-spectrogram-max-points')),
         drawAutoReset: getCheckboxValue('settings-draw-auto-reset'),
         plotColorScales: {
             signals: getSelectValue('settings-scale-signals') as ColorScaleName || DEFAULT_SETTINGS.plotColorScales.signals,
@@ -271,6 +274,7 @@ export function initSettingsPanel(): () => void {
     }, listenerOptions);
 
     document.getElementById('settings-correlation')?.addEventListener('change', markUnsavedChanges, listenerOptions);
+    document.getElementById('settings-spectrogram-max-points')?.addEventListener('change', markUnsavedChanges, listenerOptions);
     document.getElementById('settings-draw-auto-reset')?.addEventListener('change', markUnsavedChanges, listenerOptions);
     document.querySelectorAll<HTMLElement>('[data-plot-color-scale]').forEach((select) => {
         select.addEventListener('change', () => {

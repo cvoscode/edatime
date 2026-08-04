@@ -46,6 +46,7 @@ export const SETTINGS_HELP: PageHelpContent = {
                 'Defaults for the analytics overlays and the correlation page.',
             bullets: [
                 'Default correlation metric — Pearson / Spearman / Kendall on raw values or first differences',
+                'Spectrogram sample limit — lower values compute faster and fit stricter server work budgets; higher values preserve more time detail',
             ],
         },
         {

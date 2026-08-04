@@ -23,7 +23,7 @@ import {
 } from '../../utils/spectralScaling.js';
 import { createAnalysisPageRuntime } from '../../platform/analysisRuntime.js';
 import { toast } from '../../utils/toast.js';
-import { getPlotColorScale } from '../../utils/settings.js';
+import { getPlotColorScale, getSetting } from '../../utils/settings.js';
 import { paletteForColorScale } from '../../utils/colorScales.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import {
@@ -38,6 +38,7 @@ import { buildSpectrogramSummaryLabel, renderSpectrogramSummary } from './spectr
 import { createSpectrogramChartController, type SpectrogramChartController } from './spectrogramChartController.js';
 import { syncSpectrogramClipControls, syncSpectrogramClipLabel } from './spectrogramClipControls.js';
 import { onThemeChange } from '../../utils/theme.js';
+import { describeSpectrogramFailure } from './spectrogramFailure.js';
 
 interface SpectrogramPageDeps {
     setLoading: (btnId: string, overlayId: string, loading: boolean, label?: string) => void;
@@ -161,8 +162,8 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
         spectrogramRuntime?.updateEmptyState({
             visible: !spectrogramResult,
             reason: spectrogramResult ? '' : (spectrogramRenderError ? 'render-error' : 'no-columns-selected'),
-            title: spectrogramRenderError ? 'Spectrogram render failed' : '',
-            message: '',
+            title: spectrogramRenderError ? 'Spectrogram unavailable' : 'No spectrogram yet',
+            message: fallback,
             fallbackText: fallback,
         });
     }
@@ -170,6 +171,8 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
     spectrogramRuntime = createAnalysisPageRuntime({
         page: 'spectrogram',
         emptyStateRootId: 'spectrogram-empty-state',
+        emptyStateTitleId: 'spectrogram-empty-title',
+        emptyStateMessageId: 'spectrogram-empty-message',
         exportConfig: {
             key: 'spectrogram',
             png: { fn: exportEChartsPNG, filename: 'edatime_spectrogram.png' },
@@ -341,6 +344,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     clipEnabled,
                     clipMethod,
                     clipParam,
+                    maxPoints: getSetting('spectrogramMaxPoints'),
                 });
                 if (!request) return;
                 try {
@@ -370,10 +374,10 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     await renderSpectrogramChart();
                     spectrogramRenderError = null;
                     syncSpectrogramEmptyState();
-                } catch (error: any) {
-                    console.error('[edatime:spectrogram] render failed', error);
+                } catch (error: unknown) {
+                    console.error('[edatime:spectrogram] generation failed', error);
                     spectrogramResult = null;
-                    spectrogramRenderError = `Spectrogram generation failed: ${String(error?.message ?? error)}`;
+                    spectrogramRenderError = describeSpectrogramFailure(error);
                     syncSpectrogramSummary();
                     syncSpectrogramEmptyState();
                     toast(spectrogramRenderError, 'error', { duration: 6000 });

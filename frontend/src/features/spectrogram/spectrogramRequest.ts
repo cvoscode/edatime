@@ -1,6 +1,6 @@
 import type { ClipMode, ScaleMode } from '../../utils/spectralScaling.js';
 
-export const SPECTROGRAM_MAX_POINTS = 131_072;
+export const SPECTROGRAM_MAX_POINTS = 32_768;
 
 export interface SpectrogramRequestInput {
     column: string | null;
@@ -12,6 +12,7 @@ export interface SpectrogramRequestInput {
     clipEnabled: boolean;
     clipMethod: ClipMode;
     clipParam: number;
+    maxPoints?: number;
 }
 
 export interface SpectrogramRequest {
@@ -43,7 +44,7 @@ export function buildSpectrogramRequest(input: SpectrogramRequestInput): Spectro
         column,
         windowSize: input.windowSize,
         hopSize: input.hopSize,
-        maxPoints: SPECTROGRAM_MAX_POINTS,
+        maxPoints: input.maxPoints ?? SPECTROGRAM_MAX_POINTS,
         normalize: input.normalize,
         clip: input.clipEnabled ? input.clipMethod : 'none',
         clipParam: Number.isFinite(input.clipParam) ? input.clipParam : 0.5,

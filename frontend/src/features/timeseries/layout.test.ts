@@ -30,7 +30,7 @@ describe('timeseries layout shell', () => {
         expect(indexHtml).not.toContain('<symbol id="icon-wave"');
         expect(indexHtml).not.toContain('href="#icon-wave"');
         expect(indexHtml).toContain('<button class="nav-item" type="button" data-page="timeseries"');
-        expect(indexHtml).toContain('<div class="home-hero-icon">');
+        expect(indexHtml).not.toContain('<div class="home-hero-icon">');
         expect(indexHtml).toContain('<div class="home-dataset-icon">');
     });
 

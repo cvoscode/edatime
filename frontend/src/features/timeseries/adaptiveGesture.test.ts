@@ -3,7 +3,7 @@ import { initAdaptiveFilterGesture, positionAdaptivePicker } from './adaptiveGes
 import { setChartInstance } from '../../store/chartState.js';
 import { getColumnSeriesColor } from '../../utils/seriesColors.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
-import { createCleaningPlanStore } from '../../cleaning/store.js';
+import { applyFilterIntentToData } from '../../services/timeseries/filtering.js';
 
 describe('adaptive filter gesture', () => {
     let currentData: any;
@@ -75,14 +75,18 @@ describe('adaptive filter gesture', () => {
         expect(workspace.getSnapshot().filters.adaptiveLines).toHaveLength(1);
     });
 
-    it('adds the completed adaptive line to the active cleaning plan', () => {
+    it('masks only the chosen trace and leaves other traces unchanged', () => {
         const workspace = createWorkspaceStore();
-        const planStore = createCleaningPlanStore();
-        planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 0, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
-        workspace.setSelection(['value']);
+        currentData = {
+            ts: Float64Array.from([0, 10]),
+            values: {
+                value: Float64Array.from([0, 10]),
+                guard: Float64Array.from([100, 200]),
+            },
+        } as any;
+        workspace.setSelection(['value', 'guard']);
         initAdaptiveFilterGesture({
             workspace,
-            cleaningPlanStore: planStore,
             buildColumnToggles: vi.fn(),
             buildRangeControls: vi.fn(),
             renderCurrentData: vi.fn(),
@@ -94,12 +98,17 @@ describe('adaptive filter gesture', () => {
         chart.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true, button: 0 }));
         chart.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true, button: 0 }));
         window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Control' }));
-        chooseFilterSide('Keep below');
+        Array.from(document.querySelectorAll<HTMLButtonElement>('.adaptive-trace-picker__option'))
+            .find((button) => button.textContent === 'value')!.click();
+        chooseFilterSide('Keep above');
 
-        expect(planStore.getSnapshot()!.stages).toMatchObject([{
-            kind: 'adaptiveLine', column: 'value', x1Ms: 0, x2Ms: 10, keepAbove: false, applyWithinSegmentOnly: true,
-        }]);
-        expect(workspace.getSnapshot().filters.adaptiveLines).toEqual([]);
+        const snapshot = workspace.getSnapshot();
+        expect(snapshot.filters.adaptiveLines).toHaveLength(1);
+        expect(snapshot.filters.adaptiveLines[0]).toMatchObject({ column: 'value', keepAbove: true });
+
+        const filtered = applyFilterIntentToData(currentData, snapshot);
+        expect(Array.from(filtered.series.value.y)).toEqual([Number.NaN, 10]);
+        expect(Array.from(filtered.series.guard.y)).toEqual([100, 200]);
     });
 
     it('applies the gesture through explicit deps instead of a window bridge', () => {

@@ -31,24 +31,6 @@
     flex-wrap: wrap;
 }
 
-.home-hero-icon {
-    width: 44px;
-    height: 44px;
-    background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #6c63ff));
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 0 24px var(--accent-glow);
-    flex-shrink: 0;
-}
-
-.home-hero-icon svg {
-    width: 22px;
-    height: 22px;
-    stroke: #fff;
-}
-
 .home-hero-body {
     display: flex;
     flex-direction: column;
@@ -211,10 +193,6 @@
         text-align: center;
         padding: 18px 16px 16px;
         gap: 12px;
-    }
-
-    .home-hero-icon {
-        margin: 0 auto;
     }
 
     .home-hero-body {

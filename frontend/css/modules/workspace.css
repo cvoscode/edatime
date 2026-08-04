@@ -519,7 +519,7 @@ header.app-topbar {
 /* Overview */
 #page-home .home-hero {
   display: grid;
-  grid-template-columns: auto minmax(280px, 1fr) auto;
+  grid-template-columns: minmax(280px, 1fr) auto;
   grid-template-rows: auto auto;
   justify-content: stretch;
   gap: 2px 18px;
@@ -528,23 +528,8 @@ header.app-topbar {
   background: var(--surface-0);
 }
 
-#page-home .home-hero-icon {
-  grid-row: 1 / 3;
-  align-self: center;
-  width: 40px;
-  height: 40px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-2);
-  box-shadow: none;
-  color: var(--accent);
-}
-
-#page-home .home-hero-icon svg {
-  stroke: currentColor;
-}
-
 #page-home .home-title {
+  grid-column: 1;
   align-self: end;
   color: var(--text-strong);
   font-size: 1.25rem;
@@ -552,12 +537,13 @@ header.app-topbar {
 }
 
 #page-home .home-tagline {
+  grid-column: 1;
   align-self: start;
   font-size: 0.8125rem;
 }
 
 #page-home .home-hero > .btn {
-  grid-column: 3;
+  grid-column: 2;
   grid-row: 1 / 3;
   align-self: center;
 }
@@ -1143,10 +1129,6 @@ header.app-topbar {
     grid-template-rows: auto;
     gap: 8px;
     padding: 20px 16px;
-  }
-
-  #page-home .home-hero-icon {
-    display: none;
   }
 
   #page-home .home-title,

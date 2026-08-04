@@ -395,7 +395,7 @@ describe('spectrogramPage colorbar filter', () => {
             'HUFL',
             96,
             48,
-            131072,
+            32768,
             undefined,
             expect.objectContaining({ normalize: 'zscore' }),
         );

@@ -16,7 +16,6 @@ import { chartState } from '../../store/chartState.js';
 import type { DataObject } from '../../types/api.js';
 import type { AdaptiveLineFilter } from '../../types/store.js';
 import type { WorkspaceStore, WorkspaceSnapshot } from '../../contracts/workspace.js';
-import type { CleaningPlanStore } from '../../cleaning/store.js';
 
 /** Keep the adaptive picker inside the visible viewport, preferring the click's lower-right side. */
 export function positionAdaptivePicker(
@@ -92,7 +91,6 @@ export function initAdaptiveFilterGesture(
         renderCurrentData: () => void;
         getCurrentData: () => DataObject | null;
         updateAnalysisYRange: (min: number, max: number, sourceKind: string) => void;
-        cleaningPlanStore?: Pick<CleaningPlanStore, 'getSnapshot' | 'addStage'>;
     },
 ): () => void {
     const container = document.getElementById('main-chart') as (HTMLElement & { dataset: DOMStringMap }) | null;
@@ -158,26 +156,12 @@ export function initAdaptiveFilterGesture(
         const snapshot = deps.workspace.getSnapshot();
         const filter = buildAdaptiveFilterFromPoints(deps.getCurrentData(), column, p1, p2, snapshot, keepAbove);
         if (!filter) return;
-        if (deps.cleaningPlanStore?.getSnapshot()) {
-            deps.cleaningPlanStore.addStage({
-                kind: 'adaptiveLine',
-                executionClass: 'polarsExpression',
-                scope: 'row',
-                enabled: true,
-                sourcePage: 'timeseries',
-                label: `${filter.keepAbove ? 'Keep above' : 'Keep below'} adaptive line for ${column}`,
-                column,
-                x1Ms: filter.x1,
-                y1: filter.y1,
-                x2Ms: filter.x2,
-                y2: filter.y2,
-                keepAbove: filter.keepAbove,
-                applyWithinSegmentOnly: true,
-            });
-            deps.buildColumnToggles();
-            return;
-        }
         const filters = snapshot.filters;
+        // Adaptive chart filters are trace-local display masks. Keeping them
+        // in workspace intent lets the renderer replace rejected samples with
+        // NaN for this column only. A cleaning-plan adaptiveLine stage is a
+        // row filter and would incorrectly remove the same timestamps from
+        // every selected trace.
         deps.workspace.setFilters({
             ...filters,
             adaptiveLines: [...filters.adaptiveLines, filter],

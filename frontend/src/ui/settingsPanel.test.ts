@@ -33,6 +33,11 @@ function buildSettingsDom(): void {
                     <option value="pearson_raw">Pearson</option>
                     <option value="spearman_raw">Spearman</option>
                 </select>
+                <select id="settings-spectrogram-max-points">
+                    <option value="16384">Faster</option>
+                    <option value="32768">Balanced</option>
+                    <option value="65536">More detail</option>
+                </select>
                 <input id="settings-draw-auto-reset" type="checkbox" />
                 <select id="settings-scale-signals" data-plot-color-scale="signals"><option value="viridis">Viridis</option><option value="plasma">Plasma</option></select>
                 <select id="settings-scale-pair-plot" data-plot-color-scale="pairPlot"><option value="viridis">Viridis</option><option value="magma">Magma</option></select>
@@ -159,6 +164,24 @@ describe('settingsPanel', () => {
 
         expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({
             plotColorScales: expect.objectContaining({ pairPlot: 'magma', correlationMatrix: 'plasma' }),
+        }));
+    });
+
+    it('persists the spectrogram sample limit', async () => {
+        const settingsModule = await import('../utils/settings.js');
+        vi.spyOn(settingsModule, 'loadSettings').mockReturnValue(settingsModule.DEFAULT_SETTINGS);
+        vi.spyOn(settingsModule, 'applyTheme').mockImplementation(() => {});
+        vi.spyOn(settingsModule, 'applyLayoutDensity').mockImplementation(() => {});
+        const saveSettings = vi.spyOn(settingsModule, 'saveSettings').mockImplementation(() => {});
+
+        const panelModule = await import('./settingsPanel.js');
+        panelModule.initSettingsPanel();
+        panelModule.openSettingsModal();
+        (document.getElementById('settings-spectrogram-max-points') as HTMLSelectElement).value = '16384';
+        document.getElementById('settings-apply-btn')?.click();
+
+        expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({
+            spectrogramMaxPoints: 16_384,
         }));
     });
 

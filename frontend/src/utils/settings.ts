@@ -20,6 +20,7 @@ export { COLOR_SCALES, getColorFromScale, type ColorScaleName } from './colorSca
 
 export type ThemeMode = 'dark' | 'light' | 'auto';
 export type LayoutDensity = 'compact' | 'roomy' | 'spacious';
+export type SpectrogramPointLimit = 16_384 | 32_768 | 65_536;
 export type { CorrelationMetric } from './correlationModes.js';
 export type PlotColorScaleKey = 'signals' | 'pairPlot' | 'correlationMatrix' | 'timeFrequency';
 
@@ -33,6 +34,7 @@ export interface AppSettings {
 
     // Analytics
     defaultCorrelationMetric: CorrelationMetric;
+    spectrogramMaxPoints: SpectrogramPointLimit;
 
     // Chart preferences
     drawAutoReset: boolean;
@@ -52,6 +54,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     layoutDensity: 'spacious',
     defaultPalette: 'default',
     defaultCorrelationMetric: 'pearson_raw',
+    spectrogramMaxPoints: 32_768,
     drawAutoReset: false,
     plotColorScales: { ...DEFAULT_PLOT_COLOR_SCALES },
     sidebarCollapsed: false,
@@ -61,6 +64,13 @@ const STORAGE_KEY = 'edatime-settings';
 
 function defaultSettings(): AppSettings {
     return { ...DEFAULT_SETTINGS, plotColorScales: { ...DEFAULT_PLOT_COLOR_SCALES } };
+}
+
+export function normalizeSpectrogramPointLimit(value: unknown): SpectrogramPointLimit {
+    const numeric = Number(value);
+    return numeric === 16_384 || numeric === 32_768 || numeric === 65_536
+        ? numeric
+        : DEFAULT_SETTINGS.spectrogramMaxPoints;
 }
 
 /** Load settings from localStorage, falling back to defaults. */
@@ -85,6 +95,7 @@ export function loadSettings(): AppSettings {
             layoutDensity: parsed.layoutDensity ?? DEFAULT_SETTINGS.layoutDensity,
             defaultPalette: normalizeSeriesPaletteName(parsed.defaultPalette),
             defaultCorrelationMetric: normalizeCorrelationMetric(parsed.defaultCorrelationMetric),
+            spectrogramMaxPoints: normalizeSpectrogramPointLimit(parsed.spectrogramMaxPoints),
             drawAutoReset: parsed.drawAutoReset ?? DEFAULT_SETTINGS.drawAutoReset,
             plotColorScales,
             sidebarCollapsed: parsed.sidebarCollapsed ?? DEFAULT_SETTINGS.sidebarCollapsed,

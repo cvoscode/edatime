@@ -1281,8 +1281,8 @@
               <path d="M2 14 L6 10 L10 12 L14 6 L18 10 L22 8" fill="none" stroke="currentColor" stroke-width="1.5"
                 stroke-linejoin="round" stroke-linecap="round" opacity="0.9" />
             </svg>
-            <strong>No spectrogram yet</strong>
-            <span>Pick a numeric column, keep the current time range, and update the spectrogram.</span>
+            <strong id="spectrogram-empty-title">No spectrogram yet</strong>
+            <span id="spectrogram-empty-message">Pick a numeric column, keep the current time range, and update the spectrogram.</span>
           </div>
           <div id="spectrogram-loading" class="chart-loading-overlay" hidden>
             <div class="chart-loading-spinner"></div>
@@ -1731,12 +1731,6 @@
             title="Show help for the Overview page (?)"><span aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
         </div>
         <div class="home-hero">
-          <div class="home-hero-icon">
-            <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"
-              stroke-linejoin="round">
-              <polyline points="2,18 7,10 12,22 17,6 22,16 27,12 30,12" />
-            </svg>
-          </div>
           <h2 class="home-title">Understand the signal before you model it.</h2>
           <p class="home-tagline">Load, prepare, visualize, and document time-series data in one focused workspace.</p>
           <button class="btn btn-primary" type="button" data-home-nav="upload">
@@ -2630,6 +2624,20 @@
                     <option value="kendall_diff">Kendall tau · First differences</option>
                   </select>
                   <div class="settings-hint">Used for scatter suggestions, scatter readouts, and the heatmap.</div>
+                </div>
+              </div>
+            </div>
+            <div class="settings-section">
+              <div class="settings-section-title">Time-frequency</div>
+              <div class="settings-row">
+                <label class="settings-label" for="settings-spectrogram-max-points">Spectrogram sample limit</label>
+                <div class="settings-control">
+                  <select id="settings-spectrogram-max-points" class="modal-select">
+                    <option value="16384">16,384 · Faster</option>
+                    <option value="32768">32,768 · Balanced</option>
+                    <option value="65536">65,536 · More detail</option>
+                  </select>
+                  <div class="settings-hint">Maximum input samples per spectrogram. Lower this if the server reports that the analysis is too large.</div>
                 </div>
               </div>
             </div>

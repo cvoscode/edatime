@@ -33,6 +33,11 @@ describe('spectrogram request', () => {
             .toMatchObject({ clip: 'none', clipParam: 0.5 });
     });
 
+    it('uses the configured sample limit when provided', () => {
+        expect(buildSpectrogramRequest({ ...base, maxPoints: 16_384 }))
+            .toMatchObject({ maxPoints: 16_384 });
+    });
+
     it('does not build a request without a column or finite viewport', () => {
         expect(buildSpectrogramRequest({ ...base, column: '  ' })).toBeNull();
         expect(buildSpectrogramRequest({ ...base, endMs: Number.NaN })).toBeNull();
