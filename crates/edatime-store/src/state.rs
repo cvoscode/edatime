@@ -800,7 +800,10 @@ impl AppState {
     /// Uses `count()` on the repository's metadata — O(1) instead of O(n).
     pub async fn dataset_rows(&self) -> usize {
         let meta = self.repository.meta();
-        let meta = meta.read().unwrap();
+        let meta = meta.read().unwrap_or_else(|error| {
+            tracing::warn!("dataset metadata lock poisoned; recovering the last value");
+            error.into_inner()
+        });
         meta.row_count
     }
 

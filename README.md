@@ -10,7 +10,7 @@ The backend is written in Rust (Axum + Polars) and streams data as Apache Arrow 
 
 ### Requirements
 
-| **Rust stable toolchain** | Install from [rustup.rs](https://rustup.rs) |
+| **Rust 1.86+ stable toolchain** | Install from [rustup.rs](https://rustup.rs) |
 | **A modern browser** | Chrome 113+, Edge 113+, or any browser with WebGPU support recommended. Firefox works via a Canvas fallback. |
 | **Node.js** | Required to build the packaged browser frontend from source |
 
@@ -337,11 +337,21 @@ See [docs/developer-guide.md](docs/developer-guide.md) for the full development 
 Quick reference:
 
 ```bash
-# Check for compile errors
-cargo check --all-targets
+# Check all workspace targets and features
+cargo check-all
 
-# Run tests
-cargo test
+# Lint with warnings treated as errors
+cargo lint
+
+# Run workspace and documentation tests
+cargo test-all
+cargo test-doc
+
+# Run every Rust quality gate
+make verify-rust
+
+# Run the complete backend + frontend pre-merge gate
+make verify
 
 # Validate frontend syntax
 npm run check:frontend
@@ -370,8 +380,10 @@ make build-release  # cargo build --release
 make run            # cargo run --release --bin edatime
 make dev            # run Rust API + Vite frontend with live CSS/HMR
 make dev-dist       # rebuild packaged frontend + cargo run --bin edatime
-make check          # cargo check + clippy + tsc
-make test           # cargo test + frontend syntax check
+make check          # static Rust, frontend, contract, and hygiene checks
+make test           # Rust and frontend tests
+make verify-rust    # formatting, check, lint, tests, docs, benchmark build
+make verify         # complete backend + frontend pre-merge gate
 make frontend-prod  # minified frontend build (requires Node)
 ```
 

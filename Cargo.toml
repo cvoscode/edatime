@@ -12,33 +12,54 @@ resolver = "3"
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.86"
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+unused_lifetimes = "deny"
+
+[workspace.lints.clippy]
+dbg_macro = "deny"
+print_stderr = "deny"
+print_stdout = "deny"
+todo = "deny"
+unimplemented = "deny"
 
 [workspace.dependencies]
 # Shared across all workspace crates
 arrow = "58.0.0"
 arrow-ipc = "58.0.0"
 axum = { version = "0.8.8", features = ["multipart"] }
+base64 = "0.22"
 bytes = "1"
 chrono = { version = "0.4.41", features = ["serde"] }
+criterion = "0.5.1"
+deadpool-postgres = { version = "0.14", features = ["serde"] }
+futures-util = "0.3.32"
+http-body = "1"
+http-body-util = "0.1"
 minmaxlttb = "0.1.4"
-ndarray = { version = "0.16", features = ["rayon"] }
+ndarray = "0.16"
 polars = { version = "0.53.0", features = ["lazy", "temporal", "dynamic_group_by", "parquet", "csv", "dtype-datetime", "ipc", "ipc_streaming", "is_in", "cum_agg"] }
+proptest = "1"
 rand = "0.8"
 rayon = "1.10"
 rustfft = "6.2.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
+sha2 = "0.10.9"
+statrs = "0.18"
 tempfile = "3.26.0"
 thiserror = "1"
 tokio = { version = "1.49.0", features = ["full"] }
 tokio-util = { version = "0.7.18", features = ["io"] }
-futures-util = "0.3.32"
-http-body = "1"
 tokio-postgres = { version = "0.7", features = ["with-chrono-0_4"] }
 toml = "0.8.23"
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6.10", features = ["cors", "compression-gzip", "fs", "set-header", "trace"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
-tower-http = { version = "0.6.10", features = ["cors", "compression-gzip", "fs", "set-header", "trace"] }
+zip = { version = "0.6.6", default-features = false }
 
 [profile.dev]
 opt-level = 0

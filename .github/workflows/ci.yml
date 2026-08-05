@@ -15,7 +15,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt
+          components: rustfmt, clippy
 
       - uses: actions/setup-node@v4
         with:
@@ -33,13 +33,19 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Check formatting
-        run: cargo fmt --check
+        run: cargo fmt-check
 
       - name: Compile all targets
-        run: cargo check --all-targets
+        run: cargo check-all
+
+      - name: Run Rust lints
+        run: cargo lint
 
       - name: Run tests
-        run: cargo test
+        run: cargo test-all
+
+      - name: Run documentation tests
+        run: cargo test-doc
 
       - name: Check frontend syntax
         run: npm run check:frontend
@@ -63,4 +69,4 @@ jobs:
         run: npm run check:backend-hygiene
 
       - name: Compile benchmark harness
-        run: cargo bench --workspace --no-run
+        run: cargo bench-check

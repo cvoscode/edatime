@@ -1461,21 +1461,19 @@
       </section>
 
       <!-- ── Drift Analysis page ───────────────────────── -->
-      <section class="page" id="page-drift" data-page-name="drift" data-toolbar-collapse hidden>
+      <section class="page page--analysis-scroll" id="page-drift" data-page-name="drift" data-toolbar-collapse hidden>
         <div class="page-header">
           <div class="page-header__copy">
             <h1 class="page-header__title">Drift</h1>
-            <p class="page-header__description">Compare windows and locate distribution shifts.</p>
+            <p class="page-header__description">Decide whether the dataset shifted, then inspect the traces and evidence.</p>
           </div>
           <button id="drift-help-btn" class="page-help-trigger" type="button" aria-label="Show help for the Drift page"
             title="Show help for the Drift page (?)"><span aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
         </div>
-        <div class="toolbar scatter-toolbar drift-toolbar">
-          <div class="scatter-toolbar__segment scatter-toolbar__segment--display">
-            <span class="scatter-toolbar__eyebrow">Data</span>
-            <div class="scatter-toolbar__fields">
-              <div class="scatter-toolbar__field">
-                <span class="scatter-toolbar__field-label">Columns</span>
+        <div class="toolbar drift-toolbar" aria-label="Drift analysis setup">
+          <div class="drift-toolbar__primary">
+              <div class="drift-toolbar__field">
+                <span class="drift-toolbar__label">Traces</span>
                 <div class="drift-col-picker drift-col-picker--inline" id="drift-col-picker-wrap">
                   <button id="drift-col-picker-btn" class="btn btn-ghost btn-sm drift-col-picker-trigger" type="button"
                     aria-haspopup="true" aria-expanded="false">
@@ -1501,33 +1499,16 @@
                   </div>
                 </div>
               </div>
-              <div class="scatter-toolbar__field">
-                <span class="scatter-toolbar__field-label">Window</span>
+              <label class="drift-toolbar__field">
+                <span class="drift-toolbar__label">Window</span>
                 <select id="drift-window-select" class="modal-select" aria-label="Temporal window size">
                   <option value="hourly">Hourly</option>
                   <option value="daily" selected>Daily</option>
                   <option value="weekly">Weekly</option>
                 </select>
-              </div>
-              <div class="scatter-toolbar__field">
-                <span class="scatter-toolbar__field-label">Detail View</span>
-                <select id="drift-plot-type" class="modal-select" aria-label="Plot style">
-                  <option value="box">Box plot</option>
-                  <option value="violin">Density area</option>
-                  <option value="ecdf">ECDF overlay</option>
-                  <option value="histogram">Histogram overlay</option>
-                </select>
-              </div>
-              <div class="scatter-toolbar__field">
-                <span class="scatter-toolbar__field-label">Evaluate</span>
-                <select id="drift-evaluation-mode" class="modal-select" aria-label="Evaluation mode">
-                  <option value="all" selected>Later windows</option>
-                  <option value="latest">Latest window only</option>
-                  <option value="latest-n">Latest N windows</option>
-                </select>
-              </div>
-              <div class="scatter-toolbar__field">
-                <span class="scatter-toolbar__field-label">Reference</span>
+              </label>
+              <label class="drift-toolbar__field">
+                <span class="drift-toolbar__label">Reference</span>
                 <select id="drift-ref-preset" class="modal-select" aria-label="Reference window preset">
                   <option value="30">First 30%</option>
                   <option value="50" selected>First 50%</option>
@@ -1535,59 +1516,42 @@
                   <option value="viewport">Current viewport</option>
                   <option value="custom">Custom</option>
                 </select>
-              </div>
-              <div class="scatter-toolbar__field" id="drift-latest-n-field">
-                <span class="scatter-toolbar__field-label">Latest N</span>
+              </label>
+              <label class="drift-toolbar__field">
+                <span class="drift-toolbar__label">Evaluate</span>
+                <select id="drift-evaluation-mode" class="modal-select" aria-label="Evaluation mode">
+                  <option value="all" selected>Later windows</option>
+                  <option value="latest">Latest window only</option>
+                  <option value="latest-n">Latest N windows</option>
+                </select>
+              </label>
+              <label class="drift-toolbar__field" id="drift-latest-n-field">
+                <span class="drift-toolbar__label">Latest N</span>
                 <input id="drift-latest-n" type="number" min="1" step="1" value="3" class="modal-input"
                   aria-label="Latest window count">
                 <div id="drift-latest-n-helper" class="toolbar-field__hint">Used only with 'Latest N windows' mode.
                 </div>
-              </div>
-            </div>
+              </label>
           </div>
-
-          <details class="drift-secondary-controls analysis-secondary-disclosure analysis-collapse-tablet" data-responsive-collapse="1399" open>
-            <summary class="analysis-secondary-disclosure__summary">
-              <span>More</span><span>Baseline dates, thresholds, export, zoom</span>
-            </summary>
-            <div class="analysis-secondary-disclosure__content">
-          <div class="scatter-toolbar__segment scatter-toolbar__segment--refine">
-            <span class="scatter-toolbar__eyebrow">Reference</span>
-            <div class="scatter-toolbar__fields">
-              <div class="scatter-toolbar__field">
-                <span class="scatter-toolbar__field-label">Start</span>
-                <input id="drift-ref-start" type="datetime-local" class="modal-input" name="drift-ref-start"
-                  aria-label="Start">
-              </div>
-              <div class="scatter-toolbar__field">
-                <span class="scatter-toolbar__field-label">End</span>
-                <input id="drift-ref-end" type="datetime-local" class="modal-input" name="drift-ref-end"
-                  aria-label="End">
-              </div>
-            </div>
-          </div>
-
-          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions">
-            <span class="scatter-toolbar__eyebrow">Zoom</span>
-            <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
-              <button id="drift-zoom-reset-btn" class="btn btn-ghost btn-sm" type="button" title="Reset chart zoom">↩
-                Reset</button>
-            </div>
-          </div>
-
-          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions">
-            <span class="scatter-toolbar__eyebrow">Thresholds</span>
-            <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
-              <span id="drift-thresholds-info" class="toolbar-info-icon" tabindex="0"
-                data-info-tip="Composite drift uses four checks: PSI, Wasserstein distance, Kolmogorov-Smirnov, and Energy distance. Composite drift means at least two checks agree.">ⓘ</span>
-              <details class="toolbar-disclosure toolbar-disclosure--end">
-                <summary class="toolbar-disclosure__summary">
-                  <span class="toolbar-label">Composite</span>
-                  <span class="toolbar-disclosure__value">4 tests</span>
-                </summary>
-                <div class="toolbar-disclosure__menu">
+          <div class="drift-toolbar__actions">
+            <details class="drift-toolbar-menu drift-secondary-controls analysis-secondary-disclosure">
+              <summary class="btn btn-ghost btn-sm">Decision rules</summary>
+              <div class="drift-toolbar-menu__panel">
+                <div class="drift-rules-copy">
+                  <strong>Composite drift</strong>
+                  <span>Drift is severe when two or more checks fire.</span>
+                </div>
+                <div class="drift-rules-grid">
                   <label class="toolbar-field">
-                    <span class="toolbar-field__label">PSI minor</span>
+                    <span class="toolbar-field__label">Reference start</span>
+                    <input id="drift-ref-start" type="datetime-local" class="modal-input" name="drift-ref-start" aria-label="Reference start">
+                  </label>
+                  <label class="toolbar-field">
+                    <span class="toolbar-field__label">Reference end</span>
+                    <input id="drift-ref-end" type="datetime-local" class="modal-input" name="drift-ref-end" aria-label="Reference end">
+                  </label>
+                  <label class="toolbar-field">
+                    <span class="toolbar-field__label">PSI warning</span>
                     <input id="drift-psi-minor-threshold" type="number" min="0" step="0.01" value="0.10"
                       class="modal-input" aria-label="PSI minor threshold">
                   </label>
@@ -1607,107 +1571,129 @@
                       class="modal-input" aria-label="E-S p-value threshold">
                   </label>
                   <label class="toolbar-field">
-                    <span class="toolbar-field__label">Wass std mult</span>
+                    <span class="toolbar-field__label">Wasserstein multiplier</span>
                     <input id="drift-wasserstein-std-multiplier" type="number" min="0" step="0.01" value="0.10"
                       class="modal-input" aria-label="Wasserstein standard deviation multiplier">
                   </label>
                 </div>
-              </details>
-            </div>
-          </div>
-
-          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions">
-            <span class="scatter-toolbar__eyebrow">Export</span>
-            <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
-              <details class="toolbar-disclosure toolbar-disclosure--end">
-                <summary class="toolbar-disclosure__summary">
-                  <span class="toolbar-label">Format</span>
-                  <span class="toolbar-disclosure__value">Image + data</span>
-                </summary>
-                <div class="toolbar-disclosure__menu">
-                  <button id="drift-export-png" class="btn btn-ghost btn-sm" type="button"
-                    title="Export timeline as PNG (P)" disabled>
-                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
-                      stroke-linejoin="round" width="12" height="12">
-                      <path d="M14 10v3a1 1 0 01-1 1H3a1 1 0 01-1-1v-3" />
-                      <polyline points="11 5 8 2 5 5" />
-                      <line x1="8" y1="2" x2="8" y2="11" />
-                    </svg>
-                    PNG
-                  </button>
-                  <button id="drift-export-detail-png" class="btn btn-ghost btn-sm" type="button"
-                    title="Export detail panel as PNG" disabled>
-                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
-                      stroke-linejoin="round" width="12" height="12">
-                      <path d="M14 10v3a1 1 0 01-1 1H3a1 1 0 01-1-1v-3" />
-                      <polyline points="11 5 8 2 5 5" />
-                      <line x1="8" y1="2" x2="8" y2="11" />
-                    </svg>
-                    Detail
-                  </button>
-                  <button id="drift-export-csv" class="btn btn-ghost btn-sm" type="button"
-                    title="Export stats as CSV (E)" disabled>CSV</button>
-                  <button id="drift-export-json" class="btn btn-ghost btn-sm" type="button"
-                    title="Export full response as JSON (J)" disabled>JSON</button>
+                <div class="drift-rules-footer">
+                  <button id="drift-zoom-reset-btn" class="btn btn-ghost btn-sm" type="button" title="Reset chart zoom">Reset chart zoom</button>
+                  <select id="drift-segment-by" class="modal-select" aria-label="Segment drift by column">
+                    <option value="" selected>No segment</option>
+                  </select>
                 </div>
-              </details>
-            </div>
-          </div>
-            </div>
-          </details>
-
-          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions toolbar-group--push">
-            <span class="scatter-toolbar__eyebrow">Run</span>
-            <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
-              <button id="drift-compute-btn" class="btn btn-accent btn-sm" type="button">Run drift analysis</button>
-            </div>
+              </div>
+            </details>
+            <details class="drift-toolbar-menu drift-toolbar-menu--end">
+              <summary class="btn btn-ghost btn-sm">Export</summary>
+              <div class="drift-toolbar-menu__panel drift-export-menu">
+                <button id="drift-export-png" class="btn btn-ghost btn-sm" type="button" title="Export overview as PNG (P)" disabled>Overview PNG</button>
+                <button id="drift-export-detail-png" class="btn btn-ghost btn-sm" type="button" title="Export evidence as PNG" disabled>Evidence PNG</button>
+                <button id="drift-export-csv" class="btn btn-ghost btn-sm" type="button" title="Export stats as CSV (E)" disabled>CSV data</button>
+                <button id="drift-export-json" class="btn btn-ghost btn-sm" type="button" title="Export full response as JSON (J)" disabled>JSON report</button>
+              </div>
+            </details>
+            <button id="drift-compute-btn" class="btn btn-accent btn-sm" type="button">Run analysis</button>
           </div>
         </div>
-        <div id="drift-status" class="analysis-status" role="status" aria-live="polite">
+        <div id="drift-status" class="analysis-status drift-status-announcement" role="status" aria-live="polite">
           Select one or more columns, choose a baseline, and run the analysis.
         </div>
         <main class="main main--chart">
           <div id="drift-summary-strip" class="drift-summary-strip" aria-live="polite"></div>
-          <div id="drift-column-summary" class="drift-column-summary" aria-live="polite"></div>
           <div class="drift-layout">
-            <!-- Left: macro timeline + legend -->
-            <div class="drift-timeline-panel">
+            <section class="drift-overview-surface" aria-label="Dataset drift overview">
+              <div class="drift-overview-controls">
+                <div class="drift-filter-tabs" role="group" aria-label="Filter traces by drift status">
+                  <button class="drift-filter-tab active" type="button" data-drift-filter="all" aria-pressed="true">All <span data-drift-count="all">0</span></button>
+                  <button class="drift-filter-tab" type="button" data-drift-filter="drifting" aria-pressed="false">Drifting <span data-drift-count="drifting">0</span></button>
+                  <button class="drift-filter-tab" type="button" data-drift-filter="stable" aria-pressed="false">Stable <span data-drift-count="stable">0</span></button>
+                </div>
+                <label class="drift-search-field">
+                  <span class="sr-only">Search traces</span>
+                  <input id="drift-trace-search" type="search" placeholder="Search traces…" autocomplete="off">
+                </label>
+              </div>
+              <div class="drift-timeline-panel">
+                <div class="drift-section-heading">
+                  <div>
+                    <h2 id="drift-overview-title">Drift severity over time</h2>
+                    <p id="drift-overview-description">Reference baseline and evaluation windows across every selected trace.</p>
+                  </div>
+                  <div class="drift-section-actions">
+                    <label class="drift-view-field">
+                      <span>View</span>
+                      <select id="drift-overview-plot-type" class="modal-select" aria-label="Drift overview visualization">
+                        <option value="heatmap" selected>Severity map</option>
+                        <option value="grouped">Grouped time series</option>
+                        <option value="boxplot">Boxplots over time</option>
+                        <option value="violin">Violins over time</option>
+                      </select>
+                    </label>
+                    <div id="drift-overview-legend" class="drift-legend" aria-label="Drift severity legend">
+                      <span class="drift-legend-item"><span class="drift-legend-swatch drift-legend-swatch--reference"></span>Reference</span>
+                      <span class="drift-legend-item"><span class="drift-legend-swatch drift-legend-swatch--stable"></span>Stable</span>
+                      <span class="drift-legend-item"><span class="drift-legend-swatch drift-legend-swatch--warning"></span>Warning</span>
+                      <span class="drift-legend-item"><span class="drift-legend-swatch drift-legend-swatch--drift"></span>Drift</span>
+                    </div>
+                  </div>
+                </div>
               <div class="drift-timeline-canvas-wrap">
                 <div id="drift-timeline-chart" role="img" aria-label="Drift timeline chart"></div>
               </div>
-              <div class="drift-legend">
-                <span class="drift-window-badge drift-window-badge--green"></span><span>No trigger fired</span>
-                <span class="drift-window-badge drift-window-badge--yellow"></span><span>One trigger fired</span>
-                <span class="drift-window-badge drift-window-badge--red"></span><span>Composite drift (2+ score)</span>
               </div>
-            </div>
+              <div id="drift-column-summary" class="drift-column-summary" aria-live="polite"></div>
+            </section>
 
-            <!-- Right: detail panel -->
-            <div class="drift-detail-panel">
+            <section class="drift-detail-panel" aria-label="Selected trace evidence">
               <div class="drift-detail-header-row">
-                <div id="drift-detail-header" class="drift-detail-header">Window Detail</div>
-                <select id="drift-detail-col-select" class="modal-select" aria-label="Column for detail panel"></select>
+                <div>
+                  <span class="drift-detail-kicker">Selected trace evidence</span>
+                  <div id="drift-detail-header" class="drift-detail-header">Trace evidence</div>
+                </div>
+                <div class="drift-window-picks" role="group" aria-label="Choose evidence window">
+                  <button class="drift-window-pick active" type="button" data-drift-window-pick="latest" aria-pressed="true">Latest</button>
+                  <button class="drift-window-pick" type="button" data-drift-window-pick="worst" aria-pressed="false">Worst</button>
+                  <button class="drift-window-pick" type="button" data-drift-window-pick="first" aria-pressed="false">First change</button>
+                </div>
+                <label class="drift-view-field drift-view-field--detail">
+                  <span>Distribution</span>
+                  <select id="drift-plot-type" class="modal-select" aria-label="Distribution visualization">
+                    <option value="raincloud" selected>Raincloud</option>
+                    <option value="ecdf">ECDF</option>
+                    <option value="box">Box plot</option>
+                    <option value="violin">Violin</option>
+                  </select>
+                </label>
+                <select id="drift-detail-col-select" class="modal-select" aria-label="Trace for evidence"></select>
               </div>
-              <div id="drift-detail-chart" role="img" aria-label="Drift detail chart"></div>
-              <div id="drift-detail-stats" class="drift-detail-stats" role="region" aria-live="polite"
-                aria-label="Drift window details">
-                <span style="color:var(--text-muted);font-size:0.72rem;">Select a window to see stats</span>
+              <div class="drift-evidence-grid">
+                <div id="drift-detail-chart" role="img" aria-label="Drift over time and distribution comparison"></div>
+                <div id="drift-detail-stats" class="drift-detail-stats" role="region" aria-live="polite" aria-label="Drift measures">
+                  <span class="drift-detail-placeholder">Select a trace and evaluation window to see evidence.</span>
+                </div>
               </div>
-              <div class="drift-list-controls">
-                <span class="toolbar-label">Sort</span>
-                <select id="drift-sort-select" class="modal-select" aria-label="Sort drift windows">
-                  <option value="time-asc" selected>Time: oldest first</option>
-                  <option value="time-desc">Time: newest first</option>
-                  <option value="psi-desc">PSI: highest first</option>
-                  <option value="wasserstein-desc">Wasserstein: highest first</option>
-                  <option value="severity-desc">Severity: red to green</option>
-                </select>
-              </div>
-              <div id="drift-window-list" class="drift-window-list" role="listbox" aria-label="Drift windows list">
-                <!-- populated by driftPage.ts -->
-              </div>
-            </div>
+              <details class="drift-all-windows">
+                <summary>View all evaluation windows</summary>
+                <div class="drift-list-controls">
+                  <span class="toolbar-label">Sort</span>
+                  <select id="drift-sort-select" class="modal-select" aria-label="Sort drift windows">
+                    <option value="time-desc" selected>Newest first</option>
+                    <option value="time-asc">Oldest first</option>
+                    <option value="psi-desc">Highest PSI</option>
+                    <option value="wasserstein-desc">Highest Wasserstein</option>
+                    <option value="severity-desc">Highest severity</option>
+                  </select>
+                </div>
+                <div id="drift-window-list" class="drift-window-list" role="listbox" aria-label="Drift windows list"></div>
+              </details>
+            </section>
           </div>
+
+          <div id="drift-overview-panel" hidden></div>
+          <div id="drift-segments-panel" hidden></div>
+          <div id="drift-quality-panel" hidden></div>
+          <div id="drift-relationships-panel" hidden></div>
 
           <div id="drift-empty" class="plot-empty-state" data-empty-reason="no-compute">
             <strong>No drift analysis yet</strong>

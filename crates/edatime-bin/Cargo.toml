@@ -2,6 +2,10 @@
 name = "edatime-bin"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
 
 [[bin]]
 name = "edatime"

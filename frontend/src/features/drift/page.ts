@@ -39,11 +39,11 @@ import {
     setResponses,
     clearSelection,
     _setSelectionState,
+    selectColumn,
     selectWindow,
 } from './selection.js';
 import {
     initTimelineChart,
-    renderTimeline,
     renderTimelineFull,
     getTimelineChart,
     resizeTimelineChart,
@@ -106,6 +106,10 @@ export async function initDriftPage(
     const colSelectNoneBtn = document.getElementById('drift-cols-none') as HTMLButtonElement | null;
     const windowSelect = document.getElementById('drift-window-select') as HTMLElement | null;
     const plotTypeSelect = document.getElementById('drift-plot-type') as HTMLElement | null;
+    const overviewPlotTypeSelect = document.getElementById('drift-overview-plot-type') as HTMLElement | null;
+    const overviewTitle = document.getElementById('drift-overview-title') as HTMLElement | null;
+    const overviewDescription = document.getElementById('drift-overview-description') as HTMLElement | null;
+    const overviewLegend = document.getElementById('drift-overview-legend') as HTMLElement | null;
     const refPresetSelect = document.getElementById('drift-ref-preset') as HTMLElement | null;
     const evaluationModeSelect = document.getElementById('drift-evaluation-mode') as HTMLElement | null;
     const latestNInput = document.getElementById('drift-latest-n') as HTMLInputElement | null;
@@ -144,7 +148,9 @@ export async function initDriftPage(
     let _pendingFullReset = false;
     let rawResponsesByColumn = new Map<string, DriftResponse>();
     let currentInvestigation: DriftInvestigationResponse | null = null;
-    let activeTab = 'overview';
+    let activeTab = 'timeline';
+    let activeTraceFilter: 'all' | 'drifting' | 'stable' = 'all';
+    let traceSearchQuery = '';
 
     getECharts().catch(() => { /* non-critical; will retry on first ensureCharts() call */ });
 
@@ -160,7 +166,9 @@ export async function initDriftPage(
     function onTimelineClick(col: string, windowIdx: number): void {
         if (getDropdownValue('drift-detail-col-select') !== col) setDropdownValue('drift-detail-col-select', col);
         selectWindow(windowIdx);
-        renderTimeline();
+        syncSelectedTraceRow();
+        syncWindowPickButtons(null);
+        renderTimelineLocal();
         renderDetail();
         renderWindowListLocal();
         updateDetailStatsLocal();
@@ -170,7 +178,8 @@ export async function initDriftPage(
     // (detailView.ts dispatches 'drift:window-select' when Enter/Space is pressed).
     function onWindowSelect(windowIdx: number): void {
         selectWindow(windowIdx);
-        renderTimeline();
+        syncWindowPickButtons(null);
+        renderTimelineLocal();
         renderDetail();
         renderWindowListLocal();
         updateDetailStatsLocal();
@@ -218,7 +227,7 @@ export async function initDriftPage(
         void ensureChartsAsync().then(() => {
             if (!isDriftChartReadyForInit()) return;
             if (getResponsesByColumn().size > 0) {
-                renderTimeline();
+                renderTimelineLocal();
                 renderDetail();
             }
         });
@@ -319,10 +328,90 @@ export async function initDriftPage(
     }
 
     function renderSummaryPanels(): void {
-        const panels = buildDriftSummaryPanelHtml(getResponsesByColumn());
+        const panels = buildDriftSummaryPanelHtml(getResponsesByColumn(), currentInvestigation, getActiveDetailColumn());
         if (summaryStripEl) summaryStripEl.innerHTML = panels.summaryStrip;
         if (columnSummaryEl) columnSummaryEl.innerHTML = panels.columnSummary;
+        syncTraceFilterCounts();
+        applyTraceFilter();
         renderInvestigationPanels();
+    }
+
+    function syncTraceFilterCounts(): void {
+        const rows = Array.from(columnSummaryEl?.querySelectorAll<HTMLElement>('.drift-trace-row') ?? []);
+        const drifting = rows.filter((row) => row.dataset.driftState === 'drifting').length;
+        const counts = { all: rows.length, drifting, stable: rows.length - drifting };
+        (Object.keys(counts) as Array<keyof typeof counts>).forEach((key) => {
+            const element = document.querySelector<HTMLElement>(`[data-drift-count="${key}"]`);
+            if (element) element.textContent = String(counts[key]);
+        });
+    }
+
+    function applyTraceFilter(): void {
+        const rows = Array.from(columnSummaryEl?.querySelectorAll<HTMLElement>('.drift-trace-row') ?? []);
+        let visible = 0;
+        rows.forEach((row) => {
+            const matchesState = activeTraceFilter === 'all' || row.dataset.driftState === activeTraceFilter;
+            const matchesSearch = !traceSearchQuery || (row.dataset.driftColumn ?? '').toLowerCase().includes(traceSearchQuery);
+            row.hidden = !(matchesState && matchesSearch);
+            if (!row.hidden) visible += 1;
+        });
+        const empty = columnSummaryEl?.querySelector<HTMLElement>('.drift-table-empty');
+        if (empty) empty.hidden = visible > 0;
+    }
+
+    function syncSelectedTraceRow(): void {
+        const activeColumn = getActiveDetailColumn();
+        columnSummaryEl?.querySelectorAll<HTMLElement>('.drift-trace-row').forEach((row) => {
+            const selected = row.dataset.driftColumn === activeColumn;
+            row.classList.toggle('selected', selected);
+            row.setAttribute('aria-selected', selected ? 'true' : 'false');
+        });
+    }
+
+    function syncWindowPickButtons(activePick: string | null): void {
+        document.querySelectorAll<HTMLElement>('[data-drift-window-pick]').forEach((button) => {
+            const selected = !!activePick && button.dataset.driftWindowPick === activePick;
+            button.classList.toggle('active', selected);
+            button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+        });
+    }
+
+    function pickWindow(mode: 'latest' | 'worst' | 'first'): void {
+        const response = getActiveResponse();
+        if (!response || response.windows.length === 0) return;
+        let index = response.windows.length - 1;
+        if (mode === 'first') {
+            index = response.windows.findIndex((window) => window.drift_level !== 'green');
+            if (index < 0) index = 0;
+        } else if (mode === 'worst') {
+            index = response.windows.reduce((worstIndex, window, candidateIndex) => {
+                const worst = response.windows[worstIndex]!;
+                const severityDelta = (window.drift_level === 'red' ? 3 : window.drift_level === 'yellow' ? 2 : 1)
+                    - (worst.drift_level === 'red' ? 3 : worst.drift_level === 'yellow' ? 2 : 1);
+                return severityDelta > 0 || (severityDelta === 0 && window.psi > worst.psi) ? candidateIndex : worstIndex;
+            }, 0);
+        }
+        selectWindow(index);
+        syncWindowPickButtons(mode);
+        renderTimelineLocal();
+        renderDetail();
+        renderWindowListLocal();
+        updateDetailStatsLocal();
+    }
+
+    function selectTrace(column: string): void {
+        const response = getResponsesByColumn().get(column);
+        if (!response) return;
+        selectColumn(column);
+        if (response.windows.length > 0) selectWindow(response.windows.length - 1);
+        setDropdownValue('drift-detail-col-select', column);
+        syncSelectedTraceRow();
+        syncWindowPickButtons('latest');
+        syncOverviewModeUi();
+        renderTimelineLocal();
+        renderDetail();
+        renderWindowListLocal();
+        updateDetailStatsLocal();
     }
 
     function applyRenderedResponses(
@@ -332,10 +421,12 @@ export async function initDriftPage(
     ): void {
         currentInvestigation = investigation;
         setResponses(getFilteredResponses(results));
+        syncWindowPickButtons('latest');
         updateDetailColumnSelect();
         statusSummary(failedColumns);
         setComputedStatus(getResponsesByColumn(), failedColumns);
         renderSummaryPanels();
+        syncOverviewModeUi();
         renderTimelineLocal();
         renderDetailLocal();
         renderWindowListLocal();
@@ -386,7 +477,7 @@ export async function initDriftPage(
         }
 
         computeBtnEl.disabled = true;
-        computeBtnEl.textContent = 'Running analysis…';
+        computeBtnEl.textContent = 'Running…';
         syncEmptyState(false);
 
         // Load the chart runtime in parallel with the API request. Drift results
@@ -438,7 +529,7 @@ export async function initDriftPage(
             // Reset button state regardless of whether the run completed,
             // errored, or was superseded by another run() call.
             computeBtnEl.disabled = false;
-            computeBtnEl.textContent = 'Run drift analysis';
+            computeBtnEl.textContent = 'Run analysis';
         }
     }
 
@@ -481,12 +572,37 @@ export async function initDriftPage(
     const detailElNN = detailEl;
 
     function renderTimelineLocal(): void {
-        renderTimelineFull();
+        const rawMode = getDropdownValue('drift-overview-plot-type');
+        const mode = rawMode === 'grouped' || rawMode === 'boxplot' || rawMode === 'violin' ? rawMode : 'heatmap';
+        renderTimelineFull(mode);
     }
 
     function renderDetailLocal(): void {
-        const plotType = getDropdownValue('drift-plot-type') || 'boxplot';
+        const plotType = getDropdownValue('drift-plot-type') || 'raincloud';
         renderDetailFull(plotType);
+    }
+
+    function syncOverviewModeUi(): void {
+        const mode = getDropdownValue('drift-overview-plot-type') || 'heatmap';
+        const selectedTrace = getActiveDetailColumn() || 'selected trace';
+        if (mode === 'heatmap') {
+            if (overviewTitle) overviewTitle.textContent = 'Drift severity over time';
+            if (overviewDescription) overviewDescription.textContent = 'Reference baseline and evaluation windows across every selected trace.';
+            if (overviewLegend) overviewLegend.hidden = false;
+            timelineEl?.setAttribute('aria-label', 'Drift severity map over time');
+            return;
+        }
+        if (mode === 'grouped') {
+            if (overviewTitle) overviewTitle.textContent = 'Grouped distributions over time';
+            if (overviewDescription) overviewDescription.textContent = 'Median and interquartile range for every trace, normalized to its reference distribution.';
+            if (overviewLegend) overviewLegend.hidden = true;
+            timelineEl?.setAttribute('aria-label', 'Grouped trace distributions over time');
+            return;
+        }
+        if (overviewTitle) overviewTitle.textContent = `${mode === 'boxplot' ? 'Boxplots' : 'Violins'} over time · ${selectedTrace}`;
+        if (overviewDescription) overviewDescription.textContent = 'Distribution shape for the selected trace; scroll or drag the navigator to inspect dense windows.';
+        if (overviewLegend) overviewLegend.hidden = true;
+        timelineEl?.setAttribute('aria-label', `${mode === 'boxplot' ? 'Boxplots' : 'Violins'} over time for ${selectedTrace}`);
     }
 
     function renderWindowListLocal(): void {
@@ -543,7 +659,7 @@ export async function initDriftPage(
             driftLayoutEl,
             sortSelect,
             onDetailColumnChange: (column, windowIdx) => {
-                // Selection is managed by timelineView via selection.ts
+                if (column) selectTrace(column);
             },
             timelineChartDispatch: (action) => getTimelineChart()?.dispatchAction?.(action),
             detailChartDispatch: (action) => getDetailChart()?.dispatchAction?.(action),
@@ -560,12 +676,51 @@ export async function initDriftPage(
 
     evaluationModeSelect?.addEventListener('change', reapplyEvaluationMode, { signal: pageAbortController.signal });
     latestNInput?.addEventListener('change', reapplyEvaluationMode, { signal: pageAbortController.signal });
+    overviewPlotTypeSelect?.addEventListener('change', () => {
+        syncOverviewModeUi();
+        renderTimelineLocal();
+    }, { signal: pageAbortController.signal });
+    columnSummaryEl?.addEventListener('click', (event) => {
+        const row = (event.target as HTMLElement).closest<HTMLElement>('.drift-trace-row');
+        if (row?.dataset.driftColumn) selectTrace(row.dataset.driftColumn);
+    }, { signal: pageAbortController.signal });
+    columnSummaryEl?.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        const row = (event.target as HTMLElement).closest<HTMLElement>('.drift-trace-row');
+        if (!row?.dataset.driftColumn) return;
+        event.preventDefault();
+        selectTrace(row.dataset.driftColumn);
+    }, { signal: pageAbortController.signal });
+    document.querySelectorAll<HTMLElement>('[data-drift-filter]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const next = button.dataset.driftFilter;
+            if (next !== 'all' && next !== 'drifting' && next !== 'stable') return;
+            activeTraceFilter = next;
+            document.querySelectorAll<HTMLElement>('[data-drift-filter]').forEach((candidate) => {
+                const selected = candidate === button;
+                candidate.classList.toggle('active', selected);
+                candidate.setAttribute('aria-pressed', selected ? 'true' : 'false');
+            });
+            applyTraceFilter();
+        }, { signal: pageAbortController.signal });
+    });
+    document.getElementById('drift-trace-search')?.addEventListener('input', (event) => {
+        traceSearchQuery = (event.target as HTMLInputElement).value.trim().toLowerCase();
+        applyTraceFilter();
+    }, { signal: pageAbortController.signal });
+    document.querySelectorAll<HTMLElement>('[data-drift-window-pick]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const mode = button.dataset.driftWindowPick;
+            if (mode === 'latest' || mode === 'worst' || mode === 'first') pickWindow(mode);
+        }, { signal: pageAbortController.signal });
+    });
     tabButtons.forEach((button) => {
         button.addEventListener('click', () => setActiveTab(button.dataset.driftTab || 'overview'), { signal: pageAbortController.signal });
     });
     updateSegmentBySelect();
     setActiveTab(activeTab);
     setIdleStatus();
+    syncOverviewModeUi();
 
     scheduleDriftChartRefresh();
 

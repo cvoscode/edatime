@@ -28,12 +28,21 @@ make dev-dist
 ### Validate Backend And Frontend
 
 ```bash
-cargo fmt --check
-cargo check --all-targets
-cargo test
-npm run check:frontend:all
-npm run check:frontend:budgets
+make verify
 ```
+
+For Rust-only iteration, the Cargo groups can be run independently:
+
+```bash
+cargo fmt-check
+cargo check-all
+cargo lint
+cargo test-all
+cargo test-doc
+cargo bench-check
+```
+
+Run the whole Rust group with `make verify-rust`.
 
 ### Optional Node-Based Frontend Workflow
 
@@ -80,7 +89,7 @@ rebuilding the bundle after every CSS or TypeScript edit.
 
 ### Backend changes
 
-1. Run `cargo check --all-targets`.
+1. Run `cargo check-all` and `cargo lint`.
 2. Run relevant tests.
 3. Update API and architecture docs if contracts changed.
 

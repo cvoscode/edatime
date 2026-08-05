@@ -11,7 +11,7 @@
  */
 
 import type { EChartLike } from './types.js';
-import type { DriftResponse } from './viewModels.js';
+import type { DriftResponse, TimelineMode } from './viewModels.js';
 import { buildTimelineOption } from './viewModels.js';
 import {
     getActiveDetailColumn,
@@ -46,14 +46,13 @@ export function initTimelineChart(
     echarts.getInstanceByDom?.(el)?.dispose?.();
     const chart = echarts.init(el, undefined, { renderer: 'canvas' }) as unknown as EChartLike;
     chart.on('click', (params: any) => {
-        if (params?.seriesType !== 'boxplot') return;
-        const clickedCol = String(params?.seriesName || '');
-        const clickedIndex = Number(params?.dataIndex);
+        if (params?.data?.meta?.ref) return;
+        const clickedCol = String(params?.data?.meta?.column || '');
+        const clickedIndex = Number(params?.data?.meta?.window_index);
         if (!clickedCol || !Number.isFinite(clickedIndex)) return;
-        if (clickedIndex <= 0) return; // reference box (index 0) not a window
         setActiveDetailColumn(clickedCol);
-        setSelectedWindowIdx(clickedIndex - 1);
-        onClick(clickedCol, clickedIndex - 1);
+        setSelectedWindowIdx(clickedIndex);
+        onClick(clickedCol, clickedIndex);
     });
     _timelineChart = chart;
     return chart;
@@ -89,18 +88,18 @@ export function buildTimelineContext(): {
 // ── Rendering ────────────────────────────────────────────────────────────────
 
 /** Render the timeline chart with the current selection state. */
-export function renderTimeline(): void {
+export function renderTimeline(timelineMode: TimelineMode = 'heatmap'): void {
     if (!_timelineChart) return;
     const ctx = buildTimelineContext();
-    _timelineChart.setOption(buildTimelineOption(ctx), { notMerge: false, lazyUpdate: true });
+    _timelineChart.setOption(buildTimelineOption({ ...ctx, timelineMode }), { notMerge: false, lazyUpdate: true });
 }
 
 /**
  * Render the timeline chart with a full reset (new series data).
  * Use when responsesByColumn has changed structurally.
  */
-export function renderTimelineFull(): void {
+export function renderTimelineFull(timelineMode: TimelineMode = 'heatmap'): void {
     if (!_timelineChart) return;
     const ctx = buildTimelineContext();
-    _timelineChart.setOption(buildTimelineOption(ctx), { notMerge: true, lazyUpdate: true });
+    _timelineChart.setOption(buildTimelineOption({ ...ctx, timelineMode }), { notMerge: true, lazyUpdate: true });
 }

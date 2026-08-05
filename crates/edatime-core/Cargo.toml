@@ -2,6 +2,10 @@
 name = "edatime-core"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
 
 [dependencies]
 polars.workspace = true
@@ -21,4 +25,4 @@ toml.workspace = true
 # filters, validation, cache). Keeping this out of the service/query crates
 # avoids the cost of building DataFrame strategies for integration-level code
 # where property tests add little over the existing fixture-based suite.
-proptest = "1"
+proptest.workspace = true

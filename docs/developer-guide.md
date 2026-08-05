@@ -2,6 +2,9 @@
 
 ## Local development
 
+The backend workspace requires Rust 1.86 or newer. Cargo enforces this MSRV
+consistently for every workspace crate.
+
 Run the app:
 
 ```bash
@@ -21,9 +24,15 @@ The app serves the frontend from `frontend/` and listens on `127.0.0.1:3000` by 
 Backend validation:
 
 ```bash
-cargo check --all-targets
-cargo test
+cargo check-all   # workspace, all targets, all features
+cargo lint        # Clippy with warnings denied
+cargo test-all    # workspace tests with all features
+cargo test-doc    # documentation tests
 ```
+
+These repository-local aliases are defined in `.cargo/config.toml`. Run
+`make verify-rust` to execute formatting, compilation, linting, tests,
+doctests, and a benchmark compile as one group.
 
 Frontend architecture and syntax validation (requires Node.js for the TypeScript tooling):
 
@@ -45,10 +54,7 @@ npm run watch:frontend     # watch mode for dev
 Combined local validation sequence:
 
 ```bash
-cargo fmt --check
-cargo check --all-targets
-cargo test
-npm run check:frontend:all
+make verify
 ```
 
 ## Documentation
@@ -92,11 +98,13 @@ If you change filtering, downsampling, or metadata profiling behavior, rerun the
 
 The main CI workflow lives in `.github/workflows/ci.yml` and runs:
 
-- `cargo fmt --check`
-- `cargo check --all-targets`
-- `cargo test`
+- `cargo fmt-check`
+- `cargo check-all`
+- `cargo lint`
+- `cargo test-all`
+- `cargo test-doc`
 - `npm run check:frontend`
-- `cargo bench --workspace --no-run`
+- `cargo bench-check`
 
 This is intentionally a validation pipeline, not a deployment pipeline. There is no production release automation in the repository yet.
 
@@ -121,8 +129,10 @@ Common targets:
 | `make build-release` | Release build |
 | `make run` | Run in release mode |
 | `make dev` | Build frontend + run in debug mode |
-| `make check` | `cargo check` + `clippy` + `tsc` |
-| `make test` | `cargo test` + frontend syntax check |
+| `make check` | Static Rust, frontend, contract, and hygiene checks |
+| `make test` | Rust and frontend tests |
+| `make verify-rust` | All Rust quality groups |
+| `make verify` | Complete backend + frontend pre-merge gate |
 | `make frontend-prod` | Minified production frontend build |
 | `make docker` | Build Docker image |
 | `make docker-run` | Run Docker image |

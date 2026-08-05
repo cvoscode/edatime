@@ -74,8 +74,8 @@ describe('selection — initial state', () => {
         expect(getSelectedWindowIdx()).toBeNull();
     });
 
-    it('starts with default windowSort', () => {
-        expect(getWindowSort()).toBe('time-asc');
+    it('starts with newest windows first', () => {
+        expect(getWindowSort()).toBe('time-desc');
     });
 });
 
@@ -151,12 +151,12 @@ describe('selection — getActiveResponse', () => {
 describe('selection — setResponses', () => {
     beforeEach(() => clearSelection());
 
-    it('auto-selects first column and first window', () => {
+    it('auto-selects first column and latest window', () => {
         const resp = mockResponse();
         const map = new Map([['col_a', resp]]);
         setResponses(map);
         expect(getActiveDetailColumn()).toBe('col_a');
-        expect(getSelectedWindowIdx()).toBe(0);
+        expect(getSelectedWindowIdx()).toBe(resp.windows.length - 1);
     });
 
     it('handles empty map', () => {

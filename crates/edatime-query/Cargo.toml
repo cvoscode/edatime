@@ -2,6 +2,10 @@
 name = "edatime-query"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
 
 [dependencies]
 edatime-core = { path = "../edatime-core" }
@@ -18,7 +22,7 @@ rayon.workspace = true
 minmaxlttb.workspace = true
 
 [dev-dependencies]
-criterion = "0.5.1"
+criterion.workspace = true
 
 [[bench]]
 name = "downsample"

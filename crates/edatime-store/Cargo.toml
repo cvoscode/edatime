@@ -2,6 +2,10 @@
 name = "edatime-store"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
 
 [dependencies]
 edatime-core = { path = "../edatime-core" }
@@ -14,7 +18,7 @@ thiserror.workspace = true
 tracing.workspace = true
 bytes.workspace = true
 tokio.workspace = true
-deadpool-postgres = { version = "0.14", features = ["serde"] }
-tokio-postgres = { version = "0.7", features = ["with-chrono-0_4"] }
+deadpool-postgres.workspace = true
+tokio-postgres.workspace = true
 chrono.workspace = true
 futures-util.workspace = true

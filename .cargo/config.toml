@@ -1,0 +1,19 @@
+# Repository-wide Cargo commands. Keep these aliases atomic so they remain
+# composable from the Makefile and CI without requiring an extra task runner.
+
+[alias]
+# Formatting
+fmt-check = ["fmt", "--all", "--", "--check"]
+
+# Compilation
+check-all = ["check", "--workspace", "--all-targets", "--all-features"]
+
+# Linting
+lint = ["clippy", "--workspace", "--all-targets", "--all-features", "--", "-D", "warnings"]
+
+# Testing (code and documentation are separate so failures stay categorized)
+test-all = ["test", "--workspace", "--all-features", "--lib", "--bins", "--tests"]
+test-doc = ["test", "--workspace", "--all-features", "--doc"]
+
+# Benchmarks (compile only; running benchmarks is intentionally separate)
+bench-check = ["bench", "--workspace", "--no-run"]

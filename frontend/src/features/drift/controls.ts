@@ -19,6 +19,7 @@ import { formatUtcDatetimeInputValue } from '../../utils/datetimeInput.js';
 import { getColumnSeriesColor } from '../../utils/seriesColors.js';
 import { onNavigationChange } from '../../platform/navigationEvents.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
+import { setWindowSort } from './selection.js';
 
 export interface DriftControlCallbacks {
     getSelectedColumns: () => string[];
@@ -185,7 +186,7 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
         ? pageMetadata.numeric_columns.filter((c: string) => c && c.toLowerCase() !== 'ts')
         : [];
 
-    selectedCols = new Set(numericCols.length > 0 ? [numericCols[0]!] : []);
+    selectedCols = new Set(numericCols);
     pickerLabelEl = colPickerLabel;
     selectionChangeCallback = cb.onSelectionChange;
 
@@ -244,6 +245,7 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
 
     // ── Sort select ─────────────────────────────────────────────────────────
     sortSelect?.addEventListener('change', () => {
+        setWindowSort(getDropdownValue('drift-sort-select') || 'time-desc');
         cb.renderWindowList();
     }, listenerOptions);
 
@@ -271,7 +273,7 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
         // Latest-N is not the active mode — usage_issue.md H4 — so the
         // toolbar only surfaces relevant knobs and the helper hint does
         // not float as a stray tooltip in the toolbar's right gutter.
-        const fieldContainer = latestNInput.closest<HTMLElement>('.scatter-toolbar__field');
+        const fieldContainer = latestNInput.closest<HTMLElement>('.scatter-toolbar__field, .drift-toolbar__field');
         if (fieldContainer) {
             fieldContainer.hidden = !enabled;
             fieldContainer.style.display = enabled ? '' : 'none';
@@ -310,7 +312,7 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
     }, listenerOptions);
 
     colSelectNoneBtn?.addEventListener('click', () => {
-        selectedCols = new Set(numericCols.length > 0 ? [numericCols[0]!] : []);
+        selectedCols = new Set(numericCols);
         renderColumnChips(colPickerList, numericCols);
         selectionChangeCallback?.();
     }, listenerOptions);
@@ -367,7 +369,7 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
             ? pageMetadata.numeric_columns.filter((c: string) => c && c.toLowerCase() !== 'ts')
             : [];
         numericCols = cols;
-        selectedCols = new Set(numericCols.length > 0 ? [numericCols[0]!] : []);
+        selectedCols = new Set(numericCols);
         repopulateColumnSelect(colPickerList, cols);
         selectionChangeCallback?.();
         cb.scheduleDriftChartRefresh();

@@ -24,7 +24,7 @@ const _state: SelectionState = {
     responsesByColumn: new Map(),
     activeDetailColumn: null,
     selectedWindowIdx: null,
-    windowSort: 'time-asc',
+    windowSort: 'time-desc',
 };
 
 // ── Accessors ────────────────────────────────────────────────────────────────
@@ -76,7 +76,7 @@ export function getActiveResponse(): DriftResponse | null {
     return _state.responsesByColumn.get(_state.activeDetailColumn) ?? null;
 }
 
-/** Populates responsesByColumn and auto-selects the first column + first window. */
+/** Populates responsesByColumn and auto-selects the first column + latest window. */
 export function setResponses(responses: Map<string, DriftResponse>): void {
     _state.responsesByColumn = responses;
     // Auto-select first column and first window
@@ -85,7 +85,7 @@ export function setResponses(responses: Map<string, DriftResponse>): void {
         const firstCol = cols[0]!;
         _state.activeDetailColumn = firstCol;
         const firstResp = responses.get(firstCol)!;
-        _state.selectedWindowIdx = firstResp.windows.length > 0 ? 0 : null;
+        _state.selectedWindowIdx = firstResp.windows.length > 0 ? firstResp.windows.length - 1 : null;
     } else {
         _state.activeDetailColumn = null;
         _state.selectedWindowIdx = null;

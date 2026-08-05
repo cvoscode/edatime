@@ -14,11 +14,11 @@ describe('drift summary panels', () => {
     it('renders global and column summaries from evaluated responses', () => {
         const panels = buildDriftSummaryPanelHtml(new Map([['temperature', response]]));
 
-        expect(panels.summaryStrip).toContain('Any drift detected?');
+        expect(panels.summaryStrip).toContain('Data drift detected');
         expect(panels.summaryStrip).toContain('drift-red');
         expect(panels.columnSummary).toContain('temperature');
-        expect(panels.columnSummary).toContain('Latest PSI/Wass: 0.260');
-        expect(panels.columnSummary).toContain('Flagged windows: 1/1');
+        expect(panels.columnSummary).toContain('100% (1/1)');
+        expect(panels.columnSummary).toContain('PSI (0.260)');
     });
 
     it('clears both summaries with no responses', () => {

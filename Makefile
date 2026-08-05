@@ -1,4 +1,10 @@
-.PHONY: build build-release run dev dev-dist check test docs docs-clean clean docker bench-contract bench-http bench-cancel bench-soak check-contract test-contract check-backend-hygiene frontend-prod
+.PHONY: \
+	build build-release run dev dev-dist \
+	fmt fmt-check check-rust lint test-rust test-docs bench-check verify-rust \
+	check-frontend test-frontend check test verify \
+	check-arch check-contract test-contract check-backend-hygiene \
+	docs docs-clean clean docker docker-run frontend-prod \
+	bench bench-contract bench-http bench-cancel bench-soak
 
 # Default target
 build: frontend-prod
@@ -19,25 +25,56 @@ dev-dist:
 	@if command -v node >/dev/null 2>&1; then npm run build:prod; else echo "Node.js is required to build the packaged frontend."; exit 1; fi
 	EDATIME_FRONTEND_DIR=$(PWD)/crates/edatime-bin/frontend/dist cargo run -p edatime-bin --bin edatime
 
-# Type-check and lint
-check:
-	cargo check --workspace --all-targets
+# Rust quality groups. The underlying Cargo aliases live in
+# .cargo/config.toml so the same commands are available without Make.
+fmt:
+	cargo fmt --all
+
+fmt-check:
+	cargo fmt-check
+
+check-rust:
+	cargo check-all
+
+lint:
+	cargo lint
+
+test-rust:
+	cargo test-all
+
+test-docs:
+	cargo test-doc
+
+bench-check:
+	cargo bench-check
+
+verify-rust: fmt-check check-rust lint test-rust test-docs bench-check
+
+# Frontend and repository quality groups.
+check-frontend:
+	npm run check:frontend
+	npm run check:frontend:arch
+	npm run check:frontend:reachability
+	npm run check:repo-hygiene
+
+test-frontend:
+	npm test
+
+# Fast static validation. Use `make verify` for the complete pre-merge gate.
+check: check-rust lint check-frontend
 	node scripts/check_api_contract.mjs
 	node scripts/generate_api_reference.mjs --check
 	node scripts/check_backend_hygiene.mjs
-	cargo clippy --workspace --all-targets -- -D warnings
-	@if command -v node >/dev/null 2>&1; then cd frontend && npx tsc --noEmit; fi
-	@if command -v node >/dev/null 2>&1; then node scripts/check-frontend-architecture.mjs; node scripts/check-frontend-reachability.mjs; node scripts/check-repo-hygiene.mjs; fi
 
 # Frontend architecture checker only (fast iteration)
 check-arch:
 	@if command -v node >/dev/null 2>&1; then node scripts/check-frontend-architecture.mjs; node scripts/check-frontend-reachability.mjs; fi
 
-# Run tests and benchmarks
-test:
-	cargo test
-	@if command -v node >/dev/null 2>&1; then node scripts/check-frontend.mjs; fi
-	@if command -v node >/dev/null 2>&1; then node scripts/check-frontend-architecture.mjs; fi
+# Run all backend and frontend tests.
+test: test-rust test-frontend
+
+# Complete local pre-merge gate, including formatting, doctests, and benchmark builds.
+verify: fmt-check check test test-docs bench-check
 
 docs:
 	.venv/bin/python -m sphinx -b html docs docs/_build/html

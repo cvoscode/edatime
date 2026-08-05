@@ -242,6 +242,10 @@ describe('drift page accessibility and debug metadata', () => {
               </div>
               <select id="drift-window-select"><option value="daily" selected>Daily</option></select>
               <select id="drift-plot-type"><option value="box" selected>Box</option></select>
+              <select id="drift-overview-plot-type"><option value="heatmap" selected>Severity</option><option value="grouped">Grouped</option></select>
+              <h2 id="drift-overview-title"></h2>
+              <p id="drift-overview-description"></p>
+              <div id="drift-overview-legend"></div>
               <select id="drift-ref-preset"><option value="50" selected>50</option></select>
               <select id="drift-evaluation-mode"><option value="all" selected>All later windows</option><option value="latest">Latest window only</option><option value="latest-n">Latest N windows</option></select>
               <input id="drift-latest-n" type="number" value="3" />
@@ -377,7 +381,8 @@ describe('drift page accessibility and debug metadata', () => {
         });
 
         expect(document.getElementById('drift-overview-panel')?.textContent).toContain('psi_major');
-        expect(document.getElementById('drift-detail-stats')?.textContent).toContain('Triggered by');
+        expect(document.getElementById('drift-detail-stats')?.textContent).toContain('Measure');
+        expect(document.getElementById('drift-detail-stats')?.textContent).toContain('Conclusion');
     });
 
     it('replaces the instructional drift status with a compute summary and all-flagged hint', async () => {
@@ -449,6 +454,31 @@ describe('drift page accessibility and debug metadata', () => {
         expect(document.querySelector('[data-drift-tab="timeline"]')?.textContent).toContain('Timeline plots');
         expect((document.querySelector('#page-drift .drift-layout') as HTMLElement | null)?.hidden).toBe(false);
         expect(document.getElementById('drift-overview-panel')?.hidden).toBe(true);
+    });
+
+    it('switches the overview to grouped distributions over time', async () => {
+        const { initDriftPage } = await import('./page.js');
+        await initDriftPage({
+            numeric_columns: ['value'],
+            columns: [{ name: 'value', dtype: 'Float64' }],
+            time_range: { min: 0, max: 1_000 },
+        });
+
+        (document.getElementById('drift-ref-start') as HTMLInputElement).value = '1970-01-01T00:00';
+        (document.getElementById('drift-ref-end') as HTMLInputElement).value = '1970-01-01T00:10';
+        (document.getElementById('drift-compute-btn') as HTMLButtonElement).click();
+        await vi.waitFor(() => {
+            expect(document.getElementById('drift-status')?.textContent).toContain('Drift analysis complete');
+        });
+
+        const overviewSelect = document.getElementById('drift-overview-plot-type') as HTMLSelectElement;
+        overviewSelect.value = 'grouped';
+        overviewSelect.dispatchEvent(new Event('change', { bubbles: true }));
+
+        expect(document.getElementById('drift-overview-title')?.textContent).toBe('Grouped distributions over time');
+        expect(document.getElementById('drift-overview-description')?.textContent).toContain('interquartile range');
+        expect(document.getElementById('drift-overview-legend')?.hidden).toBe(true);
+        expect(document.getElementById('drift-timeline-chart')?.getAttribute('aria-label')).toBe('Grouped trace distributions over time');
     });
 
     it('releases prior page listeners before re-initializing the Drift page', async () => {

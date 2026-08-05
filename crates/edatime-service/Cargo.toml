@@ -2,6 +2,10 @@
 name = "edatime-service"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
 
 [dependencies]
 edatime-core = { path = "../edatime-core" }
@@ -21,22 +25,22 @@ futures-util.workspace = true
 http-body.workspace = true
 chrono.workspace = true
 axum.workspace = true
-base64 = "0.22"
-tower-http = { version = "0.6.10", features = ["cors", "compression-gzip", "fs", "set-header", "trace"] }
-minmaxlttb = "0.1.4"
-rustfft = "6.2.0"
+base64.workspace = true
+tower-http.workspace = true
+minmaxlttb.workspace = true
+rustfft.workspace = true
 tempfile = { workspace = true }
-ndarray = "0.16"
-statrs = "0.18"
-rand = { version = "0.8", features = ["std"] }
-rayon = "1.10"
-sha2 = "0.10.9"
-zip = { version = "0.6.6", default-features = false }
+ndarray.workspace = true
+statrs.workspace = true
+rand.workspace = true
+rayon.workspace = true
+sha2.workspace = true
+zip.workspace = true
 
 [dev-dependencies]
-criterion = "0.5.1"
-http-body-util = "0.1"
-tower = { version = "0.5", features = ["util"] }
+criterion.workspace = true
+http-body-util.workspace = true
+tower.workspace = true
 
 [[bench]]
 name = "causal"

@@ -217,9 +217,9 @@ export interface GlobalDriftSummary {
 // ── Formatters ───────────────────────────────────────────────────────────────────
 
 export function driftColor(level: string): string {
-    if (level === 'red') return COLOR_RED;
-    if (level === 'yellow') return COLOR_YELLOW;
-    return COLOR_GREEN;
+    if (level === 'red') return getPaletteColor('danger') ?? COLOR_RED;
+    if (level === 'yellow') return getPaletteColor('warning') ?? COLOR_YELLOW;
+    return getPaletteColor('success') ?? COLOR_GREEN;
 }
 
 export function formatValue(v: number): string {
@@ -349,12 +349,11 @@ export function buildGlobalSummary(
     const worstSeverity = summaries.reduce<DriftWindowStats['drift_level']>((worst, summary) => {
         return severityScore(summary.worstLevel) > severityScore(worst) ? summary.worstLevel : worst;
     }, 'green');
-    const flaggedCoverage = summaries.length > 0 ? columnsFlagged / summaries.length : 0;
     return {
         anyDrift: columnsFlagged > 0,
         columnsFlagged,
         totalColumns: summaries.length,
-        latestSeverity: flaggedCoverage > 0.9 && latestSeverity === 'red' ? 'yellow' : latestSeverity,
+        latestSeverity,
         worstSeverity,
     };
 }
@@ -419,27 +418,23 @@ export function statusSummary(
 // ── Tooltip formatter (module-level to avoid per-render closure allocation) ─────
 
 export const timelineTooltipFormatter = (params: any): string => {
-    const v = params?.value || [];
     const meta = params?.data?.meta || {};
+    if (meta.ref) {
+        return [
+            `<strong>${meta.column || params.seriesName}</strong>`,
+            `${meta.range_label || 'Reference baseline'}`,
+            `Reference samples: ${meta.count ?? '-'}`,
+        ].join('<br/>');
+    }
     const lines = [
         `<strong>${meta.column || params.seriesName}</strong>`,
         `${meta.range_label || params.name || ''}`,
-        `Q05: ${formatValue(v[0])}`,
-        `Q25: ${formatValue(v[1])}`,
-        `Q50: ${formatValue(v[2])}`,
-        `Q75: ${formatValue(v[3])}`,
-        `Q95: ${formatValue(v[4])}`,
+        `Drift: ${(meta.drift_level || '-').toUpperCase()}`,
+        `PSI: ${isFinite(meta.psi) ? Number(meta.psi).toFixed(4) : '-'}`,
+        `Wasserstein: ${isFinite(meta.wasserstein) ? formatValue(Number(meta.wasserstein)) : '-'}`,
+        `KS p-value: ${isFinite(meta.ks_pvalue) ? Number(meta.ks_pvalue).toFixed(4) : '-'}`,
+        `Triggered by: ${formatTriggerReasons(meta.trigger_reasons)}`,
     ];
-    if (meta.ref) {
-        lines.push(`Reference samples: ${meta.count ?? '-'}`);
-    } else {
-        lines.push(`Count: ${meta.count ?? '-'}`);
-        lines.push(`PSI: ${isFinite(meta.psi) ? Number(meta.psi).toFixed(4) : '-'}`);
-        lines.push(`KS: ${isFinite(meta.ks_stat) ? Number(meta.ks_stat).toFixed(3) : '-'}`);
-        lines.push(`Wasserstein: ${isFinite(meta.wasserstein) ? formatValue(Number(meta.wasserstein)) : '-'}`);
-        lines.push(`Triggered by: ${formatTriggerReasons(meta.trigger_reasons)}`);
-        lines.push(`Drift: ${(meta.drift_level || '-').toUpperCase()}`);
-    }
     return lines.join('<br/>');
 };
 
@@ -449,10 +444,296 @@ export interface TimelineOptionContext {
     responsesByColumn: Map<string, DriftResponse>;
     activeDetailColumn: string | null;
     selectedWindowIdx: number | null;
+    timelineMode?: TimelineMode;
+}
+
+export type TimelineMode = 'heatmap' | 'grouped' | 'boxplot' | 'violin';
+
+function distributionBox(stats: WindowDistributionStats): number[] {
+    const quantiles = stats.quantiles.filter(Number.isFinite);
+    if (quantiles.length >= 5) {
+        return [stats.min, quantiles[1]!, quantiles[Math.floor(quantiles.length / 2)]!, quantiles[quantiles.length - 2]!, stats.max];
+    }
+    if (quantiles.length >= 3) return [stats.min, quantiles[0]!, quantiles[1]!, quantiles[2]!, stats.max];
+    return [stats.min, stats.min, stats.mean, stats.max, stats.max];
+}
+
+function normalizedCounts(values: number[]): number[] {
+    const max = Math.max(1, ...values);
+    return values.map((value) => value / max);
+}
+
+function groupedTimelineOption(
+    responsesByColumn: Map<string, DriftResponse>,
+    activeDetailColumn: string | null,
+    selectedWindowIdx: number | null,
+): Record<string, unknown> {
+    const responses = Array.from(responsesByColumn.values());
+    const longestResponse = responses.reduce((longest, response) => (
+        response.windows.length > longest.windows.length ? response : longest
+    ));
+    const categories = ['Reference', ...longestResponse.windows.map((window) => compactTimelineLabel(window.label))];
+    const borderColor = getPaletteColor('border') ?? DRIFT_DIM();
+    const visibleCount = 18;
+    const start = categories.length > visibleCount ? Math.max(0, 100 - (visibleCount / categories.length) * 100) : 0;
+    const series: any[] = [];
+
+    responses.forEach((response, responseIndex) => {
+        const color = COLUMN_PALETTE[responseIndex % COLUMN_PALETTE.length]!;
+        const stats: WindowDistributionStats[] = [response.reference, ...response.windows];
+        const referenceBox = distributionBox(response.reference);
+        const referenceMedian = referenceBox[2]!;
+        const referenceIqr = referenceBox[3]! - referenceBox[1]!;
+        const fallbackScale = Number.isFinite(response.reference.std) && response.reference.std > 0
+            ? response.reference.std
+            : response.reference.max - response.reference.min;
+        const scale = Number.isFinite(referenceIqr) && referenceIqr > 0
+            ? referenceIqr
+            : Number.isFinite(fallbackScale) && fallbackScale > 0 ? fallbackScale : 1;
+        const boxes = stats.map(distributionBox);
+        const lower = boxes.map((box) => (box[1]! - referenceMedian) / scale);
+        const band = boxes.map((box) => Math.max(0, (box[3]! - box[1]!) / scale));
+        const medians = boxes.map((box, index) => {
+            const window = index === 0 ? null : response.windows[index - 1] ?? null;
+            return {
+                value: (box[2]! - referenceMedian) / scale,
+                symbol: index > 0 && activeDetailColumn === response.column && selectedWindowIdx === index - 1 ? 'circle' : 'none',
+                symbolSize: index > 0 && activeDetailColumn === response.column && selectedWindowIdx === index - 1 ? 7 : 0,
+                meta: {
+                    column: response.column,
+                    window_index: index - 1,
+                    range_label: stats[index]?.label || categories[index],
+                    ref: index === 0,
+                    count: stats[index]?.count,
+                    drift_level: window?.drift_level,
+                    box,
+                    normalized_box: box.map((value) => (value - referenceMedian) / scale),
+                },
+            };
+        });
+        const stack = `distribution-${responseIndex}`;
+
+        series.push(
+            {
+                name: response.column,
+                type: 'line',
+                data: medians,
+                connectNulls: false,
+                showSymbol: false,
+                lineStyle: { color, width: activeDetailColumn === response.column ? 2.2 : 1.5 },
+                itemStyle: { color },
+                emphasis: { focus: 'series' },
+                driftDistributionPart: 'median',
+            },
+            {
+                name: response.column,
+                type: 'line',
+                stack,
+                stackStrategy: 'all',
+                data: lower,
+                symbol: 'none',
+                silent: true,
+                lineStyle: { opacity: 0 },
+                areaStyle: { opacity: 0 },
+                emphasis: { disabled: true },
+                tooltip: { show: false },
+                driftDistributionPart: 'lower-quartile',
+            },
+            {
+                name: response.column,
+                type: 'line',
+                stack,
+                stackStrategy: 'all',
+                data: band,
+                symbol: 'none',
+                silent: true,
+                lineStyle: { opacity: 0 },
+                areaStyle: { color, opacity: 0.12 },
+                emphasis: { disabled: true },
+                tooltip: { show: false },
+                driftDistributionPart: 'interquartile-range',
+            },
+        );
+    });
+
+    return {
+        backgroundColor: 'transparent',
+        animationDuration: 160,
+        color: responses.map((_, index) => COLUMN_PALETTE[index % COLUMN_PALETTE.length]),
+        tooltip: {
+            trigger: 'axis',
+            confine: true,
+            borderColor,
+            backgroundColor: TOOLTIP_BG(),
+            textStyle: { color: DRIFT_TEXT(), fontSize: 11 },
+            formatter: (params: any) => {
+                const items = (Array.isArray(params) ? params : [params]).filter((item: any) => item?.data?.meta);
+                const heading = items[0]?.axisValueLabel || items[0]?.name || '';
+                const rows = items.map((item: any) => {
+                    const meta = item.data.meta;
+                    const box = meta.box ?? [];
+                    return [
+                        `<span style="color:${item.color}">●</span> <strong>${meta.column}</strong>: ${formatValue(box[2])}`,
+                        `<span style="color:${DRIFT_TEXT_DIM()}">IQR ${formatValue(box[1])} – ${formatValue(box[3])}</span>`,
+                    ].join(' ');
+                });
+                return [`<strong>${heading}</strong>`, ...rows].join('<br/>');
+            },
+        },
+        legend: {
+            type: 'scroll',
+            data: responses.map((response) => response.column),
+            top: 0,
+            right: 12,
+            left: 56,
+            itemWidth: 14,
+            itemHeight: 3,
+            textStyle: { color: DRIFT_TEXT_DIM(), fontSize: 9 },
+        },
+        grid: { left: 54, right: 16, top: 28, bottom: 48 },
+        xAxis: {
+            type: 'category',
+            data: categories,
+            boundaryGap: false,
+            axisLabel: { color: DRIFT_TEXT_DIM(), fontSize: 9, hideOverlap: true },
+            axisTick: { show: false },
+            axisLine: { lineStyle: { color: borderColor } },
+        },
+        yAxis: {
+            type: 'value',
+            name: 'Shift (reference IQRs)',
+            nameTextStyle: { color: DRIFT_TEXT_DIM(), fontSize: 9 },
+            axisLabel: { color: DRIFT_TEXT_DIM(), fontSize: 9, formatter: (value: number) => formatValue(value) },
+            splitLine: { lineStyle: { color: borderColor, opacity: 0.4 } },
+        },
+        dataZoom: [
+            { type: 'inside', xAxisIndex: 0, start, end: 100, zoomOnMouseWheel: true, moveOnMouseMove: true },
+            { type: 'slider', xAxisIndex: 0, start, end: 100, height: 12, bottom: 8, borderColor: 'transparent', fillerColor: `${COLOR_REF()}24`, handleSize: 0, textStyle: { color: DRIFT_TEXT_DIM(), fontSize: 8 } },
+        ],
+        series,
+    };
+}
+
+function timelineDistributionOption(
+    response: DriftResponse,
+    selectedWindowIdx: number | null,
+    mode: 'boxplot' | 'violin',
+): Record<string, unknown> {
+    const borderColor = getPaletteColor('border') ?? DRIFT_DIM();
+    const categories = ['Reference', ...response.windows.map((window) => compactTimelineLabel(window.label))];
+    const allStats: WindowDistributionStats[] = [response.reference, ...response.windows];
+    const visibleCount = 18;
+    const start = categories.length > visibleCount ? Math.max(0, 100 - (visibleCount / categories.length) * 100) : 0;
+    const common = {
+        backgroundColor: 'transparent',
+        animationDuration: 160,
+        tooltip: {
+            trigger: 'item',
+            confine: true,
+            borderColor,
+            backgroundColor: TOOLTIP_BG(),
+            textStyle: { color: DRIFT_TEXT(), fontSize: 11 },
+            formatter: (params: any) => {
+                const meta = params?.data?.meta ?? {};
+                const box = meta.box ?? [];
+                return [
+                    `<strong>${response.column}</strong>`,
+                    meta.range_label ?? params.name ?? '',
+                    `Median: ${formatValue(box[2])}`,
+                    `IQR: ${formatValue(box[1])} – ${formatValue(box[3])}`,
+                    meta.ref ? 'Reference baseline' : `Drift: ${(meta.drift_level ?? '-').toUpperCase()}`,
+                ].join('<br/>');
+            },
+        },
+        grid: { left: 54, right: 16, top: 12, bottom: 48 },
+        xAxis: {
+            type: 'category',
+            data: categories,
+            axisLabel: { color: DRIFT_TEXT_DIM(), fontSize: 9, hideOverlap: true },
+            axisTick: { show: false },
+            axisLine: { lineStyle: { color: borderColor } },
+        },
+        yAxis: {
+            type: 'value',
+            name: response.column,
+            nameTextStyle: { color: DRIFT_TEXT_DIM(), fontSize: 9 },
+            axisLabel: { color: DRIFT_TEXT_DIM(), fontSize: 9 },
+            splitLine: { lineStyle: { color: borderColor, opacity: 0.4 } },
+        },
+        dataZoom: [
+            { type: 'inside', xAxisIndex: 0, start, end: 100, zoomOnMouseWheel: true, moveOnMouseMove: true },
+            { type: 'slider', xAxisIndex: 0, start, end: 100, height: 12, bottom: 8, borderColor: 'transparent', fillerColor: `${COLOR_REF()}24`, handleSize: 0, textStyle: { color: DRIFT_TEXT_DIM(), fontSize: 8 } },
+        ],
+    };
+
+    const items = allStats.map((stats, index) => {
+        const window = index === 0 ? null : response.windows[index - 1]!;
+        const selected = index > 0 && selectedWindowIdx === index - 1;
+        const box = distributionBox(stats);
+        const color = index === 0 ? COLOR_REF() : driftColor(window!.drift_level);
+        return {
+            value: box,
+            itemStyle: { color: `${color}32`, borderColor: color, borderWidth: selected ? 2.2 : 1.2 },
+            meta: {
+                column: response.column,
+                window_index: index - 1,
+                range_label: stats.label || (index === 0 ? 'Reference baseline' : categories[index]),
+                drift_level: window?.drift_level,
+                ref: index === 0,
+                box,
+            },
+        };
+    });
+
+    if (mode === 'boxplot') {
+        return { ...common, series: [{ name: 'Distribution summary', type: 'boxplot', data: items }] };
+    }
+
+    const violinData = allStats.map((stats, index) => {
+        const window = index === 0 ? null : response.windows[index - 1]!;
+        const selected = index > 0 && selectedWindowIdx === index - 1;
+        const color = index === 0 ? COLOR_REF() : driftColor(window!.drift_level);
+        return {
+            value: [index, stats.min, stats.max],
+            itemStyle: { color: `${color}36`, stroke: color, lineWidth: selected ? 2.2 : 1.1 },
+            meta: {
+                column: response.column,
+                window_index: index - 1,
+                range_label: stats.label || (index === 0 ? 'Reference baseline' : categories[index]),
+                drift_level: window?.drift_level,
+                ref: index === 0,
+                box: distributionBox(stats),
+            },
+        };
+    });
+    const renderItem = (params: any, api: any) => {
+        const index = params.dataIndex;
+        const stats = allStats[index];
+        if (!stats || stats.hist_bins.length < 2) return null;
+        const density = normalizedCounts(stats.hist_counts);
+        const halfWidth = Math.max(2, Math.min(16, Math.abs(api.size([1, 0])[0]) * 0.35));
+        const centers = stats.hist_bins.slice(0, -1).map((value, binIndex) => (value + stats.hist_bins[binIndex + 1]!) / 2);
+        const right = centers.map((value, binIndex) => {
+            const point = api.coord([index, value]);
+            return [point[0] + halfWidth * (density[binIndex] ?? 0), point[1]];
+        });
+        const left = centers.slice().reverse().map((value, reverseIndex) => {
+            const binIndex = centers.length - 1 - reverseIndex;
+            const point = api.coord([index, value]);
+            return [point[0] - halfWidth * (density[binIndex] ?? 0), point[1]];
+        });
+        const itemStyle = violinData[index]?.itemStyle;
+        return {
+            type: 'polygon',
+            shape: { points: [...right, ...left] },
+            style: { fill: itemStyle?.color, stroke: itemStyle?.stroke, lineWidth: itemStyle?.lineWidth },
+        };
+    };
+    return { ...common, series: [{ name: 'Distribution density', type: 'custom', renderItem, data: violinData, encode: { x: 0, y: [1, 2] } }] };
 }
 
 export function buildTimelineOption(ctx: TimelineOptionContext): Record<string, unknown> {
-    const { responsesByColumn, activeDetailColumn, selectedWindowIdx } = ctx;
+    const { responsesByColumn, activeDetailColumn, selectedWindowIdx, timelineMode = 'heatmap' } = ctx;
     const columns = Array.from(responsesByColumn.keys());
     const first = columns.length > 0 ? responsesByColumn.get(columns[0]) ?? null : null;
     if (!first) {
@@ -462,78 +743,77 @@ export function buildTimelineOption(ctx: TimelineOptionContext): Record<string, 
         };
     }
 
-    const categories = ['Reference', ...first.windows.map((w) => w.label)];
-    const visibleTickStep = Math.max(1, Math.ceil(categories.length / 8));
+    if (timelineMode === 'grouped') {
+        return groupedTimelineOption(responsesByColumn, activeDetailColumn, selectedWindowIdx);
+    }
 
-    const series = columns.map((col, colIdx) => {
-        const response = responsesByColumn.get(col)!;
-        const ref = response.reference;
-        const refQuant = ref.quantiles;
-        const refSelected = activeDetailColumn === col && selectedWindowIdx === null;
+    if (timelineMode !== 'heatmap') {
+        const active = responsesByColumn.get(activeDetailColumn ?? '') ?? first;
+        return timelineDistributionOption(active, selectedWindowIdx, timelineMode);
+    }
 
-        const data: any[] = [
-            {
-                value: [refQuant[0], refQuant[1], refQuant[2], refQuant[3], refQuant[4]],
-                itemStyle: {
-                    color: 'rgba(0,168,255,0.18)',
-                    borderColor: COLOR_REF(),
-                    borderWidth: refSelected ? 2.5 : 1.3,
+    const firstWindowDuration = first.windows[0]
+        ? Math.max(1, first.windows[0].end_ms - first.windows[0].start_ms)
+        : Math.max(1, first.reference.end_ms - first.reference.start_ms);
+    const estimatedReferenceSlots = Math.round(
+        Math.max(1, first.reference.end_ms - first.reference.start_ms) / firstWindowDuration,
+    );
+    const referenceSlots = Math.max(1, Math.min(240, estimatedReferenceSlots));
+    const referenceStartLabel = Number.isFinite(first.reference.start_ms)
+        ? new Date(first.reference.start_ms).toISOString().slice(0, 10)
+        : 'Reference';
+    const categories = [
+        ...Array.from({ length: referenceSlots }, (_, index) => index === 0 ? referenceStartLabel : ''),
+        ...first.windows.map((window) => compactTimelineLabel(window.label)),
+    ];
+    const visibleTickStep = Math.max(1, Math.ceil(categories.length / 7));
+    const surfaceColor = getPaletteColor('surface') ?? '#FFFFFF';
+    const referenceColor = getPaletteColor('border') ?? '#CDD6E0';
+    const heatmapData: any[] = [];
+
+    columns.forEach((column, columnIndex) => {
+        const response = responsesByColumn.get(column)!;
+        for (let referenceIndex = 0; referenceIndex < referenceSlots; referenceIndex += 1) {
+            heatmapData.push({
+                value: [referenceIndex, columnIndex, -1],
+                itemStyle: { color: referenceColor, borderColor: surfaceColor, borderWidth: 0.8 },
+                meta: {
+                    column,
+                    ref: true,
+                    count: response.reference.count,
+                    range_label: response.reference.label || 'Reference baseline',
                 },
-                meta: { column: col, ref: true, count: ref.count },
-            },
-        ];
-
-        response.windows.forEach((w, wIdx) => {
-            const colr = w.count < 5 ? DRIFT_DIM() : driftColor(w.drift_level);
-            const isSelected = activeDetailColumn === col && selectedWindowIdx === wIdx;
-            data.push({
-                value: [w.quantiles[0], w.quantiles[1], w.quantiles[2], w.quantiles[3], w.quantiles[4]],
+            });
+        }
+        response.windows.forEach((window, windowIndex) => {
+            const value = window.drift_level === 'red' ? 2 : window.drift_level === 'yellow' ? 1 : 0;
+            const color = window.count < 5 ? DRIFT_DIM() : driftColor(window.drift_level);
+            const selected = activeDetailColumn === column && selectedWindowIdx === windowIndex;
+            heatmapData.push({
+                value: [referenceSlots + windowIndex, columnIndex, value],
                 itemStyle: {
-                    color: `${colr}33`,
-                    borderColor: colr,
-                    borderWidth: isSelected ? 2.4 : 1.2,
+                    color,
+                    borderColor: selected ? (getPaletteColor('accent') ?? '#006FB8') : surfaceColor,
+                    borderWidth: selected ? 2 : 0.8,
                 },
                 meta: {
-                    column: col,
-                    window_index: wIdx,
-                    label: w.label,
-                    range_label: w.label,
-                    count: w.count,
-                    psi: w.psi,
-                    ks_stat: w.ks_stat,
-                    wasserstein: w.wasserstein,
-                    drift_level: w.drift_level,
-                    trigger_reasons: w.trigger_reasons,
+                    column,
+                    window_index: windowIndex,
+                    range_label: window.label,
+                    count: window.count,
+                    psi: window.psi,
+                    ks_pvalue: window.ks_pvalue,
+                    wasserstein: window.wasserstein,
+                    drift_level: window.drift_level,
+                    trigger_reasons: window.trigger_reasons,
                 },
             });
         });
-
-        return {
-            name: col,
-            type: 'boxplot',
-            itemStyle: {
-                borderColor: hashColor(col, colIdx),
-            },
-            emphasis: {
-                focus: 'series',
-            },
-            data,
-        };
     });
 
     return {
         backgroundColor: 'transparent',
-        animationDuration: 200,
-        legend: {
-            top: 2,
-            left: 56,
-            right: 96,
-            itemGap: 12,
-            itemWidth: 12,
-            itemHeight: 8,
-            textStyle: { color: DRIFT_TEXT_DIM(), fontSize: 11 },
-            type: 'scroll',
-        },
+        animationDuration: 160,
         tooltip: {
             trigger: 'item',
             confine: true,
@@ -542,49 +822,46 @@ export function buildTimelineOption(ctx: TimelineOptionContext): Record<string, 
             textStyle: { color: DRIFT_TEXT() },
             formatter: timelineTooltipFormatter,
         },
+        visualMap: {
+            show: false,
+            min: -1,
+            max: 2,
+            dimension: 2,
+        },
         grid: {
-            left: 52,
-            right: 20,
-            top: 34,
-            bottom: 72,
+            left: 62,
+            right: 14,
+            top: 14,
+            bottom: 34,
         },
-        toolbox: {
-            right: 8,
-            top: 2,
-            itemSize: 12,
-            iconStyle: { borderColor: DRIFT_TEXT_DIM() },
-            feature: {
-                dataZoom: { yAxisIndex: 'none', title: { zoom: 'Box zoom', back: 'Undo zoom' } },
-                restore: { title: 'Reset zoom' },
-            },
-        },
-        dataZoom: [
-            { type: 'inside', xAxisIndex: 0, filterMode: 'none' },
-            { type: 'slider', xAxisIndex: 0, height: 16, bottom: 32, borderColor: 'rgba(255,255,255,0.08)' },
-        ],
         xAxis: {
             type: 'category',
             data: categories,
+            splitArea: { show: false },
             axisLabel: {
                 color: DRIFT_TEXT_DIM(),
-                rotate: 24,
-                fontSize: 10,
+                fontSize: 9,
                 hideOverlap: true,
-                interval: (index: number) => index === 0 || index === categories.length - 1 || index % visibleTickStep === 0,
-                formatter: (value: string) => compactTimelineLabel(value),
+                interval: (index: number) => index === 0 || index === referenceSlots || index === categories.length - 1 || index % visibleTickStep === 0,
             },
-            axisLine: { lineStyle: { color: 'rgba(255,255,255,0.16)' } },
+            axisTick: { show: false },
+            axisLine: { lineStyle: { color: DRIFT_DIM() } },
         },
         yAxis: {
-            type: 'value',
-            scale: true,
-            name: 'Drift score',
-            nameLocation: 'middle',
-            nameGap: 42,
-            axisLabel: { color: DRIFT_TEXT_DIM() },
-            splitLine: { lineStyle: { color: 'rgba(255,255,255,0.07)' } },
+            type: 'category',
+            data: columns,
+            inverse: true,
+            axisLabel: { color: DRIFT_TEXT(), fontSize: 10, fontWeight: 600 },
+            axisTick: { show: false },
+            axisLine: { show: false },
         },
-        series,
+        series: [{
+            name: 'Drift severity',
+            type: 'heatmap',
+            data: heatmapData,
+            progressive: 2000,
+            emphasis: { disabled: true },
+        }],
     };
 }
 
@@ -595,17 +872,230 @@ export interface DetailOptionContext {
     plotType: string;
 }
 
-export function buildDetailOption(ctx: DetailOptionContext): Record<string, unknown> {
+function buildEvidenceDetailOption(ctx: DetailOptionContext): Record<string, unknown> {
     const { responsesByColumn, activeDetailColumn, selectedWindowIdx, plotType } = ctx;
-    const response = activeDetailColumn ? responsesByColumn.get(activeDetailColumn) ?? null : null;
+    const legacyColumn = activeDetailColumn ?? '';
+    const response: DriftResponse | null = responsesByColumn.get(legacyColumn) ?? null;
+    if (!response) {
+        return {
+            backgroundColor: 'transparent',
+            title: { text: 'No evidence data', left: 'center', top: 'center', textStyle: { color: DRIFT_TEXT_DIM(), fontSize: 12 } },
+        };
+    }
+
+    const selectedIndex = selectedWindowIdx ?? Math.max(0, response.windows.length - 1);
+    const selectedWindow = response.windows[selectedIndex] ?? null;
+    const labels = response.windows.map((window) => compactTimelineLabel(window.label));
+    const tickStep = Math.max(1, Math.ceil(labels.length / 6));
+    const threshold = response.thresholds.psi_major_threshold;
+    const selectedColor = selectedWindow ? driftColor(selectedWindow.drift_level) : COLOR_RED;
+    const borderColor = getPaletteColor('border') ?? DRIFT_DIM();
+    const resolvedPlotType = ['raincloud', 'ecdf', 'box', 'violin'].includes(plotType) ? plotType : 'raincloud';
+    const selectedStats = selectedWindow ?? response.reference;
+    const distributionStats = [response.reference, selectedStats];
+    const distributionNames = ['Reference', 'Selected window'];
+    const distributionColors = [COLOR_REF(), selectedColor];
+    const rightXAxis = resolvedPlotType === 'box'
+        ? {
+            type: 'category', gridIndex: 1, data: distributionNames,
+            axisLabel: { color: DRIFT_TEXT_DIM(), fontSize: 9 }, axisTick: { show: false },
+            axisLine: { lineStyle: { color: borderColor } },
+        }
+        : {
+            type: 'value', gridIndex: 1,
+            name: resolvedPlotType === 'ecdf' ? 'Value' : '',
+            nameTextStyle: { color: DRIFT_TEXT_DIM(), fontSize: 9 },
+            axisLabel: { color: DRIFT_TEXT_DIM(), fontSize: 9 },
+            splitLine: { lineStyle: { color: borderColor, opacity: 0.35 } },
+        };
+    const rightYAxis = resolvedPlotType === 'box'
+        ? {
+            type: 'value', gridIndex: 1,
+            axisLabel: { color: DRIFT_TEXT_DIM(), fontSize: 9 },
+            splitLine: { lineStyle: { color: borderColor, opacity: 0.35 } },
+        }
+        : resolvedPlotType === 'ecdf'
+            ? {
+                type: 'value', gridIndex: 1, min: 0, max: 1, name: 'Cumulative probability',
+                nameLocation: 'middle', nameGap: 30,
+                nameTextStyle: { color: DRIFT_TEXT_DIM(), fontSize: 9 },
+                axisLabel: { color: DRIFT_TEXT_DIM(), fontSize: 9, formatter: (value: number) => value.toFixed(1) },
+                splitLine: { lineStyle: { color: borderColor, opacity: 0.35 } },
+            }
+            : {
+                type: 'category', gridIndex: 1, data: distributionNames,
+                axisLabel: { color: DRIFT_TEXT_DIM(), fontSize: 9 }, axisTick: { show: false },
+                axisLine: { show: false },
+            };
+
+    const densityRenderItem = (params: any, api: any) => {
+        const index = params.dataIndex;
+        const stats = distributionStats[index];
+        if (!stats || stats.hist_bins.length < 2) return null;
+        const density = normalizedCounts(stats.hist_counts);
+        const halfHeight = Math.max(5, Math.min(24, Math.abs(api.size([0, 1])[1]) * 0.28));
+        const centers = stats.hist_bins.slice(0, -1).map((value, binIndex) => (value + stats.hist_bins[binIndex + 1]!) / 2);
+        const upper = centers.map((value, binIndex) => {
+            const point = api.coord([value, index]);
+            return [point[0], point[1] - halfHeight * (density[binIndex] ?? 0)];
+        });
+        const lower = centers.slice().reverse().map((value, reverseIndex) => {
+            const binIndex = centers.length - 1 - reverseIndex;
+            const point = api.coord([value, index]);
+            const densityOffset = resolvedPlotType === 'violin' ? halfHeight * (density[binIndex] ?? 0) : 0;
+            return [point[0], point[1] + densityOffset];
+        });
+        const itemStyle = densityData[index]?.itemStyle;
+        return {
+            type: 'polygon',
+            shape: { points: [...upper, ...lower] },
+            style: { fill: itemStyle?.color, stroke: itemStyle?.stroke, lineWidth: itemStyle?.lineWidth },
+        };
+    };
+
+    const densityData = distributionStats.map((stats, index) => ({
+        value: [stats.mean, index, stats.min, stats.max],
+        itemStyle: { color: `${distributionColors[index]}38`, stroke: distributionColors[index], lineWidth: 1.3 },
+        meta: { name: distributionNames[index], box: distributionBox(stats) },
+    }));
+    const rightSeries: any[] = resolvedPlotType === 'ecdf'
+        ? distributionStats.map((stats, index) => ({
+            name: distributionNames[index], type: 'line', xAxisIndex: 1, yAxisIndex: 1,
+            data: stats.ecdf_x.map((value, pointIndex) => [value, stats.ecdf_y[pointIndex] ?? 0]),
+            step: 'end', showSymbol: false, lineStyle: { color: distributionColors[index], width: 1.8 },
+            itemStyle: { color: distributionColors[index] },
+        }))
+        : resolvedPlotType === 'box'
+            ? [{
+                name: 'Distribution summary', type: 'boxplot', xAxisIndex: 1, yAxisIndex: 1,
+                data: distributionStats.map((stats, index) => ({
+                    value: distributionBox(stats),
+                    itemStyle: { color: `${distributionColors[index]}32`, borderColor: distributionColors[index], borderWidth: 1.4 },
+                })),
+            }]
+            : [{
+                name: 'Distribution density', type: 'custom', xAxisIndex: 1, yAxisIndex: 1,
+                renderItem: densityRenderItem, data: densityData, encode: { x: [0, 2, 3], y: 1 },
+            }];
+
+    if (resolvedPlotType === 'raincloud') {
+        rightSeries.push({
+            name: 'Quartiles', type: 'boxplot', layout: 'horizontal', xAxisIndex: 1, yAxisIndex: 1,
+            boxWidth: [8, 13],
+            data: distributionStats.map((stats, index) => ({
+                value: distributionBox(stats),
+                itemStyle: { color: `${distributionColors[index]}24`, borderColor: distributionColors[index], borderWidth: 1.2 },
+            })),
+        });
+        distributionStats.forEach((stats, index) => {
+            const step = Math.max(1, Math.floor(stats.ecdf_x.length / 14));
+            rightSeries.push({
+                name: `${distributionNames[index]} observations`, type: 'scatter', xAxisIndex: 1, yAxisIndex: 1,
+                data: stats.ecdf_x.filter((_, pointIndex) => pointIndex % step === 0).slice(0, 16).map((value) => [value, index]),
+                symbolSize: 3.5, symbolOffset: [0, 9], silent: true,
+                itemStyle: { color: distributionColors[index], opacity: 0.55 },
+            });
+        });
+    }
+
+    return {
+        backgroundColor: 'transparent',
+        animationDuration: 160,
+        title: [
+            { text: `Drift over time (${response.column})`, left: '3%', top: 4, textStyle: { color: DRIFT_TEXT(), fontSize: 11, fontWeight: 600 } },
+            { text: `Distribution comparison · ${resolvedPlotType === 'raincloud' ? 'Raincloud' : resolvedPlotType === 'ecdf' ? 'ECDF' : resolvedPlotType === 'box' ? 'Box plot' : 'Violin'}`, left: '57%', top: 4, textStyle: { color: DRIFT_TEXT(), fontSize: 11, fontWeight: 600 } },
+        ],
+        tooltip: {
+            trigger: 'item',
+            confine: true,
+            borderColor,
+            backgroundColor: TOOLTIP_BG(),
+            textStyle: { color: DRIFT_TEXT(), fontSize: 11 },
+        },
+        legend: {
+            data: resolvedPlotType === 'ecdf' ? ['Reference', 'Selected window'] : [],
+            show: resolvedPlotType === 'ecdf',
+            right: 12,
+            top: 3,
+            itemWidth: 10,
+            itemHeight: 8,
+            textStyle: { color: DRIFT_TEXT_DIM(), fontSize: 9 },
+        },
+        grid: [
+            { left: 44, right: '53%', top: 40, bottom: 38 },
+            { left: '57%', right: 16, top: 40, bottom: 38 },
+        ],
+        xAxis: [
+            {
+                type: 'category',
+                gridIndex: 0,
+                data: labels,
+                boundaryGap: false,
+                axisLabel: {
+                    color: DRIFT_TEXT_DIM(),
+                    fontSize: 9,
+                    hideOverlap: true,
+                    interval: (index: number) => index === 0 || index === labels.length - 1 || index % tickStep === 0,
+                },
+                axisTick: { show: false },
+                axisLine: { lineStyle: { color: borderColor } },
+            },
+            rightXAxis,
+        ],
+        yAxis: [
+            {
+                type: 'value',
+                gridIndex: 0,
+                min: 0,
+                name: 'PSI',
+                nameTextStyle: { color: DRIFT_TEXT_DIM(), fontSize: 9 },
+                axisLabel: { color: DRIFT_TEXT_DIM(), fontSize: 9 },
+                splitLine: { lineStyle: { color: borderColor, opacity: 0.45 } },
+            },
+            rightYAxis,
+        ],
+        series: [
+            {
+                name: 'PSI drift score',
+                type: 'line',
+                xAxisIndex: 0,
+                yAxisIndex: 0,
+                data: response.windows.map((window, index) => ({
+                    value: window.psi,
+                    symbol: index === selectedIndex ? 'circle' : 'none',
+                    symbolSize: index === selectedIndex ? 7 : 0,
+                    itemStyle: { color: index === selectedIndex ? getPaletteColor('accent') : selectedColor },
+                })),
+                showSymbol: false,
+                lineStyle: { color: COLOR_RED, width: 1.8 },
+                markLine: {
+                    silent: true,
+                    symbol: 'none',
+                    label: { show: false },
+                    lineStyle: { color: DRIFT_TEXT_DIM(), type: 'dashed', width: 1 },
+                    data: [{ yAxis: threshold }, { xAxis: selectedIndex, lineStyle: { color: getPaletteColor('accent'), type: 'solid', opacity: 0.55 } }],
+                },
+            },
+            ...rightSeries,
+        ],
+    };
+}
+
+export function buildDetailOption(ctx: DetailOptionContext): Record<string, unknown> {
+    return buildEvidenceDetailOption(ctx);
+    /* istanbul ignore next -- retained fallback variants for compatibility */
+    const { responsesByColumn, activeDetailColumn, selectedWindowIdx, plotType } = ctx;
+    const legacyColumn = activeDetailColumn ?? '';
+    const response: DriftResponse | null = responsesByColumn.get(legacyColumn) ?? null;
     if (!response) {
         return {
             backgroundColor: 'transparent',
             title: { text: 'No detail data', left: 'center', top: 'center', textStyle: { color: DRIFT_TEXT_DIM(), fontSize: 12 } },
         };
     }
-    const win = selectedWindowIdx !== null ? response.windows[selectedWindowIdx] : null;
-    const ref = response.reference;
+    const legacySelectedIndex = selectedWindowIdx ?? 0;
+    const win = (response!.windows[legacySelectedIndex] ?? response!.windows[0]) as DriftWindowStats;
+    const ref = response!.reference;
 
     const common = {
         backgroundColor: 'transparent',
@@ -717,7 +1207,7 @@ export function buildDetailOption(ctx: DetailOptionContext): Record<string, unkn
                     step: 'end',
                     symbol: 'none',
                     lineStyle: { color: windowColor, width: 2 },
-                    data: win ? win.ecdf_x.map((x, i) => [x, win.ecdf_y[i] ?? 0]) : [],
+                    data: win ? win.ecdf_x.map((x: number, i: number) => [x, win.ecdf_y[i] ?? 0]) : [],
                 },
             ],
         };

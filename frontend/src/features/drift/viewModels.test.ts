@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
     buildColumnSummary,
     buildDetailStatRows,
+    buildDetailOption,
     buildGlobalSummary,
     buildTimelineOption,
     buildWindowListHtml,
@@ -173,7 +174,7 @@ describe('drift view models', () => {
         expect(summary.text).toContain('histogram bins fell back to equal-width');
     });
 
-    it('softens the latest severity when almost every column is already flagged', () => {
+    it('keeps severe drift severe even when every column is flagged', () => {
         const flagged = new Map(
             Array.from({ length: 10 }, (_, i) => [
                 `col-${i}`,
@@ -190,7 +191,7 @@ describe('drift view models', () => {
         const summary = buildGlobalSummary(flagged);
         expect(summary.columnsFlagged).toBe(10);
         expect(summary.totalColumns).toBe(10);
-        expect(summary.latestSeverity).toBe('yellow');
+        expect(summary.latestSeverity).toBe('red');
         expect(summary.worstSeverity).toBe('red');
     });
 
@@ -235,25 +236,84 @@ describe('drift view models', () => {
             selectedWindowIdx: null,
         });
         const axisLabel = (option as any).xAxis.axisLabel;
-        expect(axisLabel.rotate).toBe(24);
         expect(axisLabel.hideOverlap).toBe(true);
         expect(axisLabel.interval(0)).toBe(true);
-        expect(axisLabel.interval(1)).toBe(false);
+        expect(axisLabel.interval((option as any).xAxis.data.length - 1)).toBe(true);
     });
 
-    it('reserves separate space for the series legend so it does not collide with the toolbox', () => {
+    it('builds a compact heatmap with a hidden numeric visual map', () => {
         const option = buildTimelineOption({
             responsesByColumn: new Map([['HUFL', response]]),
             activeDetailColumn: 'HUFL',
             selectedWindowIdx: null,
         }) as any;
 
-        expect(option.legend.right).toBeGreaterThan(option.toolbox.right);
-        expect(option.legend.itemGap).toBeGreaterThanOrEqual(12);
-        expect(option.legend.itemWidth).toBeGreaterThanOrEqual(12);
+        expect(option.series[0].type).toBe('heatmap');
+        expect(option.visualMap.show).toBe(false);
+        expect(option.visualMap.dimension).toBe(2);
     });
 
-    it('labels the drift timeline y-axis and shortens daily range labels', () => {
+    it.each([
+        ['boxplot', 'boxplot'],
+        ['violin', 'custom'],
+    ] as const)('builds the %s distribution-over-time view', (timelineMode, seriesType) => {
+        const option = buildTimelineOption({
+            responsesByColumn: new Map([['HUFL', response]]),
+            activeDetailColumn: 'HUFL',
+            selectedWindowIdx: 1,
+            timelineMode,
+        }) as any;
+
+        expect(option.series[0].type).toBe(seriesType);
+        expect(option.dataZoom).toHaveLength(2);
+        expect(option.xAxis.data[0]).toBe('Reference');
+    });
+
+    it('builds a grouped distribution time series for every trace', () => {
+        const other = makeResponse('other', response.windows.map((window) => ({
+            ...window,
+            quantiles: window.quantiles.map((value) => value * 100),
+            min: window.min * 100,
+            max: window.max * 100,
+            mean: window.mean * 100,
+        })));
+        const option = buildTimelineOption({
+            responsesByColumn: new Map([['value', response], ['other', other]]),
+            activeDetailColumn: 'value',
+            selectedWindowIdx: 1,
+            timelineMode: 'grouped',
+        }) as any;
+
+        expect(option.legend.data).toEqual(['value', 'other']);
+        expect(option.series.filter((series: any) => series.driftDistributionPart === 'median')).toHaveLength(2);
+        expect(option.series.filter((series: any) => series.driftDistributionPart === 'interquartile-range')).toHaveLength(2);
+        expect(option.yAxis.name).toBe('Shift (reference IQRs)');
+        expect(option.xAxis.data[0]).toBe('Reference');
+        const valueMedian = option.series.find((series: any) => series.name === 'value' && series.driftDistributionPart === 'median');
+        const valueBand = option.series.find((series: any) => series.name === 'value' && series.driftDistributionPart === 'interquartile-range');
+        expect(valueMedian.data[0].value).toBe(0);
+        expect(valueBand.data[0]).toBeCloseTo(1);
+        expect(valueMedian.data[2].symbol).toBe('circle');
+    });
+
+    it.each([
+        ['raincloud', ['custom', 'boxplot', 'scatter']],
+        ['ecdf', ['line']],
+        ['box', ['boxplot']],
+        ['violin', ['custom']],
+    ] as const)('builds the %s selected-window distribution view', (plotType, expectedTypes) => {
+        const option = buildDetailOption({
+            responsesByColumn: new Map([['value', response]]),
+            activeDetailColumn: 'value',
+            selectedWindowIdx: 1,
+            plotType,
+        }) as any;
+        const rightTypes = option.series.slice(1).map((series: any) => series.type);
+
+        expectedTypes.forEach((seriesType) => expect(rightTypes).toContain(seriesType));
+    });
+
+    it('uses trace rows on the y-axis and compact daily labels on the x-axis', () => {
         const dailyResponse = makeResponse('value', [
             {
                 ...response.windows[0]!,
@@ -266,8 +326,8 @@ describe('drift view models', () => {
             selectedWindowIdx: null,
         }) as any;
 
-        expect(option.yAxis.name).toBe('Drift score');
-        expect(option.xAxis.axisLabel.formatter('2025-01-01 00:00 - 2025-01-02 00:00')).toBe('2025-01-01');
+        expect(option.yAxis.data).toEqual(['value']);
+        expect(option.xAxis.data).toContain('2025-01-01');
     });
 
     it('renders drift window list items with compact day labels when the windows are daily', () => {

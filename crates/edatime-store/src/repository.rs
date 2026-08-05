@@ -1,11 +1,10 @@
 use std::sync::{
-    Arc,
+    Arc, RwLock as StdRwLock,
     atomic::{AtomicU64, Ordering},
 };
 
 use edatime_core::error::AppError;
 use polars::prelude::{DataFrame, IntoLazy, LazyFrame};
-use std::sync::RwLock as StdRwLock;
 
 #[derive(Debug, Clone, Default)]
 pub struct DatasetMeta {
@@ -27,7 +26,7 @@ pub struct InMemoryDataRepository {
     /// Write path: `replace_from_dataframe()` acquires write lock — only blocks during upload.
     lf: Arc<StdRwLock<LazyFrame>>,
     meta: Arc<StdRwLock<DatasetMeta>>,
-    revision: AtomicU64,
+    revision: Arc<AtomicU64>,
     time_column_display_name: Arc<StdRwLock<Option<String>>>,
 }
 
@@ -36,7 +35,7 @@ impl Clone for InMemoryDataRepository {
         Self {
             lf: Arc::clone(&self.lf),
             meta: Arc::clone(&self.meta),
-            revision: AtomicU64::new(self.revision.load(Ordering::Relaxed)),
+            revision: Arc::clone(&self.revision),
             time_column_display_name: Arc::clone(&self.time_column_display_name),
         }
     }
@@ -60,7 +59,7 @@ impl InMemoryDataRepository {
         Self {
             lf: Arc::new(StdRwLock::new(lf)),
             meta: Arc::new(StdRwLock::new(meta)),
-            revision: AtomicU64::new(0),
+            revision: Arc::new(AtomicU64::new(0)),
             time_column_display_name: Arc::new(StdRwLock::new(None)),
         }
     }
@@ -68,7 +67,13 @@ impl InMemoryDataRepository {
     /// Get a clone of the current LazyFrame — acquires read lock briefly, then clone.
     /// This is fast (~microseconds) because LazyFrame clone is a shallow clone.
     pub fn snapshot(&self) -> LazyFrame {
-        self.lf.read().unwrap().clone()
+        self.lf
+            .read()
+            .unwrap_or_else(|error| {
+                tracing::warn!("dataset read lock poisoned; recovering the last frame");
+                error.into_inner()
+            })
+            .clone()
     }
 
     /// Get a shared handle to the metadata store.
@@ -110,7 +115,7 @@ pub trait DataRepository: Send + Sync {
 
 impl DataRepository for InMemoryDataRepository {
     fn snapshot(&self) -> LazyFrame {
-        self.lf.read().unwrap().clone()
+        InMemoryDataRepository::snapshot(self)
     }
 
     fn meta(&self) -> Arc<StdRwLock<DatasetMeta>> {
@@ -132,14 +137,22 @@ impl DataRepository for InMemoryDataRepository {
     fn time_column_display_name_sync(&self) -> Option<String> {
         self.time_column_display_name
             .read()
-            .ok()
-            .and_then(|g| g.as_ref().cloned())
+            .unwrap_or_else(|error| {
+                tracing::warn!("time-column read lock poisoned; recovering the last value");
+                error.into_inner()
+            })
+            .clone()
     }
 
     fn set_time_column_display_name(&self, name: Option<String>) {
-        if let Ok(mut g) = self.time_column_display_name.try_write() {
-            *g = name;
-        }
+        let mut guard = self
+            .time_column_display_name
+            .write()
+            .unwrap_or_else(|error| {
+                tracing::warn!("time-column write lock poisoned; replacing the value");
+                error.into_inner()
+            });
+        *guard = name;
     }
 
     fn replace_from_dataframe(&self, df: DataFrame) -> Result<u64, AppError> {
@@ -158,38 +171,69 @@ impl DataRepository for InMemoryDataRepository {
         };
         // Use blocking write — only blocks if a snapshot is being collected concurrently.
         // This is the write path for uploads, which should block reads briefly.
-        let mut guard = self
-            .lf
-            .write()
-            .map_err(|_| AppError::internal("dataset write lock poisoned"))?;
-        *guard = lf;
-        drop(guard);
-
+        // Acquire metadata first because its lock handle is public. A caller may
+        // hold it while taking a frame snapshot, so the reverse order could
+        // deadlock. Holding both before mutation also prevents a new frame from
+        // being exposed with stale metadata.
         let mut meta_guard = self
             .meta
             .write()
             .map_err(|_| AppError::internal("dataset meta write lock poisoned"))?;
+        let mut frame_guard = self
+            .lf
+            .write()
+            .map_err(|_| AppError::internal("dataset write lock poisoned"))?;
+
+        *frame_guard = lf;
         *meta_guard = meta;
-        drop(meta_guard);
 
         Ok(self.bump_revision())
     }
 
     fn replace_from_lazyframe(&self, frame: LazyFrame, meta: DatasetMeta) -> Result<u64, AppError> {
-        let mut guard = self
-            .lf
-            .write()
-            .map_err(|_| AppError::internal("dataset write lock poisoned"))?;
-        *guard = frame;
-        drop(guard);
-
         let mut meta_guard = self
             .meta
             .write()
             .map_err(|_| AppError::internal("dataset meta write lock poisoned"))?;
+        let mut frame_guard = self
+            .lf
+            .write()
+            .map_err(|_| AppError::internal("dataset write lock poisoned"))?;
+
+        *frame_guard = frame;
         *meta_guard = meta;
-        drop(meta_guard);
 
         Ok(self.bump_revision())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn repository() -> InMemoryDataRepository {
+        InMemoryDataRepository::new(DataFrame::empty())
+    }
+
+    #[test]
+    fn clones_share_the_revision_counter() {
+        let repository = repository();
+        let clone = repository.clone();
+
+        assert_eq!(clone.bump_revision(), 1);
+        assert_eq!(repository.revision(), 1);
+    }
+
+    #[test]
+    fn time_column_updates_are_visible_to_all_clones() {
+        let repository = repository();
+        let clone = repository.clone();
+
+        repository.set_time_column_display_name(Some("recorded_at".to_owned()));
+
+        assert_eq!(
+            clone.time_column_display_name_sync().as_deref(),
+            Some("recorded_at")
+        );
     }
 }

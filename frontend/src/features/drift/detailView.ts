@@ -13,7 +13,6 @@
 import type { EChartLike } from './types.js';
 import {
     buildDetailOption,
-    buildDetailStatRows,
     buildWindowListHtml,
     sortedWindowIndices,
 } from './viewModels.js';
@@ -115,22 +114,64 @@ export function updateDetailStats(
         : null;
 
     if (!response || !win) {
-        detailStatsEl.innerHTML = '<span style="color:var(--text-muted);font-size:0.72rem;">Select a window to see stats</span>';
-        if (detailHeader) detailHeader.textContent = 'Window Detail';
+        detailStatsEl.innerHTML = '<span class="drift-detail-placeholder">Select a trace and evaluation window to see evidence.</span>';
+        if (detailHeader) detailHeader.textContent = 'Trace evidence';
         return;
     }
 
     if (detailHeader) {
-        detailHeader.textContent = `${response.column} - ${win.label}${win.low_sample_warning ? ' (Low N)' : ''}`;
+        detailHeader.textContent = `${response.column} evidence — ${win.label}${win.low_sample_warning ? ' (Low N)' : ''}`;
     }
 
-    const rows = buildDetailStatRows(win);
-    detailStatsEl.innerHTML = rows.map((r) => `
-        <div class="drift-detail-stat-row">
-            <span class="drift-detail-stat-label">${r.label}</span>
-            <span class="drift-detail-stat-value${r.className ? ' ' + r.className : ''}">${r.value}</span>
-        </div>
-    `).join('');
+    const measures = [
+        {
+            label: 'PSI',
+            value: win.psi.toFixed(3),
+            threshold: `> ${response.thresholds.psi_major_threshold.toFixed(2)}`,
+            fired: win.trigger_reasons.includes('psi_major') || win.trigger_reasons.includes('psi_minor'),
+        },
+        {
+            label: 'Wasserstein',
+            value: win.wasserstein.toFixed(3),
+            threshold: `> ${response.thresholds.wasserstein_threshold.toFixed(3)}`,
+            fired: win.trigger_reasons.includes('wasserstein'),
+        },
+        {
+            label: 'KS p-value',
+            value: win.ks_pvalue.toFixed(3),
+            threshold: `< ${response.thresholds.ks_pvalue_threshold.toFixed(2)}`,
+            fired: win.ks_pvalue < response.thresholds.ks_pvalue_threshold,
+        },
+        {
+            label: 'Energy p-value',
+            value: win.es_pvalue.toFixed(3),
+            threshold: `< ${response.thresholds.es_pvalue_threshold.toFixed(2)}`,
+            fired: win.es_pvalue < response.thresholds.es_pvalue_threshold,
+        },
+    ];
+    const firedCount = measures.filter((measure) => measure.fired).length;
+    const firstChange = response.windows.find((window) => window.drift_level !== 'green');
+    const persistence = response.windows.length > 0
+        ? Math.round((response.windows.filter((window) => window.drift_level !== 'green').length / response.windows.length) * 100)
+        : 0;
+    const conclusion = firedCount >= 2
+        ? `${persistence}% of evaluated windows are affected; ${firedCount} of 4 tests support drift.`
+        : `${firedCount} of 4 tests fired; the selected window does not show composite drift.`;
+
+    detailStatsEl.innerHTML = `
+        <table class="drift-measure-table">
+            <thead><tr><th>Measure</th><th>Value</th><th>Threshold</th><th>Result</th></tr></thead>
+            <tbody>${measures.map((measure) => `
+                <tr>
+                    <td>${measure.label}</td>
+                    <td>${measure.value}</td>
+                    <td>${measure.threshold}</td>
+                    <td class="drift-measure-result drift-measure-result--${measure.fired ? 'fired' : 'pass'}">${measure.fired ? 'Fired' : 'Pass'}</td>
+                </tr>
+            `).join('')}</tbody>
+        </table>
+        <div class="drift-evidence-conclusion"><strong>Conclusion:</strong> Shift first appeared ${firstChange?.label ?? 'in the evaluation period'}. ${conclusion}</div>
+    `;
 }
 
 // ── Window list ──────────────────────────────────────────────────────────────
