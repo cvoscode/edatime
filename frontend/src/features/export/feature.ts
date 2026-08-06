@@ -10,21 +10,36 @@ import type { DataObject } from '../../types/api.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import { exportCleaningData } from '../../cleaning/api.js';
 import type { CleaningPlanStore } from '../../cleaning/store.js';
+import {
+    DEFAULT_INLINE_EXPORT_ROWS,
+    DEFAULT_PARQUET_EXPORT_ROWS,
+    getExportRowLimits,
+} from '../../utils/settings.js';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
+export type ExportResult =
+    | { ok: true; rowCount: number; filename: string }
+    | { ok: false; reason: 'no_data' | 'row_limit_exceeded' | 'no_plan' | 'export_failed'; limit?: number; error?: unknown };
+
 export interface ExportActions {
-    exportFilteredCsv: () => boolean;
-    exportFilteredJson: () => boolean;
-    exportFilteredParquet: () => Promise<boolean>;
+    exportFilteredCsv: () => ExportResult;
+    exportFilteredJson: () => ExportResult;
+    exportFilteredParquet: () => Promise<ExportResult>;
 }
 
 export type ExportFeature = ExportActions;
+
+export interface ExportRowLimits {
+    inline: number;
+    parquet: number;
+}
 
 export interface ExportFeatureDeps {
     getData: () => DataObject | null;
     workspace: Pick<WorkspaceStore, 'getSnapshot'>;
     cleaningPlanStore?: Pick<CleaningPlanStore, 'getSnapshot'>;
+    limits?: ExportRowLimits;
 }
 
 // ── Internal helpers ─────────────────────────────────────────────────────────
@@ -36,7 +51,13 @@ interface FilteredRow {
     value: number;
 }
 
-const MAX_INLINE_EXPORT_ROWS = 100_000;
+export const MAX_INLINE_EXPORT_ROWS = DEFAULT_INLINE_EXPORT_ROWS;
+export const MAX_PARQUET_EXPORT_ROWS = DEFAULT_PARQUET_EXPORT_ROWS;
+
+function resolveLimits(deps: ExportFeatureDeps): Required<ExportRowLimits> {
+    if (deps.limits) return { inline: deps.limits.inline, parquet: deps.limits.parquet };
+    return getExportRowLimits();
+}
 
 interface FilteredRowsResult {
     rows: FilteredRow[];
@@ -83,9 +104,12 @@ function buildPlanBackedSeriesRows(deps: ExportFeatureDeps, maxRows = Number.POS
 
 // ── Transport calls ───────────────────────────────────────────────────────────
 
-function exportFilteredCsv(deps: ExportFeatureDeps): boolean {
-    const { rows, limitExceeded } = buildPlanBackedSeriesRows(deps, MAX_INLINE_EXPORT_ROWS);
-    if (limitExceeded || rows.length === 0) return false;
+function exportFilteredCsv(deps: ExportFeatureDeps): ExportResult {
+    const limits = resolveLimits(deps);
+    const { rows, limitExceeded } = buildPlanBackedSeriesRows(deps, limits.inline);
+    const filename = 'edatime_filtered_series.csv';
+    if (limitExceeded) return { ok: false, reason: 'row_limit_exceeded', limit: limits.inline };
+    if (rows.length === 0) return { ok: false, reason: 'no_data' };
 
     const lines = [
         'ts_ms,ts_iso,series,value',
@@ -95,28 +119,41 @@ function exportFilteredCsv(deps: ExportFeatureDeps): boolean {
     ];
     downloadBlob(
         new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' }),
-        'edatime_filtered_series.csv',
+        filename,
     );
-    return true;
+    return { ok: true, rowCount: rows.length, filename };
 }
 
-function exportFilteredJson(deps: ExportFeatureDeps): boolean {
-    const { rows, limitExceeded } = buildPlanBackedSeriesRows(deps, MAX_INLINE_EXPORT_ROWS);
-    if (limitExceeded || rows.length === 0) return false;
+function exportFilteredJson(deps: ExportFeatureDeps): ExportResult {
+    const limits = resolveLimits(deps);
+    const { rows, limitExceeded } = buildPlanBackedSeriesRows(deps, limits.inline);
+    const filename = 'edatime_filtered_series.json';
+    if (limitExceeded) return { ok: false, reason: 'row_limit_exceeded', limit: limits.inline };
+    if (rows.length === 0) return { ok: false, reason: 'no_data' };
 
     downloadBlob(
         new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json;charset=utf-8' }),
-        'edatime_filtered_series.json',
+        filename,
     );
-    return true;
+    return { ok: true, rowCount: rows.length, filename };
 }
 
-async function exportFilteredParquet(deps: ExportFeatureDeps): Promise<boolean> {
+async function exportFilteredParquet(deps: ExportFeatureDeps): Promise<ExportResult> {
+    const filename = 'edatime_cleaned.parquet';
     const plan = deps.cleaningPlanStore?.getSnapshot();
-    if (!plan) return false;
-    const blob = await exportCleaningData(plan);
-    downloadBlob(blob, 'edatime_cleaned.parquet');
-    return true;
+    if (!plan) return { ok: false, reason: 'no_plan' };
+    try {
+        const blob = await exportCleaningData(plan);
+        downloadBlob(blob, filename);
+        return { ok: true, rowCount: -1, filename };
+    } catch (err: unknown) {
+        const code = (err as { code?: string } | null)?.code;
+        const limit = (err as { limit?: number } | null)?.limit;
+        if (code === 'export_row_limit_exceeded' && typeof limit === 'number') {
+            return { ok: false, reason: 'row_limit_exceeded', limit, error: err };
+        }
+        return { ok: false, reason: 'export_failed', error: err };
+    }
 }
 
 // ── Entrypoint factory ────────────────────────────────────────────────────────

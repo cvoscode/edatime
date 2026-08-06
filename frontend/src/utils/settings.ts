@@ -26,6 +26,11 @@ export type PlotColorScaleKey = 'signals' | 'pairPlot' | 'correlationMatrix' | '
 
 export type PlotColorScales = Record<PlotColorScaleKey, ColorScaleName>;
 
+export const MIN_INLINE_EXPORT_ROWS = 1_000;
+export const MIN_PARQUET_EXPORT_ROWS = 10_000;
+export const DEFAULT_INLINE_EXPORT_ROWS = 100_000;
+export const DEFAULT_PARQUET_EXPORT_ROWS = 1_000_000;
+
 export interface AppSettings {
     // Appearance
     theme: ThemeMode;
@@ -40,6 +45,10 @@ export interface AppSettings {
     drawAutoReset: boolean;
     plotColorScales: PlotColorScales;
     sidebarCollapsed: boolean;
+
+    // Export preferences
+    inlineExportRowLimit: number;
+    parquetExportRowLimit: number;
 }
 
 export const DEFAULT_PLOT_COLOR_SCALES: PlotColorScales = {
@@ -58,6 +67,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
     drawAutoReset: false,
     plotColorScales: { ...DEFAULT_PLOT_COLOR_SCALES },
     sidebarCollapsed: false,
+    inlineExportRowLimit: DEFAULT_INLINE_EXPORT_ROWS,
+    parquetExportRowLimit: DEFAULT_PARQUET_EXPORT_ROWS,
 };
 
 const STORAGE_KEY = 'edatime-settings';
@@ -71,6 +82,34 @@ export function normalizeSpectrogramPointLimit(value: unknown): SpectrogramPoint
     return numeric === 16_384 || numeric === 32_768 || numeric === 65_536
         ? numeric
         : DEFAULT_SETTINGS.spectrogramMaxPoints;
+}
+
+/**
+ * Clamp an export row-limit candidate to a positive integer no smaller
+ * than the supplied floor. Non-finite values fall back to the floor.
+ */
+export function normalizeExportRowLimit(value: unknown, floor: number): number {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0) return floor;
+    return Math.max(floor, Math.round(numeric));
+}
+
+export interface ExportRowLimits {
+    inline: number;
+    parquet: number;
+}
+
+/**
+ * Read the configured export row caps. Always returns positive integers;
+ * falls back to the defaults when nothing is persisted or the stored
+ * value is not a positive integer.
+ */
+export function getExportRowLimits(): ExportRowLimits {
+    const settings = loadSettings();
+    return {
+        inline: settings.inlineExportRowLimit || DEFAULT_INLINE_EXPORT_ROWS,
+        parquet: settings.parquetExportRowLimit || DEFAULT_PARQUET_EXPORT_ROWS,
+    };
 }
 
 /** Load settings from localStorage, falling back to defaults. */
@@ -99,6 +138,8 @@ export function loadSettings(): AppSettings {
             drawAutoReset: parsed.drawAutoReset ?? DEFAULT_SETTINGS.drawAutoReset,
             plotColorScales,
             sidebarCollapsed: parsed.sidebarCollapsed ?? DEFAULT_SETTINGS.sidebarCollapsed,
+            inlineExportRowLimit: normalizeExportRowLimit(parsed.inlineExportRowLimit, DEFAULT_INLINE_EXPORT_ROWS),
+            parquetExportRowLimit: normalizeExportRowLimit(parsed.parquetExportRowLimit, DEFAULT_PARQUET_EXPORT_ROWS),
         };
     } catch {
         return defaultSettings();

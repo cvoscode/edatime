@@ -329,7 +329,7 @@
         </div>
       </header>
 
-      <section id="workflow-panel" class="workflow-panel"></section>
+      <section id="workflow-panel" class="workflow-panel" hidden></section>
 
       <section class="page page--analysis-scroll" id="page-timeseries" data-page-name="timeseries" data-toolbar-collapse hidden>
         <div class="page-header">
@@ -548,6 +548,11 @@
             aria-label="Chart loading indicator">
             <div class="chart-loading-spinner"></div>
             <span class="chart-loading-label">Loading data…</span>
+          </div>
+          <div id="timeseries-sampling-indicator" class="timeseries-sampling-indicator" hidden role="status"
+            aria-live="polite" aria-label="Chart sampling indicator">
+            <span class="timeseries-sampling-indicator__label" data-sampling-label></span>
+            <span class="timeseries-sampling-indicator__detail" data-sampling-detail></span>
           </div>
           <div class="scatter-overlay-stack" id="timeseries-overlays">
             <div id="timeseries-colorbar-wrap" class="scatter-colorbar-wrap scatter-colorbar-wrap--ts" hidden
@@ -941,6 +946,17 @@
               </div>
             </div>
           </div>
+
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions toolbar-group--push">
+            <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
+              <button id="fft-compute-btn" class="btn btn-accent btn-sm" type="button">Compute spectrum</button>
+            </div>
+          </div>
+        </div>
+        <div class="analysis-range-context">
+          <span>Range inherited from Signals (24h · 7d · 30d · All).</span>
+          <a href="#page=timeseries">Change on Signals</a>
+          <span id="fft-sampling-badge" class="analysis-sampling-badge profile-mode-badge" data-mode="preview" role="status" aria-live="polite" hidden></span>
         </div>
         <div class="fft-traces-bar" id="fft-traces-bar" hidden></div>
         <main class="main main--analysis-chart">
@@ -960,8 +976,9 @@
             </details>
           </div>
           <div id="fft-empty-state" class="plot-empty-state" data-empty-reason="no-columns-selected">
-            <strong>Select one or more traces</strong>
-            <span>Choose column chips below to compute FFT or PSD overlays for this range.</span>
+            <strong id="fft-empty-title">Select one or more traces</strong>
+            <span id="fft-empty-message">Choose column chips above, then compute an FFT or PSD overlay for this range.</span>
+            <button id="fft-empty-compute-btn" class="btn btn-accent btn-sm" type="button" disabled>Compute spectrum</button>
           </div>
           <div id="fft-chart-loading" class="chart-loading-overlay" hidden>
             <div class="chart-loading-spinner"></div>
@@ -1238,6 +1255,10 @@
               <button id="spectrogram-compute-btn" class="btn btn-accent btn-sm" type="button">Update spectrogram</button>
             </div>
           </div>
+        </div>
+        <div class="analysis-range-context">
+          <span>Range inherited from Signals (24h · 7d · 30d · All).</span>
+          <a href="#page=timeseries">Change on Signals</a>
         </div>
         <main class="main main--chart main--analysis-chart">
           <div class="spectrogram-chart-row">
@@ -2490,6 +2511,7 @@
             <button class="settings-tab-btn" data-tab="plot-colors" type="button">Plot colors</button>
             <button class="settings-tab-btn" data-tab="analytics" type="button">Analytics</button>
             <button class="settings-tab-btn" data-tab="timeseries" type="button">Signals</button>
+            <button class="settings-tab-btn" data-tab="export" type="button">Export</button>
           </div>
 
           <!-- Appearance Tab -->
@@ -2646,6 +2668,35 @@
                 <div class="settings-control settings-toggle">
                   <input id="settings-sidebar-collapsed" type="checkbox" aria-label="Start with sidebar collapsed">
                   <span>Start with sidebar collapsed</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Export Tab -->
+          <div class="settings-tab-panel" data-tab="export" hidden>
+            <div class="settings-section">
+              <div class="settings-section-title">Row limits</div>
+              <div class="settings-row">
+                <label class="settings-label" for="settings-inline-export-row-limit">Inline (CSV / JSON) cap</label>
+                <div class="settings-control">
+                  <input id="settings-inline-export-row-limit" type="number" min="1000" step="1000"
+                    inputmode="numeric" aria-label="Maximum rows in inline CSV or JSON export">
+                  <div class="settings-hint">
+                    Inline CSV/JSON exports above this row count are rejected with a clear error so the
+                    tab does not freeze. Default is 100,000.
+                  </div>
+                </div>
+              </div>
+              <div class="settings-row">
+                <label class="settings-label" for="settings-parquet-export-row-limit">Parquet cap</label>
+                <div class="settings-control">
+                  <input id="settings-parquet-export-row-limit" type="number" min="10000" step="10000"
+                    inputmode="numeric" aria-label="Maximum rows requested from the Parquet export">
+                  <div class="settings-hint">
+                    Parquet exports above this row count are rejected by the backend with a structured
+                    error. Default is 1,000,000.
+                  </div>
                 </div>
               </div>
             </div>

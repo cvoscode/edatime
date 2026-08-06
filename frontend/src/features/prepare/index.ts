@@ -280,7 +280,7 @@ function renderPrepareWorkspace(
     cancelProfile: () => void,
 ): void {
     root.replaceChildren();
-    const header = createElement('div', 'prepare-workspace__header');
+    const header = createElement('div', 'page-header prepare-workspace__header');
     const heading = createElement('div');
     const titleRow = createElement('div', 'prepare-workspace__title-row');
     const title = createElement('h1', 'page-header__title');

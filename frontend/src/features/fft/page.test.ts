@@ -13,6 +13,7 @@ const fftChartInstance = {
 
 const echartsInitMock = vi.fn();
 const fetchFftMock = vi.fn();
+const fetchCapabilitiesMock = vi.fn();
 const toastMock = vi.fn();
 
 vi.mock('../../chart/FftChart.js', () => ({
@@ -28,6 +29,7 @@ vi.mock('../../chart/FftChart.js', () => ({
 
 vi.mock('../../services/api/index.js', () => ({
     fetchFft: (...args: unknown[]) => fetchFftMock(...args),
+    fetchCapabilities: (...args: unknown[]) => fetchCapabilitiesMock(...args),
 }));
 
 vi.mock('echarts', () => ({
@@ -52,7 +54,13 @@ function buildDom(): void {
         <button id="fft-zoom-reset-btn" type="button" hidden>Zoom</button>
         <div id="fft-traces-bar"></div>
         <div id="fft-chart"></div>
-        <div id="fft-empty-state" data-empty-reason=""></div>
+        <button id="fft-compute-btn" type="button">Compute spectrum</button>
+        <div id="fft-empty-state" data-empty-reason="">
+          <strong id="fft-empty-title"></strong>
+          <span id="fft-empty-message"></span>
+          <button id="fft-empty-compute-btn" type="button">Compute spectrum</button>
+        </div>
+        <span id="fft-sampling-badge" hidden></span>
         <div id="fft-chart-loading" hidden></div>
         <button id="fft-export-png-btn" type="button"></button>
         <button id="fft-export-svg-btn" type="button"></button>
@@ -80,8 +88,9 @@ function buildDom(): void {
 
 describe('initFftPage', () => {
     beforeEach(() => {
-        vi.resetModules();
-        vi.clearAllMocks();
+        vi.resetAllMocks();
+        fftChartInstance.init.mockResolvedValue(undefined);
+        fftChartInstance.getIsZoomed.mockReturnValue(false);
         (window as any).__edatime = {};
         window.localStorage.clear();
         buildDom();
@@ -92,6 +101,7 @@ describe('initFftPage', () => {
             on: vi.fn(),
             off: vi.fn(),
         });
+        fetchCapabilitiesMock.mockResolvedValue({ budgets: { analytics_points: 65536 } });
     });
 
     afterEach(async () => {
@@ -99,9 +109,15 @@ describe('initFftPage', () => {
         module.__resetFftPageForTests();
     });
 
-    it('preselects the first two FFT traces on the first page visit', async () => {
+    it('preselects the first two traces and computes within the advertised budget', async () => {
         fetchFftMock.mockImplementation(async (_start: string, _end: string, column: string) => ({
             sample_count: 64,
+            sampling: {
+                method: 'block_mean',
+                input_points: 69680,
+                output_points: 65536,
+                aggregation_factor: 1.06,
+            },
             results: [{
                 column,
                 frequencies: [1, 2, 3],
@@ -127,17 +143,6 @@ describe('initFftPage', () => {
         emitNavigationChange({ page: 'fft' });
 
         expect(fftChartInstance.init).toHaveBeenCalledTimes(1);
-        await vi.waitFor(() => {
-            expect(fetchFftMock).toHaveBeenCalledTimes(2);
-        });
-        expect(fetchFftMock).toHaveBeenNthCalledWith(
-            1,
-            new Date(200).toISOString(),
-            new Date(800).toISOString(),
-            expect.any(String),
-            131072,
-        );
-
         expect(document.querySelectorAll('.fft-trace-chip')).toHaveLength(3);
         const firstChip = document.querySelector<HTMLElement>('.fft-trace-chip')!;
         expect(firstChip.querySelector('.chip-color-picker')).toBeTruthy();
@@ -149,7 +154,23 @@ describe('initFftPage', () => {
             expect(checked).toHaveLength(2);
         });
         const emptyState = document.getElementById('fft-empty-state') as HTMLElement;
-        expect(emptyState.hidden).toBe(true);
+        expect(emptyState.hidden).toBe(false);
+        expect(emptyState.dataset.emptyReason).toBe('ready-to-compute');
+        expect(fetchFftMock).not.toHaveBeenCalled();
+
+        (document.getElementById('fft-compute-btn') as HTMLButtonElement).click();
+        await vi.waitFor(() => expect(fetchFftMock).toHaveBeenCalledTimes(2));
+        expect(fetchFftMock).toHaveBeenNthCalledWith(
+            1,
+            new Date(200).toISOString(),
+            new Date(800).toISOString(),
+            expect.any(String),
+            65536,
+            expect.objectContaining({ signal: expect.any(AbortSignal) }),
+        );
+        await vi.waitFor(() => expect(emptyState.hidden).toBe(true));
+        expect(document.getElementById('fft-sampling-badge')?.textContent)
+            .toBe('Downsampled to 65,536 of 69,680 points');
     });
 
     it('replaces control listeners when the page is initialized twice', async () => {
@@ -164,7 +185,7 @@ describe('initFftPage', () => {
         expect(fftChartInstance.resetView).toHaveBeenCalledTimes(1);
     });
 
-    it('fetches and renders a trace when a chip is clicked', async () => {
+    it('selects a chip and fetches only when Compute is clicked', async () => {
         fetchFftMock.mockResolvedValueOnce({
             sample_count: 64,
             results: [{
@@ -195,6 +216,8 @@ describe('initFftPage', () => {
         emitNavigationChange({ page: 'fft' });
 
         (document.querySelector('.fft-trace-chip') as HTMLButtonElement).click();
+        expect(fetchFftMock).not.toHaveBeenCalled();
+        (document.getElementById('fft-compute-btn') as HTMLButtonElement).click();
         const startingUpdateCount = fftChartInstance.updateData.mock.calls.length;
         await vi.waitFor(() => {
             expect(fftChartInstance.updateData.mock.calls.length).toBe(startingUpdateCount + 1);
@@ -240,6 +263,7 @@ describe('initFftPage', () => {
 
         const chip = document.querySelector<HTMLElement>('.fft-trace-chip')!;
         chip.click();
+        (document.getElementById('fft-compute-btn') as HTMLButtonElement).click();
         const startingUpdateCount = fftChartInstance.updateData.mock.calls.length;
         await vi.waitFor(() => {
             expect(fftChartInstance.updateData.mock.calls.length).toBe(startingUpdateCount + 1);
@@ -291,6 +315,7 @@ describe('initFftPage', () => {
         emitNavigationChange({ page: 'fft' });
 
         (document.querySelector('.fft-trace-chip') as HTMLButtonElement).click();
+        (document.getElementById('fft-compute-btn') as HTMLButtonElement).click();
         await vi.waitFor(() => {
             expect((document.getElementById('fft-empty-state') as HTMLElement).hidden).toBe(true);
         });
@@ -492,6 +517,7 @@ describe('initFftPage', () => {
         emitNavigationChange({ page: 'fft' });
 
         (document.querySelector('.fft-trace-chip') as HTMLButtonElement).click();
+        (document.getElementById('fft-compute-btn') as HTMLButtonElement).click();
         await vi.waitFor(() => {
             expect(fetchFftMock).toHaveBeenCalledTimes(1);
         });

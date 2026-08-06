@@ -1,0 +1,152 @@
+/* FFT-only presentation is loaded with the feature instead of blocking the shell. */
+.fft-traces-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-height: 34px;
+  padding: 5px 12px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-bg);
+  scrollbar-width: thin;
+}
+
+.fft-traces-bar .series-chip {
+  min-height: 26px;
+  padding: 3px 6px 3px 8px;
+}
+
+.fft-trace-chip { gap: 6px; }
+
+.fft-trace-chip .chip-color-picker {
+  width: 18px;
+  height: 18px;
+  margin-left: 2px;
+  padding: 0;
+}
+
+.fft-trace-chip .chip-color-picker::-webkit-color-swatch-wrapper { padding: 0; }
+.fft-trace-chip .chip-color-picker::-webkit-color-swatch,
+.fft-trace-chip .chip-color-picker::-moz-color-swatch {
+  border: 0;
+  border-radius: 999px;
+}
+
+.fft-trace-chip:disabled,
+.fft-trace-chip[aria-disabled="true"] {
+  cursor: wait;
+  opacity: 0.5;
+}
+
+.fft-trace-chip.loading { cursor: wait; opacity: 0.6; }
+
+.fft-trace-chip.active {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--chip-accent) 20%, transparent),
+    0 0 16px color-mix(in srgb, var(--chip-accent) 12%, transparent);
+}
+
+.fft-trace-chip .chip-label {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fft-spectral-info {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding: 8px 14px;
+  flex-shrink: 0;
+  border-top: 1px solid var(--shell-border, rgba(255, 255, 255, 0.08));
+  background: color-mix(in srgb, var(--surface-1) 94%, var(--accent) 6%);
+}
+
+.fft-spectral-info__row {
+  display: inline-flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fft-spectral-info__label {
+  color: var(--text-dim);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.fft-spectral-info__value,
+.fft-spectral-info__peak-table {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.fft-spectral-info__value {
+  max-width: 36ch;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fft-spectral-info__peak-table { display: inline-grid; gap: 2px; }
+.fft-spectral-info__peak-row {
+  display: grid;
+  grid-template-columns: 28px minmax(96px, auto) minmax(72px, auto) minmax(72px, auto);
+  align-items: baseline;
+  gap: 8px;
+}
+.fft-spectral-info__peak-cell {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (min-width: 900px) {
+  .fft-peaks-details { flex: 1 1 500px; max-width: 680px; }
+  .fft-spectral-info__peak-row {
+    grid-template-columns: 28px minmax(132px, 1.5fr) minmax(94px, 1fr) minmax(72px, 0.8fr);
+  }
+}
+
+@media (max-width: 899px) {
+  .fft-spectral-info { gap: 6px 10px; padding: 6px 10px; }
+  .fft-spectral-info__value { max-width: 22ch; }
+  .fft-spectral-info__peak-table { flex-basis: 100%; margin-top: 2px; }
+}
+
+@media (max-width: 767px) {
+  .fft-traces-bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-right: 16px;
+  }
+  .fft-traces-bar > * { flex: 0 0 auto; }
+}
+
+@media (max-width: 559px) {
+  .fft-spectral-info { align-items: stretch; flex-direction: column; gap: 4px 0; }
+  .fft-spectral-info__row {
+    align-items: baseline;
+    flex-direction: row;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .fft-spectral-info__value { max-width: 60vw; }
+  .fft-spectral-info__peak-table {
+    padding-top: 4px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .fft-spectral-info__peak-row {
+    grid-template-columns: 22px minmax(80px, auto) minmax(56px, auto) minmax(56px, auto);
+    gap: 6px;
+  }
+}

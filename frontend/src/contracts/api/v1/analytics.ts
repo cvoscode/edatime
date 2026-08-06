@@ -54,7 +54,15 @@ export interface FftResult {
 
 export interface FftResponse {
     sample_count: number;
+    sampling?: AnalysisSampling;
     results: FftResult[];
+}
+
+export interface AnalysisSampling {
+    method: 'exact' | 'block_mean' | string;
+    input_points: number;
+    output_points: number;
+    aggregation_factor: number;
 }
 
 export interface SpectrogramResult {

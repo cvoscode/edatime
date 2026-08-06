@@ -5,6 +5,7 @@
 // Do not add implementation here — add it to the appropriate route-family file.
 
 export { getJson, postJson } from './http.js';
+export { fetchCapabilities, type ApiCapabilities } from './capabilities.js';
 
 // Metadata
 export { fetchMetadata, fetchSampleDataset } from './metadata.js';

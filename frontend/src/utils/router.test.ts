@@ -1,4 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { emitNavigationChange } from '../platform/navigationEvents.js';
+
+let currentDispose: (() => void) | null = null;
 
 function buildDom(): void {
     document.body.innerHTML = `
@@ -27,9 +30,13 @@ function buildDom(): void {
 
 describe('hash router valid pages', () => {
     beforeEach(() => {
-        vi.resetModules();
         buildDom();
         window.history.replaceState(null, '', '#');
+    });
+
+    afterEach(() => {
+        currentDispose?.();
+        currentDispose = null;
     });
 
     it('accepts drift as a valid hash-routed page', async () => {
@@ -79,7 +86,7 @@ describe('hash router valid pages', () => {
         const showPage = vi.fn();
         window.history.replaceState(null, '', '#page=timeseries');
 
-        initHashRouting(showPage);
+        currentDispose = initHashRouting(showPage);
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -99,6 +106,45 @@ describe('hash router valid pages', () => {
         expect(showPage).not.toHaveBeenCalled();
     });
 
+    it('activates routes written directly to location.hash', async () => {
+        const { initHashRouting } = await import('./router.js');
+        const showPage = vi.fn();
+        currentDispose = initHashRouting(showPage);
+
+        window.history.replaceState(null, '', '#page=fft');
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+        await Promise.resolve();
+
+        expect(showPage).toHaveBeenCalledWith('fft');
+    });
+
+    it('re-activates the hash route when a cached page is restored', async () => {
+        const { initHashRouting } = await import('./router.js');
+        const showPage = vi.fn();
+        window.history.replaceState(null, '', '#page=correlations');
+        currentDispose = initHashRouting(showPage);
+
+        const event = new PageTransitionEvent('pageshow');
+        Object.defineProperty(event, 'persisted', { value: true });
+        window.dispatchEvent(event);
+        await Promise.resolve();
+
+        expect(showPage).toHaveBeenCalledWith('correlations');
+    });
+
+    it('replays a same-hash navigation event when the active section is stale', async () => {
+        const { initHashRouting } = await import('./router.js');
+        const showPage = vi.fn();
+        window.history.replaceState(null, '', '#page=correlations');
+        document.querySelector('.nav-item[data-page="drift"]')?.classList.add('active');
+        currentDispose = initHashRouting(showPage);
+
+        emitNavigationChange({ page: 'heatmap', navPage: 'correlations' });
+        await Promise.resolve();
+
+        expect(showPage).toHaveBeenCalledWith('correlations');
+    });
+
     it('canonicalizes ?page deep links to a hash route without keeping the query string', async () => {
         const { initPageNavigation } = await import('../ui/pageNavigation.js');
         const { initHashRouting } = await import('./router.js');
@@ -110,7 +156,7 @@ describe('hash router valid pages', () => {
             ensureSubsystem: vi.fn().mockResolvedValue(undefined),
             openSettings: vi.fn().mockResolvedValue(undefined),
         });
-        initHashRouting(navigation.showPage);
+        currentDispose = initHashRouting(navigation.showPage);
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -129,7 +175,7 @@ describe('hash router valid pages', () => {
             ensureSubsystem: vi.fn().mockResolvedValue(undefined),
             openSettings: vi.fn().mockResolvedValue(undefined),
         });
-        initHashRouting(navigation.showPage);
+        currentDispose = initHashRouting(navigation.showPage);
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -168,7 +214,7 @@ describe('hash router valid pages', () => {
             ensureSubsystem: vi.fn().mockResolvedValue(undefined),
             openSettings: vi.fn().mockResolvedValue(undefined),
         });
-        initHashRouting(navigation.showPage);
+        currentDispose = initHashRouting(navigation.showPage);
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 

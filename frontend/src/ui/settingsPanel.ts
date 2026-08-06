@@ -17,7 +17,10 @@ import {
     applyLayoutDensity,
     applyDefaultPalette,
     DEFAULT_SETTINGS,
+    MIN_INLINE_EXPORT_ROWS,
+    MIN_PARQUET_EXPORT_ROWS,
     normalizeSpectrogramPointLimit,
+    normalizeExportRowLimit,
 } from '../utils/settings.js';
 import { getSeriesPalette } from '../utils/seriesColors.js';
 import { paletteForColorScale } from '../utils/colorScales.js';
@@ -122,6 +125,10 @@ function populateSettingsForm(settings: AppSettings): void {
     setCheckboxValue('settings-draw-auto-reset', settings.drawAutoReset);
     setCheckboxValue('settings-sidebar-collapsed', settings.sidebarCollapsed);
 
+    // Export tab
+    setInputValue('settings-inline-export-row-limit', String(settings.inlineExportRowLimit));
+    setInputValue('settings-parquet-export-row-limit', String(settings.parquetExportRowLimit));
+
     // Render palette preview
     renderPalettePreview(settings.defaultPalette);
     renderPlotScalePreviews(settings.plotColorScales);
@@ -143,6 +150,14 @@ function collectSettingsFromForm(): AppSettings {
             timeFrequency: getSelectValue('settings-scale-time-frequency') as ColorScaleName || DEFAULT_SETTINGS.plotColorScales.timeFrequency,
         },
         sidebarCollapsed: getCheckboxValue('settings-sidebar-collapsed'),
+        inlineExportRowLimit: normalizeExportRowLimit(
+            getInputValue('settings-inline-export-row-limit'),
+            MIN_INLINE_EXPORT_ROWS,
+        ),
+        parquetExportRowLimit: normalizeExportRowLimit(
+            getInputValue('settings-parquet-export-row-limit'),
+            MIN_PARQUET_EXPORT_ROWS,
+        ),
     };
 }
 

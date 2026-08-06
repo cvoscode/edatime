@@ -21,6 +21,7 @@ import { canReuseBufferedFetch } from './bufferedFetchPolicy.js';
 import { resolveFetchedWindow } from './fetchedWindow.js';
 import { buildTimeseriesRenderModel } from './timeseriesRenderModel.js';
 import { resolveTimeseriesRequestIntent } from './requestIntent.js';
+import { classifySamplingState, formatSamplingIndicator, type SamplingMeta } from './samplingIndicator.js';
 import {
     appendZoomRestoreState,
     resolveZoomOutDecision,
@@ -281,6 +282,26 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         rememberRenderedViewport();
         emitFeatureEvent('workflow:refresh', undefined);
         announceDataUpdate('timeseries');
+        updateSamplingIndicator(model.data?._meta ?? null);
+    }
+
+    function updateSamplingIndicator(meta: SamplingMeta | null): void {
+        const root = document.getElementById('timeseries-sampling-indicator');
+        if (!root) return;
+        const labelEl = root.querySelector('[data-sampling-label]');
+        const detailEl = root.querySelector('[data-sampling-detail]');
+        const indicator = formatSamplingIndicator(classifySamplingState(meta));
+        if (!indicator) {
+            root.hidden = true;
+            if (labelEl) labelEl.textContent = '';
+            if (detailEl) detailEl.textContent = '';
+            root.dataset.level = '';
+            return;
+        }
+        root.hidden = false;
+        root.dataset.level = indicator.level;
+        if (labelEl) labelEl.textContent = indicator.label;
+        if (detailEl) detailEl.textContent = indicator.detail;
     }
 
     async function fetchAndRender(): Promise<void> {

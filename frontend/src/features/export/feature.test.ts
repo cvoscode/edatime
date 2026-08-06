@@ -83,11 +83,11 @@ describe('export feature characterization', () => {
         vi.restoreAllMocks();
     });
 
-    it('returns false for CSV and JSON export when there is no filtered dataset to export', () => {
+    it('returns a no_data result for CSV and JSON export when there is no filtered dataset to export', () => {
         const feature = createFeature();
 
-        expect(feature.exportFilteredCsv()).toBe(false);
-        expect(feature.exportFilteredJson()).toBe(false);
+        expect(feature.exportFilteredCsv()).toEqual({ ok: false, reason: 'no_data' });
+        expect(feature.exportFilteredJson()).toEqual({ ok: false, reason: 'no_data' });
         expect(downloadBlobMock).not.toHaveBeenCalled();
     });
 
@@ -101,7 +101,11 @@ describe('export feature characterization', () => {
         exportCleaningDataMock.mockResolvedValue(new Blob(['parquet']));
         const feature = createFeature({ getSnapshot: () => plan });
 
-        await expect(feature.exportFilteredParquet()).resolves.toBe(true);
+        await expect(feature.exportFilteredParquet()).resolves.toEqual({
+            ok: true,
+            rowCount: -1,
+            filename: 'edatime_cleaned.parquet',
+        });
 
         expect(exportCleaningDataMock).toHaveBeenCalledWith(plan);
         expect(downloadBlobMock).toHaveBeenCalledWith(expect.any(Blob), 'edatime_cleaned.parquet');
@@ -115,7 +119,9 @@ describe('export feature characterization', () => {
         });
         const feature = createFeature();
 
-        expect(feature.exportFilteredCsv()).toBe(true);
+        const csvResult = feature.exportFilteredCsv();
+        expect(csvResult.ok).toBe(true);
+        if (csvResult.ok) expect(csvResult.rowCount).toBe(6);
         expect(downloadBlobMock).toHaveBeenCalledTimes(1);
         expect(downloadBlobMock.mock.calls[0]?.[1]).toBe('edatime_filtered_series.csv');
 
@@ -140,7 +146,8 @@ describe('export feature characterization', () => {
         });
         const feature = createFeature();
 
-        expect(feature.exportFilteredJson()).toBe(true);
+        const jsonResult = feature.exportFilteredJson();
+        expect(jsonResult.ok).toBe(true);
         expect(downloadBlobMock).toHaveBeenCalledTimes(1);
         expect(downloadBlobMock.mock.calls[0]?.[1]).toBe('edatime_filtered_series.json');
 
@@ -176,8 +183,8 @@ describe('export feature characterization', () => {
         });
         const feature = createFeature();
 
-        expect(feature.exportFilteredCsv()).toBe(true);
-        expect(feature.exportFilteredJson()).toBe(true);
+        expect(feature.exportFilteredCsv().ok).toBe(true);
+        expect(feature.exportFilteredJson().ok).toBe(true);
         expect(downloadBlobMock).toHaveBeenCalledTimes(2);
     });
 
@@ -202,7 +209,7 @@ describe('export feature characterization', () => {
         });
         const feature = createFeature();
 
-        expect(feature.exportFilteredCsv()).toBe(true);
+        expect(feature.exportFilteredCsv().ok).toBe(true);
         const csvBlob = downloadBlobMock.mock.calls[0]?.[0] as Blob;
         const csv = await csvBlob.text();
 
@@ -218,27 +225,33 @@ describe('export feature characterization', () => {
         exportCleaningDataMock.mockResolvedValueOnce(parquetBlob);
         const feature = createFeature({ getSnapshot: () => plan });
 
-        await expect(feature.exportFilteredParquet()).resolves.toBe(true);
+        await expect(feature.exportFilteredParquet()).resolves.toEqual({
+            ok: true,
+            rowCount: -1,
+            filename: 'edatime_cleaned.parquet',
+        });
         expect(exportCleaningDataMock).toHaveBeenCalledWith(plan);
         expect(downloadBlobMock).toHaveBeenCalledWith(parquetBlob, 'edatime_cleaned.parquet');
     });
 
-    it('returns false for parquet export without a viewport or selected series', async () => {
+    it('returns a no_plan result for parquet export without a viewport or selected series', async () => {
         const feature = createFeature();
 
-        await expect(feature.exportFilteredParquet()).resolves.toBe(false);
+        await expect(feature.exportFilteredParquet()).resolves.toEqual({ ok: false, reason: 'no_plan' });
         expect(downloadBlobMock).not.toHaveBeenCalled();
     });
 
-    it('returns false instead of throwing for a finite viewport outside the JavaScript Date range', async () => {
+    it('returns an export_failed result instead of throwing for a finite viewport outside the JavaScript Date range', async () => {
         workspaceSnapshot = makeWorkspaceSnapshot({
             selection: { columns: ['temp'] },
             filters: { columnRanges: {}, adaptiveLines: [] },
             viewport: { xMin: 1e30, xMax: 2e30, yMin: null, yMax: null },
         });
-        const feature = createFeature();
+        const plan = { id: 'plan', stages: [] };
+        exportCleaningDataMock.mockRejectedValueOnce(new RangeError('Invalid time value'));
+        const feature = createFeature({ getSnapshot: () => plan });
 
-        await expect(feature.exportFilteredParquet()).resolves.toBe(false);
+        await expect(feature.exportFilteredParquet()).resolves.toMatchObject({ ok: false, reason: 'export_failed' });
         expect(downloadBlobMock).not.toHaveBeenCalled();
     });
 
@@ -250,11 +263,15 @@ describe('export feature characterization', () => {
         });
         const feature = createFeature();
 
-        expect(feature.exportFilteredCsv()).toBe(false);
+        expect(feature.exportFilteredCsv()).toEqual({
+            ok: false,
+            reason: 'row_limit_exceeded',
+            limit: 100_000,
+        });
         expect(downloadBlobMock).not.toHaveBeenCalled();
     });
 
-    it('returns false for JSON export when the filtered row set exceeds the export cap', () => {
+    it('returns a row_limit_exceeded result for JSON export when the filtered row set exceeds the cap', () => {
         currentData = makeLargeData(100_001);
         workspaceSnapshot = makeWorkspaceSnapshot({
             selection: { columns: ['temp'] },
@@ -262,7 +279,99 @@ describe('export feature characterization', () => {
         });
         const feature = createFeature();
 
-        expect(feature.exportFilteredJson()).toBe(false);
+        expect(feature.exportFilteredJson()).toEqual({
+            ok: false,
+            reason: 'row_limit_exceeded',
+            limit: 100_000,
+        });
         expect(downloadBlobMock).not.toHaveBeenCalled();
+    });
+
+    it('surfaces an explicit row-limit result instead of a silent false when the filtered row set exceeds the cap', () => {
+        currentData = makeLargeData(100_001);
+        workspaceSnapshot = makeWorkspaceSnapshot({
+            selection: { columns: ['temp'] },
+            filters: { columnRanges: {}, adaptiveLines: [] },
+        });
+        const feature = createFeature();
+
+        const csvResult = feature.exportFilteredCsv();
+        const jsonResult = feature.exportFilteredJson();
+        expect(csvResult).toMatchObject({ ok: false, reason: 'row_limit_exceeded', limit: 100_000 });
+        expect(jsonResult).toMatchObject({ ok: false, reason: 'row_limit_exceeded', limit: 100_000 });
+        expect(downloadBlobMock).not.toHaveBeenCalled();
+    });
+
+    it('reports success with the exact exported row count when within the cap', () => {
+        currentData = makeData();
+        workspaceSnapshot = makeWorkspaceSnapshot({
+            selection: { columns: ['temp', 'humidity'] },
+            filters: { columnRanges: {}, adaptiveLines: [] },
+        });
+        const feature = createFeature();
+
+        const csvResult = feature.exportFilteredCsv();
+        expect(csvResult).toMatchObject({ ok: true, rowCount: 6 });
+        expect(downloadBlobMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects parquet export with an explicit row-limit result when the backend returns a row count above the parquet cap', async () => {
+        exportCleaningDataMock.mockRejectedValueOnce(Object.assign(new Error('too many rows'), {
+            code: 'export_row_limit_exceeded',
+            limit: 1_000_000,
+        }));
+        const plan = { id: 'plan', stages: [] };
+        const feature = createFeature({ getSnapshot: () => plan });
+
+        const result = await feature.exportFilteredParquet();
+        expect(result).toMatchObject({ ok: false, reason: 'row_limit_exceeded', limit: 1_000_000 });
+        expect(downloadBlobMock).not.toHaveBeenCalled();
+    });
+
+    it('uses the provided inline row limit instead of the module default', () => {
+        currentData = makeLargeData(101);
+        workspaceSnapshot = makeWorkspaceSnapshot({
+            selection: { columns: ['temp'] },
+            filters: { columnRanges: {}, adaptiveLines: [] },
+        });
+        const feature = createExportFeature({
+            getData: () => currentData,
+            workspace: { getSnapshot: () => workspaceSnapshot },
+            limits: { inline: 100, parquet: 1_000_000 },
+        });
+
+        const csvResult = feature.exportFilteredCsv();
+        expect(csvResult).toEqual({ ok: false, reason: 'row_limit_exceeded', limit: 100 });
+        expect(downloadBlobMock).not.toHaveBeenCalled();
+    });
+
+    it('uses the provided parquet row limit when forwarding to the backend', async () => {
+        exportCleaningDataMock.mockResolvedValueOnce(new Blob(['parquet']));
+        const plan = {
+            schemaVersion: 1 as const,
+            id: 'plan',
+            planRevision: 1,
+            sourceVersionId: 'source-0',
+            datasetRevision: 0,
+            datasetFingerprint: 'frame',
+            schemaFingerprint: 'schema',
+            timeColumn: 'ts',
+            stages: [],
+            createdAt: 'now',
+            updatedAt: 'now',
+        };
+        const feature = createExportFeature({
+            getData: () => makeData(),
+            workspace: { getSnapshot: () => workspaceSnapshot },
+            cleaningPlanStore: { getSnapshot: () => plan },
+            limits: { inline: 100_000, parquet: 5_000_000 },
+        });
+
+        await expect(feature.exportFilteredParquet()).resolves.toEqual({
+            ok: true,
+            rowCount: -1,
+            filename: 'edatime_cleaned.parquet',
+        });
+        expect(downloadBlobMock).toHaveBeenCalledWith(expect.any(Blob), 'edatime_cleaned.parquet');
     });
 });

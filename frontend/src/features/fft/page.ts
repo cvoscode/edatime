@@ -21,7 +21,10 @@ import { buildFftFilterCutoffState, buildFftScaleOptions } from './fftControls.j
 import { buildFftSpectralInfo } from './fftSpectralInfo.js';
 import { buildFftFilterRequest } from './fftFilterRequest.js';
 import { buildFftTrace, resolveFftViewport } from './fftTraceModel.js';
+import { fetchFftPointBudget } from './fftBudget.js';
+import type { AnalysisSampling } from '../../contracts/api/v1/analytics.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
+import './fft.css';
 
 interface FftPageDeps {
     renderTimeseries: () => void;
@@ -31,6 +34,10 @@ interface FftPageDeps {
 const FFT_SELECTION_STORAGE_KEY = 'edatime_fft_selected_columns';
 
 let fftTraces: FftTrace[] = [];
+let fftSelectedColumns: string[] = [];
+let fftSamplingByColumn: Record<string, AnalysisSampling> = {};
+let fftComputing = false;
+let fftComputeError = '';
 let fftMode = 'magnitude';
 let fftLogScale = true;
 let fftScaleOptions: SpectralScaleOptions = { ...DEFAULT_SPECTRAL_SCALE };
@@ -55,6 +62,10 @@ function resetFftPageState(): void {
     fftControlAbort?.abort();
     fftControlAbort = null;
     fftTraces = [];
+    fftSelectedColumns = [];
+    fftSamplingByColumn = {};
+    fftComputing = false;
+    fftComputeError = '';
     fftMode = 'magnitude';
     fftLogScale = true;
     fftScaleOptions = { ...DEFAULT_SPECTRAL_SCALE };
@@ -99,7 +110,7 @@ function persistFftSelection(): void {
     try {
         window.localStorage.setItem(
             FFT_SELECTION_STORAGE_KEY,
-            JSON.stringify(fftTraces.map((trace) => trace.column)),
+            JSON.stringify(fftSelectedColumns),
         );
     } catch {
         // Ignore storage failures; the current in-memory selection still works.
@@ -115,21 +126,50 @@ function updateZoomButton(isZoomed?: boolean): void {
 }
 
 function syncFftEmptyState(): void {
-    // Suppress the placeholder the moment any chip is in the loading
-    // state so the user sees the active "loading" feedback instead of a
-    // contradictory "Select one or more traces" message.
-    const loadingChips = document.querySelectorAll<HTMLElement>('#fft-traces-bar .fft-trace-chip.loading');
-    const inFlight = loadingChips.length > 0;
-    const visible = fftTraces.length === 0 && !inFlight;
-    const reason = visible ? 'no-columns-selected' : '';
+    const visible = fftTraces.length === 0 && !fftComputing;
+    const reason = visible
+        ? (fftComputeError ? 'compute-failed' : fftSelectedColumns.length > 0 ? 'ready-to-compute' : 'no-columns-selected')
+        : '';
     const model = {
         visible,
         reason,
-        title: '',
-        message: '',
+        title: fftComputeError
+            ? 'Spectrum could not be computed'
+            : fftSelectedColumns.length > 0 ? 'Ready to compute' : 'Select one or more traces',
+        message: fftComputeError
+            || (fftSelectedColumns.length > 0
+                ? `Compute the spectrum for ${fftSelectedColumns.length} selected trace${fftSelectedColumns.length === 1 ? '' : 's'}.`
+                : 'Choose traces above, then compute their frequency spectrum.'),
     };
 
     fftRuntime?.updateEmptyState(model);
+    syncFftActions();
+    syncFftSamplingBadge();
+}
+
+function syncFftActions(): void {
+    const disabled = fftSelectedColumns.length === 0 || fftComputing;
+    for (const id of ['fft-compute-btn', 'fft-empty-compute-btn']) {
+        const button = document.getElementById(id) as HTMLButtonElement | null;
+        if (!button) continue;
+        button.disabled = disabled;
+        button.textContent = fftComputing ? 'Computing…' : 'Compute spectrum';
+    }
+}
+
+function syncFftSamplingBadge(): void {
+    const badge = document.getElementById('fft-sampling-badge');
+    if (!badge) return;
+    const sampling = fftSelectedColumns
+        .map((column) => fftSamplingByColumn[column])
+        .find((entry) => entry && entry.input_points > entry.output_points);
+    if (!sampling) {
+        badge.hidden = true;
+        badge.textContent = '';
+        return;
+    }
+    badge.hidden = false;
+    badge.textContent = `Downsampled to ${sampling.output_points.toLocaleString()} of ${sampling.input_points.toLocaleString()} points`;
 }
 
 function rerenderOrClear(): void {
@@ -243,24 +283,28 @@ function getFftViewport(): { startMs: number; endMs: number } | null {
     );
 }
 
-async function fetchAndAddTrace(column: string): Promise<void> {
+async function fetchFftTrace(
+    column: string,
+    maxPoints: number,
+    signal?: AbortSignal,
+): Promise<{ trace: FftTrace; sampling?: AnalysisSampling }> {
     const viewport = getFftViewport();
-    if (!viewport) return;
-    // ETTm2's 69,680-row 15-min dataset was being stride-downsampled to
-    // 8192 points, which collapsed the FFT X-axis to ~17-69 nHz and made
-    // daily/weekly cycles invisible. Raise the cap to 131072 so the
-    // resolution is enough to see daily/weekly cycles; the backend will
-    // still stride down on bigger datasets without truncating ETTm2.
-    const response = await fetchFft(new Date(viewport.startMs).toISOString(), new Date(viewport.endMs).toISOString(), column, 131072);
+    if (!viewport) throw new Error('No time range selected');
+    const response = await fetchFft(
+        new Date(viewport.startMs).toISOString(),
+        new Date(viewport.endMs).toISOString(),
+        column,
+        maxPoints,
+        { signal },
+    );
     if (!response?.results?.length) throw new Error('No results');
     const trace = buildFftTrace(response.results[0], fftColorFor(column));
     if (!trace) throw new Error('Malformed result');
-    fftTraces = fftTraces.filter((trace) => trace.column !== column);
-    fftTraces.push(trace);
+    return { trace, sampling: response.sampling };
 }
 
-async function seedInitialFftSelection(): Promise<void> {
-    if (fftInitialSelectionSeeded || !datasetState.metadata || fftTraces.length > 0) return;
+function seedInitialFftSelection(): void {
+    if (fftInitialSelectionSeeded || fftSelectedColumns.length > 0) return;
     const columns = fftColumns();
     if (columns.length === 0) {
         fftInitialSelectionSeeded = true;
@@ -270,73 +314,103 @@ async function seedInitialFftSelection(): Promise<void> {
     const targetColumns = (stored ?? columns.slice(0, 2))
         .filter((column, index, list) => columns.includes(column) && list.indexOf(column) === index);
     fftInitialSelectionSeeded = true;
-    if (targetColumns.length === 0) return;
+    fftSelectedColumns = targetColumns;
+    persistFftSelection();
+}
 
+async function computeSelectedFft(signal?: AbortSignal): Promise<void> {
+    if (fftComputing || fftSelectedColumns.length === 0) return;
+    const requestedColumns = [...fftSelectedColumns];
+    fftComputing = true;
+    fftComputeError = '';
     const loadingEl = document.getElementById('fft-chart-loading');
     if (loadingEl) loadingEl.hidden = false;
+    renderChips();
+    document.querySelectorAll<HTMLElement>('#fft-traces-bar .fft-trace-chip.active').forEach((chip) => {
+        chip.classList.add('loading');
+        chip.setAttribute('aria-disabled', 'true');
+    });
+    syncFftEmptyState();
+
     try {
-        await Promise.all(targetColumns.map(async (column) => {
-            try {
-                await fetchAndAddTrace(column);
-            } catch (error) {
-                console.warn(`FFT failed for ${column}: ${error instanceof Error ? error.message : String(error)}`);
+        const maxPoints = await fetchFftPointBudget(signal);
+        const settled = await Promise.allSettled(
+            requestedColumns.map((column) => fetchFftTrace(column, maxPoints, signal)),
+        );
+        const nextTraces: FftTrace[] = [];
+        const nextSampling: Record<string, AnalysisSampling> = {};
+        const failures: string[] = [];
+        settled.forEach((result, index) => {
+            const column = requestedColumns[index];
+            if (result.status === 'fulfilled') {
+                nextTraces.push(result.value.trace);
+                if (result.value.sampling) nextSampling[column] = result.value.sampling;
+            } else {
+                failures.push(column);
             }
-        }));
+        });
+
+        if (nextTraces.length === 0) {
+            const firstFailure = settled.find((result) => result.status === 'rejected');
+            const detail = firstFailure?.status === 'rejected'
+                ? (firstFailure.reason instanceof Error ? firstFailure.reason.message : String(firstFailure.reason))
+                : 'No results';
+            fftComputeError = detail;
+            toast(`FFT failed: ${detail}`, 'error');
+            return;
+        }
+
+        fftTraces = nextTraces;
+        fftSamplingByColumn = nextSampling;
         await ensureFftChartReady();
+        if (failures.length > 0) {
+            toast(`FFT skipped ${failures.length} trace${failures.length === 1 ? '' : 's'}: ${failures.join(', ')}`, 'warning');
+        }
+    } catch (error) {
+        if (signal?.aborted) return;
+        const detail = error instanceof Error ? error.message : String(error);
+        fftComputeError = detail;
+        toast(`FFT failed: ${detail}`, 'error');
+    } finally {
+        fftComputing = false;
+        if (loadingEl) loadingEl.hidden = true;
+        document.querySelectorAll<HTMLElement>('#fft-traces-bar .fft-trace-chip.loading').forEach((chip) => {
+            chip.classList.remove('loading');
+            chip.removeAttribute('aria-disabled');
+        });
         renderChips();
         rerenderOrClear();
-    } finally {
-        if (loadingEl) loadingEl.hidden = true;
-        syncFftEmptyState();
     }
 }
 
 function renderChips(): void {
     const bar = document.getElementById('fft-traces-bar');
-    if (!bar || !datasetState.metadata) return;
+    if (!bar) return;
     const columns = fftColumns();
 
     renderSeriesChipList({
         container: bar,
         items: columns.map((column) => {
-            const isActive = fftTraces.some((trace) => trace.column === column);
+            const isActive = fftSelectedColumns.includes(column);
             const color = fftColorFor(column);
             return {
                 column,
                 label: column,
                 checked: isActive,
+                disabled: fftComputing,
                 color,
-                onToggle: async (checked) => {
+                onToggle: (checked) => {
                     if (checked) {
-                        if (fftTraces.some((trace) => trace.column === column)) return;
-                        const activeChip = bar.querySelector(`[data-col="${column}"]`) as HTMLElement | null;
-                        if (!activeChip) return;
-                        activeChip.classList.add('loading');
-                        activeChip.classList.add('fft-trace-chip');
-                        activeChip.setAttribute('aria-disabled', 'true');
-                        syncFftEmptyState();
-                        const loadingEl = document.getElementById('fft-chart-loading');
-                        if (loadingEl) loadingEl.hidden = false;
-                        try {
-                            await fetchAndAddTrace(column);
-                            await ensureFftChartReady();
-                            persistFftSelection();
-                            renderChips();
-                            rerenderOrClear();
-                        } catch (error: any) {
-                            console.warn(`FFT failed for ${column}: ${error?.message || 'error'}`);
-                        } finally {
-                            activeChip.classList.remove('loading');
-                            activeChip.removeAttribute('aria-disabled');
-                            if (loadingEl) loadingEl.hidden = true;
-                            syncFftEmptyState();
-                        }
+                        if (!fftSelectedColumns.includes(column)) fftSelectedColumns.push(column);
                     } else {
+                        fftSelectedColumns = fftSelectedColumns.filter((selected) => selected !== column);
                         fftTraces = fftTraces.filter((trace) => trace.column !== column);
-                        persistFftSelection();
-                        renderChips();
-                        rerenderOrClear();
+                        delete fftSamplingByColumn[column];
                     }
+                    fftComputeError = '';
+                    persistFftSelection();
+                    renderChips();
+                    rerenderOrClear();
                 },
                 onColorInput: (nextColor) => {
                     fftTraceColors[column] = nextColor;
@@ -378,6 +452,8 @@ export async function initFftPage(deps: FftPageDeps): Promise<() => void> {
     fftRuntime = createAnalysisPageRuntime({
         page: 'fft',
         emptyStateRootId: 'fft-empty-state',
+        emptyStateTitleId: 'fft-empty-title',
+        emptyStateMessageId: 'fft-empty-message',
         bindExportsOnInit: false,
         exportConfig: {
             key: 'fft',
@@ -407,6 +483,10 @@ export async function initFftPage(deps: FftPageDeps): Promise<() => void> {
             // Page-level "?" help button. Idempotent so safe to call
             // on every page init.
             controlAbort.signal.addEventListener('abort', initFftHelp(), { once: true });
+
+            const runCompute = () => void computeSelectedFft(controlAbort.signal);
+            document.getElementById('fft-compute-btn')?.addEventListener('click', runCompute, listenerOptions);
+            document.getElementById('fft-empty-compute-btn')?.addEventListener('click', runCompute, listenerOptions);
 
             modeSelect?.addEventListener('change', () => {
                 fftMode = getDropdownValue('fft-mode-select') || 'magnitude';
@@ -491,9 +571,11 @@ export async function initFftPage(deps: FftPageDeps): Promise<() => void> {
                     return;
                 }
 
-                const column = fftTraces[0]?.column || workspace?.getSnapshot().selection.columns[0];
+                const column = fftTraces[0]?.column
+                    || fftSelectedColumns[0]
+                    || workspace?.getSnapshot().selection.columns[0];
                 if (!column) {
-                    toast('Select a column chip below first.', 'warning');
+                    toast('Select a column chip above first.', 'warning');
                     return;
                 }
 
@@ -565,26 +647,9 @@ export async function initFftPage(deps: FftPageDeps): Promise<() => void> {
             filterTypeSelect?.addEventListener('change', syncFilterCutoffInputs, listenerOptions);
             syncFilterCutoffInputs();
 
+            seedInitialFftSelection();
+            renderChips();
             rerenderOrClear();
-            void seedInitialFftSelection().then(() => {
-                // Surface persisted selections so users understand why the
-                // chip bar is pre-populated after a page reload.
-                const stored = loadStoredFftSelection();
-                if (stored && stored.length > 0 && fftTraces.length > 0) {
-                    const sessionFlag = 'edatime_fft_restored_toast';
-                    try {
-                        if (window.sessionStorage.getItem(sessionFlag) === '1') return;
-                        window.sessionStorage.setItem(sessionFlag, '1');
-                    } catch {
-                        // sessionStorage may be unavailable in private mode;
-                        // that's fine — the toast is purely informational.
-                    }
-                    toast(
-                        `Restored ${stored.length} FFT trace${stored.length === 1 ? '' : 's'} from last session.`,
-                        'info',
-                    );
-                }
-            });
 
             // Deferred export binding so csv dataCheck captures the current fftTraces
             // reference rather than a stale closure from mount time.
@@ -596,9 +661,10 @@ export async function initFftPage(deps: FftPageDeps): Promise<() => void> {
         },
         onEveryPageChange() {
             // Re-render chips on every page change (fft needs to reflect selected columns from any page)
-            if (datasetState.metadata) {
+            if (fftColumns().length > 0) {
+                seedInitialFftSelection();
                 renderChips();
-                void seedInitialFftSelection();
+                rerenderOrClear();
             }
         },
     });

@@ -5,11 +5,6 @@
   overflow-y: auto;
 }
 
-#page-drift .page-header {
-  min-height: 54px;
-  padding-block: 8px;
-}
-
 #page-drift .main--chart {
   display: flex;
   flex: 0 0 auto;

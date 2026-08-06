@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { DEFAULT_SETTINGS, initSettings, loadSettings, saveSettings } from './settings.js';
+import {
+    DEFAULT_SETTINGS,
+    getExportRowLimits,
+    initSettings,
+    loadSettings,
+    normalizeExportRowLimit,
+    saveSettings,
+} from './settings.js';
 import { getActiveSeriesPalette, getSeriesPalette, setActiveSeriesPalette } from './seriesColors.js';
 
 describe('settings correlation mode', () => {
@@ -83,5 +90,66 @@ describe('settings correlation mode', () => {
         expect(loadSettings()).not.toHaveProperty('defaultCausalMethod');
         expect(loadSettings()).not.toHaveProperty('defaultTauMax');
         expect(loadSettings()).not.toHaveProperty('analyticsDrawerOpen');
+    });
+});
+
+describe('export row limit settings', () => {
+    describe('normalizeExportRowLimit', () => {
+        it('returns the input when it is a positive integer', () => {
+            expect(normalizeExportRowLimit(250_000, 100_000)).toBe(250_000);
+        });
+
+        it('clamps to the minimum when below the floor', () => {
+            expect(normalizeExportRowLimit(0, 100_000)).toBe(100_000);
+            expect(normalizeExportRowLimit(-50, 100_000)).toBe(100_000);
+        });
+
+        it('falls back to the default when the value is non-finite', () => {
+            expect(normalizeExportRowLimit(NaN, 100_000)).toBe(100_000);
+            expect(normalizeExportRowLimit(Number.POSITIVE_INFINITY, 100_000)).toBe(100_000);
+            expect(normalizeExportRowLimit(undefined, 100_000)).toBe(100_000);
+        });
+
+        it('rounds non-integer values to the nearest integer', () => {
+            expect(normalizeExportRowLimit(123_456.7, 100_000)).toBe(123_457);
+        });
+    });
+
+    describe('getExportRowLimits', () => {
+        beforeEach(() => {
+            localStorage.clear();
+        });
+
+        afterEach(() => {
+            localStorage.clear();
+        });
+
+        it('returns the defaults when nothing is persisted', () => {
+            const limits = getExportRowLimits();
+            expect(limits.inline).toBe(DEFAULT_SETTINGS.inlineExportRowLimit);
+            expect(limits.parquet).toBe(DEFAULT_SETTINGS.parquetExportRowLimit);
+        });
+
+        it('reads the persisted override for both caps', () => {
+            localStorage.setItem('edatime-settings', JSON.stringify({
+                ...DEFAULT_SETTINGS,
+                inlineExportRowLimit: 250_000,
+                parquetExportRowLimit: 5_000_000,
+            }));
+            const limits = getExportRowLimits();
+            expect(limits.inline).toBe(250_000);
+            expect(limits.parquet).toBe(5_000_000);
+        });
+
+        it('falls back to defaults when stored values are not positive integers', () => {
+            localStorage.setItem('edatime-settings', JSON.stringify({
+                ...DEFAULT_SETTINGS,
+                inlineExportRowLimit: -1,
+                parquetExportRowLimit: 'big',
+            }));
+            const limits = getExportRowLimits();
+            expect(limits.inline).toBe(DEFAULT_SETTINGS.inlineExportRowLimit);
+            expect(limits.parquet).toBe(DEFAULT_SETTINGS.parquetExportRowLimit);
+        });
     });
 });

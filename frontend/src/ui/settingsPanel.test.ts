@@ -46,6 +46,8 @@ function buildSettingsDom(): void {
                 <div data-scale-preview="signals"></div><div data-scale-preview="pairPlot"></div>
                 <div data-scale-preview="correlationMatrix"></div><div data-scale-preview="timeFrequency"></div>
                 <input id="settings-sidebar-collapsed" type="checkbox" />
+                <input id="settings-inline-export-row-limit" type="number" />
+                <input id="settings-parquet-export-row-limit" type="number" />
             </div>
         </div>
     `;
@@ -197,5 +199,45 @@ describe('settingsPanel', () => {
         }));
 
         expect(document.getElementById('settings-modal')?.hidden).toBe(true);
+    });
+
+    it('persists the export row caps from the Export tab', async () => {
+        const settingsModule = await import('../utils/settings.js');
+        vi.spyOn(settingsModule, 'loadSettings').mockReturnValue(settingsModule.DEFAULT_SETTINGS);
+        vi.spyOn(settingsModule, 'applyTheme').mockImplementation(() => {});
+        vi.spyOn(settingsModule, 'applyLayoutDensity').mockImplementation(() => {});
+        const saveSettings = vi.spyOn(settingsModule, 'saveSettings').mockImplementation(() => {});
+
+        const panelModule = await import('./settingsPanel.js');
+        panelModule.initSettingsPanel();
+        panelModule.openSettingsModal();
+        (document.getElementById('settings-inline-export-row-limit') as HTMLInputElement).value = '250000';
+        (document.getElementById('settings-parquet-export-row-limit') as HTMLInputElement).value = '5000000';
+        document.getElementById('settings-apply-btn')?.click();
+
+        expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({
+            inlineExportRowLimit: 250_000,
+            parquetExportRowLimit: 5_000_000,
+        }));
+    });
+
+    it('clamps too-small export row caps to the floor when persisting', async () => {
+        const settingsModule = await import('../utils/settings.js');
+        vi.spyOn(settingsModule, 'loadSettings').mockReturnValue(settingsModule.DEFAULT_SETTINGS);
+        vi.spyOn(settingsModule, 'applyTheme').mockImplementation(() => {});
+        vi.spyOn(settingsModule, 'applyLayoutDensity').mockImplementation(() => {});
+        const saveSettings = vi.spyOn(settingsModule, 'saveSettings').mockImplementation(() => {});
+
+        const panelModule = await import('./settingsPanel.js');
+        panelModule.initSettingsPanel();
+        panelModule.openSettingsModal();
+        (document.getElementById('settings-inline-export-row-limit') as HTMLInputElement).value = '5';
+        (document.getElementById('settings-parquet-export-row-limit') as HTMLInputElement).value = '0';
+        document.getElementById('settings-apply-btn')?.click();
+
+        expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({
+            inlineExportRowLimit: settingsModule.MIN_INLINE_EXPORT_ROWS,
+            parquetExportRowLimit: settingsModule.MIN_PARQUET_EXPORT_ROWS,
+        }));
     });
 });
