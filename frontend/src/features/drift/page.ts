@@ -381,6 +381,12 @@ export async function initDriftPage(
         if (!response || response.windows.length === 0) return;
         let index = response.windows.length - 1;
         if (mode === 'first') {
+            // First change is not meaningful when the sample-size imbalance
+            // inflates PSI/KS on every window — show a toast and stay on latest.
+            if (imbalancedActiveColumn()) {
+                toast('First change is unreliable under sample-size imbalance.', 'warning', {});
+                return;
+            }
             index = response.windows.findIndex((window) => window.drift_level !== 'green');
             if (index < 0) index = 0;
         } else if (mode === 'worst') {
@@ -399,6 +405,28 @@ export async function initDriftPage(
         updateDetailStatsLocal();
     }
 
+    function imbalancedActiveColumn(): boolean {
+        const column = getActiveDetailColumn();
+        if (!column) return false;
+        const response = getResponsesByColumn().get(column);
+        return response?.metadata?.psi_sample_ratio_warning === true;
+    }
+
+    function syncWindowPickAvailability(): void {
+        const imbalanced = imbalancedActiveColumn();
+        const firstBtn = document.querySelector<HTMLButtonElement>('[data-drift-window-pick="first"]');
+        if (!firstBtn) return;
+        firstBtn.disabled = imbalanced;
+        firstBtn.classList.toggle('drift-window-pick--disabled', imbalanced);
+        firstBtn.setAttribute(
+            'aria-disabled',
+            imbalanced ? 'true' : 'false',
+        );
+        firstBtn.title = imbalanced
+            ? 'First change is unreliable under sample-size imbalance — try a longer window or a shorter reference.'
+            : 'First change — earliest window that is not green';
+    }
+
     function selectTrace(column: string): void {
         const response = getResponsesByColumn().get(column);
         if (!response) return;
@@ -407,6 +435,7 @@ export async function initDriftPage(
         setDropdownValue('drift-detail-col-select', column);
         syncSelectedTraceRow();
         syncWindowPickButtons('latest');
+        syncWindowPickAvailability();
         syncOverviewModeUi();
         renderTimelineLocal();
         renderDetail();
@@ -422,6 +451,7 @@ export async function initDriftPage(
         currentInvestigation = investigation;
         setResponses(getFilteredResponses(results));
         syncWindowPickButtons('latest');
+        syncWindowPickAvailability();
         updateDetailColumnSelect();
         statusSummary(failedColumns);
         setComputedStatus(getResponsesByColumn(), failedColumns);
@@ -716,6 +746,14 @@ export async function initDriftPage(
     });
     tabButtons.forEach((button) => {
         button.addEventListener('click', () => setActiveTab(button.dataset.driftTab || 'overview'), { signal: pageAbortController.signal });
+    });
+    document.querySelectorAll<HTMLElement>('[data-drift-jump-tab]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const target = button.dataset.driftJumpTab;
+            if (target === 'quality' || target === 'segments' || target === 'relationships' || target === 'overview') {
+                setActiveTab(target);
+            }
+        }, { signal: pageAbortController.signal });
     });
     updateSegmentBySelect();
     setActiveTab(activeTab);

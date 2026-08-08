@@ -100,6 +100,19 @@ export interface ScatterState {
      */
     colorCardinality: { requested: number; used: number; bucketed: number } | null;
     correlationsByColumn: Map<string, { value?: number | null; count?: number; column?: string }>;
+    /**
+     * Per-mode correlation maps keyed first by metric mode (e.g.
+     * "pearson_raw", "spearman_raw") and then by column. Populated
+     * for every family-mode request (raw Pearson, raw Spearman,
+     * diff Pearson, diff Spearman) so the chip renderer can read
+     * the current Y directly from the appropriate map without
+     * falling back to a stale `correlationsByColumn` entry.
+     *
+     * `correlationsByColumn` is kept as the active-mode convenience
+     * view (mirrors `correlationsByMode.get(activeMode)`) and remains
+     * the source of truth for `top_pairs`/`suggestions` consumers.
+     */
+    correlationsByMode: Map<string, Map<string, { value?: number | null; count?: number; column?: string }>>;
     currentPairStats: ScatterPairStats | null;
     suggestionThreshold: number;
     lastBinnedText: string;
@@ -155,6 +168,7 @@ export const scatterState: ScatterState = {
     colorMax: null,
     colorCardinality: null,
     correlationsByColumn: new Map(),
+    correlationsByMode: new Map(),
     currentPairStats: null,
     suggestionThreshold: 0.7,
     lastBinnedText: '',

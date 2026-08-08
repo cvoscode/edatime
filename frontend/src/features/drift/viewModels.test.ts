@@ -253,6 +253,24 @@ describe('drift view models', () => {
         expect(option.visualMap.dimension).toBe(2);
     });
 
+    it('overlays a reference baseline band on the heatmap x-axis', () => {
+        const option = buildTimelineOption({
+            responsesByColumn: new Map([['HUFL', response]]),
+            activeDetailColumn: 'HUFL',
+            selectedWindowIdx: null,
+        }) as any;
+
+        const markArea = option.series[0].markArea;
+        expect(markArea).toBeDefined();
+        expect(markArea.silent).toBe(true);
+        expect(markArea.data[0][0].name).toBe('Reference baseline');
+        expect(markArea.label.formatter).toMatch(/Reference ·/);
+
+        const markLine = option.series[0].markLine;
+        expect(markLine).toBeDefined();
+        expect(markLine.data[0].xAxis).toBeGreaterThan(0);
+    });
+
     it.each([
         ['boxplot', 'boxplot'],
         ['violin', 'custom'],

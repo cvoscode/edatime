@@ -27,8 +27,12 @@ describe('fft layout shell', () => {
         expect(indexHtml).toContain('id="fft-empty-compute-btn"');
     });
 
-    it('explains the inherited Signals range and reserves a sampling badge', () => {
-        expect(indexHtml).toContain('Range inherited from Signals (24h · 7d · 30d · All).');
+    it('reserves a sampling badge element for the FFT page', () => {
         expect(indexHtml).toContain('id="fft-sampling-badge"');
+    });
+
+    it('does not include the inherited Signals range banner', () => {
+        expect(indexHtml).not.toContain('Range inherited from Signals (24h · 7d · 30d · All).');
+        expect(indexHtml).not.toContain('analysis-range-context');
     });
 });

@@ -225,25 +225,6 @@ header.app-topbar {
   color: var(--text-strong);
 }
 
-.analysis-range-context {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  padding: 5px var(--workspace-pad);
-  border-bottom: var(--workspace-rule);
-  color: var(--text-dim);
-  font-size: 0.75rem;
-}
-
-.analysis-range-context a {
-  color: var(--accent);
-}
-
-.analysis-sampling-badge {
-  margin-left: auto;
-}
-
 .page-help-trigger > span[aria-hidden="true"] {
   display: inline-grid;
   width: 16px;

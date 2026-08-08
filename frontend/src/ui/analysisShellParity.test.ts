@@ -15,8 +15,8 @@ describe('analysis shell parity', () => {
         expect(indexHtml).toContain('<section id="workflow-panel" class="workflow-panel" hidden></section>');
     });
 
-    it('explains the inherited range on both frequency analysis pages', () => {
-        expect(indexHtml.match(/Range inherited from Signals \(24h · 7d · 30d · All\)\./g))
-            .toHaveLength(2);
+    it('does not include the inherited range banner on the frequency analysis pages', () => {
+        expect(indexHtml).not.toContain('Range inherited from Signals (24h · 7d · 30d · All).');
+        expect(indexHtml).not.toContain('analysis-range-context');
     });
 });

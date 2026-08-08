@@ -98,9 +98,16 @@ describe('timeseries layout shell', () => {
         expect(chipsCss).not.toContain('.timeseries-adaptive-hint');
     });
 
-    it('keeps menu-bearing series chips at the compact Spectrum height', () => {
-        expect(chipsCss).toMatch(/\.series-chip\s*\{[^}]*min-height:\s*26px;[^}]*padding:\s*3px 6px 3px 8px;/s);
-        expect(chipsCss).toMatch(/\.chip-menu-btn\s*\{[^}]*height:\s*18px;[^}]*min-width:\s*22px;[^}]*min-height:\s*18px;/s);
+    it('keeps series chips aligned to the .range-chip family', () => {
+        // Match the .range-chip aesthetic used elsewhere in the app:
+        // flat 6px corners, thin border, subtle background, no lift on
+        // hover. The chip-menu button hides in the resting state and
+        // reveals on hover so the row stays clean.
+        expect(chipsCss).toMatch(/\.series-chip\s*\{[^}]*border-radius:\s*var\(--radius\)/s);
+        expect(chipsCss).toMatch(/\.series-chip\s*\{[^}]*min-height:\s*24px/s);
+        expect(chipsCss).toMatch(/\.series-chip\s*\{[^}]*padding:\s*4px 8px/s);
+        expect(chipsCss).toMatch(/\.chip-menu-btn\s*\{[^}]*opacity:\s*0/s);
+        expect(chipsCss).toMatch(/\.series-chip:hover\s+\.chip-menu-btn[\s,][^}]*opacity:\s*0\.85/s);
     });
 
     it('uses a compact, accessible column-filter range control', () => {

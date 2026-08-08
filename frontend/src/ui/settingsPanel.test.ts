@@ -67,9 +67,9 @@ describe('settingsPanel', () => {
             theme: 'dark',
             layoutDensity: 'spacious',
         });
-        const applyTheme = vi.spyOn(settingsModule, 'applyTheme').mockImplementation(() => {});
-        const applyLayoutDensity = vi.spyOn(settingsModule, 'applyLayoutDensity').mockImplementation(() => {});
-        const saveSettings = vi.spyOn(settingsModule, 'saveSettings').mockImplementation(() => {});
+        const applyTheme = vi.spyOn(settingsModule, 'applyTheme').mockImplementation(() => { });
+        const applyLayoutDensity = vi.spyOn(settingsModule, 'applyLayoutDensity').mockImplementation(() => { });
+        const saveSettings = vi.spyOn(settingsModule, 'saveSettings').mockImplementation(() => { });
 
         const panelModule = await import('./settingsPanel.js');
         panelModule.initSettingsPanel();
@@ -99,9 +99,9 @@ describe('settingsPanel', () => {
             theme: 'dark',
             layoutDensity: 'spacious',
         });
-        const applyTheme = vi.spyOn(settingsModule, 'applyTheme').mockImplementation(() => {});
-        const applyLayoutDensity = vi.spyOn(settingsModule, 'applyLayoutDensity').mockImplementation(() => {});
-        const saveSettings = vi.spyOn(settingsModule, 'saveSettings').mockImplementation(() => {});
+        const applyTheme = vi.spyOn(settingsModule, 'applyTheme').mockImplementation(() => { });
+        const applyLayoutDensity = vi.spyOn(settingsModule, 'applyLayoutDensity').mockImplementation(() => { });
+        const saveSettings = vi.spyOn(settingsModule, 'saveSettings').mockImplementation(() => { });
 
         const panelModule = await import('./settingsPanel.js');
         panelModule.initSettingsPanel();
@@ -132,9 +132,9 @@ describe('settingsPanel', () => {
             theme: 'dark',
             layoutDensity: 'spacious',
         });
-        vi.spyOn(settingsModule, 'applyTheme').mockImplementation(() => {});
-        vi.spyOn(settingsModule, 'applyLayoutDensity').mockImplementation(() => {});
-        vi.spyOn(settingsModule, 'saveSettings').mockImplementation(() => {});
+        vi.spyOn(settingsModule, 'applyTheme').mockImplementation(() => { });
+        vi.spyOn(settingsModule, 'applyLayoutDensity').mockImplementation(() => { });
+        vi.spyOn(settingsModule, 'saveSettings').mockImplementation(() => { });
 
         const panelModule = await import('./settingsPanel.js');
         panelModule.initSettingsPanel();
@@ -153,9 +153,9 @@ describe('settingsPanel', () => {
     it('persists independent plot color scales from the centralized form', async () => {
         const settingsModule = await import('../utils/settings.js');
         vi.spyOn(settingsModule, 'loadSettings').mockReturnValue(settingsModule.DEFAULT_SETTINGS);
-        vi.spyOn(settingsModule, 'applyTheme').mockImplementation(() => {});
-        vi.spyOn(settingsModule, 'applyLayoutDensity').mockImplementation(() => {});
-        const saveSettings = vi.spyOn(settingsModule, 'saveSettings').mockImplementation(() => {});
+        vi.spyOn(settingsModule, 'applyTheme').mockImplementation(() => { });
+        vi.spyOn(settingsModule, 'applyLayoutDensity').mockImplementation(() => { });
+        const saveSettings = vi.spyOn(settingsModule, 'saveSettings').mockImplementation(() => { });
 
         const panelModule = await import('./settingsPanel.js');
         panelModule.initSettingsPanel();
@@ -172,9 +172,9 @@ describe('settingsPanel', () => {
     it('persists the spectrogram sample limit', async () => {
         const settingsModule = await import('../utils/settings.js');
         vi.spyOn(settingsModule, 'loadSettings').mockReturnValue(settingsModule.DEFAULT_SETTINGS);
-        vi.spyOn(settingsModule, 'applyTheme').mockImplementation(() => {});
-        vi.spyOn(settingsModule, 'applyLayoutDensity').mockImplementation(() => {});
-        const saveSettings = vi.spyOn(settingsModule, 'saveSettings').mockImplementation(() => {});
+        vi.spyOn(settingsModule, 'applyTheme').mockImplementation(() => { });
+        vi.spyOn(settingsModule, 'applyLayoutDensity').mockImplementation(() => { });
+        const saveSettings = vi.spyOn(settingsModule, 'saveSettings').mockImplementation(() => { });
 
         const panelModule = await import('./settingsPanel.js');
         panelModule.initSettingsPanel();
@@ -204,9 +204,9 @@ describe('settingsPanel', () => {
     it('persists the export row caps from the Export tab', async () => {
         const settingsModule = await import('../utils/settings.js');
         vi.spyOn(settingsModule, 'loadSettings').mockReturnValue(settingsModule.DEFAULT_SETTINGS);
-        vi.spyOn(settingsModule, 'applyTheme').mockImplementation(() => {});
-        vi.spyOn(settingsModule, 'applyLayoutDensity').mockImplementation(() => {});
-        const saveSettings = vi.spyOn(settingsModule, 'saveSettings').mockImplementation(() => {});
+        vi.spyOn(settingsModule, 'applyTheme').mockImplementation(() => { });
+        vi.spyOn(settingsModule, 'applyLayoutDensity').mockImplementation(() => { });
+        const saveSettings = vi.spyOn(settingsModule, 'saveSettings').mockImplementation(() => { });
 
         const panelModule = await import('./settingsPanel.js');
         panelModule.initSettingsPanel();
@@ -224,9 +224,9 @@ describe('settingsPanel', () => {
     it('clamps too-small export row caps to the floor when persisting', async () => {
         const settingsModule = await import('../utils/settings.js');
         vi.spyOn(settingsModule, 'loadSettings').mockReturnValue(settingsModule.DEFAULT_SETTINGS);
-        vi.spyOn(settingsModule, 'applyTheme').mockImplementation(() => {});
-        vi.spyOn(settingsModule, 'applyLayoutDensity').mockImplementation(() => {});
-        const saveSettings = vi.spyOn(settingsModule, 'saveSettings').mockImplementation(() => {});
+        vi.spyOn(settingsModule, 'applyTheme').mockImplementation(() => { });
+        vi.spyOn(settingsModule, 'applyLayoutDensity').mockImplementation(() => { });
+        const saveSettings = vi.spyOn(settingsModule, 'saveSettings').mockImplementation(() => { });
 
         const panelModule = await import('./settingsPanel.js');
         panelModule.initSettingsPanel();

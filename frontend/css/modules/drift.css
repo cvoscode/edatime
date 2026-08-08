@@ -179,14 +179,137 @@
   min-height: 58px;
 }
 
+.drift-investigation-cards {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 12px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.drift-investigation-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.drift-investigation-subhead {
+  margin: 14px 0 6px;
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.drift-column-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.drift-column-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.drift-column-card__level {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.drift-column-card__level.drift-red {
+  background: color-mix(in srgb, var(--red) 18%, transparent);
+  color: var(--red);
+}
+
+.drift-column-card__level.drift-amber {
+  background: color-mix(in srgb, var(--amber) 18%, transparent);
+  color: var(--amber);
+}
+
+.drift-column-card__level.drift-yellow {
+  background: color-mix(in srgb, var(--yellow) 18%, transparent);
+  color: var(--yellow);
+}
+
+.drift-column-card__level.drift-green {
+  background: color-mix(in srgb, var(--green) 18%, transparent);
+  color: var(--green);
+}
+
+.drift-column-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+
+.drift-column-card__body strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.drift-page-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px var(--workspace-pad);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.drift-page-tab {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.drift-page-tab:hover,
+.drift-page-tab:focus-visible {
+  background: var(--surface-2);
+  color: var(--text-strong);
+}
+
+.drift-page-tab[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
 .drift-verdict {
   display: grid;
-  grid-template-columns: minmax(250px, 1.3fr) repeat(4, minmax(92px, 0.52fr)) minmax(245px, 1.15fr);
+  grid-template-columns: minmax(250px, 1.3fr) repeat(4, minmax(92px, 0.52fr));
   align-items: stretch;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface);
+}
+
+.drift-verdict--degraded {
+  border-color: color-mix(in srgb, var(--amber) 55%, var(--border));
 }
 
 .drift-verdict__headline,
@@ -266,18 +389,104 @@
   gap: 9px;
   margin: 5px;
   padding: 8px 12px;
-  border: 1px solid color-mix(in srgb, var(--amber) 38%, var(--border));
-  border-radius: var(--radius);
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  border-left: 1px solid color-mix(in srgb, var(--amber) 38%, var(--border));
+  border-right: 1px solid color-mix(in srgb, var(--amber) 38%, var(--border));
+  border-radius: 0;
   background: color-mix(in srgb, var(--amber) 7%, var(--surface));
   color: var(--text);
   font-size: 0.7rem;
   line-height: 1.35;
+  grid-column: 1 / -1;
 }
 
 .drift-verdict__quality-marker {
   color: var(--amber);
   font-size: 0.82rem;
   font-weight: 800;
+}
+
+.drift-verdict__quality-action {
+  margin-left: auto;
+  padding: 4px 10px;
+  border: 1px solid color-mix(in srgb, var(--amber) 50%, var(--border));
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--amber);
+  font: inherit;
+  font-size: 0.66rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.drift-verdict__quality-action:hover,
+.drift-verdict__quality-action:focus-visible {
+  background: color-mix(in srgb, var(--amber) 12%, var(--surface));
+}
+
+.drift-verdict__change-points {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface);
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+
+.drift-verdict__change-points strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.drift-change-point-chip {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.drift-verdict__evidence {
+  grid-column: 1 / -1;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface);
+}
+
+.drift-verdict__evidence summary {
+  cursor: pointer;
+  color: var(--text-strong);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.drift-verdict__evidence summary::marker {
+  color: var(--text-dim);
+}
+
+.drift-verdict__evidence-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.drift-verdict__evidence-list li {
+  display: flex;
+  gap: 6px;
+  color: var(--text);
+  font-size: 0.7rem;
+}
+
+.drift-verdict__evidence-list li::before {
+  content: "•";
+  color: var(--accent);
 }
 
 .drift-layout {
@@ -505,6 +714,50 @@
 .drift-trace-row.selected {
   box-shadow: inset 2px 0 0 var(--accent);
   background: var(--accent-dim);
+}
+
+.drift-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.drift-trend--up {
+  background: color-mix(in srgb, var(--red) 14%, transparent);
+  color: var(--red);
+}
+
+.drift-trend--down {
+  background: color-mix(in srgb, var(--green) 14%, transparent);
+  color: var(--green);
+}
+
+.drift-trend--flat {
+  background: color-mix(in srgb, var(--text-dim) 14%, transparent);
+  color: var(--text-dim);
+}
+
+.drift-trend-badge {
+  display: inline-flex;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--amber) 18%, transparent);
+  color: var(--amber);
+  font-size: 0.6rem;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.drift-window-pick--disabled,
+.drift-window-pick:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .drift-trace-name {

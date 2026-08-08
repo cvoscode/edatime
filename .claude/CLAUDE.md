@@ -9,7 +9,7 @@
 > (documentation, ownership, history, decisions). **Always verify against
 > actual source files before making changes** — the index may be stale.
 
-Last indexed: 2026-08-05 (commit 1ac78b7a)
+Last indexed: 2026-08-06 (commit 7ab53759)
 ### Entry Points
 - `frontend/src/store/index.ts`
 - `docs/developer/index.md`

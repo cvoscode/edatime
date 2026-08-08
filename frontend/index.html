@@ -219,8 +219,8 @@
       </button>
     </nav>
 
-    <button class="mobile-sidebar-backdrop" id="mobile-sidebar-backdrop" type="button"
-      aria-label="Close navigation" tabindex="-1" hidden></button>
+    <button class="mobile-sidebar-backdrop" id="mobile-sidebar-backdrop" type="button" aria-label="Close navigation"
+      tabindex="-1" hidden></button>
 
     <div class="app-content">
 
@@ -228,8 +228,8 @@
         <div class="header-brand">
           <button id="mobile-sidebar-toggle-btn" class="mobile-sidebar-toggle" type="button"
             aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false" title="Open navigation">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"
-              stroke-linecap="round" aria-hidden="true">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+              aria-hidden="true">
               <line x1="2" y1="4" x2="14" y2="4" />
               <line x1="2" y1="8" x2="14" y2="8" />
               <line x1="2" y1="12" x2="14" y2="12" />
@@ -319,9 +319,12 @@
               </svg>
             </button>
             <div class="mobile-header-menu__popover" id="mobile-header-menu-popover" role="menu" hidden>
-              <button type="button" role="menuitem" data-mobile-header-action="workflow-toggle-btn">Guided workflow</button>
-              <button type="button" role="menuitem" data-mobile-header-action="open-cleaning-plan-btn">Preparation plan</button>
-              <button type="button" role="menuitem" data-mobile-header-action="provenance-toggle-btn">Analysis context</button>
+              <button type="button" role="menuitem" data-mobile-header-action="workflow-toggle-btn">Guided
+                workflow</button>
+              <button type="button" role="menuitem" data-mobile-header-action="open-cleaning-plan-btn">Preparation
+                plan</button>
+              <button type="button" role="menuitem" data-mobile-header-action="provenance-toggle-btn">Analysis
+                context</button>
               <button type="button" role="menuitem" data-mobile-header-action="keyboard-help-btn">Keyboard help</button>
               <button type="button" role="menuitem" data-mobile-header-page="settings">Settings</button>
             </div>
@@ -331,14 +334,16 @@
 
       <section id="workflow-panel" class="workflow-panel" hidden></section>
 
-      <section class="page page--analysis-scroll" id="page-timeseries" data-page-name="timeseries" data-toolbar-collapse hidden>
+      <section class="page page--analysis-scroll" id="page-timeseries" data-page-name="timeseries" data-toolbar-collapse
+        hidden>
         <div class="page-header">
           <div class="page-header__copy">
             <h1 class="page-header__title">Signals</h1>
             <p class="page-header__description">Inspect behavior, ranges, and anomalies over time.</p>
           </div>
           <button id="timeseries-help-btn" class="page-help-trigger" type="button"
-            aria-label="Show help for the Signals page" title="Show help for the Signals page (?)"><span aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
+            aria-label="Show help for the Signals page" title="Show help for the Signals page (?)"><span
+              aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
         </div>
         <div class="toolbar toolbar--series timeseries-command-bar">
           <div class="timeseries-command-bar__left toolbar-group" role="group" aria-label="Series selection tools">
@@ -366,150 +371,152 @@
           </div>
         </details>
 
-        <details class="toolbar toolbar--tools scatter-toolbar timeseries-utility-shelf analysis-secondary-disclosure analysis-collapse-tablet"
+        <details
+          class="toolbar toolbar--tools scatter-toolbar timeseries-utility-shelf analysis-secondary-disclosure analysis-collapse-tablet"
           data-responsive-collapse="1024" open>
           <summary class="analysis-secondary-disclosure__summary">
             <span>Chart tools</span><span>Annotations, analytics, display, export</span>
           </summary>
           <div class="analysis-secondary-disclosure__content">
-          <div class="timeseries-utility-shelf__primary">
-            <div class="scatter-toolbar__segment scatter-toolbar__segment--view draw-toolbar" role="group"
-              aria-label="Drawing tools">
-              <span class="scatter-toolbar__eyebrow">Draw</span>
-              <span id="draw-help-btn" class="toolbar-info-icon draw-toolbar__help" tabindex="0" role="button"
-                aria-label="Show drawing and adaptive filter help">?</span>
-              <div class="scatter-toolbar__fields">
-                <label class="toolbar-field scatter-toolbar__field" for="draw-tool">
-                  <span class="toolbar-field__label">Tool</span>
-                  <select id="draw-tool" name="draw-tool" class="draw-select" aria-label="Draw tool">
-                    <option value="none">Zoom / inspect</option>
-                    <option value="arrow">Arrow</option>
-                    <option value="box">Box</option>
-                  </select>
-                </label>
-                <label class="toolbar-field scatter-toolbar__field" for="draw-color" title="Color"
-                  aria-label="Draw color">
-                  <span class="toolbar-field__label">Color</span>
-                  <input type="color" id="draw-color" name="draw-color" value="#ff0055" class="draw-color-swatch">
-                </label>
-                <label class="toolbar-field scatter-toolbar__field" for="draw-width" title="Thickness"
-                  aria-label="Draw thickness">
-                  <span class="toolbar-field__label">Width</span>
-                  <input type="number" id="draw-width" name="draw-width" value="2" min="1" max="10"
-                    class="draw-width-input">
-                </label>
-                <div class="scatter-toolbar__actions">
-                  <button class="btn btn-ghost btn-sm" id="draw-clear-btn" type="button" title="Clear drawings"
-                    aria-label="Clear drawings">Clear drawings</button>
-                  <button class="btn btn-ghost btn-sm" id="adaptive-clear-btn" type="button"
-                    title="Clear adaptive line filters (Shift+C)" hidden aria-label="Clear adaptive line filters">Clear
-                    filters</button>
+            <div class="timeseries-utility-shelf__primary">
+              <div class="scatter-toolbar__segment scatter-toolbar__segment--view draw-toolbar" role="group"
+                aria-label="Drawing tools">
+                <span class="scatter-toolbar__eyebrow">Draw</span>
+                <span id="draw-help-btn" class="toolbar-info-icon draw-toolbar__help" tabindex="0" role="button"
+                  aria-label="Show drawing and adaptive filter help">?</span>
+                <div class="scatter-toolbar__fields">
+                  <label class="toolbar-field scatter-toolbar__field" for="draw-tool">
+                    <span class="toolbar-field__label">Tool</span>
+                    <select id="draw-tool" name="draw-tool" class="draw-select" aria-label="Draw tool">
+                      <option value="none">Zoom / inspect</option>
+                      <option value="arrow">Arrow</option>
+                      <option value="box">Box</option>
+                    </select>
+                  </label>
+                  <label class="toolbar-field scatter-toolbar__field" for="draw-color" title="Color"
+                    aria-label="Draw color">
+                    <span class="toolbar-field__label">Color</span>
+                    <input type="color" id="draw-color" name="draw-color" value="#ff0055" class="draw-color-swatch">
+                  </label>
+                  <label class="toolbar-field scatter-toolbar__field" for="draw-width" title="Thickness"
+                    aria-label="Draw thickness">
+                    <span class="toolbar-field__label">Width</span>
+                    <input type="number" id="draw-width" name="draw-width" value="2" min="1" max="10"
+                      class="draw-width-input">
+                  </label>
+                  <div class="scatter-toolbar__actions">
+                    <button class="btn btn-ghost btn-sm" id="draw-clear-btn" type="button" title="Clear drawings"
+                      aria-label="Clear drawings">Clear drawings</button>
+                    <button class="btn btn-ghost btn-sm" id="adaptive-clear-btn" type="button"
+                      title="Clear adaptive line filters (Shift+C)" hidden
+                      aria-label="Clear adaptive line filters">Clear
+                      filters</button>
+                  </div>
+                  <details class="scatter-toolbar__overflow" hidden>
+                    <summary class="scatter-toolbar__overflow-btn" aria-label="More options">
+                      <span class="scatter-toolbar__overflow-icon" aria-hidden="true">⋯</span>
+                      <span class="scatter-toolbar__overflow-count" hidden>0</span>
+                    </summary>
+                    <div class="scatter-toolbar__overflow-menu" role="menu"></div>
+                  </details>
                 </div>
-                <details class="scatter-toolbar__overflow" hidden>
-                  <summary class="scatter-toolbar__overflow-btn" aria-label="More options">
-                    <span class="scatter-toolbar__overflow-icon" aria-hidden="true">⋯</span>
-                    <span class="scatter-toolbar__overflow-count" hidden>0</span>
-                  </summary>
-                  <div class="scatter-toolbar__overflow-menu" role="menu"></div>
-                </details>
+              </div>
+
+              <div class="scatter-toolbar__segment scatter-toolbar__segment--display labels-toolbar" role="group"
+                aria-label="Chart label controls">
+                <span class="scatter-toolbar__eyebrow">Labels</span>
+                <div class="scatter-toolbar__controls">
+                  <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-labels-panel-btn" type="button"
+                    title="Edit chart title and axis labels">
+                    <span class="toolbar-label">Edit labels</span>
+                    <span class="toolbar-disclosure__value">Title + axes</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="scatter-toolbar__segment scatter-toolbar__segment--display annotations-toolbar" role="group"
+                aria-label="Note and annotation tools">
+                <span class="scatter-toolbar__eyebrow">Notes</span>
+                <div class="scatter-toolbar__controls">
+                  <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-notes-panel-btn" type="button"
+                    title="Open annotation tools">
+                    <span class="toolbar-label">Manage</span>
+                    <span class="toolbar-disclosure__value">Annotations</span>
+                  </button>
+                </div>
               </div>
             </div>
 
-            <div class="scatter-toolbar__segment scatter-toolbar__segment--display labels-toolbar" role="group"
-              aria-label="Chart label controls">
-              <span class="scatter-toolbar__eyebrow">Labels</span>
-              <div class="scatter-toolbar__controls">
-                <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-labels-panel-btn" type="button"
-                  title="Edit chart title and axis labels">
-                  <span class="toolbar-label">Edit labels</span>
-                  <span class="toolbar-disclosure__value">Title + axes</span>
-                </button>
+            <div class="timeseries-utility-shelf__secondary">
+              <div class="scatter-toolbar__segment scatter-toolbar__segment--display export-toolbar" role="group"
+                aria-label="Export chart and data options">
+                <span class="scatter-toolbar__eyebrow">Export</span>
+                <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
+                  <button class="btn btn-ghost btn-sm" id="export-png-btn" type="button" title="Export chart as PNG (P)"
+                    aria-label="Export chart as PNG">PNG</button>
+                  <button class="btn btn-ghost btn-sm" id="export-csv-btn" type="button"
+                    title="Export filtered data as CSV (E)" aria-label="Export filtered data as CSV">CSV</button>
+                  <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-export-options-btn" type="button"
+                    title="More export options">
+                    <span class="toolbar-label">More formats</span>
+                    <span class="toolbar-disclosure__value">SVG, JSON, Parquet</span>
+                  </button>
+                  <details class="scatter-toolbar__overflow" hidden>
+                    <summary class="scatter-toolbar__overflow-btn" aria-label="More export options">
+                      <span class="scatter-toolbar__overflow-icon" aria-hidden="true">⋯</span>
+                      <span class="scatter-toolbar__overflow-count" hidden>0</span>
+                    </summary>
+                    <div class="scatter-toolbar__overflow-menu" role="menu"></div>
+                  </details>
+                </div>
               </div>
-            </div>
 
-            <div class="scatter-toolbar__segment scatter-toolbar__segment--display annotations-toolbar" role="group"
-              aria-label="Note and annotation tools">
-              <span class="scatter-toolbar__eyebrow">Notes</span>
-              <div class="scatter-toolbar__controls">
-                <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-notes-panel-btn" type="button"
-                  title="Open annotation tools">
-                  <span class="toolbar-label">Manage</span>
-                  <span class="toolbar-disclosure__value">Annotations</span>
-                </button>
+              <div class="scatter-toolbar__segment scatter-toolbar__segment--display analytics-toolbar" role="group"
+                aria-label="Analytics controls">
+                <span class="scatter-toolbar__eyebrow">Analytics</span>
+                <div class="scatter-toolbar__controls">
+                  <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-analytics-panel-btn" type="button"
+                    title="Open analytics controls">
+                    <span class="toolbar-label">Configure</span>
+                    <span class="toolbar-disclosure__value">Bands, anomalies, cleanup</span>
+                  </button>
+                </div>
               </div>
-            </div>
-          </div>
 
-          <div class="timeseries-utility-shelf__secondary">
-            <div class="scatter-toolbar__segment scatter-toolbar__segment--display export-toolbar" role="group"
-              aria-label="Export chart and data options">
-              <span class="scatter-toolbar__eyebrow">Export</span>
-              <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
-                <button class="btn btn-ghost btn-sm" id="export-png-btn" type="button" title="Export chart as PNG (P)"
-                  aria-label="Export chart as PNG">PNG</button>
-                <button class="btn btn-ghost btn-sm" id="export-csv-btn" type="button"
-                  title="Export filtered data as CSV (E)" aria-label="Export filtered data as CSV">CSV</button>
-                <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-export-options-btn" type="button"
-                  title="More export options">
-                  <span class="toolbar-label">More formats</span>
-                  <span class="toolbar-disclosure__value">SVG, JSON, Parquet</span>
-                </button>
-                <details class="scatter-toolbar__overflow" hidden>
-                  <summary class="scatter-toolbar__overflow-btn" aria-label="More export options">
-                    <span class="scatter-toolbar__overflow-icon" aria-hidden="true">⋯</span>
-                    <span class="scatter-toolbar__overflow-count" hidden>0</span>
-                  </summary>
-                  <div class="scatter-toolbar__overflow-menu" role="menu"></div>
-                </details>
+              <div class="scatter-toolbar__segment scatter-toolbar__segment--zoom zoom-toolbar timeseries-zoom-cluster"
+                role="group" aria-label="Zoom controls">
+                <span class="scatter-toolbar__eyebrow">Zoom</span>
+                <div class="scatter-toolbar__controls">
+                  <button class="btn btn-ghost btn-sm" id="zoom-out-btn" type="button" title="Zoom out"
+                    aria-label="Zoom out">−</button>
+                  <span class="zoom-range-badge" id="zoom-range-badge">Viewing 100%</span>
+                  <button class="btn btn-ghost btn-sm" id="zoom-reset-btn" type="button"
+                    title="Reset zoom to initial view">Reset</button>
+                </div>
               </div>
-            </div>
 
-            <div class="scatter-toolbar__segment scatter-toolbar__segment--display analytics-toolbar" role="group"
-              aria-label="Analytics controls">
-              <span class="scatter-toolbar__eyebrow">Analytics</span>
-              <div class="scatter-toolbar__controls">
-                <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-analytics-panel-btn" type="button"
-                  title="Open analytics controls">
-                  <span class="toolbar-label">Configure</span>
-                  <span class="toolbar-disclosure__value">Bands, anomalies, cleanup</span>
-                </button>
+              <div class="scatter-toolbar__segment scatter-toolbar__segment--range quick-range-toolbar" role="group"
+                aria-label="Quick range">
+                <span class="scatter-toolbar__eyebrow">Time range</span>
+                <div class="scatter-toolbar__controls">
+                  <button class="btn btn-ghost btn-sm" id="quick-range-24h" type="button" title="Last 24 hours (UTC)"
+                    disabled>24h</button>
+                  <button class="btn btn-ghost btn-sm" id="quick-range-7d" type="button" title="Last 7 days (UTC)"
+                    disabled>7d</button>
+                  <button class="btn btn-ghost btn-sm" id="quick-range-30d" type="button" title="Last 30 days (UTC)"
+                    disabled>30d</button>
+                  <button class="btn btn-ghost btn-sm" id="quick-range-all" type="button" title="Full dataset range"
+                    disabled>All</button>
+                  <details class="scatter-toolbar__overflow" hidden>
+                    <summary class="scatter-toolbar__overflow-btn" aria-label="More range options">
+                      <span class="scatter-toolbar__overflow-icon" aria-hidden="true">⋯</span>
+                      <span class="scatter-toolbar__overflow-count" hidden>0</span>
+                    </summary>
+                    <div class="scatter-toolbar__overflow-menu" role="menu"></div>
+                  </details>
+                </div>
               </div>
             </div>
-
-            <div class="scatter-toolbar__segment scatter-toolbar__segment--zoom zoom-toolbar timeseries-zoom-cluster"
-              role="group" aria-label="Zoom controls">
-              <span class="scatter-toolbar__eyebrow">Zoom</span>
-              <div class="scatter-toolbar__controls">
-                <button class="btn btn-ghost btn-sm" id="zoom-out-btn" type="button" title="Zoom out"
-                  aria-label="Zoom out">−</button>
-                <span class="zoom-range-badge" id="zoom-range-badge">Viewing 100%</span>
-                <button class="btn btn-ghost btn-sm" id="zoom-reset-btn" type="button"
-                  title="Reset zoom to initial view">Reset</button>
-              </div>
-            </div>
-
-            <div class="scatter-toolbar__segment scatter-toolbar__segment--range quick-range-toolbar" role="group"
-              aria-label="Quick range">
-              <span class="scatter-toolbar__eyebrow">Time range</span>
-              <div class="scatter-toolbar__controls">
-                <button class="btn btn-ghost btn-sm" id="quick-range-24h" type="button" title="Last 24 hours (UTC)"
-                  disabled>24h</button>
-                <button class="btn btn-ghost btn-sm" id="quick-range-7d" type="button" title="Last 7 days (UTC)"
-                  disabled>7d</button>
-                <button class="btn btn-ghost btn-sm" id="quick-range-30d" type="button" title="Last 30 days (UTC)"
-                  disabled>30d</button>
-                <button class="btn btn-ghost btn-sm" id="quick-range-all" type="button" title="Full dataset range"
-                  disabled>All</button>
-                <details class="scatter-toolbar__overflow" hidden>
-                  <summary class="scatter-toolbar__overflow-btn" aria-label="More range options">
-                    <span class="scatter-toolbar__overflow-icon" aria-hidden="true">⋯</span>
-                    <span class="scatter-toolbar__overflow-count" hidden>0</span>
-                  </summary>
-                  <div class="scatter-toolbar__overflow-menu" role="menu"></div>
-                </details>
-              </div>
-            </div>
-          </div>
           </div>
         </details>
 
@@ -574,7 +581,8 @@
         </main>
       </section>
 
-      <section class="page page--analysis-scroll page-prepare" id="page-prepare" data-page-name="prepare" data-toolbar-collapse hidden>
+      <section class="page page--analysis-scroll page-prepare" id="page-prepare" data-page-name="prepare"
+        data-toolbar-collapse hidden>
         <div id="prepare-workspace"></div>
       </section>
 
@@ -582,10 +590,12 @@
         <div class="page-header">
           <div class="page-header__copy">
             <h1 class="page-header__title">Pair plot</h1>
-            <p class="page-header__description">Compare two signals, examine density, and understand inherited filters.</p>
+            <p class="page-header__description">Compare two signals, examine density, and understand inherited filters.
+            </p>
           </div>
           <button id="scatter-help-btn" class="page-help-trigger" type="button"
-            aria-label="Show help for the Pair plot page" title="Show help for the Pair plot page (?)"><span aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
+            aria-label="Show help for the Pair plot page" title="Show help for the Pair plot page (?)"><span
+              aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
         </div>
         <div class="toolbar scatter-toolbar">
           <div id="scatter-analytics-group" class="scatter-toolbar__cluster">
@@ -615,82 +625,86 @@
               </div>
             </div>
 
-            <details class="scatter-secondary-controls analysis-secondary-disclosure analysis-collapse-tablet" data-responsive-collapse="1024" open>
+            <details class="scatter-secondary-controls analysis-secondary-disclosure analysis-collapse-tablet"
+              data-responsive-collapse="1024" open>
               <summary class="analysis-secondary-disclosure__summary">
                 <span>Display</span><span>Rendering, color, selection</span>
               </summary>
               <div class="analysis-secondary-disclosure__content">
-            <div class="scatter-toolbar__segment scatter-toolbar__segment--display">
-              <span class="scatter-toolbar__eyebrow">Display</span>
-              <div class="scatter-toolbar__fields">
-                <label id="scatter-mode-label" class="toolbar-field scatter-toolbar__field" for="scatter-render-mode">
-                  <span class="toolbar-field__label">Mode</span>
-                  <select id="scatter-render-mode" class="modal-select" aria-label="Scatter render mode">
-                    <option value="density" selected>Density</option>
-                    <option value="scatter">Scatter</option>
-                  </select>
-                </label>
-                <label class="toolbar-field scatter-toolbar__field" for="scatter-diagonal-mode">
-                  <span class="toolbar-field__label">Distribution</span>
-                  <select id="scatter-diagonal-mode" class="modal-select" aria-label="Distribution plot mode">
-                    <option value="histogram" selected>Histogram</option>
-                    <option value="kde">KDE</option>
-                    <option value="boxplot">Box Plot</option>
-                  </select>
-                </label>
-                <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field scatter-toolbar__field--toggle"
-                  for="scatter-link-brush">
-                  <span class="toolbar-field__label">Selection</span>
-                  <span class="toolbar-field__control scatter-link-toggle">
-                    <input id="scatter-link-brush" type="checkbox" checked>
-                    <span>Link chart range</span>
-                  </span>
-                </label>
-                <details class="scatter-toolbar__overflow" hidden>
-                  <summary class="scatter-toolbar__overflow-btn" aria-label="More options">
-                    <span class="scatter-toolbar__overflow-icon" aria-hidden="true">⋯</span>
-                  </summary>
-                  <div class="scatter-toolbar__overflow-menu"></div>
-                </details>
-              </div>
-            </div>
-
-            <div class="scatter-toolbar__segment scatter-toolbar__segment--refine">
-              <span class="scatter-toolbar__eyebrow">Refine</span>
-              <div class="scatter-toolbar__fields">
-                <label id="scatter-color-column-field" class="toolbar-field scatter-toolbar__field"
-                  for="scatter-color-column">
-                  <span class="toolbar-field__label">Color column</span>
-                  <select id="scatter-color-column" class="modal-select" aria-label="Scatter color-by column">
-                    <option value="">None</option>
-                  </select>
-                </label>
-                <div id="scatter-density-controls" class="scatter-toolbar-group-inline scatter-toolbar__density" hidden>
-                  <label class="toolbar-field scatter-toolbar__field scatter-toolbar__field--range"
-                    for="scatter-bin-size">
-                    <span class="toolbar-field__label">Bins</span>
-                    <span class="toolbar-field__control">
-                      <input id="scatter-bin-size" type="range" min="2" max="64" step="1" value="10"
-                        aria-label="Scatter bin size">
-                      <span id="scatter-bin-size-value" class="range-value">10</span>
-                    </span>
-                  </label>
-                  <label class="toolbar-field scatter-toolbar__field" for="scatter-normalization">
-                    <span class="toolbar-field__label">Scale</span>
-                    <select id="scatter-normalization" class="modal-select" aria-label="Density normalization">
-                      <option value="linear">Linear</option>
-                      <option value="log">Log</option>
-                    </select>
-                  </label>
+                <div class="scatter-toolbar__segment scatter-toolbar__segment--display">
+                  <span class="scatter-toolbar__eyebrow">Display</span>
+                  <div class="scatter-toolbar__fields">
+                    <label id="scatter-mode-label" class="toolbar-field scatter-toolbar__field"
+                      for="scatter-render-mode">
+                      <span class="toolbar-field__label">Mode</span>
+                      <select id="scatter-render-mode" class="modal-select" aria-label="Scatter render mode">
+                        <option value="density" selected>Density</option>
+                        <option value="scatter">Scatter</option>
+                      </select>
+                    </label>
+                    <label class="toolbar-field scatter-toolbar__field" for="scatter-diagonal-mode">
+                      <span class="toolbar-field__label">Distribution</span>
+                      <select id="scatter-diagonal-mode" class="modal-select" aria-label="Distribution plot mode">
+                        <option value="histogram" selected>Histogram</option>
+                        <option value="kde">KDE</option>
+                        <option value="boxplot">Box Plot</option>
+                      </select>
+                    </label>
+                    <label
+                      class="toolbar-field toolbar-field--toggle scatter-toolbar__field scatter-toolbar__field--toggle"
+                      for="scatter-link-brush">
+                      <span class="toolbar-field__label">Selection</span>
+                      <span class="toolbar-field__control scatter-link-toggle">
+                        <input id="scatter-link-brush" type="checkbox" checked>
+                        <span>Link chart range</span>
+                      </span>
+                    </label>
+                    <details class="scatter-toolbar__overflow" hidden>
+                      <summary class="scatter-toolbar__overflow-btn" aria-label="More options">
+                        <span class="scatter-toolbar__overflow-icon" aria-hidden="true">⋯</span>
+                      </summary>
+                      <div class="scatter-toolbar__overflow-menu"></div>
+                    </details>
+                  </div>
                 </div>
-                <details class="scatter-toolbar__overflow" hidden>
-                  <summary class="scatter-toolbar__overflow-btn" aria-label="More options">
-                    <span class="scatter-toolbar__overflow-icon" aria-hidden="true">⋯</span>
-                  </summary>
-                  <div class="scatter-toolbar__overflow-menu"></div>
-                </details>
-              </div>
-            </div>
+
+                <div class="scatter-toolbar__segment scatter-toolbar__segment--refine">
+                  <span class="scatter-toolbar__eyebrow">Refine</span>
+                  <div class="scatter-toolbar__fields">
+                    <label id="scatter-color-column-field" class="toolbar-field scatter-toolbar__field"
+                      for="scatter-color-column">
+                      <span class="toolbar-field__label">Color column</span>
+                      <select id="scatter-color-column" class="modal-select" aria-label="Scatter color-by column">
+                        <option value="">None</option>
+                      </select>
+                    </label>
+                    <div id="scatter-density-controls" class="scatter-toolbar-group-inline scatter-toolbar__density"
+                      hidden>
+                      <label class="toolbar-field scatter-toolbar__field scatter-toolbar__field--range"
+                        for="scatter-bin-size">
+                        <span class="toolbar-field__label">Bins</span>
+                        <span class="toolbar-field__control">
+                          <input id="scatter-bin-size" type="range" min="2" max="64" step="1" value="10"
+                            aria-label="Scatter bin size">
+                          <span id="scatter-bin-size-value" class="range-value">10</span>
+                        </span>
+                      </label>
+                      <label class="toolbar-field scatter-toolbar__field" for="scatter-normalization">
+                        <span class="toolbar-field__label">Scale</span>
+                        <select id="scatter-normalization" class="modal-select" aria-label="Density normalization">
+                          <option value="linear">Linear</option>
+                          <option value="log">Log</option>
+                        </select>
+                      </label>
+                    </div>
+                    <details class="scatter-toolbar__overflow" hidden>
+                      <summary class="scatter-toolbar__overflow-btn" aria-label="More options">
+                        <span class="scatter-toolbar__overflow-icon" aria-hidden="true">⋯</span>
+                      </summary>
+                      <div class="scatter-toolbar__overflow-menu"></div>
+                    </details>
+                  </div>
+                </div>
               </div>
             </details>
           </div>
@@ -824,7 +838,8 @@
             <p class="page-header__description">Find dominant frequencies and recurring cycles.</p>
           </div>
           <button id="fft-help-btn" class="page-help-trigger" type="button" aria-label="Show help for the FFT page"
-            title="Show help for the Spectrum page (?)"><span aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
+            title="Show help for the Spectrum page (?)"><span aria-hidden="true">?</span><span
+              class="page-help-trigger__label">Help</span></button>
         </div>
         <div class="toolbar scatter-toolbar">
           <div class="scatter-toolbar__segment scatter-toolbar__segment--view">
@@ -953,11 +968,8 @@
             </div>
           </div>
         </div>
-        <div class="analysis-range-context">
-          <span>Range inherited from Signals (24h · 7d · 30d · All).</span>
-          <a href="#page=timeseries">Change on Signals</a>
-          <span id="fft-sampling-badge" class="analysis-sampling-badge profile-mode-badge" data-mode="preview" role="status" aria-live="polite" hidden></span>
-        </div>
+        <span id="fft-sampling-badge" class="profile-mode-badge" data-mode="preview"
+          role="status" aria-live="polite" hidden></span>
         <div class="fft-traces-bar" id="fft-traces-bar" hidden></div>
         <main class="main main--analysis-chart">
           <div id="fft-chart" style="width:100%;height:100%;"></div>
@@ -977,8 +989,10 @@
           </div>
           <div id="fft-empty-state" class="plot-empty-state" data-empty-reason="no-columns-selected">
             <strong id="fft-empty-title">Select one or more traces</strong>
-            <span id="fft-empty-message">Choose column chips above, then compute an FFT or PSD overlay for this range.</span>
-            <button id="fft-empty-compute-btn" class="btn btn-accent btn-sm" type="button" disabled>Compute spectrum</button>
+            <span id="fft-empty-message">Choose column chips above, then compute an FFT or PSD overlay for this
+              range.</span>
+            <button id="fft-empty-compute-btn" class="btn btn-accent btn-sm" type="button" disabled>Compute
+              spectrum</button>
           </div>
           <div id="fft-chart-loading" class="chart-loading-overlay" hidden>
             <div class="chart-loading-spinner"></div>
@@ -994,7 +1008,9 @@
             <p class="page-header__description">Screen relationships across numeric signals before opening a pair.</p>
           </div>
           <button id="heatmap-help-btn" class="page-help-trigger" type="button"
-            aria-label="Show help for the Correlation matrix page" title="Show help for the Correlation matrix page (?)"><span aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
+            aria-label="Show help for the Correlation matrix page"
+            title="Show help for the Correlation matrix page (?)"><span aria-hidden="true">?</span><span
+              class="page-help-trigger__label">Help</span></button>
         </div>
         <div class="toolbar scatter-toolbar">
           <div class="scatter-toolbar__segment scatter-toolbar__segment--view">
@@ -1028,70 +1044,71 @@
               <span>Display</span><span>Cell size, fit, pipeline, export</span>
             </summary>
             <div class="analysis-secondary-disclosure__content">
-          <div class="scatter-toolbar__segment scatter-toolbar__segment--display">
-            <span class="scatter-toolbar__eyebrow">Display</span>
-            <div class="scatter-toolbar__fields">
-              <label class="toolbar-field scatter-toolbar__field scatter-toolbar__field--range" for="heatmap-cell-size">
-                <span class="toolbar-field__label">Cell size</span>
-                <span class="toolbar-field__control">
-                  <input id="heatmap-cell-size" type="range" min="24" max="72" step="4" value="36"
-                    aria-label="Heatmap cell size">
-                  <span id="heatmap-cell-size-value" class="range-value">36</span>
-                </span>
-              </label>
-              <div class="toolbar-field scatter-toolbar__field scatter-toolbar__field--fit" role="group"
-                aria-label="Heatmap fit to screen">
-                <span class="toolbar-field__label">Fit</span>
-                <span class="toolbar-field__control">
-                  <button id="heatmap-fit-toggle" type="button" class="btn btn-ghost btn-sm toolbar-toggle-btn"
-                    aria-pressed="false" title="Snap matrix to panel width">
-                    Snap to panel
-                  </button>
-                  <button id="heatmap-axis-fit-toggle" type="button" class="btn btn-ghost btn-sm toolbar-toggle-btn"
-                    aria-pressed="false" title="Fit the color axis to the strongest off-diagonal correlation">
-                    Fit color axis
-                  </button>
-                </span>
-              </div>
-              <!-- C7 — overflow popout for the Display segment. When the
+              <div class="scatter-toolbar__segment scatter-toolbar__segment--display">
+                <span class="scatter-toolbar__eyebrow">Display</span>
+                <div class="scatter-toolbar__fields">
+                  <label class="toolbar-field scatter-toolbar__field scatter-toolbar__field--range"
+                    for="heatmap-cell-size">
+                    <span class="toolbar-field__label">Cell size</span>
+                    <span class="toolbar-field__control">
+                      <input id="heatmap-cell-size" type="range" min="24" max="72" step="4" value="36"
+                        aria-label="Heatmap cell size">
+                      <span id="heatmap-cell-size-value" class="range-value">36</span>
+                    </span>
+                  </label>
+                  <div class="toolbar-field scatter-toolbar__field scatter-toolbar__field--fit" role="group"
+                    aria-label="Heatmap fit to screen">
+                    <span class="toolbar-field__label">Fit</span>
+                    <span class="toolbar-field__control">
+                      <button id="heatmap-fit-toggle" type="button" class="btn btn-ghost btn-sm toolbar-toggle-btn"
+                        aria-pressed="false" title="Snap matrix to panel width">
+                        Snap to panel
+                      </button>
+                      <button id="heatmap-axis-fit-toggle" type="button" class="btn btn-ghost btn-sm toolbar-toggle-btn"
+                        aria-pressed="false" title="Fit the color axis to the strongest off-diagonal correlation">
+                        Fit color axis
+                      </button>
+                    </span>
+                  </div>
+                  <!-- C7 — overflow popout for the Display segment. When the
                    row is too narrow to fit "Cluster" + "Fit" + the two fit
                    buttons, "Fit color axis" retreats into this details menu
                    and a "⋯" pill takes its place. Without this popout the
                    segment's content wraps onto a second row, lifting the
                    matrix below the fold on tablet widths. -->
-              <details class="scatter-toolbar__overflow" data-overflow="false">
-                <summary class="scatter-toolbar__overflow-btn" aria-label="More display options">
-                  <span aria-hidden="true">⋯</span>
-                </summary>
-                <div class="scatter-toolbar__overflow-menu"></div>
-              </details>
-            </div>
-          </div>
-
-          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions toolbar-group--push">
-            <span class="scatter-toolbar__eyebrow">Export</span>
-            <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
-              <details class="toolbar-disclosure toolbar-disclosure--end">
-                <summary class="toolbar-disclosure__summary">
-                  <span class="toolbar-label">Format</span>
-                  <span class="toolbar-disclosure__value">Image + CSV</span>
-                </summary>
-                <div class="toolbar-disclosure__menu">
-                  <button id="heatmap-export-png-btn" class="btn btn-ghost btn-sm" type="button">PNG</button>
-                  <button id="heatmap-export-svg-btn" class="btn btn-ghost btn-sm" type="button">SVG</button>
-                  <button id="heatmap-export-html-btn" class="btn btn-ghost btn-sm" type="button">HTML</button>
-                  <button id="heatmap-export-csv-btn" class="btn btn-ghost btn-sm" type="button">CSV</button>
+                  <details class="scatter-toolbar__overflow" data-overflow="false">
+                    <summary class="scatter-toolbar__overflow-btn" aria-label="More display options">
+                      <span aria-hidden="true">⋯</span>
+                    </summary>
+                    <div class="scatter-toolbar__overflow-menu"></div>
+                  </details>
                 </div>
-              </details>
-            </div>
-          </div>
-          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions">
-            <span class="scatter-toolbar__eyebrow">Pipeline</span>
-            <div class="scatter-toolbar__fields">
-              <button id="heatmap-add-columns-to-plan" class="btn btn-ghost btn-sm" type="button"
-                title="Propose a canonical keep-columns stage from this matrix">Keep matrix columns…</button>
-            </div>
-          </div>
+              </div>
+
+              <div class="scatter-toolbar__segment scatter-toolbar__segment--actions toolbar-group--push">
+                <span class="scatter-toolbar__eyebrow">Export</span>
+                <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
+                  <details class="toolbar-disclosure toolbar-disclosure--end">
+                    <summary class="toolbar-disclosure__summary">
+                      <span class="toolbar-label">Format</span>
+                      <span class="toolbar-disclosure__value">Image + CSV</span>
+                    </summary>
+                    <div class="toolbar-disclosure__menu">
+                      <button id="heatmap-export-png-btn" class="btn btn-ghost btn-sm" type="button">PNG</button>
+                      <button id="heatmap-export-svg-btn" class="btn btn-ghost btn-sm" type="button">SVG</button>
+                      <button id="heatmap-export-html-btn" class="btn btn-ghost btn-sm" type="button">HTML</button>
+                      <button id="heatmap-export-csv-btn" class="btn btn-ghost btn-sm" type="button">CSV</button>
+                    </div>
+                  </details>
+                </div>
+              </div>
+              <div class="scatter-toolbar__segment scatter-toolbar__segment--actions">
+                <span class="scatter-toolbar__eyebrow">Pipeline</span>
+                <div class="scatter-toolbar__fields">
+                  <button id="heatmap-add-columns-to-plan" class="btn btn-ghost btn-sm" type="button"
+                    title="Propose a canonical keep-columns stage from this matrix">Keep matrix columns…</button>
+                </div>
+              </div>
             </div>
           </details>
         </div>
@@ -1144,14 +1161,16 @@
         </div>
       </dialog>
 
-      <section class="page page--analysis-scroll" id="page-spectrogram" data-page-name="spectrogram" data-toolbar-collapse hidden>
+      <section class="page page--analysis-scroll" id="page-spectrogram" data-page-name="spectrogram"
+        data-toolbar-collapse hidden>
         <div class="page-header">
           <div class="page-header__copy">
             <h1 class="page-header__title">Time-frequency</h1>
             <p class="page-header__description">See how a signal's frequency content changes over time.</p>
           </div>
           <button id="spectrogram-help-btn" class="page-help-trigger" type="button"
-            aria-label="Show help for the Time-frequency page" title="Show help for the Time-frequency page (?)"><span aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
+            aria-label="Show help for the Time-frequency page" title="Show help for the Time-frequency page (?)"><span
+              aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
         </div>
         <div class="toolbar scatter-toolbar">
           <div class="scatter-toolbar__segment scatter-toolbar__segment--display">
@@ -1187,63 +1206,70 @@
                 <input id="spectrogram-hop-size-custom" class="modal-input" type="number" min="1" step="1" value="48"
                   aria-label="Custom STFT hop size" hidden disabled>
               </label>
-              <details class="spectrogram-secondary-controls analysis-secondary-disclosure" data-responsive-collapse="640" open>
+              <details class="spectrogram-secondary-controls analysis-secondary-disclosure"
+                data-responsive-collapse="640" open>
                 <summary class="analysis-secondary-disclosure__summary">
                   <span>More</span><span>Normalize, outliers, export, reset</span>
                 </summary>
                 <div class="analysis-secondary-disclosure__content">
-              <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field scatter-toolbar__field--toggle"
-                for="spectrogram-log-scale">
-                <span class="toolbar-field__label">Scale</span>
-                <span class="toolbar-field__control scatter-link-toggle">
-                  <input id="spectrogram-log-scale" type="checkbox" checked name="spectrogram-log-scale"
-                    aria-label="Log scale">
-                  <span>Log</span>
-                </span>
-              </label>
-              <label class="toolbar-field scatter-toolbar__field" for="spectrogram-normalize">
-                <span class="toolbar-field__label">Normalize</span>
-                <select id="spectrogram-normalize" class="modal-select" aria-label="Normalize color scale">
-                  <option value="none">None</option>
-                  <option value="minmax">Min–max [0,1]</option>
-                  <option value="zscore" selected>Z-score</option>
-                  <option value="robust">Robust [Q1, Q3]</option>
-                </select>
-              </label>
-              <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field scatter-toolbar__field--toggle"
-                for="spectrogram-clip-toggle">
-                <span class="toolbar-field__label">Clip</span>
-                <span class="toolbar-field__control scatter-link-toggle">
-                  <input id="spectrogram-clip-toggle" type="checkbox" name="spectrogram-clip-toggle"
-                    aria-label="Clip outliers">
-                  <span>Outliers</span>
-                </span>
-              </label>
-              <div class="spectrogram-clip-band is-hidden" id="spectrogram-clip-band">
-                <label class="toolbar-field scatter-toolbar__field" for="spectrogram-clip-method">
-                  <span class="toolbar-field__label">Method</span>
-                  <select id="spectrogram-clip-method" class="modal-select" aria-label="Clip method" disabled>
-                    <option value="percentile" selected>Percentile</option>
-                    <option value="iqr">IQR (k)</option>
-                  </select>
-                </label>
-                <label class="toolbar-field scatter-toolbar__field" for="spectrogram-clip-param">
-                  <span class="toolbar-field__label" id="spectrogram-clip-param-label">%</span>
-                  <input id="spectrogram-clip-param" class="modal-input" type="number" min="0" step="0.1" value="0.5"
-                    aria-label="Clip threshold" disabled>
-                </label>
-              </div>
+                  <label
+                    class="toolbar-field toolbar-field--toggle scatter-toolbar__field scatter-toolbar__field--toggle"
+                    for="spectrogram-log-scale">
+                    <span class="toolbar-field__label">Scale</span>
+                    <span class="toolbar-field__control scatter-link-toggle">
+                      <input id="spectrogram-log-scale" type="checkbox" checked name="spectrogram-log-scale"
+                        aria-label="Log scale">
+                      <span>Log</span>
+                    </span>
+                  </label>
+                  <label class="toolbar-field scatter-toolbar__field" for="spectrogram-normalize">
+                    <span class="toolbar-field__label">Normalize</span>
+                    <select id="spectrogram-normalize" class="modal-select" aria-label="Normalize color scale">
+                      <option value="none">None</option>
+                      <option value="minmax">Min–max [0,1]</option>
+                      <option value="zscore" selected>Z-score</option>
+                      <option value="robust">Robust [Q1, Q3]</option>
+                    </select>
+                  </label>
+                  <label
+                    class="toolbar-field toolbar-field--toggle scatter-toolbar__field scatter-toolbar__field--toggle"
+                    for="spectrogram-clip-toggle">
+                    <span class="toolbar-field__label">Clip</span>
+                    <span class="toolbar-field__control scatter-link-toggle">
+                      <input id="spectrogram-clip-toggle" type="checkbox" name="spectrogram-clip-toggle"
+                        aria-label="Clip outliers">
+                      <span>Outliers</span>
+                    </span>
+                  </label>
+                  <div class="spectrogram-clip-band is-hidden" id="spectrogram-clip-band">
+                    <label class="toolbar-field scatter-toolbar__field" for="spectrogram-clip-method">
+                      <span class="toolbar-field__label">Method</span>
+                      <select id="spectrogram-clip-method" class="modal-select" aria-label="Clip method" disabled>
+                        <option value="percentile" selected>Percentile</option>
+                        <option value="iqr">IQR (k)</option>
+                      </select>
+                    </label>
+                    <label class="toolbar-field scatter-toolbar__field" for="spectrogram-clip-param">
+                      <span class="toolbar-field__label" id="spectrogram-clip-param-label">%</span>
+                      <input id="spectrogram-clip-param" class="modal-input" type="number" min="0" step="0.1"
+                        value="0.5" aria-label="Clip threshold" disabled>
+                    </label>
+                  </div>
                   <button id="spectrogram-zoom-reset-btn" class="btn btn-ghost btn-sm" type="button"
                     title="Reset zoom to the full time/frequency range">↩ Reset</button>
                   <div class="fft-export-icons" role="group" aria-label="Spectrogram export formats">
                     <button id="spectrogram-export-png-btn" class="btn btn-ghost btn-sm" type="button"
-                      title="Export spectrogram as PNG image" aria-label="Export PNG"><span class="fft-export-icons__label">PNG</span></button>
+                      title="Export spectrogram as PNG image" aria-label="Export PNG"><span
+                        class="fft-export-icons__label">PNG</span></button>
                     <button id="spectrogram-export-svg-btn" class="btn btn-ghost btn-sm" type="button"
-                      title="Export spectrogram as SVG image" aria-label="Export SVG"><span class="fft-export-icons__label">SVG</span></button>
+                      title="Export spectrogram as SVG image" aria-label="Export SVG"><span
+                        class="fft-export-icons__label">SVG</span></button>
                     <button id="spectrogram-export-csv-btn" class="btn btn-ghost btn-sm" type="button"
-                      title="Export spectrogram data as CSV (time, frequency, power)" aria-label="Export CSV"><span class="fft-export-icons__label">CSV</span></button>
+                      title="Export spectrogram data as CSV (time, frequency, power)" aria-label="Export CSV"><span
+                        class="fft-export-icons__label">CSV</span></button>
                     <button id="spectrogram-export-html-btn" class="btn btn-ghost btn-sm" type="button"
-                      title="Export spectrogram as standalone HTML" aria-label="Export HTML"><span class="fft-export-icons__label">HTML</span></button>
+                      title="Export spectrogram as standalone HTML" aria-label="Export HTML"><span
+                        class="fft-export-icons__label">HTML</span></button>
                   </div>
                 </div>
               </details>
@@ -1252,13 +1278,10 @@
 
           <div class="scatter-toolbar__segment scatter-toolbar__segment--actions toolbar-group--push">
             <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
-              <button id="spectrogram-compute-btn" class="btn btn-accent btn-sm" type="button">Update spectrogram</button>
+              <button id="spectrogram-compute-btn" class="btn btn-accent btn-sm" type="button">Update
+                spectrogram</button>
             </div>
           </div>
-        </div>
-        <div class="analysis-range-context">
-          <span>Range inherited from Signals (24h · 7d · 30d · All).</span>
-          <a href="#page=timeseries">Change on Signals</a>
         </div>
         <main class="main main--chart main--analysis-chart">
           <div class="spectrogram-chart-row">
@@ -1303,7 +1326,8 @@
                 stroke-linejoin="round" stroke-linecap="round" opacity="0.9" />
             </svg>
             <strong id="spectrogram-empty-title">No spectrogram yet</strong>
-            <span id="spectrogram-empty-message">Pick a numeric column, keep the current time range, and update the spectrogram.</span>
+            <span id="spectrogram-empty-message">Pick a numeric column, keep the current time range, and update the
+              spectrogram.</span>
           </div>
           <div id="spectrogram-loading" class="chart-loading-overlay" hidden>
             <div class="chart-loading-spinner"></div>
@@ -1319,7 +1343,8 @@
             <p class="page-header__description">Test directional lag relationships with explicit method settings.</p>
           </div>
           <button id="causal-help-btn" class="page-help-trigger" type="button"
-            aria-label="Show help for the Causality page" title="Show help for the Causality page (?)"><span aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
+            aria-label="Show help for the Causality page" title="Show help for the Causality page (?)"><span
+              aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
         </div>
         <div class="toolbar scatter-toolbar">
           <div class="scatter-toolbar__segment scatter-toolbar__segment--display">
@@ -1341,16 +1366,17 @@
             </div>
           </div>
 
-          <details class="scatter-toolbar__segment scatter-toolbar__segment--refine causal-params-segment analysis-secondary-disclosure analysis-collapse-tablet"
+          <details
+            class="scatter-toolbar__segment scatter-toolbar__segment--refine causal-params-segment analysis-secondary-disclosure analysis-collapse-tablet"
             data-responsive-collapse="1024">
             <summary class="analysis-secondary-disclosure__summary">
               <span>Parameters</span><span>ParCorr · τ 3 · α .05 · PC .2 · no FDR</span>
             </summary>
             <div class="analysis-secondary-disclosure__content causal-params-content">
               <div class="causal-params-heading">
-              <span class="scatter-toolbar__eyebrow">Parameters</span>
-              <span id="causal-params-info" class="toolbar-info-icon" tabindex="0"
-                data-info-tip="Maximum time lag τ to test (1–128). τ max sets the longest lag to test. α is the final significance cutoff. PC α and Max conds only affect methods with a PC parent-selection stage (PCMCI, PCMCI+, LPCMCI). FDR optionally applies Benjamini-Hochberg correction across tested links.">ⓘ</span>
+                <span class="scatter-toolbar__eyebrow">Parameters</span>
+                <span id="causal-params-info" class="toolbar-info-icon" tabindex="0"
+                  data-info-tip="Maximum time lag τ to test (1–128). τ max sets the longest lag to test. α is the final significance cutoff. PC α and Max conds only affect methods with a PC parent-selection stage (PCMCI, PCMCI+, LPCMCI). FDR optionally applies Benjamini-Hochberg correction across tested links.">ⓘ</span>
               </div>
               <div class="causal-parameter-grid">
                 <div class="causal-parameter-row">
@@ -1367,38 +1393,38 @@
                       data-info-tip="Conditional independence test used inside the Tigramite-style causal engine.&#10;• ParCorr: Linear partial correlation; best when relations are near-Gaussian and linear.&#10;• RobustParCorr: Rank/non-paranormal style preprocessing plus ParCorr.&#10;• CMI-KNN: Nonlinear conditional mutual information. Reference: Runge, AISTATS (2018).&#10;• G-squared: Discrete/categorical likelihood-ratio test.&#10;• CMI-Symb: Symbolic/discretized mutual information test.&#10;Backend causal discovery is still numeric-data oriented even if non-numeric columns are shown as manual graph nodes.">ⓘ</span>
                   </div>
                 </div>
-              <div class="causal-parameter-row">
-                <div class="scatter-toolbar__field">
-                  <span class="scatter-toolbar__field-label">τ max</span>
-                  <input id="causal-tau-max" type="number" min="1" max="128" value="3" class="modal-input"
-                    aria-label="Maximum time lag (tau max)" name="causal-tau-max">
+                <div class="causal-parameter-row">
+                  <div class="scatter-toolbar__field">
+                    <span class="scatter-toolbar__field-label">τ max</span>
+                    <input id="causal-tau-max" type="number" min="1" max="128" value="3" class="modal-input"
+                      aria-label="Maximum time lag (tau max)" name="causal-tau-max">
+                  </div>
+                  <div class="scatter-toolbar__field">
+                    <span class="scatter-toolbar__field-label">α</span>
+                    <input id="causal-alpha" type="number" min="0.001" max="0.5" step="0.01" value="0.05"
+                      class="modal-input" aria-label="Significance level (alpha)" name="causal-alpha">
+                  </div>
+                  <div class="scatter-toolbar__field">
+                    <span class="scatter-toolbar__field-label">PC α</span>
+                    <input id="causal-pc-alpha" type="number" min="0.001" max="0.5" step="0.01" value="0.2"
+                      class="modal-input" aria-label="PC stage significance level" name="causal-pc-alpha">
+                  </div>
                 </div>
-                <div class="scatter-toolbar__field">
-                  <span class="scatter-toolbar__field-label">α</span>
-                  <input id="causal-alpha" type="number" min="0.001" max="0.5" step="0.01" value="0.05"
-                    class="modal-input" aria-label="Significance level (alpha)" name="causal-alpha">
-                </div>
-                <div class="scatter-toolbar__field">
-                  <span class="scatter-toolbar__field-label">PC α</span>
-                  <input id="causal-pc-alpha" type="number" min="0.001" max="0.5" step="0.01" value="0.2"
-                    class="modal-input" aria-label="PC stage significance level" name="causal-pc-alpha">
+                <div class="causal-parameter-row">
+                  <div class="scatter-toolbar__field">
+                    <span class="scatter-toolbar__field-label">Max conds</span>
+                    <input id="causal-max-conds" type="number" min="1" max="20" value="" placeholder="auto"
+                      class="modal-input" aria-label="Maximum conditioning set size" name="causal-max-conds">
+                  </div>
+                  <div class="scatter-toolbar__field">
+                    <span class="scatter-toolbar__field-label">FDR</span>
+                    <select id="causal-fdr-select" class="modal-select" aria-label="FDR correction">
+                      <option value="none" selected>None</option>
+                      <option value="fdr_bh">Benjamini-Hochberg</option>
+                    </select>
+                  </div>
                 </div>
               </div>
-              <div class="causal-parameter-row">
-                <div class="scatter-toolbar__field">
-                  <span class="scatter-toolbar__field-label">Max conds</span>
-                  <input id="causal-max-conds" type="number" min="1" max="20" value="" placeholder="auto"
-                    class="modal-input" aria-label="Maximum conditioning set size" name="causal-max-conds">
-                </div>
-                <div class="scatter-toolbar__field">
-                  <span class="scatter-toolbar__field-label">FDR</span>
-                  <select id="causal-fdr-select" class="modal-select" aria-label="FDR correction">
-                    <option value="none" selected>None</option>
-                    <option value="fdr_bh">Benjamini-Hochberg</option>
-                  </select>
-                </div>
-              </div>
-            </div>
             </div>
           </details>
 
@@ -1486,73 +1512,82 @@
         <div class="page-header">
           <div class="page-header__copy">
             <h1 class="page-header__title">Drift</h1>
-            <p class="page-header__description">Decide whether the dataset shifted, then inspect the traces and evidence.</p>
+            <p class="page-header__description">Decide whether the dataset shifted, then inspect the traces and
+              evidence.</p>
           </div>
           <button id="drift-help-btn" class="page-help-trigger" type="button" aria-label="Show help for the Drift page"
-            title="Show help for the Drift page (?)"><span aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
+            title="Show help for the Drift page (?)"><span aria-hidden="true">?</span><span
+              class="page-help-trigger__label">Help</span></button>
         </div>
+        <nav id="drift-investigation-tabs" class="drift-page-tabs" role="tablist" aria-label="Drift investigation views">
+          <button type="button" class="drift-page-tab" data-drift-tab="timeline" role="tab" aria-pressed="true">Timeline plots</button>
+          <button type="button" class="drift-page-tab" data-drift-tab="overview" role="tab" aria-pressed="false">Overview</button>
+          <button type="button" class="drift-page-tab" data-drift-tab="segments" role="tab" aria-pressed="false">Segments</button>
+          <button type="button" class="drift-page-tab" data-drift-tab="quality" role="tab" aria-pressed="false">Quality</button>
+          <button type="button" class="drift-page-tab" data-drift-tab="relationships" role="tab" aria-pressed="false">Relationships</button>
+        </nav>
         <div class="toolbar drift-toolbar" aria-label="Drift analysis setup">
           <div class="drift-toolbar__primary">
-              <div class="drift-toolbar__field">
-                <span class="drift-toolbar__label">Traces</span>
-                <div class="drift-col-picker drift-col-picker--inline" id="drift-col-picker-wrap">
-                  <button id="drift-col-picker-btn" class="btn btn-ghost btn-sm drift-col-picker-trigger" type="button"
-                    aria-haspopup="true" aria-expanded="false">
-                    <span id="drift-col-picker-label">–</span>
-                    <svg viewBox="0 0 12 8" width="12" height="8" fill="none" stroke="currentColor" aria-hidden="true">
-                      <path d="M1 1.5 6 6.5l5-5" />
-                    </svg>
-                  </button>
-                  <div id="drift-col-picker-panel" class="drift-col-picker-panel drift-col-picker-panel--inline"
-                    role="group" aria-label="Numeric columns" hidden>
-                    <div class="drift-col-picker-header">
-                      <span class="toolbar-label">Columns</span>
-                      <div class="drift-col-picker-actions">
-                        <button id="drift-cols-all" type="button" class="btn btn-xs">All</button>
-                        <button id="drift-cols-single" type="button" class="btn btn-xs">Single</button>
-                        <button id="drift-cols-none" type="button" class="btn btn-xs">Clear</button>
-                      </div>
+            <div class="drift-toolbar__field">
+              <span class="drift-toolbar__label">Traces</span>
+              <div class="drift-col-picker drift-col-picker--inline" id="drift-col-picker-wrap">
+                <button id="drift-col-picker-btn" class="btn btn-ghost btn-sm drift-col-picker-trigger" type="button"
+                  aria-haspopup="true" aria-expanded="false">
+                  <span id="drift-col-picker-label">–</span>
+                  <svg viewBox="0 0 12 8" width="12" height="8" fill="none" stroke="currentColor" aria-hidden="true">
+                    <path d="M1 1.5 6 6.5l5-5" />
+                  </svg>
+                </button>
+                <div id="drift-col-picker-panel" class="drift-col-picker-panel drift-col-picker-panel--inline"
+                  role="group" aria-label="Numeric columns" hidden>
+                  <div class="drift-col-picker-header">
+                    <span class="toolbar-label">Columns</span>
+                    <div class="drift-col-picker-actions">
+                      <button id="drift-cols-all" type="button" class="btn btn-xs">All</button>
+                      <button id="drift-cols-single" type="button" class="btn btn-xs">Single</button>
+                      <button id="drift-cols-none" type="button" class="btn btn-xs">Clear</button>
                     </div>
-                    <div id="drift-col-picker-list" class="drift-col-picker-list drift-col-chip-list" role="group"
-                      aria-label="Numeric columns">
-                      <!-- populated by driftPage.ts -->
-                    </div>
+                  </div>
+                  <div id="drift-col-picker-list" class="drift-col-picker-list drift-col-chip-list" role="group"
+                    aria-label="Numeric columns">
+                    <!-- populated by driftPage.ts -->
                   </div>
                 </div>
               </div>
-              <label class="drift-toolbar__field">
-                <span class="drift-toolbar__label">Window</span>
-                <select id="drift-window-select" class="modal-select" aria-label="Temporal window size">
-                  <option value="hourly">Hourly</option>
-                  <option value="daily" selected>Daily</option>
-                  <option value="weekly">Weekly</option>
-                </select>
-              </label>
-              <label class="drift-toolbar__field">
-                <span class="drift-toolbar__label">Reference</span>
-                <select id="drift-ref-preset" class="modal-select" aria-label="Reference window preset">
-                  <option value="30">First 30%</option>
-                  <option value="50" selected>First 50%</option>
-                  <option value="70">First 70%</option>
-                  <option value="viewport">Current viewport</option>
-                  <option value="custom">Custom</option>
-                </select>
-              </label>
-              <label class="drift-toolbar__field">
-                <span class="drift-toolbar__label">Evaluate</span>
-                <select id="drift-evaluation-mode" class="modal-select" aria-label="Evaluation mode">
-                  <option value="all" selected>Later windows</option>
-                  <option value="latest">Latest window only</option>
-                  <option value="latest-n">Latest N windows</option>
-                </select>
-              </label>
-              <label class="drift-toolbar__field" id="drift-latest-n-field">
-                <span class="drift-toolbar__label">Latest N</span>
-                <input id="drift-latest-n" type="number" min="1" step="1" value="3" class="modal-input"
-                  aria-label="Latest window count">
-                <div id="drift-latest-n-helper" class="toolbar-field__hint">Used only with 'Latest N windows' mode.
-                </div>
-              </label>
+            </div>
+            <label class="drift-toolbar__field">
+              <span class="drift-toolbar__label">Window</span>
+              <select id="drift-window-select" class="modal-select" aria-label="Temporal window size">
+                <option value="hourly">Hourly</option>
+                <option value="daily" selected>Daily</option>
+                <option value="weekly">Weekly</option>
+              </select>
+            </label>
+            <label class="drift-toolbar__field">
+              <span class="drift-toolbar__label">Reference</span>
+              <select id="drift-ref-preset" class="modal-select" aria-label="Reference window preset">
+                <option value="30">First 30%</option>
+                <option value="50" selected>First 50%</option>
+                <option value="70">First 70%</option>
+                <option value="viewport">Current viewport</option>
+                <option value="custom">Custom</option>
+              </select>
+            </label>
+            <label class="drift-toolbar__field">
+              <span class="drift-toolbar__label">Evaluate</span>
+              <select id="drift-evaluation-mode" class="modal-select" aria-label="Evaluation mode">
+                <option value="all" selected>Later windows</option>
+                <option value="latest">Latest window only</option>
+                <option value="latest-n">Latest N windows</option>
+              </select>
+            </label>
+            <label class="drift-toolbar__field" id="drift-latest-n-field">
+              <span class="drift-toolbar__label">Latest N</span>
+              <input id="drift-latest-n" type="number" min="1" step="1" value="3" class="modal-input"
+                aria-label="Latest window count">
+              <div id="drift-latest-n-helper" class="toolbar-field__hint">Used only with 'Latest N windows' mode.
+              </div>
+            </label>
           </div>
           <div class="drift-toolbar__actions">
             <details class="drift-toolbar-menu drift-secondary-controls analysis-secondary-disclosure">
@@ -1565,40 +1600,48 @@
                 <div class="drift-rules-grid">
                   <label class="toolbar-field">
                     <span class="toolbar-field__label">Reference start</span>
-                    <input id="drift-ref-start" type="datetime-local" class="modal-input" name="drift-ref-start" aria-label="Reference start">
+                    <input id="drift-ref-start" type="datetime-local" class="modal-input" name="drift-ref-start"
+                      aria-label="Reference start">
                   </label>
                   <label class="toolbar-field">
                     <span class="toolbar-field__label">Reference end</span>
-                    <input id="drift-ref-end" type="datetime-local" class="modal-input" name="drift-ref-end" aria-label="Reference end">
+                    <input id="drift-ref-end" type="datetime-local" class="modal-input" name="drift-ref-end"
+                      aria-label="Reference end">
                   </label>
                   <label class="toolbar-field">
                     <span class="toolbar-field__label">PSI warning</span>
                     <input id="drift-psi-minor-threshold" type="number" min="0" step="0.01" value="0.10"
-                      class="modal-input" aria-label="PSI minor threshold">
+                      class="modal-input" aria-label="PSI minor threshold"
+                      title="PSI minor threshold. 0.10 is the typical default; values 0.05–0.10 are strict, 0.20+ are loose. PSI is unreliable when the reference is much larger than a window (≥10×).">
                   </label>
                   <label class="toolbar-field">
                     <span class="toolbar-field__label">PSI major</span>
                     <input id="drift-psi-major-threshold" type="number" min="0" step="0.01" value="0.20"
-                      class="modal-input" aria-label="PSI major threshold">
+                      class="modal-input" aria-label="PSI major threshold"
+                      title="PSI major threshold. 0.20 is typical; ≥0.25 is conservative. Increases confidence of strict detection but inflates under sample-size imbalance.">
                   </label>
                   <label class="toolbar-field">
                     <span class="toolbar-field__label">KS p</span>
                     <input id="drift-ks-threshold" type="number" min="0" max="1" step="0.01" value="0.05"
-                      class="modal-input" aria-label="KS p-value threshold">
+                      class="modal-input" aria-label="KS p-value threshold"
+                      title="KS p-value threshold. 0.05 is typical for n ≥ 30; loses power below n = 20. Smaller p (e.g. 0.01) is stricter.">
                   </label>
                   <label class="toolbar-field">
                     <span class="toolbar-field__label">E-S p</span>
                     <input id="drift-es-threshold" type="number" min="0" max="1" step="0.01" value="0.05"
-                      class="modal-input" aria-label="E-S p-value threshold">
+                      class="modal-input" aria-label="E-S p-value threshold"
+                      title="Epps–Singleton p-value threshold. 0.05 is typical; smaller p is stricter. Useful for small windows where KS power is weak.">
                   </label>
                   <label class="toolbar-field">
                     <span class="toolbar-field__label">Wasserstein multiplier</span>
                     <input id="drift-wasserstein-std-multiplier" type="number" min="0" step="0.01" value="0.10"
-                      class="modal-input" aria-label="Wasserstein standard deviation multiplier">
+                      class="modal-input" aria-label="Wasserstein standard deviation multiplier"
+                      title="Wasserstein threshold expressed as multiples of the reference standard deviation. 0.10 is strict; 0.20–0.30 is typical; ≥0.50 is loose. Robust to sample-size imbalance.">
                   </label>
                 </div>
                 <div class="drift-rules-footer">
-                  <button id="drift-zoom-reset-btn" class="btn btn-ghost btn-sm" type="button" title="Reset chart zoom">Reset chart zoom</button>
+                  <button id="drift-zoom-reset-btn" class="btn btn-ghost btn-sm" type="button"
+                    title="Reset chart zoom">Reset chart zoom</button>
                   <select id="drift-segment-by" class="modal-select" aria-label="Segment drift by column">
                     <option value="" selected>No segment</option>
                   </select>
@@ -1608,10 +1651,14 @@
             <details class="drift-toolbar-menu drift-toolbar-menu--end">
               <summary class="btn btn-ghost btn-sm">Export</summary>
               <div class="drift-toolbar-menu__panel drift-export-menu">
-                <button id="drift-export-png" class="btn btn-ghost btn-sm" type="button" title="Export overview as PNG (P)" disabled>Overview PNG</button>
-                <button id="drift-export-detail-png" class="btn btn-ghost btn-sm" type="button" title="Export evidence as PNG" disabled>Evidence PNG</button>
-                <button id="drift-export-csv" class="btn btn-ghost btn-sm" type="button" title="Export stats as CSV (E)" disabled>CSV data</button>
-                <button id="drift-export-json" class="btn btn-ghost btn-sm" type="button" title="Export full response as JSON (J)" disabled>JSON report</button>
+                <button id="drift-export-png" class="btn btn-ghost btn-sm" type="button"
+                  title="Export overview as PNG (P)" disabled>Overview PNG</button>
+                <button id="drift-export-detail-png" class="btn btn-ghost btn-sm" type="button"
+                  title="Export evidence as PNG" disabled>Evidence PNG</button>
+                <button id="drift-export-csv" class="btn btn-ghost btn-sm" type="button" title="Export stats as CSV (E)"
+                  disabled>CSV data</button>
+                <button id="drift-export-json" class="btn btn-ghost btn-sm" type="button"
+                  title="Export full response as JSON (J)" disabled>JSON report</button>
               </div>
             </details>
             <button id="drift-compute-btn" class="btn btn-accent btn-sm" type="button">Run analysis</button>
@@ -1626,9 +1673,12 @@
             <section class="drift-overview-surface" aria-label="Dataset drift overview">
               <div class="drift-overview-controls">
                 <div class="drift-filter-tabs" role="group" aria-label="Filter traces by drift status">
-                  <button class="drift-filter-tab active" type="button" data-drift-filter="all" aria-pressed="true">All <span data-drift-count="all">0</span></button>
-                  <button class="drift-filter-tab" type="button" data-drift-filter="drifting" aria-pressed="false">Drifting <span data-drift-count="drifting">0</span></button>
-                  <button class="drift-filter-tab" type="button" data-drift-filter="stable" aria-pressed="false">Stable <span data-drift-count="stable">0</span></button>
+                  <button class="drift-filter-tab active" type="button" data-drift-filter="all" aria-pressed="true">All
+                    <span data-drift-count="all">0</span></button>
+                  <button class="drift-filter-tab" type="button" data-drift-filter="drifting"
+                    aria-pressed="false">Drifting <span data-drift-count="drifting">0</span></button>
+                  <button class="drift-filter-tab" type="button" data-drift-filter="stable" aria-pressed="false">Stable
+                    <span data-drift-count="stable">0</span></button>
                 </div>
                 <label class="drift-search-field">
                   <span class="sr-only">Search traces</span>
@@ -1639,12 +1689,14 @@
                 <div class="drift-section-heading">
                   <div>
                     <h2 id="drift-overview-title">Drift severity over time</h2>
-                    <p id="drift-overview-description">Reference baseline and evaluation windows across every selected trace.</p>
+                    <p id="drift-overview-description">Reference baseline and evaluation windows across every selected
+                      trace.</p>
                   </div>
                   <div class="drift-section-actions">
                     <label class="drift-view-field">
                       <span>View</span>
-                      <select id="drift-overview-plot-type" class="modal-select" aria-label="Drift overview visualization">
+                      <select id="drift-overview-plot-type" class="modal-select"
+                        aria-label="Drift overview visualization">
                         <option value="heatmap" selected>Severity map</option>
                         <option value="grouped">Grouped time series</option>
                         <option value="boxplot">Boxplots over time</option>
@@ -1652,16 +1704,20 @@
                       </select>
                     </label>
                     <div id="drift-overview-legend" class="drift-legend" aria-label="Drift severity legend">
-                      <span class="drift-legend-item"><span class="drift-legend-swatch drift-legend-swatch--reference"></span>Reference</span>
-                      <span class="drift-legend-item"><span class="drift-legend-swatch drift-legend-swatch--stable"></span>Stable</span>
-                      <span class="drift-legend-item"><span class="drift-legend-swatch drift-legend-swatch--warning"></span>Warning</span>
-                      <span class="drift-legend-item"><span class="drift-legend-swatch drift-legend-swatch--drift"></span>Drift</span>
+                      <span class="drift-legend-item"><span
+                          class="drift-legend-swatch drift-legend-swatch--reference"></span>Reference</span>
+                      <span class="drift-legend-item"><span
+                          class="drift-legend-swatch drift-legend-swatch--stable"></span>Stable</span>
+                      <span class="drift-legend-item"><span
+                          class="drift-legend-swatch drift-legend-swatch--warning"></span>Warning</span>
+                      <span class="drift-legend-item"><span
+                          class="drift-legend-swatch drift-legend-swatch--drift"></span>Drift</span>
                     </div>
                   </div>
                 </div>
-              <div class="drift-timeline-canvas-wrap">
-                <div id="drift-timeline-chart" role="img" aria-label="Drift timeline chart"></div>
-              </div>
+                <div class="drift-timeline-canvas-wrap">
+                  <div id="drift-timeline-chart" role="img" aria-label="Drift timeline chart"></div>
+                </div>
               </div>
               <div id="drift-column-summary" class="drift-column-summary" aria-live="polite"></div>
             </section>
@@ -1673,9 +1729,12 @@
                   <div id="drift-detail-header" class="drift-detail-header">Trace evidence</div>
                 </div>
                 <div class="drift-window-picks" role="group" aria-label="Choose evidence window">
-                  <button class="drift-window-pick active" type="button" data-drift-window-pick="latest" aria-pressed="true">Latest</button>
-                  <button class="drift-window-pick" type="button" data-drift-window-pick="worst" aria-pressed="false">Worst</button>
-                  <button class="drift-window-pick" type="button" data-drift-window-pick="first" aria-pressed="false">First change</button>
+                  <button class="drift-window-pick active" type="button" data-drift-window-pick="latest"
+                    aria-pressed="true" title="Latest — most recent evaluation window">Latest</button>
+                  <button class="drift-window-pick" type="button" data-drift-window-pick="worst"
+                    aria-pressed="false" title="Worst — highest severity window across the reference">Worst</button>
+                  <button class="drift-window-pick" type="button" data-drift-window-pick="first"
+                    aria-pressed="false" title="First change — earliest window that is not green (disabled under sample-size imbalance)">First change</button>
                 </div>
                 <label class="drift-view-field drift-view-field--detail">
                   <span>Distribution</span>
@@ -1690,7 +1749,8 @@
               </div>
               <div class="drift-evidence-grid">
                 <div id="drift-detail-chart" role="img" aria-label="Drift over time and distribution comparison"></div>
-                <div id="drift-detail-stats" class="drift-detail-stats" role="region" aria-live="polite" aria-label="Drift measures">
+                <div id="drift-detail-stats" class="drift-detail-stats" role="region" aria-live="polite"
+                  aria-label="Drift measures">
                   <span class="drift-detail-placeholder">Select a trace and evaluation window to see evidence.</span>
                 </div>
               </div>
@@ -1706,7 +1766,8 @@
                     <option value="severity-desc">Highest severity</option>
                   </select>
                 </div>
-                <div id="drift-window-list" class="drift-window-list" role="listbox" aria-label="Drift windows list"></div>
+                <div id="drift-window-list" class="drift-window-list" role="listbox" aria-label="Drift windows list">
+                </div>
               </details>
             </section>
           </div>
@@ -1734,8 +1795,9 @@
             <h1 class="page-header__title">Overview</h1>
             <p class="page-header__description">Choose a starting point and keep the analysis path clear.</p>
           </div>
-          <button id="home-help-btn" class="page-help-trigger" type="button" aria-label="Show help for the Overview page"
-            title="Show help for the Overview page (?)"><span aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
+          <button id="home-help-btn" class="page-help-trigger" type="button"
+            aria-label="Show help for the Overview page" title="Show help for the Overview page (?)"><span
+              aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
         </div>
         <div class="home-hero">
           <h2 class="home-title">Understand the signal before you model it.</h2>
@@ -2016,10 +2078,12 @@
         <div class="page-header">
           <div class="page-header__copy">
             <h1 class="page-header__title">Data source</h1>
-            <p class="page-header__description">Review a file or database table before loading it into the workspace.</p>
+            <p class="page-header__description">Review a file or database table before loading it into the workspace.
+            </p>
           </div>
           <button id="upload-help-btn" class="page-help-trigger" type="button"
-            aria-label="Show help for the Data source page" title="Show help for the Data source page (?)"><span aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
+            aria-label="Show help for the Data source page" title="Show help for the Data source page (?)"><span
+              aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
         </div>
         <div id="upload-panel" class="open">
           <div class="upload-inner">
@@ -2430,64 +2494,65 @@
               <div class="modal-title" id="analytics-title">Analytics</div>
               <div class="analytics-modal__subtitle">Configure visual analysis overlays and preparation tools.</div>
             </div>
-            <button class="modal-close" id="analytics-close-btn" type="button" aria-label="Close analytics">&times;</button>
+            <button class="modal-close" id="analytics-close-btn" type="button"
+              aria-label="Close analytics">&times;</button>
           </div>
           <div class="modal-body analytics-modal__body">
-          <label class="toolbar-field toolbar-field--toggle" for="rolling-enabled">
-            <span class="toolbar-field__label">Rolling bands</span>
-            <span class="toolbar-field__control scatter-link-toggle" title="Show rolling mean ± σ bands">
-              <input id="rolling-enabled" type="checkbox" aria-label="Show rolling mean ± σ bands">
-              <span>Show mean ± σ bands</span>
-            </span>
-          </label>
-          <label class="toolbar-field" for="rolling-window">
-            <span class="toolbar-field__label" title="Rolling window size (number of points)">Window size</span>
-            <input id="rolling-window" type="number" class="modal-input" value="50" min="3" max="5000" step="1"
-              aria-label="Rolling window size (number of points)">
-          </label>
-          <label class="toolbar-field" for="rolling-display-mode">
-            <span class="toolbar-field__label">Series display</span>
-            <select id="rolling-display-mode" class="modal-select" aria-label="Raw data and smooth hull display">
-              <option value="both">Raw + smooth</option>
-              <option value="smooth">Smooth / hull only</option>
-              <option value="raw">Raw data only</option>
-            </select>
-          </label>
-          <label class="toolbar-field toolbar-field--toggle" for="anomaly-enabled">
-            <span class="toolbar-field__label">Anomalies</span>
-            <span class="toolbar-field__control scatter-link-toggle" title="Show anomaly detection regions">
-              <input id="anomaly-enabled" type="checkbox" aria-label="Enable anomaly detection regions">
-              <span>Enable regions</span>
-            </span>
-          </label>
-          <label class="toolbar-field toolbar-field--toggle" for="anomaly-global">
-            <span class="toolbar-field__label">Envelope</span>
-            <span class="toolbar-field__control scatter-link-toggle" title="Show the global anomaly envelope">
-              <input id="anomaly-global" type="checkbox" checked aria-label="Show anomaly envelope">
-              <span>Global overlay</span>
-            </span>
-          </label>
-          <label class="toolbar-field" for="anomaly-method">
-            <span class="toolbar-field__label">Method</span>
-            <select id="anomaly-method" class="modal-select" title="Anomaly detection method">
-              <option value="zscore">Z-score</option>
-              <option value="iqr">IQR</option>
-            </select>
-          </label>
-          <label class="toolbar-field" for="anomaly-threshold">
-            <span class="toolbar-field__label">Threshold</span>
-            <input id="anomaly-threshold" type="number" class="modal-input" value="3" min="0.5" max="10" step="0.1"
-              title="Anomaly threshold">
-          </label>
-          <div class="toolbar-field toolbar-field--actions">
-            <span class="toolbar-field__label">Dataset tools</span>
-            <div class="toolbar-field__actions">
-              <button class="btn btn-ghost btn-sm" id="transform-open-btn" type="button"
-                title="Add a derived-column stage to the pipeline">Transform…</button>
-              <button class="btn btn-ghost btn-sm" id="outlier-open-btn" type="button"
-                title="Propose reviewable outlier ranges for selected columns">Outliers…</button>
+            <label class="toolbar-field toolbar-field--toggle" for="rolling-enabled">
+              <span class="toolbar-field__label">Rolling bands</span>
+              <span class="toolbar-field__control scatter-link-toggle" title="Show rolling mean ± σ bands">
+                <input id="rolling-enabled" type="checkbox" aria-label="Show rolling mean ± σ bands">
+                <span>Show mean ± σ bands</span>
+              </span>
+            </label>
+            <label class="toolbar-field" for="rolling-window">
+              <span class="toolbar-field__label" title="Rolling window size (number of points)">Window size</span>
+              <input id="rolling-window" type="number" class="modal-input" value="50" min="3" max="5000" step="1"
+                aria-label="Rolling window size (number of points)">
+            </label>
+            <label class="toolbar-field" for="rolling-display-mode">
+              <span class="toolbar-field__label">Series display</span>
+              <select id="rolling-display-mode" class="modal-select" aria-label="Raw data and smooth hull display">
+                <option value="both">Raw + smooth</option>
+                <option value="smooth">Smooth / hull only</option>
+                <option value="raw">Raw data only</option>
+              </select>
+            </label>
+            <label class="toolbar-field toolbar-field--toggle" for="anomaly-enabled">
+              <span class="toolbar-field__label">Anomalies</span>
+              <span class="toolbar-field__control scatter-link-toggle" title="Show anomaly detection regions">
+                <input id="anomaly-enabled" type="checkbox" aria-label="Enable anomaly detection regions">
+                <span>Enable regions</span>
+              </span>
+            </label>
+            <label class="toolbar-field toolbar-field--toggle" for="anomaly-global">
+              <span class="toolbar-field__label">Envelope</span>
+              <span class="toolbar-field__control scatter-link-toggle" title="Show the global anomaly envelope">
+                <input id="anomaly-global" type="checkbox" checked aria-label="Show anomaly envelope">
+                <span>Global overlay</span>
+              </span>
+            </label>
+            <label class="toolbar-field" for="anomaly-method">
+              <span class="toolbar-field__label">Method</span>
+              <select id="anomaly-method" class="modal-select" title="Anomaly detection method">
+                <option value="zscore">Z-score</option>
+                <option value="iqr">IQR</option>
+              </select>
+            </label>
+            <label class="toolbar-field" for="anomaly-threshold">
+              <span class="toolbar-field__label">Threshold</span>
+              <input id="anomaly-threshold" type="number" class="modal-input" value="3" min="0.5" max="10" step="0.1"
+                title="Anomaly threshold">
+            </label>
+            <div class="toolbar-field toolbar-field--actions">
+              <span class="toolbar-field__label">Dataset tools</span>
+              <div class="toolbar-field__actions">
+                <button class="btn btn-ghost btn-sm" id="transform-open-btn" type="button"
+                  title="Add a derived-column stage to the pipeline">Transform…</button>
+                <button class="btn btn-ghost btn-sm" id="outlier-open-btn" type="button"
+                  title="Propose reviewable outlier ranges for selected columns">Outliers…</button>
+              </div>
             </div>
-          </div>
           </div>
           <div class="modal-actions">
             <div></div>
@@ -2568,12 +2633,17 @@
           <div class="settings-tab-panel" data-tab="plot-colors" hidden>
             <div class="settings-section">
               <div class="settings-section-title">Continuous color scales</div>
-              <p class="settings-section-copy">Choose each plot independently. These scales affect numeric color encodings, not categorical series colors or semantic warning states.</p>
+              <p class="settings-section-copy">Choose each plot independently. These scales affect numeric color
+                encodings, not categorical series colors or semantic warning states.</p>
               <div class="settings-row settings-row--palette">
                 <label class="settings-label" for="settings-scale-signals">Signals</label>
                 <div class="settings-control">
                   <select id="settings-scale-signals" class="modal-select" data-plot-color-scale="signals">
-                    <option value="viridis">Viridis</option><option value="plasma">Plasma</option><option value="magma">Magma</option><option value="coolwarm">Cool-Warm</option><option value="inferno">Inferno</option>
+                    <option value="viridis">Viridis</option>
+                    <option value="plasma">Plasma</option>
+                    <option value="magma">Magma</option>
+                    <option value="coolwarm">Cool-Warm</option>
+                    <option value="inferno">Inferno</option>
                   </select>
                   <div class="settings-scale-preview" data-scale-preview="signals" aria-hidden="true"></div>
                   <div class="settings-hint">Numeric Color by gradients on the Signals chart.</div>
@@ -2583,7 +2653,11 @@
                 <label class="settings-label" for="settings-scale-pair-plot">Pair plot</label>
                 <div class="settings-control">
                   <select id="settings-scale-pair-plot" class="modal-select" data-plot-color-scale="pairPlot">
-                    <option value="viridis">Viridis</option><option value="plasma">Plasma</option><option value="magma">Magma</option><option value="coolwarm">Cool-Warm</option><option value="inferno">Inferno</option>
+                    <option value="viridis">Viridis</option>
+                    <option value="plasma">Plasma</option>
+                    <option value="magma">Magma</option>
+                    <option value="coolwarm">Cool-Warm</option>
+                    <option value="inferno">Inferno</option>
                   </select>
                   <div class="settings-scale-preview" data-scale-preview="pairPlot" aria-hidden="true"></div>
                   <div class="settings-hint">Density rendering and numeric point colors.</div>
@@ -2592,18 +2666,28 @@
               <div class="settings-row settings-row--palette">
                 <label class="settings-label" for="settings-scale-correlation">Correlation matrix</label>
                 <div class="settings-control">
-                  <select id="settings-scale-correlation" class="modal-select" data-plot-color-scale="correlationMatrix">
-                    <option value="coolwarm">Cool-Warm</option><option value="viridis">Viridis</option><option value="plasma">Plasma</option><option value="magma">Magma</option><option value="inferno">Inferno</option>
+                  <select id="settings-scale-correlation" class="modal-select"
+                    data-plot-color-scale="correlationMatrix">
+                    <option value="coolwarm">Cool-Warm</option>
+                    <option value="viridis">Viridis</option>
+                    <option value="plasma">Plasma</option>
+                    <option value="magma">Magma</option>
+                    <option value="inferno">Inferno</option>
                   </select>
                   <div class="settings-scale-preview" data-scale-preview="correlationMatrix" aria-hidden="true"></div>
-                  <div class="settings-hint">Full negative-to-positive correlation range. Cool-Warm is the clearest default.</div>
+                  <div class="settings-hint">Full negative-to-positive correlation range. Cool-Warm is the clearest
+                    default.</div>
                 </div>
               </div>
               <div class="settings-row settings-row--palette">
                 <label class="settings-label" for="settings-scale-time-frequency">Time-frequency</label>
                 <div class="settings-control">
                   <select id="settings-scale-time-frequency" class="modal-select" data-plot-color-scale="timeFrequency">
-                    <option value="viridis">Viridis</option><option value="plasma">Plasma</option><option value="magma">Magma</option><option value="coolwarm">Cool-Warm</option><option value="inferno">Inferno</option>
+                    <option value="viridis">Viridis</option>
+                    <option value="plasma">Plasma</option>
+                    <option value="magma">Magma</option>
+                    <option value="coolwarm">Cool-Warm</option>
+                    <option value="inferno">Inferno</option>
                   </select>
                   <div class="settings-scale-preview" data-scale-preview="timeFrequency" aria-hidden="true"></div>
                   <div class="settings-hint">Spectrogram magnitude or power.</div>
@@ -2612,7 +2696,8 @@
             </div>
             <div class="settings-section settings-section--note">
               <div class="settings-section-title">Other plots</div>
-              <p class="settings-section-copy">Spectrum uses the categorical Chart palette. Causality and Drift keep semantic colors for sign, confidence, and severity so those meanings remain stable.</p>
+              <p class="settings-section-copy">Spectrum uses the categorical Chart palette. Causality and Drift keep
+                semantic colors for sign, confidence, and severity so those meanings remain stable.</p>
             </div>
           </div>
 
@@ -2645,7 +2730,8 @@
                     <option value="32768">32,768 · Balanced</option>
                     <option value="65536">65,536 · More detail</option>
                   </select>
-                  <div class="settings-hint">Maximum input samples per spectrogram. Lower this if the server reports that the analysis is too large.</div>
+                  <div class="settings-hint">Maximum input samples per spectrogram. Lower this if the server reports
+                    that the analysis is too large.</div>
                 </div>
               </div>
             </div>
@@ -2680,8 +2766,8 @@
               <div class="settings-row">
                 <label class="settings-label" for="settings-inline-export-row-limit">Inline (CSV / JSON) cap</label>
                 <div class="settings-control">
-                  <input id="settings-inline-export-row-limit" type="number" min="1000" step="1000"
-                    inputmode="numeric" aria-label="Maximum rows in inline CSV or JSON export">
+                  <input id="settings-inline-export-row-limit" type="number" min="1000" step="1000" inputmode="numeric"
+                    aria-label="Maximum rows in inline CSV or JSON export">
                   <div class="settings-hint">
                     Inline CSV/JSON exports above this row count are rejected with a clear error so the
                     tab does not freeze. Default is 100,000.

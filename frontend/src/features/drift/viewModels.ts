@@ -762,6 +762,9 @@ export function buildTimelineOption(ctx: TimelineOptionContext): Record<string, 
     const referenceStartLabel = Number.isFinite(first.reference.start_ms)
         ? new Date(first.reference.start_ms).toISOString().slice(0, 10)
         : 'Reference';
+    const referenceEndLabel = Number.isFinite(first.reference.end_ms)
+        ? new Date(first.reference.end_ms).toISOString().slice(0, 10)
+        : 'Reference';
     const categories = [
         ...Array.from({ length: referenceSlots }, (_, index) => index === 0 ? referenceStartLabel : ''),
         ...first.windows.map((window) => compactTimelineLabel(window.label)),
@@ -861,6 +864,34 @@ export function buildTimelineOption(ctx: TimelineOptionContext): Record<string, 
             data: heatmapData,
             progressive: 2000,
             emphasis: { disabled: true },
+            markArea: {
+                silent: true,
+                itemStyle: {
+                    color: 'rgba(0, 168, 255, 0.07)',
+                    borderColor: 'rgba(0, 168, 255, 0.6)',
+                    borderWidth: 1,
+                    borderType: 'dashed',
+                },
+                label: {
+                    show: true,
+                    position: 'insideTop',
+                    color: 'rgba(0, 168, 255, 0.95)',
+                    fontSize: 9,
+                    fontWeight: 600,
+                    formatter: `Reference · ${referenceStartLabel} → ${referenceEndLabel} · ${first.reference.count.toLocaleString()} rows`,
+                },
+                data: [[
+                    { name: 'Reference baseline', xAxis: 0 },
+                    { xAxis: referenceSlots - 1 },
+                ]],
+            },
+            markLine: {
+                silent: true,
+                symbol: 'none',
+                label: { show: false },
+                lineStyle: { color: 'rgba(0, 168, 255, 0.7)', width: 1, type: 'dashed' },
+                data: [{ xAxis: referenceSlots }],
+            },
         }],
     };
 }

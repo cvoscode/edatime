@@ -30,8 +30,38 @@ describe('drift investigation panels', () => {
         expect(panels.overview).toContain('temperature');
         expect(panels.overview).toContain('drift-red');
         expect(panels.segments).toContain('No segment breakdown returned.');
-        expect(panels.quality).toContain('No quality issues detected.');
+        expect(panels.quality).toContain('No data-quality issues detected.');
         expect(panels.relationships).toContain('No relationship drift detected.');
+    });
+
+    it('renders a method reliability card when a column has a sample-size imbalance', () => {
+        const imbalancedInvestigation = {
+            ...investigation,
+            columns: {
+                temperature: {
+                    column: 'temperature',
+                    windows: [],
+                    reference: {
+                        start_ms: 0, end_ms: 1, label: 'ref', count: 10000, null_count: 0,
+                        completeness: 1, mean: 1, std: 1, min: 0, max: 2,
+                        quantiles: [], hist_bins: [], hist_counts: [], ecdf_x: [], ecdf_y: [],
+                    },
+                    thresholds: {
+                        ks_pvalue_threshold: 0.05, es_pvalue_threshold: 0.05,
+                        wasserstein_threshold: 0.2, psi_minor_threshold: 0.1, psi_major_threshold: 0.2,
+                    },
+                    metadata: {
+                        computation_time_ms: 1, num_windows: 0, reference_samples: 10000,
+                        avg_window_samples: 50, psi_sample_ratio_warning: true,
+                    },
+                },
+            },
+        } as unknown as DriftInvestigationResponse;
+
+        const panels = buildDriftInvestigationPanelHtml(imbalancedInvestigation);
+        expect(panels.quality).toContain('Method reliability');
+        expect(panels.quality).toContain('temperature');
+        expect(panels.quality).toMatch(/200×/);
     });
 
     it('clears every panel when no investigation is available', () => {

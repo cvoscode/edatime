@@ -436,9 +436,20 @@
 }
 
 .causal-column-action {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
-  border-color: rgba(255, 255, 255, 0.08);
-  color: #dfe7f5;
+  background: rgba(255, 255, 255, 0.03);
+  border-color: var(--border);
+  color: var(--text-dim);
+}
+
+.causal-column-action:hover {
+  border-color: var(--border-hi);
+  color: var(--text);
+}
+
+.causal-column-action.active {
+  border-color: var(--accent);
+  background: rgba(0, 168, 255, 0.08);
+  color: var(--text);
 }
 
 .causal-inline-editor-list {
@@ -585,19 +596,27 @@
 }
 
 .causal-chip-nonnumeric {
-  opacity: 0.88;
+  background: transparent;
+  border-style: dashed;
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.causal-chip-nonnumeric:hover {
+  border-color: var(--border-hi);
+  color: var(--text-dim);
 }
 
 .causal-chip-nonnumeric.active {
-  box-shadow:
-    0 0 0 1px rgba(120, 139, 174, 0.28),
-    0 0 14px rgba(120, 139, 174, 0.16);
+  border-style: solid;
+  color: var(--text-dim);
 }
 
 .causal-chip-nonnumeric .chip-label::after {
   content: ' • meta';
   color: var(--text-muted, #788bae);
   font-size: 0.68rem;
+  font-weight: 500;
 }
 
 .causal-field-row {

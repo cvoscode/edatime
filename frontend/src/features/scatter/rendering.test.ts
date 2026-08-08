@@ -319,6 +319,24 @@ describe('updateCorrelationStats', () => {
         expect(document.getElementById('scatter-pearson')?.textContent).toBe('Pearson r: 0.671');
         expect(document.getElementById('scatter-spearman')?.textContent).toBe('Spearman ρ: 0.642');
     });
+
+    it('reads from per-mode maps when only Y changes (currentPairStats stale)', () => {
+        // Regression: changing Y used to fall through to a stale
+        // correlationsByColumn value from the previous X base, showing
+        // a different pair's correlation than the chart.
+        const ySel = document.getElementById('scatter-y-col') as HTMLSelectElement;
+        ySel.innerHTML = '<option value="OT" selected>OT</option>';
+        ySel.value = 'OT';
+        scatterState.correlationsByMode = new Map([
+            ['pearson_raw', new Map([['OT', { column: 'OT', value: 0.931, count: 1008 }]])],
+            ['spearman_raw', new Map([['OT', { column: 'OT', value: 0.928, count: 1008 }]])],
+        ]);
+        // Stale pairStats — built for the previous (X, HULL) pair.
+        (scatterState as any).currentPairStats = { pearsonRaw: 0.671, spearmanRaw: 0.642, count: 42 };
+        updateCorrelationStats();
+        expect(document.getElementById('scatter-pearson')?.textContent).toBe('Pearson r: 0.931');
+        expect(document.getElementById('scatter-spearman')?.textContent).toBe('Spearman ρ: 0.928');
+    });
 });
 
 /* ── Density zoom regression ──────────────────────────── */

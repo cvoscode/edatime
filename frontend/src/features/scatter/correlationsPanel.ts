@@ -242,6 +242,17 @@ export async function refreshCorrelationsAndSuggestions(
     for (const row of activeResponse.correlations || []) {
         scatterState.correlationsByColumn.set(row.column, row);
     }
+    // Store every family-mode correlation map so the chip renderer can
+    // look up the current Y directly when only Y changes (the Y handler
+    // does not trigger a network refresh — only the X handler does).
+    scatterState.correlationsByMode = new Map();
+    for (const [familyMode, familyResponse] of responsesByMode) {
+        const byColumn = new Map<string, { value?: number | null; count?: number; column?: string }>();
+        for (const row of familyResponse?.correlations || []) {
+            byColumn.set(row.column, row);
+        }
+        scatterState.correlationsByMode.set(familyMode, byColumn);
+    }
     const activeY = getDropdownValue('scatter-y-col') || selectedY || '';
     scatterState.currentPairStats = activeY ? buildCurrentPairStats(responsesByMode, activeY) : null;
 

@@ -469,27 +469,52 @@ export function updateBinnedReadout(): void {
     // No longer updates a dedicated element — visible point count is shown via chart performance callbacks.
 }
 
+function isFiniteNumber(value: unknown): value is number {
+    return typeof value === 'number' && Number.isFinite(value);
+}
+
 export function updateCorrelationStats(): void {
     const openCausalBtn = getEl('scatter-open-causal-btn') as HTMLButtonElement | null;
     const xValue = getDropdownValue('scatter-x-col');
     const yValue = getDropdownValue('scatter-y-col');
-    const corr = scatterState.correlationsByColumn.get(yValue || '');
     const mode = normalizeCorrelationMetric(getSetting('defaultCorrelationMetric'));
+    // Read Pearson and Spearman from the per-mode maps populated during
+    // refresh. Looking up by the active Y column keeps the chip correct
+    // even when only Y changes (the Y handler does not re-fetch).
+    // The active-mode map mirrors `correlationsByColumn` and is preserved
+    // for callers that depend on it.
+    const pearsonMap = mode.startsWith('spearman')
+        ? scatterState.correlationsByMode.get('spearman_raw')
+        : scatterState.correlationsByMode.get('pearson_raw');
+    const spearmanMap = scatterState.correlationsByMode.get('spearman_raw');
+    const pearsonRow = pearsonMap?.get(yValue || '');
+    const spearmanRow = spearmanMap?.get(yValue || '');
+    // Diff variants fall back to the same per-Y row from the diff maps.
+    const pearsonDiffRow = mode.endsWith('_diff')
+        ? scatterState.correlationsByMode.get('pearson_diff')?.get(yValue || '')
+        : undefined;
+    const spearmanDiffRow = mode.endsWith('_diff')
+        ? scatterState.correlationsByMode.get('spearman_diff')?.get(yValue || '')
+        : undefined;
     const pairStats = scatterState.currentPairStats;
     const useDiffBasis = mode.endsWith('_diff');
-    const pearson = useDiffBasis ? pairStats?.pearsonDiff : pairStats?.pearsonRaw;
-    const spearman = useDiffBasis ? pairStats?.spearmanDiff : pairStats?.spearmanRaw;
+    const pearson = useDiffBasis
+        ? (isFiniteNumber(pearsonDiffRow?.value) ? pearsonDiffRow!.value! : pairStats?.pearsonDiff ?? null)
+        : (isFiniteNumber(pearsonRow?.value) ? pearsonRow!.value! : pairStats?.pearsonRaw ?? null);
+    const spearman = useDiffBasis
+        ? (isFiniteNumber(spearmanDiffRow?.value) ? spearmanDiffRow!.value! : pairStats?.spearmanDiff ?? null)
+        : (isFiniteNumber(spearmanRow?.value) ? spearmanRow!.value! : pairStats?.spearmanRaw ?? null);
     const pearsonNumber: number | null = typeof pearson === 'number' && Number.isFinite(pearson) ? pearson : null;
     const spearmanNumber: number | null = typeof spearman === 'number' && Number.isFinite(spearman) ? spearman : null;
-    const pearsonValue = pearsonNumber !== null
-        ? pearsonNumber.toFixed(3)
-        : (mode.startsWith('pearson') && Number.isFinite(corr?.value) ? corr!.value!.toFixed(3) : '—');
-    const spearmanValue = spearmanNumber !== null
-        ? spearmanNumber.toFixed(3)
-        : (mode.startsWith('spearman') && Number.isFinite(corr?.value) ? corr!.value!.toFixed(3) : '—');
-    const count = Number.isFinite(pairStats?.count)
-        ? `${pairStats!.count} aligned pairs`
-        : (Number.isFinite(corr?.count) ? `${corr!.count} aligned pairs` : '');
+    const pearsonValue = pearsonNumber !== null ? pearsonNumber.toFixed(3) : '—';
+    const spearmanValue = spearmanNumber !== null ? spearmanNumber.toFixed(3) : '—';
+    // Count comes from whichever row actually carried the value.
+    const countSource = useDiffBasis
+        ? (pearsonDiffRow ?? spearmanDiffRow ?? pearsonRow ?? spearmanRow)
+        : (pearsonRow ?? spearmanRow ?? pearsonDiffRow ?? spearmanDiffRow);
+    const count = Number.isFinite(countSource?.count)
+        ? `${countSource!.count} aligned pairs`
+        : '';
     if (openCausalBtn) openCausalBtn.disabled = !(xValue && yValue);
     setStats({
         primaryLabel: 'Pearson r',

@@ -15,40 +15,53 @@ import { initPageHelp, type PageHelpContent } from '../../ui/pageHelp.js';
 export const DRIFT_HELP: PageHelpContent = {
     pageName: 'Drift',
     intro:
-        'Distribution-drift analysis. Pick a reference window and a sliding analysis window, choose per-column metrics (KS, Wasserstein, PSI, ES), then run the comparison to see how each column has shifted over time.',
+        'Distribution-drift analysis. Pick a reference baseline, an evaluation window, choose per-column metrics (KS, Wasserstein, PSI, ES), then run the comparison to see how each column has shifted over time.',
     sections: [
         {
             title: 'Column picker',
             body:
-                'The first segment picks which numeric columns to analyze.',
+                'The first dropdown picks which numeric columns to analyze.',
             bullets: [
-                'Single — analyze one column at a time (lowest compute, clearest detail view)',
                 'All — analyze every numeric column at once (broader view, slower on wide schemas)',
-                'Subset — pick a custom set with the checkboxes',
-                'None — clears the selection; useful when starting a new investigation',
+                'Single — analyze one column at a time (lowest compute, clearest detail view)',
+                'Clear — clears the selection; useful when starting a new investigation',
+                'Subset — toggle individual columns with the chips in the dropdown',
             ],
         },
         {
             title: 'Window and reference',
             body:
-                'The next two segments control how the data is sliced into windows.',
+                'The Window and Reference dropdowns control how the data is sliced into windows.',
             bullets: [
                 'Window size — how many samples each analysis window contains; smaller windows = finer time resolution but noisier drift signal',
-                'Reference window — how the "baseline" distribution is built; choose first N, last N, a custom date range, or the full dataset',
-                'Evaluation mode — sliding (windows overlap by default) or tumbling (non-overlapping)',
-                'Latest N — restrict the analysis to the most recent N samples; useful when only the recent regime matters',
-                'Segment by — split the analysis by a categorical or time column (e.g. weekday vs weekend)',
+                'Reference preset — First 50%, Last 50%, Custom range, or Current viewport (matches the Signals page selection)',
+                'Evaluation mode — All later windows, Latest window only, or Latest N windows',
+                'Latest N — restrict the analysis to the most recent N windows; useful when only the recent regime matters',
+                'Switch columns — pick a different column from the dropdown to inspect another metric for the same window',
             ],
         },
         {
             title: 'Thresholds',
             body:
-                'Each metric has its own threshold; the page uses the thresholds to color the timeline (green / yellow / red).',
+                'Each metric has its own threshold; the page uses the thresholds to color the timeline (green / yellow / red). Hover any threshold for a calibration hint.',
             bullets: [
-                'KS threshold — p-value below which KS rejects "same distribution"; 0.05 is the typical default',
-                'ES (effect size) threshold — minimum effect size to count as drift; 0.1 is small, 0.3 medium, 0.5 large',
+                'KS p-value — below which KS rejects "same distribution"; 0.05 is typical, but loses power below n = 20',
+                'ES (Epps–Singleton) p-value — useful for small windows where KS power is weak',
                 'PSI minor / major — Population Stability Index thresholds; 0.1 minor, 0.2 major are common defaults',
-                'Wasserstein std multiplier — number of std-devs of the reference distribution that counts as drift',
+                'Wasserstein std multiplier — number of reference std-devs that counts as drift; 0.10 is strict, 0.20–0.30 typical',
+                'Sample-size imbalance — when the reference is ≥10× a window, PSI/KS may be inflated; the verdict strip downgrades to a "Method reliability" warning',
+            ],
+        },
+        {
+            title: 'Investigation tabs',
+            body:
+                'Use the tab strip above the timeline to switch between views.',
+            bullets: [
+                'Timeline plots — the default heatmap, grouped time series, and per-trace distributions',
+                'Overview — investigation score, worst level, and the top change points',
+                'Segments — drift score per Segment-by value (only when Segment by is set)',
+                'Quality — missingness, completeness, zero-rate, and flatline warnings',
+                'Relationships — correlation deltas between column pairs across reference vs comparison',
             ],
         },
         {
@@ -57,9 +70,10 @@ export const DRIFT_HELP: PageHelpContent = {
                 'The top chart shows the per-column drift score over the analysis windows. Hover for the score and p-value; click a window to inspect it in the detail view.',
             bullets: [
                 'Color — green (below minor threshold), yellow (between minor and major), red (above major)',
+                'Reference band — a translucent blue overlay marks the reference baseline with its start/end dates and row count',
                 'Hover — tooltip with the window range, score, p-value, and contributing column',
                 'Click — jumps to the detail view for that window',
-                'Sort — by drift magnitude (largest first) or alphabetically; affects the column list, not the timeline',
+                
             ],
         },
         {
@@ -67,9 +81,10 @@ export const DRIFT_HELP: PageHelpContent = {
             body:
                 'The bottom panel shows the reference vs analysis distribution for one column and one window.',
             bullets: [
-                'Histogram overlay — reference in one color, analysis in another; CDF on the right',
-                'Summary stats — mean, std, min, max, skewness for each window',
-                'Switch columns — pick a different column from the dropdown to inspect another metric for the same window',
+                'Distribution selector — Raincloud (default), ECDF, Box plot, or Violin',
+                'Latest / Worst / First change — pick the window to inspect',
+                'Strongest evidence — opens to "Why this verdict?" in the verdict strip',
+                'View all evaluation windows — sortable list of every window with its PSI score',
             ],
         },
         {
@@ -77,9 +92,10 @@ export const DRIFT_HELP: PageHelpContent = {
             body:
                 'CSV exports the full window × column matrix; JSON includes the per-window detail.',
             bullets: [
+                'Overview PNG — visual snapshot of the timeline chart',
+                'Evidence PNG — visual snapshot of the evidence chart',
                 'CSV — per-window, per-column score and p-value; safe to import into another tool',
                 'JSON — full per-window detail with histograms and summary stats',
-                'PNG — visual snapshot of the timeline (key P)',
             ],
         },
         {
@@ -99,8 +115,9 @@ export const DRIFT_HELP: PageHelpContent = {
     ],
     tips: [
         'Start with KS + Wasserstein on a single column for a fast first look; switch to PSI when you care about categorical-style stability.',
-        'Tumbling windows give cleaner "did the distribution shift between these two intervals" answers; sliding windows are better for trend detection.',
-        'Watch out for short windows: too few samples per window and the test loses power. The status bar shows the window count — aim for ≥30 windows for stable thresholds.',
+        'Aim for ≥30 evaluation windows for stable thresholds; fewer than 10 windows often gives noisy verdicts.',
+        'When the reference is much larger than the evaluation window, the verdict strip downgrades to a "Method reliability" warning — lengthen the window or shorten the reference before drawing conclusions.',
+        'The "Why this verdict?" disclosure in the verdict strip lists the strongest two pieces of evidence behind the headline.',
         'Save the session (Ctrl+S) to keep the column / window / threshold settings.',
     ],
 };
