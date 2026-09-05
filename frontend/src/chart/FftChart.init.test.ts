@@ -111,6 +111,23 @@ describe('FftChart.init', () => {
         expect(createChartMock).toHaveBeenCalledTimes(2);
     });
 
+    it('disposes a renderer that resolves after the chart has been destroyed', async () => {
+        let resolveChart!: (value: ReturnType<typeof makeChartInstance>) => void;
+        const pending = new Promise<ReturnType<typeof makeChartInstance>>((resolve) => {
+            resolveChart = resolve;
+        });
+        createChartMock.mockReturnValueOnce(pending);
+        const chart = new FftChart('fft-chart');
+        const init = chart.init();
+
+        chart.destroy();
+        const lateChart = makeChartInstance();
+        resolveChart(lateChart);
+        await init;
+
+        expect(lateChart.dispose).toHaveBeenCalledOnce();
+    });
+
     it('uses roomier FFT axes and readable log-scale ticks without duplicating the axis title', async () => {
         const instance = makeChartInstance();
         createChartMock.mockResolvedValue(instance);
@@ -133,6 +150,9 @@ describe('FftChart.init', () => {
         expect(option.yAxis.axisLabel.formatter(-2.1873892)).toBe('0.0065');
         expect(option.yAxis.axisLabel.formatter(-0.8607398)).toBe('0.14');
         expect(overlayFillTextMock).not.toHaveBeenCalledWith('log10(Magnitude)', expect.any(Number), expect.any(Number));
+        expect(document.querySelector('table[data-chart-summary="fft"]')?.textContent).toContain('OT');
+        chart.destroy();
+        expect(document.querySelector('table[data-chart-summary="fft"]')).toBeNull();
     });
 
     it('collapses tightly clustered top peaks down to a single on-plot label', async () => {

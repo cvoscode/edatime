@@ -178,7 +178,7 @@ fn compute_spectrogram_with_cancellation(
     let mut pos = 0usize;
     let mut windows_processed = 0usize;
     while pos + window_size <= n {
-        if windows_processed.is_multiple_of(8)
+        if windows_processed % 8 == 0
             && let Some(cancellation) = cancellation
         {
             cancellation.check()?;
@@ -262,7 +262,7 @@ fn apply_scale_with_cancellation(
     let mut cells_seen = 0usize;
     for row in &result.magnitudes {
         for &v in row {
-            if cells_seen.is_multiple_of(1024)
+            if cells_seen % 1024 == 0
                 && let Some(cancellation) = cancellation
             {
                 cancellation.check()?;
@@ -332,7 +332,7 @@ fn apply_scale_with_cancellation(
     cells_seen = 0;
     for row in result.magnitudes.iter_mut() {
         for cell in row.iter_mut() {
-            if cells_seen.is_multiple_of(1024)
+            if cells_seen % 1024 == 0
                 && let Some(cancellation) = cancellation
             {
                 cancellation.check()?;

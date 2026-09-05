@@ -83,6 +83,19 @@ function requestBody(operation, schemas) {
     };
 }
 
+function queryParameters(operation, schemas) {
+    if (operation.method !== 'GET' || !operation.request) return [];
+    const schema = schemas[schemaName(operation.request)];
+    if (!schema?.properties) return [];
+    const required = new Set(schema.required ?? []);
+    return Object.entries(schema.properties).map(([name, property]) => ({
+        name,
+        in: 'query',
+        required: required.has(name),
+        schema: property,
+    }));
+}
+
 function pathParameters(path) {
     return [...path.matchAll(/\{([^}]+)\}/g)].map((match) => ({
         name: match[1],
@@ -127,6 +140,7 @@ for (const operation of contract.operations ?? []) {
         summary: `${operation.method} ${operation.path}`,
         ...(operation.planAware ? { tags: ['plan-aware'] } : {}),
         ...(pathParameters(path).length > 0 ? { parameters: pathParameters(path) } : {}),
+        ...(queryParameters(operation, schemas).length > 0 ? { parameters: [...pathParameters(path), ...queryParameters(operation, schemas)] } : {}),
         ...(requestBody(operation, schemas) ? { requestBody: requestBody(operation, schemas) } : {}),
         responses: {
             200: {

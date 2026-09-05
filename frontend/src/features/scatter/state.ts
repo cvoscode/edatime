@@ -392,7 +392,9 @@ export function normalizeAnalyticsView(viewName: string): string {
 }
 
 export function disposeScatterChart(resetSignature = false): void {
+    state.chartLifecycleGeneration = (state.chartLifecycleGeneration ?? 0) + 1;
     state.chart?.dispose?.();
+    getEl('scatter-chart')?.querySelector('table[data-chart-summary="scatter"]')?.remove();
     state.chart = null;
     state.selectionBox = null;
     state.drag = null;

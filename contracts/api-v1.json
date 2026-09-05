@@ -250,6 +250,58 @@
         "cleaning_plan": { "$ref": "#/components/schemas/CleaningPlanEnvelope" }
       }
     },
+    "DatabaseConnectRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["connection_string"],
+      "properties": {
+        "connection_string": { "type": "string", "minLength": 1, "pattern": "^postgres(ql)?://" },
+        "schema": { "type": "string", "minLength": 1, "default": "public" },
+        "table": { "type": ["string", "null"], "minLength": 1 },
+        "time_column": { "type": ["string", "null"], "minLength": 1 },
+        "load_snapshot": { "type": "boolean", "default": false },
+        "snapshot_limit": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    },
+    "DatabaseLoadRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["table"],
+      "properties": {
+        "schema": { "type": "string", "minLength": 1, "default": "public" },
+        "table": { "type": "string", "minLength": 1 },
+        "time_column": { "type": ["string", "null"], "minLength": 1 },
+        "columns": { "type": ["array", "null"], "items": { "type": "string", "minLength": 1 } },
+        "limit": { "type": ["integer", "null"], "minimum": 0 },
+        "start_ms": { "type": ["integer", "null"] },
+        "end_ms": { "type": ["integer", "null"] }
+      }
+    },
+    "DatabaseColumnsQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["table"],
+      "properties": {
+        "schema": { "type": "string", "minLength": 1, "default": "public" },
+        "table": { "type": "string", "minLength": 1 }
+      }
+    },
+    "AggregateQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": { "type": "string", "format": "date-time" },
+        "end": { "type": "string", "format": "date-time" },
+        "columns": { "type": ["string", "null"] },
+        "buckets": { "type": "integer", "minimum": 1, "default": 50 },
+        "window_mode": { "type": "string", "enum": ["buckets", "tumbling", "sliding"], "default": "buckets" },
+        "window_ms": { "type": ["integer", "null"], "minimum": 1 },
+        "step_ms": { "type": ["integer", "null"], "minimum": 1 },
+        "agg": { "type": "string", "enum": ["mean", "sum", "min", "max", "count"], "default": "mean" },
+        "format": { "type": ["string", "null"], "enum": ["arrow", "json", null] }
+      }
+    },
     "DriftStatsRequest": {
       "type": "object",
       "additionalProperties": false,
@@ -322,7 +374,7 @@
     {"method":"DELETE","path":"/api/v1/jobs/{id}","response":"JobResponse","contentType":"application/json"},
     {"method":"POST","path":"/api/v1/scatter/points","request":"ScatterPointsRequest","response":"ScatterPointsResponse|ArrowData","contentType":"application/json|application/vnd.apache.arrow.stream","planAware":true},
     {"method":"POST","path":"/api/v1/scatter/matrix","request":"ScatterMatrixRequest","response":"ScatterMatrixResponse","contentType":"application/json","planAware":true},
-    {"method":"POST","path":"/api/v1/scatter/export/parquet","request":"ScatterExportRequest","response":"File","contentType":"application/vnd.apache.parquet","planAware":true},
+    {"method":"POST","path":"/api/v1/scatter/export/parquet","request":"ScatterPointsRequest","response":"File","contentType":"application/vnd.apache.parquet","planAware":true},
     {"method":"POST","path":"/api/v1/scatter/correlations","request":"ScatterCorrelationsRequest","response":"ScatterCorrelationsResponse","contentType":"application/json","planAware":true},
     {"method":"POST","path":"/api/v1/scatter/correlations/matrix","request":"CorrelationMatrixRequest","response":"CorrelationMatrixResponse","contentType":"application/json","planAware":true},
     {"method":"POST","path":"/api/v1/upload","request":"MultipartUpload","response":"UploadResponse","contentType":"application/json"},
@@ -332,7 +384,7 @@
     {"method":"DELETE","path":"/api/v1/database/connect","response":"DatabaseStatusResponse","contentType":"application/json"},
     {"method":"GET","path":"/api/v1/database/status","response":"DatabaseStatusResponse","contentType":"application/json"},
     {"method":"GET","path":"/api/v1/database/tables","response":"DatabaseTablesResponse","contentType":"application/json"},
-    {"method":"GET","path":"/api/v1/database/columns","response":"DatabaseColumnsResponse","contentType":"application/json"},
+    {"method":"GET","path":"/api/v1/database/columns","request":"DatabaseColumnsQuery","response":"DatabaseColumnsResponse","contentType":"application/json"},
     {"method":"POST","path":"/api/v1/database/load","request":"DatabaseLoadRequest","response":"UploadResponse","contentType":"application/json"},
     {"method":"GET","path":"/api/v1/config/database","response":"DatabaseConfigResponse","contentType":"application/json"},
     {"method":"GET","path":"/api/v1/aggregate","request":"AggregateQuery","response":"AggregateResponse","contentType":"application/json"},

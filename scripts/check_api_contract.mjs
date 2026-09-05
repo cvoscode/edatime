@@ -14,6 +14,18 @@ for (const operation of contract.operations ?? []) {
     keys.add(key);
     if (!operation.path.startsWith('/api/v1/')) failures.push(`unversioned path: ${key}`);
 
+    // OpenAPI generation intentionally has a generic-object fallback for
+    // incremental response documentation, but JSON request payloads are an
+    // input boundary and must never use it. Multipart uploads are the sole
+    // exception because their file fields are transport-specific.
+    if (
+        operation.request
+        && operation.request !== 'MultipartUpload'
+        && !contract.schemas?.[operation.request]
+    ) {
+        failures.push(`POST request schema missing from contract: ${key} (${operation.request})`);
+    }
+
     const relative = operation.path.slice('/api/v1'.length).replaceAll(/\{[^}]+\}/g, '{');
     const staticPrefix = relative.split('{')[0];
     const routerFragment = staticPrefix.startsWith('/analytics/')

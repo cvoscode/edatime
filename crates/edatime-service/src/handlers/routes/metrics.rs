@@ -118,6 +118,51 @@ pub async fn get_prometheus(State(state): State<AppState>) -> Result<Response<Bo
         "edatime_data_serialize_ns_total",
         snapshot.data_stages.serialize_ns_total,
     );
+    for (stage, histogram) in [
+        ("collect", &snapshot.data_stages.stage_latency.collect),
+        (
+            "reduce",
+            &snapshot.data_stages.stage_latency.reduce_or_sample,
+        ),
+        ("serialize", &snapshot.data_stages.stage_latency.serialize),
+    ] {
+        metric_labeled(
+            &mut output,
+            "edatime_data_stage_observations_total",
+            &[("stage", stage)],
+            histogram.count,
+        );
+        metric_labeled(
+            &mut output,
+            "edatime_data_stage_duration_ns_total",
+            &[("stage", stage)],
+            histogram.sum_ns,
+        );
+    }
+    for (stage, histogram) in [
+        ("collect", &snapshot.scatter_stages.stage_latency.collect),
+        (
+            "sample",
+            &snapshot.scatter_stages.stage_latency.reduce_or_sample,
+        ),
+        (
+            "serialize",
+            &snapshot.scatter_stages.stage_latency.serialize,
+        ),
+    ] {
+        metric_labeled(
+            &mut output,
+            "edatime_scatter_stage_observations_total",
+            &[("stage", stage)],
+            histogram.count,
+        );
+        metric_labeled(
+            &mut output,
+            "edatime_scatter_stage_duration_ns_total",
+            &[("stage", stage)],
+            histogram.sum_ns,
+        );
+    }
     metric(
         &mut output,
         "edatime_cpu_queued",
@@ -259,6 +304,23 @@ pub async fn get_prometheus(State(state): State<AppState>) -> Result<Response<Bo
 fn metric(output: &mut String, name: &str, value: u64) {
     output.push_str(name);
     output.push(' ');
+    output.push_str(&value.to_string());
+    output.push('\n');
+}
+
+fn metric_labeled(output: &mut String, name: &str, labels: &[(&str, &str)], value: u64) {
+    output.push_str(name);
+    output.push('{');
+    for (index, (key, label)) in labels.iter().enumerate() {
+        if index > 0 {
+            output.push(',');
+        }
+        output.push_str(key);
+        output.push_str("=\"");
+        output.push_str(&prometheus_escape(label));
+        output.push('"');
+    }
+    output.push_str("} ");
     output.push_str(&value.to_string());
     output.push('\n');
 }

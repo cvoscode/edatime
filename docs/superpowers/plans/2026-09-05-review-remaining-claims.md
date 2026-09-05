@@ -9,6 +9,23 @@ its additive correction section are now stale in places. Work should be based
 on the current repository state summarized here, not by applying every
 unchecked item in section 6 or 7 of `review.md`.
 
+## Implementation progress
+
+The first remediation batch is now implemented and verified: ChartGPU and
+FFT/Scatter renderer initialization reject stale async results; accessible
+summary tables cover timeseries, FFT, and Scatter adapters; the API contract
+models the database and aggregate query boundaries (including generated GET
+parameters); structured error decoding preserves malformed JSON bodies; Rust
+polling remains compatible with the workspace MSRV; and `/data`/Scatter stage
+telemetry now exposes bounded histograms in JSON and Prometheus. The unused
+toolbar split fragments were removed so the active monolith is again the only
+stylesheet authority.
+
+Still-open milestones are the full Rust-owned response DTO contract, complete
+WorkspaceStore migration, causal-kernel polling, route-family modularization,
+transient-memory characterization/Arrow streaming, and evidence-based mobile
+flow work.
+
 ## Verification baseline
 
 The checks run for this audit produced the following results:

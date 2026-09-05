@@ -271,7 +271,7 @@ export const apiV1Operations = [
         "id": "postScatterExportParquet",
         "method": "POST",
         "path": "/api/v1/scatter/export/parquet",
-        "request": "ScatterExportRequest",
+        "request": "ScatterPointsRequest",
         "response": "File",
         "contentType": "application/vnd.apache.parquet",
         "planAware": true
@@ -361,7 +361,7 @@ export const apiV1Operations = [
         "id": "getDatabaseColumns",
         "method": "GET",
         "path": "/api/v1/database/columns",
-        "request": null,
+        "request": "DatabaseColumnsQuery",
         "response": "DatabaseColumnsResponse",
         "contentType": "application/json",
         "planAware": false

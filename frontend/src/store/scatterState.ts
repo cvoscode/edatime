@@ -71,6 +71,7 @@ export interface ScatterFetchOptions {
 
 export interface ScatterState {
     chart: ChartGPUInstance | null;
+    chartLifecycleGeneration: number;
     initialized: boolean;
     pageInitialized: boolean;
     activeView: string;
@@ -146,6 +147,7 @@ export interface ScatterState {
 
 export const scatterState: ScatterState = {
     chart: null,
+    chartLifecycleGeneration: 0,
     initialized: false,
     pageInitialized: false,
     activeView: 'plot',

@@ -37,7 +37,7 @@ Contract version: `v1`. Every application route is mounted only under `/api/v1`;
 | `DELETE` | `/api/v1/jobs/{id}` | — | JobResponse | `application/json` | no |
 | `POST` | `/api/v1/scatter/points` | ScatterPointsRequest | ScatterPointsResponse\|ArrowData | `application/json\|application/vnd.apache.arrow.stream` | yes |
 | `POST` | `/api/v1/scatter/matrix` | ScatterMatrixRequest | ScatterMatrixResponse | `application/json` | yes |
-| `POST` | `/api/v1/scatter/export/parquet` | ScatterExportRequest | File | `application/vnd.apache.parquet` | yes |
+| `POST` | `/api/v1/scatter/export/parquet` | ScatterPointsRequest | File | `application/vnd.apache.parquet` | yes |
 | `POST` | `/api/v1/scatter/correlations` | ScatterCorrelationsRequest | ScatterCorrelationsResponse | `application/json` | yes |
 | `POST` | `/api/v1/scatter/correlations/matrix` | CorrelationMatrixRequest | CorrelationMatrixResponse | `application/json` | yes |
 | `POST` | `/api/v1/upload` | MultipartUpload | UploadResponse | `application/json` | no |
@@ -47,7 +47,7 @@ Contract version: `v1`. Every application route is mounted only under `/api/v1`;
 | `DELETE` | `/api/v1/database/connect` | — | DatabaseStatusResponse | `application/json` | no |
 | `GET` | `/api/v1/database/status` | — | DatabaseStatusResponse | `application/json` | no |
 | `GET` | `/api/v1/database/tables` | — | DatabaseTablesResponse | `application/json` | no |
-| `GET` | `/api/v1/database/columns` | — | DatabaseColumnsResponse | `application/json` | no |
+| `GET` | `/api/v1/database/columns` | DatabaseColumnsQuery | DatabaseColumnsResponse | `application/json` | no |
 | `POST` | `/api/v1/database/load` | DatabaseLoadRequest | UploadResponse | `application/json` | no |
 | `GET` | `/api/v1/config/database` | — | DatabaseConfigResponse | `application/json` | no |
 | `GET` | `/api/v1/aggregate` | AggregateQuery | AggregateResponse | `application/json` | no |

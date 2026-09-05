@@ -29,6 +29,7 @@ import {
 import { buildFftDataModel, type FftDataModel, type FftTrace } from './fftDataModel.js';
 import { buildChartGpuTheme, getChartGpuColorPalette, withChartGpuTheme } from './chartThemeOptions.js';
 import { onThemeChange } from '../utils/theme.js';
+import { createAccessibilitySummaryTable, type SeriesSummary } from './accessibilityTable.js';
 
 const FFT_GRID: GridLayout = { left: 112, right: 32, top: 52, bottom: 52 };
 
@@ -55,6 +56,8 @@ export class FftChart {
     private _nyquistHz = 0;
     private _dominantPeaks: FrequencyPeak[] = [];
     private _themeUnsubscribe: (() => void) | null = null;
+    private _accessibilityTable: HTMLTableElement | null = null;
+    private _initGeneration = 0;
 
     /** Called with true when zoomed, false when view reset to full range. */
     onZoomChange: ((isZoomed: boolean) => void) | null = null;
@@ -70,6 +73,7 @@ export class FftChart {
         const container = document.getElementById(this._containerId);
         if (!container) return;
         this.destroy();
+        const initGeneration = ++this._initGeneration;
         this._container = container;
         ensureRelativePosition(container);
 
@@ -84,7 +88,12 @@ export class FftChart {
         };
         const powerPreference = defaultGpuPowerPreference();
         if (powerPreference) chartOptions.powerPreference = powerPreference;
-        this._chart = await createChart(container, chartOptions as any);
+        const createdChart = await createChart(container, chartOptions as any);
+        if (initGeneration !== this._initGeneration || this._container !== container) {
+            createdChart.dispose?.();
+            return;
+        }
+        this._chart = createdChart;
 
         this._overlayResources.mount(container, () => this._renderOverlay());
         this._initInteractions();
@@ -141,6 +150,7 @@ export class FftChart {
 
         this._applyCurrentOption();
         this._renderOverlay();
+        this._syncAccessibilitySummary();
     }
 
     private _applyCurrentOption(): void {
@@ -217,12 +227,45 @@ export class FftChart {
     }
 
     destroy(): void {
+        this._initGeneration += 1;
         this._themeUnsubscribe?.();
         this._themeUnsubscribe = null;
         this._interactionResources.dispose();
         this._overlayResources.dispose();
         this._chart?.dispose?.();
         this._chart = null;
+        this._accessibilityTable?.remove();
+        this._accessibilityTable = null;
+    }
+
+    private _syncAccessibilitySummary(): void {
+        this._accessibilityTable?.remove();
+        this._accessibilityTable = null;
+        if (!this._container || this._traces.length === 0) return;
+
+        const summaries: SeriesSummary[] = this._traces.flatMap((trace) => {
+            const values = trace.magnitudes.filter((value) => Number.isFinite(value));
+            if (values.length === 0) return [];
+            const total = values.reduce((sum, value) => sum + value, 0);
+            let min = values[0];
+            let max = values[0];
+            for (const value of values) {
+                min = Math.min(min, value);
+                max = Math.max(max, value);
+            }
+            return [{
+                name: trace.column,
+                count: values.length,
+                min,
+                max,
+                mean: total / values.length,
+            }];
+        });
+        if (summaries.length === 0) return;
+        const table = createAccessibilitySummaryTable('FFT chart', summaries);
+        table.dataset.chartSummary = 'fft';
+        this._container.appendChild(table);
+        this._accessibilityTable = table;
     }
 
     /* ── Annotation overlay canvas ─────────────────────── */

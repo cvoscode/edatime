@@ -117,6 +117,7 @@ export class DataChart {
     _yAxisLabel = '';
     _textOverlays: TextOverlayController | null = null;
     _accessibilityTable: HTMLTableElement | null = null;
+    private _initGeneration = 0;
 
     _overlayCanvas: HTMLCanvasElement | null = null;
     _overlayCtx: CanvasRenderingContext2D | null = null;
@@ -163,6 +164,8 @@ export class DataChart {
      * container is being removed from the DOM.
      */
     deepDispose(): void {
+        // Invalidate any async renderer creation that is still in flight.
+        this._initGeneration += 1;
         this._disposeInteractions();
         this._drawingController?.detach();
         this._drawingResizeObserver?.disconnect();
@@ -327,6 +330,7 @@ export class DataChart {
     }
 
     async init(): Promise<void> {
+        const initGeneration = ++this._initGeneration;
         const container = document.getElementById(this.containerId);
         if (!container) throw new Error(`Chart container not found: ${this.containerId}`);
         this._disposeInteractions();
@@ -374,7 +378,12 @@ export class DataChart {
         this._lastChartOptions = chartOptions as ChartGPUOptions;
         this._lastAppliedTheme = getResolvedTheme();
         try {
-            this.chartInstance = await createChart(container, chartOptions as unknown as ChartGPUOptions);
+            const createdChart = await createChart(container, chartOptions as unknown as ChartGPUOptions);
+            if (initGeneration !== this._initGeneration || this._container !== container) {
+                createdChart.dispose?.();
+                return;
+            }
+            this.chartInstance = createdChart;
         } catch (e) {
             console.error('[edatime:chart] init failed:', e);
             this.chartInstance = null;

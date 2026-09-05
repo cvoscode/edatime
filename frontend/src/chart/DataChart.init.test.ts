@@ -109,6 +109,24 @@ describe('DataChart.init', () => {
         expect(chart.chartInstance).toBe(second);
     });
 
+    it('disposes a renderer that resolves after the chart has been destroyed', async () => {
+        let resolveChart!: (value: ReturnType<typeof makeChartInstance>) => void;
+        const pending = new Promise<ReturnType<typeof makeChartInstance>>((resolve) => {
+            resolveChart = resolve;
+        });
+        createChartMock.mockReturnValueOnce(pending);
+        const chart = new DataChart('main-chart', null, null, null);
+        const init = chart.init();
+
+        chart.destroy();
+        const lateChart = makeChartInstance();
+        resolveChart(lateChart);
+        await init;
+
+        expect(lateChart.dispose).toHaveBeenCalledOnce();
+        expect(chart.chartInstance).toBeNull();
+    });
+
     it('reapplies ChartGPU theme when the resolved theme changes after init', async () => {
         const chartInstance = makeChartInstance();
         createChartMock.mockResolvedValue(chartInstance);

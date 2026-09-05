@@ -1791,7 +1791,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ScatterExportRequest"
+                "$ref": "#/components/schemas/ScatterPointsRequest"
               }
             }
           }
@@ -2417,6 +2417,27 @@
       "get": {
         "operationId": "getDatabaseColumns",
         "summary": "GET /api/v1/database/columns",
+        "parameters": [
+          {
+            "name": "schema",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "default": "public"
+            }
+          },
+          {
+            "name": "table",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful response",
@@ -2592,6 +2613,117 @@
       "get": {
         "operationId": "getAggregate",
         "summary": "GET /api/v1/aggregate",
+        "parameters": [
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "columns",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "buckets",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 50
+            }
+          },
+          {
+            "name": "window_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "buckets",
+                "tumbling",
+                "sliding"
+              ],
+              "default": "buckets"
+            }
+          },
+          {
+            "name": "window_ms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            }
+          },
+          {
+            "name": "step_ms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            }
+          },
+          {
+            "name": "agg",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "mean",
+                "sum",
+                "min",
+                "max",
+                "count"
+              ],
+              "default": "mean"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "arrow",
+                "json",
+                null
+              ]
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful response",
@@ -4083,6 +4215,196 @@
           }
         }
       },
+      "DatabaseConnectRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "connection_string"
+        ],
+        "properties": {
+          "connection_string": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^postgres(ql)?://"
+          },
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "default": "public"
+          },
+          "table": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1
+          },
+          "time_column": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1
+          },
+          "load_snapshot": {
+            "type": "boolean",
+            "default": false
+          },
+          "snapshot_limit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        }
+      },
+      "DatabaseLoadRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "table"
+        ],
+        "properties": {
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "default": "public"
+          },
+          "table": {
+            "type": "string",
+            "minLength": 1
+          },
+          "time_column": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1
+          },
+          "columns": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "limit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "start_ms": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "end_ms": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
+      },
+      "DatabaseColumnsQuery": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "table"
+        ],
+        "properties": {
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "default": "public"
+          },
+          "table": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "AggregateQuery": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "start",
+          "end"
+        ],
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "columns": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "buckets": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 50
+          },
+          "window_mode": {
+            "type": "string",
+            "enum": [
+              "buckets",
+              "tumbling",
+              "sliding"
+            ],
+            "default": "buckets"
+          },
+          "window_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "step_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "agg": {
+            "type": "string",
+            "enum": [
+              "mean",
+              "sum",
+              "min",
+              "max",
+              "count"
+            ],
+            "default": "mean"
+          },
+          "format": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "arrow",
+              "json",
+              null
+            ]
+          }
+        }
+      },
       "DriftStatsRequest": {
         "type": "object",
         "additionalProperties": false,
@@ -4323,11 +4645,6 @@
         "additionalProperties": true,
         "description": "ScatterMatrixResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
       },
-      "ScatterExportRequest": {
-        "type": "object",
-        "additionalProperties": true,
-        "description": "ScatterExportRequest is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
-      },
       "ScatterCorrelationsResponse": {
         "type": "object",
         "additionalProperties": true,
@@ -4348,11 +4665,6 @@
         "additionalProperties": true,
         "description": "UploadPreviewResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
       },
-      "DatabaseConnectRequest": {
-        "type": "object",
-        "additionalProperties": true,
-        "description": "DatabaseConnectRequest is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
-      },
       "DatabaseStatusResponse": {
         "type": "object",
         "additionalProperties": true,
@@ -4367,11 +4679,6 @@
         "type": "object",
         "additionalProperties": true,
         "description": "DatabaseColumnsResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
-      },
-      "DatabaseLoadRequest": {
-        "type": "object",
-        "additionalProperties": true,
-        "description": "DatabaseLoadRequest is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
       },
       "DatabaseConfigResponse": {
         "type": "object",

@@ -208,7 +208,11 @@ export async function readApiError(response: Response, label: string): Promise<E
 
     try {
         if (contentType.includes('application/json')) {
-            const parsed: unknown = await response.json();
+            // Clone real Fetch responses before decoding so malformed JSON can
+            // still retain the raw server body for diagnostics. Test doubles
+            // without clone() continue to use their json() implementation.
+            const jsonSource = typeof response.clone === 'function' ? response.clone() : response;
+            const parsed: unknown = await jsonSource.json();
             if (declaresV1Contract && !isApiErrorPayload(parsed)) {
                 contractViolation = formatErrorContractViolation(parsed);
             }

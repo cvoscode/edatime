@@ -122,6 +122,7 @@ pub struct ScatterStagesSnapshot {
     pub sample_ns_total: u64,
     /// nanoseconds
     pub serialize_ns_total: u64,
+    pub stage_latency: StageLatencySnapshot,
 }
 
 /// Aggregated telemetry for plan-aware `POST /data` requests. These counters
@@ -142,6 +143,14 @@ pub struct DataStagesSnapshot {
     pub reduce_ns_total: u64,
     /// nanoseconds
     pub serialize_ns_total: u64,
+    pub stage_latency: StageLatencySnapshot,
+}
+
+#[derive(Debug, Default, Clone, Serialize)]
+pub struct StageLatencySnapshot {
+    pub collect: LatencyHistogramSnapshot,
+    pub reduce_or_sample: LatencyHistogramSnapshot,
+    pub serialize: LatencyHistogramSnapshot,
 }
 
 /// Aggregated correlations telemetry. `mode_breakdown` keeps a low-cardinality
@@ -285,6 +294,7 @@ pub struct AppMetrics {
     scatter_collect_ns: AtomicU64,
     scatter_sample_ns: AtomicU64,
     scatter_serialize_ns: AtomicU64,
+    scatter_stage_histograms: Mutex<[LatencyHistogramState; 3]>,
     // Plan-aware data windows.
     data_requests: AtomicU64,
     data_cache_hits: AtomicU64,
@@ -296,6 +306,7 @@ pub struct AppMetrics {
     data_collect_ns: AtomicU64,
     data_reduce_ns: AtomicU64,
     data_serialize_ns: AtomicU64,
+    data_stage_histograms: Mutex<[LatencyHistogramState; 3]>,
     // Correlations (live by `record_correlation_*` from the handler/warmup).
     correlations_requests: AtomicU64,
     correlations_cache_hits: AtomicU64,
@@ -440,6 +451,11 @@ impl AppMetrics {
             scatter_collect_ns: AtomicU64::new(0),
             scatter_sample_ns: AtomicU64::new(0),
             scatter_serialize_ns: AtomicU64::new(0),
+            scatter_stage_histograms: Mutex::new([
+                LatencyHistogramState::default(),
+                LatencyHistogramState::default(),
+                LatencyHistogramState::default(),
+            ]),
             data_requests: AtomicU64::new(0),
             data_cache_hits: AtomicU64::new(0),
             data_cache_misses: AtomicU64::new(0),
@@ -450,6 +466,11 @@ impl AppMetrics {
             data_collect_ns: AtomicU64::new(0),
             data_reduce_ns: AtomicU64::new(0),
             data_serialize_ns: AtomicU64::new(0),
+            data_stage_histograms: Mutex::new([
+                LatencyHistogramState::default(),
+                LatencyHistogramState::default(),
+                LatencyHistogramState::default(),
+            ]),
             correlations_requests: AtomicU64::new(0),
             correlations_cache_hits: AtomicU64::new(0),
             correlations_cache_misses: AtomicU64::new(0),
@@ -587,12 +608,14 @@ impl AppMetrics {
     /// `stage_ns` is the elapsed wall-clock time for one stage in nanoseconds.
     /// Callers MUST pass finite, non-negative values.
     pub fn record_scatter_stage(&self, stage: ScatterStage, duration_ns: u64) {
-        let target = match stage {
-            ScatterStage::Collect => &self.scatter_collect_ns,
-            ScatterStage::Sample => &self.scatter_sample_ns,
-            ScatterStage::Serialize => &self.scatter_serialize_ns,
+        let (target, index) = match stage {
+            ScatterStage::Collect => (&self.scatter_collect_ns, 0),
+            ScatterStage::Sample => (&self.scatter_sample_ns, 1),
+            ScatterStage::Serialize => (&self.scatter_serialize_ns, 2),
         };
         target.fetch_add(duration_ns, Ordering::Relaxed);
+        lock_recover(&self.scatter_stage_histograms, "scatter_stage_histograms")[index]
+            .record(duration_ns);
     }
 
     pub fn record_data_request(&self, cache_hit: bool) {
@@ -620,12 +643,14 @@ impl AppMetrics {
 
     /// `duration_ns` is elapsed wall-clock time for one data-window stage.
     pub fn record_data_stage(&self, stage: DataStage, duration_ns: u64) {
-        let target = match stage {
-            DataStage::Collect => &self.data_collect_ns,
-            DataStage::Reduce => &self.data_reduce_ns,
-            DataStage::Serialize => &self.data_serialize_ns,
+        let (target, index) = match stage {
+            DataStage::Collect => (&self.data_collect_ns, 0),
+            DataStage::Reduce => (&self.data_reduce_ns, 1),
+            DataStage::Serialize => (&self.data_serialize_ns, 2),
         };
         target.fetch_add(duration_ns, Ordering::Relaxed);
+        lock_recover(&self.data_stage_histograms, "data_stage_histograms")[index]
+            .record(duration_ns);
     }
 
     pub fn record_correlation_request(&self, cache_hit: bool, mode: CorrelationTelemetryMode) {
@@ -765,6 +790,10 @@ impl AppMetrics {
     /// Returns a full snapshot for JSON serialization.
     pub fn snapshot(&self, dataset_rows: usize, dataset_revision: u64) -> MetricsSnapshot {
         let total = self.total_requests.load(Ordering::Relaxed);
+        let scatter_stage_histograms =
+            lock_recover(&self.scatter_stage_histograms, "scatter_stage_histograms");
+        let data_stage_histograms =
+            lock_recover(&self.data_stage_histograms, "data_stage_histograms");
         let total_ns = self.total_request_duration_ns.load(Ordering::Relaxed);
         let avg_ms = if total > 0 {
             (total_ns as f64 / total as f64) / 1_000_000.0
@@ -825,6 +854,11 @@ impl AppMetrics {
                 collect_ns_total: self.scatter_collect_ns.load(Ordering::Relaxed),
                 sample_ns_total: self.scatter_sample_ns.load(Ordering::Relaxed),
                 serialize_ns_total: self.scatter_serialize_ns.load(Ordering::Relaxed),
+                stage_latency: StageLatencySnapshot {
+                    collect: scatter_stage_histograms[0].snapshot(),
+                    reduce_or_sample: scatter_stage_histograms[1].snapshot(),
+                    serialize: scatter_stage_histograms[2].snapshot(),
+                },
             },
             data_stages: DataStagesSnapshot {
                 requests_total: self.data_requests.load(Ordering::Relaxed),
@@ -837,6 +871,11 @@ impl AppMetrics {
                 collect_ns_total: self.data_collect_ns.load(Ordering::Relaxed),
                 reduce_ns_total: self.data_reduce_ns.load(Ordering::Relaxed),
                 serialize_ns_total: self.data_serialize_ns.load(Ordering::Relaxed),
+                stage_latency: StageLatencySnapshot {
+                    collect: data_stage_histograms[0].snapshot(),
+                    reduce_or_sample: data_stage_histograms[1].snapshot(),
+                    serialize: data_stage_histograms[2].snapshot(),
+                },
             },
             correlations_stages: CorrelationsStagesSnapshot {
                 requests_total: self.correlations_requests.load(Ordering::Relaxed),
@@ -916,6 +955,9 @@ mod metrics_stage_tests {
         assert_eq!(snap.scatter_stages.collect_ns_total, 3_000);
         assert_eq!(snap.scatter_stages.sample_ns_total, 5_000);
         assert_eq!(snap.scatter_stages.serialize_ns_total, 7_000);
+        assert_eq!(snap.scatter_stages.stage_latency.collect.count, 2);
+        assert_eq!(snap.scatter_stages.stage_latency.collect.sum_ns, 3_000);
+        assert_eq!(snap.scatter_stages.stage_latency.reduce_or_sample.count, 1);
         assert_eq!(snap.scatter_stages.cache_hit_total, 1);
         assert_eq!(snap.scatter_stages.cache_miss_total, 2);
         assert_eq!(snap.scatter_stages.filtered_rows_total, 100);
@@ -946,6 +988,9 @@ mod metrics_stage_tests {
         assert_eq!(snap.data_stages.collect_ns_total, 1_000);
         assert_eq!(snap.data_stages.reduce_ns_total, 2_000);
         assert_eq!(snap.data_stages.serialize_ns_total, 3_000);
+        assert_eq!(snap.data_stages.stage_latency.collect.count, 1);
+        assert_eq!(snap.data_stages.stage_latency.reduce_or_sample.count, 1);
+        assert_eq!(snap.data_stages.stage_latency.serialize.count, 1);
     }
 
     #[test]

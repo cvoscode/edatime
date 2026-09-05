@@ -208,4 +208,20 @@ describe('api http request options', () => {
         expect(error.message).toContain('Metadata failed (500)');
         expect(error.message).toContain('Internal Server Error');
     });
+
+    it('preserves the raw body when a JSON error response cannot be decoded', async () => {
+        const response = {
+            ok: false,
+            status: 502,
+            headers: {
+                get: (name: string) => name.toLowerCase() === 'content-type' ? 'application/json' : null,
+            },
+            json: vi.fn().mockRejectedValue(new SyntaxError('invalid JSON')),
+            text: vi.fn().mockResolvedValue('{"upstream":"bad gateway"}'),
+        } as unknown as Response;
+
+        const error = await readApiError(response, 'Metadata');
+
+        expect(error.message).toContain('{"upstream":"bad gateway"}');
+    });
 });
