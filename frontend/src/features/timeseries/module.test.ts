@@ -83,19 +83,21 @@ const mockRuntime = () => ({
 const mockBootstrap = () => ({
     ensureReady: vi.fn().mockResolvedValue(undefined),
     ensureDatasetReady: vi.fn().mockResolvedValue(undefined),
-    refreshAfterMutation: vi.fn().mockResolvedValue(undefined),
+    dispose: vi.fn(),
+        refreshAfterMutation: vi.fn().mockResolvedValue(undefined),
 });
 
 const mockChartBootstrap = () => ({
     ensureReady: vi.fn().mockResolvedValue(undefined),
     isReady: vi.fn(() => false),
+    dispose: vi.fn(),
 });
 
 const defaultDeps = () => ({
     fetchData: vi.fn(),
     fetchMetadata: vi.fn(),
     workspace: {
-        getSnapshot: vi.fn(() => ({
+        getSnapshot: vi.fn(() => ({ appearance: { chartText: { title: '', xLabel: '', yLabel: '' }, seriesColors: {} },
             dataset: { metadata: null, revision: 0 },
             selection: { columns: [], colorColumn: null },
             filters: { columnRanges: {}, adaptiveLines: [] },
@@ -115,7 +117,7 @@ const defaultDeps = () => ({
     sanitizeSelectedColumns: vi.fn(),
     clearLoadedPageModules: vi.fn(),
     ensureSessionPersistenceStarted: vi.fn(),
-    setNumericCols: vi.fn(),
+
     setAdaptiveFilterColumn: vi.fn(),
     setViewport: vi.fn(),
     updateAnalysisYRange: vi.fn(),
@@ -175,7 +177,7 @@ describe('createTimeseriesModule', () => {
             sanitizeSelectedColumns: deps.sanitizeSelectedColumns,
             clearLoadedPageModules: deps.clearLoadedPageModules,
             ensureSessionPersistenceStarted: deps.ensureSessionPersistenceStarted,
-            setNumericCols: deps.setNumericCols,
+
             setAdaptiveFilterColumn: deps.setAdaptiveFilterColumn,
         }));
     });

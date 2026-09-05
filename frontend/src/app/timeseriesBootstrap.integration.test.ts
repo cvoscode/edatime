@@ -140,6 +140,7 @@ vi.mock('../utils/pageBootstrap.js', () => ({
 vi.mock('../features/timeseries/index.js', () => ({
     createAnalyticsOverlayController: createAnalyticsOverlayControllerMock,
     createTimeseriesModule: createTimeseriesModuleMock,
+    setAdaptiveFilterColumn: setAdaptiveFilterColumnMock,
     sanitizeSelectedColumns: sanitizeSelectedColumnsMock,
 }));
 
@@ -157,23 +158,11 @@ vi.mock('../platform/sessionLifecycle.js', () => ({
     startSessionPersistence: startSessionPersistenceMock,
 }));
 
-vi.mock('../store/chartState.js', () => ({
-    chartState: { chart: null, stackFromZero: false },
+vi.mock('../charts/primaryChart.js', () => ({
+    primaryChart: { current: null, dispose: vi.fn() },
     initChartStatePrefs: vi.fn(),
-    setChartInstance: vi.fn(),
+    setPrimaryChartInstance: vi.fn(),
     setViewport: setViewportMock,
-}));
-
-vi.mock('../store/datasetState.js', () => ({
-    datasetState: { metadata: null },
-    setDatasetRevision: vi.fn(),
-    setMetadata: vi.fn(),
-    setNumericCols: setNumericColsMock,
-}));
-
-vi.mock('../store/uiState.js', () => ({
-    setAdaptiveFilterColumn: setAdaptiveFilterColumnMock,
-    uiState: {},
 }));
 
 describe('app -> timeseries bootstrap wiring', () => {
@@ -220,7 +209,7 @@ describe('app -> timeseries bootstrap wiring', () => {
             sanitizeSelectedColumns: expect.any(Function),
             clearLoadedPageModules: clearLoadedPageModulesMock,
             ensureSessionPersistenceStarted: expect.any(Function),
-            setNumericCols: setNumericColsMock,
+
             setAdaptiveFilterColumn: setAdaptiveFilterColumnMock,
         }));
 

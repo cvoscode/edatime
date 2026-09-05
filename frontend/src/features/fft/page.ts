@@ -5,8 +5,7 @@ import { exportContainerCanvasPNG, exportContainerCanvasSVG, exportContainerCanv
 import { toast } from '../../utils/toast.js';
 import { getAnalyticsChipColor, getNumericColumns } from '../../platform/analyticsColumns.js';
 import { analyticsState, setSpectralFilterPreview } from '../../store/analyticsState.js';
-import { chartState } from '../../store/chartState.js';
-import { datasetState } from '../../store/datasetState.js';
+import { primaryChart } from '../../charts/primaryChart.js';
 import { renderSeriesChipList } from '../../ui/index.js';
 import { getDropdownValue, setDropdownDisabled } from '../../ui/primitives/Dropdown.js';
 import { setSeriesColor } from '../../utils/seriesColors.js';
@@ -86,7 +85,7 @@ export function disposeFftPage(): void {
 }
 
 function fftColumns(): string[] {
-    return getNumericColumns(workspace?.getSnapshot().dataset.metadata ?? datasetState.metadata);
+    return getNumericColumns(workspace?.getSnapshot().dataset.metadata ?? null);
 }
 
 function fftColorFor(column: string): string {
@@ -274,7 +273,7 @@ async function ensureFftChartReady(): Promise<void> {
 
 function getFftViewport(): { startMs: number; endMs: number } | null {
     const timeRange = workspace?.getSnapshot().dataset.metadata?.time_range
-        ?? datasetState.metadata?.time_range;
+        ?? workspace?.getSnapshot().dataset.metadata?.time_range;
     return resolveFftViewport(
         workspace?.getSnapshot().viewport,
         Number(timeRange?.min),
@@ -564,7 +563,7 @@ export async function initFftPage(deps: FftPageDeps): Promise<() => void> {
                 if (!filterType || filterType === 'none') {
                     if (analyticsState.spectralFilterPreview) {
                         setSpectralFilterPreview(null);
-                        chartState.chart?.requestOverlayRender?.();
+                        primaryChart.current?.requestOverlayRender?.();
                         deps.renderTimeseries();
                     }
                     return;

@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { setChartInstance } from '../store/chartState.js';
+import { setPrimaryChartInstance } from '../charts/primaryChart.js';
 import { updateAnalysisYRange } from './analysisStatus.js';
 
 describe('analysisStatus', () => {
     beforeEach(() => {
         document.body.innerHTML = '<div id="analysis-y"></div>';
-        setChartInstance(null);
+        setPrimaryChartInstance(null);
     });
 
     it('renders the explicitly supplied restored Y range', () => {

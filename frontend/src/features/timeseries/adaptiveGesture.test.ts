@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { initAdaptiveFilterGesture, positionAdaptivePicker } from './adaptiveGesture.js';
-import { setChartInstance } from '../../store/chartState.js';
+import { setPrimaryChartInstance } from '../../charts/primaryChart.js';
 import { getColumnSeriesColor } from '../../utils/seriesColors.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 import { applyFilterIntentToData } from '../../services/timeseries/filtering.js';
@@ -13,7 +13,7 @@ describe('adaptive filter gesture', () => {
             ts: Float64Array.from([0, 10]),
             values: { value: Float64Array.from([1, 9]) },
         } as any;
-        setChartInstance({
+        setPrimaryChartInstance({
             cssPointToData: vi.fn()
                 .mockReturnValueOnce({ x: 0, y: 1 })
                 .mockReturnValueOnce({ x: 10, y: 9 }),

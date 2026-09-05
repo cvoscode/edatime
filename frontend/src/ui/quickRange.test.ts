@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { setMetadata } from '../store/datasetState.js';
+
 import {
     __quickRangeForTest,
     initQuickRangeControls,
@@ -30,13 +30,12 @@ describe('quickRange', () => {
 
     beforeEach(() => {
         resetDom();
-        setMetadata(null);
         workspace = createWorkspaceStore();
     });
 
     it('disables all presets until a dataset with a time range is loaded', () => {
         initQuickRangeControls(() => undefined, workspace);
-        refreshQuickRangeControls();
+        refreshQuickRangeControls(workspace);
         for (const id of ['quick-range-24h', 'quick-range-7d', 'quick-range-30d', 'quick-range-all']) {
             const btn = document.getElementById(id) as HTMLButtonElement;
             expect(btn.disabled).toBe(true);
@@ -47,15 +46,15 @@ describe('quickRange', () => {
         initQuickRangeControls(() => undefined, workspace);
         const start = Date.UTC(2024, 0, 1);
         const end = Date.UTC(2024, 6, 1); // ~6 months later
-        setMetadata({
+        workspace.commitDataset(workspace.beginDatasetSession(), {
             total_rows: 0,
             columns: [],
             numeric_columns: [],
             time_column: 'ts',
             time_range: { min: start, max: end },
             column_profiles: [],
-        } as any);
-        refreshQuickRangeControls();
+        } as any, 1);
+        refreshQuickRangeControls(workspace);
         for (const id of ['quick-range-24h', 'quick-range-7d', 'quick-range-30d', 'quick-range-all']) {
             const btn = document.getElementById(id) as HTMLButtonElement;
             expect(btn.disabled).toBe(false);
@@ -91,15 +90,15 @@ describe('quickRange', () => {
     it('initQuickRangeControls wires click handlers that call applyViewport', () => {
         const fetchAndRender = vi.fn();
         initQuickRangeControls(fetchAndRender, workspace);
-        setMetadata({
+        workspace.commitDataset(workspace.beginDatasetSession(), {
             total_rows: 0,
             columns: [],
             numeric_columns: [],
             time_column: 'ts',
             time_range: { min: 0, max: 7 * 24 * 60 * 60 * 1000 },
             column_profiles: [],
-        } as any);
-        refreshQuickRangeControls();
+        } as any, 1);
+        refreshQuickRangeControls(workspace);
         // The click handlers do not call fetchAndRender directly — they go
         // through `applyViewport` which schedules a debounced fetch — so
         // we just verify the button is enabled and bound.
@@ -113,15 +112,15 @@ describe('quickRange', () => {
         const workspace = createWorkspaceStore();
         const fetchAndRender = vi.fn();
         initQuickRangeControls(fetchAndRender, workspace);
-        setMetadata({
+        workspace.commitDataset(workspace.beginDatasetSession(), {
             total_rows: 0,
             columns: [],
             numeric_columns: [],
             time_column: 'ts',
             time_range: { min: 0, max: 7 * 24 * 60 * 60 * 1000 },
             column_profiles: [],
-        } as any);
-        refreshQuickRangeControls();
+        } as any, 1);
+        refreshQuickRangeControls(workspace);
 
         (document.getElementById('quick-range-24h') as HTMLButtonElement).click();
 

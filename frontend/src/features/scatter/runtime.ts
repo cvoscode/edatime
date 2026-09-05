@@ -18,7 +18,6 @@ import {
     renderCurrentOption,
 } from './rendering.js';
 import { getEl } from './helpers.js';
-import { datasetState } from '../../store/datasetState.js';
 import { scatterState } from '../../store/scatterState.js';
 import { createEmptyStateController, isRangeOutsideDataset } from '../../ui/emptyState.js';
 import { isLinkedBrushEnabled, currentControls, getActiveScatterFilterColumns } from './state.js';
@@ -141,7 +140,7 @@ export function syncScatterEmptyState(message?: string): void {
     const start = intent?.viewport?.xMin;
     const end = intent?.viewport?.xMax;
     const linkedRangeOutside = isLinkedBrushEnabled()
-        && isRangeOutsideDataset(datasetState.metadata?.time_range, start, end);
+        && isRangeOutsideDataset(workspace?.getSnapshot().dataset.metadata?.time_range, start, end);
 
     let reason: string;
     if (_gpuUnavailable && !scatterState.chart) {

@@ -2,13 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { initPreparePage } from './index.js';
 import { cleaningPlanStore } from '../../cleaning/store.js';
-import { datasetState } from '../../store/datasetState.js';
+import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
+let workspace = createWorkspaceStore();
 
 describe('Prepare page', () => {
     beforeEach(() => {
         document.body.innerHTML = '<button id="open-cleaning-plan-btn"></button><div id="prepare-workspace"></div>';
         cleaningPlanStore.clear();
-        datasetState.metadata = null;
+        workspace = createWorkspaceStore();
     });
 
     afterEach(() => cleaningPlanStore.clear());
@@ -21,7 +22,7 @@ describe('Prepare page', () => {
         });
         const opened = vi.fn();
         document.getElementById('open-cleaning-plan-btn')!.addEventListener('click', opened);
-        const dispose = initPreparePage();
+        const dispose = initPreparePage({ workspace });
 
         expect(document.querySelector('.pipeline-graph')).not.toBeNull();
         expect(document.getElementById('prepare-workspace')?.textContent).toContain('source-1');
@@ -32,7 +33,7 @@ describe('Prepare page', () => {
     });
 
     it('stays source-first until a dataset establishes a plan', () => {
-        const dispose = initPreparePage();
+        const dispose = initPreparePage({ workspace });
         const open = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Open Pipeline Workbench')!;
 
         expect(open.disabled).toBe(true);
@@ -42,7 +43,7 @@ describe('Prepare page', () => {
     });
 
     it('provides the same page-level help contract as every analysis page', () => {
-        const dispose = initPreparePage();
+        const dispose = initPreparePage({ workspace });
         const trigger = document.getElementById('prepare-help-btn') as HTMLButtonElement;
 
         expect(trigger.getAttribute('data-page-help-bound')).toBe('true');
@@ -64,7 +65,7 @@ describe('Prepare page', () => {
             sourcePage: 'timeseries', label: 'Second', startMs: 3, endMs: 4, mode: 'keepInside',
         });
         const onPlanChanged = vi.fn();
-        const dispose = initPreparePage({ onPlanChanged });
+        const dispose = initPreparePage({ workspace, onPlanChanged });
 
         Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Down')!.click();
         expect(cleaningPlanStore.getSnapshot()!.stages.map((stage) => stage.id)).toEqual([second.id, first.id]);
@@ -82,7 +83,7 @@ describe('Prepare page', () => {
     it('creates a valid missing-value policy without leaving Prepare', () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
         const onPlanChanged = vi.fn();
-        const dispose = initPreparePage({ onPlanChanged });
+        const dispose = initPreparePage({ workspace, onPlanChanged });
         const form = document.querySelector('form.prepare-workspace__policy-form') as HTMLFormElement;
         (form.elements.namedItem('column') as HTMLInputElement).value = 'value';
 
@@ -97,14 +98,14 @@ describe('Prepare page', () => {
 
     it('turns an exact null-value finding into one reversible policy stage', () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
-        datasetState.metadata = {
+        workspace.commitDataset(workspace.beginDatasetSession(), {
             column_profiles: [
                 { name: 'temperature', dtype: 'Float64', null_count: 12 },
                 { name: 'category', dtype: 'String', null_count: 2 },
             ],
-        } as any;
+        } as any, 0);
         const onPlanChanged = vi.fn();
-        const dispose = initPreparePage({ onPlanChanged });
+        const dispose = initPreparePage({ workspace, onPlanChanged });
 
         const temperatureFinding = document.querySelector<HTMLElement>('[data-quality-column="temperature"]')!;
         expect(temperatureFinding.textContent).toContain('12 null values');
@@ -121,8 +122,8 @@ describe('Prepare page', () => {
 
     it('does not present deferred schema metadata as a clean quality profile', () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
-        datasetState.metadata = { profile_status: 'immediate', column_profiles: [] } as any;
-        const dispose = initPreparePage();
+        workspace.commitDataset(workspace.beginDatasetSession(), { profile_status: 'immediate', column_profiles: [] } as any, 0);
+        const dispose = initPreparePage({ workspace });
 
         expect(document.getElementById('prepare-workspace')?.textContent).toContain('Column quality findings are pending the exact profile');
         dispose();
@@ -130,7 +131,7 @@ describe('Prepare page', () => {
 
     it('surfaces completed time-order and duplicate facts without inventing a repair', () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
-        datasetState.metadata = {
+        workspace.commitDataset(workspace.beginDatasetSession(), {
             profile_status: 'exact',
             column_profiles: [],
             time_quality: {
@@ -144,8 +145,8 @@ describe('Prepare page', () => {
                 median_gap_ms: 2_000,
                 max_gap_ms: 2_000,
             },
-        } as any;
-        const dispose = initPreparePage();
+        } as any, 0);
+        const dispose = initPreparePage({ workspace });
 
         const finding = document.querySelector<HTMLElement>('[data-quality-kind="time"]')!;
         expect(finding.textContent).toContain('3 unique timestamps');
@@ -158,14 +159,14 @@ describe('Prepare page', () => {
 
     it('surfaces constant numeric columns as completed-profile findings', () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
-        datasetState.metadata = {
+        workspace.commitDataset(workspace.beginDatasetSession(), {
             profile_status: 'exact',
             column_profiles: [{
                 name: 'flatline', dtype: 'Float64', null_count: 0,
                 is_constant: true, finite_count: 12, zero_count: 12,
             }],
-        } as any;
-        const dispose = initPreparePage();
+        } as any, 0);
+        const dispose = initPreparePage({ workspace });
 
         const finding = document.querySelector<HTMLElement>('[data-quality-column="flatline"][data-quality-kind="constant"]')!;
         expect(finding.textContent).toContain('constant numeric values');
@@ -177,8 +178,8 @@ describe('Prepare page', () => {
 
     it('turns an exact non-finite finding into a reversible non-finite policy', () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
-        datasetState.metadata = { column_profiles: [{ name: 'temperature', dtype: 'Float64', null_count: 0, non_finite_count: 3 }] } as any;
-        const dispose = initPreparePage();
+        workspace.commitDataset(workspace.beginDatasetSession(), { column_profiles: [{ name: 'temperature', dtype: 'Float64', null_count: 0, non_finite_count: 3 }] } as any, 0);
+        const dispose = initPreparePage({ workspace });
 
         const finding = document.querySelector<HTMLElement>('[data-quality-column="temperature"][data-quality-kind="nonFinite"]')!;
         expect(finding.textContent).toContain('3 non-finite values');
@@ -192,7 +193,7 @@ describe('Prepare page', () => {
 
     it('replaces immediate findings with the requested exact quality report', async () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
-        datasetState.metadata = { column_profiles: [{ name: 'preview_only', dtype: 'Float64', null_count: 1 }] } as any;
+        workspace.commitDataset(workspace.beginDatasetSession(), { column_profiles: [{ name: 'preview_only', dtype: 'Float64', null_count: 1 }] } as any, 0);
         const startProfile = vi.fn(async () => ({
             algorithmVersion: 'exact-v1',
             sourceVersion: { id: 'source-1', revision: 3, datasetFingerprint: 'data' },
@@ -215,7 +216,7 @@ describe('Prepare page', () => {
 
     it('labels sampled quality findings as estimates and retains the exact-report action', async () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
-        datasetState.metadata = { profile_status: 'immediate', column_profiles: [] } as any;
+        workspace.commitDataset(workspace.beginDatasetSession(), { profile_status: 'immediate', column_profiles: [] } as any, 0);
         const startSampleProfile = vi.fn(async () => ({
             algorithmVersion: 'sample-v1',
             sourceVersion: { id: 'source-1', revision: 3, datasetFingerprint: 'data' },
@@ -254,14 +255,14 @@ describe('Prepare page', () => {
         Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Cancel exact quality report')!.click();
         await Promise.resolve();
 
-        expect(cancelProfile).toHaveBeenCalledWith('profile-job');
+        expect(cancelProfile).toHaveBeenCalledWith('profile-job', { signal: expect.any(AbortSignal) });
         expect(document.getElementById('prepare-workspace')?.textContent).toContain('Immediate source findings are shown while the exact background quality report runs');
         dispose();
     });
 
     it('creates stable duplicate resolution from explicit key columns', () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
-        const dispose = initPreparePage();
+        const dispose = initPreparePage({ workspace });
         const forms = document.querySelectorAll<HTMLFormElement>('form.prepare-workspace__policy-form');
         const form = forms[1];
         (form.elements.namedItem('columns') as HTMLInputElement).value = 'device, ts';
@@ -277,7 +278,7 @@ describe('Prepare page', () => {
 
     it('creates explicit column selection without leaving Prepare', () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
-        const dispose = initPreparePage();
+        const dispose = initPreparePage({ workspace });
         const form = document.querySelectorAll<HTMLFormElement>('form.prepare-workspace__policy-form')[2];
         (form.elements.namedItem('columns') as HTMLInputElement).value = 'ts, target';
         (form.elements.namedItem('mode') as HTMLSelectElement).value = 'keep';
@@ -292,7 +293,7 @@ describe('Prepare page', () => {
 
     it('requires a time sort before authoring ordered null fill', () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
-        const dispose = initPreparePage();
+        const dispose = initPreparePage({ workspace });
         const form = document.querySelectorAll<HTMLFormElement>('form.prepare-workspace__policy-form')[4];
         (form.elements.namedItem('columns') as HTMLInputElement).value = 'value';
         form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
@@ -305,7 +306,7 @@ describe('Prepare page', () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
         cleaningPlanStore.addStage({ kind: 'sort', executionClass: 'polarsExpression', scope: 'order', enabled: true, sourcePage: 'manual', label: 'sort', columns: ['ts'], descending: false, nullsLast: true });
         const onPlanChanged = vi.fn();
-        const dispose = initPreparePage({ onPlanChanged });
+        const dispose = initPreparePage({ workspace, onPlanChanged });
         const form = document.querySelectorAll<HTMLFormElement>('form.prepare-workspace__policy-form')[5];
         (form.elements.namedItem('every') as HTMLInputElement).value = '15m';
         (form.elements.namedItem('aggregations') as HTMLInputElement).value = 'value:mean, volume:sum';
@@ -322,7 +323,7 @@ describe('Prepare page', () => {
 
     it('rejects resampling without the required ascending time sort', () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
-        const dispose = initPreparePage();
+        const dispose = initPreparePage({ workspace });
         const form = document.querySelectorAll<HTMLFormElement>('form.prepare-workspace__policy-form')[5];
         (form.elements.namedItem('every') as HTMLInputElement).value = '1h';
         (form.elements.namedItem('aggregations') as HTMLInputElement).value = 'value:last';

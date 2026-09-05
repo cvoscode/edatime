@@ -58,7 +58,7 @@ describe('page module descriptors', () => {
         await prepare!.init();
 
         expect(mocks.initPreparePage).toHaveBeenCalledTimes(1);
-        expect(mocks.initPreparePage).toHaveBeenCalledWith({ onPlanChanged: deps.onCleaningPlanChanged });
+        expect(mocks.initPreparePage).toHaveBeenCalledWith({ workspace: deps.workspace, onPlanChanged: deps.onCleaningPlanChanged });
     });
 
     it('loads Scatter directly from its descriptor only on first page initialization', async () => {

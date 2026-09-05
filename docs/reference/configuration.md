@@ -32,6 +32,8 @@ max_clients = 10000
 
 [upload]
 max_upload_bytes = 536870912
+max_concurrent_uploads = 1
+queue_timeout_ms = 1000
 
 [data]
 artifact_dir = "./edatime-artifacts" # optional; managed Parquet versions
@@ -58,6 +60,8 @@ require_sorted_scan_backed = true      # false opts into Polars streaming sort
 | `EDATIME_TRUSTED_PROXY_IPS` | Comma-separated direct peers allowed to set forwarding headers | unset |
 | `EDATIME_ALLOW_INSECURE_PUBLIC` | Permit a non-loopback bind without built-in authentication | `false` |
 | `EDATIME_MAX_UPLOAD_BYTES` | Maximum upload size in bytes | `268435456` |
+| `EDATIME_MAX_CONCURRENT_UPLOADS` | Concurrent upload and preview decoders | `1` |
+| `EDATIME_UPLOAD_QUEUE_TIMEOUT_MS` | Maximum upload admission wait in milliseconds | `1000` |
 | `EDATIME_ARTIFACT_DIR` | Managed directory for durable Parquet versions | unset |
 | `EDATIME_MAX_ARTIFACT_BYTES` | Aggregate managed-artifact disk cap in bytes | unset |
 | `EDATIME_MAX_ARTIFACT_VERSIONS` | Lineage-safe cap for retained managed versions | unset |

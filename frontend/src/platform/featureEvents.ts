@@ -5,6 +5,7 @@
  * public browser contract and must be explicitly declared here.
  */
 export interface FeatureEventMap {
+    'adaptive:clear-pending': undefined;
     'analytics:change': undefined;
     'causal:preselect': { columns: string[] };
     'filters:clear': { source: string };

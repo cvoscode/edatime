@@ -13,7 +13,7 @@ const {
     buildColumnTogglesMock: vi.fn(),
     buildRangeControlsMock: vi.fn(),
     initColumnFilterModalMock: vi.fn(),
-    initDatasetSearchInputsMock: vi.fn(),
+    initDatasetSearchInputsMock: vi.fn(() => () => {}),
     initTimeseriesActionsMock: vi.fn(),
     initTimeseriesExportButtonsMock: vi.fn(),
 }));

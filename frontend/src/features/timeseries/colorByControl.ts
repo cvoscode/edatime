@@ -5,7 +5,6 @@
  * Delegated from buildColumnToggles so the chip-list and color-control
  * concerns stay cleanly separated.
  */
-import { datasetState } from '../../store/datasetState.js';
 import { ColorBySelect } from '../../ui/composites/ColorBySelect.js';
 import type { SelectionWorkspace } from './selectionIntent.js';
 
@@ -27,7 +26,7 @@ export function renderColorByControl(options: ColorByControlOptions): void {
     if (!slot) return;
     slot.innerHTML = '';
 
-    const metadataCols = (datasetState.metadata?.columns ?? [])
+    const metadataCols = (options.workspace.getSnapshot().dataset.metadata?.columns ?? [])
         .map((column) => String(column?.name ?? '').trim())
         .filter(Boolean);
 

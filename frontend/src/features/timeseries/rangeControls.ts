@@ -11,9 +11,9 @@
 import { formatAnalysisNumber } from '../../utils/format.js';
 import {
     setPendingAdaptivePoint,
-    uiState,
-} from '../../store/uiState.js';
-import { chartState } from '../../store/chartState.js';
+    timeseriesInteraction,
+} from './interaction.js';
+import { primaryChart } from '../../charts/primaryChart.js';
 import { RangeControls, RangeControlItem } from '../../ui/composites/RangeControls.js';
 import type { FilterWorkspace } from './selectionIntent.js';
 import type { CleaningPlanStore } from '../../cleaning/store.js';
@@ -52,11 +52,11 @@ export function buildRangeControls(
     };
 
     // Adaptive filter target chip (static — not clickable)
-    if (uiState.adaptiveFilterColumn && selectedColumns.includes(uiState.adaptiveFilterColumn)) {
+    if (timeseriesInteraction.adaptiveFilterColumn && selectedColumns.includes(timeseriesInteraction.adaptiveFilterColumn)) {
         items.push({
             key: 'adaptive-target',
             name: 'Adaptive target',
-            range: uiState.adaptiveFilterColumn,
+            range: timeseriesInteraction.adaptiveFilterColumn,
         });
     }
 
@@ -103,7 +103,7 @@ export function buildRangeControls(
     }
 
     // Clear-all chip when any adaptive filters are active
-    if (filters.adaptiveLines.length > 0 || uiState.pendingAdaptivePoint) {
+    if (filters.adaptiveLines.length > 0 || timeseriesInteraction.pendingAdaptivePoint) {
         items.push({
             key: 'clear-all',
             name: 'Adaptive filters',
@@ -124,7 +124,7 @@ export function buildRangeControls(
                 workspace.setFilters({ ...filters, adaptiveLines: [] });
                 setPendingAdaptivePoint(null);
                 buildRangeControls(workspace, openColumnFilter, cleaningPlanStore);
-                (chartState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
+                (primaryChart.current as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
             },
         });
     }

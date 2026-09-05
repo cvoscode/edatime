@@ -1,3 +1,4 @@
+import { getNumericColumns } from '../../platform/analyticsColumns.js';
 /**
  * features/timeseries/chipComposition — compose chip-list items from store slices.
  *
@@ -9,11 +10,10 @@
 import {
     setAdaptiveFilterColumn,
     setPendingAdaptivePoint,
-    uiState,
-} from '../../store/uiState.js';
+    timeseriesInteraction,
+} from './interaction.js';
 import { getColumnSeriesColor, setSeriesColor } from '../../utils/seriesColors.js';
-import { chartState } from '../../store/chartState.js';
-import { datasetState } from '../../store/datasetState.js';
+import { primaryChart } from '../../charts/primaryChart.js';
 import { ensureAdaptiveTargetStillValid } from './columnSelection.js';
 import { getTimeseriesSelection, setTimeseriesSelection, type SelectionWorkspace } from './selectionIntent.js';
 
@@ -43,7 +43,7 @@ export function composeChipListItems(options: ChipCompositionOptions): ChipListI
     const openColumnFilter = options.openColumnFilter ?? (() => {});
     const selection = getTimeseriesSelection(workspace);
 
-    const visibleCols = datasetState.numericCols.filter((col) => {
+    const visibleCols = getNumericColumns(workspace.getSnapshot().dataset.metadata).filter((col) => {
         if (!filterText) return true;
         return col.toLowerCase().includes(filterText.toLowerCase());
     });
@@ -53,7 +53,7 @@ export function composeChipListItems(options: ChipCompositionOptions): ChipListI
     return visibleCols.map((col) => {
         const color = getColumnSeriesColor(col);
         const isActive = selection.includes(col);
-        const isAdaptiveTarget = isActive && uiState.adaptiveFilterColumn === col;
+        const isAdaptiveTarget = isActive && timeseriesInteraction.adaptiveFilterColumn === col;
 
         const chipTitle = isAdaptiveTarget
             ? `Adaptive filter target: ${col}`
@@ -73,15 +73,15 @@ export function composeChipListItems(options: ChipCompositionOptions): ChipListI
                 setTimeseriesSelection(workspace, nextSelection);
                 ensureAdaptiveTargetStillValid(workspace);
                 buildRangeControlsFn();
-                const updatedIncrementally = chartState.chart?.setVisibleColumns?.(nextSelection) ?? false;
-                chartState.chart?.requestOverlayRender?.();
+                const updatedIncrementally = primaryChart.current?.setVisibleColumns?.(nextSelection) ?? false;
+                primaryChart.current?.requestOverlayRender?.();
                 if (!updatedIncrementally) fetchAndRender();
             },
             onColorInput: (nextColor: string) => {
                 const updated = setSeriesColor(col, nextColor);
                 if (!updated) return;
-                const updatedIncrementally = chartState.chart?.setColumnColor?.(col, updated) ?? false;
-                chartState.chart?.requestOverlayRender?.();
+                const updatedIncrementally = primaryChart.current?.setColumnColor?.(col, updated) ?? false;
+                primaryChart.current?.requestOverlayRender?.();
                 if (!updatedIncrementally) renderCurrentDataFn?.();
             },
             onMenuClick: () => {
@@ -120,7 +120,7 @@ export function bindChipCtrlClick(
                 setPendingAdaptivePoint(null);
 
                 rebuildAndRender();
-                (chartState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
+                (primaryChart.current as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
 
                 if (!hadColumn) fetchAndRender();
             },

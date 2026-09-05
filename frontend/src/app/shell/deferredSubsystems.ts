@@ -90,6 +90,7 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
         const profileModule = await import('../../features/upload/index.js');
         const { initUploadPanel } = await import('../../features/upload/index.js');
         const disposeUploadPanel = initUploadPanel(profileModule.hydrateColumnProfiles, profileModule.renderColumnProfilesGrid, {
+            workspace: deps.workspace,
             buildColumnToggles: deps.buildTimeseriesColumns,
             buildRangeControls: deps.buildTimeseriesRanges,
             refreshDatasetAfterMutation: () => deps.refreshDatasetAfterMutation(),
@@ -101,9 +102,9 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
         deps.registerCleanup(initUploadHelp());
     });
 
-    registerSubsystem('column-profiles', async () => {
+    registerSubsystem('column-profiles', async (deps) => {
         const { initColumnProfilesGrid } = await import('../../features/upload/index.js');
-        initColumnProfilesGrid();
+        deps.registerCleanup(initColumnProfilesGrid());
     });
 
     registerSubsystem('analytics-overlay', async (deps) => {
@@ -125,6 +126,7 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
         const { initAnnotationPanel } = await import('../../ui/annotationPanel.js');
         initAnnotations();
         deps.registerCleanup(initAnnotationPanel({
+            getDatasetRevision: () => deps.workspace.getSnapshot().dataset.revision,
             requestOverlayRender: deps.requestAnnotationOverlayRender,
             getViewport: () => {
                 const viewport = deps.workspace.getSnapshot().viewport;
@@ -168,7 +170,7 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
     registerSubsystem('analysis-controls', async (deps) => {
         const { initAnalysisControls } = await import('../../ui/toolbar.js');
         const { initTimeseriesHelp } = await import('../../features/timeseries/index.js');
-        initAnalysisControls(deps.fetchAndRender, deps.zoomOut, deps.resetZoom, deps.workspace);
+        deps.registerCleanup(initAnalysisControls(deps.fetchAndRender, deps.zoomOut, deps.resetZoom, deps.workspace));
         // Page-level "?" help button. The helper is idempotent so it's
         // safe to call from inside the analysis-controls subsystem.
         deps.registerCleanup(initTimeseriesHelp());

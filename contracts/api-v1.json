@@ -16,6 +16,19 @@
     "required": ["error", "message", "kind", "code", "correlation_id", "request_id"]
   },
   "schemas": {
+    "HealthResponse": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status"], "properties": { "status": { "const": "ok" } }
+    },
+    "BuildIdentity": {
+      "type": "object", "additionalProperties": false,
+      "required": ["package", "version", "git_sha", "profile", "contract_version"],
+      "properties": {
+        "package": { "type": "string" }, "version": { "type": "string" },
+        "git_sha": { "type": "string" }, "profile": { "type": "string" },
+        "contract_version": { "type": "string", "const": "v1" }
+      }
+    },
     "CleaningPlanEnvelope": {
       "type": "object",
       "additionalProperties": false,
@@ -341,6 +354,83 @@
         "includeChangePoints": { "type": "boolean" },
         "includeCorrelations": { "type": "boolean" },
         "cleaningPlan": { "$ref": "#/components/schemas/CleaningPlanEnvelope" }
+      }
+    },
+    "DatasetMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["revision", "profile_status", "total_rows", "columns", "numeric_columns", "time_column", "time_range", "column_profiles"],
+      "properties": {
+        "revision": { "type": "integer", "minimum": 0 },
+        "source_version_id": { "type": ["string", "null"] },
+        "source_version_revision": { "type": ["integer", "null"], "minimum": 0 },
+        "root_source_version_id": { "type": ["string", "null"] },
+        "parent_source_version_id": { "type": ["string", "null"] },
+        "dataset_fingerprint": { "type": ["string", "null"] },
+        "schema_fingerprint": { "type": ["string", "null"] },
+        "source_name": { "type": ["string", "null"] },
+        "profile_status": { "type": "string" },
+        "profile_sample_rows": { "type": ["integer", "null"], "minimum": 0 },
+        "total_rows": { "type": "integer", "minimum": 0 },
+        "columns": { "type": "array", "items": { "$ref": "#/components/schemas/ColumnMetadata" } },
+        "numeric_columns": { "type": "array", "items": { "type": "string" } },
+        "time_column": { "type": ["string", "null"] },
+        "time_range": { "oneOf": [{ "$ref": "#/components/schemas/TimeRange" }, { "type": "null" }] },
+        "time_quality": { "type": ["object", "null"] },
+        "column_profiles": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "ColumnMetadata": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "dtype"],
+      "properties": { "name": { "type": "string" }, "dtype": { "type": "string" } }
+    },
+    "TimeRange": {
+      "type": "object", "additionalProperties": false,
+      "required": ["min", "max"],
+      "properties": { "min": { "type": "integer" }, "max": { "type": "integer" } }
+    },
+    "ScatterPointsResponse": {
+      "type": "object", "additionalProperties": false,
+      "required": ["x", "y", "total_points", "returned_points", "points"],
+      "properties": {
+        "x": { "type": "string" }, "y": { "type": "string" },
+        "color": { "type": ["string", "null"] },
+        "total_points": { "type": "integer", "minimum": 0 },
+        "returned_points": { "type": "integer", "minimum": 0 },
+        "points": { "type": "array", "items": { "type": "array", "prefixItems": [{ "type": "number" }, { "type": "number" }], "minItems": 2, "maxItems": 2 } },
+        "color_values": { "type": ["array", "null"], "items": { "type": "number" } },
+        "color_labels": { "type": ["array", "null"], "items": { "type": ["string", "null"] } },
+        "color_min": { "type": ["number", "null"] }, "color_max": { "type": ["number", "null"] },
+        "size_values": { "type": ["array", "null"], "items": { "type": "number" } },
+        "size_min": { "type": ["number", "null"] }, "size_max": { "type": ["number", "null"] },
+        "color_cardinality": { "type": ["object", "null"] }
+      }
+    },
+    "UploadResponse": {
+      "type": "object", "additionalProperties": true,
+      "required": ["metadata"],
+      "properties": { "metadata": { "$ref": "#/components/schemas/DatasetMetadata" } }
+    },
+    "CausalGraphResponse": {
+      "type": "object", "additionalProperties": false,
+      "required": ["graph", "val_matrix", "p_matrix", "columns", "tau_max", "links"],
+      "properties": {
+        "graph": { "type": "array", "items": { "type": "array", "items": { "type": "array", "items": { "type": "string" } } } },
+        "val_matrix": { "type": "array", "items": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } } },
+        "p_matrix": { "type": "array", "items": { "type": "array", "items": { "type": "array", "items": { "type": "number", "minimum": 0, "maximum": 1 } } } },
+        "columns": { "type": "array", "items": { "type": "string" } },
+        "tau_max": { "type": "integer", "minimum": 1 },
+        "links": { "type": "array", "items": { "$ref": "#/components/schemas/CausalLink" } }
+      }
+    },
+    "CausalLink": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source", "target", "lag", "type", "value", "pvalue"],
+      "properties": {
+        "source": { "type": "string" }, "target": { "type": "string" },
+        "lag": { "type": "integer", "minimum": 0 }, "type": { "type": "string" },
+        "value": { "type": "number" }, "pvalue": { "type": "number", "minimum": 0, "maximum": 1 }
       }
     }
   },

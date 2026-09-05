@@ -1,12 +1,15 @@
 use std::io::Write;
+use std::sync::Arc;
 
 use axum::{
     Json,
     extract::{Multipart, State},
+    http::StatusCode,
     response::IntoResponse,
 };
 use chrono::{DateTime, Utc};
 use tempfile::{Builder, TempPath};
+use tokio::sync::OwnedSemaphorePermit;
 
 use crate::error::AppError;
 use crate::handlers::routes::metadata::build_immediate_dataset_metadata_from_path_with_time_column;
@@ -15,12 +18,24 @@ use edatime_ingest::ingest::IngestParams;
 use edatime_query::validation::validate_upload_size_with_limit;
 use edatime_store::state::AppState;
 
+struct UploadPermit {
+    _permit: OwnedSemaphorePermit,
+    metrics: Arc<edatime_core::metrics::AppMetrics>,
+}
+
+impl Drop for UploadPermit {
+    fn drop(&mut self) {
+        self.metrics.record_upload_completed();
+    }
+}
+
 #[tracing::instrument(skip(state, multipart))]
 pub async fn upload_data(
     State(state): State<AppState>,
     multipart: Multipart,
 ) -> Result<impl IntoResponse, AppError> {
     tracing::info!("Received file upload request");
+    let _permit = acquire_upload_permit(&state).await?;
 
     let (path, ingest_params, file_name) = extract_upload_parts(&state, multipart).await?;
     let source_path = path.to_path_buf();
@@ -131,6 +146,7 @@ pub async fn preview_upload_data(
     multipart: Multipart,
 ) -> Result<impl IntoResponse, AppError> {
     tracing::info!("Received upload preview request");
+    let _permit = acquire_upload_permit(&state).await?;
 
     let (path, time_column) = extract_preview_file(&state, multipart).await?;
     let metadata = state
@@ -168,6 +184,30 @@ pub async fn preview_upload_data(
         "status": "ok",
         "metadata": metadata,
     })))
+}
+
+async fn acquire_upload_permit(state: &AppState) -> Result<UploadPermit, AppError> {
+    let wait = std::time::Duration::from_millis(state.config.upload.queue_timeout_ms.max(1));
+    tokio::time::timeout(wait, Arc::clone(&state.upload_admission).acquire_owned())
+        .await
+        .map_err(|_| {
+            state.metrics.record_upload_rejected(true);
+            AppError::framework(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "Upload capacity is busy; retry shortly",
+            )
+        })?
+        .map_err(|_| {
+            state.metrics.record_upload_rejected(false);
+            AppError::internal("Upload admission is closed")
+        })
+        .map(|permit| {
+            state.metrics.record_upload_admitted();
+            UploadPermit {
+                _permit: permit,
+                metrics: Arc::clone(&state.metrics),
+            }
+        })
 }
 
 async fn extract_upload_parts(
@@ -410,6 +450,48 @@ mod tests {
 
     use super::*;
     use edatime_core::config::AppConfig;
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn upload_admission_releases_permit_and_balances_metrics() {
+        let mut config = AppConfig::default();
+        config.upload.max_concurrent_uploads = 1;
+        config.upload.queue_timeout_ms = 10;
+        let state = AppState::new(DataFrame::default(), config);
+
+        let permit = acquire_upload_permit(&state).await.expect("admit upload");
+        assert_eq!(state.metrics.snapshot(0, 0).upload_admission.active, 1);
+        drop(permit);
+
+        let snapshot = state.metrics.snapshot(0, 0);
+        assert_eq!(snapshot.upload_admission.active, 0);
+        assert_eq!(snapshot.upload_admission.admitted_total, 1);
+        assert_eq!(snapshot.upload_admission.completed_total, 1);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn upload_admission_times_out_when_capacity_is_held() {
+        let mut config = AppConfig::default();
+        config.upload.max_concurrent_uploads = 1;
+        config.upload.queue_timeout_ms = 5;
+        let state = AppState::new(DataFrame::default(), config);
+        let held = state
+            .upload_admission
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("hold sole upload slot");
+
+        let error = match acquire_upload_permit(&state).await {
+            Ok(_) => panic!("second upload should time out"),
+            Err(error) => error,
+        };
+        assert_eq!(error.kind, crate::error::ErrorKind::Unavailable);
+        let snapshot = state.metrics.snapshot(0, 0);
+        assert_eq!(snapshot.upload_admission.active, 0);
+        assert_eq!(snapshot.upload_admission.rejected_total, 1);
+        assert_eq!(snapshot.upload_admission.queue_timeouts_total, 1);
+        drop(held);
+    }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn configured_csv_ingest_streams_a_sorted_scan_backed_root() {

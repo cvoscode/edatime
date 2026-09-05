@@ -8,8 +8,8 @@
 import {
     uploadDataset,
 } from '../../services/api/index.js';
-import { datasetState, setDatasetRevision, setMetadata } from '../../store/datasetState.js';
-import { uiState } from '../../store/uiState.js';
+import { uploadProfile } from './profileState.js';
+import { uploadUi } from './uploadUi.js';
 import { setProfileMode } from './preview.js';
 import { formatCount } from '../../utils/format.js';
 import { toast } from '../../utils/toast.js';
@@ -41,6 +41,7 @@ export interface FileUploadDeps {
 }
 
 export interface FileUploadParams {
+    signal?: AbortSignal;
     selectedFile: File;
     partialEnabled: boolean;
     nRowsInput: HTMLInputElement;
@@ -81,7 +82,7 @@ export async function submitFileUpload(params: FileUploadParams): Promise<void> 
         return;
     }
 
-    if (!uiState.previewTimeColumn && !(datasetState.metadata && datasetState.metadata.time_range)) {
+    if (!uploadUi.previewTimeColumn && !(uploadProfile.metadata && uploadProfile.metadata.time_range)) {
         statusEl!.textContent = 'No time column selected. Please choose a time column in the upload panel before ingest.';
         statusEl!.className = 'upload-status error';
         toast('No time column selected. Please choose a time column in the upload panel before ingest.', 'error', {});
@@ -124,14 +125,14 @@ export async function submitFileUpload(params: FileUploadParams): Promise<void> 
         if (tEndIso) formData.append('time_end', tEndIso);
     }
 
-    const selectedColumns = Array.isArray(uiState.previewSelectedColumns)
-        ? uiState.previewSelectedColumns.filter(Boolean)
+    const selectedColumns = Array.isArray(uploadUi.previewSelectedColumns)
+        ? uploadUi.previewSelectedColumns.filter(Boolean)
         : [];
     if (selectedColumns.length > 0) {
         formData.append('columns', JSON.stringify(selectedColumns));
     }
 
-    const timeColumn = String(uiState.previewTimeColumn || '').trim();
+    const timeColumn = String(uploadUi.previewTimeColumn || '').trim();
     if (timeColumn) formData.append('time_column', timeColumn);
 
     uploadBtn.disabled = true;
@@ -142,8 +143,9 @@ export async function submitFileUpload(params: FileUploadParams): Promise<void> 
     showUploadLoading(true);
 
     try {
-        const res = await uploadDataset(formData);
+        const res = await uploadDataset(formData, { signal: params.signal });
         const result = await res.json();
+        if (params.signal?.aborted) return;
         if (statusEl) {
             statusEl.className = 'upload-status';
         }
@@ -156,10 +158,9 @@ export async function submitFileUpload(params: FileUploadParams): Promise<void> 
                 await deps.refreshDatasetAfterMutation();
             } else {
                 const { fetchMetadata } = await import('../../services/api/index.js');
-                const freshMetadata = await fetchMetadata();
-                setMetadata(freshMetadata);
-                const revision = freshMetadata?.revision;
-                setDatasetRevision(typeof revision === 'number' ? revision : 0);
+                const freshMetadata = await fetchMetadata({ signal: params.signal });
+                if (params.signal?.aborted) return;
+                uploadProfile.metadata = freshMetadata;
                 hydrateColumnProfiles(freshMetadata);
                 renderColumnProfilesGrid(true);
                 deps.buildColumnToggles();
@@ -167,19 +168,19 @@ export async function submitFileUpload(params: FileUploadParams): Promise<void> 
                 setProfileMode('dataset');
             }
         } catch {
+            if (params.signal?.aborted) return;
             // Fall back to reload if metadata refresh fails
-            setTimeout(() => window.location.reload(), 1200);
+            setTimeout(() => { if (!params.signal?.aborted) window.location.reload(); }, 1200);
         }
     } catch (e: unknown) {
+        if (params.signal?.aborted) return;
         if (statusEl) {
             statusEl.textContent = 'Error: ' + (e instanceof Error ? e.message : String(e));
             statusEl.className = 'upload-status error';
         }
         toast(`Upload failed: ${e instanceof Error ? e.message : String(e)}`, 'error', {});
     } finally {
-        // Keep the overlay visible briefly so success / failure feels
-        // intentional, then dismiss it. Matches the prior 1500ms hold.
-        setTimeout(() => showUploadLoading(false), 1500);
+        showUploadLoading(false);
         uploadBtn.disabled = false;
     }
 }

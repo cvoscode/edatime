@@ -15,12 +15,6 @@ import {
     setRollingDisplayMode,
     setRollingWindow,
 } from '../store/analyticsState.js';
-import { chartState, setChartText } from '../store/chartState.js';
-import { datasetState } from '../store/datasetState.js';
-import {
-    setSeriesColors,
-    uiState,
-} from '../store/uiState.js';
 import { toast } from './toast.js';
 import { getHashPage } from './router.js';
 import { getDropdownValue, setDropdownValue } from '../ui/primitives/Dropdown.js';
@@ -29,7 +23,7 @@ import { onNavigationChange } from '../platform/navigationEvents.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 const STORAGE_KEY = 'edatime-session';
-type SessionWorkspace = Pick<WorkspaceStore, 'getSnapshot' | 'setSelection' | 'setFilters' | 'setViewport' | 'subscribe'>;
+type SessionWorkspace = Pick<WorkspaceStore, 'getSnapshot' | 'setSelection' | 'setFilters' | 'setViewport' | 'subscribe'> & Partial<Pick<WorkspaceStore, 'setAppearance'>>;
 let configuredWorkspace: SessionWorkspace | null = null;
 
 export function configureSessionWorkspace(workspace: SessionWorkspace | null): void {
@@ -91,19 +85,20 @@ function readSelect(id: string): string {
 
 /** Capture the current analysis state as a serialisable snapshot. */
 export function captureSession(): SessionSnapshot {
-    const intent = configuredWorkspace?.getSnapshot();
+    const workspace = configuredWorkspace;
+    const intent = workspace?.getSnapshot();
     return {
         version: 1,
         timestamp: Date.now(),
         page: currentPage(),
         selectedCols: [...(intent?.selection.columns ?? [])],
-        seriesColors: { ...uiState.seriesColors },
+        seriesColors: { ...intent?.appearance?.seriesColors },
         columnRanges: intent ? { ...intent.filters.columnRanges } : {},
         adaptiveLineFilters: intent ? intent.filters.adaptiveLines.map((f) => ({ ...f })) : [],
         currentStart: intent?.viewport?.xMin ?? null,
         currentEnd: intent?.viewport?.xMax ?? null,
         selectedColorColumn: intent?.selection.colorColumn ?? null,
-        chartText: { ...chartState.chartText },
+        chartText: { ...(intent?.appearance?.chartText ?? { title: '', xLabel: '', yLabel: '' }) },
         rollingEnabled: analyticsState.rollingEnabled,
         rollingWindow: analyticsState.rollingWindow,
         rollingDisplayMode: analyticsState.rollingDisplayMode,
@@ -114,7 +109,7 @@ export function captureSession(): SessionSnapshot {
         scatterY: readSelect('scatter-y-col'),
         scatterColorColumn: readSelect('scatter-color-column'),
         scatterRenderMode: readSelect('scatter-render-mode'),
-        datasetRevision: Number.isFinite(Number(datasetState.datasetRevision)) ? Number(datasetState.datasetRevision) : 0,
+        datasetRevision: Number.isFinite(Number(workspace?.getSnapshot().dataset.revision)) ? Number(workspace?.getSnapshot().dataset.revision) : 0,
     };
 }
 
@@ -136,12 +131,12 @@ export function applySession(
 
     const announceAdjustments = options.announceAdjustments !== false;
     const metadataTimeRange = options.metadataTimeRange
-        || ((datasetState.metadata as any)?.time_range ?? null);
+        || ((workspace?.getSnapshot().dataset.metadata as any)?.time_range ?? null);
 
     const currentRevision = Number(
         options.currentDatasetRevision
-        ?? datasetState.datasetRevision
-        ?? (datasetState.metadata as any)?.revision
+        ?? workspace?.getSnapshot().dataset.revision
+        ?? (workspace?.getSnapshot().dataset.metadata as any)?.revision
         ?? 0,
     );
     const snapshotRevision = Number(snap.datasetRevision ?? 0);
@@ -150,15 +145,15 @@ export function applySession(
     const revisionMismatch = hasRevisions && currentRevision !== snapshotRevision;
     result.revisionMismatch = revisionMismatch;
 
-    const metadataColumns = Array.isArray((datasetState.metadata as any)?.columns)
-        ? (datasetState.metadata as any).columns
+    const metadataColumns = Array.isArray((workspace?.getSnapshot().dataset.metadata as any)?.columns)
+        ? (workspace?.getSnapshot().dataset.metadata as any).columns
         : [];
     const validMetadataNames = new Set(
         metadataColumns.map((col: any) => String(col?.name ?? '').trim()).filter(Boolean),
     );
     const metadataNumericNames = new Set(
-        Array.isArray((datasetState.metadata as any)?.numeric_columns)
-            ? (datasetState.metadata as any).numeric_columns.map((col: any) => String(col ?? '').trim()).filter(Boolean)
+        Array.isArray((workspace?.getSnapshot().dataset.metadata as any)?.numeric_columns)
+            ? (workspace?.getSnapshot().dataset.metadata as any).numeric_columns.map((col: any) => String(col ?? '').trim()).filter(Boolean)
             : [],
     );
 
@@ -182,7 +177,7 @@ export function applySession(
         : (snap.selectedColorColumn !== undefined ? null : (workspace?.getSnapshot().selection.colorColumn ?? null));
 
     workspace?.setSelection(appliedSelectedCols, appliedColorColumn);
-    if (snap.seriesColors) setSeriesColors({ ...snap.seriesColors });
+    if (snap.seriesColors) workspace?.setAppearance?.({ seriesColors: snap.seriesColors });
 
     if (revisionMismatch) {
         const staleRanges = Object.keys(snap.columnRanges || {}).length;
@@ -237,7 +232,7 @@ export function applySession(
         }
     }
 
-    if (snap.chartText) setChartText({ ...snap.chartText });
+    if (snap.chartText) workspace?.setAppearance?.({ chartText: snap.chartText });
     if (snap.rollingEnabled !== undefined) setRollingEnabled(snap.rollingEnabled);
     if (Number.isFinite(snap.rollingWindow)) setRollingWindow(snap.rollingWindow);
     if (snap.rollingDisplayMode === 'raw' || snap.rollingDisplayMode === 'smooth' || snap.rollingDisplayMode === 'both') {

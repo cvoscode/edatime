@@ -6,7 +6,7 @@ use chrono::Utc;
 use polars::prelude::{DataFrame, DataType, LazyFrame, ScanArgsParquet, SchemaExt, len};
 use serde::Serialize;
 use serde_json::Value;
-use tokio::sync::RwLock;
+use tokio::sync::{RwLock, Semaphore};
 
 use crate::artifacts::{ArtifactStorageUsage, DatasetArtifactProvenance, DatasetArtifactStore};
 use crate::cache::{CorrelationMatrixCacheEntry, ResponseCache};
@@ -60,6 +60,10 @@ pub struct AppState {
     pub cache: Arc<ResponseCache>,
     pub metrics: Arc<AppMetrics>,
     pub config: Arc<AppConfig>,
+    /// Admission gate for uploads through decode and dataset replacement.
+    /// The wire body has its own byte limit; this gate prevents concurrent
+    /// parser/dataframe peaks from accumulating in process memory.
+    pub upload_admission: Arc<Semaphore>,
     pub db_pool: Arc<RwLock<Option<Arc<DbPool>>>>,
     pub db_info: Arc<RwLock<Option<DbConnectionInfo>>>,
     pub correlation_matrix_cache: Arc<Mutex<Option<(u64, CorrelationMatrixCacheEntry)>>>,
@@ -82,6 +86,7 @@ impl Clone for AppState {
             cache: Arc::clone(&self.cache),
             metrics: Arc::clone(&self.metrics),
             config: Arc::clone(&self.config),
+            upload_admission: Arc::clone(&self.upload_admission),
             db_pool: Arc::clone(&self.db_pool),
             db_info: Arc::clone(&self.db_info),
             correlation_matrix_cache: Arc::clone(&self.correlation_matrix_cache),
@@ -182,6 +187,8 @@ impl AppState {
             config.retention.max_terminal_jobs,
             config.retention.terminal_job_ttl_seconds,
         ));
+        let upload_admission =
+            Arc::new(Semaphore::new(config.upload.max_concurrent_uploads.max(1)));
         Self {
             repository,
             dataset_versions,
@@ -191,6 +198,7 @@ impl AppState {
             cache,
             metrics,
             config: Arc::new(config),
+            upload_admission,
             db_pool: Arc::new(RwLock::new(None)),
             db_info: Arc::new(RwLock::new(None)),
             correlation_matrix_cache: Arc::new(Mutex::new(None)),

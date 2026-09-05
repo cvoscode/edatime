@@ -1,6 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { datasetState } from '../store/datasetState.js';
-import { uiState } from '../store/uiState.js';
 import { applySession, captureSession, configureSessionWorkspace, initAutoSave, type SessionSnapshot } from './session.js';
 import { createWorkspaceStore } from '../workspace/workspaceStore.js';
 
@@ -40,8 +38,6 @@ describe('session restore safeguards', () => {
         window.localStorage.clear();
         document.body.innerHTML = '<div class="sidebar"><button class="nav-item" data-page="upload" type="button">upload</button></div>';
         window.location.hash = '';
-        datasetState.datasetRevision = 0;
-        datasetState.metadata = null;
     });
 
     afterEach(() => {
@@ -103,7 +99,8 @@ describe('session restore safeguards', () => {
     });
 
     it('drops saved selected columns that are not valid in the current metadata', () => {
-        datasetState.metadata = {
+        const workspace = createWorkspaceStore();
+        workspace.commitDataset(workspace.beginDatasetSession(), {
             columns: [
                 { name: 'ts', dtype: 'datetime[ms]' },
                 { name: 'HUFL', dtype: 'f64' },
@@ -111,8 +108,7 @@ describe('session restore safeguards', () => {
             ],
             numeric_columns: ['HUFL', 'HULL'],
             revision: 0,
-        } as any;
-        const workspace = createWorkspaceStore();
+        } as any, 0);
         workspace.setSelection(['HUFL', 'HULL']);
 
         const snap = buildSnapshot({

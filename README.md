@@ -103,6 +103,8 @@ max_clients = 10000
 
 [upload]
 max_upload_bytes = 536870912   # 512 MB
+max_concurrent_uploads = 1     # concurrent upload/preview decoders
+queue_timeout_ms = 1000        # wait before returning 503
 
 [data]
 artifact_dir = "./edatime-artifacts" # optional durable Parquet versions
@@ -128,6 +130,8 @@ max_background_concurrency = 1  # sink-backed materialization/export work
 | `EDATIME_CACHE_TTL_SECONDS` | `60` | How long query cache entries live |
 | `EDATIME_RATE_LIMIT_MAX_REQUESTS` | `100` | Max requests per client per window |
 | `EDATIME_MAX_UPLOAD_BYTES` | `268435456` | Max upload file size (256 MB) |
+| `EDATIME_MAX_CONCURRENT_UPLOADS` | `1` | Concurrent upload/preview decoders |
+| `EDATIME_UPLOAD_QUEUE_TIMEOUT_MS` | `1000` | Maximum upload admission wait |
 | `EDATIME_ARTIFACT_DIR` | *(unset)* | Managed directory for durable Parquet versions |
 | `EDATIME_MAX_INTERACTIVE_QUERIES` | `4` | Concurrent interactive query collections admitted by the shared executor |
 | `EDATIME_MAX_BACKGROUND_JOBS` | `1` | Concurrent sink-backed materialization/export operations admitted by the shared executor |

@@ -11,9 +11,15 @@
  * the most commonly confusable yellow/orange pair.
  */
 
-import { uiState } from '../store/uiState.js';
-import { setSeriesColors } from '../store/uiState.js';
-import { datasetState } from '../store/datasetState.js';
+import type { WorkspaceStore } from '../contracts/workspace.js';
+
+let colorWorkspace: (Pick<WorkspaceStore, 'getSnapshot'> & Partial<Pick<WorkspaceStore, 'setAppearance'>>) | null = null;
+
+/** Bind the renderer color resolver to its owning application workspace. */
+export function configureSeriesColorWorkspace(workspace: Pick<WorkspaceStore, 'getSnapshot'> & Partial<Pick<WorkspaceStore, 'setAppearance'>>): () => void {
+    colorWorkspace = workspace;
+    return () => { if (colorWorkspace === workspace) colorWorkspace = null; };
+}
 
 /**
  * Named palette choices exposed by Settings. Every chart renderer and chip
@@ -98,7 +104,7 @@ export function normalizeSeriesColor(value: unknown): string | null {
  */
 export function getSeriesColor(column: string, fallbackIndex = 0): string {
     const name = String(column || '').trim();
-    const custom = normalizeSeriesColor(uiState.seriesColors?.[name]);
+    const custom = normalizeSeriesColor(colorWorkspace?.getSnapshot().appearance?.seriesColors[name]);
     if (custom) return custom;
     const palette = getActiveSeriesPalette();
     return palette[Math.abs(fallbackIndex) % palette.length]!;
@@ -157,9 +163,9 @@ export function getSeriesScaleColor(index: number): string {
  */
 export function getColumnSeriesColor(column: string): string {
     const name = String(column || '').trim();
-    const custom = normalizeSeriesColor(uiState.seriesColors?.[name]);
+    const custom = normalizeSeriesColor(colorWorkspace?.getSnapshot().appearance?.seriesColors[name]);
     if (custom) return custom;
-    const datasetIndex = datasetState.numericCols.indexOf(name);
+    const datasetIndex = (colorWorkspace?.getSnapshot().dataset.metadata?.numeric_columns ?? []).indexOf(name);
     if (datasetIndex >= 0) return getSeriesScaleColor(datasetIndex);
 
     // Derived/non-dataset traces still need a stable slot without depending on
@@ -180,7 +186,7 @@ export function setSeriesColor(column: string, value: string): string | null {
     const name = String(column || '').trim();
     const normalized = normalizeSeriesColor(value);
     if (!name || !normalized) return null;
-    setSeriesColors({ ...(uiState.seriesColors || {}), [name]: normalized });
+    colorWorkspace?.setAppearance?.({ seriesColors: { ...colorWorkspace.getSnapshot().appearance.seriesColors, [name]: normalized } });
     return normalized;
 }
 

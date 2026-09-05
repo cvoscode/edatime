@@ -86,10 +86,10 @@ export function createTimeseriesControls(deps: TimeseriesFeatureDeps) {
                 );
             registerCleanup(() => modalController?.dispose());
             registerCleanup(initChartPageFilterGesture(openColumnFilter));
-            initDatasetSearchInputs({
+            registerCleanup(initDatasetSearchInputs({
                 rebuildColumnToggles: rebuildColumns,
                 renderColumnProfilesGrid: deps.renderColumnProfilesGrid ?? (() => { }),
-            });
+            }));
             initTimeseriesActions({
                 rebuildColumnToggles: rebuildColumns,
                 buildRangeControls: buildWorkspaceRangeControls,

@@ -12,8 +12,8 @@ export async function previewUpload(formData: FormData, options?: ApiRequestOpti
     return response;
 }
 
-export async function uploadDataset(formData: FormData): Promise<Response> {
-    const response = await globalThis.fetch(apiV1Routes.upload, { method: 'POST', body: formData });
+export async function uploadDataset(formData: FormData, options?: ApiRequestOptions): Promise<Response> {
+    const response = await globalThis.fetch(apiV1Routes.upload, { method: 'POST', body: formData, signal: options?.signal });
     if (!response.ok) throw await readApiError(response, 'Dataset upload');
     return response;
 }

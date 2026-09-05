@@ -7,7 +7,7 @@
  * `./state.js`.
  */
 
-import { datasetState } from '../../store/datasetState.js';
+import type { DatasetMetadata } from '../../types/api.js';
 import { getScatterViewSnapshot, scatterState } from '../../store/scatterState.js';
 import { buildAdaptiveLineFiltersForQueryState } from '../../services/timeseries/filtering.js';
 import type { WorkspaceSnapshot } from '../../contracts/workspace.js';
@@ -97,8 +97,8 @@ function isNearlyEqual(left: number, right: number): boolean {
     return Math.abs(left - right) <= scale * 1e-9;
 }
 
-function getColumnProfileBounds(column: string): { min: number; max: number } | null {
-    const profiles = Array.isArray(datasetState.metadata?.column_profiles) ? datasetState.metadata.column_profiles : [];
+function getColumnProfileBounds(column: string, metadata: DatasetMetadata | null | undefined): { min: number; max: number } | null {
+    const profiles = Array.isArray(metadata?.column_profiles) ? metadata.column_profiles : [];
     const profile = profiles.find((entry) => entry?.name === column);
     const min = Number(profile?.min);
     const max = Number(profile?.max);
@@ -106,13 +106,13 @@ function getColumnProfileBounds(column: string): { min: number; max: number } | 
     return { min, max };
 }
 
-const collectColumnRangeFilters = (columnRanges: Record<string, { from: number; to: number }> = {}): Array<{ column: string; from: number; to: number }> => (
+const collectColumnRangeFilters = (metadata: DatasetMetadata | null | undefined, columnRanges: Record<string, { from: number; to: number }> = {}): Array<{ column: string; from: number; to: number }> => (
     Object.entries(columnRanges)
         .map(([column, range]) => {
             const from = Number(range?.from);
             const to = Number(range?.to);
             if (!column || !Number.isFinite(from) || !Number.isFinite(to)) return null;
-            const profileBounds = getColumnProfileBounds(column);
+            const profileBounds = getColumnProfileBounds(column, metadata);
             if (profileBounds && isNearlyEqual(from, profileBounds.min) && isNearlyEqual(to, profileBounds.max)) {
                 return null;
             }
@@ -124,6 +124,7 @@ const collectColumnRangeFilters = (columnRanges: Record<string, { from: number; 
 function collectLinkedValueRangeFilters(
     columns: { x?: string; y?: string },
     intent: Pick<WorkspaceSnapshot, 'viewport'> | undefined,
+    metadata: DatasetMetadata | null | undefined,
 ): Array<{ column: string; from: number; to: number }> {
     if (!intent || !isLinkedBrushEnabled()) return [];
     const lower = Number(intent.viewport?.yMin);
@@ -137,7 +138,7 @@ function collectLinkedValueRangeFilters(
     // be 0..37) and emptying the pair plot.
     return [...new Set([columns.x, columns.y].filter((column): column is string => !!column))]
         .map((column) => {
-            const profile = getColumnProfileBounds(column);
+            const profile = getColumnProfileBounds(column, metadata);
             if (!profile) return null;
             const from = Math.max(lower, profile.min);
             const to = Math.min(upper, profile.max);
@@ -162,15 +163,17 @@ export function isLinkedBrushEnabled(): boolean {
 
 export function buildScatterQueryContext(
     columns: { x?: string; y?: string; colorColumn?: string; scopeToColumns?: boolean } = {},
-    intent?: Pick<WorkspaceSnapshot, 'filters' | 'viewport'>,
+    intent?: Pick<WorkspaceSnapshot, 'filters' | 'viewport'> & Partial<Pick<WorkspaceSnapshot, 'dataset'>>,
 ): ScatterQueryContext {
+    const metadata = intent?.dataset?.metadata ?? scatterState.metadata;
     const activeSnapshot = intent
         ? null
         : getScatterViewSnapshot(scatterState.activeView === 'matrix' ? 'matrix' : 'plot');
     const start = Number(intent?.viewport?.xMin);
     const end = Number(intent?.viewport?.xMax);
-    const hasTimeColumn = !!String(datasetState.metadata?.time_column || '').trim();
+    const hasTimeColumn = !!String(metadata?.time_column || '').trim();
     const allFilters = collectColumnRangeFilters(
+        metadata,
         intent?.filters.columnRanges as Record<string, { from: number; to: number }> | undefined
             ?? activeSnapshot?.columnRanges,
     );
@@ -180,7 +183,7 @@ export function buildScatterQueryContext(
     const explicitFilters = columns.scopeToColumns === true
         ? scopeFiltersToColumns(allFilters, [columns.x || '', columns.y || '', columns.colorColumn || ''])
         : allFilters;
-    const linkedValueFilters = collectLinkedValueRangeFilters(columns, intent);
+    const linkedValueFilters = collectLinkedValueRangeFilters(columns, intent, metadata);
     const filters = [...explicitFilters, ...linkedValueFilters];
 
     const linkedRangeValid = hasTimeColumn
@@ -200,12 +203,14 @@ export function buildScatterQueryContext(
 
 export function getActiveScatterFilterColumns(
     columns: { x?: string; y?: string; colorColumn?: string; scopeToColumns?: boolean } = {},
-    intent?: Pick<WorkspaceSnapshot, 'filters'>,
+    intent?: Pick<WorkspaceSnapshot, 'filters'> & Partial<Pick<WorkspaceSnapshot, 'dataset'>>,
 ): string[] {
+    const metadata = intent?.dataset?.metadata ?? scatterState.metadata;
     const activeSnapshot = intent
         ? null
         : getScatterViewSnapshot(scatterState.activeView === 'matrix' ? 'matrix' : 'plot');
     const allFilters = collectColumnRangeFilters(
+        metadata,
         intent?.filters.columnRanges as Record<string, { from: number; to: number }> | undefined
             ?? activeSnapshot?.columnRanges,
     );
@@ -272,7 +277,7 @@ export function buildOverviewContextKey(context: Partial<ScatterQueryContext> & 
 /** Build the Scatter request payload and its matching overview-cache key together. */
 export function buildScatterOverviewContext(
     columns: { x?: string; y?: string; colorColumn?: string; scopeToColumns?: boolean } = {},
-    intent?: Pick<WorkspaceSnapshot, 'filters' | 'viewport'>,
+    intent?: Pick<WorkspaceSnapshot, 'filters' | 'viewport'> & Partial<Pick<WorkspaceSnapshot, 'dataset'>>,
 ): { queryContext: ScatterQueryContext; queryContextKey: string } {
     const queryContext = buildScatterQueryContext(columns, intent);
     return {

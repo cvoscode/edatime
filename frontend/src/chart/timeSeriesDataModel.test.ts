@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { buildTimeSeriesDataModel } from './timeSeriesDataModel.js';
 import { getColumnSeriesColor, setActiveSeriesPalette } from '../utils/seriesColors.js';
-import { setNumericCols } from '../store/datasetState.js';
+import { createWorkspaceStore } from '../workspace/workspaceStore.js';
+import { configureSeriesColorWorkspace } from '../utils/seriesColors.js';
+function setNumericCols(columns: string[]) {
+    const workspace = createWorkspaceStore();
+    workspace.commitDataset(workspace.beginDatasetSession(), { numeric_columns: columns } as any, 0);
+    configureSeriesColorWorkspace(workspace);
+}
 
 describe('buildTimeSeriesDataModel', () => {
     it('builds finite points, bounds, and visible marker annotations', () => {

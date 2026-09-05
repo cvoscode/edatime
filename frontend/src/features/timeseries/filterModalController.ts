@@ -1,7 +1,6 @@
 import { formatAnalysisNumber } from '../../utils/format.js';
 import { computeBounds } from '../../services/timeseries/filtering.js';
-import { chartState } from '../../store/chartState.js';
-import { datasetState } from '../../store/datasetState.js';
+import { primaryChart } from '../../charts/primaryChart.js';
 import type { DataObject } from '../../types/api.js';
 import { buildRangeControls } from './rangeControls.js';
 import { ColumnFilterModal } from '../../ui/composites/ColumnFilterModal.js';
@@ -296,7 +295,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
         const dataBounds = computeBounds(rawValues || filteredValues || new Float64Array(0));
         if (dataBounds) return dataBounds;
 
-        const profile = (datasetState.metadata?.column_profiles || []).find((item) => item?.name === col);
+        const profile = (deps.workspace.getSnapshot().dataset.metadata?.column_profiles || []).find((item) => item?.name === col);
         const min = Number(profile?.min);
         const max = Number(profile?.max);
         if (Number.isFinite(min) && Number.isFinite(max)) return { min, max };
@@ -404,8 +403,8 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
             setColumnRange(col, { from: fromNum, to: toNum });
             buildRangeControls(deps.workspace, deps.openColumnFilter);
             deps.renderCurrentData();
-            chartState.chart?.fitYToData?.();
-            const yr = chartState.chart?.getYRange?.();
+            primaryChart.current?.fitYToData?.();
+            const yr = primaryChart.current?.getYRange?.();
             if (yr) deps.updateAnalysisYRange(yr.min, yr.max, 'filter');
             closeModal();
         },
@@ -434,8 +433,8 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
         clearColumnRange(col, { from: full.min, to: full.max });
         buildRangeControls(deps.workspace, deps.openColumnFilter);
         deps.renderCurrentData();
-        chartState.chart?.fitYToData?.();
-        const yr = chartState.chart?.getYRange?.();
+        primaryChart.current?.fitYToData?.();
+        const yr = primaryChart.current?.getYRange?.();
         if (yr) deps.updateAnalysisYRange(yr.min, yr.max, 'filter');
         refreshInputsForCol(col);
     });

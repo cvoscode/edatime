@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { setAnomalyEnabled, setAnomalyMethod, setAnomalyThreshold, setRollingEnabled, setRollingWindow } from '../store/analyticsState.js';
-import { setMetadata } from '../store/datasetState.js';
 import { createWorkspaceStore } from '../workspace/workspaceStore.js';
 import { __resetProvenanceForTests, initProvenance, toggleProvenance } from './provenance.js';
 
@@ -9,7 +8,6 @@ describe('provenance', () => {
     beforeEach(() => {
         document.body.innerHTML = '<div class="app-content"></div>';
         __resetProvenanceForTests();
-        setMetadata(null);
         setRollingEnabled(false);
         setRollingWindow(50);
         setAnomalyEnabled(false);
@@ -19,11 +17,11 @@ describe('provenance', () => {
 
     it('renders provenance content from canonical workspace intent', () => {
         const workspace = createWorkspaceStore();
-        setMetadata({
+        workspace.commitDataset(workspace.beginDatasetSession(), {
             total_rows: 1234,
             columns: [{ name: 'ts' }, { name: 'value' }],
             time_column: 'ts',
-        } as any);
+        } as any, 1);
         workspace.setViewport({ xMin: 10, xMax: 20, yMin: null, yMax: null });
         workspace.setSelection(['value'], 'group');
         workspace.setFilters({

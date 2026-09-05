@@ -60,13 +60,6 @@ vi.mock('../../store/scatterState.js', () => ({
     scatterState: appStateMock.scatter,
 }));
 
-vi.mock('../../store/datasetState.js', () => ({
-    datasetState: {
-        get metadata() { return appStateMock.metadata; },
-        set metadata(value) { appStateMock.metadata = value; },
-    },
-}));
-
 vi.mock('./helpers.js', () => ({
     getEl: (id: string) => document.getElementById(id),
     normalizeScatterSuggestionThreshold: (value: unknown) => Number(value),

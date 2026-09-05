@@ -18,42 +18,6 @@ const retiredSourceRoots = [
 // are an explicit migration inventory, not a permission to add new ones.
 // Remove a path when its feature slice is migrated; any new production import
 // fails the architecture check immediately.
-const legacyWorkspaceMigrationAllowlist = new Set([
-  'frontend/src/app.ts',
-  'frontend/src/chart/DataChart.ts',
-  'frontend/src/features/fft/page.ts',
-  'frontend/src/features/prepare/index.ts',
-  'frontend/src/features/scatter/controls.ts',
-  'frontend/src/features/scatter/runtime.ts',
-  'frontend/src/features/scatter/state.ts',
-  'frontend/src/features/spectrogram/runtime.ts',
-  'frontend/src/features/timeseries/actions.ts',
-  'frontend/src/features/timeseries/adaptiveGesture.ts',
-  'frontend/src/features/timeseries/analyticsOverlay.ts',
-  'frontend/src/features/timeseries/chipComposition.ts',
-  'frontend/src/features/timeseries/colorByControl.ts',
-  'frontend/src/features/timeseries/columnSelection.ts',
-  'frontend/src/features/timeseries/columnsController.ts',
-  'frontend/src/features/timeseries/controller.ts',
-  'frontend/src/features/timeseries/ensureReady.ts',
-  'frontend/src/features/timeseries/filterModalController.ts',
-  'frontend/src/features/timeseries/module.ts',
-  'frontend/src/features/timeseries/rangeControls.ts',
-  'frontend/src/features/upload/fileSource.ts',
-  'frontend/src/features/upload/panel.ts',
-  'frontend/src/features/upload/preview.ts',
-  'frontend/src/features/upload/profile.ts',
-  'frontend/src/ui/analysisStatus.ts',
-  'frontend/src/ui/annotationPanel.ts',
-  'frontend/src/ui/chartTextControls.ts',
-  'frontend/src/ui/drawControls.ts',
-  'frontend/src/ui/quickRange.ts',
-  'frontend/src/ui/toolbar.ts',
-  'frontend/src/ui/viewport.ts',
-  'frontend/src/utils/provenance.ts',
-  'frontend/src/utils/seriesColors.ts',
-  'frontend/src/utils/session.ts',
-]);
 async function listTsFiles(dir) {
   const entries = await readdir(dir, { withFileTypes: true });
   const files = [];
@@ -186,7 +150,7 @@ for (const file of files) {
   // Rule 4: Block imports from deprecated surfaces in live files.
   // Test files are exempted to preserve coverage during migration.
   if (!isTest) {
-    const importRe = /from\s+['"]([^'"]+)['"]/g;
+    const importRe = /(?:from\s+|import\s*\()['"]([^'"]+)['"]/g;
     for (const match of text.matchAll(importRe)) {
       const src = match[1];
       const resolved = resolveImportPath(src, rel);
@@ -205,11 +169,8 @@ for (const file of files) {
       } else if (/store\/index(\.js)?$/.test(src)) {
         add(file, 'production modules must import focused store slices instead of store/index.js', lineOf(text, match.index ?? 0));
       }
-      if (
-        /frontend\/src\/store\/(chartState|datasetState|uiState)\.js$/.test(resolved)
-        && !legacyWorkspaceMigrationAllowlist.has(rel)
-      ) {
-        add(file, 'new direct legacy workspace-store import is forbidden; migrate through WorkspaceStore instead', lineOf(text, match.index ?? 0));
+      if (/frontend\/src\/store\/(chartState|datasetState|uiState)\.(?:js|ts)$/.test(resolved)) {
+        add(file, 'legacy workspace stores are retired; use WorkspaceStore or feature-owned state', lineOf(text, match.index ?? 0));
       }
     }
   }
@@ -217,7 +178,7 @@ for (const file of files) {
   // Rule 9: ui/* must not import from services/api/*.
   // ui/* is the reusable rendering surface — it should own no transport knowledge.
   if (/^frontend\/src\/ui\//.test(rel) && !isTest) {
-    const importRe = /from\s+['"]([^'"]+)['"]/g;
+    const importRe = /(?:from\s+|import\s*\()['"]([^'"]+)['"]/g;
     for (const match of text.matchAll(importRe)) {
       const src = match[1];
       const resolved = resolveImportPath(src, rel);
@@ -259,7 +220,7 @@ for (const file of files) {
   // across features, so feature behavior belongs in its owning feature or
   // the application composition root rather than the reusable UI layer.
   if (/^frontend\/src\/ui\//.test(rel) && !isTest) {
-    const importRe = /from\s+['"]([^'"]+)['"]/g;
+    const importRe = /(?:from\s+|import\s*\()['"]([^'"]+)['"]/g;
     for (const match of text.matchAll(importRe)) {
       const src = match[1];
       const resolved = resolveImportPath(src, rel);
@@ -271,7 +232,7 @@ for (const file of files) {
 
   // app/* is the composition root — it must not own transport.
   if (/^frontend\/src\/app\//.test(rel) && !isTest) {
-    const importRe = /from\s+['"]([^'"]+)['"]/g;
+    const importRe = /(?:from\s+|import\s*\()['"]([^'"]+)['"]/g;
     for (const match of text.matchAll(importRe)) {
       const src = match[1];
       const resolved = resolveImportPath(src, rel);
@@ -284,7 +245,7 @@ for (const file of files) {
   // Rule 11: Block imports from deprecated surfaces not yet covered above,
   // specifically surfaces that have been replaced by ui/* or features/*.
   if (!isTest) {
-    const importRe = /from\s+['"]([^'"]+)['"]/g;
+    const importRe = /(?:from\s+|import\s*\()['"]([^'"]+)['"]/g;
     for (const match of text.matchAll(importRe)) {
       const src = match[1];
       // ui/overlay.ts replaced by ui/annotationPanel.ts and ui/analyticsDrawer.ts

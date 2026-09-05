@@ -19,7 +19,7 @@ import {
     setAnomalySummaryStats,
     setRollingBands,
 } from '../../store/analyticsState.js';
-import { chartState } from '../../store/chartState.js';
+import { primaryChart } from '../../charts/primaryChart.js';
 import type { AdaptiveLineFilter } from '../../types/store.js';
 import type { AnomalyResponse, DataObject } from '../../types/api.js';
 import type { RollingBandData } from '../../types/analytics.js';
@@ -245,7 +245,7 @@ export function initAnalyticsListeners(
             } else {
                 setRollingBands(null);
             }
-            chartState.chart?.requestOverlayRender?.();
+            primaryChart.current?.requestOverlayRender?.();
         }
         fetchAndRenderAnalytics().catch((err: unknown) => { console.warn('Analytics fetch failed:', err); });
     };

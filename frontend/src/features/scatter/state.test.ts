@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
     scatterState,
 } from '../../store/scatterState.js';
-import { setMetadata } from '../../store/datasetState.js';
+import { setScatterMetadata as setMetadata } from '../../store/scatterState.js';
 import { makeWorkspaceSnapshot } from '../../workspace/workspaceStore.js';
 import { buildOverviewContextKey, buildScatterOverviewContext, buildScatterQueryContext, getActiveScatterFilterColumns } from './state.js';
 import { setScatterActiveView, setScatterViewSnapshot } from '../../store/scatterState.js';

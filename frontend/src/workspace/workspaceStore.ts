@@ -14,6 +14,7 @@ export type {
 } from '../contracts/workspace.js';
 
 export interface WorkspaceSnapshotFixture {
+    appearance?: Partial<WorkspaceSnapshot['appearance']>;
     dataset?: Partial<WorkspaceSnapshot['dataset']>;
     selection?: Partial<WorkspaceSnapshot['selection']>;
     filters?: Partial<WorkspaceSnapshot['filters']>;
@@ -26,6 +27,7 @@ function cloneColumnRanges(ranges: WorkspaceSnapshot['filters']['columnRanges'])
 
 function cloneSnapshot(snapshot: WorkspaceSnapshot): WorkspaceSnapshot {
     return {
+        appearance: { chartText: { ...snapshot.appearance.chartText }, seriesColors: { ...snapshot.appearance.seriesColors } },
         dataset: { ...snapshot.dataset },
         selection: { columns: [...snapshot.selection.columns], colorColumn: snapshot.selection.colorColumn },
         filters: {
@@ -39,6 +41,7 @@ function cloneSnapshot(snapshot: WorkspaceSnapshot): WorkspaceSnapshot {
 /** Build a complete, cloned workspace snapshot for tests and feature fixtures. */
 export function makeWorkspaceSnapshot(fixture: WorkspaceSnapshotFixture = {}): WorkspaceSnapshot {
     return cloneSnapshot({
+        appearance: { chartText: { title: '', xLabel: '', yLabel: '' }, seriesColors: {}, ...fixture.appearance },
         dataset: {
             metadata: null,
             revision: 0,
@@ -106,8 +109,17 @@ function sameFilters(left: WorkspaceSnapshot['filters'], right: WorkspaceSnapsho
     return true;
 }
 
+function ownMetadata<T>(value: T): T {
+    if (!value || typeof value !== 'object') return value;
+    const clone = Array.isArray(value)
+        ? value.map(ownMetadata)
+        : Object.fromEntries(Object.entries(value).map(([key, item]) => [key, ownMetadata(item)]));
+    return Object.freeze(clone) as T;
+}
+
 export function createWorkspaceStore(): WorkspaceStore {
     let snapshot = makeWorkspaceSnapshot();
+    let disposed = false;
     let nextSessionId = 0;
     let revision = 0;
     let activeSession: { id: number; controller: AbortController } | null = null;
@@ -132,6 +144,7 @@ export function createWorkspaceStore(): WorkspaceStore {
     }
 
     function update(next: WorkspaceSnapshot, kind: WorkspaceChangeKind): void {
+        if (disposed) return;
         snapshot = next;
         publish(kind);
     }
@@ -157,15 +170,16 @@ export function createWorkspaceStore(): WorkspaceStore {
             const controller = new AbortController();
             const session = { id: ++nextSessionId, controller };
             activeSession = session;
+            if (disposed) controller.abort();
             return { id: session.id, signal: controller.signal };
         },
         commitDataset(session, metadata, revision) {
-            if (!activeSession || activeSession.id !== session.id || session.signal.aborted) return false;
+            if (disposed || !activeSession || activeSession.id !== session.id || activeSession.controller.signal !== session.signal || session.signal.aborted) return false;
             const sourceVersionId = String(metadata.source_version_id ?? '').trim() || `legacy-source-r${revision}`;
             update({
                 ...snapshot,
                 dataset: {
-                    metadata,
+                    metadata: ownMetadata(metadata),
                     revision,
                     activeSourceVersionId: sourceVersionId,
                     rootSourceVersionId: String(metadata.root_source_version_id ?? '').trim() || sourceVersionId,
@@ -197,12 +211,26 @@ export function createWorkspaceStore(): WorkspaceStore {
                 filters: nextFilters,
             }, 'filters');
         },
+        setAppearance(appearance) {
+            const next = {
+                chartText: { ...(appearance.chartText ?? snapshot.appearance.chartText) },
+                seriesColors: { ...(appearance.seriesColors ?? snapshot.appearance.seriesColors) },
+            };
+            const previous = snapshot.appearance;
+            if (previous.chartText.title === next.chartText.title
+                && previous.chartText.xLabel === next.chartText.xLabel
+                && previous.chartText.yLabel === next.chartText.yLabel
+                && Object.keys(previous.seriesColors).length === Object.keys(next.seriesColors).length
+                && Object.entries(previous.seriesColors).every(([column, color]) => next.seriesColors[column] === color)) return;
+            update({ ...snapshot, appearance: ownMetadata(next) }, 'appearance');
+        },
         setViewport(viewport) {
             const nextViewport = viewport ? { ...viewport } : null;
             if (sameViewport(snapshot.viewport, nextViewport)) return;
             update({ ...snapshot, viewport: nextViewport }, 'viewport');
         },
         dispose() {
+            disposed = true;
             activeSession?.controller.abort();
             activeSession = null;
             listeners.clear();

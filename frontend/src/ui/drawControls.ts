@@ -3,8 +3,8 @@
  * Extracted from toolbar.ts to reduce its size and improve maintainability.
  */
 
-import { chartState } from '../store/chartState.js';
-import { setPendingAdaptivePoint } from '../store/uiState.js';
+import { primaryChart } from '../charts/primaryChart.js';
+import { emitFeatureEvent } from '../platform/featureEvents.js';
 import { getDropdownValue } from './primitives/Dropdown.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
@@ -24,7 +24,9 @@ export function initDrawControls(
     fetchAndRender: () => void,
     workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'subscribe'>
         & Partial<Pick<WorkspaceStore, 'subscribeSelector'>>,
-): void {
+): () => void {
+    const lifetime = new AbortController();
+    const options = { signal: lifetime.signal };
     const drawTool = document.getElementById('draw-tool') as HTMLElement | null;
     const drawColor = document.getElementById('draw-color') as HTMLInputElement | null;
     const drawWidth = document.getElementById('draw-width') as HTMLInputElement | null;
@@ -33,26 +35,26 @@ export function initDrawControls(
     const drawHelpBtn = document.getElementById('draw-help-btn') as HTMLElement | null;
 
     const updateDrawMode = () => {
-        if (chartState.chart && chartState.chart.setDrawMode) {
-            chartState.chart.setDrawMode(getDropdownValue('draw-tool'), drawColor!.value, parseInt(drawWidth!.value, 10));
+        if (primaryChart.current && primaryChart.current.setDrawMode) {
+            primaryChart.current.setDrawMode(getDropdownValue('draw-tool'), drawColor!.value, parseInt(drawWidth!.value, 10));
         }
     };
 
-    if (drawTool) drawTool.addEventListener('change', updateDrawMode);
-    if (drawColor) drawColor.addEventListener('input', updateDrawMode);
-    if (drawWidth) drawWidth.addEventListener('input', updateDrawMode);
+    if (drawTool) drawTool.addEventListener('change', updateDrawMode, options);
+    if (drawColor) drawColor.addEventListener('input', updateDrawMode, options);
+    if (drawWidth) drawWidth.addEventListener('input', updateDrawMode, options);
     if (drawClearBtn) {
         drawClearBtn.addEventListener('click', () => {
-            if (chartState.chart && chartState.chart.clearDrawings) chartState.chart.clearDrawings();
-        });
+            if (primaryChart.current && primaryChart.current.clearDrawings) primaryChart.current.clearDrawings();
+        }, options);
     }
     if (adaptiveClearBtn && !adaptiveClearBtn.dataset.bound) {
         adaptiveClearBtn.addEventListener('click', () => {
             const filters = workspace.getSnapshot().filters;
             workspace.setFilters({ ...filters, adaptiveLines: [] });
-            setPendingAdaptivePoint(null);
-            (chartState.chart as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
-        });
+            emitFeatureEvent('adaptive:clear-pending', undefined);
+            (primaryChart.current as unknown as { requestOverlayRender?: () => void })?.requestOverlayRender?.();
+        }, options);
         adaptiveClearBtn.dataset.bound = '1';
     }
     if (drawHelpBtn && !drawHelpBtn.dataset.bound) {
@@ -69,22 +71,26 @@ export function initDrawControls(
         );
         drawHelpBtn.addEventListener('click', () => {
             void import('../utils/a11y.js').then((m) => m.showKeyboardShortcutsHelp());
-        });
+        }, options);
         drawHelpBtn.addEventListener('keydown', (event) => {
             if (event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault();
                 drawHelpBtn.click();
             }
-        });
+        }, options);
         drawHelpBtn.dataset.bound = '1';
     }
     syncAdaptiveClearButton(workspace);
-    if (workspace.subscribeSelector) {
-        workspace.subscribeSelector(
+    const unsubscribe = workspace.subscribeSelector
+        ? workspace.subscribeSelector(
             (snapshot) => snapshot.filters.adaptiveLines.length,
             () => syncAdaptiveClearButton(workspace),
-        );
-    } else {
-        workspace.subscribe(() => syncAdaptiveClearButton(workspace));
-    }
+        )
+        : workspace.subscribe(() => syncAdaptiveClearButton(workspace));
+    return () => {
+        lifetime.abort();
+        unsubscribe();
+        if (adaptiveClearBtn) delete adaptiveClearBtn.dataset.bound;
+        if (drawHelpBtn) delete drawHelpBtn.dataset.bound;
+    };
 }

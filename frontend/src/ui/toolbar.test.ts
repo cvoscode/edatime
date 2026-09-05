@@ -1,6 +1,7 @@
+import { makeWorkspaceSnapshot } from '../workspace/workspaceStore.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { chartState, setChartInstance } from '../store/chartState.js';
+import { primaryChart, setPrimaryChartInstance } from '../charts/primaryChart.js';
 import { bindAnalysisChartEvents, initAnalysisControls } from './toolbar.js';
 
 describe('toolbar', () => {
@@ -9,13 +10,13 @@ describe('toolbar', () => {
             <div id="analysis-cursor"></div>
             <div id="analysis-click"></div>
         `;
-        setChartInstance(null);
+        setPrimaryChartInstance(null);
     });
 
     it('binds analysis chart events once for each concrete chart instance', () => {
         let crosshairHandler: ((payload: any) => void) | undefined;
         let clickHandler: ((payload: any) => void) | undefined;
-        setChartInstance({
+        setPrimaryChartInstance({
             onCrosshairMove: vi.fn((handler: (payload: any) => void) => { crosshairHandler = handler; }),
             onClick: vi.fn((handler: (payload: any) => void) => { clickHandler = handler; }),
             getXDomain: vi.fn(() => ({ min: 1000, max: 2000 })),
@@ -24,7 +25,7 @@ describe('toolbar', () => {
 
         bindAnalysisChartEvents();
 
-        expect(chartState.chart).toBeTruthy();
+        expect(primaryChart.current).toBeTruthy();
         expect(crosshairHandler).toBeTypeOf('function');
         expect(clickHandler).toBeTypeOf('function');
 
@@ -35,14 +36,14 @@ describe('toolbar', () => {
         expect(document.getElementById('analysis-click')?.textContent).toContain('[value]');
 
         bindAnalysisChartEvents();
-        expect((chartState.chart as any).onCrosshairMove).toHaveBeenCalledTimes(1);
+        expect((primaryChart.current as any).onCrosshairMove).toHaveBeenCalledTimes(1);
 
         const nextChart = {
             onCrosshairMove: vi.fn(),
             onClick: vi.fn(),
             getXDomain: vi.fn(() => ({ min: 1000, max: 2000 })),
         };
-        setChartInstance(nextChart as any);
+        setPrimaryChartInstance(nextChart as any);
         bindAnalysisChartEvents();
         expect(nextChart.onCrosshairMove).toHaveBeenCalledTimes(1);
         expect(nextChart.onClick).toHaveBeenCalledTimes(1);
@@ -57,12 +58,12 @@ describe('toolbar', () => {
         const zoomOutAction = vi.fn();
         const resetZoomAction = vi.fn();
         const workspace = {
-            getSnapshot: vi.fn(),
+            getSnapshot: vi.fn(() => makeWorkspaceSnapshot()),
             setFilters: vi.fn(),
             setViewport: vi.fn(),
             subscribe: vi.fn(() => vi.fn()),
         };
-        setChartInstance({ supportsZoomControls: () => true } as any);
+        setPrimaryChartInstance({ supportsZoomControls: () => true } as any);
 
         initAnalysisControls(vi.fn(), zoomOutAction, resetZoomAction, workspace);
         (document.getElementById('zoom-out-btn') as HTMLButtonElement).click();

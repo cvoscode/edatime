@@ -1,5 +1,5 @@
 import type { DatasetMetadata } from '../types/api.js';
-import type { ViewSnapshot } from '../types/chart.js';
+import type { ChartTextOverlays, ViewSnapshot } from '../types/chart.js';
 import type { AdaptiveLineFilter, ColumnRange } from '../types/store.js';
 
 /** Canonical cross-feature intent published by the application workspace. */
@@ -8,7 +8,13 @@ export interface DatasetSession {
     readonly signal: AbortSignal;
 }
 
+export interface WorkspaceAppearance {
+    chartText: ChartTextOverlays;
+    seriesColors: Record<string, string>;
+}
+
 export interface WorkspaceSnapshot {
+    appearance: WorkspaceAppearance;
     dataset: {
         metadata: DatasetMetadata | null;
         revision: number;
@@ -26,7 +32,7 @@ export interface WorkspaceSnapshot {
     viewport: ViewSnapshot | null;
 }
 
-export type WorkspaceChangeKind = 'dataset' | 'selection' | 'filters' | 'viewport';
+export type WorkspaceChangeKind = 'dataset' | 'selection' | 'filters' | 'viewport' | 'appearance';
 
 export interface WorkspaceChange {
     readonly kind: WorkspaceChangeKind;
@@ -50,6 +56,7 @@ export interface WorkspaceStore {
     commitDataset(session: DatasetSession, metadata: DatasetMetadata, revision: number): boolean;
     setSelection(columns: readonly string[], colorColumn?: string | null): void;
     setFilters(filters: WorkspaceSnapshot['filters']): void;
+    setAppearance(appearance: Partial<WorkspaceAppearance>): void;
     setViewport(viewport: ViewSnapshot | null): void;
     dispose(): void;
 }

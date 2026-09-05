@@ -59,6 +59,12 @@ pub struct RateLimitSettings {
 #[serde(default)]
 pub struct UploadSettings {
     pub max_upload_bytes: usize,
+    /// Upload parsing and dataframe construction can temporarily retain more
+    /// than the wire payload. Serialize those sessions by default so several
+    /// simultaneous uploads cannot multiply that resident-memory peak.
+    pub max_concurrent_uploads: usize,
+    /// Maximum time an upload waits for an admission permit.
+    pub queue_timeout_ms: u64,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -245,6 +251,8 @@ impl Default for UploadSettings {
     fn default() -> Self {
         Self {
             max_upload_bytes: 256 * 1024 * 1024,
+            max_concurrent_uploads: 1,
+            queue_timeout_ms: 1_000,
         }
     }
 }
@@ -385,6 +393,18 @@ impl AppConfig {
             && let Ok(max_upload_bytes) = max_upload_bytes.parse::<usize>()
         {
             self.upload.max_upload_bytes = max_upload_bytes;
+        }
+        if let Ok(max_concurrent_uploads) = env::var("EDATIME_MAX_CONCURRENT_UPLOADS")
+            && let Ok(max_concurrent_uploads) = max_concurrent_uploads.parse::<usize>()
+            && max_concurrent_uploads > 0
+        {
+            self.upload.max_concurrent_uploads = max_concurrent_uploads;
+        }
+        if let Ok(queue_timeout_ms) = env::var("EDATIME_UPLOAD_QUEUE_TIMEOUT_MS")
+            && let Ok(queue_timeout_ms) = queue_timeout_ms.parse::<u64>()
+            && queue_timeout_ms > 0
+        {
+            self.upload.queue_timeout_ms = queue_timeout_ms;
         }
         if let Ok(artifact_dir) = env::var("EDATIME_ARTIFACT_DIR") {
             let artifact_dir = artifact_dir.trim();

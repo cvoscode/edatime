@@ -7,7 +7,7 @@ import { createChart } from 'chartgpu';
 import { DEBUG, dbg } from '../debug.js';
 import { downloadUrl, downloadBlob } from '../utils/dom.js';
 import { defaultGpuPowerPreference } from '../utils/platform.js';
-import { uiState } from '../store/uiState.js';
+import type { PendingAdaptivePoint } from '../types/store.js';
 import { analyticsState } from '../store/analyticsState.js';
 import { subscribe } from '../store/events.js';
 import type { AdaptiveLineFilter } from '../types/store.js';
@@ -80,6 +80,11 @@ const CHART_GRID = DEFAULT_CHART_GRID;
 /* ── DataChart class ──────────────────────────────────── */
 
 export class DataChart {
+    private _getPendingAdaptivePoint: () => PendingAdaptivePoint | null = () => null;
+    setPendingAdaptivePointReader(reader: () => PendingAdaptivePoint | null): void {
+        this._getPendingAdaptivePoint = reader;
+    }
+
     containerId: string;
     onZoomCallback: ((view: ViewSnapshot, sourceKind: string) => void) | null;
     onYRangeCallback: ((min: number, max: number, sourceKind: string) => void) | null;
@@ -888,7 +893,7 @@ export class DataChart {
             getGrid: () => this._currentGrid,
             getYRange: () => this.getYRange(),
             getAdaptiveLineFilters: () => this._adaptiveLineFilters,
-            getPendingAdaptivePoint: () => uiState.pendingAdaptivePoint,
+            getPendingAdaptivePoint: () => this._getPendingAdaptivePoint(),
         });
         this._overlays.setSelectedColumns(this._activeColumns);
 

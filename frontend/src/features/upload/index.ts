@@ -6,3 +6,5 @@ export {
     renderColumnProfilesGrid,
 } from './profile.js';
 export { initUploadHelp } from './help.js';
+
+export { uploadUi, setProfileFilterText, setProfileFilterCategory, setPreviewSelectedColumns, setPreviewTimeColumn, setProfileGridSort, setProfileGridColWidths, setProfileGridBound, setProfileGridHeaderBound, type ProfileFilterCategory } from './uploadUi.js';

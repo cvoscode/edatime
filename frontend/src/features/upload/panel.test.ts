@@ -46,8 +46,8 @@ import {
     formatUploadRowCount,
     loadedRowCountFromResponse,
 } from './panel';
-import { datasetState } from '../../store/datasetState.js';
-import { uiState } from '../../store/uiState.js';
+import { uploadProfile as datasetState } from './profileState.js';
+import { uploadUi } from './uploadUi.js';
 import type { DatasetMetadata } from '../../types/api.js';
 
 function makeMetadata(overrides: Partial<DatasetMetadata> = {}): DatasetMetadata {
@@ -196,8 +196,8 @@ describe('initUploadPanel notifications', () => {
         buildUploadDom();
         datasetState.metadata = null;
         datasetState.columnProfiles = [];
-        uiState.previewSelectedColumns = [];
-        uiState.previewTimeColumn = null;
+        uploadUi.previewSelectedColumns = [];
+        uploadUi.previewTimeColumn = null;
     });
 
     it('disposes prior panel listeners before a replacement panel is bound', () => {
@@ -282,8 +282,8 @@ describe('initUploadPanel upload button state', () => {
         buildUploadDom();
         datasetState.metadata = null;
         datasetState.columnProfiles = [];
-        uiState.previewSelectedColumns = [];
-        uiState.previewTimeColumn = null;
+        uploadUi.previewSelectedColumns = [];
+        uploadUi.previewTimeColumn = null;
     });
 
     it('keeps Upload & Ingest disabled until a valid file is selected', async () => {
@@ -323,8 +323,8 @@ describe('initUploadPanel column selection helpers', () => {
         buildUploadDom();
         datasetState.metadata = null;
         datasetState.columnProfiles = [];
-        uiState.previewSelectedColumns = [];
-        uiState.previewTimeColumn = null;
+        uploadUi.previewSelectedColumns = [];
+        uploadUi.previewTimeColumn = null;
     });
 
     it('select-all keeps the preview time column while reading profiles from store slices', () => {
@@ -333,7 +333,7 @@ describe('initUploadPanel column selection helpers', () => {
             { name: 'value', dtype: 'float64' } as any,
             { name: 'other', dtype: 'float64' } as any,
         ];
-        uiState.previewTimeColumn = 'timestamp';
+        uploadUi.previewTimeColumn = 'timestamp';
 
         initUploadPanel(vi.fn(), vi.fn(), {
             buildColumnToggles: vi.fn(),
@@ -343,8 +343,8 @@ describe('initUploadPanel column selection helpers', () => {
         document.getElementById('profile-select-all-btn')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
         expect(datasetState.columnProfiles).toHaveLength(3);
-        expect(uiState.previewSelectedColumns).toEqual(['timestamp', 'value', 'other']);
-        expect(uiState.previewTimeColumn).toBe('timestamp');
+        expect(uploadUi.previewSelectedColumns).toEqual(['timestamp', 'value', 'other']);
+        expect(uploadUi.previewTimeColumn).toBe('timestamp');
     });
 });
 
@@ -478,8 +478,8 @@ describe('initUploadPanel database tab', () => {
         buildUploadDom();
         datasetState.metadata = null;
         datasetState.columnProfiles = [];
-        uiState.previewSelectedColumns = [];
-        uiState.previewTimeColumn = null;
+        uploadUi.previewSelectedColumns = [];
+        uploadUi.previewTimeColumn = null;
     });
 
     it('refreshes db tables on connect success', async () => {
@@ -655,8 +655,8 @@ describe('initUploadPanel file choose and preview', () => {
         buildUploadDom();
         datasetState.metadata = null;
         datasetState.columnProfiles = [];
-        uiState.previewSelectedColumns = [];
-        uiState.previewTimeColumn = null;
+        uploadUi.previewSelectedColumns = [];
+        uploadUi.previewTimeColumn = null;
     });
 
     it('forwards a large file to server-side profiling via file input', async () => {
@@ -738,12 +738,12 @@ describe('initUploadPanel upload submission', () => {
         buildUploadDom();
         datasetState.metadata = null;
         datasetState.columnProfiles = [];
-        uiState.previewSelectedColumns = [];
-        uiState.previewTimeColumn = 'timestamp';
+        uploadUi.previewSelectedColumns = [];
+        uploadUi.previewTimeColumn = 'timestamp';
     });
 
     it('shows error toast when no time column selected on upload', async () => {
-        uiState.previewTimeColumn = null;
+        uploadUi.previewTimeColumn = null;
         datasetState.metadata = null;
 
         initUploadPanel(vi.fn(), vi.fn(), {
@@ -756,7 +756,7 @@ describe('initUploadPanel upload submission', () => {
         Object.defineProperty(fileInput, 'files', { configurable: true, value: [file] });
         fileInput.dispatchEvent(new Event('change'));
         await flushPromises();
-        uiState.previewTimeColumn = null;
+        uploadUi.previewTimeColumn = null;
         datasetState.metadata = null;
 
         document.getElementById('upload-btn')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));

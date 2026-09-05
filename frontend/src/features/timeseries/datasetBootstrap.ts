@@ -4,6 +4,7 @@
  * Coordinates: chart modules → metadata fetch → store → mark ready → column setup → UI hydration.
  */
 
+import type { ApiRequestOptions } from '../../services/api/http.js';
 import type { DatasetMetadata } from '../../types/api.js';
 import type { WorkspaceStore } from '../../contracts/workspace.js';
 import { DEBUG, dbg, dbgGroup } from '../../debug.js';
@@ -15,18 +16,14 @@ import {
 
 export interface DatasetBootstrapDeps {
     ensureChartModules: () => Promise<void>;
-    fetchMetadata: () => Promise<DatasetMetadata>;
+    fetchMetadata: (options?: ApiRequestOptions) => Promise<DatasetMetadata>;
     workspace: Pick<WorkspaceStore, 'getSnapshot' | 'beginDatasetSession' | 'commitDataset' | 'setSelection' | 'setFilters'>;
     markMetadataReady: () => void;
     isMetadataReady: () => boolean;
     clearLoadedPageModules: () => void;
-    storeFetchedMetadata: (metadata: DatasetMetadata) => void;
-    initializeDatasetUi: (metadata: DatasetMetadata) => Promise<void>;
-    setNumericCols: (cols: string[]) => void;
-    setDefaultSelectedColumns: (cols: string[]) => void;
+    initializeDatasetUi: (metadata: DatasetMetadata, signal: AbortSignal) => Promise<void>;
     sanitizeSelectedColumns: () => void;
     refreshVisibleData: () => Promise<void>;
-    getNumericColumns: (metadata: DatasetMetadata) => string[];
     getDefaultTimeseriesColumns: (metadata: DatasetMetadata) => string[];
     rebuildTimeseriesColumns: () => void;
     clearPersistedFilters: () => void;
@@ -40,6 +37,7 @@ export interface DatasetBootstrapDeps {
 }
 
 interface BootstrapResult {
+    dispose(): void;
     ensureDatasetReady(): Promise<void>;
     refreshAfterMutation(options?: { selectedColumn?: string }): Promise<void>;
 }
@@ -53,11 +51,11 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
     // Bootstrap ownership is feature-instance scoped. This deduplicates
     // concurrent callers for one mounted application without coupling a
     // later mount or an isolated test/runtime to a retired instance.
+    const lifetime = new AbortController();
     let datasetReadyPromise: Promise<void> | null = null;
-    let lastDatasetRevision: number | null = null;
 
     function syncDatasetSelection(metadata: DatasetMetadata, selectedColumn?: string): void {
-        deps.setNumericCols(deps.getNumericColumns(metadata));
+
 
         const writeSelection = (columns: readonly string[]) => {
             const next = [...new Set(columns.map((column) => String(column).trim()).filter(Boolean))];
@@ -86,7 +84,7 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
 
     // ── Bootstrap sequence ───────────────────────────────────────────────
     async function ensureDatasetReady(): Promise<void> {
-        if (deps.isMetadataReady()) return;
+        if (lifetime.signal.aborted || deps.isMetadataReady()) return;
         if (datasetReadyPromise) return datasetReadyPromise;
 
         let pending: Promise<void>;
@@ -95,13 +93,12 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
             const workspaceSession = deps.workspace.beginDatasetSession();
             await deps.ensureChartModules();
 
-            const metadata = await deps.fetchMetadata();
+            const metadata = await deps.fetchMetadata({ signal: AbortSignal.any([lifetime.signal, workspaceSession.signal]) });
             assertDatasetRequestScopeActive(requestScope);
             const revision = Number.isFinite(Number(metadata?.revision)) ? Number(metadata.revision) : 0;
-            if (!deps.workspace.commitDataset(workspaceSession, metadata, revision)) return;
+            if (lifetime.signal.aborted || !deps.workspace.commitDataset(workspaceSession, metadata, revision)) return;
             deps.onDatasetCommitted?.(metadata, revision);
-            deps.storeFetchedMetadata(metadata);
-            lastDatasetRevision = revision;
+
             deps.markMetadataReady();
             if (DEBUG) dbgGroup('metadata', () => dbg(metadata));
 
@@ -111,7 +108,7 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
 
             syncDatasetSelection(metadata);
 
-            await deps.initializeDatasetUi(metadata);
+            await deps.initializeDatasetUi(metadata, workspaceSession.signal);
         })().catch((error) => {
             if (datasetReadyPromise === pending) {
                 datasetReadyPromise = null;
@@ -125,6 +122,7 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
 
     // ── Refresh after mutation ─────────────────────────────────────────────
     async function refreshAfterMutation(options?: { selectedColumn?: string }): Promise<void> {
+        if (lifetime.signal.aborted) return;
         invalidateDatasetRequestScope();
         datasetReadyPromise = null;
 
@@ -138,18 +136,18 @@ export function createDatasetBootstrap(deps: DatasetBootstrapDeps): BootstrapRes
         deps.clearPersistedFilters();
         deps.workspace.setFilters({ columnRanges: {}, adaptiveLines: [] });
         const workspaceSession = deps.workspace.beginDatasetSession();
-        const metadata = await deps.fetchMetadata();
+        const metadata = await deps.fetchMetadata({ signal: AbortSignal.any([lifetime.signal, workspaceSession.signal]) });
         const nextRevision = Number.isFinite(Number(metadata?.revision)) ? Number(metadata.revision) : 0;
-        if (!deps.workspace.commitDataset(workspaceSession, metadata, nextRevision)) return;
+        if (lifetime.signal.aborted || !deps.workspace.commitDataset(workspaceSession, metadata, nextRevision)) return;
         deps.onDatasetCommitted?.(metadata, nextRevision);
-        deps.storeFetchedMetadata(metadata);
-        lastDatasetRevision = nextRevision;
+
         deps.markMetadataReady();
         syncDatasetSelection(metadata, options?.selectedColumn);
-        await deps.initializeDatasetUi(metadata);
+        await deps.initializeDatasetUi(metadata, workspaceSession.signal);
+        if (lifetime.signal.aborted || workspaceSession.signal.aborted) return;
         deps.rebuildTimeseriesColumns();
         await deps.refreshVisibleData();
     }
 
-    return { ensureDatasetReady, refreshAfterMutation };
+    return { ensureDatasetReady, refreshAfterMutation, dispose: () => lifetime.abort() };
 }

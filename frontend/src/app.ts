@@ -29,6 +29,7 @@ import {
 import { initAppShell } from './app/shell.js';
 import { showPage } from './app/navigation/showPage.js';
 import { createAppRuntime } from './app/runtime.js';
+import { configureSeriesColorWorkspace } from './utils/seriesColors.js';
 import { createWorkspaceStore } from './workspace/workspaceStore.js';
 import { cleaningDatasetIdentityFromMetadata, cleaningPlanStore } from './cleaning/index.js';
 import { markAppReady, resetAppReady } from './app/bootState.js';
@@ -51,9 +52,8 @@ import { createExportFeature } from './features/export/index.js';
 import type { DatasetMetadata, DataObject, AnomalyResponse } from './types/api.js';
 import type { ChartInstance, ViewSnapshot } from './types/chart.js';
 
-import { chartState, initChartStatePrefs, setChartInstance } from './store/chartState.js';
-import { datasetState, setDatasetRevision, setMetadata, setNumericCols } from './store/datasetState.js';
-import { setAdaptiveFilterColumn } from './store/uiState.js';
+import { primaryChart } from './charts/primaryChart.js';
+import { setAdaptiveFilterColumn } from './features/timeseries/index.js';
 
 type DataChartCtorType = new (
     containerId: string,
@@ -76,6 +76,7 @@ export function createApp(): AppRoot {
     const runtime = createAppRuntime();
     const featureRegistry = createFeatureRegistry();
     const workspace = createWorkspaceStore();
+    runtime.registerCleanup(configureSeriesColorWorkspace(workspace));
     const analyticsOverlay = createAnalyticsOverlayController();
     let timeseriesModule!: ReturnType<typeof createTimeseriesModule>;
     const exportFeature = createExportFeature({
@@ -84,6 +85,7 @@ export function createApp(): AppRoot {
         getData: () => timeseriesModule?.getCurrentData() ?? null,
     });
     runtime.registerCleanup(() => workspace.dispose());
+    runtime.registerCleanup(() => primaryChart.dispose());
     runtime.registerCleanup(featureRegistry.dispose);
     runtime.registerCleanup(analyticsOverlay.dispose);
 
@@ -146,16 +148,15 @@ export function createApp(): AppRoot {
         installWindowsWebGpuRequestAdapterWorkaround();
         // Hydrate persisted chart preferences (Y-range "stack from 0", etc.)
         // BEFORE the toolbar wires up so the toggle starts in the right state.
-        initChartStatePrefs();
         // Data transport and chart rendering remain behind their feature readiness paths.
         timeseriesModule = createTimeseriesModule({
             fetchData: async (start, end, width, columns, colorColumn, lookaroundMs, options) => {
                 const { fetchData } = await ensureBootstrapDataModules();
                 return fetchData(start, end, width, columns, colorColumn, lookaroundMs, options);
             },
-            fetchMetadata: async () => {
+            fetchMetadata: async (options) => {
                 const { fetchMetadata } = await ensureBootstrapDataModules();
-                return fetchMetadata();
+                return fetchMetadata(options);
             },
             workspace,
             ensurePrimaryChartCtor,
@@ -164,16 +165,15 @@ export function createApp(): AppRoot {
             sanitizeSelectedColumns: () => sanitizeSelectedColumns(workspace),
             clearLoadedPageModules: featureRegistry.clearLoadedFeatures,
             ensureSessionPersistenceStarted,
-            setNumericCols,
             setAdaptiveFilterColumn,
             updateAnalysisYRange,
             updateAnalysisZoom,
-            getCurrentView,
+            getCurrentView: () => getCurrentView(workspace),
             fetchAndRenderAnalytics,
-            refreshZoomControlsState,
+            refreshZoomControlsState: () => refreshZoomControlsState(workspace),
             setAnomalyOverlayRenderCallback: analyticsOverlay.setRenderCallback,
-            chartExportPng: () => chartState.chart?.exportPNG?.(),
-            chartExportSvg: () => chartState.chart?.exportSVG?.(),
+            chartExportPng: () => primaryChart.current?.exportPNG?.(),
+            chartExportSvg: () => primaryChart.current?.exportSVG?.(),
             exportFilteredCsv: exportFeature.exportFilteredCsv,
             exportFilteredJson: exportFeature.exportFilteredJson,
             exportFilteredParquet: exportFeature.exportFilteredParquet,
@@ -209,10 +209,10 @@ export function createApp(): AppRoot {
             getCurrentTimeseriesData: () => timeseriesModule.getCurrentData(),
             exportFilteredCsv: exportFeature.exportFilteredCsv,
             exportFilteredJson: exportFeature.exportFilteredJson,
-            exportChartPng: () => chartState.chart?.exportPNG?.(),
+            exportChartPng: () => primaryChart.current?.exportPNG?.(),
             renderCurrentData: () => timeseriesModule.renderCurrentData(),
             updateAnalysisYRange,
-            requestAnnotationOverlayRender: () => chartState.chart?.requestOverlayRender?.(),
+            requestAnnotationOverlayRender: () => primaryChart.current?.requestOverlayRender?.(),
             buildTimeseriesColumns: () => timeseriesModule.buildColumnToggles(),
             buildTimeseriesRanges: () => timeseriesModule.buildRangeControls(),
             zoomOut: () => timeseriesModule.zoomOut(),

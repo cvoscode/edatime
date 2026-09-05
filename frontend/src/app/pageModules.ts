@@ -53,7 +53,7 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
         requiresMetadata: true,
         async load(deps) {
             const { initPreparePage } = await import('../features/prepare/index.js');
-            return { init: () => initPreparePage({ onPlanChanged: deps.onCleaningPlanChanged }) };
+            return { init: () => initPreparePage({ workspace: deps.workspace, onPlanChanged: deps.onCleaningPlanChanged }) };
         },
     },
     {

@@ -62,21 +62,6 @@ const freshScatterState = vi.hoisted(() => ({
     scatterRequestId: 0,
 }));
 
-vi.mock('../../store/chartState.js', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('../../store/chartState.js')>();
-    return {
-        ...actual,
-        chartState: freshChartState,
-    };
-});
-
-vi.mock('../../store/datasetState.js', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('../../store/datasetState.js')>();
-    return {
-        ...actual,
-        datasetState: freshDatasetState,
-    };
-});
 
 vi.mock('../../store/scatterState.js', async (importOriginal) => {
     const actual = await importOriginal<typeof import('../../store/scatterState.js')>();

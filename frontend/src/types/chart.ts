@@ -1,7 +1,7 @@
 /** Chart renderer contracts and data projections. */
 
 import type { DataFetchMeta } from './api.js';
-import type { AdaptiveLineFilter } from './store.js';
+import type { AdaptiveLineFilter, PendingAdaptivePoint } from './store.js';
 
 export interface SeriesData {
     x: Float64Array;
@@ -39,6 +39,7 @@ export interface ViewSnapshot {
 export type YMode = 'fit' | 'lock' | 'restore';
 
 export interface ChartInstance {
+    setPendingAdaptivePointReader?(reader: () => PendingAdaptivePoint | null): void;
     init(): Promise<void>;
     updateDataMulti(
         dataObj: FilteredDataObject,

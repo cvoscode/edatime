@@ -1,105 +1,69 @@
-/**
- * viewport — zoom, view-history, and chart-gesture controls.
- * Manages zoom-out, reset-to-initial, and the zoom history stack.
- */
-
-import {
-    chartState,
-    setZoomHistory,
-} from '../store/chartState.js';
-import { subscribe } from '../store/events.js';
-import { dbg, dbgGroup } from '../debug.js';
+/** Workspace viewport controls and the primary chart's zoom badge. */
+import { primaryChart } from '../charts/primaryChart.js';
 import { updateAnalysisZoom, updateAnalysisYRange } from './analysisStatus.js';
 import { formatZoomRangeBadge } from './zoomRangeBadge.js';
 import type { ViewSnapshot } from '../types/chart.js';
-import type { WorkspaceStore } from '../workspace/workspaceStore.js';
+import type { WorkspaceStore } from '../contracts/workspace.js';
 
-// Keep the zoom-range badge in sync with the store regardless of which
-// path mutates `chartState.currentStart/currentEnd` or `chartState.initialView`.
-// Without this, the badge only refreshed when the legacy `applyViewport()`
-// path ran; zoom-in interactions (chart callbacks, range controls, dataset
-// reloads) bypassed that path and the badge would stay stuck on its
-// previous percentage.
-let zoomBadgeSubscriptionsInstalled = false;
-function installZoomBadgeSubscriptions(): void {
-    if (zoomBadgeSubscriptionsInstalled) return;
-    zoomBadgeSubscriptionsInstalled = true;
-    subscribe('chart:viewport', () => updateZoomRangeBadge());
-    subscribe('chart:initialView', () => updateZoomRangeBadge());
+type ViewportReader = Pick<WorkspaceStore, 'getSnapshot'>;
+
+export function initZoomRangeBadge(workspace: ViewportReader & Pick<WorkspaceStore, 'subscribe'>): () => void {
+    const refresh = () => refreshZoomControlsState(workspace);
+    const unsubscribeWorkspace = workspace.subscribe(refresh);
+    const unsubscribeChart = primaryChart.subscribe(refresh);
+    refresh();
+    return () => { unsubscribeWorkspace(); unsubscribeChart(); };
 }
 
-export function refreshZoomControlsState(): void {
-    installZoomBadgeSubscriptions();
-    const supportsZoom = !!chartState.chart?.supportsZoomControls?.();
-    const resetBtn = document.getElementById('zoom-reset-btn') as HTMLButtonElement | null;
-    if (resetBtn) resetBtn.disabled = !supportsZoom;
-    updateZoomRangeBadge();
+export function refreshZoomControlsState(workspace: ViewportReader): void {
+    const reset = document.getElementById('zoom-reset-btn') as HTMLButtonElement | null;
+    if (reset) reset.disabled = !primaryChart.current?.supportsZoomControls?.();
+    updateZoomRangeBadge(workspace);
 }
 
-export function updateZoomRangeBadge(): void {
+export function updateZoomRangeBadge(workspace: ViewportReader): void {
     const badge = document.getElementById('zoom-range-badge');
     if (!badge) return;
-    badge.textContent = formatZoomRangeBadge(
-        chartState.initialView,
-        chartState.currentStart,
-        chartState.currentEnd,
-    );
+    const snapshot = workspace.getSnapshot();
+    const range = snapshot.dataset.metadata?.time_range;
+    const initial = range ? { xMin: range.min, xMax: range.max, yMin: null, yMax: null } : null;
+    badge.textContent = formatZoomRangeBadge(initial, snapshot.viewport?.xMin ?? null, snapshot.viewport?.xMax ?? null);
 }
 
-export function getCurrentView(): ViewSnapshot {
-    const yr = chartState.chart?.getYRange?.();
+export function getCurrentView(workspace: ViewportReader): ViewSnapshot {
+    const viewport = workspace.getSnapshot().viewport;
+    const y = primaryChart.current?.getYRange?.();
     return {
-        xMin: chartState.currentStart,
-        xMax: chartState.currentEnd,
-        yMin: yr?.min ?? null,
-        yMax: yr?.max ?? null,
+        xMin: viewport?.xMin ?? null, xMax: viewport?.xMax ?? null,
+        yMin: y?.min ?? viewport?.yMin ?? null, yMax: y?.max ?? viewport?.yMax ?? null,
     };
 }
 
-/**
- * Legacy toolbar/quick-range adapter. Its state transition is intentionally
- * self-contained: the Timeseries controller owns cached data, request
- * scheduling, and restore policy for chart gestures.
- */
 export function applyViewport(
     view: ViewSnapshot,
     fetchAndRender: () => void,
     sourceKind = 'api',
     workspace: Pick<WorkspaceStore, 'setViewport'>,
 ): void {
-    dbgGroup(`applyViewport (${sourceKind})`, () => dbg('incoming view', view));
+    if (view.xMin == null || view.xMax == null) return;
     const start = Number(view.xMin);
     const end = Number(view.xMax);
     if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return;
-    const resolvedView = { ...view, xMin: start, xMax: end };
-    workspace.setViewport(resolvedView);
-    chartState.chart?.setXRange?.(start, end);
+    workspace.setViewport({ ...view, xMin: start, xMax: end });
+    primaryChart.current?.setXRange?.(start, end);
     updateAnalysisZoom(start, end, sourceKind);
-
     if (Number.isFinite(view.yMin) && Number.isFinite(view.yMax) && view.yMax! > view.yMin!) {
-        chartState.chart?.setYRange?.(view.yMin!, view.yMax!);
+        primaryChart.current?.setYRange?.(view.yMin!, view.yMax!);
         updateAnalysisYRange(view.yMin!, view.yMax!, 'restore');
     } else {
-        chartState.chart?.resetYRange?.();
+        primaryChart.current?.resetYRange?.();
     }
-
     queueMicrotask(fetchAndRender);
-    updateZoomRangeBadge();
 }
 
-export function zoomOut(fetchAndRender: () => void, workspace: Pick<WorkspaceStore, 'setViewport'>): void {
-    if (chartState.zoomHistory.length > 0) {
-        const nextHistory = chartState.zoomHistory.slice(0, -1);
-        const nextView = chartState.zoomHistory[chartState.zoomHistory.length - 1] as ViewSnapshot;
-        setZoomHistory(nextHistory);
-        applyViewport(nextView, fetchAndRender, 'zoom-out', workspace);
-    } else if (chartState.initialView) {
-        applyViewport(chartState.initialView as ViewSnapshot, fetchAndRender, 'zoom-out', workspace);
-    }
-}
-
-export function resetZoom(fetchAndRender: () => void, workspace: Pick<WorkspaceStore, 'setViewport'>): void {
-    if (!chartState.initialView) return;
-    setZoomHistory([]);
-    applyViewport(chartState.initialView as ViewSnapshot, fetchAndRender, 'reset', workspace);
+/** Standalone toolbar fallback; the Timeseries feature supplies history-aware actions. */
+export function resetZoom(fetchAndRender: () => void, workspace: ViewportReader & Pick<WorkspaceStore, 'setViewport'>): void {
+    const range = workspace.getSnapshot().dataset.metadata?.time_range;
+    if (!range) return;
+    applyViewport({ xMin: range.min, xMax: range.max, yMin: null, yMax: null }, fetchAndRender, 'reset', workspace);
 }

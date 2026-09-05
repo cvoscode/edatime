@@ -1,12 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { setPendingAdaptivePoint } from '../store/uiState.js';
 import { createWorkspaceStore } from '../workspace/workspaceStore.js';
 import { initDrawControls } from './drawControls.js';
 
 describe('draw controls', () => {
     beforeEach(() => {
         document.body.innerHTML = '<button id="adaptive-clear-btn" type="button"></button>';
-        setPendingAdaptivePoint(null);
     });
 
     it('clears adaptive filters from workspace intent', () => {

@@ -33,14 +33,10 @@ vi.mock('../../chart/webgpuGuard.js', () => ({
     checkWebGPU: checkWebGPUMock,
 }));
 
-vi.mock('../../store/chartState.js', () => ({
-    chartState: appStateMock,
-    setChartInstance: setChartInstanceMock,
+vi.mock('../../charts/primaryChart.js', () => ({
+    primaryChart: { get current() { return appStateMock.chart; } },
+    setPrimaryChartInstance: setChartInstanceMock,
     setInitialView: setInitialViewMock,
-}));
-
-vi.mock('../../store/datasetState.js', () => ({
-    datasetState: appStateMock,
 }));
 
 vi.mock('../../ui/toolbar.js', () => ({
@@ -120,6 +116,7 @@ describe('createTimeseriesBootstrap', () => {
         const { createTimeseriesBootstrap } = await import('./ensureReady.js');
 
         const bootstrap = createTimeseriesBootstrap({
+            runtimeCache: { initialView: null },
             ensurePrimaryChartCtor: vi.fn().mockResolvedValue(class { }),
             onZoom,
             onYRange,
@@ -130,7 +127,7 @@ describe('createTimeseriesBootstrap', () => {
             getCurrentData: vi.fn(() => null),
             fetchAndRender: vi.fn().mockResolvedValue(undefined),
             refreshZoomControlsState: vi.fn(),
-            workspace: { getSnapshot: vi.fn(() => ({ viewport: { xMin: 10, xMax: 90, yMin: null, yMax: null } })), setSelection: vi.fn(), setFilters: vi.fn(), setViewport: vi.fn(), subscribe: vi.fn(() => vi.fn()) } as any,
+            workspace: { getSnapshot: vi.fn(() => ({ dataset: { metadata: null, revision: 0 }, viewport: { xMin: 10, xMax: 90, yMin: null, yMax: null } })), setSelection: vi.fn(), setFilters: vi.fn(), setViewport: vi.fn(), subscribe: vi.fn(() => vi.fn()) } as any,
         });
 
         await bootstrap.ensureReady();
@@ -171,6 +168,7 @@ describe('createTimeseriesBootstrap', () => {
         const { createTimeseriesBootstrap } = await import('./ensureReady.js');
 
         const bootstrap = createTimeseriesBootstrap({
+            runtimeCache: { initialView: null },
             ensurePrimaryChartCtor: vi.fn().mockResolvedValue(class { }),
             onZoom,
             onYRange,
@@ -181,7 +179,7 @@ describe('createTimeseriesBootstrap', () => {
             getCurrentData: vi.fn(() => null),
             fetchAndRender: vi.fn().mockResolvedValue(undefined),
             refreshZoomControlsState: vi.fn(),
-            workspace: { getSnapshot: vi.fn(() => ({ viewport: { xMin: 100, xMax: 800, yMin: null, yMax: null } })), setSelection: vi.fn(), setFilters: vi.fn(), setViewport: vi.fn(), subscribe: vi.fn(() => vi.fn()) } as any,
+            workspace: { getSnapshot: vi.fn(() => ({ dataset: { metadata: null, revision: 0 }, viewport: { xMin: 100, xMax: 800, yMin: null, yMax: null } })), setSelection: vi.fn(), setFilters: vi.fn(), setViewport: vi.fn(), subscribe: vi.fn(() => vi.fn()) } as any,
         });
 
         await bootstrap.ensureReady();
@@ -211,11 +209,12 @@ describe('createTimeseriesBootstrap', () => {
         const renderCurrentData = vi.fn();
         const getCurrentData = vi.fn(() => null);
         const onYRange = vi.fn();
-        const workspace = { getSnapshot: vi.fn(() => ({ viewport: { xMin: 0, xMax: 100, yMin: null, yMax: null } })), setSelection: vi.fn(), setFilters: vi.fn(), setViewport: vi.fn(), subscribe: vi.fn(() => vi.fn()) } as any;
+        const workspace = { getSnapshot: vi.fn(() => ({ dataset: { metadata: null, revision: 0 }, viewport: { xMin: 0, xMax: 100, yMin: null, yMax: null } })), setSelection: vi.fn(), setFilters: vi.fn(), setViewport: vi.fn(), subscribe: vi.fn(() => vi.fn()) } as any;
 
         const { createTimeseriesBootstrap } = await import('./ensureReady.js');
 
         const bootstrap = createTimeseriesBootstrap({
+            runtimeCache: { initialView: null },
             ensurePrimaryChartCtor: vi.fn().mockResolvedValue(class { }),
             onZoom: vi.fn(),
             onYRange,

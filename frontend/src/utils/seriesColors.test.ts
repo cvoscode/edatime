@@ -12,6 +12,7 @@
 
 import { describe, expect, it, beforeEach } from 'vitest';
 import {
+    configureSeriesColorWorkspace,
     SERIES_TARGET_ACCENT,
     getActiveSeriesPalette,
     getColumnSeriesColor,
@@ -24,8 +25,14 @@ import {
     setActiveSeriesPalette,
     setSeriesColor,
 } from './seriesColors.js';
-import { setSeriesColors, uiState } from '../store/uiState.js';
-import { setNumericCols } from '../store/datasetState.js';
+const colorWorkspace = createWorkspaceStore();
+const setSeriesColors = (seriesColors: Record<string, string>) => colorWorkspace.setAppearance({ seriesColors });
+import { createWorkspaceStore } from '../workspace/workspaceStore.js';
+function setNumericCols(columns: string[]) {
+    const workspace = colorWorkspace;
+    workspace.commitDataset(workspace.beginDatasetSession(), { numeric_columns: columns } as any, 0);
+    configureSeriesColorWorkspace(workspace);
+}
 
 describe('seriesColors', () => {
     beforeEach(() => {
@@ -56,7 +63,7 @@ describe('seriesColors', () => {
         expect(new Set(colors).size).toBe(columns.length);
     });
 
-    it('honors per-column overrides stored in uiState', () => {
+    it('honors per-column overrides stored in workspace appearance', () => {
         setSeriesColor('HUFL', '#abcdef');
         expect(getSeriesColor('HUFL', 0)).toBe('#abcdef');
         // The override does not affect other columns.
@@ -102,7 +109,7 @@ describe('seriesColors', () => {
     it('rejects malformed color strings via the public setter', () => {
         expect(setSeriesColor('a', 'not-a-color')).toBeNull();
         expect(setSeriesColor('a', '#fff')).toBeNull();
-        expect(uiState.seriesColors?.a).toBeUndefined();
+        expect(colorWorkspace.getSnapshot().appearance.seriesColors?.a).toBeUndefined();
     });
 
     it('normalizes colors to lowercase 6-digit hex', () => {

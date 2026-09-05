@@ -1,3 +1,4 @@
+import type { WorkspaceStore } from '../../contracts/workspace.js';
 /**
  * Upload panel logic (file drop, partial load, preview).
  *
@@ -31,13 +32,14 @@ import {
     setPartialTimeRangeInputs,
 } from './partialLoadControls.js';
 import { submitFileUpload } from './fileSource.js';
-import { datasetState, setDatasetRevision, setMetadata } from '../../store/datasetState.js';
-import { setPreviewSelectedColumns, setPreviewTimeColumn, uiState } from '../../store/uiState.js';
+import { uploadProfile } from './profileState.js';
+import { setPreviewSelectedColumns, setPreviewTimeColumn, uploadUi } from './uploadUi.js';
 import { toast } from '../../utils/toast.js';
 import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
 import type { DatasetMetadata } from '../../types/api.js';
 
 interface UploadPanelDeps {
+    workspace?: Pick<WorkspaceStore, 'getSnapshot'>;
     buildColumnToggles: () => void;
     buildRangeControls: () => void;
     refreshDatasetAfterMutation?: () => Promise<void>;
@@ -208,18 +210,17 @@ export function initUploadPanel(
         nRowsDisp.textContent = formatUploadRowCountLocal(defaultRows);
     }
 
-    applyTimeRangeFromMetadata(datasetState.metadata, false);
+    uploadProfile.metadata = deps.workspace?.getSnapshot().dataset.metadata ?? null;
+    applyTimeRangeFromMetadata(uploadProfile.metadata, false);
     syncUploadButtonState();
 
     // If no preview is active and we have no metadata yet, fetch existing dataset state
-    if (!datasetState.metadata) {
+    if (!uploadProfile.metadata) {
         void import('../../services/api/index.js').then(async ({ fetchMetadata }) => {
             try {
-                const freshMetadata = await fetchMetadata();
-                if (!listenerAbort.signal.aborted && freshMetadata) {
-                    setMetadata(freshMetadata);
-                    const revision = freshMetadata?.revision;
-                    setDatasetRevision(typeof revision === 'number' ? revision : 0);
+                const freshMetadata = await fetchMetadata({ signal: listenerAbort.signal });
+                if (!listenerAbort.signal.aborted && !selectedFile && freshMetadata) {
+                    uploadProfile.metadata = freshMetadata;
                     hydrateColumnProfiles(freshMetadata);
                     renderColumnProfilesGrid(true);
                 }
@@ -236,11 +237,11 @@ export function initUploadPanel(
     }, listenerOptions);
 
     function setSelectionMode(mode: 'all' | 'none') {
-        const columns = Array.isArray(datasetState.columnProfiles)
-            ? datasetState.columnProfiles.map((profile) => profile.name)
+        const columns = Array.isArray(uploadProfile.columnProfiles)
+            ? uploadProfile.columnProfiles.map((profile) => profile.name)
             : [];
         const next = new Set<string>();
-        if (uiState.previewTimeColumn) next.add(uiState.previewTimeColumn);
+        if (uploadUi.previewTimeColumn) next.add(uploadUi.previewTimeColumn);
         if (mode === 'all') {
             for (const name of columns) next.add(name);
         }
@@ -266,6 +267,7 @@ export function initUploadPanel(
             statusEl: uploadStatus,
             fileInput: fileInput!,
             fileDisplay: fileDisplay!,
+            signal: listenerAbort.signal,
             deps,
             hydrateColumnProfiles,
             renderColumnProfilesGrid,

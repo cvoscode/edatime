@@ -5,7 +5,7 @@
  *  - reads from metadata.column_profiles (not metadata.columns)
  *  - uses the existing HTML grid structure (profile-grid-viewport / spacer / rows)
  *  - builds rows via DOM createElement, not innerHTML
- *  - uses uiState.profileGridSort { key, dir } for sort state
+ *  - uses uploadUi.profileGridSort { key, dir } for sort state
  */
 
 import { PROFILE_ROW_HEIGHT, PROFILE_OVERSCAN, PROFILE_COLUMNS, getDefaultProfileColumnWidths } from '../../services/profile/profile.js';
@@ -17,15 +17,15 @@ import {
     normalizeDtypeLabel,
     toFiniteNumberOrNull,
 } from '../../utils/format.js';
-import { datasetState, setColumnProfiles } from '../../store/datasetState.js';
+import { uploadProfile, setColumnProfiles } from './profileState.js';
 import {
     setPreviewSelectedColumns,
     setProfileGridBound,
     setProfileGridColWidths,
     setProfileGridHeaderBound,
     setProfileGridSort,
-    uiState,
-} from '../../store/uiState.js';
+    uploadUi,
+} from './uploadUi.js';
 import type { ProfileRow } from '../../types/store.js';
 import type { DatasetMetadata } from '../../types/api.js';
 
@@ -133,10 +133,10 @@ let cachedFilteredProfiles: ProfileRow[] | null = null;
 let cachedFilteredProfilesKey: string | null = null;
 let cachedProfilesSource: ProfileRow[] | null = null;
 function getFilteredColumnProfiles(): ProfileRow[] {
-    const profiles: ProfileRow[] = datasetState.columnProfiles;
-    const q = uiState.profileFilterText.trim().toLowerCase();
-    const category = uiState.profileFilterCategory || 'all';
-    const sort = uiState.profileGridSort || {};
+    const profiles: ProfileRow[] = uploadProfile.columnProfiles;
+    const q = uploadUi.profileFilterText.trim().toLowerCase();
+    const category = uploadUi.profileFilterCategory || 'all';
+    const sort = uploadUi.profileGridSort || {};
     const cacheKey = `${profiles.length}|${q}|${category}|${sort.key ?? ''}|${sort.dir ?? ''}`;
     if (cachedFilteredProfiles && cachedProfilesSource === profiles && cachedFilteredProfilesKey === cacheKey) {
         return cachedFilteredProfiles;
@@ -167,17 +167,17 @@ export function invalidateProfileGridViewModel(): void {
 function applyProfileGridColumnsTemplate(): void {
     const grid = document.getElementById('profile-grid');
     if (!grid) return;
-    const widths = uiState.profileGridColWidths || getDefaultProfileColumnWidths();
+    const widths = uploadUi.profileGridColWidths || getDefaultProfileColumnWidths();
     const template = widths
         .map((w: number, idx: number) => `${Math.max(PROFILE_COLUMNS[idx]?.minWidth ?? 40, Math.round((Number(w) || PROFILE_COLUMNS[idx]?.defaultWidth) ?? 100))}px`)
         .join(' ');
     grid.style.setProperty('--profile-grid-cols', template);
 }
 
-function getSelectablePreviewColumns(profiles: ProfileRow[] = datasetState.columnProfiles): string[] {
+function getSelectablePreviewColumns(profiles: ProfileRow[] = uploadProfile.columnProfiles): string[] {
     return profiles
         .map((profile) => profile.name)
-        .filter((name) => name && name !== uiState.previewTimeColumn);
+        .filter((name) => name && name !== uploadUi.previewTimeColumn);
 }
 
 export function formatUploadSelectionStatus(
@@ -202,10 +202,10 @@ export function formatUploadSelectionStatus(
     return `${chosenCount} of ${analysisCount} analysis columns selected.`;
 }
 
-function syncUploadSelectionUI(profiles: ProfileRow[] = datasetState.columnProfiles): void {
+function syncUploadSelectionUI(profiles: ProfileRow[] = uploadProfile.columnProfiles): void {
     const allCheckbox = document.getElementById('profile-select-all-checkbox') as HTMLInputElement | null;
     const selectable = getSelectablePreviewColumns(profiles);
-    const selected = new Set(uiState.previewSelectedColumns);
+    const selected = new Set(uploadUi.previewSelectedColumns);
     const selectedCount = selectable.filter((name) => selected.has(name)).length;
 
     if (allCheckbox) {
@@ -218,8 +218,8 @@ function updateProfileGridHeaderState(): void {
     const header = document.querySelector('.profile-grid-header');
     if (!header) return;
 
-    const sortKey = uiState.profileGridSort?.key;
-    const sortDir = uiState.profileGridSort?.dir;
+    const sortKey = uploadUi.profileGridSort?.key;
+    const sortDir = uploadUi.profileGridSort?.dir;
     const cells = Array.from(header.children) as HTMLElement[];
     for (const cell of cells) {
         const key = cell.dataset.sortKey;
@@ -240,8 +240,8 @@ function updateProfileGridHeaderState(): void {
     }
 }
 
-function initProfileGridHeaderControls(): void {
-    if (uiState.profileGridHeaderBound) return;
+function initProfileGridHeaderControls(signal: AbortSignal): void {
+    if (uploadUi.profileGridHeaderBound) return;
 
     const header = document.querySelector('.profile-grid-header');
     if (!header) return;
@@ -257,7 +257,7 @@ function initProfileGridHeaderControls(): void {
         if (def.sortable) {
             cell.tabIndex = 0;
             cell.addEventListener('click', () => {
-                const current = uiState.profileGridSort || { key: def.key, dir: 'asc' as const };
+                const current = uploadUi.profileGridSort || { key: def.key, dir: 'asc' as const };
                 if (current.key === def.key) {
                     setProfileGridSort({ key: def.key, dir: current.dir === 'asc' ? 'desc' : 'asc' });
                 } else {
@@ -265,12 +265,12 @@ function initProfileGridHeaderControls(): void {
                 }
                 updateProfileGridHeaderState();
                 renderColumnProfilesGrid(true);
-            });
+            }, { signal });
             cell.addEventListener('keydown', (e: KeyboardEvent) => {
                 if (e.key !== 'Enter' && e.key !== ' ') return;
                 e.preventDefault();
                 cell.click();
-            });
+            }, { signal });
         }
 
         if (idx < cells.length - 1) {
@@ -282,11 +282,11 @@ function initProfileGridHeaderControls(): void {
                 event.preventDefault();
                 event.stopPropagation();
                 const startX = event.clientX;
-                const startW = Number(uiState.profileGridColWidths[idx]) || def.defaultWidth;
+                const startW = Number(uploadUi.profileGridColWidths[idx]) || def.defaultWidth;
                 const onMove = (moveEvent: PointerEvent) => {
                     const dx = moveEvent.clientX - startX;
                     const next = Math.max(def.minWidth, startW + dx);
-                    const widths = [...uiState.profileGridColWidths];
+                    const widths = [...uploadUi.profileGridColWidths];
                     widths[idx] = next;
                     setProfileGridColWidths(widths);
                     applyProfileGridColumnsTemplate();
@@ -295,10 +295,11 @@ function initProfileGridHeaderControls(): void {
                     window.removeEventListener('pointermove', onMove);
                     window.removeEventListener('pointerup', onUp);
                 };
-                window.addEventListener('pointermove', onMove);
-                window.addEventListener('pointerup', onUp);
-            });
+                window.addEventListener('pointermove', onMove, { signal });
+                window.addEventListener('pointerup', onUp, { signal });
+            }, { signal });
             cell.appendChild(resizer);
+            signal.addEventListener('abort', () => resizer.remove(), { once: true });
         }
     });
 
@@ -321,20 +322,20 @@ function createSelectionCell(profile: ProfileRow): HTMLDivElement {
 
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
-    checkbox.checked = uiState.previewSelectedColumns.includes(profile.name);
+    checkbox.checked = uploadUi.previewSelectedColumns.includes(profile.name);
     checkbox.setAttribute('aria-label', `Select ${profile.name} for upload`);
 
-    if (profile.name === uiState.previewTimeColumn) {
+    if (profile.name === uploadUi.previewTimeColumn) {
         checkbox.disabled = true;
         checkbox.checked = true;
         checkbox.title = 'Time column is required';
     }
 
     checkbox.addEventListener('change', () => {
-        const selected = new Set(uiState.previewSelectedColumns);
+        const selected = new Set(uploadUi.previewSelectedColumns);
         if (checkbox.checked) selected.add(profile.name);
         else selected.delete(profile.name);
-        if (uiState.previewTimeColumn) selected.add(uiState.previewTimeColumn);
+        if (uploadUi.previewTimeColumn) selected.add(uploadUi.previewTimeColumn);
         setPreviewSelectedColumns(Array.from(selected));
         syncUploadSelectionUI();
     });
@@ -448,11 +449,14 @@ export function renderColumnProfilesGrid(resetScroll = false): void {
 
 // ─── Init grid container ────────────────────────────────────────────────────
 
-export function initColumnProfilesGrid(): void {
-    if (uiState.profileGridBound) return;
+let disposeProfileGrid: (() => void) | null = null;
+
+export function initColumnProfilesGrid(): () => void {
+    if (disposeProfileGrid) return disposeProfileGrid;
     const viewport = document.getElementById('profile-grid-viewport');
     const header = document.querySelector('.profile-grid-header') as HTMLElement | null;
-    if (!viewport) return;
+    if (!viewport) return () => {};
+    const lifetime = new AbortController();
 
     // Throttle scroll-driven rerenders to one render per animation frame
     // so rapid scroll events coalesce into a single DOM update.
@@ -466,13 +470,26 @@ export function initColumnProfilesGrid(): void {
                 header.style.transform = `translateX(${-viewport.scrollLeft}px)`;
             }
         });
-    });
+    }, { signal: lifetime.signal });
 
     const resizeObserver = new ResizeObserver(() => renderColumnProfilesGrid(false));
     resizeObserver.observe(viewport);
 
-    initProfileGridHeaderControls();
+    initProfileGridHeaderControls(lifetime.signal);
     applyProfileGridColumnsTemplate();
 
     setProfileGridBound(true);
+    const dispose = () => {
+        lifetime.abort();
+        resizeObserver.disconnect();
+        if (scrollRafId !== null) cancelAnimationFrame(scrollRafId);
+        if (disposeProfileGrid === dispose) {
+            disposeProfileGrid = null;
+            setProfileGridBound(false);
+            setProfileGridHeaderBound(false);
+            invalidateProfileGridViewModel();
+        }
+    };
+    disposeProfileGrid = dispose;
+    return dispose;
 }

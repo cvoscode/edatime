@@ -3,7 +3,7 @@
  * Thin orchestrator that delegates to focused sub-modules.
  */
 
-import { chartState } from '../store/chartState.js';
+import { primaryChart } from '../charts/primaryChart.js';
 import { DEBUG, dbg } from '../debug.js';
 import {
     updateAnalysisZoom,
@@ -13,9 +13,9 @@ import {
 } from './analysisStatus.js';
 import {
     refreshZoomControlsState,
+    initZoomRangeBadge,
     getCurrentView,
     applyViewport,
-    zoomOut,
     resetZoom,
 } from './viewport.js';
 
@@ -29,7 +29,6 @@ export {
     refreshZoomControlsState,
     getCurrentView,
     applyViewport,
-    zoomOut,
     resetZoom,
 } from './viewport.js';
 
@@ -47,7 +46,7 @@ let debugLastCrosshairLogTs = 0;
 const analysisBoundCharts = new WeakSet<object>();
 
 export function bindAnalysisChartEvents(): void {
-    const chart = chartState.chart;
+    const chart = primaryChart.current;
     if (!chart || analysisBoundCharts.has(chart)) return;
 
     chart.onCrosshairMove?.((payload: any) => {
@@ -100,16 +99,17 @@ export function initAnalysisControls(
     zoomOutAction: (() => void) | undefined = undefined,
     resetZoomAction: (() => void) | undefined = undefined,
     workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'setViewport' | 'subscribe'>,
-): void {
-    const runZoomOut = zoomOutAction ?? (() => zoomOut(fetchAndRender, workspace));
+): () => void {
+    const runZoomOut = zoomOutAction ?? (() => resetZoom(fetchAndRender, workspace));
     const runResetZoom = resetZoomAction ?? (() => resetZoom(fetchAndRender, workspace));
     bindInfoPopovers();
     initToolbarModals({ onZoomOut: runZoomOut, onResetZoom: runResetZoom });
-    initDrawControls(fetchAndRender, workspace);
-    initChartTextControls();
+    const disposeDraw = initDrawControls(fetchAndRender, workspace);
+    const disposeChartText = initChartTextControls(workspace);
     initAnalyticsControls();
 
-    initQuickRangeControls(fetchAndRender, workspace);
+    const disposeQuickRange = initQuickRangeControls(fetchAndRender, workspace);
 
-    refreshZoomControlsState();
+    const disposeZoomBadge = initZoomRangeBadge(workspace);
+    return () => { disposeDraw(); disposeQuickRange(); disposeChartText(); disposeZoomBadge(); };
 }

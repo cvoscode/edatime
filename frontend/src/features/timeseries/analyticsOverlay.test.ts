@@ -6,7 +6,12 @@ import {
 } from './analyticsOverlay.js';
 import { analyticsState } from '../../store/analyticsState.js';
 import { getColumnSeriesColor, setSeriesColor } from '../../utils/seriesColors.js';
-import { setSeriesColors } from '../../store/uiState.js';
+import { configureSeriesColorWorkspace } from '../../utils/seriesColors.js';
+function setSeriesColors(seriesColors: Record<string, string>) {
+    const workspace = createWorkspaceStore();
+    workspace.setAppearance({ seriesColors });
+    configureSeriesColorWorkspace(workspace);
+}
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 import { emitFeatureEvent } from '../../platform/featureEvents.js';
 import type { ApiRequestOptions } from '../../services/api/http.js';

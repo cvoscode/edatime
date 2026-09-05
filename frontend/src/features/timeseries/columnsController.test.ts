@@ -1,10 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildColumnToggles } from './columnsController.js';
-import {
-    datasetState,
-    setMetadata,
-} from '../../store/datasetState.js';
-import { setAdaptiveFilterColumn, setFilterText, setSeriesColors } from '../../store/uiState.js';
+
+import { setAdaptiveFilterColumn, setFilterText } from './interaction.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 import { setDropdownValue } from '../../ui/primitives/Dropdown.js';
 
@@ -24,7 +21,8 @@ describe('buildColumnToggles', () => {
         buildDom();
         window.localStorage.clear();
 
-        setMetadata({
+        workspace = createWorkspaceStore();
+        workspace.commitDataset(workspace.beginDatasetSession(), {
             total_rows: 12,
             columns: [
                 { name: 'ts', dtype: 'Datetime' },
@@ -40,12 +38,10 @@ describe('buildColumnToggles', () => {
             time_column: 'ts',
             time_range: { min: 0, max: 1000 },
             column_profiles: [],
-        } as any);
-        datasetState.numericCols = ['HUFL', 'HULL', 'LUFL', 'LULL', 'MUFL', 'MULL', 'OT'];
+        } as any, 1);
         setAdaptiveFilterColumn('HUFL');
-        setSeriesColors({});
+        workspace.setAppearance({ seriesColors: {} });
         setFilterText('');
-        workspace = createWorkspaceStore();
         workspace.setSelection(['HUFL', 'HULL', 'OT']);
     });
 

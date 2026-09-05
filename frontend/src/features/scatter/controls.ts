@@ -19,7 +19,6 @@
 
 let activeControlsCleanup: (() => void) | null = null;
 
-import { datasetState } from '../../store/datasetState.js';
 import { scatterState } from '../../store/scatterState.js';
 import type { DatasetMetadata } from '../../types/api.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
@@ -321,10 +320,10 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
             // where it gets written. If a page-change fires before init ran (for
             // example when the user navigates to scatter on a cold dataset), we
             // bounce via a single dedicated init call rather than reading from
-            // `datasetState.metadata` here. That keeps the page-change handler
+            // `cb.workspace?.getSnapshot().dataset.metadata` here. That keeps the page-change handler
             // strictly an effect, not a side-channel metadata source.
-            if (!scatterState.metadata && datasetState.metadata) {
-                await cb.initScatterPage(datasetState.metadata as DatasetMetadata);
+            if (!scatterState.metadata && cb.workspace?.getSnapshot().dataset.metadata) {
+                await cb.initScatterPage(cb.workspace?.getSnapshot().dataset.metadata as DatasetMetadata);
             }
 
             const nextView = normalizeAnalyticsView(change.analyticsView ?? 'plot');

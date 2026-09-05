@@ -1,10 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { chartState, setChartInstance, setChartText } from '../store/chartState.js';
+import { primaryChart, setPrimaryChartInstance as setChartInstance } from '../charts/primaryChart.js';
+import { createWorkspaceStore } from '../workspace/workspaceStore.js';
+let workspace = createWorkspaceStore();
+const setChartText = (chartText: { title: string; xLabel: string; yLabel: string }) => workspace.setAppearance({ chartText });
 import { initChartTextControls } from './chartTextControls.js';
 
 describe('chartTextControls', () => {
     beforeEach(() => {
+        workspace = createWorkspaceStore();
         document.body.innerHTML = `
             <input id="chart-title-input" />
             <input id="x-axis-label-input" />
@@ -14,12 +18,12 @@ describe('chartTextControls', () => {
         setChartText({ title: '', xLabel: '', yLabel: '' });
     });
 
-    it('reads and writes chart text through chartState without appStateCompat', () => {
+    it('reads and writes chart text through workspace appearance', () => {
         const setChartTextOnChart = vi.fn();
         setChartInstance({ setChartText: setChartTextOnChart } as any);
         setChartText({ title: 'Existing title', xLabel: 'Existing X', yLabel: 'Existing Y' });
 
-        initChartTextControls();
+        initChartTextControls(workspace);
 
         const title = document.getElementById('chart-title-input') as HTMLInputElement;
         const xLabel = document.getElementById('x-axis-label-input') as HTMLInputElement;
@@ -32,7 +36,7 @@ describe('chartTextControls', () => {
         title.value = 'Updated title';
         title.dispatchEvent(new Event('input'));
 
-        expect(chartState.chartText).toEqual({
+        expect(workspace.getSnapshot().appearance.chartText).toEqual({
             title: 'Updated title',
             xLabel: 'Existing X',
             yLabel: 'Existing Y',

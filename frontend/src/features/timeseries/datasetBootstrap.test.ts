@@ -32,11 +32,6 @@ const {
     };
 });
 
-vi.mock('../../store/datasetState.js', () => ({
-    setMetadata: setMetadataMock,
-    setDatasetRevision: setDatasetRevisionMock,
-}));
-
 vi.mock('../../features/upload/index.js', () => ({
     hydrateColumnProfiles: hydrateColumnProfilesMock,
     renderColumnProfilesGrid: renderColumnProfilesGridMock,
@@ -81,13 +76,13 @@ function createDeps(overrides: Partial<DatasetBootstrapDeps> = {}): DatasetBoots
         markMetadataReady: vi.fn(),
         isMetadataReady: isMetadataReadyMock,
         clearLoadedPageModules: vi.fn(),
-        storeFetchedMetadata: vi.fn(),
+
         initializeDatasetUi: vi.fn(),
-        setNumericCols: vi.fn(),
-        setDefaultSelectedColumns: vi.fn(),
+
+
         sanitizeSelectedColumns: vi.fn(),
         refreshVisibleData: vi.fn().mockResolvedValue(undefined),
-        getNumericColumns: vi.fn(() => ['value']),
+
         getDefaultTimeseriesColumns: vi.fn(() => ['value']),
         rebuildTimeseriesColumns: vi.fn(),
         clearPersistedFilters: vi.fn(),
@@ -120,14 +115,13 @@ describe('createDatasetBootstrap', () => {
         applyPartialTimeRangeFromMetadataMock.mockClear();
     });
 
-    it('uses the injected storeFetchedMetadata and markMetadataReady callbacks during dataset bootstrap', async () => {
+    it('commits workspace metadata before marking the dataset ready', async () => {
         const createDatasetBootstrap = await importCreateDatasetBootstrap();
         const deps = createDeps();
         const bootstrap = createDatasetBootstrap(deps);
 
         await bootstrap.ensureDatasetReady();
 
-        expect(deps.storeFetchedMetadata).toHaveBeenCalledWith(baseMetadata);
         expect(deps.markMetadataReady).toHaveBeenCalledTimes(1);
         expect(deps.workspace.commitDataset).toHaveBeenCalledWith(
             expect.objectContaining({ id: 1 }), baseMetadata, 42,
@@ -186,7 +180,7 @@ describe('createDatasetBootstrap', () => {
 
         await bootstrap.ensureDatasetReady();
 
-        expect(deps.initializeDatasetUi).toHaveBeenCalledWith(baseMetadata);
+        expect(deps.initializeDatasetUi).toHaveBeenCalledWith(baseMetadata, expect.any(AbortSignal));
         expect(hydrateColumnProfilesMock).not.toHaveBeenCalled();
     });
 
@@ -201,11 +195,10 @@ describe('createDatasetBootstrap', () => {
 
         await bootstrap.refreshAfterMutation();
 
-        expect(deps.storeFetchedMetadata).toHaveBeenCalledWith(baseMetadata);
         expect(deps.markMetadataReady).toHaveBeenCalledTimes(1);
         expect(deps.clearPersistedFilters).toHaveBeenCalledTimes(1);
         expect(deps.workspace.setFilters).toHaveBeenCalledWith({ columnRanges: {}, adaptiveLines: [] });
-        expect(deps.initializeDatasetUi).toHaveBeenCalledWith(baseMetadata);
+        expect(deps.initializeDatasetUi).toHaveBeenCalledWith(baseMetadata, expect.any(AbortSignal));
         expect(deps.refreshVisibleData).toHaveBeenCalledTimes(1);
     });
 
@@ -287,7 +280,6 @@ describe('createDatasetBootstrap', () => {
         await refresh;
         await expect(initialBootstrap).rejects.toMatchObject({ name: 'AbortError' });
 
-        expect(deps.storeFetchedMetadata).toHaveBeenCalledWith(freshMetadata);
     });
 
     it('does not publish metadata when a newer workspace session supersedes the refresh', async () => {
@@ -305,7 +297,6 @@ describe('createDatasetBootstrap', () => {
 
         await bootstrap.ensureDatasetReady();
 
-        expect(deps.storeFetchedMetadata).not.toHaveBeenCalled();
         expect(deps.initializeDatasetUi).not.toHaveBeenCalled();
     });
 });

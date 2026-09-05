@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as api from '../../services/api/index.js';
-import { setViewport } from '../../store/chartState.js';
-import { setMetadata } from '../../store/datasetState.js';
+import { setScatterMetadata as setMetadata } from '../../store/scatterState.js';
 import { scatterState } from '../../store/scatterState.js';
 import { setScatterViewSnapshot } from '../../store/scatterState.js';
 import {
@@ -38,7 +37,6 @@ describe('buildMatrixFetchPairs', () => {
         scatterState.overviewRequestId = 0;
         scatterState.metadata = { numeric_columns: ['HUFL', 'HULL'] } as any;
         setMetadata({ time_column: '' } as any);
-        setViewport(null, null);
         Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
             configurable: true,
             value: () => new MockCanvasContext2D(),

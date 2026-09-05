@@ -1,3 +1,5 @@
+import { timeseriesInteraction, resetTimeseriesInteraction } from './interaction.js';
+import type { TimeseriesRuntimeCache } from './runtimeCache.js';
 /**
  * ensureReady — coordinate chart bootstrap and Timeseries page initialization.
  *
@@ -9,8 +11,7 @@ import type { ChartInstance, ViewSnapshot } from '../../types/chart.js';
 import { checkWebGPU } from '../../chart/webgpuGuard.js';
 import { getChartType } from '../../charts/registry.js';
 import { FallbackChart } from '../../charts/fallback.js';
-import { chartState, setChartInstance, setInitialView } from '../../store/chartState.js';
-import { datasetState } from '../../store/datasetState.js';
+import { primaryChart, setPrimaryChartInstance } from '../../charts/primaryChart.js';
 import { bindAnalysisChartEvents, getCurrentView } from '../../ui/toolbar.js';
 import { initAdaptiveFilterGesture } from './adaptiveGesture.js';
 import { restoreSessionAfterChartReady } from '../../platform/sessionLifecycle.js';
@@ -24,6 +25,7 @@ export interface TimeseriesBootstrapCallbacks {
 }
 
 export interface TimeseriesBootstrapDeps {
+    runtimeCache: Pick<TimeseriesRuntimeCache, 'initialView'>;
     ensurePrimaryChartCtor: () => Promise<new (
         containerId: string,
         onZoomCb: ((view: ViewSnapshot, sourceKind: string) => void) | null,
@@ -45,24 +47,28 @@ export interface TimeseriesBootstrapDeps {
 
 export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
     let ready = false;
+    let disposed = false;
+    let disposeGesture = () => {};
+    let ownedChart: ChartInstance | null = null;
     let pending: Promise<void> | null = null;
 
     return {
         ensureReady: async (): Promise<void> => {
-            if (ready) return;
+            if (disposed || ready) return;
             if (pending) return pending;
 
             pending = (async () => {
-                if (chartState.chart) {
+                if (primaryChart.current) {
                     deps.refreshZoomControlsState();
                     ready = true;
                     return;
                 }
 
                 const gpuError = await checkWebGPU();
+                if (disposed) return;
 
                 try {
-                    const initialViewport = deps.workspace.getSnapshot().viewport;
+                    let initialViewport = deps.workspace.getSnapshot().viewport;
                     dbg('initial X range (ms)', { start: initialViewport?.xMin, end: initialViewport?.xMax });
 
                     const lineType = getChartType('line');
@@ -77,7 +83,7 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                         // and the source kind as `end`) and caused the page
                         // controller's Number.isFinite guard to bail out
                         // silently.
-                        setChartInstance(lineType.create('main-chart', {
+                        setPrimaryChartInstance(lineType.create('main-chart', {
                             onZoom: (view: ViewSnapshot, sourceKind: string) =>
                                 deps.onZoom(view, sourceKind),
                             onYRange: deps.onYRange,
@@ -85,15 +91,23 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                         }));
                     } else {
                         const DataChartCtor = await deps.ensurePrimaryChartCtor();
-                        setChartInstance(new DataChartCtor('main-chart', deps.onZoom, deps.onYRange, deps.onZoomOut));
+                        if (disposed) return;
+                        setPrimaryChartInstance(new DataChartCtor('main-chart', deps.onZoom, deps.onYRange, deps.onZoomOut));
                     }
 
+                    ownedChart = primaryChart.current as ChartInstance | null;
+                    (primaryChart.current as ChartInstance | null)?.setPendingAdaptivePointReader?.(() => timeseriesInteraction.pendingAdaptivePoint);
                     if (gpuError) throw new Error(gpuError);
 
-                    await Promise.race([
-                        chartState.chart!.init(),
-                        new Promise((_, reject) => setTimeout(() => reject(new Error('ChartGPU init timed out')), 6000)),
-                    ]);
+                    let timer: ReturnType<typeof setTimeout> | undefined;
+                    try {
+                        await Promise.race([
+                            primaryChart.current!.init(),
+                            new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('ChartGPU init timed out')), 6000); }),
+                        ]);
+                    } finally { clearTimeout(timer); }
+                    if (disposed || primaryChart.current !== ownedChart) return;
+                    initialViewport = deps.workspace.getSnapshot().viewport;
 
                     bindAnalysisChartEvents();
                     const adaptiveGestureDeps = {
@@ -104,33 +118,34 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                         getCurrentData: deps.getCurrentData,
                         updateAnalysisYRange: deps.onYRange,
                     };
-                    initAdaptiveFilterGesture(adaptiveGestureDeps);
+                    disposeGesture = initAdaptiveFilterGesture(adaptiveGestureDeps);
                     deps.refreshZoomControlsState();
 
-                    deps.setAnomalyOverlayRenderCallback?.(() => chartState.chart?.requestOverlayRender?.());
+                    deps.setAnomalyOverlayRenderCallback?.(() => primaryChart.current?.requestOverlayRender?.());
 
-                    const chart = chartState.chart as ChartInstance | null;
+                    const chart = primaryChart.current as ChartInstance | null;
                     const initialStart = Number(initialViewport?.xMin);
                     const initialEnd = Number(initialViewport?.xMax);
                     if (Number.isFinite(initialStart) && Number.isFinite(initialEnd)) {
                         chart?.setXRange?.(initialStart, initialEnd);
                     }
                     chart?.setChartText?.(
-                        chartState.chartText?.title || '',
-                        chartState.chartText?.xLabel || '',
-                        chartState.chartText?.yLabel || '',
+                        deps.workspace.getSnapshot().appearance?.chartText?.title || '',
+                        deps.workspace.getSnapshot().appearance?.chartText?.xLabel || '',
+                        deps.workspace.getSnapshot().appearance?.chartText?.yLabel || '',
                     );
 
                     deps.renderCurrentData();
                     await deps.fetchAndRender();
+                    if (disposed) return;
 
-                    setInitialView(getCurrentView());
+                    deps.runtimeCache.initialView = getCurrentView(deps.workspace);
                     deps.refreshZoomControlsState();
-                    dbgGroup('initialView snapshot', () => dbg(chartState.initialView));
+                    dbgGroup('initialView snapshot', () => dbg(deps.runtimeCache.initialView));
 
                     await restoreSessionAfterChartReady({
-                        metadataTimeRange: datasetState.metadata?.time_range ?? null,
-                        currentDatasetRevision: Number(datasetState.datasetRevision ?? 0),
+                        metadataTimeRange: deps.workspace.getSnapshot().dataset.metadata?.time_range ?? null,
+                        currentDatasetRevision: Number(deps.workspace.getSnapshot().dataset.revision ?? 0),
                         buildColumnToggles: deps.buildColumnToggles,
                         buildRangeControls: deps.buildRangeControls,
                         renderCurrentData: deps.renderCurrentData,
@@ -138,8 +153,10 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                         workspace: deps.workspace,
                     });
 
+                    if (disposed) return;
                     ready = true;
                 } catch (e: unknown) {
+                    if (disposed) return;
                     console.warn('Primary chart failed, switching to fallback:', e);
                     try {
                         const fallbackType = getChartType('fallback');
@@ -148,13 +165,15 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                             onYRange: deps.onYRange,
                             onZoomOut: deps.onZoomOut,
                         };
-                        setChartInstance(fallbackType
+                        setPrimaryChartInstance(fallbackType
                             ? fallbackType.create('main-chart', fallbackCallbacks)
                             : new FallbackChart('main-chart', deps.onZoom, deps.onYRange, deps.onZoomOut));
 
-                        await chartState.chart!.init();
+                        ownedChart = primaryChart.current as ChartInstance | null;
+                        await primaryChart.current!.init();
+                        if (disposed || primaryChart.current !== ownedChart) return;
                         bindAnalysisChartEvents();
-                        const fallbackChart = chartState.chart as ChartInstance | null;
+                        const fallbackChart = primaryChart.current as ChartInstance | null;
                         const fallbackViewport = deps.workspace.getSnapshot().viewport;
                         const fallbackStart = Number(fallbackViewport?.xMin);
                         const fallbackEnd = Number(fallbackViewport?.xMax);
@@ -162,17 +181,18 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                             fallbackChart?.setXRange?.(fallbackStart, fallbackEnd);
                         }
                         fallbackChart?.setChartText?.(
-                            chartState.chartText?.title || '',
-                            chartState.chartText?.xLabel || '',
-                            chartState.chartText?.yLabel || '',
+                            deps.workspace.getSnapshot().appearance?.chartText?.title || '',
+                            deps.workspace.getSnapshot().appearance?.chartText?.xLabel || '',
+                            deps.workspace.getSnapshot().appearance?.chartText?.yLabel || '',
                         );
                         await deps.fetchAndRender();
+                        if (disposed) return;
 
-                        setInitialView(getCurrentView());
+                        deps.runtimeCache.initialView = getCurrentView(deps.workspace);
                         deps.refreshZoomControlsState();
                         ready = true;
                     } catch (fallbackErr: unknown) {
-                        const msg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+                        if (disposed) return;
                         console.error('Fallback chart also failed:', fallbackErr);
 
                     }
@@ -186,5 +206,11 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
             }
         },
         isReady: () => ready,
+        dispose: () => {
+            disposed = true;
+            disposeGesture();
+            resetTimeseriesInteraction();
+            if (ownedChart && primaryChart.current === ownedChart) setPrimaryChartInstance(null);
+        },
     };
 }

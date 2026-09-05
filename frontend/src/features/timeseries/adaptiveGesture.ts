@@ -1,3 +1,4 @@
+import { onFeatureEvent } from '../../platform/featureEvents.js';
 /**
  * Adaptive filter gesture — Ctrl+click line drawing on the main chart.
  * Exports the Timeseries-only Ctrl+click interaction and its pure filter
@@ -10,9 +11,9 @@ import { applyFilterIntentToData, buildAdaptiveLineY } from '../../services/time
 import {
     setAdaptiveFilterColumn,
     setPendingAdaptivePoint,
-    uiState,
-} from '../../store/uiState.js';
-import { chartState } from '../../store/chartState.js';
+    timeseriesInteraction,
+} from './interaction.js';
+import { primaryChart } from '../../charts/primaryChart.js';
 import type { DataObject } from '../../types/api.js';
 import type { AdaptiveLineFilter } from '../../types/store.js';
 import type { WorkspaceStore, WorkspaceSnapshot } from '../../contracts/workspace.js';
@@ -137,18 +138,18 @@ export function initAdaptiveFilterGesture(
         _firstPoint = null;
         _secondPoint = null;
         setPendingAdaptivePoint(null);
-        chartState.chart?.requestOverlayRender?.();
+        primaryChart.current?.requestOverlayRender?.();
     };
 
     const updateOverlay = () => {
         if (!_firstPoint) { setPendingAdaptivePoint(null); return; }
-        const col = uiState.adaptiveFilterColumn ?? (deps.workspace.getSnapshot().selection.columns[0] ?? '');
+        const col = timeseriesInteraction.adaptiveFilterColumn ?? (deps.workspace.getSnapshot().selection.columns[0] ?? '');
         if (_secondPoint) {
             setPendingAdaptivePoint({ column: col, x: _firstPoint.x, y: _firstPoint.y, x2: _secondPoint.x, y2: _secondPoint.y });
         } else {
             setPendingAdaptivePoint({ column: col, x: _firstPoint.x, y: _firstPoint.y });
         }
-        chartState.chart?.requestOverlayRender?.();
+        primaryChart.current?.requestOverlayRender?.();
     };
 
     const applyFilterForColumn = (column: string, p1: { x: number; y: number }, p2: { x: number; y: number }, keepAbove: boolean) => {
@@ -212,7 +213,7 @@ export function initAdaptiveFilterGesture(
 
         cols.forEach((col) => {
             const color = colorForColumn(col);
-            const isCurrentTarget = col === uiState.adaptiveFilterColumn;
+            const isCurrentTarget = col === timeseriesInteraction.adaptiveFilterColumn;
             const btn = document.createElement('button');
             btn.className = 'adaptive-trace-picker__option' + (isCurrentTarget ? ' current' : '');
             btn.type = 'button';
@@ -233,7 +234,7 @@ export function initAdaptiveFilterGesture(
         if (!event.ctrlKey || event.button !== 0) return;
         const cols = deps.workspace.getSnapshot().selection.columns;
         if (!cols?.length) return;
-        const point = chartState.chart?.cssPointToData?.(event.clientX, event.clientY) ?? null;
+        const point = primaryChart.current?.cssPointToData?.(event.clientX, event.clientY) ?? null;
         if (!point) return;
         event.preventDefault(); event.stopPropagation();
         _lastClickX = event.clientX;
@@ -252,8 +253,8 @@ export function initAdaptiveFilterGesture(
     const onAdaptiveChange = () => {
         if (!deps.getCurrentData()) return;
         deps.buildRangeControls(); deps.renderCurrentData();
-        chartState.chart?.requestOverlayRender?.(); chartState.chart?.fitYToData?.();
-        const yr = chartState.chart?.getYRange?.();
+        primaryChart.current?.requestOverlayRender?.(); primaryChart.current?.fitYToData?.();
+        const yr = primaryChart.current?.getYRange?.();
         if (yr) deps.updateAnalysisYRange(yr.min, yr.max, 'adaptive');
     };
 
@@ -272,15 +273,20 @@ export function initAdaptiveFilterGesture(
             onAdaptiveChange();
         });
 
+    const unsubscribePending = onFeatureEvent('adaptive:clear-pending', () => { dismissPicker(); cancelPending(); });
     container.addEventListener('click', clickHandler, true);
     window.addEventListener('keydown', onEscape);
     window.addEventListener('keyup', onCtrlUp);
     container.dataset.adaptiveBound = '1';
 
     return () => {
+        dismissPicker();
+        cancelPending();
+        delete container.dataset.adaptiveBound;
         container.removeEventListener('click', clickHandler, true);
         window.removeEventListener('keydown', onEscape);
         window.removeEventListener('keyup', onCtrlUp);
         unsubscribeWorkspace();
+        unsubscribePending();
     };
 }

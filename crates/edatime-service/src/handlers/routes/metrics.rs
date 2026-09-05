@@ -71,6 +71,31 @@ pub async fn get_prometheus(State(state): State<AppState>) -> Result<Response<Bo
     );
     metric(
         &mut output,
+        "edatime_upload_admitted_total",
+        snapshot.upload_admission.admitted_total,
+    );
+    metric(
+        &mut output,
+        "edatime_upload_completed_total",
+        snapshot.upload_admission.completed_total,
+    );
+    metric(
+        &mut output,
+        "edatime_upload_rejected_total",
+        snapshot.upload_admission.rejected_total,
+    );
+    metric(
+        &mut output,
+        "edatime_upload_queue_timeouts_total",
+        snapshot.upload_admission.queue_timeouts_total,
+    );
+    metric(
+        &mut output,
+        "edatime_upload_active",
+        snapshot.upload_admission.active,
+    );
+    metric(
+        &mut output,
         "edatime_data_requests_total",
         snapshot.data_stages.requests_total,
     );

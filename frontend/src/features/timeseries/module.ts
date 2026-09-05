@@ -11,7 +11,6 @@ import { createDatasetBootstrap } from './datasetBootstrap.js';
 import { createTimeseriesBootstrap } from './ensureReady.js';
 import { createTimeseriesShortcuts } from './shortcuts.js';
 import { createTimeseriesRuntimeCache } from './runtimeCache.js';
-import { setDatasetRevision, setMetadata } from '../../store/datasetState.js';
 import { clearScatterViewSnapshots } from '../../store/scatterState.js';
 import { getNumericColumns, getDefaultTimeseriesColumns } from '../../platform/analyticsColumns.js';
 import { emitFeatureEvent } from '../../platform/featureEvents.js';
@@ -31,7 +30,7 @@ export interface TimeseriesModuleDeps {
         lookaroundMs?: number,
         options?: ApiRequestOptions,
     ) => Promise<DataObject>;
-    fetchMetadata: () => Promise<DatasetMetadata>;
+    fetchMetadata: (options?: ApiRequestOptions) => Promise<DatasetMetadata>;
     workspace: Pick<WorkspaceStore, 'getSnapshot' | 'beginDatasetSession' | 'commitDataset' | 'setSelection' | 'setFilters' | 'setViewport' | 'subscribe'>;
     ensurePrimaryChartCtor: () => Promise<new (
         containerId: string,
@@ -44,7 +43,6 @@ export interface TimeseriesModuleDeps {
     sanitizeSelectedColumns: () => void;
     clearLoadedPageModules: () => void;
     ensureSessionPersistenceStarted: () => void;
-    setNumericCols: (cols: string[]) => void;
     setAdaptiveFilterColumn: (col: string | null) => void;
     updateAnalysisYRange: (min: number, max: number, sourceKind?: string) => void;
     updateAnalysisZoom: (start: number, end: number, sourceKind?: string) => void;
@@ -64,6 +62,8 @@ export interface TimeseriesModuleDeps {
 export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
     const runtimeCache = createTimeseriesRuntimeCache();
     let datasetUiReady = false;
+    let disposed = false;
+    const lifetime = new AbortController();
     let feature!: ReturnType<typeof createTimeseriesControls>;
     let datasetUiModulesPromise: Promise<{
         hydrateColumnProfiles: typeof import('../upload/index.js').hydrateColumnProfiles;
@@ -101,11 +101,12 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         getCurrentView: deps.getCurrentView,
         fetchAndRenderAnalytics: deps.fetchAndRenderAnalytics,
         recoverFromColumnMismatch: async () => {
-            const metadata = await deps.fetchMetadata();
-            storeFetchedMetadata(metadata);
+            const session = deps.workspace.beginDatasetSession();
+            const metadata = await deps.fetchMetadata({ signal: AbortSignal.any([lifetime.signal, session.signal]) });
+            if (disposed) return false;
+            if (!deps.workspace.commitDataset(session, metadata, Number(metadata.revision) || 0)) return false;
 
             const numericColumns = getNumericColumns(metadata);
-            deps.setNumericCols(numericColumns);
 
             const validNames = new Set(numericColumns);
             const recoveredSelection = deps.workspace.getSnapshot().selection.columns.filter((col) => validNames.has(col));
@@ -148,14 +149,11 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
     });
 
     // 3. Create the bootstrap (owns dataset readiness)
-    const storeFetchedMetadata = (metadata: DatasetMetadata) => {
-        setMetadata(metadata);
-        const revision = metadata?.revision;
-        setDatasetRevision(typeof revision === 'number' ? revision : 0);
-    };
 
-    const initializeDatasetUi = async (metadata: DatasetMetadata) => {
+    const initializeDatasetUi = async (metadata: DatasetMetadata, signal: AbortSignal) => {
+        const committedMetadata = deps.workspace.getSnapshot().dataset.metadata;
         const datasetUi = await ensureDatasetUiModules();
+        if (disposed || signal.aborted || deps.workspace.getSnapshot().dataset.metadata !== committedMetadata) return;
 
         if (!datasetUiReady) {
             feature.init();
@@ -176,7 +174,8 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         if (!timeRange) return;
         const start = Number(timeRange.min);
         const end = Number(timeRange.max);
-        deps.workspace.setViewport({ xMin: start, xMax: end, yMin: null, yMax: null });
+        runtimeCache.initialView = { xMin: start, xMax: end, yMin: null, yMax: null };
+        deps.workspace.setViewport(runtimeCache.initialView);
         deps.updateAnalysisZoom(start, end, 'initial');
     };
 
@@ -184,16 +183,15 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         ensureChartModules: async () => { /* no-op: chart modules loaded before this module is created */ },
         fetchMetadata: deps.fetchMetadata,
         workspace: deps.workspace,
-        storeFetchedMetadata,
+
         markMetadataReady: deps.markMetadataReady,
         isMetadataReady: deps.isMetadataReady,
         initializeDatasetUi,
-        setNumericCols: deps.setNumericCols,
-        setDefaultSelectedColumns: (cols: string[]) => deps.workspace.setSelection(cols),
+
         sanitizeSelectedColumns: deps.sanitizeSelectedColumns,
         refreshVisibleData: async () => { await pageController.fetchAndRender(); },
         clearLoadedPageModules: deps.clearLoadedPageModules,
-        getNumericColumns: (metadata: DatasetMetadata) => getNumericColumns(metadata),
+
         getDefaultTimeseriesColumns: (metadata: DatasetMetadata) => getDefaultTimeseriesColumns(metadata),
         rebuildTimeseriesColumns: () => feature.rebuildColumns(),
         clearPersistedFilters: () => {
@@ -210,6 +208,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
     });
 
     const chartBootstrap = createTimeseriesBootstrap({
+        runtimeCache,
         ensurePrimaryChartCtor: deps.ensurePrimaryChartCtor,
         onZoom: (view, sourceKind) => pageController.onZoomRangeChange(view, sourceKind),
         onYRange: deps.updateAnalysisYRange,
@@ -251,6 +250,10 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
                 exportFilteredJson: deps.exportFilteredJson ?? (() => {}),
             });
             return () => {
+                disposed = true;
+                lifetime.abort();
+                bootstrap.dispose();
+                chartBootstrap.dispose();
                 disposeShortcuts();
                 disposeRuntime();
                 pageController.dispose();

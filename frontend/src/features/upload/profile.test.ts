@@ -11,8 +11,8 @@ import {
     renderColumnProfilesGrid,
     sortProfileRows,
 } from './profile';
-import { datasetState } from '../../store/datasetState.js';
-import { uiState } from '../../store/uiState.js';
+import { uploadProfile as datasetState } from './profileState.js';
+import { uploadUi } from './uploadUi.js';
 import type { DatasetMetadata } from '../../types/api.js';
 
 function makeMeta(overrides: Partial<DatasetMetadata> = {}): DatasetMetadata {
@@ -290,17 +290,17 @@ describe('renderColumnProfilesGrid', () => {
                 </div>
             </div>
         `;
-        uiState.previewSelectedColumns = [];
-        uiState.previewTimeColumn = null;
-        uiState.profileFilterText = '';
-        uiState.profileFilterCategory = 'all';
-        uiState.profileGridSort = { key: null, dir: 'asc' };
+        uploadUi.previewSelectedColumns = [];
+        uploadUi.previewTimeColumn = null;
+        uploadUi.profileFilterText = '';
+        uploadUi.profileFilterCategory = 'all';
+        uploadUi.profileGridSort = { key: null, dir: 'asc' };
         invalidateProfileGridViewModel();
     });
 
     it('renders UTC ISO datetime titles for min/max cells', () => {
-        uiState.previewTimeColumn = 'timestamp';
-        uiState.previewSelectedColumns = ['timestamp'];
+        uploadUi.previewTimeColumn = 'timestamp';
+        uploadUi.previewSelectedColumns = ['timestamp'];
         datasetState.columnProfiles = [{
             name: 'timestamp',
             dtype: 'datetime64[ms]',
@@ -341,7 +341,7 @@ describe('renderColumnProfilesGrid', () => {
     });
 
     it('filters the grid to datetime columns when the datetime category is active', () => {
-        uiState.profileFilterCategory = 'datetime';
+        uploadUi.profileFilterCategory = 'datetime';
         datasetState.columnProfiles = [
             {
                 name: 'timestamp',
@@ -373,8 +373,8 @@ describe('renderColumnProfilesGrid', () => {
     });
 
     it('updates preview selection through uiState when a non-time column checkbox is toggled', () => {
-        uiState.previewTimeColumn = 'timestamp';
-        uiState.previewSelectedColumns = ['timestamp'];
+        uploadUi.previewTimeColumn = 'timestamp';
+        uploadUi.previewSelectedColumns = ['timestamp'];
         datasetState.columnProfiles = [
             {
                 name: 'timestamp',
@@ -400,11 +400,11 @@ describe('renderColumnProfilesGrid', () => {
 
         const checkboxes = Array.from(document.querySelectorAll<HTMLInputElement>('.profile-cell-check input[type="checkbox"]'));
         expect(datasetState.columnProfiles).toHaveLength(2);
-        expect(uiState.previewSelectedColumns).toEqual(['timestamp']);
+        expect(uploadUi.previewSelectedColumns).toEqual(['timestamp']);
 
         checkboxes[1].click();
 
-        expect(uiState.previewTimeColumn).toBe('timestamp');
-        expect(uiState.previewSelectedColumns).toEqual(['timestamp', 'value']);
+        expect(uploadUi.previewTimeColumn).toBe('timestamp');
+        expect(uploadUi.previewSelectedColumns).toEqual(['timestamp', 'value']);
     });
 });

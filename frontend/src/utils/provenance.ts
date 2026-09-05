@@ -7,7 +7,6 @@
  */
 
 import { analyticsState } from '../store/analyticsState.js';
-import { datasetState } from '../store/datasetState.js';
 import { formatAnalysisTime, formatAnalysisNumber } from '../utils/format.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 import { onNavigationChange } from '../platform/navigationEvents.js';
@@ -63,8 +62,8 @@ function renderContent(): void {
     const intent = _workspace?.getSnapshot();
 
     // Dataset info
-    if (datasetState.metadata) {
-        const m = datasetState.metadata as any;
+    if (intent?.dataset.metadata) {
+        const m = intent?.dataset.metadata as any;
         const rows = m.total_rows?.toLocaleString() ?? '—';
         const cols = m.columns?.length ?? 0;
         const timeCol = m.time_column ?? '—';

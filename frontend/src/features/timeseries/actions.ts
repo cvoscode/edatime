@@ -8,15 +8,9 @@
  * dependency hooks rather than reaching through a composite store facade.
  */
 
-import {
-    type ProfileFilterCategory,
-    setFilterText,
-    setProfileFilterCategory,
-    setProfileFilterText,
-    uiState,
-} from '../../store/uiState.js';
-import { chartState, setViewport } from '../../store/chartState.js';
-import { datasetState } from '../../store/datasetState.js';
+import { setFilterText, timeseriesInteraction } from './interaction.js';
+import { type ProfileFilterCategory, uploadUi, setProfileFilterCategory, setProfileFilterText } from '../upload/index.js';
+import { primaryChart } from '../../charts/primaryChart.js';
 import { clearScatterViewSnapshots } from '../../store/scatterState.js';
 import { debounce } from '../../utils/function.js';
 import { onFeatureEvent } from '../../platform/featureEvents.js';
@@ -94,23 +88,26 @@ export function initTimeseriesExportButtons(deps: TimeseriesExportDeps): void {
 
 export function initDatasetSearchInputs(
     deps: Pick<TimeseriesActionDeps, 'rebuildColumnToggles' | 'renderColumnProfilesGrid'>,
-): void {
+): () => void {
+    const lifetime = new AbortController();
     const columnFilterInput = document.getElementById('column-filter-input') as HTMLInputElement | null;
     if (columnFilterInput) {
         const onFilterInput = debounce(() => {
+            if (lifetime.signal.aborted) return;
             setFilterText((columnFilterInput.value || '').trim().toLowerCase());
             deps.rebuildColumnToggles();
         }, 120);
-        columnFilterInput.addEventListener('input', onFilterInput);
+        columnFilterInput.addEventListener('input', onFilterInput, { signal: lifetime.signal });
     }
 
     const profileFilterInput = document.getElementById('profile-filter-input') as HTMLInputElement | null;
     if (profileFilterInput) {
         const onProfileFilterInput = debounce(() => {
+            if (lifetime.signal.aborted) return;
             setProfileFilterText((profileFilterInput.value || '').trim().toLowerCase());
             deps.renderColumnProfilesGrid(true);
         }, 120);
-        profileFilterInput.addEventListener('input', onProfileFilterInput);
+        profileFilterInput.addEventListener('input', onProfileFilterInput, { signal: lifetime.signal });
     }
 
     // Profile filter category pills: All / Numeric / Datetime.
@@ -125,26 +122,26 @@ export function initDatasetSearchInputs(
             }
         };
         // Initial state mirrors the store default so the UI never lies.
-        setActiveCategoryButton(uiState.profileFilterCategory);
+        setActiveCategoryButton(uploadUi.profileFilterCategory);
         for (const button of categoryButtons) {
             button.addEventListener('click', () => {
                 const category = (button.dataset.category || 'all') as ProfileFilterCategory;
                 setProfileFilterCategory(category);
                 setActiveCategoryButton(category);
                 deps.renderColumnProfilesGrid(true);
-            });
+            }, { signal: lifetime.signal });
         }
     }
+    return () => lifetime.abort();
 }
 
 export function initTimeseriesActions(deps: TimeseriesActionDeps): void {
     const resetChartRangeToDataset = async (source = 'reset') => {
-        const minMs = Number((datasetState.metadata as any)?.time_range?.min);
-        const maxMs = Number((datasetState.metadata as any)?.time_range?.max);
+        const minMs = Number((deps.workspace.getSnapshot().dataset.metadata as any)?.time_range?.min);
+        const maxMs = Number((deps.workspace.getSnapshot().dataset.metadata as any)?.time_range?.max);
         if (!Number.isFinite(minMs) || !Number.isFinite(maxMs) || minMs >= maxMs) return;
         deps.workspace.setViewport({ xMin: minMs, xMax: maxMs, yMin: null, yMax: null });
-        setViewport(minMs, maxMs);
-        chartState.chart?.setXRange?.(minMs, maxMs);
+        primaryChart.current?.setXRange?.(minMs, maxMs);
         deps.updateAnalysisZoom(minMs, maxMs, source);
         await deps.fetchAndRender();
     };

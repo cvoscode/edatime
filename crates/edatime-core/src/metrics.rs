@@ -248,6 +248,15 @@ pub struct BodyMetricsSnapshot {
     pub latency: LatencyHistogramSnapshot,
 }
 
+#[derive(Debug, Default, Serialize)]
+pub struct UploadAdmissionSnapshot {
+    pub admitted_total: u64,
+    pub completed_total: u64,
+    pub rejected_total: u64,
+    pub queue_timeouts_total: u64,
+    pub active: u64,
+}
+
 #[derive(Debug, Serialize)]
 pub struct MetricsSnapshot {
     pub uptime_seconds: u64,
@@ -263,6 +272,7 @@ pub struct MetricsSnapshot {
     pub cpu_admission: CpuAdmissionSnapshot,
     pub routes: BTreeMap<String, RouteMetricsSnapshot>,
     pub body_streaming: BodyMetricsSnapshot,
+    pub upload_admission: UploadAdmissionSnapshot,
     pub errors_by_code: BTreeMap<String, u64>,
     pub request_counts: HashMap<String, u64>,
     pub average_request_ms: f64,
@@ -331,6 +341,11 @@ pub struct AppMetrics {
     route_metrics: Mutex<BTreeMap<String, RouteMetricsState>>,
     body_metrics: Mutex<BodyMetricsState>,
     errors_by_code: Mutex<BTreeMap<String, u64>>,
+    upload_admitted: AtomicU64,
+    upload_completed: AtomicU64,
+    upload_rejected: AtomicU64,
+    upload_queue_timeouts: AtomicU64,
+    upload_active: AtomicU64,
 }
 
 const LATENCY_BOUNDS_MS: [u64; 12] = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1_000, 5_000, 30_000];
@@ -492,6 +507,11 @@ impl AppMetrics {
             route_metrics: Mutex::new(BTreeMap::new()),
             body_metrics: Mutex::new(BodyMetricsState::default()),
             errors_by_code: Mutex::new(BTreeMap::new()),
+            upload_admitted: AtomicU64::new(0),
+            upload_completed: AtomicU64::new(0),
+            upload_rejected: AtomicU64::new(0),
+            upload_queue_timeouts: AtomicU64::new(0),
+            upload_active: AtomicU64::new(0),
         }
     }
 
@@ -502,6 +522,23 @@ impl AppMetrics {
         let key = format!("{} {} {}", method, path, status);
         let mut counts = lock_recover(&self.request_counts, "request_counts");
         *counts.entry(key).or_insert(0) += 1;
+    }
+
+    pub fn record_upload_admitted(&self) {
+        self.upload_admitted.fetch_add(1, Ordering::Relaxed);
+        self.upload_active.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn record_upload_completed(&self) {
+        self.upload_completed.fetch_add(1, Ordering::Relaxed);
+        self.upload_active.fetch_sub(1, Ordering::Relaxed);
+    }
+
+    pub fn record_upload_rejected(&self, timed_out: bool) {
+        self.upload_rejected.fetch_add(1, Ordering::Relaxed);
+        if timed_out {
+            self.upload_queue_timeouts.fetch_add(1, Ordering::Relaxed);
+        }
     }
 
     pub fn record_route_response(
@@ -903,6 +940,13 @@ impl AppMetrics {
             cpu_admission,
             routes,
             body_streaming,
+            upload_admission: UploadAdmissionSnapshot {
+                admitted_total: self.upload_admitted.load(Ordering::Relaxed),
+                completed_total: self.upload_completed.load(Ordering::Relaxed),
+                rejected_total: self.upload_rejected.load(Ordering::Relaxed),
+                queue_timeouts_total: self.upload_queue_timeouts.load(Ordering::Relaxed),
+                active: self.upload_active.load(Ordering::Relaxed),
+            },
             errors_by_code,
             request_counts,
             average_request_ms: avg_ms,
@@ -1094,6 +1138,21 @@ mod metrics_stage_tests {
             .expect("analytics stage entry");
         assert_eq!(analytics.cancelled, 1);
         assert_eq!(analytics.running, 0);
+    }
+
+    #[test]
+    fn upload_admission_metrics_balance_active_sessions() {
+        let m = AppMetrics::new();
+        m.record_upload_admitted();
+        m.record_upload_rejected(true);
+        m.record_upload_completed();
+
+        let snap = m.snapshot(0, 0).upload_admission;
+        assert_eq!(snap.admitted_total, 1);
+        assert_eq!(snap.completed_total, 1);
+        assert_eq!(snap.rejected_total, 1);
+        assert_eq!(snap.queue_timeouts_total, 1);
+        assert_eq!(snap.active, 0);
     }
 
     #[test]

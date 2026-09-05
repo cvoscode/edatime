@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { initFilterModalController as createFilterModalController } from './filterModalController.js';
 import {
-    setChartInstance,
-} from '../../store/chartState.js';
-import { datasetState, setMetadata } from '../../store/datasetState.js';
+    setPrimaryChartInstance,
+} from '../../charts/primaryChart.js';
+
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 import { createCleaningPlanStore } from '../../cleaning/store.js';
 
@@ -57,7 +57,8 @@ describe('initFilterModalController', () => {
         vi.restoreAllMocks();
         buildModalDOM();
 
-        setMetadata({
+        workspace = createWorkspaceStore();
+        workspace.commitDataset(workspace.beginDatasetSession(), {
             total_rows: 100,
             columns: [
                 { name: 'ts', dtype: 'Datetime' },
@@ -71,9 +72,7 @@ describe('initFilterModalController', () => {
                 { name: 'HUFL', min: 0.0, max: 1.0 },
                 { name: 'HULL', min: 0.0, max: 1.0 },
             ],
-        } as any);
-        datasetState.numericCols = ['HUFL', 'HULL'];
-        workspace = createWorkspaceStore();
+        } as any, 1);
         openFilterForColumn = () => {};
         workspace.setSelection(['HUFL', 'HULL']);
         setWorkspaceRanges({});
@@ -88,7 +87,7 @@ describe('initFilterModalController', () => {
         } as any;
 
         // Mock chart
-        setChartInstance({
+        setPrimaryChartInstance({
             fitYToData: vi.fn(),
             getYRange: vi.fn().mockReturnValue({ min: 0, max: 1 }),
             requestOverlayRender: vi.fn(),

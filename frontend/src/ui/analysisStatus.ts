@@ -4,7 +4,6 @@
  */
 
 import { formatAnalysisTime, formatAnalysisNumber } from '../utils/format.js';
-import { chartState } from '../store/chartState.js';
 
 function setText(id: string, text: string): void {
     const el = document.getElementById(id);

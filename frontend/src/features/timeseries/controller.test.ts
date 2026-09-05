@@ -2,18 +2,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createTimeseriesPageController as createWorkspaceController } from './controller.js';
 import {
-    chartState,
-    setChartInstance,
-    setInitialView,
-    setViewport as setChartViewport,
-    setZoomHistory,
-} from '../../store/chartState.js';
-import { setMetadata } from '../../store/datasetState.js';
+    primaryChart,
+    setPrimaryChartInstance,
+} from '../../charts/primaryChart.js';
+
 import { createWorkspaceStore, type WorkspaceStore } from '../../workspace/workspaceStore.js';
 import { clearFeatureEventHandlers, onFeatureEvent } from '../../platform/featureEvents.js';
 import { createTimeseriesRuntimeCache, type TimeseriesRuntimeCache } from './runtimeCache.js';
 
 let defaultWorkspace: WorkspaceStore;
+function setMetadata(metadata: any) {
+    defaultWorkspace.commitDataset(defaultWorkspace.beginDatasetSession(), metadata, metadata?.revision ?? 0);
+}
 let defaultRuntimeCache: TimeseriesRuntimeCache;
 
 function setWorkspaceSelection(columns: string[]): void {
@@ -25,7 +25,6 @@ function setWorkspaceColorColumn(colorColumn: string | null): void {
 }
 
 function setViewport(start: number | null, end: number | null): void {
-    setChartViewport(start, end);
     defaultWorkspace.setViewport({ xMin: start, xMax: end, yMin: null, yMax: null });
 }
 
@@ -43,10 +42,9 @@ describe('createTimeseriesPageController', () => {
         defaultRuntimeCache = createTimeseriesRuntimeCache();
         defaultRuntimeCache.refetchOnZoom = false;
         document.body.innerHTML = '';
-        setChartInstance(null);
+        setPrimaryChartInstance(null);
         setViewport(0, 100);
-        setZoomHistory([]);
-        setInitialView(null);
+        defaultRuntimeCache.initialView = null;
         defaultWorkspace.setFilters({ columnRanges: {}, adaptiveLines: [] });
         setWorkspaceSelection([]);
         setWorkspaceColorColumn(null);
@@ -92,7 +90,7 @@ describe('createTimeseriesPageController', () => {
             setYRange: vi.fn(),
             getYRange: vi.fn(() => ({ min: 10, max: 90 })),
         };
-        setChartInstance(chart as any);
+        setPrimaryChartInstance(chart as any);
 
         const deps = {
             fetchData: vi.fn(),
@@ -111,9 +109,9 @@ describe('createTimeseriesPageController', () => {
             yMax: 70,
         } as any, 'user' as any);
 
-        expect(chartState.zoomHistory).toEqual([{ xMin: 0, xMax: 100, yMin: 10, yMax: 90 }]);
-        expect(chartState.currentStart).toBe(20);
-        expect(chartState.currentEnd).toBe(80);
+        expect(controller.getZoomHistory()).toEqual([{ xMin: 0, xMax: 100, yMin: 10, yMax: 90 }]);
+        expect(defaultWorkspace.getSnapshot().viewport?.xMin).toBe(20);
+        expect(defaultWorkspace.getSnapshot().viewport?.xMax).toBe(80);
         expect(defaultRuntimeCache.pendingYMode).toBe('restore');
         expect(defaultRuntimeCache.pendingRestoreY).toEqual({ min: 30, max: 70 });
         expect(chart.setXRange).toHaveBeenCalledWith(20, 80);
@@ -151,6 +149,7 @@ describe('createTimeseriesPageController', () => {
             fetchAndRenderAnalytics: vi.fn(),
             workspace: {
                 getSnapshot: () => ({
+                    dataset: { metadata: { columns: [{ name: 'workspace' }], numeric_columns: ['workspace'] }, revision: 0 },
                     selection: { columns: ['workspace'], colorColumn: 'group' },
                     viewport: { xMin: 10, xMax: 20, yMin: null, yMax: null },
                 }),
@@ -204,7 +203,7 @@ describe('createTimeseriesPageController', () => {
             resetYRange: vi.fn(),
             getYRange: vi.fn(),
         };
-        setChartInstance(chart as any);
+        setPrimaryChartInstance(chart as any);
         defaultRuntimeCache.data = {
             ts: new Float64Array([10, 20]),
             values: {
@@ -224,6 +223,7 @@ describe('createTimeseriesPageController', () => {
             fetchAndRenderAnalytics: vi.fn(),
             workspace: {
                 getSnapshot: () => ({
+                    dataset: { metadata: { columns: [{ name: 'workspace' }], numeric_columns: ['workspace'] }, revision: 0 },
                     selection: { columns: ['workspace'], colorColumn: 'workspace-color' },
                     filters: {
                         columnRanges: { workspace: { from: 2, to: 4 } },
@@ -268,7 +268,7 @@ describe('createTimeseriesPageController', () => {
             updateDataMulti: vi.fn(),
             requestOverlayRender: vi.fn(),
         };
-        setChartInstance(chart as any);
+        setPrimaryChartInstance(chart as any);
 
         const getCurrentView = vi.fn(() => ({ xMin: 0, xMax: 4_000, yMin: 0, yMax: 100 }));
         const controller = createTimeseriesPageController({
@@ -298,7 +298,7 @@ describe('createTimeseriesPageController', () => {
             yMax: 35,
         } as any, 'user' as any);
 
-        expect(chartState.zoomHistory).toEqual([{ xMin: 1_000, xMax: 3_000, yMin: 20, yMax: 40 }]);
+        expect(controller.getZoomHistory()).toEqual([{ xMin: 1_000, xMax: 3_000, yMin: 20, yMax: 40 }]);
         expect(getCurrentView).not.toHaveBeenCalled();
     });
 
@@ -311,7 +311,7 @@ describe('createTimeseriesPageController', () => {
                 setYRange: vi.fn(),
                 getYRange: vi.fn(() => ({ min: 10, max: 90 })),
             };
-            setChartInstance(chart as any);
+            setPrimaryChartInstance(chart as any);
 
             const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
             const controller = createTimeseriesPageController({
@@ -359,7 +359,7 @@ describe('createTimeseriesPageController', () => {
             updateDataMulti: vi.fn(),
             requestOverlayRender: vi.fn(),
         };
-        setChartInstance(chart as any);
+        setPrimaryChartInstance(chart as any);
 
         const fetchData = vi
             .fn()
@@ -439,7 +439,7 @@ describe('createTimeseriesPageController', () => {
             updateDataMulti: vi.fn(),
             requestOverlayRender: vi.fn(),
         };
-        setChartInstance(chart as any);
+        setPrimaryChartInstance(chart as any);
 
         const fetchData = vi.fn().mockResolvedValue({
             ts: new Float64Array([100, 200, 300]),
@@ -503,7 +503,7 @@ describe('createTimeseriesPageController', () => {
             updateDataMulti: vi.fn(),
             requestOverlayRender: vi.fn(),
         };
-        setChartInstance(chart as any);
+        setPrimaryChartInstance(chart as any);
 
         const fetchData = vi.fn().mockResolvedValue({
             ts: new Float64Array([0, 1]),
@@ -555,7 +555,7 @@ describe('createTimeseriesPageController', () => {
             updateDataMulti: vi.fn(),
             requestOverlayRender: vi.fn(),
         };
-        setChartInstance(chart as any);
+        setPrimaryChartInstance(chart as any);
 
         const fetchData = vi.fn().mockResolvedValue({
             ts: new Float64Array([0, 1_000, 2_000, 3_000, 4_000]),
@@ -614,7 +614,7 @@ describe('createTimeseriesPageController', () => {
             updateDataMulti: vi.fn(),
             requestOverlayRender: vi.fn(),
         };
-        setChartInstance(chart as any);
+        setPrimaryChartInstance(chart as any);
 
         const fetchData = vi.fn().mockResolvedValue({
             ts: new Float64Array([0, 1_000, 2_000, 3_000, 4_000]),
@@ -671,7 +671,7 @@ describe('createTimeseriesPageController', () => {
             updateDataMulti: vi.fn(),
             requestOverlayRender: vi.fn(),
         };
-        setChartInstance(chart as any);
+        setPrimaryChartInstance(chart as any);
 
         const fetchData = vi.fn()
             .mockResolvedValueOnce({
@@ -752,7 +752,7 @@ describe('createTimeseriesPageController', () => {
                 updateDataMulti: vi.fn(),
                 requestOverlayRender: vi.fn(),
             };
-            setChartInstance(chart as any);
+            setPrimaryChartInstance(chart as any);
 
             const fetchData = vi.fn().mockResolvedValue({
                 ts: new Float64Array([0, 1_000, 2_000, 3_000, 4_000]),
@@ -786,7 +786,7 @@ describe('createTimeseriesPageController', () => {
                 yMin: 25,
                 yMax: 35,
             } as any, 'user' as any);
-            expect(chartState.zoomHistory).toEqual([
+            expect(controller.getZoomHistory()).toEqual([
                 { xMin: 0, xMax: 4_000, yMin: 10, yMax: 50 },
                 { xMin: 1_000, xMax: 3_000, yMin: 20, yMax: 40 },
             ]);
@@ -824,7 +824,7 @@ describe('createTimeseriesPageController', () => {
             updateDataMulti: vi.fn(),
             requestOverlayRender: vi.fn(),
         };
-        setChartInstance(chart as any);
+        setPrimaryChartInstance(chart as any);
 
         const fetchData = vi.fn()
             .mockResolvedValueOnce({
@@ -864,8 +864,8 @@ describe('createTimeseriesPageController', () => {
         chart.updateDataMulti.mockClear();
         controller.zoomOut();
 
-        expect(chartState.currentStart).toBe(0);
-        expect(chartState.currentEnd).toBe(4_000);
+        expect(defaultWorkspace.getSnapshot().viewport?.xMin).toBe(0);
+        expect(defaultWorkspace.getSnapshot().viewport?.xMax).toBe(4_000);
         expect(currentY).toEqual({ min: 10, max: 50 });
         expect(chart.updateDataMulti).toHaveBeenCalledOnce();
         const rendered = chart.updateDataMulti.mock.calls[0]?.[0];
@@ -914,7 +914,7 @@ describe('createTimeseriesPageController', () => {
                 }),
                 requestOverlayRender: vi.fn(),
             };
-            setChartInstance(chart as any);
+            setPrimaryChartInstance(chart as any);
 
             const updateAnalysisYRange = vi.fn((min: number, max: number, _sourceKind?: string) => {
                 currentY = { min, max };
@@ -953,8 +953,8 @@ describe('createTimeseriesPageController', () => {
             controller.zoomOut();
             await vi.runOnlyPendingTimersAsync();
 
-            expect(chartState.currentStart).toBe(1_500);
-            expect(chartState.currentEnd).toBe(2_500);
+            expect(defaultWorkspace.getSnapshot().viewport?.xMin).toBe(1_500);
+            expect(defaultWorkspace.getSnapshot().viewport?.xMax).toBe(2_500);
             expect(currentY).toEqual({ min: 20, max: 80 });
             expect(chart.resetYRange).not.toHaveBeenCalled();
             expect(fetchData).toHaveBeenCalledTimes(4);
@@ -966,7 +966,7 @@ describe('createTimeseriesPageController', () => {
     it('resets to the initial all-data view on the fifth consecutive double-click zoom-out', () => {
         vi.useFakeTimers();
         try {
-            setInitialView({ xMin: 0, xMax: 10_000, yMin: 0, yMax: 100 });
+            defaultRuntimeCache.initialView = { xMin: 0, xMax: 10_000, yMin: 0, yMax: 100 };
             setViewport(4_000, 5_000);
 
             let currentY = { min: 40, max: 50 };
@@ -977,7 +977,7 @@ describe('createTimeseriesPageController', () => {
                 }),
                 getYRange: vi.fn(() => currentY),
             };
-            setChartInstance(chart as any);
+            setPrimaryChartInstance(chart as any);
 
             const controller = createTimeseriesPageController({
                 fetchData: vi.fn(),
@@ -997,10 +997,10 @@ describe('createTimeseriesPageController', () => {
             controller.zoomOut();
             controller.zoomOut();
 
-            expect(chartState.currentStart).toBe(0);
-            expect(chartState.currentEnd).toBe(10_000);
+            expect(defaultWorkspace.getSnapshot().viewport?.xMin).toBe(0);
+            expect(defaultWorkspace.getSnapshot().viewport?.xMax).toBe(10_000);
             expect(currentY).toEqual({ min: 0, max: 100 });
-            expect(chartState.zoomHistory).toEqual([]);
+            expect(controller.getZoomHistory()).toEqual([]);
             expect(chart.setXRange).toHaveBeenLastCalledWith(0, 10_000);
         } finally {
             vi.useRealTimers();

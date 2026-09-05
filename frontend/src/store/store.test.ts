@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { chartState, setChartInstance } from './chartState.js';
-import { datasetState } from './datasetState.js';
+import { primaryChart, setPrimaryChartInstance as setChartInstance } from '../charts/primaryChart.js';
 import { clearSubscribers, subscribe } from './events.js';
 import { scatterState } from './scatterState.js';
-import { setPreviewSelectedColumns } from './uiState.js';
+import { setPreviewSelectedColumns } from '../features/upload/uploadUi.js';
 import { createWorkspaceStore } from '../workspace/workspaceStore.js';
 
 describe('store contract', () => {
@@ -13,8 +12,6 @@ describe('store contract', () => {
         setChartInstance(null);
         scatterState.activeView = 'plot';
         scatterState.zoomHistory = [];
-        datasetState.metadata = null;
-        datasetState.numericCols = [];
     });
 
     it('keeps workspace filter snapshots immutable', () => {
@@ -39,7 +36,7 @@ describe('store contract', () => {
 
         expect(previous.deepDispose).toHaveBeenCalledTimes(1);
         expect(previous.destroy).not.toHaveBeenCalled();
-        expect(chartState.chart).toBe(next);
+        expect(primaryChart.current).toBe(next);
     });
 
     it('does not dispose a chart when setting the same instance again', () => {

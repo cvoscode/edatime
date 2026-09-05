@@ -6,9 +6,8 @@
  */
 import {
     setAdaptiveFilterColumn,
-    uiState,
-} from '../../store/uiState.js';
-import { datasetState } from '../../store/datasetState.js';
+    timeseriesInteraction,
+} from './interaction.js';
 import { getTimeseriesSelection, setTimeseriesSelection, type SelectionWorkspace } from './selectionIntent.js';
 
 /**
@@ -18,12 +17,12 @@ import { getTimeseriesSelection, setTimeseriesSelection, type SelectionWorkspace
 export function sanitizeSelectedColumns(workspace: SelectionWorkspace): void {
     const blockedNames = new Set(['ts', 'timestamp', 'time']);
     const datetimeCols = new Set(
-        (datasetState.metadata?.columns ?? [])
+        (workspace.getSnapshot().dataset.metadata?.columns ?? [])
             .filter((col) => /date|time/i.test(String(col?.dtype ?? '')))
             .map((col) => String(col?.name ?? '').toLowerCase()),
     );
     const validColNames = new Set(
-        (datasetState.metadata?.columns ?? []).map((col) => String(col?.name ?? '').trim()),
+        (workspace.getSnapshot().dataset.metadata?.columns ?? []).map((col) => String(col?.name ?? '').trim()),
     );
 
     setTimeseriesSelection(
@@ -44,8 +43,8 @@ export function sanitizeSelectedColumns(workspace: SelectionWorkspace): void {
  * Called after sanitizeSelectedColumns inside buildColumnToggles.
  */
 export function ensureAdaptiveTargetStillValid(workspace: SelectionWorkspace): void {
-    if (!uiState.adaptiveFilterColumn) return;
+    if (!timeseriesInteraction.adaptiveFilterColumn) return;
     const selection = getTimeseriesSelection(workspace);
-    if (selection.includes(uiState.adaptiveFilterColumn)) return;
+    if (selection.includes(timeseriesInteraction.adaptiveFilterColumn)) return;
     setAdaptiveFilterColumn(selection[0] ?? null);
 }

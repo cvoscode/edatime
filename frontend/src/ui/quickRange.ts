@@ -8,8 +8,6 @@
  */
 
 import { applyViewport } from './viewport.js';
-import { datasetState } from '../store/datasetState.js';
-import { subscribe } from '../store/events.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 const PRESETS: Array<{ id: string; label: string; durationMs: number | null }> = [
@@ -19,8 +17,10 @@ const PRESETS: Array<{ id: string; label: string; durationMs: number | null }> =
     { id: 'quick-range-all', label: 'All', durationMs: null },
 ];
 
-function getDatasetRange(): { min: number; max: number } | null {
-    const range = datasetState.metadata?.time_range;
+type RangeWorkspace = Pick<WorkspaceStore, 'getSnapshot' | 'setViewport' | 'subscribe'>;
+
+function getDatasetRange(workspace: RangeWorkspace): { min: number; max: number } | null {
+    const range = workspace.getSnapshot().dataset.metadata?.time_range;
     if (!range) return null;
     const min = Number(range.min);
     const max = Number(range.max);
@@ -28,8 +28,8 @@ function getDatasetRange(): { min: number; max: number } | null {
     return { min, max };
 }
 
-function updateButtonStates(): void {
-    const range = getDatasetRange();
+function updateButtonStates(workspace: RangeWorkspace): void {
+    const range = getDatasetRange(workspace);
     for (const preset of PRESETS) {
         const btn = document.getElementById(preset.id) as HTMLButtonElement | null;
         if (!btn) continue;
@@ -46,9 +46,9 @@ function updateButtonStates(): void {
 function applyPreset(
     durationMs: number | null,
     fetchAndRender: () => void,
-    workspace: Pick<WorkspaceStore, 'setViewport'>,
+    workspace: RangeWorkspace,
 ): void {
-    const range = getDatasetRange();
+    const range = getDatasetRange(workspace);
     if (!range) return;
     const endMs = range.max;
     let startMs = range.min;
@@ -70,8 +70,9 @@ function applyPreset(
  */
 export function initQuickRangeControls(
     fetchAndRender: () => void,
-    workspace: Pick<WorkspaceStore, 'setViewport'>,
-): void {
+    workspace: RangeWorkspace,
+): () => void {
+    const lifetime = new AbortController();
     for (const preset of PRESETS) {
         const btn = document.getElementById(preset.id) as HTMLButtonElement | null;
         if (!btn) continue;
@@ -79,18 +80,19 @@ export function initQuickRangeControls(
         // Easier than tracking + removing individual handlers.
         const clone = btn.cloneNode(true) as HTMLButtonElement;
         btn.parentNode?.replaceChild(clone, btn);
-        clone.addEventListener('click', () => applyPreset(preset.durationMs, fetchAndRender, workspace));
+        clone.addEventListener('click', () => applyPreset(preset.durationMs, fetchAndRender, workspace), { signal: lifetime.signal });
     }
-    subscribe('dataset:metadata', () => updateButtonStates());
-    updateButtonStates();
+    const unsubscribe = workspace.subscribe(() => updateButtonStates(workspace));
+    updateButtonStates(workspace);
+    return () => { lifetime.abort(); unsubscribe(); };
 }
 
 /**
  * Refresh the enabled state of the quick-range buttons. Call this after
  * any metadata refresh so the buttons reflect the new dataset range.
  */
-export function refreshQuickRangeControls(): void {
-    updateButtonStates();
+export function refreshQuickRangeControls(workspace: RangeWorkspace): void {
+    updateButtonStates(workspace);
 }
 
 /**

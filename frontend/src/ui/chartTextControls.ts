@@ -1,39 +1,42 @@
-/**
- * chartTextControls — chart title and axis label inputs.
- * Extracted from toolbar.ts to reduce its size and improve maintainability.
- */
+/** Chart title and axis labels are shared, persisted workspace appearance. */
+import { primaryChart } from '../charts/primaryChart.js';
+import type { WorkspaceStore } from '../contracts/workspace.js';
 
-import { chartState, setChartText } from '../store/chartState.js';
-
-export function initChartTextControls(): void {
-    const titleInput = document.getElementById('chart-title-input') as HTMLInputElement | null;
-    const xLabelInput = document.getElementById('x-axis-label-input') as HTMLInputElement | null;
-    const yLabelInput = document.getElementById('y-axis-label-input') as HTMLInputElement | null;
-
-    const applyChartText = () => {
-        setChartText({
-            title: titleInput?.value ?? chartState.chartText.title,
-            xLabel: xLabelInput?.value ?? chartState.chartText.xLabel,
-            yLabel: yLabelInput?.value ?? chartState.chartText.yLabel,
-        });
-        chartState.chart?.setChartText?.(chartState.chartText.title, chartState.chartText.xLabel, chartState.chartText.yLabel);
+export function initChartTextControls(
+    workspace: Pick<WorkspaceStore, 'getSnapshot'> & Partial<Pick<WorkspaceStore, 'subscribe'>> & Partial<Pick<WorkspaceStore, 'setAppearance'>>,
+): () => void {
+    const lifetime = new AbortController();
+    const inputs = {
+        title: document.getElementById('chart-title-input') as HTMLInputElement | null,
+        xLabel: document.getElementById('x-axis-label-input') as HTMLInputElement | null,
+        yLabel: document.getElementById('y-axis-label-input') as HTMLInputElement | null,
     };
-
-    if (titleInput && !titleInput.dataset.bound) {
-        titleInput.value = chartState.chartText.title || '';
-        titleInput.addEventListener('input', applyChartText);
-        titleInput.dataset.bound = '1';
+    const initial = workspace.getSnapshot().appearance.chartText;
+    const apply = () => {
+        const previous = workspace.getSnapshot().appearance.chartText;
+        const chartText = {
+            title: inputs.title?.value ?? previous.title,
+            xLabel: inputs.xLabel?.value ?? previous.xLabel,
+            yLabel: inputs.yLabel?.value ?? previous.yLabel,
+        };
+        workspace.setAppearance?.({ chartText });
+        primaryChart.current?.setChartText?.(chartText.title, chartText.xLabel, chartText.yLabel);
+    };
+    for (const key of ['title', 'xLabel', 'yLabel'] as const) {
+        const input = inputs[key];
+        if (!input) continue;
+        input.value = initial[key];
+        input.addEventListener('input', apply, { signal: lifetime.signal });
     }
-    if (xLabelInput && !xLabelInput.dataset.bound) {
-        xLabelInput.value = chartState.chartText.xLabel || '';
-        xLabelInput.addEventListener('input', applyChartText);
-        xLabelInput.dataset.bound = '1';
-    }
-    if (yLabelInput && !yLabelInput.dataset.bound) {
-        yLabelInput.value = chartState.chartText.yLabel || '';
-        yLabelInput.addEventListener('input', applyChartText);
-        yLabelInput.dataset.bound = '1';
-    }
-
-    applyChartText();
+    const sync = () => {
+        const text = workspace.getSnapshot().appearance.chartText;
+        for (const key of ['title', 'xLabel', 'yLabel'] as const) {
+            if (inputs[key] && inputs[key]!.value !== text[key]) inputs[key]!.value = text[key];
+        }
+        primaryChart.current?.setChartText?.(text.title, text.xLabel, text.yLabel);
+    };
+    const unsubscribe = workspace.subscribe?.(sync);
+    const unsubscribeChart = primaryChart.subscribe(sync);
+    sync();
+    return () => { lifetime.abort(); unsubscribe?.(); unsubscribeChart(); };
 }

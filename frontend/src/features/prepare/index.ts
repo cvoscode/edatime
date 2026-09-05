@@ -3,7 +3,8 @@ import { hasAscendingTimeSortBefore, normalizeFixedDuration, parseResampleAggreg
 import { cleaningPlanStore } from '../../cleaning/store.js';
 import { cancelSessionJob } from '../../cleaning/api.js';
 import type { CleaningPlan } from '../../cleaning/types.js';
-import { datasetState } from '../../store/datasetState.js';
+import type { ApiRequestOptions } from '../../services/api/http.js';
+import type { WorkspaceStore } from '../../contracts/workspace.js';
 import {
     fetchDatasetProfile,
     fetchSampledDatasetProfile,
@@ -43,12 +44,13 @@ export const PREPARE_HELP: PageHelpContent = {
 };
 
 export interface PreparePageDeps {
+    workspace?: Pick<WorkspaceStore, 'getSnapshot' | 'subscribe'>;
     onPlanChanged?: () => void;
-    startProfile?: () => Promise<DatasetProfileResponse>;
-    getProfile?: () => Promise<DatasetProfileResponse>;
-    startSampleProfile?: () => Promise<DatasetProfileResponse>;
-    getSampleProfile?: () => Promise<DatasetProfileResponse>;
-    cancelProfile?: (jobId: string) => Promise<unknown>;
+    startProfile?: (options?: ApiRequestOptions) => Promise<DatasetProfileResponse>;
+    getProfile?: (options?: ApiRequestOptions) => Promise<DatasetProfileResponse>;
+    startSampleProfile?: (options?: ApiRequestOptions) => Promise<DatasetProfileResponse>;
+    getSampleProfile?: (options?: ApiRequestOptions) => Promise<DatasetProfileResponse>;
+    cancelProfile?: (jobId: string, options?: ApiRequestOptions) => Promise<unknown>;
 }
 
 function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string): HTMLElementTagNameMap[K] {
@@ -142,7 +144,7 @@ function renderQualityFindings(
         : profileStatus === 'queued' || profileStatus === 'running' || profileStatus === 'cancelling'
             ? 'Immediate source findings are shown while the ' + (profileKind === 'exact' ? 'exact' : 'sampled') + ' background quality report runs.'
             : 'Immediate source-profile findings can be turned into reversible stages. Build a bounded sample or exact quality report for a cached, versioned follow-up.';
-    const sourceMetadata = profileMetadata ?? datasetState.metadata;
+    const sourceMetadata = profileMetadata;
     const timeQuality = sourceMetadata?.time_quality;
     const findings = (sourceMetadata?.column_profiles ?? [])
         .flatMap((profile) => {
@@ -602,6 +604,7 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
     const root = document.getElementById('prepare-workspace');
     if (!root) return () => {};
     let disposed = false;
+    let request = new AbortController();
     let profileMetadata: DatasetMetadata | null = null;
     let profileStatus: DatasetProfileResponse['status'] = 'not_started';
     let profileKind: 'exact' | 'sampled' = 'exact';
@@ -609,12 +612,13 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
     let pollTimer: ReturnType<typeof setTimeout> | null = null;
     let disposeHelp = () => {};
     const render = () => {
+        if (disposed) return;
         disposeHelp();
         renderPrepareWorkspace(
             root,
             cleaningPlanStore.getSnapshot(),
             deps,
-            profileMetadata,
+            profileMetadata ?? deps.workspace?.getSnapshot().dataset.metadata ?? null,
             profileStatus,
             profileKind,
             requestExactProfile,
@@ -623,7 +627,8 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
         );
         disposeHelp = initPageHelp('prepare', PREPARE_HELP);
     };
-    const acceptProfile = (response: DatasetProfileResponse, kind: 'exact' | 'sampled') => {
+    const acceptProfile = (response: DatasetProfileResponse, kind: 'exact' | 'sampled', owner: AbortController) => {
+        if (disposed || owner.signal.aborted || owner !== request) return false;
         const plan = cleaningPlanStore.getSnapshot();
         if (!plan || response.sourceVersion?.id !== plan.sourceVersionId) return false;
         if (kind === 'exact' && response.algorithmVersion !== 'exact-v1') return false;
@@ -635,29 +640,36 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
         render();
         return response.status === 'queued' || response.status === 'running' || response.status === 'cancelling';
     };
-    const pollProfile = (kind: 'exact' | 'sampled') => {
+    const pollProfile = (kind: 'exact' | 'sampled', owner = request) => {
+        if (pollTimer != null) clearTimeout(pollTimer);
         pollTimer = setTimeout(async () => {
-            if (disposed) return;
+            if (disposed || owner.signal.aborted || owner !== request) return;
             try {
                 const get = kind === 'exact'
                     ? (deps.getProfile ?? fetchDatasetProfile)
                     : (deps.getSampleProfile ?? fetchSampledDatasetProfile);
-                if (acceptProfile(await get(), kind)) pollProfile(kind);
+                if (acceptProfile(await get({ signal: owner.signal }), kind, owner)) pollProfile(kind, owner);
             } catch {
+                if (disposed || owner.signal.aborted || owner !== request) return;
                 profileStatus = 'failed';
                 render();
             }
         }, 500);
     };
     function requestProfile(kind: 'exact' | 'sampled'): void {
+        request.abort();
+        const owner = new AbortController();
+        request = owner;
+        if (pollTimer != null) clearTimeout(pollTimer);
         void (async () => {
             profileKind = kind;
             try {
                 const start = kind === 'exact'
                     ? (deps.startProfile ?? startDatasetProfile)
                     : (deps.startSampleProfile ?? startSampledDatasetProfile);
-                if (acceptProfile(await start(), kind)) pollProfile(kind);
+                if (acceptProfile(await start({ signal: owner.signal }), kind, owner)) pollProfile(kind, owner);
             } catch {
+                if (disposed || owner.signal.aborted || owner !== request) return;
                 profileStatus = 'failed';
                 render();
             }
@@ -667,9 +679,11 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
     function requestSampleProfile(): void { requestProfile('sampled'); }
     function cancelProfile(): void {
         if (!profileJobId) return;
+        const owner = request;
         void (async () => {
             try {
-                await (deps.cancelProfile ?? cancelSessionJob)(profileJobId!);
+                await (deps.cancelProfile ?? cancelSessionJob)(profileJobId!, { signal: owner.signal });
+                if (disposed || owner.signal.aborted || owner !== request) return;
                 profileStatus = 'cancelling';
                 render();
                 pollProfile(profileKind);
@@ -679,9 +693,25 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
         })();
     }
     render();
-    const unsubscribe = cleaningPlanStore.subscribe(render);
+    let sourceId = cleaningPlanStore.getSnapshot()?.sourceVersionId;
+    const unsubscribe = cleaningPlanStore.subscribe(() => {
+        const nextSource = cleaningPlanStore.getSnapshot()?.sourceVersionId;
+        if (nextSource !== sourceId) {
+            sourceId = nextSource;
+            request.abort();
+            request = new AbortController();
+            if (pollTimer != null) clearTimeout(pollTimer);
+            profileMetadata = null;
+            profileStatus = 'not_started';
+            profileJobId = null;
+        }
+        render();
+    });
+    const unsubscribeWorkspace = deps.workspace?.subscribe(render);
     return () => {
         disposed = true;
+        request.abort();
+        unsubscribeWorkspace?.();
         if (pollTimer != null) clearTimeout(pollTimer);
         disposeHelp();
         unsubscribe();

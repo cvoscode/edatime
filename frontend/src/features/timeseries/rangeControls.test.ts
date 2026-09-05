@@ -1,15 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildRangeControls } from './rangeControls.js';
-import {
-    datasetState,
-    setMetadata,
-} from '../../store/datasetState.js';
+
 import {
     setAdaptiveFilterColumn,
     setPendingAdaptivePoint,
-    uiState,
-} from '../../store/uiState.js';
+    timeseriesInteraction,
+} from './interaction.js';
 import { createWorkspaceStore, type WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 function buildDom(): void {
@@ -32,22 +29,6 @@ describe('buildRangeControls', () => {
         vi.restoreAllMocks();
         buildDom();
 
-        setMetadata({
-            total_rows: 100,
-            columns: [
-                { name: 'ts', dtype: 'Datetime' },
-                { name: 'HUFL', dtype: 'Float64' },
-                { name: 'HULL', dtype: 'Float64' },
-            ],
-            numeric_columns: ['HUFL', 'HULL'],
-            time_column: 'ts',
-            time_range: { min: 0, max: 100 },
-            column_profiles: [
-                { name: 'HUFL', min: 0, max: 1 },
-                { name: 'HULL', min: 0, max: 1 },
-            ],
-        } as any);
-        datasetState.numericCols = ['HUFL', 'HULL'];
         setAdaptiveFilterColumn(null);
         setPendingAdaptivePoint(null);
         workspace = createWorkspaceStore();
@@ -164,7 +145,7 @@ describe('buildRangeControls', () => {
         ).find((c) => c.querySelector('.range')?.textContent === 'Clear all')!;
         clearChip.dispatchEvent(new MouseEvent('click'));
         expect(workspace.getSnapshot().filters.adaptiveLines).toEqual([]);
-        expect(uiState.pendingAdaptivePoint).toBeNull();
+        expect(timeseriesInteraction.pendingAdaptivePoint).toBeNull();
     });
 
     it('keyboard Enter on clickable chip triggers the filter modal opener', () => {

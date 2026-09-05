@@ -14,8 +14,7 @@ import type { ViewSnapshot } from '../../types/chart.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import type { ApiRequestOptions } from '../../services/api/http.js';
 import { analyticsState, setRollingBands } from '../../store/analyticsState.js';
-import { chartState, setViewport, setZoomHistory } from '../../store/chartState.js';
-import { datasetState } from '../../store/datasetState.js';
+import { primaryChart } from '../../charts/primaryChart.js';
 import { buildTimeseriesDataRequest, getTimeseriesLookaroundMs } from './timeseriesRequest.js';
 import { canReuseBufferedFetch } from './bufferedFetchPolicy.js';
 import { resolveFetchedWindow } from './fetchedWindow.js';
@@ -47,7 +46,7 @@ interface TimeseriesControllerDeps {
     getCurrentView: () => ViewSnapshot;
     fetchAndRenderAnalytics: () => Promise<void>;
     recoverFromColumnMismatch?: () => Promise<boolean>;
-    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setSelection' | 'setFilters' | 'setViewport'>;
+    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setSelection' | 'setFilters' | 'setViewport'> & Partial<Pick<WorkspaceStore, 'subscribe'>>;
     runtimeCache?: TimeseriesRuntimeCache;
 }
 
@@ -96,6 +95,7 @@ function computeRenderedYDebugSnapshot(data: unknown, intent: TimeseriesFilterIn
 
 export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
     const runtimeCache = deps.runtimeCache ?? createTimeseriesRuntimeCache();
+    let disposed = false;
     let lastKnownView: ViewSnapshot | null = null;
     let zoomRestoreHistory: ZoomRestoreState[] = [];
     let consecutiveZoomOuts = 0;
@@ -130,7 +130,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         const xMin = Number(viewport?.xMin);
         const xMax = Number(viewport?.xMax);
         if (!Number.isFinite(xMin) || !Number.isFinite(xMax) || xMax <= xMin) return null;
-        const yRange = chartState.chart?.getYRange?.();
+        const yRange = primaryChart.current?.getYRange?.();
         const yMin = Number.isFinite(yRange?.min) ? yRange!.min : null;
         const yMax = Number.isFinite(yRange?.max) ? yRange!.max : null;
         return { xMin, xMax, yMin, yMax };
@@ -141,7 +141,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
     }
 
     function rememberAppliedViewport(view: ViewSnapshot): void {
-        const currentY = chartState.chart?.getYRange?.();
+        const currentY = primaryChart.current?.getYRange?.();
         const yMin = Number.isFinite(view.yMin)
             ? Number(view.yMin)
             : (Number.isFinite(currentY?.min) ? currentY!.min : null);
@@ -160,9 +160,6 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         return getRequestIntent().key;
     }
 
-    function syncZoomHistoryStore(): void {
-        setZoomHistory(zoomRestoreHistory.map((entry) => entry.view).slice(-5));
-    }
 
     function applyView(view: ViewSnapshot, sourceKind: string): void {
         const newStart = Number(view.xMin);
@@ -176,10 +173,9 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             yMax: Number.isFinite(view.yMax) ? Number(view.yMax) : null,
         };
         deps.workspace?.setViewport(workspaceViewport);
-        setViewport(newStart, newEnd);
-        chartState.chart?.setXRange?.(newStart, newEnd);
+        primaryChart.current?.setXRange?.(newStart, newEnd);
         if (Number.isFinite(view.yMin) && Number.isFinite(view.yMax) && view.yMax! > view.yMin!) {
-            chartState.chart?.setYRange?.(view.yMin!, view.yMax!);
+            primaryChart.current?.setYRange?.(view.yMin!, view.yMax!);
             runtimeCache.pendingYMode = 'restore';
             runtimeCache.pendingRestoreY = { min: view.yMin!, max: view.yMax! };
         } else {
@@ -218,15 +214,15 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             viewport: { start: viewportStart, end: viewportEnd },
             columnRanges,
             adaptiveLineFilters,
-            datasetRange: datasetState.metadata?.time_range,
+            datasetRange: deps.workspace.getSnapshot().dataset.metadata?.time_range,
             spectralPreview: analyticsState.spectralFilterPreview,
         });
         emptyState.update(model.emptyState);
 
-        if (!chartState.chart) return;
+        if (!primaryChart.current) return;
         if (model.kind === 'no-selection') {
             setRollingBands(null);
-            chartState.chart.updateDataMulti(
+            primaryChart.current.updateDataMulti(
                 EMPTY_TIMESERIES_DATA,
                 [],
                 workspace.selection.colorColumn,
@@ -238,14 +234,14 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         if (model.kind === 'awaiting-data') return;
         if (model.kind === 'empty') {
             setRollingBands(null);
-            chartState.chart.updateDataMulti(
+            primaryChart.current.updateDataMulti(
                 EMPTY_TIMESERIES_DATA,
                 [],
                 workspace.selection.colorColumn,
                 workspace.filters.adaptiveLines,
             );
             if (Number.isFinite(model.viewport.start) && Number.isFinite(model.viewport.end) && model.viewport.end > model.viewport.start) {
-                chartState.chart.setXRange(model.viewport.start, model.viewport.end);
+                primaryChart.current.setXRange(model.viewport.start, model.viewport.end);
             }
             rememberRenderedViewport();
             return;
@@ -258,7 +254,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         // us re-apply the user y range once the new data has been drawn.
         const restoreY = runtimeCache.pendingRestoreY;
         const restoreMode = runtimeCache.pendingYMode;
-        chartState.chart.updateDataMulti(
+        primaryChart.current.updateDataMulti(
             model.data,
             model.displayColumns,
             workspace.selection.colorColumn,
@@ -266,18 +262,18 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         );
 
         if (restoreY && restoreMode === 'restore') {
-            chartState.chart.setYRange(restoreY.min, restoreY.max);
+            primaryChart.current.setYRange(restoreY.min, restoreY.max);
             deps.updateAnalysisYRange(restoreY.min, restoreY.max, 'restore');
         } else {
             // No pending restore (or pendingYMode === 'fit'): drop any
             // persisted user-set y range so the chart re-renders against
             // the data fit instead of an earlier zoomed-in window.
-            chartState.chart.resetYRange?.();
+            primaryChart.current.resetYRange?.();
         }
 
         if (analyticsState.rollingEnabled) {
             setRollingBands(computeFrontendRollingBands(model.data as any, selectedColumns, analyticsState.rollingWindow || 50));
-            chartState.chart?.requestOverlayRender?.();
+            primaryChart.current?.requestOverlayRender?.();
         }
         rememberRenderedViewport();
         emitFeatureEvent('workflow:refresh', undefined);
@@ -304,7 +300,9 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         if (detailEl) detailEl.textContent = indicator.detail;
     }
 
-    async function fetchAndRender(): Promise<void> {
+    async function fetchAndRender(retryAllowed = true): Promise<void> {
+        if (disposed) return;
+        const requestDataset = datasetKey();
         if (deps.workspace) sanitizeSelectedColumns(deps.workspace);
         const intent = getRequestIntent();
         if (!Number.isFinite(intent.start) || !Number.isFinite(intent.end)) return;
@@ -341,7 +339,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
                 downsampled: runtimeCache.data?._meta?.downsampled ?? null,
             });
             deps.buildRangeControls();
-            chartState.chart?.setXRange?.(currentStart, currentEnd);
+            primaryChart.current?.setXRange?.(currentStart, currentEnd);
             renderCurrentData();
             return;
         }
@@ -369,19 +367,17 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             try {
                 data = await requestData();
             } catch (error) {
-                const recovered = isColumnMismatchError(error)
+                if (disposed || signal.aborted) return;
+                const recovered = retryAllowed && isColumnMismatchError(error)
                     && deps.recoverFromColumnMismatch
                     && await deps.recoverFromColumnMismatch();
                 if (!recovered) throw error;
-                if (deps.workspace.getSnapshot().selection.columns.length === 0) {
-                    deps.buildRangeControls();
-                    renderCurrentData();
-                    return;
-                }
-                requestIntent = getRequestIntent();
-                data = await requestData();
+                await fetchAndRender(false);
+                return;
             }
 
+
+            if (disposed || signal.aborted || datasetKey() !== requestDataset) return;
             runtimeCache.data = data;
             runtimeCache.fetchedWindow = resolveFetchedWindow({
                 data,
@@ -414,9 +410,9 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             // Initialize range controls from stable dataset profiles. Do not
             // derive them from this response: it may be viewport-limited or
             // downsampled, which would turn display bounds into fake filters.
-            ensureRangeStateFromMetadata(datasetState.metadata, deps.workspace);
+            ensureRangeStateFromMetadata(deps.workspace.getSnapshot().dataset.metadata, deps.workspace);
             deps.buildRangeControls();
-            chartState.chart?.setXRange?.(currentStart, currentEnd);
+            primaryChart.current?.setXRange?.(currentStart, currentEnd);
             renderCurrentData();
 
             if (analyticsState.anomalyEnabled) {
@@ -428,7 +424,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
                 dbg('post-render renderedSnapshot', snapshot);
             }
 
-            const yr = chartState.chart?.getYRange?.();
+            const yr = primaryChart.current?.getYRange?.();
             if (yr) deps.updateAnalysisYRange(yr.min, yr.max, 'data');
             if (DEBUG) dbg('post-render yRange', yr);
 
@@ -442,7 +438,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         const decision = resolveZoomOutDecision({
             history: zoomRestoreHistory,
             consecutiveZoomOuts,
-            initialView: chartState.initialView,
+            initialView: runtimeCache.initialView,
         });
         consecutiveZoomOuts = decision.consecutiveZoomOuts;
         if (decision.kind === 'reset') {
@@ -450,7 +446,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             return;
         }
         zoomRestoreHistory = decision.history;
-        syncZoomHistoryStore();
+
         if (decision.kind === 'none') return;
 
         applyView(decision.restoreState.view, 'zoom-out');
@@ -477,9 +473,9 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         runtimeCache.clearScheduledFetch();
         consecutiveZoomOuts = 0;
         zoomRestoreHistory = [];
-        syncZoomHistoryStore();
-        if (!chartState.initialView) return;
-        applyView(chartState.initialView, 'reset');
+
+        if (!runtimeCache.initialView) return;
+        applyView(runtimeCache.initialView, 'reset');
         runtimeCache.scheduleFetch(fetchAndRender, 0);
     }
 
@@ -505,7 +501,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
                 fetchedWindow: runtimeCache.fetchedWindow,
                 fetchKey: currentFetchKey(),
             });
-            syncZoomHistoryStore();
+
         }
 
         applyView(view, sourceKind);
@@ -514,7 +510,26 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         runtimeCache.scheduleFetch(fetchAndRender, delayMs);
     }
 
+    function datasetKey(): string {
+        const dataset = deps.workspace.getSnapshot().dataset;
+        return `${dataset.revision}|${dataset.activeSourceVersionId ?? ''}`;
+    }
+    let observedDataset = datasetKey();
+    const unsubscribeDataset = deps.workspace.subscribe?.(() => {
+        const next = datasetKey();
+        if (next === observedDataset) return;
+        observedDataset = next;
+        task.cancel();
+        runtimeCache.dispose();
+        zoomRestoreHistory = [];
+        consecutiveZoomOuts = 0;
+        lastKnownView = null;
+        lastFetchedParams = null;
+    });
+
     function dispose(): void {
+        disposed = true;
+        unsubscribeDataset?.();
         task.cancel();
         runtimeCache.dispose();
         emptyStateController?.dispose();
@@ -522,6 +537,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
     }
 
     return {
+        getZoomHistory: () => zoomRestoreHistory.map(entry => ({ ...entry.view })),
         dispose,
         fetchAndRender,
         getCurrentData: () => runtimeCache.data,

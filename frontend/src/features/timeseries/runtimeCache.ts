@@ -1,8 +1,9 @@
 import type { DataObject, FetchedWindow } from '../../types/api.js';
-import type { YMode } from '../../types/chart.js';
+import type { ViewSnapshot, YMode } from '../../types/chart.js';
 
 /** Per-Timeseries-instance volatile data and request state. */
 export interface TimeseriesRuntimeCache {
+    initialView: ViewSnapshot | null;
     data: DataObject | null;
     fetchedWindow: FetchedWindow | null;
     pendingYMode: YMode | null;
@@ -16,6 +17,7 @@ export interface TimeseriesRuntimeCache {
 export function createTimeseriesRuntimeCache(): TimeseriesRuntimeCache {
     let timer: ReturnType<typeof setTimeout> | null = null;
     const cache: TimeseriesRuntimeCache = {
+        initialView: null,
         data: null,
         fetchedWindow: null,
         pendingYMode: 'fit',
@@ -34,6 +36,7 @@ export function createTimeseriesRuntimeCache(): TimeseriesRuntimeCache {
         },
         dispose() {
             cache.clearScheduledFetch();
+            cache.initialView = null;
             cache.data = null;
             cache.fetchedWindow = null;
             cache.pendingYMode = null;

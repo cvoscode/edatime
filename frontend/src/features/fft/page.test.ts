@@ -87,7 +87,9 @@ function buildDom(): void {
 }
 
 describe('initFftPage', () => {
+    let workspace = createWorkspaceStore();
     beforeEach(() => {
+        workspace = createWorkspaceStore();
         vi.resetAllMocks();
         fftChartInstance.init.mockResolvedValue(undefined);
         fftChartInstance.getIsZoomed.mockReturnValue(false);
@@ -126,20 +128,18 @@ describe('initFftPage', () => {
             }],
         }));
 
-        const { datasetState } = await import('../../store/datasetState.js');
-        datasetState.metadata = {
+        workspace.commitDataset(workspace.beginDatasetSession(), {
             total_rows: 10,
             columns: [],
             numeric_columns: ['value', 'temp', 'pressure'],
             time_column: 'ts',
             time_range: { min: 0, max: 1000 },
             column_profiles: [],
-        } as any;
-        const workspace = createWorkspaceStore();
+        } as any, 0);
         workspace.setViewport({ xMin: 200, xMax: 800, yMin: null, yMax: null });
 
         const { initFftPage } = await import('./page');
-        await initFftPage({ renderTimeseries: vi.fn(), workspace });
+        await initFftPage({ workspace, renderTimeseries: vi.fn() });
         emitNavigationChange({ page: 'fft' });
 
         expect(fftChartInstance.init).toHaveBeenCalledTimes(1);
@@ -175,9 +175,9 @@ describe('initFftPage', () => {
 
     it('replaces control listeners when the page is initialized twice', async () => {
         const { initFftPage } = await import('./page');
-        await initFftPage({ renderTimeseries: vi.fn() });
+        await initFftPage({ workspace, renderTimeseries: vi.fn() });
         emitNavigationChange({ page: 'fft' });
-        await initFftPage({ renderTimeseries: vi.fn() });
+        await initFftPage({ workspace, renderTimeseries: vi.fn() });
         emitNavigationChange({ page: 'fft' });
 
         (document.getElementById('fft-zoom-reset-btn') as HTMLButtonElement).click();
@@ -196,23 +196,20 @@ describe('initFftPage', () => {
             }],
         });
 
-        const [{ chartState }, { datasetState }] = await Promise.all([
-            import('../../store/chartState.js'), import('../../store/datasetState.js'),
-        ]);
-        datasetState.metadata = {
+        const { primaryChart } = await import('../../charts/primaryChart.js');
+        workspace.commitDataset(workspace.beginDatasetSession(), {
             total_rows: 10,
             columns: [],
             numeric_columns: ['value'],
             time_column: 'ts',
             time_range: { min: 0, max: 1000 },
             column_profiles: [],
-        } as any;
-        chartState.currentStart = 0;
-        chartState.currentEnd = 1000;
+        } as any, 0);
+        workspace.setViewport({ xMin: 0, xMax: 1000, yMin: null, yMax: null });
         window.localStorage.setItem('edatime_fft_selected_columns', JSON.stringify([]));
 
         const { initFftPage } = await import('./page');
-        await initFftPage({ renderTimeseries: vi.fn() });
+        await initFftPage({ workspace, renderTimeseries: vi.fn() });
         emitNavigationChange({ page: 'fft' });
 
         (document.querySelector('.fft-trace-chip') as HTMLButtonElement).click();
@@ -242,23 +239,20 @@ describe('initFftPage', () => {
             }],
         });
 
-        const [{ chartState }, { datasetState }] = await Promise.all([
-            import('../../store/chartState.js'), import('../../store/datasetState.js'),
-        ]);
-        datasetState.metadata = {
+        const { primaryChart } = await import('../../charts/primaryChart.js');
+        workspace.commitDataset(workspace.beginDatasetSession(), {
             total_rows: 10,
             columns: [],
             numeric_columns: ['value'],
             time_column: 'ts',
             time_range: { min: 0, max: 1000 },
             column_profiles: [],
-        } as any;
-        chartState.currentStart = 0;
-        chartState.currentEnd = 1000;
+        } as any, 0);
+        workspace.setViewport({ xMin: 0, xMax: 1000, yMin: null, yMax: null });
         window.localStorage.setItem('edatime_fft_selected_columns', JSON.stringify([]));
 
         const { initFftPage } = await import('./page');
-        await initFftPage({ renderTimeseries: vi.fn() });
+        await initFftPage({ workspace, renderTimeseries: vi.fn() });
         emitNavigationChange({ page: 'fft' });
 
         const chip = document.querySelector<HTMLElement>('.fft-trace-chip')!;
@@ -295,23 +289,20 @@ describe('initFftPage', () => {
             }],
         });
 
-        const [{ chartState }, { datasetState }] = await Promise.all([
-            import('../../store/chartState.js'), import('../../store/datasetState.js'),
-        ]);
-        datasetState.metadata = {
+        const { primaryChart } = await import('../../charts/primaryChart.js');
+        workspace.commitDataset(workspace.beginDatasetSession(), {
             total_rows: 10,
             columns: [],
             numeric_columns: ['value'],
             time_column: 'ts',
             time_range: { min: 0, max: 1000 },
             column_profiles: [],
-        } as any;
-        chartState.currentStart = 0;
-        chartState.currentEnd = 1000;
+        } as any, 0);
+        workspace.setViewport({ xMin: 0, xMax: 1000, yMin: null, yMax: null });
         window.localStorage.setItem('edatime_fft_selected_columns', JSON.stringify([]));
 
         const { initFftPage } = await import('./page');
-        await initFftPage({ renderTimeseries: vi.fn() });
+        await initFftPage({ workspace, renderTimeseries: vi.fn() });
         emitNavigationChange({ page: 'fft' });
 
         (document.querySelector('.fft-trace-chip') as HTMLButtonElement).click();
@@ -323,16 +314,16 @@ describe('initFftPage', () => {
         expect((document.getElementById('fft-empty-state') as HTMLElement).hidden).toBe(true);
 
         buildDom();
-        datasetState.metadata = {
+        workspace.commitDataset(workspace.beginDatasetSession(), {
             total_rows: 8,
             columns: [],
             numeric_columns: ['value', 'temp'],
             time_column: 'ts',
             time_range: { min: 0, max: 1000 },
             column_profiles: [],
-        } as any;
+        } as any, 0);
 
-        await initFftPage({ renderTimeseries: vi.fn() });
+        await initFftPage({ workspace, renderTimeseries: vi.fn() });
         emitNavigationChange({ page: 'fft' });
 
         expect(document.querySelectorAll('.fft-trace-chip')).toHaveLength(2);
@@ -344,22 +335,19 @@ describe('initFftPage', () => {
     it('falls back to ECharts when the WebGPU FFT chart cannot initialize', async () => {
         fftChartInstance.init.mockRejectedValueOnce(new Error('No WebGPU adapter found'));
 
-        const [{ chartState }, { datasetState }] = await Promise.all([
-            import('../../store/chartState.js'), import('../../store/datasetState.js'),
-        ]);
-        datasetState.metadata = {
+        const { primaryChart } = await import('../../charts/primaryChart.js');
+        workspace.commitDataset(workspace.beginDatasetSession(), {
             total_rows: 10,
             columns: [],
             numeric_columns: ['value'],
             time_column: 'ts',
             time_range: { min: 0, max: 1000 },
             column_profiles: [],
-        } as any;
-        chartState.currentStart = 0;
-        chartState.currentEnd = 1000;
+        } as any, 0);
+        workspace.setViewport({ xMin: 0, xMax: 1000, yMin: null, yMax: null });
 
         const { initFftPage } = await import('./page');
-        await initFftPage({ renderTimeseries: vi.fn() });
+        await initFftPage({ workspace, renderTimeseries: vi.fn() });
         emitNavigationChange({ page: 'fft' });
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
@@ -368,22 +356,19 @@ describe('initFftPage', () => {
     });
 
     it('enables clip method and param when fft outliers toggle is checked (input event)', async () => {
-        const [{ chartState }, { datasetState }] = await Promise.all([
-            import('../../store/chartState.js'), import('../../store/datasetState.js'),
-        ]);
-        datasetState.metadata = {
+        const { primaryChart } = await import('../../charts/primaryChart.js');
+        workspace.commitDataset(workspace.beginDatasetSession(), {
             total_rows: 10,
             columns: [],
             numeric_columns: ['value'],
             time_column: 'ts',
             time_range: { min: 0, max: 1000 },
             column_profiles: [],
-        } as any;
-        chartState.currentStart = 0;
-        chartState.currentEnd = 1000;
+        } as any, 0);
+        workspace.setViewport({ xMin: 0, xMax: 1000, yMin: null, yMax: null });
 
         const { initFftPage } = await import('./page');
-        await initFftPage({ renderTimeseries: vi.fn() });
+        await initFftPage({ workspace, renderTimeseries: vi.fn() });
         emitNavigationChange({ page: 'fft' });
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
@@ -414,22 +399,19 @@ describe('initFftPage', () => {
     });
 
     it('hides advanced clip controls until outlier clipping is enabled', async () => {
-        const [{ chartState }, { datasetState }] = await Promise.all([
-            import('../../store/chartState.js'), import('../../store/datasetState.js'),
-        ]);
-        datasetState.metadata = {
+        const { primaryChart } = await import('../../charts/primaryChart.js');
+        workspace.commitDataset(workspace.beginDatasetSession(), {
             total_rows: 10,
             columns: [],
             numeric_columns: ['value'],
             time_column: 'ts',
             time_range: { min: 0, max: 1000 },
             column_profiles: [],
-        } as any;
-        chartState.currentStart = 0;
-        chartState.currentEnd = 1000;
+        } as any, 0);
+        workspace.setViewport({ xMin: 0, xMax: 1000, yMin: null, yMax: null });
 
         const { initFftPage } = await import('./page');
-        await initFftPage({ renderTimeseries: vi.fn() });
+        await initFftPage({ workspace, renderTimeseries: vi.fn() });
         emitNavigationChange({ page: 'fft' });
 
         const methodField = document.getElementById('fft-clip-method-field') as HTMLElement;
@@ -447,22 +429,19 @@ describe('initFftPage', () => {
     });
 
     it('hides inactive spectral cutoff inputs until the selected filter uses them', async () => {
-        const [{ chartState }, { datasetState }] = await Promise.all([
-            import('../../store/chartState.js'), import('../../store/datasetState.js'),
-        ]);
-        datasetState.metadata = {
+        const { primaryChart } = await import('../../charts/primaryChart.js');
+        workspace.commitDataset(workspace.beginDatasetSession(), {
             total_rows: 10,
             columns: [],
             numeric_columns: ['value'],
             time_column: 'ts',
             time_range: { min: 0, max: 1000 },
             column_profiles: [],
-        } as any;
-        chartState.currentStart = 0;
-        chartState.currentEnd = 1000;
+        } as any, 0);
+        workspace.setViewport({ xMin: 0, xMax: 1000, yMin: null, yMax: null });
 
         const { initFftPage } = await import('./page');
-        await initFftPage({ renderTimeseries: vi.fn() });
+        await initFftPage({ workspace, renderTimeseries: vi.fn() });
         emitNavigationChange({ page: 'fft' });
 
         const filterType = document.getElementById('fft-filter-type') as HTMLSelectElement;
@@ -497,23 +476,20 @@ describe('initFftPage', () => {
             }],
         });
 
-        const [{ chartState }, { datasetState }] = await Promise.all([
-            import('../../store/chartState.js'), import('../../store/datasetState.js'),
-        ]);
-        datasetState.metadata = {
+        const { primaryChart } = await import('../../charts/primaryChart.js');
+        workspace.commitDataset(workspace.beginDatasetSession(), {
             total_rows: 10,
             columns: [],
             numeric_columns: ['value'],
             time_column: 'ts',
             time_range: { min: 0, max: 1000 },
             column_profiles: [],
-        } as any;
-        chartState.currentStart = 0;
-        chartState.currentEnd = 1000;
+        } as any, 0);
+        workspace.setViewport({ xMin: 0, xMax: 1000, yMin: null, yMax: null });
         window.localStorage.setItem('edatime_fft_selected_columns', JSON.stringify([]));
 
         const { initFftPage } = await import('./page');
-        await initFftPage({ renderTimeseries: vi.fn() });
+        await initFftPage({ workspace, renderTimeseries: vi.fn() });
         emitNavigationChange({ page: 'fft' });
 
         (document.querySelector('.fft-trace-chip') as HTMLButtonElement).click();

@@ -3,6 +3,42 @@ import { describe, expect, it, vi } from 'vitest';
 import { createWorkspaceStore, makeWorkspaceSnapshot } from './workspaceStore.js';
 
 describe('workspace store', () => {
+    it('owns shared appearance, copies input/output values and suppresses no-op updates', () => {
+        const store = createWorkspaceStore();
+        const listener = vi.fn();
+        store.subscribe(listener);
+        const seriesColors = { value: '#abcdef' };
+        const chartText = { title: 'Analysis', xLabel: 'Time', yLabel: 'Value' };
+        store.setAppearance({ seriesColors, chartText });
+        seriesColors.value = '#ffffff';
+        chartText.title = 'Mutated';
+        store.getSnapshot().appearance.chartText.title = 'Also mutated';
+        expect(store.getSnapshot().appearance).toEqual({
+            seriesColors: { value: '#abcdef' },
+            chartText: { title: 'Analysis', xLabel: 'Time', yLabel: 'Value' },
+        });
+        store.setAppearance(store.getSnapshot().appearance);
+        expect(listener).toHaveBeenCalledOnce();
+    });
+    it('owns nested metadata and rejects sessions from another workspace', () => {
+        const store = createWorkspaceStore();
+        const other = createWorkspaceStore();
+        const session = store.beginDatasetSession();
+        const foreign = other.beginDatasetSession();
+        const metadata = { columns: [{ name: 'value' }], time_range: { min: 1, max: 2 } } as any;
+        expect(store.commitDataset(foreign, metadata, 1)).toBe(false);
+        expect(store.commitDataset(session, metadata, 1)).toBe(true);
+        metadata.columns[0].name = 'mutated';
+        metadata.time_range.max = 99;
+        expect(store.getSnapshot().dataset.metadata).toMatchObject({
+            columns: [{ name: 'value' }], time_range: { min: 1, max: 2 },
+        });
+        expect(() => { store.getSnapshot().dataset.metadata!.columns[0].name = 'changed'; }).toThrow();
+        store.dispose();
+        const retired = store.beginDatasetSession();
+        expect(retired.signal.aborted).toBe(true);
+        expect(store.commitDataset(retired, metadata, 2)).toBe(false);
+    });
     it('builds complete cloned snapshots from concise test fixtures', () => {
         const snapshot = makeWorkspaceSnapshot({
             selection: { columns: ['value'], colorColumn: 'bucket' },

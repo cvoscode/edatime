@@ -1,10 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { sanitizeSelectedColumns, ensureAdaptiveTargetStillValid } from './columnSelection.js';
-import {
-    datasetState,
-    setMetadata,
-} from '../../store/datasetState.js';
-import { setAdaptiveFilterColumn, uiState } from '../../store/uiState.js';
+
+import { setAdaptiveFilterColumn, timeseriesInteraction } from './interaction.js';
 import { createWorkspaceStore, type WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 describe('columnSelection', () => {
@@ -13,7 +10,7 @@ describe('columnSelection', () => {
     beforeEach(() => {
         vi.restoreAllMocks();
         workspace = createWorkspaceStore();
-        setMetadata({
+        workspace.commitDataset(workspace.beginDatasetSession(), {
             total_rows: 100,
             columns: [
                 { name: 'ts', dtype: 'Datetime' },
@@ -25,8 +22,7 @@ describe('columnSelection', () => {
             time_column: 'ts',
             time_range: { min: 0, max: 1000 },
             column_profiles: [],
-        } as any);
-        datasetState.numericCols = ['HUFL', 'HULL', 'MUFL'];
+        } as any, 1);
         workspace.setSelection([]);
     });
 
@@ -72,21 +68,21 @@ describe('columnSelection', () => {
             workspace.setSelection(['HUFL', 'HULL']);
             setAdaptiveFilterColumn('HUFL');
             ensureAdaptiveTargetStillValid(workspace);
-            expect(uiState.adaptiveFilterColumn).toBe('HUFL');
+            expect(timeseriesInteraction.adaptiveFilterColumn).toBe('HUFL');
         });
 
         it('falls back to first selected column when adaptive target was removed', () => {
             workspace.setSelection(['HUFL', 'HULL']);
             setAdaptiveFilterColumn('NOTACOLUMN');
             ensureAdaptiveTargetStillValid(workspace);
-            expect(uiState.adaptiveFilterColumn).toBe('HUFL');
+            expect(timeseriesInteraction.adaptiveFilterColumn).toBe('HUFL');
         });
 
         it('sets to null when selectedCols is empty', () => {
             workspace.setSelection([]);
             setAdaptiveFilterColumn('HUFL');
             ensureAdaptiveTargetStillValid(workspace);
-            expect(uiState.adaptiveFilterColumn).toBeNull();
+            expect(timeseriesInteraction.adaptiveFilterColumn).toBeNull();
         });
 
         it('does nothing when adaptiveFilterColumn is already null', () => {

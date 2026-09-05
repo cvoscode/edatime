@@ -11,7 +11,13 @@
  *          fitYToData, resetYRange, zoomY, destroy, supportsZoomControls.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { datasetState } from '../store/datasetState.js';
+import { createWorkspaceStore } from '../workspace/workspaceStore.js';
+import { configureSeriesColorWorkspace } from '../utils/seriesColors.js';
+function setNumericCols(columns: string[]) {
+    const workspace = createWorkspaceStore();
+    workspace.commitDataset(workspace.beginDatasetSession(), { numeric_columns: columns } as any, 0);
+    configureSeriesColorWorkspace(workspace);
+}
 import { DataChart } from './DataChart';
 import type { ViewSnapshot } from '../types/chart.js';
 
@@ -470,11 +476,11 @@ describe('supportsZoomControls', () => {
 describe('updateDataMulti', () => {
     beforeEach(() => {
         document.body.innerHTML = '';
-        datasetState.numericCols = ['temperature'];
+        setNumericCols(['temperature']);
     });
 
     afterEach(() => {
-        datasetState.numericCols = [];
+        setNumericCols([]);
     });
 
     it('disables ChartGPU animation for timeseries option updates', () => {

@@ -9,7 +9,6 @@
  */
 import { fetchSpectrogram, type SpectrogramResult } from '../../services/api/index.js';
 import { downloadBlob } from '../../utils/dom.js';
-import { datasetState } from '../../store/datasetState.js';
 import { exportEChartsPNG, exportEChartsSVG, exportEChartsHTML } from '../../utils/chartExport.js';
 import {
     getDropdownOptions,
@@ -111,7 +110,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
     let autoComputeExplained = false;
     let controlAbort: AbortController | null = null;
     const workspaceSnapshot = () => deps.workspace?.getSnapshot();
-    const workspaceMetadata = () => workspaceSnapshot()?.dataset.metadata ?? datasetState.metadata;
+    const workspaceMetadata = () => workspaceSnapshot()?.dataset.metadata;
     const workspaceViewport = () => workspaceSnapshot()?.viewport;
     const currentViewport = () => {
         const viewport = workspaceViewport();
