@@ -26,6 +26,8 @@ pub enum AppError {
     NotFound(String),
     #[error("service overloaded: {0}")]
     Overloaded(String),
+    #[error("request cancelled: {0}")]
+    Cancelled(String),
     #[error("database configuration error: {0}")]
     DatabaseConfiguration(String),
     #[error("database unavailable: {0}")]

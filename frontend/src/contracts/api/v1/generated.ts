@@ -64,7 +64,7 @@ export const apiV1Operations = [
         "id": "postCleaningPreview",
         "method": "POST",
         "path": "/api/v1/cleaning/preview",
-        "request": "CleaningPreviewRequest",
+        "request": "CleaningPlanEnvelope",
         "response": "CleaningPreviewResponse",
         "contentType": "application/json",
         "planAware": false
@@ -82,7 +82,7 @@ export const apiV1Operations = [
         "id": "postCleaningApply",
         "method": "POST",
         "path": "/api/v1/cleaning/apply",
-        "request": "CleaningApplyRequest",
+        "request": "CleaningPlanEnvelope",
         "response": "CleaningApplyResponse",
         "contentType": "application/json",
         "planAware": false
@@ -91,7 +91,7 @@ export const apiV1Operations = [
         "id": "postCleaningExportData",
         "method": "POST",
         "path": "/api/v1/cleaning/export/data",
-        "request": "CleaningExportRequest",
+        "request": "CleaningDataExportRequest",
         "response": "File",
         "contentType": "application/octet-stream",
         "planAware": false
@@ -100,7 +100,7 @@ export const apiV1Operations = [
         "id": "postCleaningExportPlan",
         "method": "POST",
         "path": "/api/v1/cleaning/export/plan",
-        "request": "CleaningExportRequest",
+        "request": "CleaningPlanEnvelope",
         "response": "File",
         "contentType": "application/json",
         "planAware": false
@@ -109,7 +109,7 @@ export const apiV1Operations = [
         "id": "postCleaningExportCode",
         "method": "POST",
         "path": "/api/v1/cleaning/export/code",
-        "request": "CleaningExportRequest",
+        "request": "CleaningCodeExportRequest",
         "response": "File",
         "contentType": "text/plain",
         "planAware": false
@@ -118,7 +118,7 @@ export const apiV1Operations = [
         "id": "postCleaningExportManifest",
         "method": "POST",
         "path": "/api/v1/cleaning/export/manifest",
-        "request": "CleaningExportRequest",
+        "request": "CleaningPlanEnvelope",
         "response": "File",
         "contentType": "application/json",
         "planAware": false
@@ -127,7 +127,7 @@ export const apiV1Operations = [
         "id": "postCleaningExportBundle",
         "method": "POST",
         "path": "/api/v1/cleaning/export/bundle",
-        "request": "CleaningExportRequest",
+        "request": "CleaningPlanEnvelope",
         "response": "File",
         "contentType": "application/zip",
         "planAware": false

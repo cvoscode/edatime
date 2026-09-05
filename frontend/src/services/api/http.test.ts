@@ -143,12 +143,19 @@ describe('api http request options', () => {
             ok: false,
             status: 422,
             headers: {
-                get: (name: string) => (name.toLowerCase() === 'content-type' ? 'application/json' : null),
+                get: (name: string) => {
+                    if (name.toLowerCase() === 'content-type') return 'application/json';
+                    if (name.toLowerCase() === 'x-edatime-contract') return 'v1';
+                    return null;
+                },
             },
             json: vi.fn().mockResolvedValue({
+                error: 'Bad request',
                 message: 'invalid filter',
+                kind: 'validation',
                 code: 'invalid_filter',
                 correlation_id: 'req-123',
+                request_id: 'req-123',
             }),
             text: vi.fn().mockResolvedValue(''),
         } as unknown as Response;
@@ -157,9 +164,33 @@ describe('api http request options', () => {
 
         expect(error.message).toContain('Upload failed (422)');
         expect(error.message).toContain('[invalid_filter]');
+        expect(error.message).toContain('{validation}');
         expect(error.message).toContain('(request_id=req-123)');
         expect(error.message).toContain('invalid filter');
         expect((error as Error & { status?: number }).status).toBe(422);
+    });
+
+    it('diagnoses a malformed JSON error response that declares the v1 contract', async () => {
+        const response = {
+            ok: false,
+            status: 500,
+            headers: {
+                get: (name: string) => {
+                    if (name.toLowerCase() === 'content-type') return 'application/json';
+                    if (name.toLowerCase() === 'x-edatime-contract') return 'v1';
+                    return null;
+                },
+            },
+            json: vi.fn().mockResolvedValue({ message: 'unexpected upstream response' }),
+            text: vi.fn().mockResolvedValue(''),
+        } as unknown as Response;
+
+        const error = await readApiError(response, 'Metadata');
+
+        expect(error.message).toContain('Metadata failed (500)');
+        expect(error.message).toContain('error response violates the v1 error contract');
+        expect(error.message).toContain('error, kind, code, correlation_id, request_id');
+        expect(error.message).toContain('unexpected upstream response');
     });
 
     it('readApiError falls back to plain text when content-type is not JSON', async () => {

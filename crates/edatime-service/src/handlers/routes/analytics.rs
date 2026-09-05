@@ -316,15 +316,25 @@ async fn spectrogram_response(
 
     let result = state
         .query_executor
-        .run_interactive(edatime_core::metrics::CpuStage::Analytics, {
+        .run_interactive_cancellable(edatime_core::metrics::CpuStage::Analytics, {
             let work_df = work_df.clone();
             let col = col.to_string();
-            move || {
-                let mut result = analytics::compute_spectrogram(&work_df, &col, win_size, hop)?;
+            move |cancellation| {
+                let mut result = analytics::compute_spectrogram_cancellable(
+                    &work_df,
+                    &col,
+                    win_size,
+                    hop,
+                    &cancellation,
+                )?;
                 if scale.mode != analytics::ScaleMode::None
                     || scale.clip != analytics::ClipMode::None
                 {
-                    analytics::apply_spectrogram_scale(&mut result, scale)?;
+                    analytics::apply_spectrogram_scale_cancellable(
+                        &mut result,
+                        scale,
+                        &cancellation,
+                    )?;
                 }
                 Ok::<_, AppError>(result)
             }

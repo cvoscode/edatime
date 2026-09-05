@@ -15,6 +15,283 @@
     "contentType": "application/json",
     "required": ["error", "message", "kind", "code", "correlation_id", "request_id"]
   },
+  "schemas": {
+    "CleaningPlanEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plan", "expectedSourceVersionId", "expectedDatasetRevision"],
+      "properties": {
+        "plan": { "type": "object", "additionalProperties": true },
+        "expectedPlanHash": { "type": ["string", "null"] },
+        "expectedSourceVersionId": { "type": "string", "minLength": 1 },
+        "expectedDatasetRevision": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "DataRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end", "width", "cleaning_plan"],
+      "properties": {
+        "start": { "type": "string", "format": "date-time" },
+        "end": { "type": "string", "format": "date-time" },
+        "width": { "type": "integer", "minimum": 1 },
+        "columns": { "type": ["string", "null"] },
+        "color_column": { "type": ["string", "null"] },
+        "lookaround_ms": { "type": ["integer", "null"], "minimum": 0 },
+        "format": { "type": ["string", "null"], "enum": ["arrow", "json", null] },
+        "cleaning_plan": { "$ref": "#/components/schemas/CleaningPlanEnvelope" }
+      }
+    },
+    "ScatterPointsRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "cleaning_plan"],
+      "properties": {
+        "x": { "type": "string", "minLength": 1 },
+        "y": { "type": "string", "minLength": 1 },
+        "color": { "type": ["string", "null"] },
+        "size": { "type": ["string", "null"] },
+        "start": { "type": ["number", "null"] },
+        "end": { "type": ["number", "null"] },
+        "limit": { "type": "integer", "minimum": 0, "description": "Zero or omission selects the configured default; positive values are clamped to the server limit." },
+        "format": { "type": ["string", "null"], "enum": ["arrow", "json", null] },
+        "time_color_mode": { "type": ["string", "null"], "enum": ["bucket", "raw", null] },
+        "cleaning_plan": { "$ref": "#/components/schemas/CleaningPlanEnvelope" }
+      }
+    },
+    "CausalGraphRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cleaning_plan"],
+      "properties": {
+        "columns": {
+          "oneOf": [
+            { "type": "string", "minLength": 1 },
+            { "type": "array", "minItems": 2, "items": { "type": "string", "minLength": 1 } }
+          ]
+        },
+        "tau_max": { "type": "integer", "minimum": 1, "maximum": 128 },
+        "pc_alpha": { "type": "number", "description": "Finite values are accepted and clamped to the server-supported range." },
+        "alpha": { "type": "number", "description": "Finite values are accepted and clamped to the server-supported range." },
+        "method": { "type": "string", "enum": ["pcmci", "pcmciplus", "fullci", "bivci", "lpcmci"] },
+        "test": { "type": "string", "enum": ["par_corr", "cmi_knn", "robust_parcorr", "gsquared", "cmi_symb"] },
+        "max_points": { "type": "integer", "minimum": 1 },
+        "max_conds_dim": { "type": "integer", "minimum": 0 },
+        "fdr_method": { "type": "string", "enum": ["none", "fdr_bh"] },
+        "n_preliminary_iterations": { "type": "integer", "minimum": 0 },
+        "knn": { "type": "integer", "minimum": 1 },
+        "sig_samples": { "type": "integer", "minimum": 1 },
+        "cleaning_plan": { "$ref": "#/components/schemas/CleaningPlanEnvelope" }
+      }
+    },
+    "RollingRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end", "cleaning_plan"],
+      "properties": {
+        "start": { "type": "string", "format": "date-time" },
+        "end": { "type": "string", "format": "date-time" },
+        "columns": { "type": ["string", "null"] },
+        "window": { "type": ["integer", "null"], "minimum": 0, "description": "Omission selects the default; the service clamps accepted values." },
+        "cleaning_plan": { "$ref": "#/components/schemas/CleaningPlanEnvelope" }
+      }
+    },
+    "AnomalyRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end", "cleaning_plan"],
+      "properties": {
+        "start": { "type": "string", "format": "date-time" },
+        "end": { "type": "string", "format": "date-time" },
+        "columns": { "type": ["string", "null"] },
+        "method": { "type": ["string", "null"], "enum": ["zscore", "iqr", null] },
+        "threshold": { "type": ["number", "null"] },
+        "cleaning_plan": { "$ref": "#/components/schemas/CleaningPlanEnvelope" }
+      }
+    },
+    "FftRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end", "cleaning_plan"],
+      "properties": {
+        "start": { "type": "string", "format": "date-time" },
+        "end": { "type": "string", "format": "date-time" },
+        "columns": { "type": ["string", "null"] },
+        "max_points": { "type": ["integer", "null"], "minimum": 64 },
+        "cleaning_plan": { "$ref": "#/components/schemas/CleaningPlanEnvelope" }
+      }
+    },
+    "SpectrogramRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end", "column", "cleaning_plan"],
+      "properties": {
+        "start": { "type": "string", "format": "date-time" },
+        "end": { "type": "string", "format": "date-time" },
+        "column": { "type": "string", "minLength": 1 },
+        "window_size": { "type": ["integer", "null"], "minimum": 0, "description": "The service clamps values to its supported window range." },
+        "hop_size": { "type": ["integer", "null"], "minimum": 0, "description": "The service clamps values to the resolved window size." },
+        "max_points": { "type": ["integer", "null"], "minimum": 256 },
+        "normalize": { "type": ["string", "null"], "enum": ["none", "minmax", "min-max", "min_max", "zscore", "z-score", "z_score", "robust", null] },
+        "clip": { "type": ["string", "null"], "enum": ["none", "percentile", "pct", "p", "iqr", null] },
+        "clip_param": { "type": ["number", "null"] },
+        "cleaning_plan": { "$ref": "#/components/schemas/CleaningPlanEnvelope" }
+      }
+    },
+    "SpectralFilterRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["column", "filter_type", "cleaning_plan"],
+      "properties": {
+        "start": { "type": ["string", "null"], "format": "date-time" },
+        "end": { "type": ["string", "null"], "format": "date-time" },
+        "column": { "type": "string", "minLength": 1 },
+        "filter_type": { "type": "string", "enum": ["lowpass", "highpass", "bandpass", "bandstop"] },
+        "low_hz": { "type": ["number", "null"], "minimum": 0 },
+        "high_hz": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+        "sample_rate_hz": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+        "max_points": { "type": ["integer", "null"], "minimum": 64 },
+        "cleaning_plan": { "$ref": "#/components/schemas/CleaningPlanEnvelope" }
+      },
+      "allOf": [
+        { "if": { "properties": { "filter_type": { "const": "lowpass" } } }, "then": { "required": ["high_hz"] } },
+        { "if": { "properties": { "filter_type": { "const": "highpass" } } }, "then": { "required": ["low_hz"] } },
+        { "if": { "properties": { "filter_type": { "enum": ["bandpass", "bandstop"] } } }, "then": { "required": ["low_hz", "high_hz"] } }
+      ]
+    },
+    "CleaningDataExportRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plan", "expectedSourceVersionId", "expectedDatasetRevision"],
+      "properties": {
+        "plan": { "type": "object", "additionalProperties": true },
+        "expectedPlanHash": { "type": ["string", "null"] },
+        "expectedSourceVersionId": { "type": "string", "minLength": 1 },
+        "expectedDatasetRevision": { "type": "integer", "minimum": 0 },
+        "format": { "type": "string", "enum": ["parquet"] },
+        "outputColumns": { "type": ["array", "null"], "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "CleaningCodeExportRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plan", "expectedSourceVersionId", "expectedDatasetRevision", "language"],
+      "properties": {
+        "plan": { "type": "object", "additionalProperties": true },
+        "expectedPlanHash": { "type": ["string", "null"] },
+        "expectedSourceVersionId": { "type": "string", "minLength": 1 },
+        "expectedDatasetRevision": { "type": "integer", "minimum": 0 },
+        "language": { "type": "string", "enum": ["python", "rust"] }
+      }
+    },
+    "OutlierProposalRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plan", "expectedSourceVersionId", "expectedDatasetRevision", "columns", "method", "threshold"],
+      "properties": {
+        "plan": { "type": "object", "additionalProperties": true },
+        "expectedPlanHash": { "type": ["string", "null"] },
+        "expectedSourceVersionId": { "type": "string", "minLength": 1 },
+        "expectedDatasetRevision": { "type": "integer", "minimum": 0 },
+        "columns": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "method": { "type": "string", "minLength": 1 },
+        "threshold": { "type": "number" }
+      }
+    },
+    "SelectVersionRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["versionId"],
+      "properties": { "versionId": { "type": "string", "minLength": 1 } }
+    },
+    "ScatterMatrixRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pairs", "cleaning_plan"],
+      "properties": {
+        "pairs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["x", "y"],
+            "properties": {
+              "x": { "type": "string", "minLength": 1 },
+              "y": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "color": { "type": ["string", "null"] },
+        "start": { "type": ["number", "null"] },
+        "end": { "type": ["number", "null"] },
+        "time_color_mode": { "type": ["string", "null"], "enum": ["bucket", "raw", null] },
+        "limit": { "type": "integer", "minimum": 0, "description": "Zero or omission selects the configured default." },
+        "cleaning_plan": { "$ref": "#/components/schemas/CleaningPlanEnvelope" }
+      }
+    },
+    "ScatterCorrelationsRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cleaning_plan"],
+      "properties": {
+        "base": { "type": ["string", "null"] },
+        "threshold": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "mode": { "type": ["string", "null"], "enum": ["pearson_raw", "spearman_raw", "kendall_raw", "pearson_diff", "spearman_diff", "kendall_diff", null] },
+        "cleaning_plan": { "$ref": "#/components/schemas/CleaningPlanEnvelope" }
+      }
+    },
+    "CorrelationMatrixRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cleaning_plan"],
+      "properties": {
+        "mode": { "type": ["string", "null"], "enum": ["pearson_raw", "spearman_raw", "kendall_raw", "pearson_diff", "spearman_diff", "kendall_diff", null] },
+        "cleaning_plan": { "$ref": "#/components/schemas/CleaningPlanEnvelope" }
+      }
+    },
+    "DriftStatsRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["column", "window", "referenceStart", "referenceEnd", "cleaningPlan"],
+      "properties": {
+        "column": { "type": "string", "minLength": 1 },
+        "window": { "type": "string", "enum": ["hourly", "daily", "weekly"] },
+        "referenceStart": { "type": "string", "minLength": 1 },
+        "referenceEnd": { "type": "string", "minLength": 1 },
+        "ksPvalueThreshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "esPvalueThreshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "psiMinorThreshold": { "type": "number", "minimum": 0 },
+        "psiMajorThreshold": { "type": "number", "minimum": 0 },
+        "wassersteinStdMultiplier": { "type": "number", "minimum": 0 },
+        "cleaningPlan": { "$ref": "#/components/schemas/CleaningPlanEnvelope" }
+      }
+    },
+    "DriftInvestigateRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["columns", "window", "referenceStart", "referenceEnd", "cleaningPlan"],
+      "properties": {
+        "columns": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "window": { "type": "string", "enum": ["hourly", "daily", "weekly"] },
+        "referenceStart": { "type": "string", "minLength": 1 },
+        "referenceEnd": { "type": "string", "minLength": 1 },
+        "comparisonStart": { "type": "string", "minLength": 1 },
+        "comparisonEnd": { "type": "string", "minLength": 1 },
+        "segmentBy": { "type": "string", "minLength": 1 },
+        "segmentLimit": { "type": "integer", "minimum": 1 },
+        "ksPvalueThreshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "esPvalueThreshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "psiMinorThreshold": { "type": "number", "minimum": 0 },
+        "psiMajorThreshold": { "type": "number", "minimum": 0 },
+        "wassersteinStdMultiplier": { "type": "number", "minimum": 0 },
+        "includeQuality": { "type": "boolean" },
+        "includeChangePoints": { "type": "boolean" },
+        "includeCorrelations": { "type": "boolean" },
+        "cleaningPlan": { "$ref": "#/components/schemas/CleaningPlanEnvelope" }
+      }
+    }
+  },
   "operations": [
     {"method":"GET","path":"/api/v1/health","response":"HealthResponse","contentType":"application/json"},
     {"method":"GET","path":"/api/v1/build","response":"BuildIdentity","contentType":"application/json"},
@@ -22,14 +299,14 @@
     {"method":"GET","path":"/api/v1/capabilities","response":"Capabilities","contentType":"application/json"},
     {"method":"POST","path":"/api/v1/data","request":"DataRequest","response":"ArrowData|JsonData","contentType":"application/vnd.apache.arrow.stream|application/json","planAware":true},
     {"method":"POST","path":"/api/v1/cleaning/validate","request":"CleaningPlanEnvelope","response":"ValidationResponse","contentType":"application/json"},
-    {"method":"POST","path":"/api/v1/cleaning/preview","request":"CleaningPreviewRequest","response":"CleaningPreviewResponse","contentType":"application/json"},
+    {"method":"POST","path":"/api/v1/cleaning/preview","request":"CleaningPlanEnvelope","response":"CleaningPreviewResponse","contentType":"application/json"},
     {"method":"POST","path":"/api/v1/cleaning/propose/outliers","request":"OutlierProposalRequest","response":"OutlierProposalResponse","contentType":"application/json"},
-    {"method":"POST","path":"/api/v1/cleaning/apply","request":"CleaningApplyRequest","response":"CleaningApplyResponse","contentType":"application/json"},
-    {"method":"POST","path":"/api/v1/cleaning/export/data","request":"CleaningExportRequest","response":"File","contentType":"application/octet-stream"},
-    {"method":"POST","path":"/api/v1/cleaning/export/plan","request":"CleaningExportRequest","response":"File","contentType":"application/json"},
-    {"method":"POST","path":"/api/v1/cleaning/export/code","request":"CleaningExportRequest","response":"File","contentType":"text/plain"},
-    {"method":"POST","path":"/api/v1/cleaning/export/manifest","request":"CleaningExportRequest","response":"File","contentType":"application/json"},
-    {"method":"POST","path":"/api/v1/cleaning/export/bundle","request":"CleaningExportRequest","response":"File","contentType":"application/zip"},
+    {"method":"POST","path":"/api/v1/cleaning/apply","request":"CleaningPlanEnvelope","response":"CleaningApplyResponse","contentType":"application/json"},
+    {"method":"POST","path":"/api/v1/cleaning/export/data","request":"CleaningDataExportRequest","response":"File","contentType":"application/octet-stream"},
+    {"method":"POST","path":"/api/v1/cleaning/export/plan","request":"CleaningPlanEnvelope","response":"File","contentType":"application/json"},
+    {"method":"POST","path":"/api/v1/cleaning/export/code","request":"CleaningCodeExportRequest","response":"File","contentType":"text/plain"},
+    {"method":"POST","path":"/api/v1/cleaning/export/manifest","request":"CleaningPlanEnvelope","response":"File","contentType":"application/json"},
+    {"method":"POST","path":"/api/v1/cleaning/export/bundle","request":"CleaningPlanEnvelope","response":"File","contentType":"application/zip"},
     {"method":"GET","path":"/api/v1/datasets/versions","response":"DatasetVersionsResponse","contentType":"application/json"},
     {"method":"POST","path":"/api/v1/datasets/versions/select","request":"SelectVersionRequest","response":"SelectVersionResponse","contentType":"application/json"},
     {"method":"GET","path":"/api/v1/datasets/storage","response":"StorageUsageResponse","contentType":"application/json"},

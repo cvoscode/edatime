@@ -62,7 +62,7 @@ test-frontend:
 
 # Fast static validation. Use `make verify` for the complete pre-merge gate.
 check: check-rust lint check-frontend
-	node scripts/check_api_contract.mjs
+	npm run check:api-contract
 	node scripts/generate_api_reference.mjs --check
 	node scripts/check_backend_hygiene.mjs
 
@@ -115,7 +115,7 @@ bench-contract:
 	    --out benchmarks/preflight.json
 
 check-contract:
-	node scripts/check_api_contract.mjs
+	npm run check:api-contract
 	node scripts/generate_api_reference.mjs --check
 
 test-contract:

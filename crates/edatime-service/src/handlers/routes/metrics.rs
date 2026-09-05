@@ -70,6 +70,56 @@ pub async fn get_prometheus(State(state): State<AppState>) -> Result<Response<Bo
     );
     metric(
         &mut output,
+        "edatime_data_requests_total",
+        snapshot.data_stages.requests_total,
+    );
+    metric(
+        &mut output,
+        "edatime_data_cache_hits_total",
+        snapshot.data_stages.cache_hit_total,
+    );
+    metric(
+        &mut output,
+        "edatime_data_cache_misses_total",
+        snapshot.data_stages.cache_miss_total,
+    );
+    metric(
+        &mut output,
+        "edatime_data_filtered_rows_total",
+        snapshot.data_stages.filtered_rows_total,
+    );
+    metric(
+        &mut output,
+        "edatime_data_candidate_rows_total",
+        snapshot.data_stages.candidate_rows_total,
+    );
+    metric(
+        &mut output,
+        "edatime_data_returned_rows_total",
+        snapshot.data_stages.returned_rows_total,
+    );
+    metric(
+        &mut output,
+        "edatime_data_response_bytes_total",
+        snapshot.data_stages.response_bytes_total,
+    );
+    metric(
+        &mut output,
+        "edatime_data_collect_ns_total",
+        snapshot.data_stages.collect_ns_total,
+    );
+    metric(
+        &mut output,
+        "edatime_data_reduce_ns_total",
+        snapshot.data_stages.reduce_ns_total,
+    );
+    metric(
+        &mut output,
+        "edatime_data_serialize_ns_total",
+        snapshot.data_stages.serialize_ns_total,
+    );
+    metric(
+        &mut output,
         "edatime_cpu_queued",
         snapshot.cpu_admission.queued,
     );

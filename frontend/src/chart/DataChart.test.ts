@@ -509,6 +509,43 @@ describe('updateDataMulti', () => {
         }));
     });
 
+    it('mounts and replaces a screen-reader summary for rendered series data', () => {
+        const chart = makeChart();
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+        (chart as any)._container = container;
+        (chart as any).chartInstance = {
+            options: { series: [] },
+            setOption: vi.fn(),
+            setZoomRange: vi.fn(),
+        };
+        chart.setChartText('Temperature trend', 'Time', 'Temperature');
+
+        chart.updateDataMulti({
+            ts: new Float64Array([1_000, 2_000, 3_000]),
+            values: { temperature: new Float64Array([10, Number.NaN, 30]) },
+            series: {
+                temperature: {
+                    x: new Float64Array([1_000, 2_000, 3_000]),
+                    y: new Float64Array([10, Number.NaN, 30]),
+                },
+            },
+            colorByColumn: {},
+        } as any, ['temperature']);
+
+        const summary = container.querySelector('table[data-chart-summary="timeseries"]');
+        expect(summary?.getAttribute('aria-label')).toBe('Statistical summary for Temperature trend');
+        expect(summary?.textContent).toContain('temperature');
+        expect(summary?.textContent).toContain('2');
+
+        chart.setChartText('Updated trend', 'Time', 'Temperature');
+        expect(container.querySelectorAll('table[data-chart-summary="timeseries"]')).toHaveLength(1);
+        expect(container.querySelector('table')?.getAttribute('aria-label')).toBe('Statistical summary for Updated trend');
+
+        chart.destroy();
+        expect(container.querySelector('table')).toBeNull();
+    });
+
     it('shows every selected trace instead of carrying stale legend visibility', () => {
         const chart = makeChart();
         const setOption = vi.fn();

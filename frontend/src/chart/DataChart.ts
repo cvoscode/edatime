@@ -7,7 +7,6 @@ import { createChart } from 'chartgpu';
 import { DEBUG, dbg } from '../debug.js';
 import { downloadUrl, downloadBlob } from '../utils/dom.js';
 import { defaultGpuPowerPreference } from '../utils/platform.js';
-import { datasetState } from '../store/datasetState.js';
 import { uiState } from '../store/uiState.js';
 import { analyticsState } from '../store/analyticsState.js';
 import { subscribe } from '../store/events.js';
@@ -69,6 +68,7 @@ import { buildChartGpuTheme, getChartGpuColorPalette, withChartGpuTheme } from '
 import { toggleLegendSeriesVisibility } from './legendVisibilityPolicy.js';
 import { DEFAULT_CHART_GRID } from './gridLayout.js';
 import { buildTimeSeriesAxisPresentation, type TimeSeriesYAxisOption } from './timeSeriesAxisPresentation.js';
+import { createAccessibilitySummaryTable, type SeriesSummary } from './accessibilityTable.js';
 import {
     exportDataChartHTML,
     exportDataChartPNG,
@@ -116,6 +116,7 @@ export class DataChart {
     _xAxisLabel = '';
     _yAxisLabel = '';
     _textOverlays: TextOverlayController | null = null;
+    _accessibilityTable: HTMLTableElement | null = null;
 
     _overlayCanvas: HTMLCanvasElement | null = null;
     _overlayCtx: CanvasRenderingContext2D | null = null;
@@ -153,24 +154,7 @@ export class DataChart {
     /* ── Public surface ─────────────────────────────────── */
 
     destroy(): void {
-        this._disposeInteractions();
-        this._drawingController?.detach();
-        this._drawingResizeObserver?.disconnect();
-        this._drawingResizeObserver = null;
-        this._chartResizeObserver?.disconnect();
-        this._chartResizeObserver = null;
-        this._themeUnsub?.();
-        this._themeUnsub = null;
-        this._settingsUnsub?.();
-        this._settingsUnsub = null;
-        this._rollingDisplayUnsub?.();
-        this._rollingDisplayUnsub = null;
-        this._overlays = null;
-        this._textOverlays?.destroy();
-        this._textOverlays = null;
-        this._legendOverlay?.destroy();
-        this._legendOverlay = null;
-        this.chartInstance = null;
+        this.deepDispose();
     }
 
     /**
@@ -199,6 +183,8 @@ export class DataChart {
         this._legendOverlay = null;
         this._textOverlays?.destroy();
         this._textOverlays = null;
+        this._accessibilityTable?.remove();
+        this._accessibilityTable = null;
         this._container = null;
         // Release ChartGPU instance (guards against device-lost scenarios).
         try {
@@ -209,7 +195,7 @@ export class DataChart {
         this.chartInstance = null;
 
         // Clear drawing state.
-        this._drawingController?.reset();
+        this._drawingController?.reset?.();
         this._drawingController = null;
 
         // Reset bounds.
@@ -240,6 +226,7 @@ export class DataChart {
         this._chartTitle = String(title ?? '').trim();
         this._xAxisLabel = String(xLabel ?? '').trim();
         this._yAxisLabel = String(yLabel ?? '').trim();
+        this._syncAccessibilitySummary();
         this._syncTextOverlays();
         this._applyDisplayYRangeToChart();
     }
@@ -356,6 +343,8 @@ export class DataChart {
         this._overlays = null;
         this._textOverlays?.destroy();
         this._textOverlays = null;
+        this._accessibilityTable?.remove();
+        this._accessibilityTable = null;
         this._legendOverlay?.destroy();
         this._legendOverlay = null;
         const themeUnsub = this._themeUnsub;
@@ -613,6 +602,7 @@ export class DataChart {
         }
 
         this._syncLegendOverlay();
+        this._syncAccessibilitySummary();
         this._renderDrawings();
     }
 
@@ -643,6 +633,43 @@ export class DataChart {
     }
 
     /* ── Private helpers ────────────────────────────────── */
+
+    private _syncAccessibilitySummary(): void {
+        this._accessibilityTable?.remove();
+        this._accessibilityTable = null;
+
+        const container = this._container;
+        const input = this._lastDataInput;
+        if (!container || !input) return;
+
+        const summaries: SeriesSummary[] = [];
+        for (const column of this._activeColumns) {
+            const values = input.dataObj.series[column]?.y;
+            if (!values || values.length === 0) continue;
+
+            let count = 0;
+            let min = Number.POSITIVE_INFINITY;
+            let max = Number.NEGATIVE_INFINITY;
+            let total = 0;
+            for (const value of values) {
+                if (!Number.isFinite(value)) continue;
+                count += 1;
+                min = Math.min(min, value);
+                max = Math.max(max, value);
+                total += value;
+            }
+            if (count > 0) {
+                summaries.push({ name: column, count, min, max, mean: total / count });
+            }
+        }
+
+        if (summaries.length === 0) return;
+        const title = this._chartTitle || 'Timeseries chart';
+        const table = createAccessibilitySummaryTable(title, summaries);
+        table.dataset.chartSummary = 'timeseries';
+        container.appendChild(table);
+        this._accessibilityTable = table;
+    }
 
     private _applyYRange(min: number, max: number, sourceKind: string, setAuto: boolean | null): void {
         if (setAuto === true) this._yAuto = true;

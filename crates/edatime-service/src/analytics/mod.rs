@@ -32,5 +32,7 @@ pub use shared::{
 };
 pub use spectrogram::{
     ClipMode, FilterType, ScaleMode, ScaleOptions, SpectrogramResult,
-    apply_scale as apply_spectrogram_scale, apply_spectral_filter, compute_spectrogram,
+    apply_scale as apply_spectrogram_scale,
+    apply_scale_cancellable as apply_spectrogram_scale_cancellable, apply_spectral_filter,
+    compute_spectrogram, compute_spectrogram_cancellable,
 };

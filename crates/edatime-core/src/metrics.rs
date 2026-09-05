@@ -36,6 +36,14 @@ pub enum ScatterStage {
     Serialize,
 }
 
+/// Which plan-aware data-window stage produced the timing sample.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DataStage {
+    Collect,
+    Reduce,
+    Serialize,
+}
+
 /// Which correlations stage produced the timing sample.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CorrelationStage {
@@ -112,6 +120,26 @@ pub struct ScatterStagesSnapshot {
     pub collect_ns_total: u64,
     /// nanoseconds
     pub sample_ns_total: u64,
+    /// nanoseconds
+    pub serialize_ns_total: u64,
+}
+
+/// Aggregated telemetry for plan-aware `POST /data` requests. These counters
+/// deliberately contain only dimensions that are safe to aggregate: no column
+/// names, time ranges, filter values, or client information.
+#[derive(Debug, Default, Serialize)]
+pub struct DataStagesSnapshot {
+    pub requests_total: u64,
+    pub cache_hit_total: u64,
+    pub cache_miss_total: u64,
+    pub filtered_rows_total: u64,
+    pub candidate_rows_total: u64,
+    pub returned_rows_total: u64,
+    pub response_bytes_total: u64,
+    /// nanoseconds
+    pub collect_ns_total: u64,
+    /// nanoseconds
+    pub reduce_ns_total: u64,
     /// nanoseconds
     pub serialize_ns_total: u64,
 }
@@ -220,6 +248,7 @@ pub struct MetricsSnapshot {
     pub rate_limited_requests: u64,
     pub scatter_sampling: ScatterSamplingSnapshot,
     pub scatter_stages: ScatterStagesSnapshot,
+    pub data_stages: DataStagesSnapshot,
     pub correlations_stages: CorrelationsStagesSnapshot,
     pub rolling_stages: RollingStagesSnapshot,
     pub cpu_admission: CpuAdmissionSnapshot,
@@ -256,6 +285,17 @@ pub struct AppMetrics {
     scatter_collect_ns: AtomicU64,
     scatter_sample_ns: AtomicU64,
     scatter_serialize_ns: AtomicU64,
+    // Plan-aware data windows.
+    data_requests: AtomicU64,
+    data_cache_hits: AtomicU64,
+    data_cache_misses: AtomicU64,
+    data_filtered_rows: AtomicU64,
+    data_candidate_rows: AtomicU64,
+    data_returned_rows: AtomicU64,
+    data_response_bytes: AtomicU64,
+    data_collect_ns: AtomicU64,
+    data_reduce_ns: AtomicU64,
+    data_serialize_ns: AtomicU64,
     // Correlations (live by `record_correlation_*` from the handler/warmup).
     correlations_requests: AtomicU64,
     correlations_cache_hits: AtomicU64,
@@ -400,6 +440,16 @@ impl AppMetrics {
             scatter_collect_ns: AtomicU64::new(0),
             scatter_sample_ns: AtomicU64::new(0),
             scatter_serialize_ns: AtomicU64::new(0),
+            data_requests: AtomicU64::new(0),
+            data_cache_hits: AtomicU64::new(0),
+            data_cache_misses: AtomicU64::new(0),
+            data_filtered_rows: AtomicU64::new(0),
+            data_candidate_rows: AtomicU64::new(0),
+            data_returned_rows: AtomicU64::new(0),
+            data_response_bytes: AtomicU64::new(0),
+            data_collect_ns: AtomicU64::new(0),
+            data_reduce_ns: AtomicU64::new(0),
+            data_serialize_ns: AtomicU64::new(0),
             correlations_requests: AtomicU64::new(0),
             correlations_cache_hits: AtomicU64::new(0),
             correlations_cache_misses: AtomicU64::new(0),
@@ -545,6 +595,39 @@ impl AppMetrics {
         target.fetch_add(duration_ns, Ordering::Relaxed);
     }
 
+    pub fn record_data_request(&self, cache_hit: bool) {
+        self.data_requests.fetch_add(1, Ordering::Relaxed);
+        let cache = if cache_hit {
+            &self.data_cache_hits
+        } else {
+            &self.data_cache_misses
+        };
+        cache.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn record_data_rows(&self, filtered: u64, candidates: u64, returned: u64) {
+        self.data_filtered_rows
+            .fetch_add(filtered, Ordering::Relaxed);
+        self.data_candidate_rows
+            .fetch_add(candidates, Ordering::Relaxed);
+        self.data_returned_rows
+            .fetch_add(returned, Ordering::Relaxed);
+    }
+
+    pub fn record_data_response(&self, bytes: u64) {
+        self.data_response_bytes.fetch_add(bytes, Ordering::Relaxed);
+    }
+
+    /// `duration_ns` is elapsed wall-clock time for one data-window stage.
+    pub fn record_data_stage(&self, stage: DataStage, duration_ns: u64) {
+        let target = match stage {
+            DataStage::Collect => &self.data_collect_ns,
+            DataStage::Reduce => &self.data_reduce_ns,
+            DataStage::Serialize => &self.data_serialize_ns,
+        };
+        target.fetch_add(duration_ns, Ordering::Relaxed);
+    }
+
     pub fn record_correlation_request(&self, cache_hit: bool, mode: CorrelationTelemetryMode) {
         self.correlations_requests.fetch_add(1, Ordering::Relaxed);
         if cache_hit {
@@ -658,6 +741,19 @@ impl AppMetrics {
         entry.queued = entry.queued.saturating_sub(1);
     }
 
+    /// Record cooperative cancellation after a worker already started. This
+    /// differs from `record_cpu_cancelled`, which is for an abandoned queued
+    /// submission and therefore decrements `queued` rather than `running`.
+    pub fn record_cpu_cancelled_running(&self, stage: CpuStage) {
+        let label = cpu_stage_label(stage);
+        let mut state = lock_recover(&self.cpu_admission, "cpu_admission");
+        state.cancelled_total += 1;
+        state.running = state.running.saturating_sub(1);
+        let entry = state.by_stage.entry(label.to_string()).or_default();
+        entry.cancelled += 1;
+        entry.running = entry.running.saturating_sub(1);
+    }
+
     pub fn record_requests(&self, count: u64) {
         self.total_requests.fetch_add(count, Ordering::Relaxed);
     }
@@ -729,6 +825,18 @@ impl AppMetrics {
                 collect_ns_total: self.scatter_collect_ns.load(Ordering::Relaxed),
                 sample_ns_total: self.scatter_sample_ns.load(Ordering::Relaxed),
                 serialize_ns_total: self.scatter_serialize_ns.load(Ordering::Relaxed),
+            },
+            data_stages: DataStagesSnapshot {
+                requests_total: self.data_requests.load(Ordering::Relaxed),
+                cache_hit_total: self.data_cache_hits.load(Ordering::Relaxed),
+                cache_miss_total: self.data_cache_misses.load(Ordering::Relaxed),
+                filtered_rows_total: self.data_filtered_rows.load(Ordering::Relaxed),
+                candidate_rows_total: self.data_candidate_rows.load(Ordering::Relaxed),
+                returned_rows_total: self.data_returned_rows.load(Ordering::Relaxed),
+                response_bytes_total: self.data_response_bytes.load(Ordering::Relaxed),
+                collect_ns_total: self.data_collect_ns.load(Ordering::Relaxed),
+                reduce_ns_total: self.data_reduce_ns.load(Ordering::Relaxed),
+                serialize_ns_total: self.data_serialize_ns.load(Ordering::Relaxed),
             },
             correlations_stages: CorrelationsStagesSnapshot {
                 requests_total: self.correlations_requests.load(Ordering::Relaxed),
@@ -817,6 +925,30 @@ mod metrics_stage_tests {
     }
 
     #[test]
+    fn data_stage_timers_and_dimensions_accumulate() {
+        let m = AppMetrics::new();
+        m.record_data_request(false);
+        m.record_data_request(true);
+        m.record_data_rows(100, 80, 40);
+        m.record_data_response(2_048);
+        m.record_data_stage(DataStage::Collect, 1_000);
+        m.record_data_stage(DataStage::Reduce, 2_000);
+        m.record_data_stage(DataStage::Serialize, 3_000);
+
+        let snap = m.snapshot(0, 0);
+        assert_eq!(snap.data_stages.requests_total, 2);
+        assert_eq!(snap.data_stages.cache_hit_total, 1);
+        assert_eq!(snap.data_stages.cache_miss_total, 1);
+        assert_eq!(snap.data_stages.filtered_rows_total, 100);
+        assert_eq!(snap.data_stages.candidate_rows_total, 80);
+        assert_eq!(snap.data_stages.returned_rows_total, 40);
+        assert_eq!(snap.data_stages.response_bytes_total, 2_048);
+        assert_eq!(snap.data_stages.collect_ns_total, 1_000);
+        assert_eq!(snap.data_stages.reduce_ns_total, 2_000);
+        assert_eq!(snap.data_stages.serialize_ns_total, 3_000);
+    }
+
+    #[test]
     fn correlation_mode_breakdown_is_low_cardinality() {
         let m = AppMetrics::new();
         m.record_correlation_request(false, CorrelationTelemetryMode::PearsonRaw);
@@ -898,6 +1030,25 @@ mod metrics_stage_tests {
             .expect("materialization stage entry");
         assert_eq!(materialization.completed, 1);
         assert_eq!(materialization.queue_wait_ns, 200);
+    }
+
+    #[test]
+    fn running_cancellation_releases_the_running_metric() {
+        let m = AppMetrics::new();
+        m.record_cpu_submit(CpuStage::Analytics);
+        m.record_cpu_started(CpuStage::Analytics, 12);
+        m.record_cpu_cancelled_running(CpuStage::Analytics);
+
+        let snap = m.snapshot(0, 0).cpu_admission;
+        assert_eq!(snap.cancelled_total, 1);
+        assert_eq!(snap.queued, 0);
+        assert_eq!(snap.running, 0);
+        let analytics = snap
+            .by_stage
+            .get("analytics")
+            .expect("analytics stage entry");
+        assert_eq!(analytics.cancelled, 1);
+        assert_eq!(analytics.running, 0);
     }
 
     #[test]

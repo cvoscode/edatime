@@ -34,6 +34,7 @@ pub enum ErrorCode {
     InvalidScatterLimit,
     InvalidColumnSelection,
     WorkBudgetExceeded,
+    RequestCancelled,
     ColumnNotFound,
     UploadTooLarge,
     RateLimitExceeded,
@@ -62,6 +63,7 @@ impl ErrorCode {
             Self::InvalidScatterLimit => "invalid_scatter_limit",
             Self::InvalidColumnSelection => "invalid_column_selection",
             Self::WorkBudgetExceeded => "work_budget_exceeded",
+            Self::RequestCancelled => "request_cancelled",
             Self::ColumnNotFound => "column_not_found",
             Self::UploadTooLarge => "upload_too_large",
             Self::RateLimitExceeded => "rate_limit_exceeded",
@@ -314,6 +316,9 @@ impl From<edatime_core::error::AppError> for AppError {
                 ErrorCode::ServiceUnavailable,
                 message,
             ),
+            edatime_core::error::AppError::Cancelled(message) => {
+                AppError::new(ErrorKind::Unavailable, ErrorCode::RequestCancelled, message)
+            }
             edatime_core::error::AppError::DatabaseConfiguration(message) => AppError::new(
                 ErrorKind::Validation,
                 ErrorCode::DatabaseConfiguration,

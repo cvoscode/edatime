@@ -5,19 +5,18 @@ import { EchartsScatterChart } from './EchartsScatterChart.js';
 
 describe('Chart Disposal & Resource Teardown Leak Guard', () => {
     it('calls dispose() on underlying chart instance and releases interactions on DataChart destroy()', () => {
-        const container = document.createElement('div');
         const mockDispose = vi.fn();
-        const chart = new DataChart(container, { title: 'Test Data Chart' });
+        const disposeInteractions = vi.fn();
+        const chart = new DataChart('chart-root', null);
         (chart as any).chartInstance = { dispose: mockDispose, setOption: vi.fn() };
-        (chart as any)._disposeBoxZoom = vi.fn();
-        (chart as any)._disposeCtrlPan = vi.fn();
+        (chart as any)._disposeInteractions = disposeInteractions;
 
+        chart.destroy();
         chart.destroy();
 
         expect(mockDispose).toHaveBeenCalledOnce();
-        expect((chart as any)._disposeBoxZoom).toHaveBeenCalledOnce();
-        expect((chart as any)._disposeCtrlPan).toHaveBeenCalledOnce();
-        expect(chart.disposed).toBe(true);
+        expect(disposeInteractions).toHaveBeenCalledTimes(2);
+        expect(chart.chartInstance).toBeNull();
     });
 
     it('disposes interaction and overlay resources on FftChart destroy()', () => {
@@ -25,8 +24,7 @@ describe('Chart Disposal & Resource Teardown Leak Guard', () => {
         const mockOverlayDispose = vi.fn();
         const mockChartDispose = vi.fn();
 
-        const container = document.createElement('div');
-        const fftChart = new FftChart(container);
+        const fftChart = new FftChart('fft-root');
 
         (fftChart as any)._interactionResources = { dispose: mockInteractionDispose };
         (fftChart as any)._overlayResources = { dispose: mockOverlayDispose };
@@ -41,8 +39,7 @@ describe('Chart Disposal & Resource Teardown Leak Guard', () => {
 
     it('invokes dispose() on underlying ECharts instance when EchartsScatterChart is disposed', () => {
         const mockScatterDispose = vi.fn();
-        const container = document.createElement('div');
-        const scatter = new EchartsScatterChart(container);
+        const scatter = new EchartsScatterChart('scatter-root');
 
         (scatter as any)._chart = { dispose: mockScatterDispose, setOption: vi.fn() };
 

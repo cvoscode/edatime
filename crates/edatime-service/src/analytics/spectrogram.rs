@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use super::shared::{estimate_sample_rate_hz, extract_f64_column, extract_ts_epoch_ms};
 use crate::error::AppError;
+use edatime_core::cancellation::CancellationProbe;
 use edatime_core::stats::{ColumnStats, compute_column_stats};
 
 /// Normalization mode for the spectrogram colorbar. Mirrors the
@@ -121,6 +122,32 @@ pub fn compute_spectrogram(
     window_size: usize,
     hop_size: usize,
 ) -> Result<SpectrogramResult, AppError> {
+    compute_spectrogram_with_cancellation(df, column, window_size, hop_size, None)
+}
+
+/// Cooperative form of `compute_spectrogram`. It checks the request-owned
+/// probe once per eight STFT windows, bounding cancellation latency without
+/// adding a per-sample atomic load to the FFT hot path.
+pub fn compute_spectrogram_cancellable(
+    df: &DataFrame,
+    column: &str,
+    window_size: usize,
+    hop_size: usize,
+    cancellation: &CancellationProbe,
+) -> Result<SpectrogramResult, AppError> {
+    compute_spectrogram_with_cancellation(df, column, window_size, hop_size, Some(cancellation))
+}
+
+fn compute_spectrogram_with_cancellation(
+    df: &DataFrame,
+    column: &str,
+    window_size: usize,
+    hop_size: usize,
+    cancellation: Option<&CancellationProbe>,
+) -> Result<SpectrogramResult, AppError> {
+    if let Some(cancellation) = cancellation {
+        cancellation.check()?;
+    }
     let ts_ms = extract_ts_epoch_ms(df)?;
     let fs = estimate_sample_rate_hz(&ts_ms);
     let values = extract_f64_column(df, column)?;
@@ -149,7 +176,13 @@ pub fn compute_spectrogram(
     let mut magnitudes = Vec::new();
 
     let mut pos = 0usize;
+    let mut windows_processed = 0usize;
     while pos + window_size <= n {
+        if windows_processed.is_multiple_of(8)
+            && let Some(cancellation) = cancellation
+        {
+            cancellation.check()?;
+        }
         let centre_idx = pos + window_size / 2;
         let t = if centre_idx < ts_ms.len() {
             ts_ms[centre_idx]
@@ -180,6 +213,7 @@ pub fn compute_spectrogram(
         magnitudes.push(row);
 
         pos += hop_size;
+        windows_processed += 1;
     }
 
     Ok(SpectrogramResult {
@@ -199,6 +233,25 @@ pub fn compute_spectrogram(
 /// When `opts.mode == ScaleMode::None` and `opts.clip == ClipMode::None`
 /// the input is returned unchanged.
 pub fn apply_scale(result: &mut SpectrogramResult, opts: ScaleOptions) -> Result<(), AppError> {
+    apply_scale_with_cancellation(result, opts, None)
+}
+
+/// Cooperative scaling variant. The spectrogram kernel has already bounded
+/// its dimensions before this point; polling here ensures a large response is
+/// not normalized after its request has gone away.
+pub fn apply_scale_cancellable(
+    result: &mut SpectrogramResult,
+    opts: ScaleOptions,
+    cancellation: &CancellationProbe,
+) -> Result<(), AppError> {
+    apply_scale_with_cancellation(result, opts, Some(cancellation))
+}
+
+fn apply_scale_with_cancellation(
+    result: &mut SpectrogramResult,
+    opts: ScaleOptions,
+    cancellation: Option<&CancellationProbe>,
+) -> Result<(), AppError> {
     if opts.mode == ScaleMode::None && opts.clip == ClipMode::None {
         return Ok(());
     }
@@ -206,11 +259,18 @@ pub fn apply_scale(result: &mut SpectrogramResult, opts: ScaleOptions) -> Result
     // Flatten the magnitudes for statistics. Non-finite values are dropped
     // from the clip calculation but still propagated through unchanged.
     let mut flat: Vec<f64> = Vec::new();
+    let mut cells_seen = 0usize;
     for row in &result.magnitudes {
         for &v in row {
+            if cells_seen.is_multiple_of(1024)
+                && let Some(cancellation) = cancellation
+            {
+                cancellation.check()?;
+            }
             if v.is_finite() {
                 flat.push(v);
             }
+            cells_seen += 1;
         }
     }
     if flat.is_empty() {
@@ -269,12 +329,19 @@ pub fn apply_scale(result: &mut SpectrogramResult, opts: ScaleOptions) -> Result
     //    keeps the implementation simple and matches the frontend
     //    contract; the spectrogram has at most ~32K cells in practice.
     let mut idx = 0usize;
+    cells_seen = 0;
     for row in result.magnitudes.iter_mut() {
         for cell in row.iter_mut() {
+            if cells_seen.is_multiple_of(1024)
+                && let Some(cancellation) = cancellation
+            {
+                cancellation.check()?;
+            }
             if cell.is_finite() {
                 *cell = clipped_flat[idx];
                 idx += 1;
             }
+            cells_seen += 1;
         }
     }
 
@@ -456,6 +523,8 @@ pub fn apply_spectral_filter(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::ErrorCode;
+    use edatime_core::cancellation::cancellation_pair;
 
     fn make_result(values: Vec<f64>) -> SpectrogramResult {
         SpectrogramResult {
@@ -480,6 +549,27 @@ mod tests {
         )
         .unwrap();
         assert_eq!(r.magnitudes, vec![vec![1.0], vec![2.0], vec![3.0]]);
+    }
+
+    #[test]
+    fn cancellable_scaling_stops_before_mutating_a_precancelled_result() {
+        let mut result = make_result(vec![1.0, 2.0, 3.0]);
+        let (handle, probe) = cancellation_pair();
+        handle.cancel();
+
+        let error = apply_scale_cancellable(
+            &mut result,
+            ScaleOptions {
+                mode: ScaleMode::Minmax,
+                clip: ClipMode::None,
+                clip_param: 0.0,
+            },
+            &probe,
+        )
+        .expect_err("pre-cancelled scaling must stop");
+
+        assert_eq!(error.code, ErrorCode::RequestCancelled);
+        assert_eq!(result.magnitudes, vec![vec![1.0], vec![2.0], vec![3.0]]);
     }
 
     #[test]

@@ -13,6 +13,47 @@ const retiredSourceRoots = [
   'frontend/src/drift',
   'frontend/src/components',
 ];
+// WorkspaceStore is the cross-feature owner for dataset identity, selection,
+// filters, and viewport intent. These remaining direct legacy-store consumers
+// are an explicit migration inventory, not a permission to add new ones.
+// Remove a path when its feature slice is migrated; any new production import
+// fails the architecture check immediately.
+const legacyWorkspaceMigrationAllowlist = new Set([
+  'frontend/src/app.ts',
+  'frontend/src/chart/DataChart.ts',
+  'frontend/src/features/fft/page.ts',
+  'frontend/src/features/prepare/index.ts',
+  'frontend/src/features/scatter/controls.ts',
+  'frontend/src/features/scatter/runtime.ts',
+  'frontend/src/features/scatter/state.ts',
+  'frontend/src/features/spectrogram/runtime.ts',
+  'frontend/src/features/timeseries/actions.ts',
+  'frontend/src/features/timeseries/adaptiveGesture.ts',
+  'frontend/src/features/timeseries/analyticsOverlay.ts',
+  'frontend/src/features/timeseries/chipComposition.ts',
+  'frontend/src/features/timeseries/colorByControl.ts',
+  'frontend/src/features/timeseries/columnSelection.ts',
+  'frontend/src/features/timeseries/columnsController.ts',
+  'frontend/src/features/timeseries/controller.ts',
+  'frontend/src/features/timeseries/ensureReady.ts',
+  'frontend/src/features/timeseries/filterModalController.ts',
+  'frontend/src/features/timeseries/module.ts',
+  'frontend/src/features/timeseries/rangeControls.ts',
+  'frontend/src/features/upload/fileSource.ts',
+  'frontend/src/features/upload/panel.ts',
+  'frontend/src/features/upload/preview.ts',
+  'frontend/src/features/upload/profile.ts',
+  'frontend/src/ui/analysisStatus.ts',
+  'frontend/src/ui/annotationPanel.ts',
+  'frontend/src/ui/chartTextControls.ts',
+  'frontend/src/ui/drawControls.ts',
+  'frontend/src/ui/quickRange.ts',
+  'frontend/src/ui/toolbar.ts',
+  'frontend/src/ui/viewport.ts',
+  'frontend/src/utils/provenance.ts',
+  'frontend/src/utils/seriesColors.ts',
+  'frontend/src/utils/session.ts',
+]);
 async function listTsFiles(dir) {
   const entries = await readdir(dir, { withFileTypes: true });
   const files = [];
@@ -163,6 +204,12 @@ for (const file of files) {
         add(file, 'import from components/ is deprecated — use ui/ instead', lineOf(text, match.index ?? 0));
       } else if (/store\/index(\.js)?$/.test(src)) {
         add(file, 'production modules must import focused store slices instead of store/index.js', lineOf(text, match.index ?? 0));
+      }
+      if (
+        /frontend\/src\/store\/(chartState|datasetState|uiState)\.js$/.test(resolved)
+        && !legacyWorkspaceMigrationAllowlist.has(rel)
+      ) {
+        add(file, 'new direct legacy workspace-store import is forbidden; migrate through WorkspaceStore instead', lineOf(text, match.index ?? 0));
       }
     }
   }

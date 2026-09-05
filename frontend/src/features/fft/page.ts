@@ -7,7 +7,6 @@ import { getAnalyticsChipColor, getNumericColumns } from '../../platform/analyti
 import { analyticsState, setSpectralFilterPreview } from '../../store/analyticsState.js';
 import { chartState } from '../../store/chartState.js';
 import { datasetState } from '../../store/datasetState.js';
-import { uiState } from '../../store/uiState.js';
 import { renderSeriesChipList } from '../../ui/index.js';
 import { getDropdownValue, setDropdownDisabled } from '../../ui/primitives/Dropdown.js';
 import { setSeriesColor } from '../../utils/seriesColors.js';

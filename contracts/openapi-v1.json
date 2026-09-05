@@ -1,0 +1,4428 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "edatime HTTP API contract",
+    "version": "v1",
+    "description": "Generated from contracts/api-v1.json. Route identity is complete; DTO field schemas are migrated incrementally."
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "summary": "GET /api/v1/health",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/build": {
+      "get": {
+        "operationId": "getBuild",
+        "summary": "GET /api/v1/build",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuildIdentity"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/contract": {
+      "get": {
+        "operationId": "getContract",
+        "summary": "GET /api/v1/contract",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiContract"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/capabilities": {
+      "get": {
+        "operationId": "getCapabilities",
+        "summary": "GET /api/v1/capabilities",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Capabilities"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/data": {
+      "post": {
+        "operationId": "postData",
+        "summary": "POST /api/v1/data",
+        "tags": [
+          "plan-aware"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DataRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/vnd.apache.arrow.stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonData"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cleaning/validate": {
+      "post": {
+        "operationId": "postCleaningValidate",
+        "summary": "POST /api/v1/cleaning/validate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CleaningPlanEnvelope"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cleaning/preview": {
+      "post": {
+        "operationId": "postCleaningPreview",
+        "summary": "POST /api/v1/cleaning/preview",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CleaningPlanEnvelope"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CleaningPreviewResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cleaning/propose/outliers": {
+      "post": {
+        "operationId": "postCleaningProposeOutliers",
+        "summary": "POST /api/v1/cleaning/propose/outliers",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OutlierProposalRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutlierProposalResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cleaning/apply": {
+      "post": {
+        "operationId": "postCleaningApply",
+        "summary": "POST /api/v1/cleaning/apply",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CleaningPlanEnvelope"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CleaningApplyResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cleaning/export/data": {
+      "post": {
+        "operationId": "postCleaningExportData",
+        "summary": "POST /api/v1/cleaning/export/data",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CleaningDataExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cleaning/export/plan": {
+      "post": {
+        "operationId": "postCleaningExportPlan",
+        "summary": "POST /api/v1/cleaning/export/plan",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CleaningPlanEnvelope"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cleaning/export/code": {
+      "post": {
+        "operationId": "postCleaningExportCode",
+        "summary": "POST /api/v1/cleaning/export/code",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CleaningCodeExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cleaning/export/manifest": {
+      "post": {
+        "operationId": "postCleaningExportManifest",
+        "summary": "POST /api/v1/cleaning/export/manifest",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CleaningPlanEnvelope"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cleaning/export/bundle": {
+      "post": {
+        "operationId": "postCleaningExportBundle",
+        "summary": "POST /api/v1/cleaning/export/bundle",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CleaningPlanEnvelope"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/datasets/versions": {
+      "get": {
+        "operationId": "getDatasetsVersions",
+        "summary": "GET /api/v1/datasets/versions",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetVersionsResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/datasets/versions/select": {
+      "post": {
+        "operationId": "postDatasetsVersionsSelect",
+        "summary": "POST /api/v1/datasets/versions/select",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SelectVersionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelectVersionResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/datasets/storage": {
+      "get": {
+        "operationId": "getDatasetsStorage",
+        "summary": "GET /api/v1/datasets/storage",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageUsageResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metadata": {
+      "get": {
+        "operationId": "getMetadata",
+        "summary": "GET /api/v1/metadata",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetMetadata"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/profile": {
+      "get": {
+        "operationId": "getProfile",
+        "summary": "GET /api/v1/profile",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "postProfile",
+        "summary": "POST /api/v1/profile",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/profile/sample": {
+      "get": {
+        "operationId": "getProfileSample",
+        "summary": "GET /api/v1/profile/sample",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "postProfileSample",
+        "summary": "POST /api/v1/profile/sample",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "operationId": "getMetrics",
+        "summary": "GET /api/v1/metrics",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricsResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics/prometheus": {
+      "get": {
+        "operationId": "getMetricsPrometheus",
+        "summary": "GET /api/v1/metrics/prometheus",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs": {
+      "get": {
+        "operationId": "getJobs",
+        "summary": "GET /api/v1/jobs",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobListResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{id}": {
+      "get": {
+        "operationId": "getJobsId}",
+        "summary": "GET /api/v1/jobs/{id}",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteJobsId}",
+        "summary": "DELETE /api/v1/jobs/{id}",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/scatter/points": {
+      "post": {
+        "operationId": "postScatterPoints",
+        "summary": "POST /api/v1/scatter/points",
+        "tags": [
+          "plan-aware"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScatterPointsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScatterPointsResponse"
+                }
+              },
+              "application/vnd.apache.arrow.stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/scatter/matrix": {
+      "post": {
+        "operationId": "postScatterMatrix",
+        "summary": "POST /api/v1/scatter/matrix",
+        "tags": [
+          "plan-aware"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScatterMatrixRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScatterMatrixResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/scatter/export/parquet": {
+      "post": {
+        "operationId": "postScatterExportParquet",
+        "summary": "POST /api/v1/scatter/export/parquet",
+        "tags": [
+          "plan-aware"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScatterExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/vnd.apache.parquet": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/scatter/correlations": {
+      "post": {
+        "operationId": "postScatterCorrelations",
+        "summary": "POST /api/v1/scatter/correlations",
+        "tags": [
+          "plan-aware"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScatterCorrelationsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScatterCorrelationsResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/scatter/correlations/matrix": {
+      "post": {
+        "operationId": "postScatterCorrelationsMatrix",
+        "summary": "POST /api/v1/scatter/correlations/matrix",
+        "tags": [
+          "plan-aware"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorrelationMatrixRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CorrelationMatrixResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/upload": {
+      "post": {
+        "operationId": "postUpload",
+        "summary": "POST /api/v1/upload",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Multipart upload payload; file and optional selection fields are validated by the upload handler."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/upload/preview": {
+      "post": {
+        "operationId": "postUploadPreview",
+        "summary": "POST /api/v1/upload/preview",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Multipart upload payload; file and optional selection fields are validated by the upload handler."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadPreviewResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sample/{name}": {
+      "get": {
+        "operationId": "getSampleName}",
+        "summary": "GET /api/v1/sample/{name}",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/database/connect": {
+      "post": {
+        "operationId": "postDatabaseConnect",
+        "summary": "POST /api/v1/database/connect",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatabaseConnectRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatabaseStatusResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteDatabaseConnect",
+        "summary": "DELETE /api/v1/database/connect",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatabaseStatusResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/database/status": {
+      "get": {
+        "operationId": "getDatabaseStatus",
+        "summary": "GET /api/v1/database/status",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatabaseStatusResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/database/tables": {
+      "get": {
+        "operationId": "getDatabaseTables",
+        "summary": "GET /api/v1/database/tables",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatabaseTablesResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/database/columns": {
+      "get": {
+        "operationId": "getDatabaseColumns",
+        "summary": "GET /api/v1/database/columns",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatabaseColumnsResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/database/load": {
+      "post": {
+        "operationId": "postDatabaseLoad",
+        "summary": "POST /api/v1/database/load",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatabaseLoadRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/config/database": {
+      "get": {
+        "operationId": "getConfigDatabase",
+        "summary": "GET /api/v1/config/database",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatabaseConfigResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/aggregate": {
+      "get": {
+        "operationId": "getAggregate",
+        "summary": "GET /api/v1/aggregate",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AggregateResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/analytics/rolling": {
+      "post": {
+        "operationId": "postAnalyticsRolling",
+        "summary": "POST /api/v1/analytics/rolling",
+        "tags": [
+          "plan-aware"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RollingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RollingResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/analytics/anomalies": {
+      "post": {
+        "operationId": "postAnalyticsAnomalies",
+        "summary": "POST /api/v1/analytics/anomalies",
+        "tags": [
+          "plan-aware"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnomalyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnomalyResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/analytics/fft": {
+      "post": {
+        "operationId": "postAnalyticsFft",
+        "summary": "POST /api/v1/analytics/fft",
+        "tags": [
+          "plan-aware"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FftRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FftResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/analytics/spectrogram": {
+      "post": {
+        "operationId": "postAnalyticsSpectrogram",
+        "summary": "POST /api/v1/analytics/spectrogram",
+        "tags": [
+          "plan-aware"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpectrogramRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpectrogramResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/analytics/spectral-filter": {
+      "post": {
+        "operationId": "postAnalyticsSpectralFilter",
+        "summary": "POST /api/v1/analytics/spectral-filter",
+        "tags": [
+          "plan-aware"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpectralFilterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpectralFilterResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/analytics/causal": {
+      "post": {
+        "operationId": "postAnalyticsCausal",
+        "summary": "POST /api/v1/analytics/causal",
+        "tags": [
+          "plan-aware"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CausalGraphRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CausalGraphResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/drift/stats": {
+      "post": {
+        "operationId": "postDriftStats",
+        "summary": "POST /api/v1/drift/stats",
+        "tags": [
+          "plan-aware"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DriftStatsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriftStatsResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/drift/investigate": {
+      "post": {
+        "operationId": "postDriftInvestigate",
+        "summary": "POST /api/v1/drift/investigate",
+        "tags": [
+          "plan-aware"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DriftInvestigateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriftInvestigateResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "error",
+          "message",
+          "kind",
+          "code",
+          "correlation_id",
+          "request_id"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "minLength": 1
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "validation",
+              "conflict",
+              "internal",
+              "rate_limit",
+              "not_found",
+              "unsupported",
+              "unavailable"
+            ]
+          },
+          "code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "correlation_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "request_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "CleaningPlanEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "plan",
+          "expectedSourceVersionId",
+          "expectedDatasetRevision"
+        ],
+        "properties": {
+          "plan": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "expectedPlanHash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expectedSourceVersionId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expectedDatasetRevision": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "DataRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "start",
+          "end",
+          "width",
+          "cleaning_plan"
+        ],
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "columns": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "color_column": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lookaround_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "format": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "arrow",
+              "json",
+              null
+            ]
+          },
+          "cleaning_plan": {
+            "$ref": "#/components/schemas/CleaningPlanEnvelope"
+          }
+        }
+      },
+      "ScatterPointsRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "x",
+          "y",
+          "cleaning_plan"
+        ],
+        "properties": {
+          "x": {
+            "type": "string",
+            "minLength": 1
+          },
+          "y": {
+            "type": "string",
+            "minLength": 1
+          },
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "size": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "start": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "end": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Zero or omission selects the configured default; positive values are clamped to the server limit."
+          },
+          "format": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "arrow",
+              "json",
+              null
+            ]
+          },
+          "time_color_mode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "bucket",
+              "raw",
+              null
+            ]
+          },
+          "cleaning_plan": {
+            "$ref": "#/components/schemas/CleaningPlanEnvelope"
+          }
+        }
+      },
+      "CausalGraphRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "cleaning_plan"
+        ],
+        "properties": {
+          "columns": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "array",
+                "minItems": 2,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            ]
+          },
+          "tau_max": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 128
+          },
+          "pc_alpha": {
+            "type": "number",
+            "description": "Finite values are accepted and clamped to the server-supported range."
+          },
+          "alpha": {
+            "type": "number",
+            "description": "Finite values are accepted and clamped to the server-supported range."
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "pcmci",
+              "pcmciplus",
+              "fullci",
+              "bivci",
+              "lpcmci"
+            ]
+          },
+          "test": {
+            "type": "string",
+            "enum": [
+              "par_corr",
+              "cmi_knn",
+              "robust_parcorr",
+              "gsquared",
+              "cmi_symb"
+            ]
+          },
+          "max_points": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "max_conds_dim": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "fdr_method": {
+            "type": "string",
+            "enum": [
+              "none",
+              "fdr_bh"
+            ]
+          },
+          "n_preliminary_iterations": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "knn": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "sig_samples": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "cleaning_plan": {
+            "$ref": "#/components/schemas/CleaningPlanEnvelope"
+          }
+        }
+      },
+      "RollingRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "start",
+          "end",
+          "cleaning_plan"
+        ],
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "columns": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "window": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "Omission selects the default; the service clamps accepted values."
+          },
+          "cleaning_plan": {
+            "$ref": "#/components/schemas/CleaningPlanEnvelope"
+          }
+        }
+      },
+      "AnomalyRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "start",
+          "end",
+          "cleaning_plan"
+        ],
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "columns": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "method": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "zscore",
+              "iqr",
+              null
+            ]
+          },
+          "threshold": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "cleaning_plan": {
+            "$ref": "#/components/schemas/CleaningPlanEnvelope"
+          }
+        }
+      },
+      "FftRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "start",
+          "end",
+          "cleaning_plan"
+        ],
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "columns": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "max_points": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 64
+          },
+          "cleaning_plan": {
+            "$ref": "#/components/schemas/CleaningPlanEnvelope"
+          }
+        }
+      },
+      "SpectrogramRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "start",
+          "end",
+          "column",
+          "cleaning_plan"
+        ],
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "column": {
+            "type": "string",
+            "minLength": 1
+          },
+          "window_size": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "The service clamps values to its supported window range."
+          },
+          "hop_size": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "The service clamps values to the resolved window size."
+          },
+          "max_points": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 256
+          },
+          "normalize": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "none",
+              "minmax",
+              "min-max",
+              "min_max",
+              "zscore",
+              "z-score",
+              "z_score",
+              "robust",
+              null
+            ]
+          },
+          "clip": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "none",
+              "percentile",
+              "pct",
+              "p",
+              "iqr",
+              null
+            ]
+          },
+          "clip_param": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "cleaning_plan": {
+            "$ref": "#/components/schemas/CleaningPlanEnvelope"
+          }
+        }
+      },
+      "SpectralFilterRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "column",
+          "filter_type",
+          "cleaning_plan"
+        ],
+        "properties": {
+          "start": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "end": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "column": {
+            "type": "string",
+            "minLength": 1
+          },
+          "filter_type": {
+            "type": "string",
+            "enum": [
+              "lowpass",
+              "highpass",
+              "bandpass",
+              "bandstop"
+            ]
+          },
+          "low_hz": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "high_hz": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "exclusiveMinimum": 0
+          },
+          "sample_rate_hz": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "exclusiveMinimum": 0
+          },
+          "max_points": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 64
+          },
+          "cleaning_plan": {
+            "$ref": "#/components/schemas/CleaningPlanEnvelope"
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "filter_type": {
+                  "const": "lowpass"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "high_hz"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "filter_type": {
+                  "const": "highpass"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "low_hz"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "filter_type": {
+                  "enum": [
+                    "bandpass",
+                    "bandstop"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "low_hz",
+                "high_hz"
+              ]
+            }
+          }
+        ]
+      },
+      "CleaningDataExportRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "plan",
+          "expectedSourceVersionId",
+          "expectedDatasetRevision"
+        ],
+        "properties": {
+          "plan": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "expectedPlanHash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expectedSourceVersionId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expectedDatasetRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "parquet"
+            ]
+          },
+          "outputColumns": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      },
+      "CleaningCodeExportRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "plan",
+          "expectedSourceVersionId",
+          "expectedDatasetRevision",
+          "language"
+        ],
+        "properties": {
+          "plan": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "expectedPlanHash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expectedSourceVersionId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expectedDatasetRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "python",
+              "rust"
+            ]
+          }
+        }
+      },
+      "OutlierProposalRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "plan",
+          "expectedSourceVersionId",
+          "expectedDatasetRevision",
+          "columns",
+          "method",
+          "threshold"
+        ],
+        "properties": {
+          "plan": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "expectedPlanHash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expectedSourceVersionId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expectedDatasetRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "columns": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "method": {
+            "type": "string",
+            "minLength": 1
+          },
+          "threshold": {
+            "type": "number"
+          }
+        }
+      },
+      "SelectVersionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "versionId"
+        ],
+        "properties": {
+          "versionId": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "ScatterMatrixRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "pairs",
+          "cleaning_plan"
+        ],
+        "properties": {
+          "pairs": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "x",
+                "y"
+              ],
+              "properties": {
+                "x": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "y": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "start": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "end": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "time_color_mode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "bucket",
+              "raw",
+              null
+            ]
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Zero or omission selects the configured default."
+          },
+          "cleaning_plan": {
+            "$ref": "#/components/schemas/CleaningPlanEnvelope"
+          }
+        }
+      },
+      "ScatterCorrelationsRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "cleaning_plan"
+        ],
+        "properties": {
+          "base": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "threshold": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "mode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "pearson_raw",
+              "spearman_raw",
+              "kendall_raw",
+              "pearson_diff",
+              "spearman_diff",
+              "kendall_diff",
+              null
+            ]
+          },
+          "cleaning_plan": {
+            "$ref": "#/components/schemas/CleaningPlanEnvelope"
+          }
+        }
+      },
+      "CorrelationMatrixRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "cleaning_plan"
+        ],
+        "properties": {
+          "mode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "pearson_raw",
+              "spearman_raw",
+              "kendall_raw",
+              "pearson_diff",
+              "spearman_diff",
+              "kendall_diff",
+              null
+            ]
+          },
+          "cleaning_plan": {
+            "$ref": "#/components/schemas/CleaningPlanEnvelope"
+          }
+        }
+      },
+      "DriftStatsRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "column",
+          "window",
+          "referenceStart",
+          "referenceEnd",
+          "cleaningPlan"
+        ],
+        "properties": {
+          "column": {
+            "type": "string",
+            "minLength": 1
+          },
+          "window": {
+            "type": "string",
+            "enum": [
+              "hourly",
+              "daily",
+              "weekly"
+            ]
+          },
+          "referenceStart": {
+            "type": "string",
+            "minLength": 1
+          },
+          "referenceEnd": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ksPvalueThreshold": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "esPvalueThreshold": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "psiMinorThreshold": {
+            "type": "number",
+            "minimum": 0
+          },
+          "psiMajorThreshold": {
+            "type": "number",
+            "minimum": 0
+          },
+          "wassersteinStdMultiplier": {
+            "type": "number",
+            "minimum": 0
+          },
+          "cleaningPlan": {
+            "$ref": "#/components/schemas/CleaningPlanEnvelope"
+          }
+        }
+      },
+      "DriftInvestigateRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "columns",
+          "window",
+          "referenceStart",
+          "referenceEnd",
+          "cleaningPlan"
+        ],
+        "properties": {
+          "columns": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "window": {
+            "type": "string",
+            "enum": [
+              "hourly",
+              "daily",
+              "weekly"
+            ]
+          },
+          "referenceStart": {
+            "type": "string",
+            "minLength": 1
+          },
+          "referenceEnd": {
+            "type": "string",
+            "minLength": 1
+          },
+          "comparisonStart": {
+            "type": "string",
+            "minLength": 1
+          },
+          "comparisonEnd": {
+            "type": "string",
+            "minLength": 1
+          },
+          "segmentBy": {
+            "type": "string",
+            "minLength": 1
+          },
+          "segmentLimit": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "ksPvalueThreshold": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "esPvalueThreshold": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "psiMinorThreshold": {
+            "type": "number",
+            "minimum": 0
+          },
+          "psiMajorThreshold": {
+            "type": "number",
+            "minimum": 0
+          },
+          "wassersteinStdMultiplier": {
+            "type": "number",
+            "minimum": 0
+          },
+          "includeQuality": {
+            "type": "boolean"
+          },
+          "includeChangePoints": {
+            "type": "boolean"
+          },
+          "includeCorrelations": {
+            "type": "boolean"
+          },
+          "cleaningPlan": {
+            "$ref": "#/components/schemas/CleaningPlanEnvelope"
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "HealthResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "BuildIdentity": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "BuildIdentity is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "ApiContract": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "ApiContract is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "Capabilities": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "Capabilities is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "JsonData": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "JsonData is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "ValidationResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "ValidationResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "CleaningPreviewResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "CleaningPreviewResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "OutlierProposalResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "OutlierProposalResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "CleaningApplyResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "CleaningApplyResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "DatasetVersionsResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "DatasetVersionsResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "SelectVersionResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "SelectVersionResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "StorageUsageResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "StorageUsageResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "DatasetMetadata": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "DatasetMetadata is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "ProfileResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "ProfileResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "MetricsResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "MetricsResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "JobListResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "JobListResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "JobResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "JobResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "ScatterPointsResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "ScatterPointsResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "ScatterMatrixResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "ScatterMatrixResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "ScatterExportRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "ScatterExportRequest is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "ScatterCorrelationsResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "ScatterCorrelationsResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "CorrelationMatrixResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "CorrelationMatrixResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "UploadResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "UploadResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "UploadPreviewResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "UploadPreviewResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "DatabaseConnectRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "DatabaseConnectRequest is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "DatabaseStatusResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "DatabaseStatusResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "DatabaseTablesResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "DatabaseTablesResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "DatabaseColumnsResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "DatabaseColumnsResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "DatabaseLoadRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "DatabaseLoadRequest is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "DatabaseConfigResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "DatabaseConfigResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "AggregateResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "AggregateResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "RollingResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "RollingResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "AnomalyResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "AnomalyResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "FftResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "FftResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "SpectrogramResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "SpectrogramResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "SpectralFilterResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "SpectralFilterResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "CausalGraphResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "CausalGraphResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "DriftStatsResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "DriftStatsResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      },
+      "DriftInvestigateResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "DriftInvestigateResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
+      }
+    }
+  }
+}

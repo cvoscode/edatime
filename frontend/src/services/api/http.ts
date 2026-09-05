@@ -151,11 +151,36 @@ function assertScatterCorrelations(data: unknown): asserts data is ScatterCorrel
 // ── Structured API error parsing ───────────────────────────────────────────
 
 export interface ApiErrorPayload {
-    error?: unknown;
-    message?: unknown;
-    code?: unknown;
-    correlation_id?: unknown;
-    request_id?: unknown;
+    error: string;
+    message: string;
+    kind: string;
+    code: string;
+    correlation_id: string;
+    request_id: string;
+}
+
+const API_ERROR_FIELDS = [
+    'error',
+    'message',
+    'kind',
+    'code',
+    'correlation_id',
+    'request_id',
+] as const;
+
+function isApiErrorPayload(value: unknown): value is ApiErrorPayload {
+    if (!isObject(value)) return false;
+    return API_ERROR_FIELDS.every((field) => (
+        typeof value[field] === 'string' && value[field].trim().length > 0
+    ));
+}
+
+function formatErrorContractViolation(value: unknown): string {
+    if (!isObject(value)) return 'error response is not a JSON object';
+    const invalidFields = API_ERROR_FIELDS.filter((field) => (
+        typeof value[field] !== 'string' || value[field].trim().length === 0
+    ));
+    return `error response violates the v1 error contract; missing or invalid: ${invalidFields.join(', ')}`;
 }
 
 /**
@@ -177,20 +202,30 @@ export async function readApiError(response: Response, label: string): Promise<E
     let detail = '';
     let code: string | undefined;
     let correlationId: string | undefined;
+    let kind: string | undefined;
+    let contractViolation: string | undefined;
+    const declaresV1Contract = response.headers?.get('x-edatime-contract')?.trim() === 'v1';
 
     try {
         if (contentType.includes('application/json')) {
-            const parsed = (await response.json()) as ApiErrorPayload;
-            const messageRaw = parsed?.message ?? parsed?.error;
+            const parsed: unknown = await response.json();
+            if (declaresV1Contract && !isApiErrorPayload(parsed)) {
+                contractViolation = formatErrorContractViolation(parsed);
+            }
+            const payload = isObject(parsed) ? parsed : {};
+            const messageRaw = payload.message ?? payload.error;
             if (typeof messageRaw === 'string' && messageRaw.trim().length > 0) {
                 detail = messageRaw;
             } else if (messageRaw != null) {
                 detail = String(messageRaw);
             }
-            if (typeof parsed?.code === 'string' && parsed.code.trim().length > 0) {
-                code = parsed.code;
+            if (typeof payload.code === 'string' && payload.code.trim().length > 0) {
+                code = payload.code;
             }
-            const requestId = parsed?.request_id ?? parsed?.correlation_id;
+            if (typeof payload.kind === 'string' && payload.kind.trim().length > 0) {
+                kind = payload.kind;
+            }
+            const requestId = payload.request_id ?? payload.correlation_id;
             if (typeof requestId === 'string' && requestId.trim().length > 0) {
                 correlationId = requestId;
             }
@@ -205,12 +240,15 @@ export async function readApiError(response: Response, label: string): Promise<E
 
     const suffix = detail ? ` ${detail}` : '';
     const tag = code ? `[${code}]` : '';
+    const kindTag = kind ? ` {${kind}}` : '';
     const correlationTag = correlationId ? ` (request_id=${correlationId})` : '';
+    const contractTag = contractViolation ? ` [${contractViolation}]` : '';
     const error = new Error(
-        `${label} failed (${status})${tag ? ' ' + tag : ''}${correlationTag}${suffix}`.trim(),
+        `${label} failed (${status})${tag ? ' ' + tag : ''}${kindTag}${correlationTag}${contractTag}${suffix}`.trim(),
     );
-    (error as Error & { status?: number; code?: string; correlationId?: string }).status = status;
+    (error as Error & { status?: number; code?: string; kind?: string; correlationId?: string }).status = status;
     if (code) (error as Error & { code?: string }).code = code;
+    if (kind) (error as Error & { kind?: string }).kind = kind;
     if (correlationId) (error as Error & { correlationId?: string }).correlationId = correlationId;
     return error;
 }

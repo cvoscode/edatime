@@ -2,7 +2,9 @@
 
 use axum::{Json, extract::State, response::Response};
 use serde::Deserialize;
+use std::time::Instant;
 
+use edatime_core::metrics::DataStage;
 use edatime_core::pipeline::{Pipeline, ProjectStage, TimeFilterStage};
 
 use crate::error::AppError;
@@ -116,6 +118,10 @@ async fn data_response(
             coalesced,
         } => {
             state.metrics.record_cache_hit();
+            state.metrics.record_data_request(true);
+            state
+                .metrics
+                .record_data_response(response.body_len() as u64);
             return Ok(cached_response(
                 response,
                 if coalesced { "coalesced" } else { "hit" },
@@ -123,6 +129,7 @@ async fn data_response(
         }
         CacheReservation::Producer(producer) => {
             state.metrics.record_cache_miss();
+            state.metrics.record_data_request(false);
             producer
         }
     };
@@ -147,6 +154,7 @@ async fn data_response(
     // One bounded probe preserves exact behavior for small windows without a
     // separate full count scan. Large windows then use one shared multi-series
     // envelope scan that also returns the exact filtered-row count.
+    let collect_started = Instant::now();
     let bounded_probe = state
         .query_executor
         .execute_async(filtered_plan.clone().slice(0, (candidate_cap + 1) as u32))
@@ -176,7 +184,12 @@ async fn data_response(
         let filtered_rows = bounded_probe.height();
         (bounded_probe, filtered_rows, false)
     };
+    state.metrics.record_data_stage(
+        DataStage::Collect,
+        collect_started.elapsed().as_nanos() as u64,
+    );
     let candidate_rows = candidates.height();
+    let reduce_started = Instant::now();
     let (reduced, was_downsampled) = pipeline::apply_reduction(
         &candidates,
         &value_cols,
@@ -185,7 +198,12 @@ async fn data_response(
         &ts_col,
     )?;
     let returned_rows = reduced.height();
+    state.metrics.record_data_stage(
+        DataStage::Reduce,
+        reduce_started.elapsed().as_nanos() as u64,
+    );
 
+    let serialize_started = Instant::now();
     let cached = match format {
         query::OutputFormat::Arrow => CachedResponse::arrow(
             pipeline::serialize_arrow(reduced, &ts_col)?,
@@ -214,6 +232,16 @@ async fn data_response(
             )
         }
     };
+    state.metrics.record_data_stage(
+        DataStage::Serialize,
+        serialize_started.elapsed().as_nanos() as u64,
+    );
+    state.metrics.record_data_rows(
+        filtered_rows as u64,
+        candidate_rows as u64,
+        returned_rows as u64,
+    );
+    state.metrics.record_data_response(cached.body_len() as u64);
 
     // Empty-range signal (audit issue 2.3): when the filtered frame
     // has zero rows, attach an explicit `x-edatime-empty: 1` header so

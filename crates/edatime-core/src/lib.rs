@@ -2,6 +2,7 @@
 // Zero external I/O dependencies.  All Polars types re-exported for convenience.
 
 pub mod cache;
+pub mod cancellation;
 pub mod config;
 pub mod error;
 pub mod expr;

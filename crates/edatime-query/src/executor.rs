@@ -2,6 +2,7 @@
 //! CPU-bound Polars work runs on Rayon pool via spawn_blocking.
 //! Async handler awaits the blocking handle.
 
+use edatime_core::cancellation::{CancellationHandle, CancellationProbe, cancellation_pair};
 use edatime_core::error::AppError;
 use edatime_core::metrics::{AppMetrics, CpuStage};
 use edatime_core::types::LazyFrame;
@@ -136,6 +137,13 @@ impl AdmissionMetricsGuard {
         }
         self.finished = true;
     }
+
+    fn cancelled_after_start(mut self) {
+        if let Some(metrics) = self.metrics.as_ref() {
+            metrics.record_cpu_cancelled_running(self.stage);
+        }
+        self.finished = true;
+    }
 }
 
 impl Drop for AdmissionMetricsGuard {
@@ -151,6 +159,17 @@ impl Drop for AdmissionMetricsGuard {
             }
         }
         self.finished = true;
+    }
+}
+
+/// Cancels a request-owned CPU worker when its awaiting handler future is
+/// dropped. This does not forcibly terminate the worker; the worker must poll
+/// the paired `CancellationProbe` at documented bounded intervals.
+struct CancelOnDrop(CancellationHandle);
+
+impl Drop for CancelOnDrop {
+    fn drop(&mut self) {
+        self.0.cancel();
     }
 }
 
@@ -216,11 +235,12 @@ impl QueryExecutor {
         &self,
         class: WorkClass,
         stage: CpuStage,
+        cancellation: Option<CancellationProbe>,
         work: F,
     ) -> Result<T, AppError>
     where
         T: Send + 'static,
-        F: FnOnce() -> T + Send + 'static,
+        F: FnOnce(Option<CancellationProbe>) -> T + Send + 'static,
     {
         let queue_start = std::time::Instant::now();
         let mut metrics_guard = AdmissionMetricsGuard::submitted(self.metrics.clone(), stage);
@@ -246,10 +266,17 @@ impl QueryExecutor {
         tokio::task::spawn_blocking(move || {
             let _permit = permit;
             metrics_guard.started(queue_start.elapsed().as_nanos() as u64);
-            match class {
-                WorkClass::BlockingIo | WorkClass::BackgroundExternal => work(),
-                WorkClass::Interactive | WorkClass::Background => pool.install(work),
+            let worker_probe = cancellation.clone();
+            let result = match class {
+                WorkClass::BlockingIo | WorkClass::BackgroundExternal => work(worker_probe),
+                WorkClass::Interactive | WorkClass::Background => {
+                    pool.install(|| work(worker_probe))
+                }
+            };
+            if cancellation.is_some_and(|probe| probe.is_cancelled()) {
+                metrics_guard.cancelled_after_start();
             }
+            result
         })
         .await
         .map_err(|error| AppError::internal(format!("Blocking worker join error: {error}")))
@@ -260,7 +287,30 @@ impl QueryExecutor {
         T: Send + 'static,
         F: FnOnce() -> T + Send + 'static,
     {
-        self.run_admitted(WorkClass::Interactive, stage, work).await
+        self.run_admitted(WorkClass::Interactive, stage, None, move |_| work())
+            .await
+    }
+
+    /// Run cooperative interactive CPU work tied to the lifetime of the
+    /// awaiting request. Dropping the returned future signals cancellation;
+    /// the closure must poll the provided probe and stop without publishing a
+    /// partial result. Opaque work such as a Polars collect cannot use this
+    /// mechanism and must remain governed by admission/work budgets.
+    pub async fn run_interactive_cancellable<T, F>(
+        &self,
+        stage: CpuStage,
+        work: F,
+    ) -> Result<T, AppError>
+    where
+        T: Send + 'static,
+        F: FnOnce(CancellationProbe) -> T + Send + 'static,
+    {
+        let (handle, probe) = cancellation_pair();
+        let _cancel_on_drop = CancelOnDrop(handle);
+        self.run_admitted(WorkClass::Interactive, stage, Some(probe), move |probe| {
+            work(probe.expect("cancellable work always receives a probe"))
+        })
+        .await
     }
 
     pub async fn run_background<T, F>(&self, stage: CpuStage, work: F) -> Result<T, AppError>
@@ -268,7 +318,8 @@ impl QueryExecutor {
         T: Send + 'static,
         F: FnOnce() -> T + Send + 'static,
     {
-        self.run_admitted(WorkClass::Background, stage, work).await
+        self.run_admitted(WorkClass::Background, stage, None, move |_| work())
+            .await
     }
 
     pub async fn run_blocking_io<T, F>(&self, stage: CpuStage, work: F) -> Result<T, AppError>
@@ -276,7 +327,8 @@ impl QueryExecutor {
         T: Send + 'static,
         F: FnOnce() -> T + Send + 'static,
     {
-        self.run_admitted(WorkClass::BlockingIo, stage, work).await
+        self.run_admitted(WorkClass::BlockingIo, stage, None, move |_| work())
+            .await
     }
 
     /// Run background work that owns its own parallel runtime without nesting
@@ -290,7 +342,7 @@ impl QueryExecutor {
         T: Send + 'static,
         F: FnOnce() -> T + Send + 'static,
     {
-        self.run_admitted(WorkClass::BackgroundExternal, stage, work)
+        self.run_admitted(WorkClass::BackgroundExternal, stage, None, move |_| work())
             .await
     }
 
@@ -425,7 +477,10 @@ fn configured_worker_count(configured: Option<&str>, available: usize) -> usize 
 
 #[cfg(test)]
 mod tests {
-    use super::{AdmissionMetricsGuard, QueryAdmission, configured_worker_count};
+    use super::{
+        AdmissionMetricsGuard, ExecutionContext, QueryAdmission, QueryExecutor,
+        configured_worker_count,
+    };
     use edatime_core::error::AppError;
     use edatime_core::metrics::{AppMetrics, CpuStage};
     use std::sync::Arc;
@@ -521,6 +576,54 @@ mod tests {
             .await
             .expect_err("queued worker must time out");
         assert!(matches!(rejected, AppError::Overloaded(_)));
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn dropping_cancellable_work_signals_its_worker_and_records_cancellation() {
+        let metrics = Arc::new(AppMetrics::new());
+        let executor = Arc::new(
+            QueryExecutor::new(ExecutionContext::Parallel).with_metrics(Arc::clone(&metrics)),
+        );
+        let (started_tx, started_rx) = std::sync::mpsc::sync_channel(1);
+        let (cancelled_tx, cancelled_rx) = std::sync::mpsc::sync_channel(1);
+        let worker = Arc::clone(&executor);
+        let task = tokio::spawn(async move {
+            worker
+                .run_interactive_cancellable(CpuStage::Analytics, move |probe| {
+                    started_tx.send(()).expect("signal worker start");
+                    loop {
+                        if probe.is_cancelled() {
+                            cancelled_tx.send(()).expect("signal cancellation");
+                            break;
+                        }
+                        std::thread::sleep(Duration::from_millis(1));
+                    }
+                })
+                .await
+        });
+
+        started_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("worker started");
+        task.abort();
+        let _ = task.await;
+        cancelled_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("worker observed cancellation");
+
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if metrics.snapshot(0, 0).cpu_admission.cancelled_total == 1 {
+                    return;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("worker cancellation metric recorded");
+        let snapshot = metrics.snapshot(0, 0).cpu_admission;
+        assert_eq!(snapshot.cancelled_total, 1);
+        assert_eq!(snapshot.running, 0);
     }
 
     #[test]
