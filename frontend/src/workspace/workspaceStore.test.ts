@@ -73,7 +73,12 @@ describe('workspace store', () => {
 
         store.setViewport({ xMin: 0, xMax: 10 } as any);
         store.setViewport({ xMin: 0, xMax: 10 } as any);
-        store.setFilters({ columnRanges: {}, adaptiveLines: [] });
+        store.setFilters({ columnRanges: { val: { from: 0, to: 10 } }, adaptiveLines: [] });
+        store.setFilters({ columnRanges: { val: { from: 0, to: 10 } }, adaptiveLines: [] });
+        store.setFilters({
+            columnRanges: {},
+            adaptiveLines: [{ id: 'line', column: 'value', x1: 0, y1: 0, x2: 1, y2: 1, keepAbove: true }],
+        });
         store.setFilters({
             columnRanges: {},
             adaptiveLines: [{ id: 'line', column: 'value', x1: 0, y1: 0, x2: 1, y2: 1, keepAbove: true }],
@@ -82,6 +87,6 @@ describe('workspace store', () => {
         expect(viewport).toHaveBeenCalledTimes(1);
         expect(viewport.mock.calls[0][1]).toMatchObject({ kind: 'viewport', revision: 1 });
         expect(filters).toHaveBeenCalledTimes(1);
-        expect(filters.mock.calls[0][1]).toMatchObject({ kind: 'filters', revision: 2 });
+        expect(filters.mock.calls[0][1]).toMatchObject({ kind: 'filters', revision: 3 });
     });
 });

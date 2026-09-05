@@ -12,10 +12,12 @@ const deniedDirectories = [
   'tmp/',
   'docs/_build/',
   'crates/edatime-bin/frontend/dist/',
+  'tigramite/',
 ];
 const deniedFiles = new Set([
   '.repowise/state.json',
   '.repowise/wiki.db',
+  'scripts/tigramite_worker.py',
 ]);
 const deniedSuffixes = ['.bak', '.old', '.orig', '~'];
 

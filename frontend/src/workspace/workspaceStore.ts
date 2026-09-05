@@ -72,7 +72,34 @@ function sameViewport(left: ViewSnapshot | null, right: ViewSnapshot | null): bo
 }
 
 function sameFilters(left: WorkspaceSnapshot['filters'], right: WorkspaceSnapshot['filters']): boolean {
-    return JSON.stringify(left) === JSON.stringify(right);
+    if (left === right) return true;
+    const leftKeys = Object.keys(left.columnRanges);
+    const rightKeys = Object.keys(right.columnRanges);
+    if (leftKeys.length !== rightKeys.length) return false;
+    for (const key of leftKeys) {
+        const lRange = left.columnRanges[key];
+        const rRange = right.columnRanges[key];
+        if (!lRange || !rRange) {
+            if (lRange !== rRange) return false;
+            continue;
+        }
+        if (lRange.from !== rRange.from || lRange.to !== rRange.to) return false;
+    }
+    if (left.adaptiveLines.length !== right.adaptiveLines.length) return false;
+    for (let i = 0; i < left.adaptiveLines.length; i++) {
+        const l = left.adaptiveLines[i];
+        const r = right.adaptiveLines[i];
+        if (
+            l.id !== r.id
+            || l.column !== r.column
+            || l.x1 !== r.x1
+            || l.y1 !== r.y1
+            || l.x2 !== r.x2
+            || l.y2 !== r.y2
+            || l.keepAbove !== r.keepAbove
+        ) return false;
+    }
+    return true;
 }
 
 export function createWorkspaceStore(): WorkspaceStore {
