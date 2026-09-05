@@ -185,11 +185,13 @@ async fn scatter_matrix_response(
         .map(|pair| (pair.x.clone(), pair.y.clone()))
         .collect::<Vec<_>>();
     let metrics = Arc::clone(&state.metrics);
+    let inner_metrics = Arc::clone(&metrics);
     let color_col_for_headers = color_col.clone();
 
     let (metadata, returned_points, total_points, arrow_bytes) = state
         .query_executor
         .run_interactive(edatime_core::metrics::CpuStage::Scatter, move || {
+            let collect_start = std::time::Instant::now();
             let mut cell_ids: Vec<String> = Vec::new();
             let mut x_values: Vec<f64> = Vec::new();
             let mut y_values: Vec<f64> = Vec::new();
@@ -207,6 +209,9 @@ async fn scatter_matrix_response(
                 time_color_mode,
                 &sample_seed_prefix,
             )?;
+            let collect_ns = collect_start.elapsed().as_nanos() as u64;
+            inner_metrics
+                .record_scatter_stage(edatime_core::metrics::ScatterStage::Collect, collect_ns);
             for (pair, (cell_total, sampled_rows, color_kind)) in
                 pairs.into_iter().zip(sampled_cells)
             {
@@ -270,8 +275,12 @@ async fn scatter_matrix_response(
             let matrix_df = DataFrame::new(x_values.len(), columns).map_err(|error| {
                 AppError::internal(format!("build scatter matrix dataframe: {error}"))
             })?;
+            let serialize_start = std::time::Instant::now();
             let arrow_bytes = dataframe_to_arrow_ipc(matrix_df)
                 .map_err(|error| AppError::internal(format!("Arrow serialization: {error}")))?;
+            let serialize_ns = serialize_start.elapsed().as_nanos() as u64;
+            inner_metrics
+                .record_scatter_stage(edatime_core::metrics::ScatterStage::Serialize, serialize_ns);
 
             Ok::<_, AppError>((metadata, returned_points, total_points, arrow_bytes))
         })

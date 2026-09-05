@@ -6,6 +6,7 @@ use axum::{
 };
 
 use crate::error::AppError;
+use edatime_core::metrics::LatencyHistogramSnapshot;
 use edatime_store::state::AppState;
 
 pub async fn get_metrics(State(state): State<AppState>) -> Json<serde_json::Value> {
@@ -126,6 +127,9 @@ pub async fn get_prometheus(State(state): State<AppState>) -> Result<Response<Bo
         ),
         ("serialize", &snapshot.data_stages.stage_latency.serialize),
     ] {
+        // Keep the original totals for dashboards that predate the histogram
+        // series. The histogram below adds distribution data without a
+        // breaking metric rename.
         metric_labeled(
             &mut output,
             "edatime_data_stage_observations_total",
@@ -137,6 +141,12 @@ pub async fn get_prometheus(State(state): State<AppState>) -> Result<Response<Bo
             "edatime_data_stage_duration_ns_total",
             &[("stage", stage)],
             histogram.sum_ns,
+        );
+        histogram_labeled(
+            &mut output,
+            "edatime_data_stage_duration_ms",
+            stage,
+            histogram,
         );
     }
     for (stage, histogram) in [
@@ -161,6 +171,12 @@ pub async fn get_prometheus(State(state): State<AppState>) -> Result<Response<Bo
             "edatime_scatter_stage_duration_ns_total",
             &[("stage", stage)],
             histogram.sum_ns,
+        );
+        histogram_labeled(
+            &mut output,
+            "edatime_scatter_stage_duration_ms",
+            stage,
+            histogram,
         );
     }
     metric(
@@ -325,9 +341,83 @@ fn metric_labeled(output: &mut String, name: &str, labels: &[(&str, &str)], valu
     output.push('\n');
 }
 
+/// Write a Prometheus histogram with a bounded `stage` label. The final
+/// cumulative bucket stored by AppMetrics is the implicit `+Inf` bucket.
+fn histogram_labeled(
+    output: &mut String,
+    name: &str,
+    stage: &str,
+    histogram: &LatencyHistogramSnapshot,
+) {
+    for (index, count) in histogram.cumulative_counts.iter().enumerate() {
+        let bound = histogram
+            .bounds_ms
+            .get(index)
+            .map(ToString::to_string)
+            .unwrap_or_else(|| "+Inf".to_string());
+        metric_labeled(
+            output,
+            &format!("{name}_bucket"),
+            &[("stage", stage), ("le", &bound)],
+            *count,
+        );
+    }
+    metric_labeled(
+        output,
+        &format!("{name}_count"),
+        &[("stage", stage)],
+        histogram.count,
+    );
+    output.push_str(&format!(
+        "{name}_sum{{stage=\"{}\"}} {:.6}\n",
+        prometheus_escape(stage),
+        histogram.sum_ns as f64 / 1_000_000.0
+    ));
+}
+
 fn prometheus_escape(value: &str) -> String {
     value
         .replace('\\', "\\\\")
         .replace('"', "\\\"")
         .replace('\n', "\\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::histogram_labeled;
+    use edatime_core::metrics::LatencyHistogramSnapshot;
+
+    #[test]
+    fn stage_histogram_emits_buckets_count_and_ms_sum() {
+        let histogram = LatencyHistogramSnapshot {
+            count: 3,
+            sum_ns: 3_500_000,
+            bounds_ms: vec![1, 5],
+            cumulative_counts: vec![1, 3, 3],
+            p50_ms: 1,
+            p95_ms: 5,
+            p99_ms: 5,
+        };
+        let mut output = String::new();
+
+        histogram_labeled(
+            &mut output,
+            "edatime_data_stage_duration_ms",
+            "collect",
+            &histogram,
+        );
+
+        assert!(
+            output.contains("edatime_data_stage_duration_ms_bucket{stage=\"collect\",le=\"1\"} 1")
+        );
+        assert!(
+            output.contains("edatime_data_stage_duration_ms_bucket{stage=\"collect\",le=\"5\"} 3")
+        );
+        assert!(
+            output
+                .contains("edatime_data_stage_duration_ms_bucket{stage=\"collect\",le=\"+Inf\"} 3")
+        );
+        assert!(output.contains("edatime_data_stage_duration_ms_count{stage=\"collect\"} 3"));
+        assert!(output.contains("edatime_data_stage_duration_ms_sum{stage=\"collect\"} 3.500000"));
+    }
 }

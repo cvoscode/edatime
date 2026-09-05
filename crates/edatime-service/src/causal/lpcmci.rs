@@ -10,11 +10,14 @@
 use rayon::prelude::*;
 use std::collections::HashMap;
 
+use edatime_core::cancellation::CancellationProbe;
+
 use super::data::{CausalDataFrame, VarLag, VarLagSeenSet};
 use super::graph::{CausalGraph, CausalResult, LinkType};
 use super::independence::CondIndTest;
 use super::pc;
 use super::pcmci::PcmciConfig;
+use crate::error::AppError;
 
 /// LPCMCI engine — discovers causal links in the presence of latent confounders.
 pub struct Lpcmci<'a> {
@@ -121,6 +124,100 @@ impl<'a> Lpcmci<'a> {
         let result = CausalResult::from_graph(&graph, &self.df.var_names);
         tracing::info!(n_links = result.links.len(), "LPCMCI complete");
         result
+    }
+
+    /// Cooperative variant of [`run`]. Polls the request-owned probe at the
+    /// boundaries between LPCMCI's coarse stages (preliminary iterations,
+    /// second-pass PC, ancestral removal, non-ancestral phase), bounding
+    /// worst-case cancellation latency to a single coarse stage without
+    /// disturbing the underlying Rayon-parallel inner kernels. See
+    /// [`crate::analytics::spectrogram::compute_spectrogram_cancellable`]
+    /// for the same cancellation contract.
+    pub fn run_cancellable(
+        &self,
+        config: &PcmciConfig,
+        n_preliminary_iterations: usize,
+        cancellation: &CancellationProbe,
+    ) -> Result<CausalResult, AppError> {
+        // The engine stages below are individually expensive (preliminary
+        // iterations, second PC sweep, ancestral removal MCI, non-ancestral
+        // MCI). Rather than rewrite each phase we poll the probe at the
+        // existing stage boundaries by reproducing the high-level
+        // orchestration. LPCMCI's stages are coarse enough that this gives
+        // timely response to cancellation.
+        let n = self.df.n_vars;
+        let tau_max = config.tau_max;
+        let mut def_ancs: HashMap<usize, Vec<VarLag>> = HashMap::new();
+
+        for iter in 0..n_preliminary_iterations {
+            cancellation.check()?;
+            let pc_result = pc::run_pc_stable_cancellable(
+                self.df,
+                self.test,
+                1,
+                tau_max,
+                config.pc_alpha,
+                config.max_conds_dim,
+                config.max_combinations,
+                cancellation,
+            )?;
+            let graph = self.ancestral_removal_phase(config, &pc_result.all_parents, true);
+            for j in 0..n {
+                let entry = def_ancs.entry(j).or_default();
+                for i in 0..n {
+                    for tau in 1..=tau_max {
+                        if graph.get_link(i, j, tau).is_active() {
+                            let vl = (i, -(tau as i32));
+                            if !entry.contains(&vl) {
+                                entry.push(vl);
+                            }
+                        }
+                    }
+                }
+            }
+            tracing::debug!(iter, "LPCMCI preliminary iteration (cancellable)");
+        }
+
+        cancellation.check()?;
+        let mut merged_parents: HashMap<usize, Vec<VarLag>> = HashMap::new();
+        {
+            let pc_result = pc::run_pc_stable_cancellable(
+                self.df,
+                self.test,
+                0,
+                tau_max,
+                config.pc_alpha,
+                config.max_conds_dim,
+                config.max_combinations,
+                cancellation,
+            )?;
+            for j in 0..n {
+                let mut parents = pc_result.all_parents.get(&j).cloned().unwrap_or_default();
+                if let Some(ancs) = def_ancs.get(&j) {
+                    for &a in ancs {
+                        if !parents.contains(&a) {
+                            parents.push(a);
+                        }
+                    }
+                }
+                merged_parents.insert(j, parents);
+            }
+        }
+
+        cancellation.check()?;
+        let mut graph = self.ancestral_removal_phase(config, &merged_parents, false);
+        tracing::info!("LPCMCI ancestral removal complete");
+
+        cancellation.check()?;
+        self.non_ancestral_phase(config, &mut graph, &merged_parents);
+        tracing::info!("LPCMCI non-ancestral phase complete");
+
+        self.orient_edges(&mut graph);
+        tracing::info!("LPCMCI orientation complete");
+
+        let result = CausalResult::from_graph(&graph, &self.df.var_names);
+        tracing::info!(n_links = result.links.len(), "LPCMCI complete");
+        Ok(result)
     }
 
     /// Ancestral removal phase: test links conditioning on both lagged
@@ -390,6 +487,8 @@ impl<'a> Lpcmci<'a> {
 mod tests {
     use super::super::independence::IndependenceTestKind;
     use super::*;
+    use crate::error::ErrorCode;
+    use edatime_core::cancellation::cancellation_pair;
 
     #[test]
     fn test_lpcmci_retains_link_for_hidden_common_driver() {
@@ -435,5 +534,32 @@ mod tests {
             "LPCMCI should retain a contemporaneous adjacency for the hidden-driver case: {:?}",
             result.links
         );
+    }
+
+    #[test]
+    fn lpcmci_cancellable_short_circuits_on_pre_cancellation() {
+        let columns = vec![
+            (0..32).map(|i| i as f64).collect::<Vec<_>>(),
+            (0..32).map(|i| (i as f64).sin()).collect::<Vec<_>>(),
+        ];
+        let df = CausalDataFrame::new(columns, vec!["a".into(), "b".into()]);
+        let test = CondIndTest::new(IndependenceTestKind::ParCorr);
+        let config = PcmciConfig {
+            tau_min: 0,
+            tau_max: 1,
+            pc_alpha: 0.05,
+            alpha_level: 0.05,
+            max_combinations: 1,
+            fdr_method: "none".to_string(),
+            ..Default::default()
+        };
+
+        let (handle, probe) = cancellation_pair();
+        handle.cancel();
+        let engine = Lpcmci::new(&df, &test);
+        let err = engine
+            .run_cancellable(&config, 1, &probe)
+            .expect_err("pre-cancelled LPCMCI must surface AppError::Cancelled");
+        assert_eq!(err.code, ErrorCode::RequestCancelled);
     }
 }

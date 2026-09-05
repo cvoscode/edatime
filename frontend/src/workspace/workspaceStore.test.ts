@@ -31,6 +31,27 @@ describe('workspace store', () => {
         expect(second.getSnapshot().selection).toEqual({ columns: [], colorColumn: null });
     });
 
+    it('isolates range inputs and published snapshots from internal state', () => {
+        const store = createWorkspaceStore();
+        const range = { from: 1, to: 2 };
+        store.subscribe((snapshot) => { snapshot.filters.columnRanges.value.from = 99; });
+        store.setFilters({ columnRanges: { value: range }, adaptiveLines: [] });
+        range.to = 42;
+        store.getSnapshot().filters.columnRanges.value.from = 50;
+        expect(store.getSnapshot().filters.columnRanges.value).toEqual({ from: 1, to: 2 });
+    });
+
+    it('ignores range key order but publishes changed bounds', () => {
+        const store = createWorkspaceStore();
+        const listener = vi.fn();
+        store.subscribe(listener);
+        store.setFilters({ columnRanges: { a: { from: 1, to: 4 }, b: { from: 0, to: 2 } }, adaptiveLines: [] });
+        store.setFilters({ columnRanges: { b: { from: 0, to: 2 }, a: { from: 1, to: 4 } }, adaptiveLines: [] });
+        expect(listener).toHaveBeenCalledTimes(1);
+        store.setFilters({ columnRanges: { b: { from: 0, to: 3 }, a: { from: 1, to: 4 } }, adaptiveLines: [] });
+        expect(listener).toHaveBeenCalledTimes(2);
+    });
+
     it('aborts a replaced dataset session and rejects stale dataset commits', () => {
         const store = createWorkspaceStore();
         const first = store.beginDatasetSession();

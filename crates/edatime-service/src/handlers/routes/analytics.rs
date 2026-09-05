@@ -755,9 +755,9 @@ pub async fn post_causal_graph(
     let knn = params.knn.unwrap_or(10).clamp(1, 100);
     let result = state
         .query_executor
-        .run_interactive(
+        .run_interactive_cancellable(
             edatime_core::metrics::CpuStage::Analytics,
-            move || -> Result<serde_json::Value, AppError> {
+            move |cancellation| -> Result<serde_json::Value, AppError> {
                 use crate::causal::pcmci::PcmciConfig;
                 use crate::causal::{CondIndTest, Pcmci, PcmciPlus};
 
@@ -787,23 +787,23 @@ pub async fn post_causal_graph(
                 let causal_result = match method.as_str() {
                     "pcmciplus" => {
                         let engine = PcmciPlus::new(&causal_df, &cond_test);
-                        engine.run(&config)
+                        engine.run_cancellable(&config, &cancellation)?
                     }
                     "fullci" => {
                         let engine = Pcmci::new(&causal_df, &cond_test);
-                        engine.run_fullci(&config)
+                        engine.run_fullci_cancellable(&config, &cancellation)?
                     }
                     "bivci" => {
                         let engine = Pcmci::new(&causal_df, &cond_test);
-                        engine.run_bivci(&config)
+                        engine.run_bivci_cancellable(&config, &cancellation)?
                     }
                     "lpcmci" => {
                         let engine = crate::causal::Lpcmci::new(&causal_df, &cond_test);
-                        engine.run(&config, n_preliminary_iterations)
+                        engine.run_cancellable(&config, n_preliminary_iterations, &cancellation)?
                     }
                     _ => {
                         let engine = Pcmci::new(&causal_df, &cond_test);
-                        engine.run(&config)
+                        engine.run_cancellable(&config, &cancellation)?
                     }
                 };
 

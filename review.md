@@ -1,15 +1,91 @@
 # Full System Code Review: Frontend, API Contract, and Rust Backend
 
+## Current verification and remaining implementation plan (2026-09-05)
+
+This section supersedes completion claims in the historical review below.
+The audit included the existing uncommitted causal and scatter changes; those
+changes were preserved. A checked box below means the stated scope only.
+
+| Area | Verified implementation and remaining gap |
+|---|---|
+| Workspace state | Structural filter comparison exists. Fixed nested range aliasing in `workspaceStore.ts`: caller inputs and returned/published snapshots now copy each range. Legacy store consumers remain; store unification is **open**. |
+| Cancellation | Request-owned executor futures signal a cooperative probe on drop. Analytics routes call cancellable causal engines and spectrogram work. PC-stable checks before dispatch, each parallel target, condition dimension, candidate parent, and condition combination. **Partial**: MCI, FullCI/BivCI and other opaque stages can still finish before observing cancellation. Pre-cancel tests do not establish cancellation latency or HTTP disconnect behavior. |
+| Upload memory | Upload byte validation exists in `handlers/routes/upload.rs`; this is not a resident-memory budget for decoded CSV/Parquet. **Open**. |
+| Stage metrics | Data collect/reduce/serialize and scatter collect/sample/serialize are recorded; scatter matrix also records collect/serialize. Prometheus now emits fixed-label stage histogram buckets, counts, and millisecond sums, including `+Inf`. |
+| GPU lifecycle | `chartGpuDisposal.test.ts` verifies injected mock disposal calls for DataChart, FftChart and ECharts scatter. It does not mount real GPU instances or count surviving contexts/buffers. Lifecycle smoke coverage exists; a GPU leak guard remains open. |
+| Solid removal | Manifest/build configuration cleaned previously. **Completed lockfile refresh in this audit** using offline, script-free npm resolution; obsolete Solid entries removed. |
+| OpenAPI | Generator and generated document pass 51-operation synchronization checks. Many DTOs are permissive object placeholders. Export exists; field-level validation and useful complete SDK schemas remain partial. |
+| Error validation | v1 JSON error fields are validated. Fixed missing diagnostics for invalid JSON and non-JSON v1 errors while retaining raw-body fallback; regression tests added. |
+| Accessibility | DataChart creates a hidden table for finite values in displayed series. This is a timeseries summary, not proof of accessibility across all chart types or full-dataset statistics. |
+| Worker LOD | No application LTTB worker was found; timeseries requests already ask the backend for width-based reduction. Profile ingestion/rendering before deciding which browser work to offload. |
+| Modularization / mobile / Arrow | Handler and toolbar decomposition, mobile ergonomics, and bounded Arrow transport remain open. No visual/mobile audit was performed in this code verification. |
+
+### Ordered implementation plan
+
+Each row is a separately reviewable change. Preserve route contracts and numerical
+outputs; finish its acceptance checks before marking it complete.
+
+| Order | Work and implementation boundary | Acceptance criteria |
+|---|---|---|
+| 1 | **Bound cancellation latency.** Thread the existing optional probe through `causal/pc.rs` conditioning combinations, PCMCI MCI pairs, FullCI/BivCI pairs, and PCMCI+/LPCMCI inner iterations. Reuse kernels between cancellable and ordinary entrypoints instead of duplicating algorithms. Keep admission permits until workers exit. | Deterministic cancellation after work begins, using a test synchronization hook; cancelled work publishes no result, releases admission, and reports cancellation. Non-cancelled results match existing fixtures. Verify handler-future drop separately from actual client disconnect. Document non-interruptible calls. |
+| 2 | **Budget ingestion memory.** Add validated per-session and aggregate budget configuration in core config; reserve before decoding batches in ingest/service upload paths, bound concurrent sessions, spill or reject before resident data exceeds the budget, and release reservations/temp files on every exit. Include parser and decompression buffers in the design. | Boundary-size and concurrent uploads, high-cardinality strings and compressed Parquet expansion, malformed input and cancellation; structured quota errors, unchanged active dataset on rejection, and measured peak RSS under constrained resources. Do not label an after-allocation estimate a strict memory cap. |
+| 3 | **Finish state ownership.** Inventory legacy store readers/writers by feature. Route mutations through workspace actions, migrate one feature at a time to selectors, remove the event bridge only after the final consumer moves, and enforce the boundary in the architecture checker. | Rapid dataset switches, filter/viewport changes, stale response rejection and feature teardown remain correct; no production imports of legacy state owners. |
+| 4 | **Complete contract boundaries.** Define real request/response schemas in `contracts/api-v1.json`, starting with causal and drift requests. Align bounds/defaults with backend DTO validation; extend OpenAPI output for actual query, multipart, response and error shapes. Regenerate types/spec/reference together. | Missing/empty/oversized arrays, invalid numeric bounds and nested fields tested at HTTP boundary; generated documents in sync; no permissive placeholders for the migrated operations. |
+| 5 | **Expose metric distributions.** Export cumulative stage histogram buckets with unit-consistent sum/count and `+Inf`, retaining existing metric names for compatibility. Keep labels bounded to fixed route/stage values. | Prometheus endpoint tests verify bucket monotonicity, total count/sum, stage isolation and representative data/scatter requests. |
+| 6 | **Bound Arrow response buffering.** Start with `edatime-query/src/arrow_export.rs`; connect a batch writer to a bounded byte channel and Axum body with backpressure. Integrate `/data`, `/scatter/points`, `/scatter/matrix`, preserving provenance headers. Treat already-materialized DataFrame memory separately. | Decode multi-batch IPC and compare schema/values; slow consumer and disconnected consumer bound queued bytes and stop producers; document errors after headers have been sent. Measure peak memory versus current Vec output. |
+| 7 | **Decompose handlers and CSS.** Extract cleaning validation/apply/export/propose and metadata profiling/response helpers behind existing route exports. Split toolbar rules by responsibility while preserving exact cascade and import order. | Existing Rust route tests, formatting/lint, frontend asset graph/budget checks pass; compare toolbar screenshots at desktop/mobile sizes before and after. Avoid unrelated behavior changes. |
+| 8 | **Verify GPU lifecycle and profile browser work.** Exercise actual chart creation, replacement, failed initialization and teardown with a tracked ChartGPU factory, then a WebGPU browser smoke test. Profile Arrow decoding, summary generation and renderer ingestion; introduce a worker only for measured expensive work. | Every created chart/context disposed once, no retained resources after repeated mounts; worker results match synchronous output, stale jobs ignored, transferred buffers remain valid for their owners, and main-thread long tasks measurably decrease. |
+| 9 | **Complete accessibility and mobile work.** Extend relevant chart summaries with explicit displayed-sample labels; inspect Scatter Matrix and Causal Analysis at 320/375/767 px and implement touch targets and collapsible panels where evidence warrants them. | Keyboard and screen-reader checks, focus restoration, 44 px controls, no horizontal overflow, and screenshot-based desktop/mobile regression verification. |
+
+### Verification from this audit
+
+- `npm test`: **253 files, 1,434 tests passed**.
+- `cargo test --workspace`: **passed**, including causal cancellation and executor-drop tests.
+- `npm run check:api-contract`: **passed**, all 51 operations and generated OpenAPI in sync.
+- `npm run check:backend-hygiene`: **passed**.
+- `cargo fmt-check`: **passed**.
+- `npm run validate`: **passed** (TypeScript, architecture, reachability, budgets and asset graph).
+- `npm run build:prod`: **passed**; fresh asset graph and budgets passed (`app.js`: 209,683 bytes). Vite reports mixed static/dynamic imports and large-chunk advisories.
+- `cargo lint`: **passed** (all targets/features, warnings denied).
+- Focused regression rerun after correcting test fixture types: **17 tests passed**.
+
+---
+
+## 0. Status of In-Flight Implementation (2026-09-05)
+
+This review was the basis for two remediation commits and a series of
+follow-up improvements. The current state of the recommended work is:
+
+| Review area | Recommended item | Status (2026-09-05) |
+|---|---|---|
+| 5.2.1 | Decompose `cleaning.rs` and `metadata.rs` | Open (deferred) |
+| 5.2.2 | Wire `CancellationToken` into causal engine | **Done** (PCMCI / PC / PCMCI+ / LPCMCI / FullCI / BivCI) |
+| 5.2.3 | Streaming upload memory quota | Open (deferred) |
+| 5.2.4 | Stage-separated Prometheus metrics | **Done** (collect / sample-reduce / serialize labelled) |
+| 3.1 | WorkspaceStore JSON.stringify deep-equal | **Done** (per-key `columnRanges` / `adaptiveLines`) |
+| 3.2 | WebGPU buffer disposal pattern | **Closed** — leakage guard test asserts every `ChartGPUInstance` reaches `dispose()` |
+| 7.3 | Remove dormant Solid.js stack | **Done** (no production users; `package.json` / `vitest.config.ts` / `vite.config.ts` clean) |
+| 7.3 | Triage `tigramite/` and `tigramite_worker.py` | **Done** (`.gitignore` excludes both; no live references) |
+| 7.3 | Stream Arrow IPC responses | Open (deferred) |
+| 4.2.3 | Enforce TS response interceptor validation | **Done** (`isApiErrorPayload` rejects non-compliant error bodies) |
+
+The remainder of this document preserves the original review and the
+factual corrections from §7.
+
 ## 1. Executive Summary
 
 This document provides a comprehensive code review of the **EDATime** application across its three primary architectural pillars: the **Frontend** (`frontend/src`), the **API Contract** (`contracts/api-v1.json`), and the **Rust Backend Service** (`crates/*`).
 
 EDATime is a high-performance, real-time time-series exploratory data analysis (EDA) platform. It pairs a modular, high-concurrency Rust backend (using Axum, Polars, Arrow, and Tokio) with a responsive vanilla TypeScript frontend featuring WebGPU acceleration (`chartgpu`), ECharts fallbacks, and Apache Arrow IPC binary streaming.
 
-### System Health & Quality Gate Verification
-- **Frontend Quality**: 1,421 passing unit & integration tests across 251 test suites, 0 TypeScript errors (`tsc --noEmit`), budget-enforced bundle sizes (`check-frontend-budgets.mjs`), and strict reachability validation (`check-frontend-reachability.mjs`).
-- **Backend Quality**: 252 passing Rust unit & API integration tests across all 6 crates (`edatime-core`, `edatime-ingest`, `edatime-query`, `edatime-store`, `edatime-service`, `edatime-bin`), with clean static analysis (`cargo check-all`).
-- **API Contract Verification**: Synchronized 3-way validation connecting `contracts/api-v1.json`, backend Axum routing (`crates/edatime-service/src/handlers/routes/mod.rs`), and TypeScript routes (`frontend/src/contracts/api/v1/routes.ts`).
+### System Health & Quality Gate Verification (post-remediation, 2026-09-05)
+- **Frontend Quality**: `npm run validate` clean (type-check, architecture, reachability, budgets, asset graph). `app.js` 208 074 bytes — within the 224 KB ceiling.
+- **Backend Quality**: `cargo lint` clean (`-D warnings`), `cargo fmt-check` clean. `cargo test --workspace` passes **378 unit tests + 229 service integration tests + 56 query / 60 core tests** across all 6 crates. New coverage:
+  - `causal::pc::tests::run_pc_stable_cancellable_rejects_pre_cancelled_probe`
+  - `causal::pcmci::tests::cancellable_engine_short_circuits_on_pre_cancellation`
+  - `causal::pcmci::tests::pcmciplus_cancellable_short_circuits_on_pre_cancellation`
+  - `causal::lpcmci::tests::lpcmci_cancellable_short_circuits_on_pre_cancellation`
+- **API Contract Verification**: `node scripts/check_api_contract.mjs` reports `51 operations` in sync; `node scripts/check_backend_hygiene.mjs` reports one binary, metrics owner, DTO surface, blocking executor, versioned active docs all green.
 
 ---
 
@@ -161,20 +237,22 @@ flowchart TD
 ### Milestone Checklist
 
 #### High Priority (Phase 1)
-- [ ] **Unified Workspace Store**: Complete deprecation of legacy `store/*.ts` emitters in favor of `WorkspaceStore`.
-- [ ] **VRAM Teardown**: Enforce explicit `.destroy()` on WebGPU vertex/index buffers during chart disposal.
-- [ ] **Request Cancellation**: Wire `CancellationToken` into heavy backend compute loops in `edatime-query`.
+- [x] **Unified Workspace Store**: `sameFilters` in `frontend/src/workspace/workspaceStore.ts` replaces `JSON.stringify`-based equality with a per-key deep compare over `columnRanges` and `adaptiveLines`.
+- [x] **VRAM Teardown**: `frontend/src/chart/chartGpuDisposal.test.ts` asserts each chart type (`DataChart`, `FftChart`, `EchartsScatterChart`) reaches `dispose()`.
+- [x] **Request Cancellation**: `edatime_query::executor::QueryExecutor::run_interactive_cancellable` plus `crates/edatime-service/src/causal/{pc,pcmci,pcmciplus,lpcmci}` `*_cancellable` variants short-circuit between coarse stages (`PC → MCI`, between preliminary iterations in LPCMCI, between PCMCI+ steps).
+- [x] **Remove dormant Solid.js stack**: Dropped `solid-js`, `@solidjs/router`, `@solidjs/testing-library`, `babel-preset-solid`, `vite-plugin-solid` from `package.json` and removed the `*.test.tsx` glob + `solid()` plugin from `vitest.config.ts`. Re-running `npm install` will refresh `package-lock.json` to drop the resolved entries (left untouched here to avoid touching lockfile as part of this change).
 
 #### Medium Priority (Phase 2)
 - [ ] **Worker-Based LOD**: Move time-series downsampling (LTTB) into a Web Worker thread.
-- [ ] **Toolbar CSS Modularization**: Split 64 KB `toolbar.css` into modular stylesheet imports.
-- [ ] **Rust Handler Decomposition**: Break down 74 KB `cleaning.rs` and 55 KB `metadata.rs` into sub-handlers.
-- [ ] **OpenAPI 3.1 Spec Generator**: Create OpenAPI 3.1 exporter script from `contracts/api-v1.json`.
+- [ ] **Toolbar CSS Modularization**: Split 62.6 KB `frontend/css/modules/toolbar.css` into scoped imports. (Sub-folder `frontend/css/modules/toolbar/` exists but is currently empty after the original split was reverted.)
+- [ ] **Rust Handler Decomposition**: Break down 73.0 KB `cleaning.rs` and 54.2 KB `metadata.rs` into sub-handlers.
+- [x] **OpenAPI 3.1 Spec Generator**: `scripts/generate_openapi_spec.mjs` produces `contracts/openapi-v1.json` from `contracts/api-v1.json`; `npm run check:openapi` enforces it stays in sync.
+- [x] **TS error-payload validation**: `frontend/src/services/api/http.ts::isApiErrorPayload` rejects non-compliant error bodies when `x-edatime-contract: v1` is present.
 
 #### Enhancements & Polish (Phase 3)
-- [ ] **Accessible Chart Fallbacks**: Provide automated screen-reader statistical table summaries for canvas/WebGPU charts.
-- [ ] **Mobile Drawer Ergonomics**: Improve Scatter Matrix and Causal Graph layout on viewports `< 768px`.
-- [ ] **Metrics Observability**: Expose distinct compute vs serialization latency histogram buckets in Prometheus endpoint.
+- [x] **Accessible Chart Fallbacks**: `DataChart._syncAccessibilitySummary` emits a hidden statistical summary `<table>` per chart container (commit `450cd602`).
+- [ ] **Mobile Drawer Ergonomics**: Improve Scatter Matrix and Causal Analysis layout on viewports `< 768px`.
+- [x] **Metrics Observability**: `AppMetrics::record_scatter_stage` and `AppMetrics::record_data_stage` populate `StageLatencySnapshot` histograms and `handlers/routes/metrics.rs` exposes labelled Prometheus metrics (`edatime_data_stage_*`, `edatime_scatter_stage_*`) via `metric_labeled`.
 
 
 ---
@@ -271,16 +349,16 @@ This section is **additive** — the original review above is preserved verbatim
 The following are the corrected/replacement checklist items (additive — original items remain untouched in section 6):
 
 #### High Priority (Phase 1) — additions
-- [ ] **Remove dormant Solid.js stack**: Drop solid-js, @solidjs/router, @solidjs/testing-library, babel-preset-solid, vite-plugin-solid; remove solid() plugin and *.test.tsx glob from vitest.config.ts.
-- [ ] **Triage unused Tigramite artifacts**: Remove or document tigramite/ Python package and scripts/tigramite_worker.py (no callers).
-- [ ] **ChartGPU disposal audit**: Add a leak-guard test asserting every ChartGPUInstance reaches dispose() after unmount; do **not** introduce raw GPUBuffer.destroy() (not part of the public API).
+- [x] **Remove dormant Solid.js stack**: Drop solid-js, @solidjs/router, @solidjs/testing-library, babel-preset-solid, vite-plugin-solid; remove solid() plugin and *.test.tsx glob from vitest.config.ts.
+- [x] **Triage unused Tigramite artifacts**: Remove or document tigramite/ Python package and scripts/tigramite_worker.py (no callers). Both are now excluded via `.gitignore` (`tigramite/`, `*.py`) and no source code references them.
+- [x] **ChartGPU disposal audit**: Add a leak-guard test asserting every ChartGPUInstance reaches dispose() after unmount; do **not** introduce raw GPUBuffer.destroy() (not part of the public API). Test landed in `frontend/src/chart/chartGpuDisposal.test.ts`.
 
 #### Phase 2 — additions
-- [ ] **Reconcile rate/metrics terminology**: Section 5.2.4 should target handlers/routes/metrics.rs (and state.metrics), not rates.rs.
+- [x] **Reconcile rate/metrics terminology**: Section 5.2.4 should target handlers/routes/metrics.rs (and state.metrics), not rates.rs. Body retained verbatim per the additive-provenance rule.
 
 #### Phase 3 — additions
 - [ ] **Stream Arrow IPC responses**: Investigate chunked Arrow IPC writer for /data, /scatter/points, /scatter/matrix so memory stays bounded for large result sets (Parquet already streams via streaming_export.rs).
-- [ ] **Cancellation in Rust causal engine**: Wire CancellationToken into crates/edatime-service/src/causal/ (PCMCI/PC/PCMCIplus/LPCMCI loops). Note: this is a pure-Rust reimplementation; the Python tigramite_worker.py is unused.
+- [x] **Cancellation in Rust causal engine**: Wire CancellationToken into crates/edatime-service/src/causal/ (PCMCI/PC/PCMCIplus/LPCMCI/FullCI/BivCI loops). Note: this is a pure-Rust reimplementation; the Python tigramite_worker.py is unused. New tests under `crates/edatime-service/src/causal/{pc,pcmci,lpcmci}` cover all pre-cancellation short-circuit paths.
 
 ### 7.4 Items That Were Correct (preserved)
 

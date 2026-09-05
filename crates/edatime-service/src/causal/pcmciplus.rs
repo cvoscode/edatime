@@ -12,11 +12,14 @@
 use rayon::prelude::*;
 use std::collections::HashMap;
 
+use edatime_core::cancellation::CancellationProbe;
+
 use super::data::{CausalDataFrame, VarLag, VarLagSeenSet};
 use super::graph::{CausalGraph, CausalResult, LinkType};
 use super::independence::CondIndTest;
 use super::pc;
 use super::pcmci::PcmciConfig;
+use crate::error::AppError;
 
 /// PCMCI+ engine — extends PCMCI with contemporaneous link discovery and
 /// orientation via collider detection and Meek rules.
@@ -76,6 +79,65 @@ impl<'a> PcmciPlus<'a> {
         let result = CausalResult::from_graph(&graph, &self.df.var_names);
         tracing::info!(n_links = result.links.len(), "PCMCI+ complete");
         result
+    }
+
+    /// Cooperative variant of [`run`]. Checks the request-owned probe between
+    /// lagged PC and the skeleton step so that cancellation propagates as
+    /// quickly as the engine's coarse stages. See
+    /// [`crate::analytics::spectrogram::compute_spectrogram_cancellable`]
+    /// for the same cancellation contract.
+    pub fn run_cancellable(
+        &self,
+        config: &PcmciConfig,
+        cancellation: &CancellationProbe,
+    ) -> Result<CausalResult, AppError> {
+        let n = self.df.n_vars;
+        let tau_max = config.tau_max;
+
+        tracing::info!(
+            n_vars = n,
+            t_len = self.df.t_len,
+            tau_max = tau_max,
+            pc_alpha = config.pc_alpha,
+            alpha = config.alpha_level,
+            "Starting PCMCI+ (cancellable)"
+        );
+
+        // Step 1: Lagged PC condition selection (cancellable)
+        let pc_result = pc::run_pc_stable_cancellable(
+            self.df,
+            self.test,
+            1,
+            tau_max,
+            config.pc_alpha,
+            config.max_conds_dim,
+            config.max_combinations,
+            cancellation,
+        )?;
+        tracing::info!("PCMCI+ Step 1 (lagged PC) complete");
+
+        // Cooperative checkpoint before the (typically dominant) skeleton
+        // stage — cancellation latency is bounded by Step 2 wall time.
+        cancellation.check()?;
+
+        // Step 2: Skeleton with contemporaneous conditions via MCI
+        let mut graph = self.skeleton_step(config, &pc_result.all_parents);
+        tracing::info!("PCMCI+ Step 2 (skeleton) complete");
+
+        // Apply threshold to skeleton
+        graph.threshold(config.alpha_level);
+
+        // Step 3: Collider orientation
+        self.orient_colliders(&mut graph);
+        tracing::info!("PCMCI+ Step 3 (colliders) complete");
+
+        // Step 4: Meek rules
+        self.apply_meek_rules(&mut graph);
+        tracing::info!("PCMCI+ Step 4 (Meek rules) complete");
+
+        let result = CausalResult::from_graph(&graph, &self.df.var_names);
+        tracing::info!(n_links = result.links.len(), "PCMCI+ complete");
+        Ok(result)
     }
 
     /// Step 2: Skeleton estimation — tests all links including contemporaneous,

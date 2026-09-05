@@ -193,6 +193,20 @@ describe('api http request options', () => {
         expect(error.message).toContain('unexpected upstream response');
     });
 
+    it.each([
+        ['application/json', '{broken', 'invalid JSON'],
+        ['text/plain', 'upstream failure', 'expected application/json'],
+    ])('diagnoses a v1 %s error while preserving its body', async (contentType, body, diagnostic) => {
+        const response = new Response(body, {
+            status: 502,
+            headers: { 'content-type': contentType, 'x-edatime-contract': 'v1' },
+        });
+        const error = await readApiError(response, 'Metadata');
+        expect(error.message).toContain('error response violates the v1 error contract');
+        expect(error.message).toContain(diagnostic);
+        expect(error.message).toContain(body);
+    });
+
     it('readApiError falls back to plain text when content-type is not JSON', async () => {
         const response = {
             ok: false,

@@ -20,12 +20,16 @@ export interface WorkspaceSnapshotFixture {
     viewport?: ViewSnapshot | null;
 }
 
+function cloneColumnRanges(ranges: WorkspaceSnapshot['filters']['columnRanges']): WorkspaceSnapshot['filters']['columnRanges'] {
+    return Object.fromEntries(Object.entries(ranges).map(([column, range]) => [column, { ...range }]));
+}
+
 function cloneSnapshot(snapshot: WorkspaceSnapshot): WorkspaceSnapshot {
     return {
         dataset: { ...snapshot.dataset },
         selection: { columns: [...snapshot.selection.columns], colorColumn: snapshot.selection.colorColumn },
         filters: {
-            columnRanges: { ...snapshot.filters.columnRanges },
+            columnRanges: cloneColumnRanges(snapshot.filters.columnRanges),
             adaptiveLines: snapshot.filters.adaptiveLines.map((filter) => ({ ...filter })),
         },
         viewport: snapshot.viewport ? { ...snapshot.viewport } : null,
@@ -184,7 +188,7 @@ export function createWorkspaceStore(): WorkspaceStore {
         },
         setFilters(filters) {
             const nextFilters = {
-                columnRanges: { ...filters.columnRanges },
+                columnRanges: cloneColumnRanges(filters.columnRanges),
                 adaptiveLines: filters.adaptiveLines.map((filter) => ({ ...filter })),
             };
             if (sameFilters(snapshot.filters, nextFilters)) return;

@@ -11,10 +11,13 @@
 use rayon::prelude::*;
 use std::collections::HashMap;
 
+use edatime_core::cancellation::CancellationProbe;
+
 use super::data::{CausalDataFrame, VarLag, VarLagSeenSet};
 use super::graph::{CausalGraph, CausalResult};
 use super::independence::CondIndTest;
 use super::pc;
+use crate::error::AppError;
 
 /// PCMCI algorithm configuration.
 #[derive(Debug, Clone)]
@@ -112,6 +115,66 @@ impl<'a> Pcmci<'a> {
         result
     }
 
+    /// Cooperative variant of [`run`]. Checks the request-owned probe at the
+    /// PC → MCI boundary so that cancelling interactive compute aborts before
+    /// the expensive MCI stage. See
+    /// [`crate::analytics::spectrogram::compute_spectrogram_cancellable`]
+    /// for the same cancellation contract.
+    pub fn run_cancellable(
+        &self,
+        config: &PcmciConfig,
+        cancellation: &CancellationProbe,
+    ) -> Result<CausalResult, AppError> {
+        tracing::info!(
+            n_vars = self.df.n_vars,
+            t_len = self.df.t_len,
+            tau_max = config.tau_max,
+            pc_alpha = config.pc_alpha,
+            alpha = config.alpha_level,
+            "Starting PCMCI (cancellable)"
+        );
+
+        // Step 1: PC condition selection (cancellable).
+        let pc_result = pc::run_pc_stable_cancellable(
+            self.df,
+            self.test,
+            config.tau_min,
+            config.tau_max,
+            config.pc_alpha,
+            config.max_conds_dim,
+            config.max_combinations,
+            cancellation,
+        )?;
+
+        tracing::info!(
+            parents = ?pc_result.all_parents.values()
+                .map(|p| p.len()).collect::<Vec<_>>(),
+            "PC step complete"
+        );
+
+        // Cooperative checkpoint: PC is finished and bounded in wall time by
+        // the number of variables; the MCI stage below is the dominant
+        // spend on most workloads.
+        cancellation.check()?;
+
+        // Step 2: MCI tests
+        let mut graph = self.run_mci(config, &pc_result.all_parents);
+
+        // FDR correction
+        if config.fdr_method == "fdr_bh" {
+            graph.fdr_correction();
+        }
+
+        // Apply threshold
+        graph.threshold(config.alpha_level);
+
+        let result = CausalResult::from_graph(&graph, &self.df.var_names);
+
+        tracing::info!(n_links = result.links.len(), "PCMCI complete");
+
+        Ok(result)
+    }
+
     /// Run FullCI — unconditional on X parents, conditions on ALL lagged
     /// variables as parents of Y. No PC selection step.
     pub fn run_fullci(&self, config: &PcmciConfig) -> CausalResult {
@@ -147,6 +210,19 @@ impl<'a> Pcmci<'a> {
         result
     }
 
+    /// Cooperative variant of [`run_fullci`]. Polls the request-owned probe
+    /// once after the blocking MCI sweep completes.
+    pub fn run_fullci_cancellable(
+        &self,
+        config: &PcmciConfig,
+        cancellation: &CancellationProbe,
+    ) -> Result<CausalResult, AppError> {
+        cancellation.check()?;
+        let result = self.run_fullci(config);
+        cancellation.check()?;
+        Ok(result)
+    }
+
     /// Run BivCI — bivariate CI: conditions only on Y's own past
     /// (auto-dependencies). No PC selection step.
     pub fn run_bivci(&self, config: &PcmciConfig) -> CausalResult {
@@ -177,6 +253,18 @@ impl<'a> Pcmci<'a> {
         let result = CausalResult::from_graph(&graph, &self.df.var_names);
         tracing::info!(n_links = result.links.len(), "BivCI complete");
         result
+    }
+
+    /// Cooperative variant of [`run_bivci`].
+    pub fn run_bivci_cancellable(
+        &self,
+        config: &PcmciConfig,
+        cancellation: &CancellationProbe,
+    ) -> Result<CausalResult, AppError> {
+        cancellation.check()?;
+        let result = self.run_bivci(config);
+        cancellation.check()?;
+        Ok(result)
     }
 
     /// MCI step: test each link with conditions from both parent sets.
@@ -279,6 +367,9 @@ impl<'a> Pcmci<'a> {
 mod tests {
     use super::super::independence::IndependenceTestKind;
     use super::*;
+    use crate::causal::PcmciPlus;
+    use crate::error::ErrorCode;
+    use edatime_core::cancellation::cancellation_pair;
 
     #[test]
     fn test_pcmci_simple_chain() {
@@ -402,5 +493,77 @@ mod tests {
                 .iter()
                 .any(|l| l.source == "Y" && l.target == "Z" && l.lag == 1)
         );
+    }
+
+    #[test]
+    fn cancellable_engine_short_circuits_on_pre_cancellation() {
+        // 3-vars × 32 samples to keep the PC-stable sweep cheap.
+        let columns = vec![
+            (0..32).map(|i| i as f64).collect::<Vec<_>>(),
+            (0..32).map(|i| (i as f64).sin()).collect::<Vec<_>>(),
+            (0..32).map(|i| (i as f64).cos()).collect::<Vec<_>>(),
+        ];
+        let df = CausalDataFrame::new(columns, vec!["a".into(), "b".into(), "c".into()]);
+        let test = CondIndTest::new(IndependenceTestKind::ParCorr);
+        let config = PcmciConfig {
+            tau_min: 1,
+            tau_max: 1,
+            pc_alpha: 0.05,
+            alpha_level: 0.05,
+            max_combinations: 1,
+            fdr_method: "none".to_string(),
+            ..Default::default()
+        };
+
+        let (handle, probe) = cancellation_pair();
+        handle.cancel();
+
+        let pcmci = Pcmci::new(&df, &test);
+        let err = pcmci
+            .run_cancellable(&config, &probe)
+            .expect_err("pre-cancelled PCMCI must surface AppError::Cancelled");
+        assert_eq!(err.code, ErrorCode::RequestCancelled);
+
+        // FullCI/BivCI also bounce the cancellation guard before any work.
+        let pcmci_fullci = Pcmci::new(&df, &test);
+        let err = pcmci_fullci
+            .run_fullci_cancellable(&config, &probe)
+            .expect_err("pre-cancelled FullCI must surface AppError::Cancelled");
+        assert_eq!(err.code, ErrorCode::RequestCancelled);
+
+        let pcmci_bivci = Pcmci::new(&df, &test);
+        let err = pcmci_bivci
+            .run_bivci_cancellable(&config, &probe)
+            .expect_err("pre-cancelled BivCI must surface AppError::Cancelled");
+        assert_eq!(err.code, ErrorCode::RequestCancelled);
+    }
+
+    #[test]
+    fn pcmciplus_cancellable_short_circuits_on_pre_cancellation() {
+        let columns = vec![
+            (0..32).map(|i| i as f64).collect::<Vec<_>>(),
+            (0..32).map(|i| (i as f64).sin()).collect::<Vec<_>>(),
+            (0..32).map(|i| (i as f64).cos()).collect::<Vec<_>>(),
+        ];
+        let df = CausalDataFrame::new(columns, vec!["a".into(), "b".into(), "c".into()]);
+        let test = CondIndTest::new(IndependenceTestKind::ParCorr);
+        let config = PcmciConfig {
+            tau_min: 0,
+            tau_max: 1,
+            pc_alpha: 0.05,
+            alpha_level: 0.05,
+            max_combinations: 1,
+            fdr_method: "none".to_string(),
+            ..Default::default()
+        };
+
+        let (handle, probe) = cancellation_pair();
+        handle.cancel();
+
+        let engine = PcmciPlus::new(&df, &test);
+        let err = engine
+            .run_cancellable(&config, &probe)
+            .expect_err("pre-cancelled PCMCI+ must surface AppError::Cancelled");
+        assert_eq!(err.code, ErrorCode::RequestCancelled);
     }
 }

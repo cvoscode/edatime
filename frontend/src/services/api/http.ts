@@ -234,10 +234,16 @@ export async function readApiError(response: Response, label: string): Promise<E
                 correlationId = requestId;
             }
         } else {
+            if (declaresV1Contract) {
+                contractViolation = 'error response violates the v1 error contract; expected application/json';
+            }
             const text = await response.text().catch(() => '');
             detail = text;
         }
     } catch {
+        if (declaresV1Contract) {
+            contractViolation = 'error response violates the v1 error contract; invalid JSON';
+        }
         // Fall back to a plain-text read when JSON parsing fails.
         detail = await response.text().catch(() => '');
     }

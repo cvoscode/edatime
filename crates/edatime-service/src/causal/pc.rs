@@ -10,8 +10,11 @@
 use rayon::prelude::*;
 use std::collections::HashMap;
 
+use edatime_core::cancellation::CancellationProbe;
+
 use super::data::{CausalDataFrame, VarLag};
 use super::independence::CondIndTest;
+use crate::error::AppError;
 
 type PcSingleResult = (
     usize,
@@ -36,6 +39,10 @@ pub struct PcResult {
 ///
 /// For each variable j, runs `pc_stable_single` which iteratively tests
 /// links against condition subsets of increasing cardinality.
+///
+/// The optional `cancellation` probe is checked before each target, condition
+/// dimension, and candidate parent. This keeps cancellation latency bounded by
+/// a single independence-test combination without unhooking Rayon.
 pub fn run_pc_stable(
     df: &CausalDataFrame,
     test: &CondIndTest,
@@ -45,13 +52,70 @@ pub fn run_pc_stable(
     max_conds_dim: Option<usize>,
     max_combinations: usize,
 ) -> PcResult {
+    // No cancellation probe — the only `Ok` path can fail with cancellation,
+    // so `expect` is unreachable and the legacy contract is preserved.
+    run_pc_stable_with_cancellation(
+        df,
+        test,
+        tau_min,
+        tau_max,
+        pc_alpha,
+        max_conds_dim,
+        max_combinations,
+        None,
+    )
+    .expect("non-cancellable PC-stable never returns AppError")
+}
+
+/// Cooperative variant of [`run_pc_stable`]. See that function for the
+/// cancellation semantics.
+#[allow(clippy::too_many_arguments)]
+pub fn run_pc_stable_cancellable(
+    df: &CausalDataFrame,
+    test: &CondIndTest,
+    tau_min: usize,
+    tau_max: usize,
+    pc_alpha: f64,
+    max_conds_dim: Option<usize>,
+    max_combinations: usize,
+    cancellation: &CancellationProbe,
+) -> Result<PcResult, AppError> {
+    run_pc_stable_with_cancellation(
+        df,
+        test,
+        tau_min,
+        tau_max,
+        pc_alpha,
+        max_conds_dim,
+        max_combinations,
+        Some(cancellation),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_pc_stable_with_cancellation(
+    df: &CausalDataFrame,
+    test: &CondIndTest,
+    tau_min: usize,
+    tau_max: usize,
+    pc_alpha: f64,
+    max_conds_dim: Option<usize>,
+    max_combinations: usize,
+    cancellation: Option<&CancellationProbe>,
+) -> Result<PcResult, AppError> {
+    if let Some(cancellation) = cancellation {
+        cancellation.check()?;
+    }
     let n_vars = df.n_vars;
 
     // Run PC-stable for each variable in parallel
     let results: Vec<PcSingleResult> = (0..n_vars)
         .into_par_iter()
         .map(|j| {
-            let (parents, val_min, pval_max) = pc_stable_single(
+            if let Some(cancellation) = cancellation {
+                cancellation.check()?;
+            }
+            let (parents, val_min, pval_max) = pc_stable_single_with_cancellation(
                 df,
                 test,
                 j,
@@ -60,10 +124,16 @@ pub fn run_pc_stable(
                 pc_alpha,
                 max_conds_dim,
                 max_combinations,
-            );
-            (j, parents, val_min, pval_max)
+                cancellation,
+            )?;
+            Ok((j, parents, val_min, pval_max))
         })
-        .collect();
+        .collect::<Result<Vec<_>, AppError>>()?;
+
+    // Check cancellation after the blocking `.collect()` boundary.
+    if let Some(cancellation) = cancellation {
+        cancellation.check()?;
+    }
 
     // Merge results
     let mut all_parents = HashMap::new();
@@ -80,11 +150,11 @@ pub fn run_pc_stable(
         all_parents.insert(j, parents);
     }
 
-    PcResult {
+    Ok(PcResult {
         all_parents,
         val_min: all_val_min,
         pval_max: all_pval_max,
-    }
+    })
 }
 
 /// PC-stable condition selection for a single target variable j.
@@ -93,7 +163,7 @@ pub fn run_pc_stable(
 /// other parents. If (i, -τ) is found independent of j conditioned on any
 /// subset, it is removed from the parent set.
 #[allow(clippy::too_many_arguments)]
-fn pc_stable_single(
+fn pc_stable_single_with_cancellation(
     df: &CausalDataFrame,
     test: &CondIndTest,
     j: usize,
@@ -102,7 +172,8 @@ fn pc_stable_single(
     pc_alpha: f64,
     max_conds_dim: Option<usize>,
     max_combinations: usize,
-) -> PcSingleTargetResult {
+    cancellation: Option<&CancellationProbe>,
+) -> Result<PcSingleTargetResult, AppError> {
     let n_vars = df.n_vars;
 
     // Initialize candidate parents: all (i, -τ) for valid ranges, excluding (j, 0)
@@ -129,6 +200,9 @@ fn pc_stable_single(
 
     // Iterate over increasing condition set sizes
     for conds_dim in 0..=max_dim {
+        if let Some(cancellation) = cancellation {
+            cancellation.check()?;
+        }
         if parents.len() <= conds_dim {
             break; // Converged: not enough parents left
         }
@@ -136,6 +210,9 @@ fn pc_stable_single(
         let mut nonsig_mask = vec![false; parents.len()];
 
         for (parent_idx, &parent) in parents.iter().enumerate() {
+            if let Some(cancellation) = cancellation {
+                cancellation.check()?;
+            }
             let (i, neg_tau) = parent;
 
             // Build condition subsets from other parents
@@ -146,7 +223,14 @@ fn pc_stable_single(
                 continue;
             }
 
+            let mut cancelled = false;
             for_each_combination(&other_parents, conds_dim, max_combinations, |z_set| {
+                if let Some(cancellation) = cancellation {
+                    if cancellation.is_cancelled() {
+                        cancelled = true;
+                        return true;
+                    }
+                }
                 let x = [(i, neg_tau)];
                 let y = [(j, 0i32)];
 
@@ -173,6 +257,11 @@ fn pc_stable_single(
 
                 false
             });
+            if cancelled {
+                // The callback cannot return a Result, so stop it early and
+                // propagate the cancellation at the parent boundary.
+                cancellation.expect("cancelled requires a probe").check()?;
+            }
         }
 
         // Remove non-significant parents (stable: batch removal)
@@ -191,7 +280,7 @@ fn pc_stable_single(
         });
     }
 
-    (parents, val_min, pval_max)
+    Ok((parents, val_min, pval_max))
 }
 
 /// Visit combinations of size `k` lazily and stop early when the visitor
@@ -271,5 +360,30 @@ mod tests {
             false
         });
         assert_eq!(c5.len(), 0);
+    }
+
+    #[test]
+    fn run_pc_stable_cancellable_rejects_pre_cancelled_probe() {
+        use super::super::independence::IndependenceTestKind;
+        use crate::error::ErrorCode;
+        use edatime_core::cancellation::cancellation_pair;
+
+        // Build a small dataset: 4 vars × 32 samples — enough to exercise
+        // the parallel PC-stable sweep.
+        let columns = vec![
+            (0..32).map(|i| (i as f64).sin()).collect::<Vec<_>>(),
+            (0..32).map(|i| (i as f64).cos()).collect::<Vec<_>>(),
+            (0..32).map(|i| ((i as f64).sin()).powi(2)).collect(),
+            (0..32).map(|i| i as f64).collect(),
+        ];
+        let names = vec!["s".into(), "c".into(), "s2".into(), "t".into()];
+        let df = CausalDataFrame::new(columns, names);
+        let test = CondIndTest::new(IndependenceTestKind::ParCorr);
+        let (handle, probe) = cancellation_pair();
+        handle.cancel();
+
+        let err = run_pc_stable_cancellable(&df, &test, 1, 1, 0.05, None, 1, &probe)
+            .expect_err("pre-cancelled PC-stable must short-circuit");
+        assert_eq!(err.code, ErrorCode::RequestCancelled);
     }
 }
