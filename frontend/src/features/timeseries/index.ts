@@ -5,6 +5,7 @@ export { initChartPageFilterGesture } from './filterGesture.js';
 export { initTimeseriesHelp } from './help.js';
 export { initAdaptiveFilterGesture } from './adaptiveGesture.js';
 export { createAnalyticsOverlayController, initAnalyticsListeners } from './analyticsOverlay.js';
+export { createTimeseriesPlanFilterSync } from './planFilterSync.js';
 export type { AnalyticsOverlayController } from './analyticsOverlay.js';
 
 export { setAdaptiveFilterColumn } from './interaction.js';

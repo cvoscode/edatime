@@ -7,6 +7,7 @@
  * `./state.js`.
  */
 
+import { getCleaningPlanHash } from '../../cleaning/store.js';
 import type { DatasetMetadata } from '../../types/api.js';
 import { getScatterViewSnapshot, scatterState } from '../../store/scatterState.js';
 import { buildAdaptiveLineFiltersForQueryState } from '../../services/timeseries/filtering.js';
@@ -156,6 +157,17 @@ const scopeFiltersToColumns = (
     return filters.filter((f) => allowed.has(f.column));
 };
 
+const scopeAdaptiveFiltersToScatterAxes = (
+    filters: ReturnType<typeof buildAdaptiveLineFiltersForQueryState>,
+    columns: { x?: string; y?: string },
+): ReturnType<typeof buildAdaptiveLineFiltersForQueryState> => {
+    const axes = new Set([columns.x, columns.y].filter((column): column is string => !!column));
+    // Overview/matrix requests do not have one pair of axes to scope to. Keep
+    // their existing request shape; pair plots scope trace-local filters below.
+    if (axes.size === 0) return filters;
+    return filters.filter((filter) => axes.has(filter.column));
+};
+
 export function isLinkedBrushEnabled(): boolean {
     return !!(getEl('scatter-link-brush') as HTMLInputElement | null)?.checked
         || !!(getEl('scatter-matrix-link-range') as HTMLInputElement | null)?.checked;
@@ -195,8 +207,14 @@ export function buildScatterQueryContext(
         start: linkedRangeValid ? start : undefined,
         end: linkedRangeValid ? end : undefined,
         filters,
+        // Adaptive filters mask one Signals trace. Treating a HULL line as a
+        // global predicate for (say) HUFL × OT can empty an unrelated scatter
+        // pair. A pair plot therefore carries only lines for its two axes.
         lineFilters: intent
-            ? buildAdaptiveLineFiltersForQueryState([...intent.filters.adaptiveLines])
+            ? scopeAdaptiveFiltersToScatterAxes(
+                buildAdaptiveLineFiltersForQueryState([...intent.filters.adaptiveLines]),
+                columns,
+            )
             : activeSnapshot?.lineFilters.slice() ?? [],
     };
 }
@@ -264,6 +282,7 @@ export function buildRenderSignature(controls: ScatterControls): string {
  */
 export function buildOverviewContextKey(context: Partial<ScatterQueryContext> & { x?: string; y?: string; colorColumn?: string }): string {
     return JSON.stringify({
+        cleaningPlanHash: getCleaningPlanHash(),
         x: typeof context?.x === 'string' ? context.x : '',
         y: typeof context?.y === 'string' ? context.y : '',
         colorColumn: typeof context?.colorColumn === 'string' ? context.colorColumn : '',

@@ -406,6 +406,27 @@ describe('initScatterPage view toggles', () => {
         expect(fetchScatterPointsMock.mock.calls.length).toBeGreaterThanOrEqual(2);
     });
 
+    it('keeps shared filters across views and does not revive stale adaptive snapshots', async () => {
+        const { initScatterPage, setScatterView } = await import('./page.js');
+        const { setScatterViewSnapshot } = await import('../../store/scatterState.js');
+        const { createWorkspaceStore } = await import('../../workspace/workspaceStore.js');
+        const workspace = createWorkspaceStore();
+        const filters = { columnRanges: { HUFL: { from: 0, to: 1 } }, adaptiveLines: [] };
+        workspace.setFilters(filters);
+        setScatterViewSnapshot('matrix', {
+            columnRanges: {},
+            lineFilters: [{ column: 'HUFL', x1: 0, y1: 100, x2: 1000, y2: 100, keepAbove: true }],
+        });
+        await initScatterPage({ total_rows: 2, columns: [], numeric_columns: ['HUFL', 'HULL'],
+            time_column: 'ts', time_range: { min: 0, max: 1000 }, column_profiles: [],
+        } as any, { workspace });
+        await setScatterView('matrix');
+        expect(workspace.getSnapshot().filters).toEqual(filters);
+        workspace.setFilters({ columnRanges: {}, adaptiveLines: [] });
+        await setScatterView('plot');
+        expect(workspace.getSnapshot().filters).toEqual({ columnRanges: {}, adaptiveLines: [] });
+    });
+
     it('warns when the active (plot) filters leave the plot empty after switching back', async () => {
         fetchScatterPointsMock
             .mockResolvedValueOnce({

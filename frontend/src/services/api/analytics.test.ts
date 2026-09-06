@@ -118,6 +118,11 @@ describe('analytics api helpers', () => {
             to: 10,
             mode: 'keepInside',
         });
+        cleaningPlanStore.addStage({
+            kind: 'adaptiveLine', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+            sourcePage: 'timeseries', label: 'Drawn filter', column: 'value',
+            x1Ms: 0, y1: 1, x2Ms: 10, y2: 2, keepAbove: false, applyWithinSegmentOnly: true,
+        });
         fetchMock
             .mockResolvedValueOnce(jsonResponse({ bands: [] }))
             .mockResolvedValueOnce(jsonResponse({ method: 'zscore', threshold: 3, regions: [] }))
@@ -135,7 +140,7 @@ describe('analytics api helpers', () => {
             expect(envelope).toMatchObject({
                 expectedSourceVersionId: 'source-3',
                 expectedDatasetRevision: 3,
-                plan: { stages: [{ kind: 'columnRange' }] },
+                plan: { stages: [{ kind: 'columnRange' }, { kind: 'adaptiveLine', keepAbove: false }] },
             });
         }
         expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: 'POST' });

@@ -1,3 +1,5 @@
+import { createCleaningPlanStore } from '../../cleaning/store.js';
+import { createTimeseriesPlanFilterSync } from './planFilterSync.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { initAdaptiveFilterGesture, positionAdaptivePicker } from './adaptiveGesture.js';
 import { setPrimaryChartInstance } from '../../charts/primaryChart.js';
@@ -50,6 +52,37 @@ describe('adaptive filter gesture', () => {
 
         expect(workspace.getSnapshot().filters.adaptiveLines).toHaveLength(1);
         expect(workspace.getSnapshot().filters.adaptiveLines[0]).toMatchObject({ column: 'value', x1: 0, x2: 10, keepAbove: false });
+    });
+
+    it('saves drawn filters in the shared plan and removes their controls on undo', () => {
+        const workspace = createWorkspaceStore();
+        workspace.setSelection(['value']);
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({ sourceVersionId: 'source', datasetRevision: 1,
+            datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        const sync = createTimeseriesPlanFilterSync(workspace);
+        const unsubscribe = planStore.subscribe(() => sync(planStore.getSnapshot()));
+        const dispose = initAdaptiveFilterGesture({
+            workspace, cleaningPlanStore: planStore, buildColumnToggles: vi.fn(),
+            buildRangeControls: vi.fn(), renderCurrentData: vi.fn(),
+            getCurrentData: () => currentData, updateAnalysisYRange: vi.fn(),
+        });
+        const chart = document.getElementById('main-chart')!;
+        chart.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true, button: 0 }));
+        chart.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true, button: 0 }));
+        window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Control' }));
+        chooseFilterSide('Keep below');
+        expect(planStore.getSnapshot()!.stages).toEqual([expect.objectContaining({
+            kind: 'adaptiveLine', column: 'value', x1Ms: 0, x2Ms: 10,
+            keepAbove: false, applyWithinSegmentOnly: true,
+        })]);
+        expect(workspace.getSnapshot().filters.adaptiveLines).toHaveLength(1);
+        planStore.undo();
+        expect(workspace.getSnapshot().filters.adaptiveLines).toHaveLength(0);
+        planStore.redo();
+        expect(workspace.getSnapshot().filters.adaptiveLines).toHaveLength(1);
+        dispose();
+        unsubscribe();
     });
 
     it('builds the adaptive line from workspace filter intent', () => {

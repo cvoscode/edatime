@@ -19,7 +19,8 @@
 
 let activeControlsCleanup: (() => void) | null = null;
 
-import { scatterState } from '../../store/scatterState.js';
+import { cleaningPlanStore } from '../../cleaning/store.js';
+import { clearScatterViewSnapshots, scatterState } from '../../store/scatterState.js';
 import type { DatasetMetadata } from '../../types/api.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import { onFeatureEvent } from '../../platform/featureEvents.js';
@@ -282,6 +283,12 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
         }, { once: true });
     }
     controller.signal.addEventListener('abort', onFeatureEvent('filters:clear', async () => {
+        for (const stage of cleaningPlanStore.getSnapshot()?.stages ?? []) {
+            if (stage.enabled && ['columnRange', 'adaptiveLine', 'timeRange'].includes(stage.kind)) {
+                cleaningPlanStore.removeStage(stage.id);
+            }
+        }
+        clearScatterViewSnapshots();
         const filters = cb.workspace?.getSnapshot().filters;
         if (filters) {
             cb.workspace?.setFilters({ ...filters, columnRanges: {}, adaptiveLines: [] });

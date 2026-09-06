@@ -11,9 +11,8 @@
 import { toast, dismissAllToasts } from '../../utils/toast.js';
 import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
 import { fetchScatterPoints } from '../../services/api/index.js';
-import { getScatterViewSnapshot, scatterState, setScatterViewSnapshot } from '../../store/scatterState.js';
+import { scatterState } from '../../store/scatterState.js';
 import { initScatterHelp } from './help.js';
-import { buildAdaptiveLineFiltersForQueryState } from '../../services/timeseries/filtering.js';
 import {
     getEl,
     fmt,
@@ -80,7 +79,6 @@ let workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'subscribe'> 
 let disposeBoundControls: (() => void) | null = null;
 let toolbarOverflow: ToolbarOverflowController | null = null;
 let matrixRenderSession: MatrixRenderSession = createMatrixRenderSession();
-let suppressWorkspaceReaction = false;
 
 /** Request task for scatter data fetching with abort-before-new semantics. */
 const scatterTask = createRequestTask({
@@ -172,50 +170,10 @@ async function setScatterView(viewName: string, options: { render?: boolean } = 
     // would otherwise follow the user between Plot ↔ Matrix.
     dismissAllToasts();
 
-    // Independent filter scopes per view. Snapshot the current global
-    // filters into the leaving view's slot, then restore the entering
-    // view's snapshot into global state so each view keeps its own
-    // filters when the user toggles back and forth. Globals are the
-    // shared source for the scatter query context; the snapshot exists
-    // only to remember what filters were staged while on the other view.
+    // Filters belong to the shared analysis dataset. Restoring per-view
+    // snapshots here can resurrect removed lines or overwrite current filters.
     const previousView = (scatterState.activeView === 'matrix' ? 'matrix' : 'plot') as 'plot' | 'matrix';
     const nextViewName: 'plot' | 'matrix' = nextView === 'matrix' ? 'matrix' : 'plot';
-    if (previousView !== nextViewName) {
-        const liveFilters = workspace?.getSnapshot().filters;
-        const liveLineFilters = buildAdaptiveLineFiltersForQueryState([
-            ...(liveFilters?.adaptiveLines ?? []),
-        ]);
-        setScatterViewSnapshot(previousView, {
-            columnRanges: { ...(liveFilters?.columnRanges ?? {}) },
-            lineFilters: liveLineFilters,
-        });
-        const enteringSnapshot = getScatterViewSnapshot(nextViewName);
-        // Adaptive line filters round-trip back through the Workspace shape.
-        const storedAdaptive = (enteringSnapshot.lineFilters || []).map((spec) => {
-            return {
-                column: spec.column,
-                x1: spec.x1,
-                y1: spec.y1,
-                x2: spec.x2,
-                y2: spec.y2,
-                keepAbove: spec.keepAbove,
-            };
-        });
-        const activeWorkspace = workspace;
-        const filters = activeWorkspace?.getSnapshot().filters;
-        if (filters && activeWorkspace) {
-            suppressWorkspaceReaction = true;
-            try {
-                activeWorkspace.setFilters({
-                    ...filters,
-                    columnRanges: enteringSnapshot.columnRanges,
-                    adaptiveLines: storedAdaptive as any,
-                });
-            } finally {
-                suppressWorkspaceReaction = false;
-            }
-        }
-    }
 
     // When the user switches back to the plot from the matrix, the cached
     // `view` bounds usually come from a stale zoom/pan state that was
@@ -438,7 +396,6 @@ function bindControls(): Promise<void> {
             renderScatterDebounced,
             syncScatterFilterBadge,
             refreshToolbarOverflow: () => toolbarOverflow?.refresh(),
-            shouldIgnoreWorkspaceChange: () => suppressWorkspaceReaction,
             workspace: workspace ?? undefined,
             exportScatterParquet: () => exportScatterParquet(workspace?.getSnapshot()),
         });

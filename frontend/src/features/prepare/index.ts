@@ -310,6 +310,7 @@ function renderPrepareWorkspace(
     const localNav = createElement('nav', 'prepare-workspace__local-nav');
     localNav.setAttribute('aria-label', 'Prepare sections');
     for (const [label, targetId] of [
+        ['Applied in Signals', 'prepare-signals-filters'],
         ['Profile findings', 'prepare-profile-findings'],
         ['Pipeline preview', 'prepare-pipeline-preview'],
         ['Pipeline stages', 'prepare-pipeline-stages'],
@@ -341,6 +342,33 @@ function renderPrepareWorkspace(
     identity.textContent = 'Source ' + plan.sourceVersionId + ' · revision ' + String(plan.datasetRevision)
         + ' · ' + String(activeStages) + ' active executable stage' + (activeStages === 1 ? '' : 's')
         + ' · ' + (cleaningPlanStore.isDirty() ? 'unmaterialized changes' : 'source baseline');
+
+    const filters = deps.workspace?.getSnapshot().filters;
+    const rangeFilters = Object.entries(filters?.columnRanges ?? {});
+    const adaptiveFilters = filters?.adaptiveLines ?? [];
+    const signalsFilterSection = (rangeFilters.length > 0 || adaptiveFilters.length > 0)
+        ? (() => {
+            const section = createElement('section', 'prepare-workspace__signals-filters');
+            section.id = 'prepare-signals-filters';
+            const heading = createElement('h2');
+            heading.textContent = 'Applied in Signals';
+            const summary = createElement('p', 'prepare-workspace__copy');
+            summary.textContent = 'Signals filters are saved in the pipeline and applied to correlations, density/scatter plots, and diagnostics.';
+            const list = createElement('ul', 'prepare-workspace__signals-filter-list');
+            for (const [column, range] of rangeFilters) {
+                const item = createElement('li');
+                item.textContent = 'Keep ' + column + ' between ' + String(range.from) + ' and ' + String(range.to);
+                list.append(item);
+            }
+            for (const filter of adaptiveFilters) {
+                const item = createElement('li');
+                item.textContent = filter.column + ': keep ' + (filter.keepAbove ? 'above' : 'below') + ' the drawn line';
+                list.append(item);
+            }
+            section.append(heading, summary, list);
+            return section;
+        })()
+        : null;
 
     const qualitySection = renderQualityFindings(
         plan, deps, profileMetadata, profileStatus, profileKind,
@@ -596,7 +624,9 @@ function renderPrepareWorkspace(
         list.append(item);
     }
     stagesSection.append(stageTitle, stageCopy, history, addPolicy, addDeduplicate, addColumnSelect, addSort, addFill, addResample, list);
-    root.append(header, localNav, identity, qualitySection, graphSection, stagesSection);
+    root.append(header, localNav, identity);
+    if (signalsFilterSection) root.append(signalsFilterSection);
+    root.append(qualitySection, graphSection, stagesSection);
 }
 
 /** Lazy page surface for orienting a data scientist before opening the editor overlay. */

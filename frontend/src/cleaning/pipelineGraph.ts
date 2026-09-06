@@ -13,6 +13,8 @@ export interface PipelineGraphNode {
     label: string;
     detail: string;
     stageId?: string;
+    stageIds?: string[];
+    specs?: string[];
     order: number;
 }
 
@@ -62,9 +64,9 @@ function stageDetail(stage: CleaningStage): string {
         case 'timeRange':
             return `${stage.mode === 'keepInside' ? 'Keep' : 'Drop'} ${formatTimestamp(stage.startMs)} – ${formatTimestamp(stage.endMs)}`;
         case 'columnRange':
-            return `${stage.mode === 'keepInside' ? 'Keep' : 'Drop'} ${stage.column}: ${formatNumber(stage.from)} – ${formatNumber(stage.to)}`;
+            return `${stage.mode === 'keepInside' ? 'Keep' : 'Drop'} ${stage.column}: ${formatNumber(stage.from)} – ${formatNumber(stage.to)}${stage.retainNulls ? ' (retain nulls)' : ''}`;
         case 'adaptiveLine':
-            return `${stage.keepAbove ? 'Keep above' : 'Keep below'} adaptive line for ${stage.column}`;
+            return `${stage.column}: keep ${stage.keepAbove ? 'above' : 'below'} (${stage.x1Ms}, ${stage.y1}) → (${stage.x2Ms}, ${stage.y2})${stage.applyWithinSegmentOnly ? ' within segment' : ' globally'}`;
         case 'missingValue':
             return `Drop ${stage.dropNulls ? 'null' : ''}${stage.dropNulls && stage.dropNonFinite ? ' and ' : ''}${stage.dropNonFinite ? 'non-finite' : ''} ${stage.column} rows`;
         case 'deduplicate':
@@ -72,13 +74,13 @@ function stageDetail(stage: CleaningStage): string {
         case 'columnSelect':
             return `${stage.mode === 'keep' ? 'Keep only' : 'Drop'} columns: ${stage.columns.join(', ')}`;
         case 'sort':
-            return `Stable ${stage.descending ? 'descending' : 'ascending'} sort by ${stage.columns.join(', ')}`;
+            return `Stable ${stage.descending ? 'descending' : 'ascending'} sort by ${stage.columns.join(', ')} · nulls ${stage.nullsLast ? 'last' : 'first'}`;
         case 'fillNull':
             return `${stage.strategy === 'forward' ? 'Forward' : 'Backward'} fill nulls in ${stage.columns.join(', ')} after time sort${stage.limit == null ? '' : ` (limit ${stage.limit})`}`;
         case 'resample':
             return `${stage.every} buckets: ${stage.aggregations.map(({ column, method }) => `${column} ${method}`).join(', ')}`;
         case 'chronologicalSplit':
-            return `train → validation → test labels in ${stage.outputColumn}`;
+            return `${stage.outputColumn}: train ≤ ${formatTimestamp(stage.trainEndMs)}, validation ≤ ${formatTimestamp(stage.validationEndMs)}, then test; embargo ${stage.embargoMs} ms`;
         case 'derivedColumn':
             return `${stage.outputColumn} = ${stage.expression}`;
         case 'annotation':
@@ -116,6 +118,7 @@ function nodeEyebrow(node: PipelineGraphNode): string {
 }
 
 function stageKindLabel(node: PipelineGraphNode): string {
+    if (node.stageIds && node.stageIds.length > 1) return node.label;
     switch (node.id.split(':', 1)[0]) {
         case 'timeRange': return 'Time range';
         case 'columnRange': return 'Value range';
@@ -146,8 +149,12 @@ export function buildPipelineGraph(plan: CleaningPlan): PipelineGraph {
     let previousMainNodeId = SOURCE_NODE_ID;
     let executableOrder = 0;
 
+    const operation = (stage: CleaningStage): string =>
+        ['timeRange', 'columnRange', 'adaptiveLine'].includes(stage.kind) ? 'Filters' : stage.kind;
+    let previousStage: CleaningStage | null = null;
     for (const stage of plan.stages) {
         if (stage.kind === 'annotation') {
+            previousStage = null;
             const id = annotationNodeId(stage);
             nodes.push({
                 id,
@@ -168,6 +175,19 @@ export function buildPipelineGraph(plan: CleaningPlan): PipelineGraph {
             continue;
         }
 
+        // Group adjacent operations only: moving filters across fill/resample
+        // or derived-column stages would misrepresent the saved execution order.
+        const previousNode = nodes.find((node) => node.id === previousMainNodeId);
+        if (previousStage && operation(previousStage) === operation(stage)
+            && previousStage.enabled === stage.enabled && previousNode?.kind === 'stage') {
+            previousNode.stageIds!.push(stage.id);
+            previousNode.specs!.push(stageDetail(stage));
+            previousNode.label = operation(stage) === 'Filters' ? 'Filters' : stageKindLabel({ ...previousNode, stageIds: undefined });
+            previousNode.detail = previousNode.specs!.join('; ');
+            previousStage = stage;
+            continue;
+        }
+        previousStage = stage;
         const id = stageNodeId(stage);
         nodes.push({
             id,
@@ -176,6 +196,8 @@ export function buildPipelineGraph(plan: CleaningPlan): PipelineGraph {
             label: stage.label || stage.kind,
             detail: stageDetail(stage),
             stageId: stage.id,
+            stageIds: [stage.id],
+            specs: [stageDetail(stage)],
             order: executableOrder,
         });
         edges.push({
@@ -189,12 +211,13 @@ export function buildPipelineGraph(plan: CleaningPlan): PipelineGraph {
         executableOrder += 1;
     }
 
+    const stageCount = plan.stages.filter((stage) => stage.kind !== 'annotation').length;
     nodes.push({
         id: RESULT_NODE_ID,
         kind: 'result',
         status: 'result',
         label: 'Working dataset',
-        detail: executableOrder === 0 ? 'Source without executable stages' : `${executableOrder} executable stage${executableOrder === 1 ? '' : 's'} in saved order`,
+        detail: stageCount === 0 ? 'Source without executable stages' : `${stageCount} executable stage${stageCount === 1 ? '' : 's'} in saved order`,
         order: executableOrder,
     });
     edges.push({
@@ -231,12 +254,13 @@ export function renderPipelineGraphSvg(graph: PipelineGraph, options: PipelineGr
     const mainNodes = graph.nodes.filter((node) => node.kind !== 'annotation');
     const annotations = graph.nodes.filter((node) => node.kind === 'annotation');
     const nodeWidth = 212;
-    const nodeHeight = 82;
+    const maxSpecLines = Math.max(1, ...mainNodes.map((node) => (node.specs ?? [node.detail]).reduce((count, spec) => count + Math.ceil(spec.length / 30), 0)));
+    const nodeHeight = Math.max(82, 58 + maxSpecLines * 16);
     const gap = 38;
     const margin = 28;
     const width = Math.max(620, margin * 2 + mainNodes.length * nodeWidth + Math.max(0, mainNodes.length - 1) * gap);
     const annotationHeight = annotations.length ? 104 : 0;
-    const height = 150 + annotationHeight;
+    const height = nodeHeight + 68 + annotationHeight;
     const positions = new Map<string, { x: number; y: number }>();
     mainNodes.forEach((node, index) => {
         positions.set(node.id, { x: margin + index * (nodeWidth + gap), y: 34 });
@@ -246,7 +270,7 @@ export function renderPipelineGraphSvg(graph: PipelineGraph, options: PipelineGr
         const parentPosition = parent ? positions.get(parent) : undefined;
         positions.set(node.id, {
             x: Math.max(margin, (parentPosition?.x ?? margin) + index * 12),
-            y: 136,
+            y: nodeHeight + 54,
         });
     });
 
@@ -263,7 +287,7 @@ export function renderPipelineGraphSvg(graph: PipelineGraph, options: PipelineGr
     const nodeSvg = graph.nodes.map((node) => {
         const position = positions.get(node.id);
         if (!position) return '';
-        const selected = node.stageId && node.stageId === options.selectedStageId;
+        const selected = node.stageId && (node.stageId === options.selectedStageId || node.stageIds?.includes(options.selectedStageId ?? ''));
         const className = [
             'pipeline-graph__node',
             `pipeline-graph__node--${node.kind}`,
@@ -272,7 +296,8 @@ export function renderPipelineGraphSvg(graph: PipelineGraph, options: PipelineGr
         ].filter(Boolean).join(' ');
         const eyebrow = escapeXml(nodeEyebrow(node));
         const label = escapeXml(shorten(node.kind === 'stage' ? stageKindLabel(node) : node.label, 32));
-        const detail = escapeXml(shorten(node.detail, 50));
+        const detail = (node.specs ?? [node.detail]).flatMap((spec) => spec.match(/.{1,30}/gu) ?? [''])
+            .map((line, index) => `<tspan x="${position.x + 15}" dy="${index ? 16 : 0}">${escapeXml(line)}</tspan>`).join('');
         return `<g class="${className}" data-node-id="${escapeXml(node.id)}"${node.stageId ? ` data-stage-id="${escapeXml(node.stageId)}"` : ''} tabindex="${node.stageId ? '0' : '-1'}" role="${node.stageId ? 'button' : 'img'}" aria-label="${escapeXml(`${node.label}: ${node.detail}`)}"><rect x="${position.x}" y="${position.y}" width="${nodeWidth}" height="${nodeHeight}" rx="12" /><text x="${position.x + 15}" y="${position.y + 19}" class="pipeline-graph__eyebrow">${eyebrow}</text><text x="${position.x + 15}" y="${position.y + 44}" class="pipeline-graph__label">${label}</text><text x="${position.x + 15}" y="${position.y + 65}" class="pipeline-graph__detail">${detail}</text></g>`;
     }).join('');
     const title = escapeXml(options.title || `EdaTime pipeline for ${graph.sourceVersionId}`);

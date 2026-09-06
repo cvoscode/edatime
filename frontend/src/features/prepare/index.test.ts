@@ -42,6 +42,25 @@ describe('Prepare page', () => {
         dispose();
     });
 
+    it('shows shared adaptive filters from Signals', () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        cleaningPlanStore.addStage({
+            kind: 'adaptiveLine', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+            sourcePage: 'timeseries', label: 'Adaptive HULL', column: 'HULL',
+            x1Ms: 1, y1: 2, x2Ms: 3, y2: 4, keepAbove: true, applyWithinSegmentOnly: true,
+        });
+        workspace.setFilters({
+            columnRanges: {},
+            adaptiveLines: [{ id: 'adaptive-1', column: 'HULL', x1: 1, y1: 2, x2: 3, y2: 4, keepAbove: true }],
+        });
+
+        const dispose = initPreparePage({ workspace });
+
+        expect(document.getElementById('prepare-signals-filters')?.textContent).toContain('HULL: keep above the drawn line');
+        expect(document.getElementById('prepare-pipeline-preview')?.textContent).toContain('Adaptive line');
+        dispose();
+    });
+
     it('provides the same page-level help contract as every analysis page', () => {
         const dispose = initPreparePage({ workspace });
         const trigger = document.getElementById('prepare-help-btn') as HTMLButtonElement;

@@ -101,6 +101,15 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
                     mode: 'keepInside',
                 });
             }
+            // The plan is the durable, server-side representation, while the
+            // workspace drives the Signals chips and client-side render mask.
+            // Keep both in step so applying a range does not make it appear
+            // to disappear from Signals.
+            const filters = deps.workspace.getSnapshot().filters;
+            deps.workspace.setFilters({
+                ...filters,
+                columnRanges: { ...filters.columnRanges, [col]: range },
+            });
             return;
         }
         const filters = deps.workspace.getSnapshot().filters;
@@ -118,6 +127,9 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
                     deps.cleaningPlanStore.removeStage(stage.id);
                 }
             }
+            const filters = deps.workspace.getSnapshot().filters;
+            const { [col]: _removed, ...columnRanges } = filters.columnRanges;
+            deps.workspace.setFilters({ ...filters, columnRanges });
             return;
         }
         setColumnRange(col, full);

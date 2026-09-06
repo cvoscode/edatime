@@ -208,6 +208,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
     });
 
     const chartBootstrap = createTimeseriesBootstrap({
+        cleaningPlanStore: deps.cleaningPlanStore,
         runtimeCache,
         ensurePrimaryChartCtor: deps.ensurePrimaryChartCtor,
         onZoom: (view, sourceKind) => pageController.onZoomRangeChange(view, sourceKind),

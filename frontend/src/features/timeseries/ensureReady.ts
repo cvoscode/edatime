@@ -17,6 +17,7 @@ import { initAdaptiveFilterGesture } from './adaptiveGesture.js';
 import { restoreSessionAfterChartReady } from '../../platform/sessionLifecycle.js';
 import { dbg, dbgGroup } from '../../debug.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
+import type { CleaningPlanStore } from '../../cleaning/store.js';
 import type { DataObject } from '../../types/api.js';
 export interface TimeseriesBootstrapCallbacks {
     onZoom: (view: ViewSnapshot, sourceKind: string) => void;
@@ -25,6 +26,7 @@ export interface TimeseriesBootstrapCallbacks {
 }
 
 export interface TimeseriesBootstrapDeps {
+    cleaningPlanStore?: Pick<CleaningPlanStore, 'getSnapshot' | 'addStage'>;
     runtimeCache: Pick<TimeseriesRuntimeCache, 'initialView'>;
     ensurePrimaryChartCtor: () => Promise<new (
         containerId: string,
@@ -112,6 +114,7 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                     bindAnalysisChartEvents();
                     const adaptiveGestureDeps = {
                         workspace: deps.workspace,
+                        ...(deps.cleaningPlanStore ? { cleaningPlanStore: deps.cleaningPlanStore } : {}),
                         buildColumnToggles: deps.buildColumnToggles,
                         buildRangeControls: deps.buildRangeControls,
                         renderCurrentData: deps.renderCurrentData,

@@ -1,3 +1,4 @@
+import type { CleaningPlanStore } from '../../cleaning/store.js';
 import { onFeatureEvent } from '../../platform/featureEvents.js';
 /**
  * Adaptive filter gesture — Ctrl+click line drawing on the main chart.
@@ -87,6 +88,7 @@ export function initAdaptiveFilterGesture(
     deps: {
         workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'subscribe'>
             & Partial<Pick<WorkspaceStore, 'subscribeSelector'>>;
+        cleaningPlanStore?: Pick<CleaningPlanStore, 'getSnapshot' | 'addStage'>;
         buildColumnToggles: () => void;
         buildRangeControls: () => void;
         renderCurrentData: () => void;
@@ -158,15 +160,16 @@ export function initAdaptiveFilterGesture(
         const filter = buildAdaptiveFilterFromPoints(deps.getCurrentData(), column, p1, p2, snapshot, keepAbove);
         if (!filter) return;
         const filters = snapshot.filters;
-        // Adaptive chart filters are trace-local display masks. Keeping them
-        // in workspace intent lets the renderer replace rejected samples with
-        // NaN for this column only. A cleaning-plan adaptiveLine stage is a
-        // row filter and would incorrectly remove the same timestamps from
-        // every selected trace.
-        deps.workspace.setFilters({
-            ...filters,
-            adaptiveLines: [...filters.adaptiveLines, filter],
-        });
+        if (deps.cleaningPlanStore?.getSnapshot()) {
+            deps.cleaningPlanStore.addStage({
+                kind: 'adaptiveLine', executionClass: 'polarsExpression', scope: 'row',
+                enabled: true, sourcePage: 'timeseries', label: `Adaptive filter for ${column}`,
+                column, x1Ms: filter.x1, y1: filter.y1, x2Ms: filter.x2, y2: filter.y2,
+                keepAbove: filter.keepAbove, applyWithinSegmentOnly: true,
+            });
+        } else {
+            deps.workspace.setFilters({ ...filters, adaptiveLines: [...filters.adaptiveLines, filter] });
+        }
         deps.buildColumnToggles();
     };
 

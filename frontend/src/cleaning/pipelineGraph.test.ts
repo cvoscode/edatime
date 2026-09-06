@@ -56,6 +56,25 @@ describe('pipeline graph', () => {
         expect(graph.nodes.find((node) => node.stageId === 'note')).toMatchObject({ kind: 'annotation', status: 'metadata' });
     });
 
+    it('groups filters with every specification while preserving transformation boundaries', () => {
+        const first = plan().stages[0];
+        const range = { ...plan().stages[2], enabled: true };
+        const input: CleaningPlan = { ...plan(), stages: [first, range, {
+            id: 'fill', kind: 'fillNull', executionClass: 'polarsExpression', scope: 'row',
+            enabled: true, sourcePage: 'manual', label: 'Fill', createdAt: 'now', updatedAt: 'now',
+            columns: ['value'], strategy: 'forward', limit: 2,
+        }, { ...range, id: 'later' }] };
+        const graph = buildPipelineGraph(input);
+        const stages = graph.nodes.filter((node) => node.kind === 'stage');
+        expect(stages).toHaveLength(3);
+        expect(stages[0]).toMatchObject({ label: 'Filters', stageIds: ['time', 'range'] });
+        expect(stages[0].specs).toHaveLength(2);
+        expect(stages[1].stageId).toBe('fill');
+        expect(stages[2].stageId).toBe('later');
+        expect(renderPipelineGraphSvg(graph, { selectedStageId: 'range' })).toContain('is-selected');
+        expect(input.stages).toHaveLength(4);
+    });
+
     it('serializes a deterministic graph audit record', () => {
         const graph = buildPipelineGraph(plan());
 

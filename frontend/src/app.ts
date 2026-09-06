@@ -23,6 +23,7 @@ import {
     createTimeseriesModule,
     createAnalyticsOverlayController,
     sanitizeSelectedColumns,
+    createTimeseriesPlanFilterSync,
 } from './features/timeseries/index.js';
 // Scatter is dynamically imported on first navigation through the feature
 // registry, keeping its heavy chunks out of the initial application bundle.
@@ -185,12 +186,18 @@ export function createApp(): AppRoot {
 
         // Mount registers page lifecycle (page-change listener, etc.)
         runtime.registerCleanup(timeseriesModule.mount());
+        const syncTimeseriesPlanFilters = createTimeseriesPlanFilterSync(workspace);
+        // A restored draft can already exist before this subscription is
+        // registered. Hydrate its Signals ranges immediately as well as on
+        // later plan changes.
+        syncTimeseriesPlanFilters(cleaningPlanStore.getSnapshot());
         let planRefreshQueued = false;
         const refreshCleaningPlanConsumers = () => {
             if (planRefreshQueued) return;
             planRefreshQueued = true;
             queueMicrotask(() => {
                 planRefreshQueued = false;
+                syncTimeseriesPlanFilters(cleaningPlanStore.getSnapshot());
                 timeseriesModule.buildRangeControls();
                 timeseriesModule.renderCurrentData();
                 void timeseriesModule.fetchAndRender();

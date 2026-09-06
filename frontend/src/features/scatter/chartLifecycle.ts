@@ -53,7 +53,6 @@ function syncAccessibilitySummary(container: HTMLElement, option: unknown): void
 
 /** Create or reuse the chart instance while preserving the render-signature contract. */
 export async function renderScatterChart(options: ScatterChartLifecycleOptions): Promise<HTMLElement | null> {
-    const lifecycleGeneration = scatterState.chartLifecycleGeneration ?? 0;
     let container: HTMLElement | null = options.container;
     if (scatterState.chart && scatterState.lastRenderSignature !== options.renderSignature) {
         disposeScatterChart();
@@ -61,15 +60,22 @@ export async function renderScatterChart(options: ScatterChartLifecycleOptions):
     }
     if (!container) return null;
 
+    // Claim this render after disposing our previous chart. Capturing before
+    // disposal makes our own replacement look stale and destroys it immediately.
+    // A new claim also invalidates any older asynchronous chart creation.
+    const lifecycleGeneration = (scatterState.chartLifecycleGeneration ?? 0) + 1;
+    scatterState.chartLifecycleGeneration = lifecycleGeneration;
     const nextOption = options.buildOption(container);
     if (!scatterState.chart) {
-        if (!await isGPUAvailable()) {
+        const gpuAvailable = await isGPUAvailable();
+        if (lifecycleGeneration !== scatterState.chartLifecycleGeneration) return null;
+        if (!gpuAvailable) {
             setGpuUnavailable(true);
             const fallbackChart = new EchartsScatterChart('scatter-chart');
             await fallbackChart.init();
             if (lifecycleGeneration !== (scatterState.chartLifecycleGeneration ?? 0)) {
                 fallbackChart.dispose();
-                return container;
+                return null;
             }
             scatterState.chart = fallbackChart as any;
         } else {
@@ -80,7 +86,7 @@ export async function renderScatterChart(options: ScatterChartLifecycleOptions):
             const createdChart = await createChart(container, chartOptions as any);
             if (lifecycleGeneration !== (scatterState.chartLifecycleGeneration ?? 0)) {
                 createdChart.dispose?.();
-                return container;
+                return null;
             }
             scatterState.chart = createdChart;
         }

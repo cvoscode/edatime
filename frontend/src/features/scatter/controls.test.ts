@@ -57,6 +57,7 @@ const appStateMock = {
 };
 
 vi.mock('../../store/scatterState.js', () => ({
+    clearScatterViewSnapshots: vi.fn(),
     scatterState: appStateMock.scatter,
 }));
 
@@ -468,18 +469,33 @@ describe('bindScatterControls', () => {
             renderScatterDebounced: vi.fn(),
             syncScatterFilterBadge: vi.fn(),
         };
+        const { cleaningPlanStore } = await import('../../cleaning/store.js');
+        const { createTimeseriesPlanFilterSync } = await import('../timeseries/planFilterSync.js');
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source', datasetRevision: 1,
+            datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        cleaningPlanStore.addStage({
+            kind: 'adaptiveLine', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+            sourcePage: 'timeseries', label: 'Line', column: 'HUFL', x1Ms: 0, y1: 0,
+            x2Ms: 1, y2: 1, keepAbove: true, applyWithinSegmentOnly: true,
+        });
         const workspace = createWorkspaceStore();
         workspace.setFilters({
             columnRanges: { HUFL: { from: 1, to: 2 } },
             adaptiveLines: [{ id: 'line-1', column: 'HUFL', x1: 0, y1: 0, x2: 1, y2: 1, keepAbove: true }],
         });
 
+        const sync = createTimeseriesPlanFilterSync(workspace);
+        sync(cleaningPlanStore.getSnapshot());
+        const unsubscribe = cleaningPlanStore.subscribe(() => sync(cleaningPlanStore.getSnapshot()));
         bindScatterControls({ ...callbacks, workspace });
         emitFeatureEvent('filters:clear', { source: 'test' });
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 
         expect(workspace.getSnapshot().filters).toEqual({ columnRanges: {}, adaptiveLines: [] });
+        expect(cleaningPlanStore.getSnapshot()!.stages).toEqual([]);
+        unsubscribe();
+        cleaningPlanStore.clear();
         expect(callbacks.syncScatterFilterBadge).toHaveBeenCalled();
         expect(callbacks.refreshActiveScatterView).toHaveBeenCalled();
     });

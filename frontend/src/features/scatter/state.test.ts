@@ -1,3 +1,4 @@
+import { cleaningPlanStore } from '../../cleaning/store.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
     scatterState,
@@ -95,6 +96,20 @@ describe('scatter query context builders', () => {
         expect(result.end).toBe(20);
         expect(result.filters).toEqual([{ column: 'workspace', from: 3, to: 4 }]);
         expect(result.lineFilters).toEqual([expect.objectContaining({ column: 'workspace' })]);
+    });
+
+    it('does not apply a trace-local adaptive filter to an unrelated scatter pair', () => {
+        const result = buildScatterQueryContext(
+            { x: 'HUFL', y: 'OT' },
+            {
+                filters: {
+                    columnRanges: {},
+                    adaptiveLines: [{ id: 'line', column: 'HULL', x1: 0, y1: 0, x2: 1, y2: 1, keepAbove: true }],
+                },
+            } as any,
+        );
+
+        expect(result.lineFilters).toEqual([]);
     });
 
     it('keeps the overview key aligned with its request context and axis selection', () => {
@@ -196,6 +211,21 @@ describe('scatter query context builders', () => {
 });
 
 describe('buildOverviewContextKey', () => {
+    it('invalidates cached plots when a cleaning operation changes', () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source', datasetRevision: 1,
+            datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        try {
+            const before = buildOverviewContextKey({ x: 'x', y: 'y' });
+            cleaningPlanStore.addStage({
+                kind: 'missingValue', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+                sourcePage: 'manual', label: 'Drop nulls', column: 'other', dropNulls: true, dropNonFinite: true,
+            });
+            expect(buildOverviewContextKey({ x: 'x', y: 'y' })).not.toBe(before);
+            cleaningPlanStore.undo();
+            expect(buildOverviewContextKey({ x: 'x', y: 'y' })).toBe(before);
+        } finally { cleaningPlanStore.clear(); }
+    });
+
     it('changes the key when only the X column changes', () => {
         const base = {
             start: undefined,

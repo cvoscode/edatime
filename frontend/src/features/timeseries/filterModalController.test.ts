@@ -163,7 +163,7 @@ describe('initFilterModalController', () => {
         });
     });
 
-    it('writes a Timeseries range stage first when a cleaning plan is active', () => {
+    it('writes a Timeseries range stage and keeps the Signals filter state visible when a cleaning plan is active', () => {
         const planStore = createCleaningPlanStore();
         planStore.resetForDataset({
             sourceVersionId: 'source-1', datasetRevision: 1, datasetFingerprint: 'frame',
@@ -182,6 +182,31 @@ describe('initFilterModalController', () => {
         expect(planStore.getSnapshot()!.stages).toMatchObject([{
             kind: 'columnRange', sourcePage: 'timeseries', column: 'HUFL', from: 0.2, to: 0.8,
         }]);
+        expect(workspace.getSnapshot().filters.columnRanges).toEqual({ HUFL: { from: 0.2, to: 0.8 } });
+    });
+
+    it('removes the visible Signals range when clearing its plan-backed filter', () => {
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({
+            sourceVersionId: 'source-1', datasetRevision: 1, datasetFingerprint: 'frame',
+            schemaFingerprint: 'schema', timeColumn: 'ts',
+        });
+        planStore.addStage({
+            kind: 'columnRange', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+            sourcePage: 'timeseries', label: 'Keep HUFL in selected range', column: 'HUFL',
+            from: 0.2, to: 0.8, mode: 'keepInside',
+        });
+        workspace.setFilters({ columnRanges: { HUFL: { from: 0.2, to: 0.8 } }, adaptiveLines: [] });
+        initFilterModalController({
+            renderCurrentData: vi.fn(),
+            updateAnalysisYRange: vi.fn(),
+            cleaningPlanStore: planStore,
+        });
+        openFilterForColumn('HUFL');
+
+        (document.getElementById('column-filter-clear-btn') as HTMLButtonElement).click();
+
+        expect(planStore.getSnapshot()!.stages).toEqual([]);
         expect(workspace.getSnapshot().filters.columnRanges).toEqual({});
     });
 
