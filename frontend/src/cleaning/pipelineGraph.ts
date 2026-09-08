@@ -12,6 +12,8 @@ export interface PipelineGraphNode {
     status: PipelineGraphNodeStatus;
     label: string;
     detail: string;
+    /** Full-fidelity text shown on hover without crowding the node. */
+    tooltip?: string;
     stageId?: string;
     stageIds?: string[];
     specs?: string[];
@@ -66,7 +68,7 @@ function stageDetail(stage: CleaningStage): string {
         case 'columnRange':
             return `${stage.mode === 'keepInside' ? 'Keep' : 'Drop'} ${stage.column}: ${formatNumber(stage.from)} – ${formatNumber(stage.to)}${stage.retainNulls ? ' (retain nulls)' : ''}`;
         case 'adaptiveLine':
-            return `${stage.column}: keep ${stage.keepAbove ? 'above' : 'below'} (${stage.x1Ms}, ${stage.y1}) → (${stage.x2Ms}, ${stage.y2})${stage.applyWithinSegmentOnly ? ' within segment' : ' globally'}`;
+            return `${stage.column}: keep ${stage.keepAbove ? 'above' : 'below'} ${formatTimestamp(stage.x1Ms)} @ ${formatNumber(stage.y1)} → ${formatTimestamp(stage.x2Ms)} @ ${formatNumber(stage.y2)}${stage.applyWithinSegmentOnly ? ' within segment' : ' globally'}`;
         case 'missingValue':
             return `Drop ${stage.dropNulls ? 'null' : ''}${stage.dropNulls && stage.dropNonFinite ? ' and ' : ''}${stage.dropNonFinite ? 'non-finite' : ''} ${stage.column} rows`;
         case 'deduplicate':
@@ -90,11 +92,17 @@ function stageDetail(stage: CleaningStage): string {
 
 function formatTimestamp(value: number): string {
     const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? String(value) : date.toISOString();
+    return Number.isNaN(date.getTime()) ? String(value) : date.toISOString().slice(0, 16).replace('T', ' ');
 }
 
 function formatNumber(value: number): string {
-    return Number.isFinite(value) ? String(value) : 'invalid';
+    if (!Number.isFinite(value)) return 'invalid';
+    return new Intl.NumberFormat('en-US', { maximumFractionDigits: 4, useGrouping: false }).format(value);
+}
+
+function stageTooltip(stage: CleaningStage): string | undefined {
+    if (stage.kind !== 'adaptiveLine') return undefined;
+    return `Raw bounds: (${stage.x1Ms}, ${stage.y1}) → (${stage.x2Ms}, ${stage.y2})`;
 }
 
 function escapeXml(value: string): string {
@@ -108,6 +116,20 @@ function escapeXml(value: string): string {
 
 function shorten(value: string, limit = 28): string {
     return value.length > limit ? `${value.slice(0, Math.max(1, limit - 1))}…` : value;
+}
+
+function wrapWords(value: string, limit = 30): string[] {
+    const words = value.trim().split(/\s+/u).filter(Boolean);
+    if (words.length === 0) return [''];
+    const lines: string[] = [];
+    let line = '';
+    for (const word of words) {
+        if (!line) line = word;
+        else if (`${line} ${word}`.length <= limit) line += ` ${word}`;
+        else { lines.push(line); line = word; }
+    }
+    if (line) lines.push(line);
+    return lines;
 }
 
 function nodeEyebrow(node: PipelineGraphNode): string {
@@ -195,6 +217,7 @@ export function buildPipelineGraph(plan: CleaningPlan): PipelineGraph {
             status: stage.enabled ? 'active' : 'disabled',
             label: stage.label || stage.kind,
             detail: stageDetail(stage),
+            tooltip: stageTooltip(stage),
             stageId: stage.id,
             stageIds: [stage.id],
             specs: [stageDetail(stage)],
@@ -254,7 +277,7 @@ export function renderPipelineGraphSvg(graph: PipelineGraph, options: PipelineGr
     const mainNodes = graph.nodes.filter((node) => node.kind !== 'annotation');
     const annotations = graph.nodes.filter((node) => node.kind === 'annotation');
     const nodeWidth = 212;
-    const maxSpecLines = Math.max(1, ...mainNodes.map((node) => (node.specs ?? [node.detail]).reduce((count, spec) => count + Math.ceil(spec.length / 30), 0)));
+    const maxSpecLines = Math.max(1, ...mainNodes.map((node) => (node.specs ?? [node.detail]).reduce((count, spec) => count + wrapWords(spec).length, 0)));
     const nodeHeight = Math.max(82, 58 + maxSpecLines * 16);
     const gap = 38;
     const margin = 28;
@@ -296,9 +319,14 @@ export function renderPipelineGraphSvg(graph: PipelineGraph, options: PipelineGr
         ].filter(Boolean).join(' ');
         const eyebrow = escapeXml(nodeEyebrow(node));
         const label = escapeXml(shorten(node.kind === 'stage' ? stageKindLabel(node) : node.label, 32));
-        const detail = (node.specs ?? [node.detail]).flatMap((spec) => spec.match(/.{1,30}/gu) ?? [''])
-            .map((line, index) => `<tspan x="${position.x + 15}" dy="${index ? 16 : 0}">${escapeXml(line)}</tspan>`).join('');
-        return `<g class="${className}" data-node-id="${escapeXml(node.id)}"${node.stageId ? ` data-stage-id="${escapeXml(node.stageId)}"` : ''} tabindex="${node.stageId ? '0' : '-1'}" role="${node.stageId ? 'button' : 'img'}" aria-label="${escapeXml(`${node.label}: ${node.detail}`)}"><rect x="${position.x}" y="${position.y}" width="${nodeWidth}" height="${nodeHeight}" rx="12" /><text x="${position.x + 15}" y="${position.y + 19}" class="pipeline-graph__eyebrow">${eyebrow}</text><text x="${position.x + 15}" y="${position.y + 44}" class="pipeline-graph__label">${label}</text><text x="${position.x + 15}" y="${position.y + 65}" class="pipeline-graph__detail">${detail}</text></g>`;
+        const detail = (node.specs ?? [node.detail]).flatMap((spec) => wrapWords(spec))
+            // Keep a literal separator between adjacent tspans. SVG lays the
+            // lines out with dy, but DOM textContent still concatenates the
+            // text nodes; without this separator assistive technology and
+            // browser automation read "HUFLrows" / "savedorder".
+            .map((line, index) => `<tspan x="${position.x + 15}" dy="${index ? 16 : 0}">${escapeXml(line)}</tspan>`).join(' ');
+        const tooltip = node.tooltip ? `<title>${escapeXml(node.tooltip)}</title>` : '';
+        return `<g class="${className}" data-node-id="${escapeXml(node.id)}"${node.stageId ? ` data-stage-id="${escapeXml(node.stageId)}"` : ''} tabindex="${node.stageId ? '0' : '-1'}" role="${node.stageId ? 'button' : 'img'}" aria-label="${escapeXml(`${node.label}: ${node.detail}${node.tooltip ? `. ${node.tooltip}` : ''}`)}">${tooltip}<rect x="${position.x}" y="${position.y}" width="${nodeWidth}" height="${nodeHeight}" rx="12" /><text x="${position.x + 15}" y="${position.y + 19}" class="pipeline-graph__eyebrow">${eyebrow}</text><text x="${position.x + 15}" y="${position.y + 44}" class="pipeline-graph__label">${label}</text><text x="${position.x + 15}" y="${position.y + 65}" class="pipeline-graph__detail">${detail}</text></g>`;
     }).join('');
     const title = escapeXml(options.title || `EdaTime pipeline for ${graph.sourceVersionId}`);
 

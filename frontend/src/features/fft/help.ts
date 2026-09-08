@@ -15,7 +15,7 @@ import { initPageHelp, type PageHelpContent } from '../../ui/pageHelp.js';
 export const FFT_HELP: PageHelpContent = {
     pageName: 'Spectrum',
     intro:
-        'Frequency-domain view of the selected numeric columns. Every visible series on the Timeseries page gets its own FFT trace here; choose Magnitude or PSD, scale, then look for peaks that dominate the spectrum.',
+        'Frequency-domain view of the selected numeric columns. Every visible series on the Signals page gets its own FFT trace here; choose Magnitude or PSD, scale, then look for peaks that dominate the spectrum.',
     sections: [
         {
             title: 'Display segment',
@@ -41,7 +41,7 @@ export const FFT_HELP: PageHelpContent = {
         {
             title: 'FFT chart',
             body:
-                'Each numeric column from the Timeseries chart is plotted as its own line, sharing the x-axis (frequency in Hz). Peaks in a trace line up with periodic components in the original signal.',
+                'Each numeric column from the Signals chart is plotted as its own line, sharing the x-axis (frequency in Hz). Peaks in a trace line up with periodic components in the original signal.',
             bullets: [
                 'X axis — frequency, scaled to the time window of the data (a 60-second window reaches 30 Hz, a 1-day window reaches ~5.8 µHz)',
                 'Y axis — amplitude (Magnitude mode) or power (PSD mode); log scale shows dB',
@@ -75,7 +75,7 @@ export const FFT_HELP: PageHelpContent = {
         { keys: 'Ctrl+K', description: 'Command palette — every action above is searchable here' },
     ],
     tips: [
-        'If the FFT looks dominated by a single huge spike at low frequency, the data has a slow trend — switch to first-differences on the Timeseries page first, or enable Outlier clipping here.',
+        'If the FFT looks dominated by a single huge spike at low frequency, the data has a slow trend — switch to first-differences on the Signals page first, or enable Outlier clipping here.',
         'Pre-scaling is mostly cosmetic for visual interpretation but does not change the underlying frequency content. Use it for side-by-side comparison of columns with different units.',
         'Switch to PSD when you care about power in a band; stick with Magnitude when you care about the amplitude of a specific peak.',
         'Save the session (Ctrl+S) to keep your Mode/Scale/Pre-scaling choices; otherwise they reset on reload.',

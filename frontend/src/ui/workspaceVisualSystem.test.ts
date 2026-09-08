@@ -10,6 +10,7 @@ describe('shared workspace visual system', () => {
     const style = readFrontend('css/style.css');
     const tokens = readFrontend('css/modules/tokens.css');
     const workspace = readFrontend('css/modules/workspace.css');
+    const scatter = readFrontend('css/modules/scatter.css');
 
     it('loads the shared hierarchy after page and responsive modules', () => {
         expect(style.trim().endsWith('@import "modules/workspace.css";')).toBe(true);
@@ -52,9 +53,10 @@ describe('shared workspace visual system', () => {
         expect(workspace).toContain('#page-prepare .prepare-workspace__history');
     });
 
-    it('gives the desktop Correlation controls dedicated working width', () => {
-        expect(workspace).toContain('grid-template-columns: 430px minmax(0, 1fr)');
-        expect(workspace).toContain('flex: 0 0 540px');
-        expect(workspace).toContain('flex: 0 0 230px');
+    it('gives Correlation controls full-width rows without loading page CSS globally', () => {
+        expect(scatter).toContain('grid-template-columns: minmax(280px, 1fr) auto auto auto auto');
+        expect(scatter).toContain('grid-template-columns: minmax(0, 1fr) auto auto');
+        expect(scatter).toContain('@media (min-width: 641px) and (max-width: 1279px)');
+        expect(workspace).not.toContain('Desktop Correlation toolbar');
     });
 });

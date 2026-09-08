@@ -1,4 +1,5 @@
 /** Public Timeseries feature surface for application composition. */
+import '../../../css/modules/timeseries-review.css';
 export { createTimeseriesModule } from './module.js';
 export { sanitizeSelectedColumns } from './columnSelection.js';
 export { initChartPageFilterGesture } from './filterGesture.js';

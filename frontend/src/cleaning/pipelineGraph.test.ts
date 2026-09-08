@@ -108,6 +108,44 @@ describe('pipeline graph', () => {
         expect(svg).toContain('pipeline-graph__edge--bypassed');
     });
 
+    it('keeps real spaces between wrapped SVG detail lines', () => {
+        const input: CleaningPlan = {
+            ...plan(),
+            stages: [{
+                id: 'missing', kind: 'missingValue', executionClass: 'polarsExpression', scope: 'row',
+                enabled: true, sourcePage: 'manual', label: 'Missing values', createdAt: 'now', updatedAt: 'now',
+                column: 'HUFL', dropNulls: true, dropNonFinite: true,
+            }],
+        };
+        const host = document.createElement('div');
+        host.innerHTML = renderPipelineGraphSvg(buildPipelineGraph(input));
+
+        expect(host.textContent).toContain('Drop null and non-finite HUFL rows');
+        expect(host.textContent).toContain('1 executable stage in saved order');
+        expect(host.textContent).not.toContain('HUFLrows');
+        expect(host.textContent).not.toContain('savedorder');
+    });
+
+    it('formats adaptive-line bounds as dates and keeps raw values in a tooltip', () => {
+        const input: CleaningPlan = {
+            ...plan(),
+            stages: [{
+                id: 'adaptive', kind: 'adaptiveLine', executionClass: 'polarsExpression', scope: 'row',
+                enabled: true, sourcePage: 'timeseries', label: 'Adaptive line', createdAt: 'now', updatedAt: 'now',
+                column: 'HUFL', x1Ms: 1_490_486_400_000, y1: 72.02390590193448,
+                x2Ms: 1_498_867_200_000, y2: 73.78912379637119, keepAbove: false,
+                applyWithinSegmentOnly: true,
+            }],
+        };
+
+        const graph = buildPipelineGraph(input);
+        const node = graph.nodes.find((candidate) => candidate.stageId === 'adaptive');
+        expect(node?.detail).toContain('2017-03-26 00:00 @ 72.0239');
+        expect(node?.detail).toContain('2017-07-01 00:00 @ 73.7891');
+        expect(node?.detail).not.toContain('1490486400000');
+        expect(renderPipelineGraphSvg(graph)).toContain('<title>Raw bounds: (1490486400000, 72.02390590193448)');
+    });
+
     it('represents an empty plan as source directly flowing to the working dataset', () => {
         const graph = buildPipelineGraph({ ...plan(), stages: [] });
 

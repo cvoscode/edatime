@@ -502,11 +502,23 @@
 /* Inactive / unselected — slightly muted but still readable. */
 .series-chip.inactive {
   --chip-label: var(--text-muted);
-  background: rgba(255, 255, 255, 0.02);
+  background: transparent;
+  border-style: dashed;
+  opacity: 0.48;
 }
 
 .series-chip.inactive .chip-label {
   color: var(--text-muted);
+}
+
+.series-chip.is-color-source {
+  border-color: color-mix(in srgb, var(--accent) 65%, var(--chip-border));
+}
+
+.series-chip__color-source-badge {
+  background: linear-gradient(90deg, #440154, #31688e, #35b779, #fde725);
+  color: #fff;
+  font-size: 0.55rem;
 }
 
 /* Adaptive-filter target — accent border, no glow. */

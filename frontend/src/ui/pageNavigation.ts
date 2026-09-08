@@ -29,7 +29,6 @@ export function initPageNavigation(deps: PageNavigationDeps): PageNavigation {
         return { showPage: async () => { }, dispose: () => { } };
     }
     const analyticsViews: Record<string, string> = {
-        scatter: 'plot',
         scattermatrix: 'matrix',
     };
 

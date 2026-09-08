@@ -10,5 +10,7 @@ export function formatZoomRangeBadge(
     const initialRange = Number(initialView.xMax) - Number(initialView.xMin);
     const currentRange = Number(currentEnd) - Number(currentStart);
     if (!Number.isFinite(initialRange) || initialRange <= 0 || !Number.isFinite(currentRange)) return '—';
-    return `Viewing ${((currentRange / initialRange) * 100).toFixed(0)}%`;
+    const percentage = (currentRange / initialRange) * 100;
+    const display = percentage > 0 && percentage < 1 ? '<1' : percentage.toFixed(0);
+    return `Viewing ${display}%`;
 }

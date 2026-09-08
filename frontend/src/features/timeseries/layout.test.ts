@@ -60,6 +60,10 @@ describe('timeseries layout shell', () => {
         expect(indexHtml).toContain('timeseries-command-bar');
         expect(indexHtml).toContain('timeseries-chip-rail');
         expect(indexHtml).toContain('timeseries-utility-shelf');
+        expect(indexHtml).toMatch(/timeseries-series-disclosure[^>]*data-responsive-collapse="1024"/s);
+        expect(indexHtml).toMatch(/timeseries-utility-shelf[^>]*>\s*<summary/s);
+        expect(indexHtml).not.toMatch(/timeseries-utility-shelf[^>]*data-responsive-collapse/s);
+        expect(toolbarCss).toContain('#page-timeseries > .timeseries-utility-shelf.analysis-collapse-tablet');
     });
 
     it('keeps the timeseries chart area in a scrollable analysis shell with a stable chart viewport', () => {
@@ -70,12 +74,14 @@ describe('timeseries layout shell', () => {
     it('positions direct chart canvas layers as overlays instead of stacked blocks', () => {
         expect(chartCss).toMatch(/#main-chart\s*>\s*canvas\s*\{[^}]*position:\s*absolute/s);
         expect(chartCss).toMatch(/#main-chart\s*>\s*canvas\s*\{[^}]*inset:\s*0/s);
+        expect(chartCss).toMatch(/#page-timeseries\s*>\s*\.main--analysis-chart\s*\{[^}]*margin-bottom:\s*12px/s);
     });
 
     it('defines scoped toolbar layout rules for the refreshed timeseries header', () => {
         expect(toolbarCss).toContain('.timeseries-command-bar');
         expect(toolbarCss).toContain('.timeseries-utility-shelf');
         expect(toolbarCss).toContain('.timeseries-command-bar__center');
+        expect(toolbarCss).toMatch(/\.timeseries-series-disclosure\s*>\s*\.timeseries-series-disclosure__content\s*\{[^}]*display:\s*flex/s);
     });
 
     it('adds responsive wrapping rules for the refreshed timeseries controls', () => {

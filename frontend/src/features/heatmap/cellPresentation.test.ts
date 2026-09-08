@@ -6,7 +6,7 @@ describe('heatmap cell presentation', () => {
         const cell = buildHeatmapCellPresentation({ value: -0.64, colorDomainMax: 1, rowName: 'temperature', columnName: 'pressure', interactive: true });
 
         expect(cell).toMatchObject({ toneClass: 'heatmap-cell--negative', signedValue: '−0.64', textColor: '#15202B', interactive: true });
-        expect(cell.tooltip).toContain('click to explore in Scatter');
+        expect(cell.tooltip).toContain('click for pair details');
     });
 
     it('formats missing and diagonal values without an interaction affordance', () => {

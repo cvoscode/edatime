@@ -12,12 +12,18 @@ export interface SamplingMeta {
     downsampleKnown?: boolean | null;
     returnedRows?: number | null;
     targetPoints?: number | null;
+    /** Total source rows represented by the active working dataset, when known. */
+    sourceRows?: number | null;
+    /** Observations inside the visible viewport, excluding lookaround rows. */
+    visibleRows?: number | null;
+    /** Points actually handed to the renderer after reduction. */
+    renderedPoints?: number | null;
 }
 
 export type SamplingState =
     | { kind: 'unknown' }
-    | { kind: 'exact'; rows: number | null }
-    | { kind: 'downsampled'; rows: number | null; target: number | null; ratio: number | null };
+    | { kind: 'exact'; rows: number | null; sourceRows?: number | null; renderedPoints?: number | null }
+    | { kind: 'downsampled'; rows: number | null; target: number | null; ratio: number | null; sourceRows?: number | null; renderedPoints?: number | null };
 
 export interface SamplingIndicator {
     label: string;
@@ -32,14 +38,16 @@ export interface SamplingIndicator {
  */
 export function classifySamplingState(meta: SamplingMeta | null | undefined): SamplingState {
     if (!meta || meta.downsampleKnown !== true) return { kind: 'unknown' };
-    const rows = Number(meta.returnedRows);
+    const rows = Number(meta.visibleRows ?? meta.returnedRows);
     const target = Number(meta.targetPoints);
     const downsampled = meta.downsampled === true;
     const hasRows = Number.isFinite(rows) ? { rows } : { rows: null };
+    const sourceRows = Number.isFinite(Number(meta.sourceRows)) ? Number(meta.sourceRows) : undefined;
+    const renderedPoints = Number.isFinite(Number(meta.renderedPoints)) ? Number(meta.renderedPoints) : undefined;
     const hasTarget = Number.isFinite(target) ? target : null;
-    if (!downsampled) return { kind: 'exact', ...hasRows };
+    if (!downsampled) return { kind: 'exact', ...hasRows, ...(sourceRows === undefined ? {} : { sourceRows }), ...(renderedPoints === undefined ? {} : { renderedPoints }) };
     const ratio = hasTarget && rows > 0 ? rows / hasTarget : null;
-    return { kind: 'downsampled', ...hasRows, target: hasTarget, ratio };
+    return { kind: 'downsampled', ...hasRows, target: hasTarget, ratio, ...(sourceRows === undefined ? {} : { sourceRows }), ...(renderedPoints === undefined ? {} : { renderedPoints }) };
 }
 
 function formatCount(value: number | null): string {
@@ -58,7 +66,7 @@ export function formatSamplingIndicator(state: SamplingState): SamplingIndicator
         if (state.rows == null) return null;
         return {
             label: 'Exact',
-            detail: `Showing ${formatCount(state.rows)} points`,
+            detail: `Showing ${formatCount(state.renderedPoints ?? state.rows)} points`,
             level: 'info',
         };
     }
@@ -68,6 +76,13 @@ export function formatSamplingIndicator(state: SamplingState): SamplingIndicator
         return {
             label: 'Downsampled',
             detail: `Approximated to ~${target} points`,
+            level: 'warn',
+        };
+    }
+    if (state.sourceRows != null || state.renderedPoints != null) {
+        return {
+            label: 'Downsampled',
+            detail: `Showing ${formatCount(state.renderedPoints ?? state.rows)} of ${formatCount(state.rows)} points (downsampled)`,
             level: 'warn',
         };
     }

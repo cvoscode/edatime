@@ -227,6 +227,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
                 [],
                 workspace.selection.colorColumn,
                 workspace.filters.adaptiveLines,
+                workspace.filters.columnRanges,
             );
             rememberRenderedViewport();
             return;
@@ -239,6 +240,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
                 [],
                 workspace.selection.colorColumn,
                 workspace.filters.adaptiveLines,
+                workspace.filters.columnRanges,
             );
             if (Number.isFinite(model.viewport.start) && Number.isFinite(model.viewport.end) && model.viewport.end > model.viewport.start) {
                 primaryChart.current.setXRange(model.viewport.start, model.viewport.end);
@@ -259,6 +261,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             model.displayColumns,
             workspace.selection.colorColumn,
             workspace.filters.adaptiveLines,
+            workspace.filters.columnRanges,
         );
 
         if (restoreY && restoreMode === 'restore') {
@@ -278,7 +281,17 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         rememberRenderedViewport();
         emitFeatureEvent('workflow:refresh', undefined);
         announceDataUpdate('timeseries');
-        updateSamplingIndicator(model.data?._meta ?? null);
+        // `filteredRows` is calculated by the server before LTTB/envelope
+        // reduction and therefore represents source observations in the
+        // requested visible time window. Counting returned timestamps here
+        // confused rendered points with observations.
+        const visibleRows = model.data?._meta?.filteredRows ?? null;
+        updateSamplingIndicator({
+            ...(model.data?._meta ?? {}),
+            sourceRows: workspace.dataset.metadata?.total_rows ?? null,
+            visibleRows,
+            renderedPoints: model.data?.ts?.length ?? null,
+        });
     }
 
     function updateSamplingIndicator(meta: SamplingMeta | null): void {
@@ -353,7 +366,8 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
                 );
                 if (!request) throw new Error('Invalid timeseries request');
 
-                announceChartLoading(requestIntent.columns);
+                const signalsPage = document.getElementById('page-timeseries');
+                if (signalsPage && !signalsPage.hidden) announceChartLoading(requestIntent.columns);
                 dbgGroup('fetchAndRender', () => {
                     dbg('request', request);
                     dbg('selectedCols', requestIntent.columns);

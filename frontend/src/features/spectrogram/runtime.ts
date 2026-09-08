@@ -379,7 +379,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     spectrogramRenderError = describeSpectrogramFailure(error);
                     syncSpectrogramSummary();
                     syncSpectrogramEmptyState();
-                    toast(spectrogramRenderError, 'error', { duration: 6000 });
+                    toast(spectrogramRenderError, 'error');
                 } finally {
                     deps.setLoading('spectrogram-compute-btn', 'spectrogram-loading', false, 'Update spectrogram');
                 }

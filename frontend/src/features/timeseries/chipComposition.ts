@@ -1,4 +1,4 @@
-import { getNumericColumns } from '../../platform/analyticsColumns.js';
+import { getEffectiveNumericColumns } from '../../platform/analyticsColumns.js';
 /**
  * features/timeseries/chipComposition — compose chip-list items from store slices.
  *
@@ -16,6 +16,8 @@ import { getColumnSeriesColor, setSeriesColor } from '../../utils/seriesColors.j
 import { primaryChart } from '../../charts/primaryChart.js';
 import { ensureAdaptiveTargetStillValid } from './columnSelection.js';
 import { getTimeseriesSelection, setTimeseriesSelection, type SelectionWorkspace } from './selectionIntent.js';
+import { cleaningPlanStore } from '../../cleaning/store.js';
+import { formatAnalysisNumber } from '../../utils/format.js';
 
 export interface ChipCompositionOptions {
     workspace: SelectionWorkspace;
@@ -28,6 +30,7 @@ export interface ChipCompositionOptions {
 
 export interface ChipListItem {
     column: string;
+    label?: string;
     checked: boolean;
     color: string;
     adaptiveTarget: boolean;
@@ -43,7 +46,7 @@ export function composeChipListItems(options: ChipCompositionOptions): ChipListI
     const openColumnFilter = options.openColumnFilter ?? (() => {});
     const selection = getTimeseriesSelection(workspace);
 
-    const visibleCols = getNumericColumns(workspace.getSnapshot().dataset.metadata).filter((col) => {
+    const visibleCols = getEffectiveNumericColumns(workspace.getSnapshot().dataset.metadata, cleaningPlanStore.getSnapshot()).filter((col) => {
         if (!filterText) return true;
         return col.toLowerCase().includes(filterText.toLowerCase());
     });
@@ -58,13 +61,18 @@ export function composeChipListItems(options: ChipCompositionOptions): ChipListI
         const chipTitle = isAdaptiveTarget
             ? `Adaptive filter target: ${col}`
             : `Ctrl+click to target adaptive filters to ${col}`;
+        const range = workspace.getSnapshot().filters.columnRanges[col];
+        const rangeLabel = range
+            ? ` [${formatAnalysisNumber(range.from)}, ${formatAnalysisNumber(range.to)}]`
+            : '';
 
         return {
             column: col,
+            label: `${col}${rangeLabel}`,
             checked: isActive,
             color,
             adaptiveTarget: isAdaptiveTarget,
-            title: chipTitle,
+            title: range ? `${chipTitle}. Active filter ${range.from} to ${range.to}.` : chipTitle,
             onToggle: (checked: boolean) => {
                 const currentSelection = getTimeseriesSelection(workspace);
                 const nextSelection = checked

@@ -53,6 +53,7 @@ export interface ScatterControls {
     colorScale: string;
     matrixMode: string;
     matrixCellSize: number;
+    clipOutliers?: boolean;
 }
 
 export function currentControls(): ScatterControls {
@@ -81,6 +82,7 @@ export function currentControls(): ScatterControls {
         colorScale,
         matrixMode: getDropdownValue('scatter-matrix-mode') || 'scatter',
         matrixCellSize: Math.max(80, Math.min(400, Number(matrixSizeInput?.value ?? 160))),
+        clipOutliers: !!(getEl('scatter-clip-outliers') as HTMLInputElement | null)?.checked,
     };
 }
 
@@ -257,6 +259,7 @@ export function buildRenderSignature(controls: ScatterControls): string {
         controls.colormap || '',
         controls.normalization || '',
         controls.diagonalMode || '',
+        ...(controls.clipOutliers ? ['clip-iqr'] : []),
         view.xMin, view.xMax, view.yMin, view.yMax,
     ].join('|');
 }
@@ -321,12 +324,42 @@ export function clampView(view: ScatterView): ScatterView {
 }
 
 export function applyScatterStateFromCache(resetView = true): void {
-    scatterState.points = Array.isArray(scatterState.allPoints) ? scatterState.allPoints : [];
+    const allPoints = Array.isArray(scatterState.allPoints) ? scatterState.allPoints : [];
+    const clipOutliers = !!(getEl('scatter-clip-outliers') as HTMLInputElement | null)?.checked;
+    const quantile = (values: number[], ratio: number): number => {
+        const position = Math.max(0, Math.min(values.length - 1, ratio * (values.length - 1)));
+        const lower = Math.floor(position);
+        const upper = Math.ceil(position);
+        if (lower === upper) return values[lower]!;
+        return values[lower]! + (values[upper]! - values[lower]!) * (position - lower);
+    };
+    let indices = allPoints.map((_, index) => index);
+    if (clipOutliers && allPoints.length >= 4) {
+        const xs = allPoints.map((point) => point[0]).filter(Number.isFinite).sort((a, b) => a - b);
+        const ys = allPoints.map((point) => point[1]).filter(Number.isFinite).sort((a, b) => a - b);
+        const xQ1 = quantile(xs, 0.25); const xQ3 = quantile(xs, 0.75);
+        const yQ1 = quantile(ys, 0.25); const yQ3 = quantile(ys, 0.75);
+        const xIqr = xQ3 - xQ1; const yIqr = yQ3 - yQ1;
+        indices = indices.filter((index) => {
+            const [x, y] = allPoints[index]!;
+            return x >= xQ1 - 1.5 * xIqr && x <= xQ3 + 1.5 * xIqr
+                && y >= yQ1 - 1.5 * yIqr && y <= yQ3 + 1.5 * yIqr;
+        });
+    }
+    scatterState.points = indices.map((index) => allPoints[index]!);
     // Note: colorValues / colorLabels are kept as-is here (may contain NaN/Infinity).
     // Filtering of non-finite color values happens in buildNormalScatterSeries so
     // that array indices stay aligned with the points array.
-    scatterState.colorValues = Array.isArray(scatterState.allColorValues) ? scatterState.allColorValues : null;
-    scatterState.colorLabels = Array.isArray(scatterState.allColorLabels) ? scatterState.allColorLabels : null;
+    scatterState.colorValues = Array.isArray(scatterState.allColorValues) ? indices.map((index) => scatterState.allColorValues![index]!) : null;
+    scatterState.colorLabels = Array.isArray(scatterState.allColorLabels) ? indices.map((index) => scatterState.allColorLabels![index]!) : null;
+    const outlierCount = allPoints.length - scatterState.points.length;
+    const outlierLabel = getEl('scatter-outlier-count');
+    if (outlierLabel) {
+        outlierLabel.hidden = !clipOutliers;
+        outlierLabel.textContent = clipOutliers
+            ? `Showing ${scatterState.points.length.toLocaleString()} / ${allPoints.length.toLocaleString()} (${outlierCount.toLocaleString()} outlier${outlierCount === 1 ? '' : 's'} hidden)`
+            : '';
+    }
 
     const colorExtent = computeColorExtent(scatterState.colorValues);
     scatterState.colorMin = colorExtent?.min ?? null;
@@ -438,7 +471,7 @@ export function ensureOptions(
     selectEl: HTMLElement | null,
     values: string[],
     preferredValue?: string,
-    config?: { searchable?: boolean },
+    config?: { searchable?: boolean; deferSearchUntilTyping?: boolean },
 ): string | null {
     if (!selectEl?.id) return null;
     return setDropdownOptions(
@@ -446,7 +479,10 @@ export function ensureOptions(
         values.map((value) => ({ value, label: value })),
         {
             preferredValue: preferredValue || getDropdownValue(selectEl.id),
-            ...(config?.searchable ? { searchable: true } : {}),
+            ...(typeof config?.searchable === 'boolean' ? { searchable: config.searchable } : {}),
+            ...(typeof config?.deferSearchUntilTyping === 'boolean'
+                ? { deferSearchUntilTyping: config.deferSearchUntilTyping }
+                : {}),
         },
     ) || null;
 }

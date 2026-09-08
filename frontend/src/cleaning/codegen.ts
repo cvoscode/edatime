@@ -28,7 +28,7 @@ export function generatePythonPolars(plan: CleaningPlan): string {
             const expression = stage.mode === 'keepInside'
                 ? (stage.retainNulls ? `pl.col(${quote(stage.column)}).is_null() | (${predicate})` : predicate)
                 : `(${predicate}).not() | (${predicate}).is_null()`;
-            lines.push(`    lf = lf.filter(${expression})`);
+            lines.push(`    lf = lf.with_columns(pl.when(${expression}).then(pl.col(${quote(stage.column)})).otherwise(None).alias(${quote(stage.column)}))`);
         } else if (stage.kind === 'missingValue') {
             const value = `pl.col(${quote(stage.column)})`;
             const predicate = stage.dropNulls && stage.dropNonFinite
@@ -58,7 +58,7 @@ export function generatePythonPolars(plan: CleaningPlan): string {
             const predicate = stage.applyWithinSegmentOnly
                 ? `~((pl.col(${quote(plan.timeColumn)}) >= ${numeric(Math.min(stage.x1Ms, stage.x2Ms))}) & (pl.col(${quote(plan.timeColumn)}) <= ${numeric(Math.max(stage.x1Ms, stage.x2Ms))})) | (${compare})`
                 : compare;
-            lines.push(`    lf = lf.filter(${predicate})`);
+            lines.push(`    lf = lf.with_columns(pl.when(${predicate}).then(pl.col(${quote(stage.column)})).otherwise(None).alias(${quote(stage.column)}))`);
         }
     }
     lines.push(body ? '    return lf' : '    return lf  # no enabled executable stages');
@@ -87,7 +87,7 @@ export function generateRustPolars(plan: CleaningPlan): string {
             const expression = stage.mode === 'keepInside'
                 ? (stage.retainNulls ? `col(${quote(stage.column)}).is_null().or(${predicate})` : predicate)
                 : `${predicate}.is_null().or(${predicate}.not())`;
-            lines.push(`    lf = lf.filter(${expression});`);
+            lines.push(`    lf = lf.with_columns([when(${expression}).then(col(${quote(stage.column)})).otherwise(lit(NULL)).alias(${quote(stage.column)})]);`);
         } else if (stage.kind === 'missingValue') {
             const value = `col(${quote(stage.column)})`;
             const predicate = stage.dropNulls && stage.dropNonFinite

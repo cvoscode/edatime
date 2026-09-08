@@ -105,6 +105,8 @@ max_clients = 10000
 max_upload_bytes = 536870912   # 512 MB
 max_concurrent_uploads = 1     # concurrent upload/preview decoders
 queue_timeout_ms = 1000        # wait before returning 503
+max_estimated_resident_bytes = 2147483648 # conservative aggregate decode estimate
+resident_memory_multiplier = 4            # wire bytes → decode admission estimate
 
 [data]
 artifact_dir = "./edatime-artifacts" # optional durable Parquet versions

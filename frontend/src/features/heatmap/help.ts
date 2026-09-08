@@ -47,7 +47,7 @@ export const HEATMAP_HELP: PageHelpContent = {
                 'The matrix is interactive, not a static image. Hover, click, and drag are all wired to actions.',
             bullets: [
                 'Hover — shows the column pair, metric value, and a tooltip',
-                'Click — opens the Scatter page (⌥3) with that X/Y pair pre-selected',
+                'Click — opens the Pair plot (⌥3) with that X/Y pair pre-selected',
                 'Drag to reorder — grab a column header and drag it to a new position; the order persists with the session and survives reloads',
                 'Diagonal — the self-correlation cells (column against itself) are intentionally 1.0 and are not clickable',
             ],
@@ -70,14 +70,14 @@ export const HEATMAP_HELP: PageHelpContent = {
     ],
     shortcuts: [
         { keys: '⌥7', description: 'Open the Correlations page (this page)' },
-        { keys: '⌥3', description: 'Open the Scatter page — landing target when you click a cell' },
+        { keys: '⌥3', description: 'Open the Pair plot — landing target when you click a cell' },
         { keys: '?', description: 'Show the global keyboard shortcuts modal' },
         { keys: 'Ctrl+K', description: 'Command palette — every action above is searchable here' },
     ],
     tips: [
         'Start with Pearson on raw values for a first look; switch to Spearman if the data has clear outliers, and to first-differences if the columns drift over time.',
         'Strong off-diagonal cells in the same row/column often cluster around a common driver — the cluster reorder surfaces this visually.',
-        'Click a cell to jump straight to a scatter plot of that pair; the linked time-window and filters from the Timeseries page are carried over.',
+        'Click a cell to jump straight to a pair plot of that relationship; the linked time-window and filters from Signals are carried over.',
         'Save the session (Ctrl+S) if you have a manual column order you want to keep — the order is persisted with the session.',
     ],
 };

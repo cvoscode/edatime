@@ -87,6 +87,45 @@
   outline: none;
 }
 
+.chart-summary-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+.chart-summary-table caption {
+  padding: 8px 10px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.chart-summary-table th,
+.chart-summary-table td {
+  padding: 6px 10px;
+  border-top: 1px solid var(--border);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.chart-summary-table th:first-child,
+.chart-summary-table td:first-child {
+  text-align: left;
+}
+
+#main-chart,
+#scatter-chart {
+  overflow-x: auto;
+}
+
+.scatter-colorbar-caption {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
 .timeseries-legend-overlay__row[aria-pressed="false"] {
   color: var(--text-muted);
   opacity: 0.48;
@@ -96,6 +135,12 @@
   width: 12px;
   height: 2px;
   border-radius: 999px;
+}
+
+.timeseries-legend-overlay__swatch--color-source {
+  height: 6px;
+  border: 1px solid color-mix(in srgb, white 36%, transparent);
+  background: linear-gradient(90deg, #440154, #31688e, #35b779, #fde725);
 }
 
 .timeseries-legend-overlay__label {
@@ -126,6 +171,12 @@
   position: absolute;
   inset: 0;
   overflow: hidden;
+}
+
+/* Preserve a small visual gutter below Signals' time-axis labels instead of
+   letting the chart canvas terminate flush against the viewport edge. */
+#page-timeseries > .main--analysis-chart {
+  margin-bottom: 12px;
 }
 
 #main-chart>canvas {

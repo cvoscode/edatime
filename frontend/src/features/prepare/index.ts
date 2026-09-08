@@ -12,6 +12,7 @@ import {
     startSampledDatasetProfile,
 } from '../../services/api/profile.js';
 import type { DatasetMetadata, DatasetProfileResponse } from '../../contracts/api/v1/dataset.js';
+import type { DataObject } from '../../types/api.js';
 import { initPageHelp, type PageHelpContent } from '../../ui/pageHelp.js';
 import '../../../css/modules/prepare.css';
 
@@ -44,13 +45,16 @@ export const PREPARE_HELP: PageHelpContent = {
 };
 
 export interface PreparePageDeps {
-    workspace?: Pick<WorkspaceStore, 'getSnapshot' | 'subscribe'>;
+    workspace?: Pick<WorkspaceStore, 'getSnapshot' | 'subscribe'>
+        & Partial<Pick<WorkspaceStore, 'setSelection' | 'setViewport'>>;
+    showPage?: (pageName: string) => void;
     onPlanChanged?: () => void;
     startProfile?: (options?: ApiRequestOptions) => Promise<DatasetProfileResponse>;
     getProfile?: (options?: ApiRequestOptions) => Promise<DatasetProfileResponse>;
     startSampleProfile?: (options?: ApiRequestOptions) => Promise<DatasetProfileResponse>;
     getSampleProfile?: (options?: ApiRequestOptions) => Promise<DatasetProfileResponse>;
     cancelProfile?: (jobId: string, options?: ApiRequestOptions) => Promise<unknown>;
+    getCurrentData?: () => DataObject | null;
 }
 
 function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string): HTMLElementTagNameMap[K] {
@@ -76,6 +80,22 @@ function stageSummary(stage: CleaningPlan['stages'][number]): string {
     }
 }
 
+export function formatPipelinePreviewCaption(stages: CleaningPlan['stages']): { text: string; title: string } {
+    const enabled = stages.filter((stage) => stage.enabled && stage.executionClass !== 'annotation');
+    if (enabled.length === 0) {
+        const baseline = 'Source baseline — add a stage to produce a post-pipeline preview.';
+        return { text: baseline, title: baseline };
+    }
+    const summaries = enabled.map(stageSummary);
+    const prefix = `After ${enabled.length} stage${enabled.length === 1 ? '' : 's'}: `;
+    const title = prefix + summaries.join(' → ');
+    const remaining = summaries.length - 3;
+    return {
+        text: prefix + summaries.slice(0, 3).join(' → ') + (remaining > 0 ? ` → +${remaining} more…` : ''),
+        title,
+    };
+}
+
 function actionButton(label: string, onClick: () => void, disabled = false): HTMLButtonElement {
     const button = createElement('button', 'btn btn-ghost btn-sm');
     button.type = 'button';
@@ -97,6 +117,70 @@ function checkbox(label: string, name: string, checked: boolean): HTMLLabelEleme
     return field;
 }
 
+function textInput(label: string, value: string, name: string): HTMLLabelElement {
+    const field = createElement('label', 'modal-field');
+    const caption = createElement('span', 'modal-label');
+    caption.textContent = label;
+    const input = createElement('input', 'modal-input');
+    input.name = name;
+    input.value = value;
+    field.append(caption, input);
+    return field;
+}
+
+function selectInput(label: string, value: string, name: string, options: Array<[string, string]>): HTMLLabelElement {
+    const field = createElement('label', 'modal-field');
+    const caption = createElement('span', 'modal-label');
+    caption.textContent = label;
+    const select = createElement('select', 'modal-select');
+    select.name = name;
+    for (const [optionValue, optionLabel] of options) {
+        const option = createElement('option');
+        option.value = optionValue;
+        option.textContent = optionLabel;
+        option.selected = optionValue === value;
+        select.appendChild(option);
+    }
+    field.append(caption, select);
+    return field;
+}
+
+function configureColumnInput(
+    input: HTMLInputElement,
+    columns: readonly string[],
+    options: { multiple?: boolean; aggregation?: boolean } = {},
+): void {
+    const available = [...new Set(columns.map((column) => column.trim()).filter(Boolean))];
+    const key = options.aggregation ? 'aggregation' : options.multiple ? 'multiple' : 'single';
+    const listId = `prepare-column-list-${key}`;
+    const list = document.getElementById(listId) as HTMLDataListElement | null ?? createElement('datalist');
+    list.id = listId;
+    list.replaceChildren();
+    for (const column of available) {
+        const option = createElement('option');
+        option.value = options.aggregation ? `${column}:mean` : column;
+        list.appendChild(option);
+    }
+    if (!list.isConnected) document.body.appendChild(list);
+    input.setAttribute('list', list.id);
+    const examples = available.slice(0, options.multiple || options.aggregation ? 2 : 1);
+    if (examples.length > 0) {
+        input.placeholder = options.aggregation
+            ? examples.map((column) => `${column}:mean`).join(', ')
+            : examples.join(', ');
+    }
+    const validate = () => {
+        const tokens = input.value.split(',').map((token) => token.trim()).filter(Boolean);
+        const names = tokens.map((token) => options.aggregation ? token.split(':', 1)[0]!.trim() : token);
+        const invalid = names.find((name) => !available.includes(name));
+        input.setCustomValidity(invalid ? `Column '${invalid}' not in dataset` : '');
+        input.title = input.validationMessage || `Available columns: ${available.join(', ')}`;
+    };
+    input.addEventListener('input', validate);
+    input.addEventListener('change', validate);
+    validate();
+}
+
 function hasEnabledTimeSort(plan: CleaningPlan): boolean {
     return plan.stages.some((stage) => stage.enabled && stage.kind === 'sort'
         && stage.columns.some((column) => column.trim() === plan.timeColumn.trim()));
@@ -115,6 +199,54 @@ function numericDtype(dtype: string): boolean {
 function hasMissingValuePolicy(plan: CleaningPlan, column: string, kind: 'null' | 'nonFinite'): boolean {
     return plan.stages.some((stage) => stage.kind === 'missingValue' && stage.column === column
         && (kind === 'null' ? stage.dropNulls : stage.dropNonFinite));
+}
+
+function renderPipelinePreviewChart(data: DataObject | null, columns: readonly string[]): HTMLElement {
+    const frame = createElement('div', 'prepare-workspace__preview-chart');
+    if (!data || data.ts.length === 0) {
+        frame.textContent = 'Preview data is loading…';
+        frame.setAttribute('role', 'status');
+        return frame;
+    }
+    const visible = columns.filter((column) => data.values[column]).slice(0, 3);
+    const values = visible.flatMap((column) => Array.from(data.values[column] ?? [], Number).filter(Number.isFinite));
+    if (visible.length === 0 || values.length === 0) {
+        frame.textContent = 'Select a numeric series in Signals to populate this preview.';
+        return frame;
+    }
+    let yMin = Number.POSITIVE_INFINITY;
+    let yMax = Number.NEGATIVE_INFINITY;
+    for (const value of values) {
+        yMin = Math.min(yMin, value);
+        yMax = Math.max(yMax, value);
+    }
+    const ySpan = Math.max(1e-12, yMax - yMin);
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 600 150');
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', `Post-pipeline preview of ${visible.join(', ')}`);
+    const colors = ['var(--cyan)', 'var(--amber)', 'var(--green)'];
+    visible.forEach((column, seriesIndex) => {
+        const series = data.values[column]!;
+        const stride = Math.max(1, Math.ceil(series.length / 240));
+        const points: string[] = [];
+        for (let index = 0; index < series.length; index += stride) {
+            const value = Number(series[index]);
+            if (!Number.isFinite(value)) continue;
+            const x = series.length > 1 ? 8 + (index / (series.length - 1)) * 584 : 300;
+            const y = 142 - ((value - yMin) / ySpan) * 134;
+            points.push(`${x.toFixed(2)},${y.toFixed(2)}`);
+        }
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+        path.setAttribute('points', points.join(' '));
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', colors[seriesIndex]!);
+        path.setAttribute('stroke-width', '1.5');
+        path.setAttribute('vector-effect', 'non-scaling-stroke');
+        svg.append(path);
+    });
+    frame.append(svg);
+    return frame;
 }
 
 /**
@@ -161,14 +293,44 @@ function renderQualityFindings(
     const constantColumns = (sourceMetadata?.column_profiles ?? [])
         .filter((profile) => profile.is_constant === true)
         .sort((left, right) => String(left.name).localeCompare(String(right.name)));
+    const zeroFrequencyColumns = (sourceMetadata?.column_profiles ?? [])
+        .filter((profile) => !profile.is_constant && typeof profile.zero_count === 'number' && profile.zero_count > 0)
+        .sort((left, right) => (Number(right.zero_count) || 0) - (Number(left.zero_count) || 0));
+    const distributionColumns = (sourceMetadata?.column_profiles ?? [])
+        .filter((profile) => numericDtype(String(profile.dtype ?? ''))
+            && [profile.q25, profile.median, profile.q75, profile.interquartile_range]
+                .every((value) => typeof value === 'number' && Number.isFinite(value)))
+        .sort((left, right) => String(left.name).localeCompare(String(right.name)));
     const list = createElement('ul', 'prepare-workspace__quality-list');
+
+    const inspectZeroRun = (profile: typeof zeroFrequencyColumns[number]) => {
+        const start = Number(profile.longest_zero_run_start_ms);
+        const end = Number(profile.longest_zero_run_end_ms);
+        if (deps.workspace?.setSelection) {
+            const current = deps.workspace.getSnapshot().selection;
+            deps.workspace.setSelection(
+                current.columns.includes(profile.name) ? current.columns : [...current.columns, profile.name],
+                current.colorColumn,
+            );
+        }
+        if (deps.workspace?.setViewport && Number.isFinite(start) && Number.isFinite(end) && end > start) {
+            deps.workspace.setViewport({ xMin: start, xMax: end, yMin: null, yMax: null });
+        }
+        deps.showPage?.('timeseries');
+    };
 
     const profileActions = createElement('div', 'prepare-workspace__quality-actions');
     const profileRunning = profileStatus === 'queued' || profileStatus === 'running' || profileStatus === 'cancelling';
     if (profileRunning) {
         const cancel = actionButton('Cancel ' + (profileKind === 'exact' ? 'exact' : 'sampled') + ' quality report', cancelProfile, profileStatus === 'cancelling');
         cancel.classList.add('prepare-workspace__quality-action');
-        profileActions.append(cancel);
+        const progress = createElement('span', 'prepare-workspace__quality-progress');
+        progress.setAttribute('role', 'status');
+        progress.setAttribute('aria-live', 'polite');
+        progress.textContent = profileStatus === 'cancelling'
+            ? 'Cancelling report…'
+            : `⏳ ${profileKind === 'exact' ? 'Exact' : 'Sampled'} report in progress…`;
+        profileActions.append(progress, cancel);
     } else {
         const sample = actionButton(
             profileKind === 'sampled' && profileStatus === 'ready' ? 'Sampled quality report ready' : 'Build sampled quality report',
@@ -182,8 +344,53 @@ function renderQualityFindings(
         );
         sample.classList.add('prepare-workspace__quality-action');
         exact.classList.add('prepare-workspace__quality-action');
+        sample.title = 'Computes an estimated quality report from a bounded sample.';
+        exact.title = 'Computes null counts, type checks, and distribution stats for the full dataset. May take several seconds for large data.';
         profileActions.append(sample, exact);
     }
+
+    const profileTable = createElement('table', 'prepare-workspace__quality-table');
+    profileTable.setAttribute('aria-label', `${profileKind === 'exact' ? 'Exact' : 'Sampled'} column quality report`);
+    const profileHead = createElement('thead');
+    const profileHeaderRow = createElement('tr');
+    for (const heading of ['Column', 'dtype', '% missing', 'status', 'Action']) {
+        const cell = createElement('th');
+        cell.scope = 'col';
+        cell.textContent = heading;
+        profileHeaderRow.append(cell);
+    }
+    profileHead.append(profileHeaderRow);
+    const profileBody = createElement('tbody');
+    if (profileStatus === 'ready') {
+        for (const profile of sourceMetadata?.column_profiles ?? []) {
+            const row = createElement('tr');
+            const nullCount = Math.max(0, Number(profile.null_count) || 0);
+            const denominator = Math.max(0, Number(sourceMetadata?.total_rows) || 0);
+            const missingPercent = denominator > 0 ? (nullCount / denominator) * 100 : 0;
+            const status = nullCount > 0 || (Number(profile.non_finite_count) || 0) > 0 ? 'Needs review' : 'OK';
+            for (const value of [profile.name, profile.dtype, `${missingPercent.toFixed(2)}%`, status]) {
+                const cell = createElement('td');
+                cell.textContent = value;
+                row.append(cell);
+            }
+            const actionCell = createElement('td');
+            const exists = hasMissingValuePolicy(plan, profile.name, 'null');
+            const addPolicy = actionButton(exists ? 'Policy added' : 'Add missing-value policy', () => {
+                cleaningPlanStore.addStage({
+                    kind: 'missingValue', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+                    sourcePage: 'manual', label: 'Drop missing values from ' + profile.name,
+                    column: profile.name, dropNulls: true, dropNonFinite: numericDtype(profile.dtype),
+                });
+                deps.onPlanChanged?.();
+            }, exists);
+            addPolicy.title = `Add a reversible missing-value stage for ${profile.name}`;
+            actionCell.append(addPolicy);
+            row.append(actionCell);
+            profileBody.append(row);
+        }
+    }
+    profileTable.append(profileHead, profileBody);
+    profileTable.hidden = profileBody.children.length === 0;
 
     if (timeQuality) {
         const item = createElement('li', 'prepare-workspace__quality-finding');
@@ -217,6 +424,53 @@ function renderQualityFindings(
         const zeroCount = typeof profile.zero_count === 'number' ? profile.zero_count : 0;
         detail.textContent = 'constant numeric values · ' + String(finiteCount) + ' finite values · '
             + String(zeroCount) + ' zero' + (zeroCount === 1 ? '' : 's');
+        summary.append(label, detail);
+        item.append(summary);
+        list.append(item);
+    }
+
+    for (const profile of zeroFrequencyColumns) {
+        const item = createElement('li', 'prepare-workspace__quality-finding');
+        item.dataset.qualityColumn = profile.name;
+        item.dataset.qualityKind = 'zero-frequency';
+        const summary = createElement('div');
+        const label = createElement('strong');
+        label.textContent = profile.name;
+        const detail = createElement('span');
+        const zeroCount = Number(profile.zero_count) || 0;
+        const finiteCount = Number(profile.finite_count) || 0;
+        const rate = finiteCount > 0 ? ` (${((zeroCount / finiteCount) * 100).toFixed(1)}%)` : '';
+        const longestRun = Number(profile.longest_zero_run) || 0;
+        const certainty = profileKind === 'sampled' ? 'sampled ' : 'exact ';
+        const runLabel = profileKind === 'sampled' ? 'estimated longest consecutive run' : 'longest consecutive run';
+        detail.textContent = `${zeroCount} ${certainty}zero value${zeroCount === 1 ? '' : 's'}${rate} · `
+            + `candidate for zero-frequency/run inspection${longestRun > 1 ? ` · ${runLabel} ${longestRun}` : ''}`;
+        summary.append(label, detail);
+        const inspect = actionButton('Inspect in Signals', () => inspectZeroRun(profile));
+        inspect.title = Number.isFinite(Number(profile.longest_zero_run_start_ms))
+            ? 'Open the longest reported zero run in Signals.'
+            : 'Open this series in Signals; no timestamp interval was supplied by the profile.';
+        item.append(summary, inspect);
+        list.append(item);
+    }
+
+    for (const profile of distributionColumns) {
+        const item = createElement('li', 'prepare-workspace__quality-finding');
+        item.dataset.qualityColumn = profile.name;
+        item.dataset.qualityKind = 'distribution';
+        const summary = createElement('div');
+        const label = createElement('strong');
+        label.textContent = profile.name;
+        const detail = createElement('span');
+        const q25 = Number(profile.q25);
+        const median = Number(profile.median);
+        const q75 = Number(profile.q75);
+        const iqr = Number(profile.interquartile_range);
+        const low = q25 - 1.5 * iqr;
+        const high = q75 + 1.5 * iqr;
+        const certainty = profileKind === 'sampled' ? 'estimated ' : '';
+        detail.textContent = `${certainty}distribution Q1 ${q25} · median ${median} · Q3 ${q75} · IQR ${iqr}`
+            + ` · candidate IQR range ${low} → ${high} (investigate; not an automatic exclusion)`;
         summary.append(label, detail);
         item.append(summary);
         list.append(item);
@@ -266,7 +520,7 @@ function renderQualityFindings(
         item.append(summary, add);
         list.append(item);
     }
-    section.append(title, copy, profileActions, list);
+    section.append(title, copy, profileActions, profileTable, list);
     return section;
 }
 
@@ -311,6 +565,7 @@ function renderPrepareWorkspace(
     localNav.setAttribute('aria-label', 'Prepare sections');
     for (const [label, targetId] of [
         ['Applied in Signals', 'prepare-signals-filters'],
+        ['Record an insight', 'prepare-insight-record'],
         ['Profile findings', 'prepare-profile-findings'],
         ['Pipeline preview', 'prepare-pipeline-preview'],
         ['Pipeline stages', 'prepare-pipeline-stages'],
@@ -339,15 +594,22 @@ function renderPrepareWorkspace(
         return;
     }
     const activeStages = plan.stages.filter((stage) => stage.enabled && stage.executionClass !== 'annotation').length;
-    identity.textContent = 'Source ' + plan.sourceVersionId + ' · revision ' + String(plan.datasetRevision)
-        + ' · ' + String(activeStages) + ' active executable stage' + (activeStages === 1 ? '' : 's')
-        + ' · ' + (cleaningPlanStore.isDirty() ? 'unmaterialized changes' : 'source baseline');
+    const identityPrefix = createElement('span');
+    identityPrefix.textContent = 'Source ' + plan.sourceVersionId + ' · ';
+    const revisionLink = createElement('button', 'prepare-workspace__revision-link');
+    revisionLink.type = 'button';
+    revisionLink.textContent = 'revision ' + String(plan.datasetRevision);
+    revisionLink.title = 'Open Graph history in the Pipeline Workbench';
+    revisionLink.addEventListener('click', () => document.getElementById('open-cleaning-plan-btn')?.click());
+    const identitySuffix = createElement('span');
+    identitySuffix.textContent = ' · ' + String(activeStages) + ' active executable stage' + (activeStages === 1 ? '' : 's')
+        + ' · ' + (cleaningPlanStore.isDirty() ? 'Not yet applied — preview to see effect' : 'Source baseline');
+    identity.append(identityPrefix, revisionLink, identitySuffix);
 
     const filters = deps.workspace?.getSnapshot().filters;
     const rangeFilters = Object.entries(filters?.columnRanges ?? {});
     const adaptiveFilters = filters?.adaptiveLines ?? [];
-    const signalsFilterSection = (rangeFilters.length > 0 || adaptiveFilters.length > 0)
-        ? (() => {
+    const signalsFilterSection = (() => {
             const section = createElement('section', 'prepare-workspace__signals-filters');
             section.id = 'prepare-signals-filters';
             const heading = createElement('h2');
@@ -365,15 +627,83 @@ function renderPrepareWorkspace(
                 item.textContent = filter.column + ': keep ' + (filter.keepAbove ? 'above' : 'below') + ' the drawn line';
                 list.append(item);
             }
+            if (rangeFilters.length === 0 && adaptiveFilters.length === 0) {
+                const item = createElement('li');
+                item.textContent = 'Empty — no Signals filters are active.';
+                item.title = 'Add a value-range or adaptive-line filter from Signals to populate this section.';
+                list.append(item);
+            }
             section.append(heading, summary, list);
             return section;
-        })()
-        : null;
+        })();
 
     const qualitySection = renderQualityFindings(
         plan, deps, profileMetadata, profileStatus, profileKind,
         requestExactProfile, requestSampleProfile, cancelProfile,
     );
+
+    const insightSection = createElement('section', 'prepare-workspace__insight');
+    insightSection.id = 'prepare-insight-record';
+    const insightTitle = createElement('h2');
+    insightTitle.textContent = 'Record an insight';
+    const insightCopy = createElement('p', 'prepare-workspace__copy');
+    insightCopy.textContent = 'Capture why an interval or relationship is being retained, flagged, excluded, or transformed. The note is stored as a pipeline annotation and travels with materialized exports.';
+    const insightForm = createElement('form', 'prepare-workspace__policy-form');
+    const insightDecision = selectInput('Decision', 'retain', 'decision', [
+        ['retain', 'Retain as observed'],
+        ['flag', 'Flag for follow-up'],
+        ['exclude', 'Exclude with a rule'],
+        ['transform', 'Transform with a rule'],
+    ]).querySelector('select') as HTMLSelectElement;
+    const insightColumns = textInput('Columns', (deps.workspace?.getSnapshot().selection.columns ?? []).join(', '), 'columns');
+    const insightMetric = selectInput('Metric context', 'raw_pearson', 'metric', [
+        ['raw_pearson', 'Raw Pearson'],
+        ['raw_spearman', 'Raw Spearman'],
+        ['difference_pearson', 'First-difference Pearson'],
+        ['difference_spearman', 'First-difference Spearman'],
+        ['none', 'No metric'],
+    ]).querySelector('select') as HTMLSelectElement;
+    const insightNote = document.createElement('label');
+    insightNote.className = 'modal-field';
+    const insightNoteLabel = document.createElement('span');
+    insightNoteLabel.className = 'modal-label';
+    insightNoteLabel.textContent = 'Evidence and rationale';
+    const insightNoteInput = document.createElement('textarea');
+    insightNoteInput.className = 'modal-input';
+    insightNoteInput.name = 'note';
+    insightNoteInput.rows = 3;
+    insightNoteInput.required = true;
+    insightNoteInput.placeholder = 'For example: HULL zeros form a long operating plateau; retain pending domain confirmation.';
+    insightNote.append(insightNoteLabel, insightNoteInput);
+    const insightStatus = createElement('p', 'prepare-workspace__policy-status');
+    insightStatus.setAttribute('aria-live', 'polite');
+    const insightSubmit = actionButton('Save insight', () => {});
+    insightSubmit.type = 'submit';
+    insightForm.append(insightDecision.closest('label')!, insightColumns, insightMetric.closest('label')!, insightNote, insightSubmit, insightStatus);
+    insightForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const note = insightNoteInput.value.trim();
+        if (!note) {
+            insightStatus.textContent = 'Add a short evidence note before saving.';
+            return;
+        }
+        const snapshot = deps.workspace?.getSnapshot();
+        const columns = insightColumns.querySelector('input')?.value.split(',').map((column) => column.trim()).filter(Boolean) ?? [];
+        const range = snapshot?.viewport && Number.isFinite(snapshot.viewport.xMin) && Number.isFinite(snapshot.viewport.xMax)
+            ? ` · time ${snapshot.viewport.xMin}–${snapshot.viewport.xMax}`
+            : '';
+        const metric = insightMetric.value === 'none' ? '' : ` · metric ${insightMetric.options[insightMetric.selectedIndex]?.textContent ?? insightMetric.value}`;
+        const decision = insightDecision.options[insightDecision.selectedIndex]?.textContent ?? insightDecision.value;
+        cleaningPlanStore.addStage({
+            kind: 'annotation', executionClass: 'annotation', scope: 'annotation', enabled: true,
+            sourcePage: 'manual', label: `Insight — ${decision}`,
+            note: `${note} · Decision: ${decision}${columns.length ? ` · columns ${columns.join(', ')}` : ''}${range}${metric}`,
+            severity: insightDecision.value === 'exclude' ? 'critical' : insightDecision.value === 'flag' ? 'warning' : 'info',
+        });
+        insightNoteInput.value = '';
+        insightStatus.textContent = 'Insight saved in the canonical pipeline annotation.';
+        deps.onPlanChanged?.();
+    });
 
     const graphSection = createElement('section', 'prepare-workspace__graph');
     graphSection.id = 'prepare-pipeline-preview';
@@ -381,9 +711,17 @@ function renderPrepareWorkspace(
     graphTitle.textContent = 'Current pipeline';
     const graphCopy = createElement('p', 'prepare-workspace__copy');
     graphCopy.textContent = 'This overview is derived directly from the active canonical plan. Use the workbench to edit stages, preview impacts, export, or materialize.';
+    const previewCaption = createElement('p', 'prepare-workspace__preview-caption');
+    const caption = formatPipelinePreviewCaption(plan.stages);
+    previewCaption.textContent = caption.text;
+    previewCaption.title = caption.title;
     const graphScroll = createElement('div', 'prepare-workspace__graph-scroll');
     graphScroll.innerHTML = renderPipelineGraphSvg(buildPipelineGraph(plan));
-    graphSection.append(graphTitle, graphCopy, graphScroll);
+    const previewChart = renderPipelinePreviewChart(
+        deps.getCurrentData?.() ?? null,
+        deps.workspace?.getSnapshot().selection.columns ?? [],
+    );
+    graphSection.append(graphTitle, graphCopy, previewCaption, previewChart, graphScroll);
 
     const stagesSection = createElement('section', 'prepare-workspace__stages');
     stagesSection.id = 'prepare-pipeline-stages';
@@ -392,10 +730,12 @@ function renderPrepareWorkspace(
     const stageCopy = createElement('p', 'prepare-workspace__copy');
     stageCopy.textContent = 'These controls change the active canonical plan. Open the workbench to edit stage parameters, preview impacts, export, or materialize.';
     const history = createElement('div', 'prepare-workspace__history');
+    const previewMaterialize = actionButton('Preview / Materialize', () => document.getElementById('open-cleaning-plan-btn')?.click(), plan.stages.length === 0);
+    previewMaterialize.title = plan.stages.length === 0 ? 'Add at least one stage to preview' : 'Open preview and materialization controls';
     history.append(
         actionButton('Undo', () => { if (cleaningPlanStore.undo()) deps.onPlanChanged?.(); }, !cleaningPlanStore.canUndo()),
         actionButton('Redo', () => { if (cleaningPlanStore.redo()) deps.onPlanChanged?.(); }, !cleaningPlanStore.canRedo()),
-        actionButton('Preview / Materialize', () => document.getElementById('open-cleaning-plan-btn')?.click()),
+        previewMaterialize,
     );
     const addPolicy = createElement('form', 'prepare-workspace__policy-form');
     const policyTitle = createElement('h3');
@@ -405,6 +745,7 @@ function renderPrepareWorkspace(
     policyColumn.placeholder = 'Numeric column';
     policyColumn.required = true;
     policyColumn.setAttribute('aria-label', 'Numeric column');
+    configureColumnInput(policyColumn, deps.workspace?.getSnapshot().dataset.metadata?.numeric_columns ?? []);
     const policySubmit = actionButton('Add policy', () => {});
     policySubmit.type = 'submit';
     const policyStatus = createElement('p', 'prepare-workspace__policy-status');
@@ -445,6 +786,7 @@ function renderPrepareWorkspace(
     deduplicateColumns.placeholder = 'Key columns, comma-separated';
     deduplicateColumns.required = true;
     deduplicateColumns.setAttribute('aria-label', 'Duplicate-resolution key columns');
+    configureColumnInput(deduplicateColumns, (deps.workspace?.getSnapshot().dataset.metadata?.columns ?? []).map((column) => column.name), { multiple: true });
     const keep = createElement('select', 'modal-select');
     keep.name = 'keep';
     const keepFirst = createElement('option');
@@ -481,6 +823,7 @@ function renderPrepareWorkspace(
     columnSelectColumns.placeholder = 'Columns, comma-separated';
     columnSelectColumns.required = true;
     columnSelectColumns.setAttribute('aria-label', 'Columns to keep or drop');
+    configureColumnInput(columnSelectColumns, (deps.workspace?.getSnapshot().dataset.metadata?.columns ?? []).map((column) => column.name), { multiple: true });
     const columnSelectMode = createElement('select', 'modal-select');
     columnSelectMode.name = 'mode';
     const keepColumns = createElement('option');
@@ -517,6 +860,7 @@ function renderPrepareWorkspace(
     sortColumns.placeholder = 'Columns, comma-separated';
     sortColumns.required = true;
     sortColumns.setAttribute('aria-label', 'Columns to sort by');
+    configureColumnInput(sortColumns, (deps.workspace?.getSnapshot().dataset.metadata?.columns ?? []).map((column) => column.name), { multiple: true });
     const sortDescending = checkbox('Sort descending', 'descending', false);
     const sortNullsLast = checkbox('Place nulls last', 'nullsLast', true);
     const sortSubmit = actionButton('Add sort', () => {});
@@ -543,6 +887,7 @@ function renderPrepareWorkspace(
     const addFill = createElement('form', 'prepare-workspace__policy-form');
     const fillTitle = createElement('h3'); fillTitle.textContent = 'Add ordered null fill';
     const fillColumns = createElement('input', 'modal-input'); fillColumns.name = 'columns'; fillColumns.placeholder = 'Columns, comma-separated'; fillColumns.required = true;
+    configureColumnInput(fillColumns, (deps.workspace?.getSnapshot().dataset.metadata?.columns ?? []).map((column) => column.name), { multiple: true });
     const fillStrategy = createElement('select', 'modal-select'); fillStrategy.name = 'strategy';
     for (const [value, label] of [['forward', 'Forward fill'], ['backward', 'Backward fill']] as const) { const option = createElement('option'); option.value = value; option.textContent = label; fillStrategy.appendChild(option); }
     const fillLimit = createElement('input', 'modal-input'); fillLimit.name = 'limit'; fillLimit.type = 'number'; fillLimit.min = '1'; fillLimit.placeholder = 'Maximum consecutive fills (optional)';
@@ -554,6 +899,7 @@ function renderPrepareWorkspace(
     const resampleTitle = createElement('h3'); resampleTitle.textContent = 'Add fixed-duration resampling';
     const resampleEvery = createElement('input', 'modal-input'); resampleEvery.name = 'every'; resampleEvery.placeholder = 'Fixed interval, for example 15m'; resampleEvery.required = true;
     const resampleAggregations = createElement('input', 'modal-input'); resampleAggregations.name = 'aggregations'; resampleAggregations.placeholder = 'value:mean, volume:sum'; resampleAggregations.required = true;
+    configureColumnInput(resampleAggregations, deps.workspace?.getSnapshot().dataset.metadata?.numeric_columns ?? [], { multiple: true, aggregation: true });
     const resampleSubmit = actionButton('Add resampling', () => {}); resampleSubmit.type = 'submit';
     const resampleStatus = createElement('p', 'prepare-workspace__policy-status'); resampleStatus.setAttribute('aria-live', 'polite');
     addResample.append(resampleTitle, resampleEvery, resampleAggregations, resampleSubmit, resampleStatus);
@@ -569,11 +915,21 @@ function renderPrepareWorkspace(
     const list = createElement('ol', 'prepare-workspace__stage-list');
     if (plan.stages.length === 0) {
         const empty = createElement('li', 'prepare-workspace__empty');
-        empty.textContent = 'No transformations have been added yet. Create one from Timeseries or open the workbench.';
+        empty.textContent = 'No transformations have been added yet. Create one from Signals or open the workbench.';
         list.append(empty);
     }
     for (const [index, stage] of plan.stages.entries()) {
         const item = createElement('li', 'prepare-workspace__stage');
+        item.classList.toggle('is-disabled', !stage.enabled);
+        if (stage.sourcePage === 'correlation') {
+            try {
+                if (window.sessionStorage.getItem('edatime-highlight-correlation-stage') === '1') {
+                    item.classList.add('is-new');
+                    window.sessionStorage.removeItem('edatime-highlight-correlation-stage');
+                    window.setTimeout(() => item.classList.remove('is-new'), 1800);
+                }
+            } catch { /* optional visual handoff */ }
+        }
         const summary = createElement('div', 'prepare-workspace__stage-summary');
         const label = createElement('strong');
         label.textContent = stage.label || stage.kind;
@@ -585,8 +941,7 @@ function renderPrepareWorkspace(
         const controlsSummary = createElement('summary');
         controlsSummary.textContent = 'Stage actions';
         const controlsList = createElement('div', 'prepare-workspace__stage-actions');
-        controlsList.append(
-            actionButton(stage.enabled ? 'Disable' : 'Enable', () => {
+        const toggleStage = actionButton(stage.enabled ? 'Disable' : 'Enable', () => {
                 const stages = plan.stages.map((candidate) => candidate.id === stage.id
                     ? { ...candidate, enabled: !stage.enabled } as CleaningPlan['stages'][number]
                     : candidate);
@@ -594,39 +949,43 @@ function renderPrepareWorkspace(
                 if (error) { resampleStatus.textContent = error; return; }
                 cleaningPlanStore.setStageEnabled(stage.id, !stage.enabled);
                 deps.onPlanChanged?.();
-            }),
-            actionButton('Up', () => {
+            });
+        const moveUp = actionButton('Up', () => {
                 const stages = [...plan.stages];
                 stages.splice(index - 1, 0, stages.splice(index, 1)[0]);
                 const error = resampleOrderingError({ ...plan, stages });
                 if (error) { resampleStatus.textContent = error; return; }
                 cleaningPlanStore.reorderStage(stage.id, index - 1);
                 deps.onPlanChanged?.();
-            }, index === 0),
-            actionButton('Down', () => {
+            }, index === 0);
+        const moveDown = actionButton('Down', () => {
                 const stages = [...plan.stages];
                 stages.splice(index + 1, 0, stages.splice(index, 1)[0]);
                 const error = resampleOrderingError({ ...plan, stages });
                 if (error) { resampleStatus.textContent = error; return; }
                 cleaningPlanStore.reorderStage(stage.id, index + 1);
                 deps.onPlanChanged?.();
-            }, index === plan.stages.length - 1),
-            actionButton('Remove', () => {
+            }, index === plan.stages.length - 1);
+        const removeStage = actionButton('Remove', () => {
+                if (typeof window.confirm === 'function'
+                    && !window.confirm(`Remove '${stage.label || stageSummary(stage)}'? This cannot be undone.`)) return;
                 const stages = plan.stages.filter((candidate) => candidate.id !== stage.id);
                 const error = resampleOrderingError({ ...plan, stages });
                 if (error) { resampleStatus.textContent = error; return; }
                 cleaningPlanStore.removeStage(stage.id);
                 deps.onPlanChanged?.();
-            }),
-        );
+            });
+        if (moveUp.disabled) moveUp.title = plan.stages.length === 1 ? 'Cannot move the only remaining stage' : 'Already the first stage';
+        if (moveDown.disabled) moveDown.title = plan.stages.length === 1 ? 'Cannot move the only remaining stage' : 'Already the last stage';
+        removeStage.title = 'Permanently delete this stage from the plan';
+        controlsList.append(toggleStage, moveUp, moveDown, removeStage);
         controls.append(controlsSummary, controlsList);
         item.append(summary, controls);
         list.append(item);
     }
     stagesSection.append(stageTitle, stageCopy, history, addPolicy, addDeduplicate, addColumnSelect, addSort, addFill, addResample, list);
     root.append(header, localNav, identity);
-    if (signalsFilterSection) root.append(signalsFilterSection);
-    root.append(qualitySection, graphSection, stagesSection);
+    root.append(signalsFilterSection, insightSection, qualitySection, graphSection, stagesSection);
 }
 
 /** Lazy page surface for orienting a data scientist before opening the editor overlay. */

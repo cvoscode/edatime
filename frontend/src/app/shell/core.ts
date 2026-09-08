@@ -40,6 +40,11 @@ export function initShellCore(deps: ShellCoreInitDeps): () => void {
     const disposeKeyboardHelpButton = initKeyboardHelpButton();
     const disposeMobileHeaderMenu = initMobileHeaderMenu();
     const disposeResponsiveDisclosures = initResponsiveDisclosures();
+    let disposeAdaptiveToolbarOverflow = () => {};
+    let shellDisposed = false;
+    void import('../../ui/adaptiveToolbarOverflow.js').then(({ initAdaptiveToolbarOverflow }) => {
+        if (!shellDisposed) disposeAdaptiveToolbarOverflow = initAdaptiveToolbarOverflow();
+    });
     const disposeToolbarCollapse = initToolbarCollapse();
     const disposeActionProxies = initActionProxies();
 
@@ -50,6 +55,8 @@ export function initShellCore(deps: ShellCoreInitDeps): () => void {
     const disposeHomeNavigation = wireHomeNavigationCards(deps.showPage);
 
     return () => {
+        shellDisposed = true;
+        disposeAdaptiveToolbarOverflow();
         disposeHomeNavigation();
         disposeMobileHeaderMenu();
         disposeResponsiveDisclosures();

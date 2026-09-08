@@ -59,6 +59,7 @@ import {
     disposeScatterPageRuntime,
     configureScatterRuntime,
     syncScatterEmptyState,
+    setScatterPointsResolved,
     syncScatterFilterBadge,
     getGpuUnavailable,
 } from './runtime.js';
@@ -74,11 +75,32 @@ import { renderScatterChart } from './chartLifecycle.js';
 import type { DatasetMetadata } from '../../types/api.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import { emitFeatureEvent } from '../../platform/featureEvents.js';
+import { consumeScatterPairIntent } from './pairIntent.js';
+import { getEffectiveNumericColumns } from '../../platform/analyticsColumns.js';
+import { cleaningPlanStore } from '../../cleaning/store.js';
 
 let workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'subscribe'> | null = null;
 let disposeBoundControls: (() => void) | null = null;
 let toolbarOverflow: ToolbarOverflowController | null = null;
 let matrixRenderSession: MatrixRenderSession = createMatrixRenderSession();
+const SCATTER_VIEW_STORAGE_KEY = 'edatime_pair_plot_view';
+
+function readScatterViewPreference(): 'plot' | 'matrix' {
+    try {
+        return window.sessionStorage.getItem(SCATTER_VIEW_STORAGE_KEY) === 'matrix' ? 'matrix' : 'plot';
+    } catch {
+        return 'plot';
+    }
+}
+
+function writeScatterViewPreference(view: 'plot' | 'matrix'): void {
+    try {
+        window.sessionStorage.setItem(SCATTER_VIEW_STORAGE_KEY, view);
+    } catch {
+        // The current in-memory view remains usable when session storage is
+        // blocked.
+    }
+}
 
 /** Request task for scatter data fetching with abort-before-new semantics. */
 const scatterTask = createRequestTask({
@@ -127,6 +149,7 @@ export function disposeScatterPage(): void {
     disposeScatterChart(true);
     scatterState.initialized = false;
     scatterState.pageInitialized = false;
+    setScatterPointsResolved(false);
     scatterState.loading = false;
     scatterState.metadata = null;
     scatterState.matrixCache.clear();
@@ -158,7 +181,7 @@ function syncScatterViewButtons(viewName: string): void {
 }
 
 async function setScatterView(viewName: string, options: { render?: boolean } = {}): Promise<void> {
-    const nextView = viewName || 'plot';
+    const nextView = normalizeAnalyticsView(viewName) as 'plot' | 'matrix';
     const shouldRender = options.render !== false;
     if (_scatterDebounceTimer) {
         clearTimeout(_scatterDebounceTimer);
@@ -172,9 +195,6 @@ async function setScatterView(viewName: string, options: { render?: boolean } = 
 
     // Filters belong to the shared analysis dataset. Restoring per-view
     // snapshots here can resurrect removed lines or overwrite current filters.
-    const previousView = (scatterState.activeView === 'matrix' ? 'matrix' : 'plot') as 'plot' | 'matrix';
-    const nextViewName: 'plot' | 'matrix' = nextView === 'matrix' ? 'matrix' : 'plot';
-
     // When the user switches back to the plot from the matrix, the cached
     // `view` bounds usually come from a stale zoom/pan state that was
     // captured before they entered the matrix. Without a reset, the plot
@@ -188,6 +208,7 @@ async function setScatterView(viewName: string, options: { render?: boolean } = 
         _warnOnEmptyPlotAfterMatrix = true;
     }
     scatterState.activeView = nextView;
+    writeScatterViewPreference(nextView);
     setSidebarAnalyticsSelection(nextView);
     syncScatterViewButtons(nextView);
     syncModeUI(() => toolbarOverflow?.refresh());
@@ -253,7 +274,6 @@ async function renderScatter(): Promise<void> {
 
     showError('');
     const requestId = ++scatterState.scatterRequestId;
-    syncScatterEmptyState();
 
     await scatterTask.run(async (signal) => {
         const ctl = currentControls();
@@ -278,6 +298,7 @@ async function renderScatter(): Promise<void> {
         );
         if (requestId !== scatterState.scatterRequestId) return;
 
+        setScatterPointsResolved(true);
         scatterState.lastQueryContextKey = queryContextKey;
         applyScatterPointsResponse(scatterState, response);
         const carriedFilterCount = queryContext.filters.length + queryContext.lineFilters.length;
@@ -344,8 +365,7 @@ async function rerenderScatterFromCache(resetViewFlag = true): Promise<void> {
 export { renderScatter, rerenderScatterFromCache, refreshActiveScatterView, setScatterView };
 
 async function applySuggestionPair(): Promise<void> {
-    await refreshCorrelationsAndSuggestions();
-    await renderScatter();
+    await Promise.all([refreshCorrelationsAndSuggestions(), renderScatter()]);
 }
 
 export function refreshCorrelationsAndSuggestions(
@@ -423,8 +443,11 @@ export async function initScatterPage(
     const ySelect = getEl('scatter-y-col');
     if (!page || !xSelect || !ySelect) return disposeScatterPage;
 
-    const numeric: string[] = ((metadata as any)?.numeric_columns || []).filter((c: any) => c);
-    const hadRestoredPair = !!(getDropdownValue('scatter-x-col') && getDropdownValue('scatter-y-col'));
+    if (!scatterState.initialized) scatterState.activeView = readScatterViewPreference();
+
+    const numeric = getEffectiveNumericColumns(metadata, cleaningPlanStore.getSnapshot());
+    const pairIntent = consumeScatterPairIntent();
+    const hadRestoredPair = !!pairIntent || !!(getDropdownValue('scatter-x-col') && getDropdownValue('scatter-y-col'));
     scatterState.metadata = metadata;
     scatterState.columnTypes = new Map(
         ((metadata as any)?.columns || []).map((col: any) => [
@@ -439,11 +462,11 @@ export async function initScatterPage(
     // numeric columns, the selects are simply empty and the page stays in
     // the empty state until columns arrive.
     if (numeric.length > 0) {
-        const selectedX = ensureOptions(xSelect, numeric, getDropdownValue('scatter-x-col') || numeric[0], { searchable: true });
+        const selectedX = ensureOptions(xSelect, numeric, pairIntent?.x || getDropdownValue('scatter-x-col') || numeric[0], { searchable: true });
         ensureOptions(
             ySelect,
             numeric.filter((c) => c !== selectedX),
-            getDropdownValue('scatter-y-col') || numeric[1] || numeric[0],
+            pairIntent?.y || getDropdownValue('scatter-y-col') || numeric[1] || numeric[0],
             { searchable: true },
         );
     } else {
@@ -476,7 +499,13 @@ export async function initScatterPage(
         disposeScatterHelp = initScatterHelp();
         scatterState.initialized = true;
     }
-    if (scatterState.pageInitialized) return disposeScatterPage;
+    if (scatterState.pageInitialized) {
+        if (pairIntent) {
+            await refreshCorrelationsAndSuggestions();
+            await refreshActiveScatterView();
+        }
+        return disposeScatterPage;
+    }
 
     const isVisible = !page.hidden;
     if (!isVisible) return disposeScatterPage;
@@ -489,7 +518,7 @@ export async function initScatterPage(
         await refreshCorrelationsAndSuggestions({
             preferTopPairOnFirstLoad: !hadRestoredPair,
         });
-        await renderScatter();
+        await refreshActiveScatterView();
         scatterState.pageInitialized = true;
     } catch (err: any) {
         handleErr(err);

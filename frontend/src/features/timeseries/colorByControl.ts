@@ -7,6 +7,7 @@
  */
 import { ColorBySelect } from '../../ui/composites/ColorBySelect.js';
 import type { SelectionWorkspace } from './selectionIntent.js';
+import { getEffectiveNumericColumns } from '../../platform/analyticsColumns.js';
 
 export interface ColorByControlOptions {
     workspace: SelectionWorkspace;
@@ -30,15 +31,22 @@ export function renderColorByControl(options: ColorByControlOptions): void {
         .map((column) => String(column?.name ?? '').trim())
         .filter(Boolean);
 
-    slot.appendChild(ColorBySelect({
+    const control = ColorBySelect({
         columns: metadataCols,
         value: options.workspace.getSnapshot().selection.colorColumn,
         onChange: (value) => {
+            const snapshot = options.workspace.getSnapshot();
+            const numericColumns = new Set(getEffectiveNumericColumns(snapshot.dataset.metadata));
+            const selectedColumns = value && numericColumns.has(value) && !snapshot.selection.columns.includes(value)
+                ? [...snapshot.selection.columns, value]
+                : snapshot.selection.columns;
             options.workspace.setSelection(
-                options.workspace.getSnapshot().selection.columns,
+                selectedColumns,
                 value || null,
             );
             onColorColumnChange();
         },
-    }));
+    });
+    control.title = 'Color every visible line segment using values from this column. Numeric color columns are also added as toggleable series.';
+    slot.appendChild(control);
 }

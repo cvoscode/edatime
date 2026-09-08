@@ -12,7 +12,7 @@ import { createTimeseriesBootstrap } from './ensureReady.js';
 import { createTimeseriesShortcuts } from './shortcuts.js';
 import { createTimeseriesRuntimeCache } from './runtimeCache.js';
 import { clearScatterViewSnapshots } from '../../store/scatterState.js';
-import { getNumericColumns, getDefaultTimeseriesColumns } from '../../platform/analyticsColumns.js';
+import { getEffectiveNumericColumns, getDefaultTimeseriesColumns } from '../../platform/analyticsColumns.js';
 import { emitFeatureEvent } from '../../platform/featureEvents.js';
 import type { DataObject, DatasetMetadata } from '../../types/api.js';
 import type { ViewSnapshot } from '../../types/chart.js';
@@ -66,6 +66,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
     const lifetime = new AbortController();
     let feature!: ReturnType<typeof createTimeseriesControls>;
     let datasetUiModulesPromise: Promise<{
+        loadProfile: typeof import('../upload/index.js').loadProfile;
         hydrateColumnProfiles: typeof import('../upload/index.js').hydrateColumnProfiles;
         renderColumnProfilesGrid: typeof import('../upload/index.js').renderColumnProfilesGrid;
         applyPartialTimeRangeFromMetadata: typeof import('../upload/partialLoadControls.js').applyPartialTimeRangeFromMetadata;
@@ -80,6 +81,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
                 import('../upload/preview.js'),
                 import('../upload/partialLoadControls.js'),
             ]).then(([profileModule, previewModule, partialLoadModule]) => ({
+                loadProfile: profileModule.loadProfile,
                 hydrateColumnProfiles: profileModule.hydrateColumnProfiles,
                 renderColumnProfilesGrid: profileModule.renderColumnProfilesGrid,
                 applyPartialTimeRangeFromMetadata: partialLoadModule.applyPartialTimeRangeFromMetadata,
@@ -106,13 +108,13 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
             if (disposed) return false;
             if (!deps.workspace.commitDataset(session, metadata, Number(metadata.revision) || 0)) return false;
 
-            const numericColumns = getNumericColumns(metadata);
+            const numericColumns = getEffectiveNumericColumns(metadata, deps.cleaningPlanStore?.getSnapshot());
 
             const validNames = new Set(numericColumns);
             const recoveredSelection = deps.workspace.getSnapshot().selection.columns.filter((col) => validNames.has(col));
             const nextSelectedCols = recoveredSelection.length > 0
                 ? recoveredSelection
-                : getDefaultTimeseriesColumns(metadata);
+                : getDefaultTimeseriesColumns(metadata, deps.cleaningPlanStore?.getSnapshot());
 
             deps.workspace.setSelection(nextSelectedCols);
             deps.sanitizeSelectedColumns();
@@ -166,6 +168,8 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         datasetUi.applyPartialTimeRangeFromMetadata(metadata, false);
         datasetUi.setUploadPreviewStatus('Showing current dataset profile. Drop/select a file to preview before loading.');
         datasetUi.setProfileMode('dataset');
+        void datasetUi.loadProfile(signal, () => !disposed && !signal.aborted
+            && deps.workspace.getSnapshot().dataset.metadata === committedMetadata, datasetUi);
         feature.rebuildColumns();
         feature.buildRangeControls();
         emitFeatureEvent('workflow:refresh', undefined);
@@ -192,7 +196,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         refreshVisibleData: async () => { await pageController.fetchAndRender(); },
         clearLoadedPageModules: deps.clearLoadedPageModules,
 
-        getDefaultTimeseriesColumns: (metadata: DatasetMetadata) => getDefaultTimeseriesColumns(metadata),
+        getDefaultTimeseriesColumns: (metadata: DatasetMetadata) => getDefaultTimeseriesColumns(metadata, deps.cleaningPlanStore?.getSnapshot()),
         rebuildTimeseriesColumns: () => feature.rebuildColumns(),
         clearPersistedFilters: () => {
             const filters = deps.workspace.getSnapshot().filters;

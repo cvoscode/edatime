@@ -104,6 +104,7 @@ vi.mock('./rendering.js', () => ({
 
 function buildDom(): void {
     document.body.innerHTML = `
+        <nav class="sidebar"><button class="nav-item" data-page="correlations" type="button">Matrix</button></nav>
         <section id="page-scatter">
             <select id="scatter-x-col"><option value="HUFL" selected>HUFL</option></select>
             <select id="scatter-y-col"><option value="HULL" selected>HULL</option></select>
@@ -121,6 +122,7 @@ function buildDom(): void {
             <input id="scatter-suggestion-threshold" value="0.7">
             <span id="scatter-suggestion-threshold-value"></span>
             <span id="scatter-suggestions-label"></span>
+            <button id="scatter-back-to-matrix" type="button">Back</button>
             <button id="scatter-open-causal-btn" type="button"></button>
             <div id="scatter-chart"></div>
             <input id="scatter-matrix-mode" value="scatter">
@@ -170,6 +172,29 @@ describe('bindScatterControls', () => {
 
         expect(appStateMock.scatter.chart.setOption).toHaveBeenCalledTimes(1);
         expect(updateMarginalPlotsMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns to the correlation matrix from a deep pair-plot landing', async () => {
+        const { bindScatterControls } = await import('./controls.js');
+        const matrixNav = document.querySelector<HTMLButtonElement>('[data-page="correlations"]')!;
+        const navigate = vi.fn();
+        matrixNav.addEventListener('click', navigate);
+
+        bindScatterControls({
+            initScatterPage: vi.fn(async () => { }),
+            renderScatter: vi.fn(async () => { }),
+            refreshCorrelationsAndSuggestions: vi.fn(async () => { }),
+            refreshActiveScatterView: vi.fn(async () => { }),
+            setScatterView: vi.fn(async () => { }),
+            handleErr: vi.fn(),
+            rerenderScatterFromCache: vi.fn(async () => { }),
+            renderScatterDebounced: vi.fn(),
+            syncScatterFilterBadge: vi.fn(),
+        });
+
+        document.getElementById('scatter-back-to-matrix')!.click();
+
+        expect(navigate).toHaveBeenCalledOnce();
     });
 
     it('does not publish scatter export helpers on the window bridge', async () => {
@@ -413,6 +438,33 @@ describe('bindScatterControls', () => {
         expect(callbacks.refreshCorrelationsAndSuggestions).toHaveBeenCalledTimes(1);
         expect(callbacks.refreshActiveScatterView).toHaveBeenCalledTimes(1);
         expect(callbacks.renderScatter).not.toHaveBeenCalled();
+    });
+
+    it('keeps the current Matrix choice on ordinary Pair plot navigation', async () => {
+        const { bindScatterControls } = await import('./controls.js');
+        const callbacks = {
+            initScatterPage: vi.fn(async () => { }),
+            renderScatter: vi.fn(async () => { }),
+            refreshCorrelationsAndSuggestions: vi.fn(async () => { }),
+            refreshActiveScatterView: vi.fn(async () => { }),
+            setScatterView: vi.fn(async () => { }),
+            handleErr: vi.fn(),
+            rerenderScatterFromCache: vi.fn(async () => { }),
+            renderScatterDebounced: vi.fn(),
+            syncScatterFilterBadge: vi.fn(),
+        };
+        appStateMock.scatter.pageInitialized = true;
+        appStateMock.scatter.activeView = 'matrix';
+        appStateMock.scatter.lastQueryContextKey = 'stale-key';
+
+        bindScatterControls(callbacks);
+        callbacks.setScatterView.mockClear();
+
+        emitNavigationChange({ page: 'scatter' });
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(callbacks.setScatterView).toHaveBeenCalledWith('matrix', { render: false });
     });
 
     it('re-renders the scatter when the filter payload changes between page-change events', async () => {

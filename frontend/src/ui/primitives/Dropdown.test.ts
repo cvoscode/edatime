@@ -255,4 +255,27 @@ describe('Dropdown primitive', () => {
         dropdown.trigger.click();
         expect(dropdown.menu.querySelector('input.dropdown__search')).not.toBeNull();
     });
+
+    it('defers search until slash or typing when configured', () => {
+        const dropdown = createDropdown({
+            id: 'deferred-search',
+            label: 'Color column',
+            options: Array.from({ length: 12 }, (_, index) => ({ value: `c${index}`, label: `Column ${index}` })),
+            searchable: true,
+            deferSearchUntilTyping: true,
+        });
+        document.body.appendChild(dropdown.root);
+
+        dropdown.trigger.click();
+        expect(dropdown.menu.querySelector('input.dropdown__search')).toBeNull();
+
+        dropdown.trigger.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true, cancelable: true }));
+        expect(dropdown.menu.querySelector('input.dropdown__search')).not.toBeNull();
+        dropdown.close();
+
+        dropdown.trigger.dispatchEvent(new KeyboardEvent('keydown', { key: '7', bubbles: true, cancelable: true }));
+        const search = dropdown.menu.querySelector<HTMLInputElement>('input.dropdown__search');
+        expect(search?.value).toBe('7');
+        expect(dropdown.menu.querySelectorAll('.dropdown__option')).toHaveLength(1);
+    });
 });

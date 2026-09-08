@@ -1,7 +1,7 @@
 import { fetchCorrelationMatrix } from '../../services/api/index.js';
 import type { CorrelationMatrixResponse } from '../../services/api/analytics.js';
 import { exportElementPNG, exportElementSVG, exportElementHTML, exportMatrixCSV } from '../../utils/chartExport.js';
-import { getDropdownValue, setDropdownValue } from '../../ui/primitives/Dropdown.js';
+import { getDropdownValue, setDropdownDisabled, setDropdownValue } from '../../ui/primitives/Dropdown.js';
 import { bindInfoPopovers } from '../../ui/infoPopovers.js';
 import { initHeatmapHelp } from './help.js';
 import { createAnalysisPageRuntime } from '../../platform/analysisRuntime.js';
@@ -29,6 +29,8 @@ import { buildHeatmapRenderOrder } from './orderingPolicy.js';
 import { buildHeatmapCellPresentation } from './cellPresentation.js';
 import { classifyHeatmapLoadError } from './loadErrorPolicy.js';
 import type { CleaningPlanStore } from '../../cleaning/store.js';
+import { requestScatterPair } from '../scatter/pairIntent.js';
+import { toast } from '../../utils/toast.js';
 
 interface HeatmapPageDeps {
     showPage: (pageName: string) => void;
@@ -46,7 +48,11 @@ let heatmapClusterEnabled = true;
 // load; users can still turn it off when they want slider-driven overflow.
 let heatmapFitToScreen = true;
 let heatmapAxisFit = false;
+let heatmapSuggestionsSorted = true;
+let heatmapOrderLocked = false;
+let lastRenderedOrder: string[] | null = null;
 const HEATMAP_FIT_STORAGE_KEY = 'edatime_heatmap_fit_to_screen';
+const HEATMAP_METRIC_STORAGE_KEY = 'edatime_heatmap_metric';
 // Hardcoded clustering cutoff. Exposed as a constant (rather than a slider)
 // because the threshold is rarely useful to tune interactively and the
 // default 0.85 works well across the datasets we have seen.
@@ -67,6 +73,8 @@ let userColumnOrder: string[] | null = null;
 /** Release the current Heatmap feature instance and invalidate its loading work. */
 export function disposeHeatmapPage(): void {
     matrixLoadSequence += 1;
+    const pairDialog = document.getElementById('heatmap-pair-dialog') as HTMLDialogElement | null;
+    if (pairDialog?.open && typeof pairDialog.close === 'function') pairDialog.close();
     heatmapPageCleanup?.();
     heatmapPageCleanup = null;
     matrixData = null;
@@ -87,6 +95,27 @@ function writeHeatmapFitPref(value: boolean): void {
     } catch {
         // Ignore storage failures; the in-memory flag still governs layout.
     }
+}
+
+function readHeatmapMetricPref(): CorrelationMetric {
+    try {
+        const saved = window.sessionStorage.getItem(HEATMAP_METRIC_STORAGE_KEY);
+        if (saved) return normalizeCorrelationMetric(saved);
+    } catch {
+        // Session storage is optional; the persisted application setting is
+        // still a reliable fallback.
+    }
+    return normalizeCorrelationMetric(getSetting('defaultCorrelationMetric'));
+}
+
+function writeHeatmapMetricPref(value: CorrelationMetric): void {
+    try {
+        window.sessionStorage.setItem(HEATMAP_METRIC_STORAGE_KEY, value);
+    } catch {
+        // Keep the in-memory value and application setting when storage is
+        // unavailable (for example, in privacy-restricted contexts).
+    }
+    updateSetting('defaultCorrelationMetric', value);
 }
 
 /**
@@ -135,12 +164,52 @@ function syncMetricGuide(): void {
 
 export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void> {
     disposeHeatmapPage();
+    let pairDialogOrigin: HTMLElement | null = null;
+    const openScatterPair = (x: string, y: string): void => {
+        requestScatterPair(x, y);
+        setDropdownValue('scatter-x-col', x, { emitChange: false });
+        setDropdownValue('scatter-y-col', y, { emitChange: false });
+        deps.showPage('scatter');
+    };
+    const closePairDialog = (restoreFocus = true): void => {
+        const dialog = document.getElementById('heatmap-pair-dialog') as HTMLDialogElement | null;
+        if (!dialog) return;
+        if (dialog.open && typeof dialog.close === 'function') dialog.close();
+        else dialog.hidden = true;
+        dialog.hidden = true;
+        const origin = pairDialogOrigin;
+        pairDialogOrigin = null;
+        if (restoreFocus && origin?.isConnected) origin.focus();
+    };
+    const openPairDialog = (x: string, y: string, value: number, origin?: HTMLElement): void => {
+        const dialog = document.getElementById('heatmap-pair-dialog') as HTMLDialogElement | null;
+        const title = document.getElementById('heatmap-pair-title');
+        const summary = document.getElementById('heatmap-pair-summary');
+        const openButton = document.getElementById('heatmap-pair-open') as HTMLButtonElement | null;
+        if (!dialog || !title || !summary || !openButton) {
+            openScatterPair(x, y);
+            return;
+        }
+        const magnitude = Math.abs(value);
+        const strength = magnitude >= 0.8 ? 'Very strong' : magnitude >= 0.6 ? 'Strong' : magnitude >= 0.4 ? 'Moderate' : magnitude >= 0.2 ? 'Weak' : 'Very weak';
+        const direction = value < 0 ? 'negative' : 'positive';
+        title.textContent = `${x} × ${y}`;
+        summary.textContent = `${getCorrelationModeLabel(metric)}: ${value >= 0 ? '+' : ''}${value.toFixed(4)}. ${strength} ${direction} association. Correlation does not establish causation.`;
+        openButton.dataset.xColumn = x;
+        openButton.dataset.yColumn = y;
+        pairDialogOrigin = origin ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+        dialog.hidden = false;
+        if (typeof dialog.showModal === 'function' && !dialog.open) dialog.showModal();
+        (document.getElementById('heatmap-pair-close') as HTMLButtonElement | null)?.focus();
+    };
+
     async function loadMatrix(nextMetric: CorrelationMetric = metric): Promise<void> {
         const loadSequence = ++matrixLoadSequence;
         const container = document.getElementById('heatmap-container');
         if (container) container.innerHTML = '';
         const label = `Loading ${getCorrelationModeLabel(nextMetric)}…`;
         setHeatmapLoading(true, label);
+        setDropdownDisabled('heatmap-metric', true);
         heatmapRuntime?.updateStatus(label);
         try {
             const response = await fetchCorrelationMatrix(nextMetric);
@@ -148,7 +217,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
             // The previous dataset's manual order doesn't apply to the
             // next one — clear it so the next render either clusters or
             // shows the new columns in source order.
-            userColumnOrder = null;
+            if (!heatmapOrderLocked) userColumnOrder = null;
             matrixData = response;
             if (typeof document !== 'undefined' && (document as any).fonts?.ready) {
                 await (document as any).fonts.ready;
@@ -164,6 +233,8 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
                 presentation.title,
             );
             heatmapRuntime?.updateStatus(presentation.status);
+        } finally {
+            if (loadSequence === matrixLoadSequence) setDropdownDisabled('heatmap-metric', false);
         }
     }
 
@@ -207,6 +278,18 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
 
         syncHeatmapEmptyState('', false);
         const colorDomainMax = getColorDomainMax(data, heatmapAxisFit);
+        const containerRect = container.getBoundingClientRect();
+        const mainRect = container.closest<HTMLElement>('main')?.getBoundingClientRect();
+        const visualViewportHeight = window.visualViewport?.height;
+        const viewportBottom = Number.isFinite(visualViewportHeight)
+            ? Number(visualViewportHeight)
+            : (document.documentElement.clientHeight || window.innerHeight);
+        // Measure against the visible panel, never against the container's
+        // content-driven height. Using container.clientHeight here creates a
+        // feedback loop: an oversized grid reports an oversized budget, so it
+        // can never shrink. Keep one main-panel padding unit below the shell.
+        const visibleBottom = Math.min(viewportBottom, mainRect?.bottom ?? viewportBottom);
+        const availableHeight = Math.max(0, visibleBottom - containerRect.top - 12);
         const gridLayout = buildHeatmapGridLayout({
             columnCount: size,
             preferredCellSize: heatmapCellSize,
@@ -214,6 +297,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
             container.clientWidth || 0,
             container.getBoundingClientRect().width || 0,
             ),
+            containerHeight: availableHeight,
             fitToScreen: heatmapFitToScreen,
         });
         const { labelWidth, responsiveCell, headerCellSize, useVerticalHeaders, colTemplate, rowTemplate } = gridLayout;
@@ -231,6 +315,8 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
         let renderOrder = initialOrder.order;
         const clusters = initialOrder.clusters;
         const orderToOriginal = initialOrder.originalIndices;
+        const orderChanged = lastRenderedOrder !== null && lastRenderedOrder.join('\u0000') !== renderOrder.join('\u0000');
+        lastRenderedOrder = [...renderOrder];
 
         // Build a uniform N x N grid: 1 label column/row + size data cells.
         // The grid is identical between grouped and ungrouped views so the
@@ -276,7 +362,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
             // visible in dark mode.
             const clusterStyle = isFirstInCluster ? 'border-left: 2px solid var(--accent); padding-left: 4px;' : '';
             cells.push(
-                `<div class="${headerClass}" draggable="true" data-drag-axis="col" data-drag-name="${escapeAttr(colName)}" data-drag-original="${colOriginal}" style="grid-column:${colGridFor(c)};grid-row:1;${clusterStyle}--heatmap-header-cell:${headerCellSize}px;" title="${escapeAttr(colName)}" data-cluster-col="${colOriginal}">${escapeAttr(colName)}</div>`,
+                `<div role="columnheader" aria-colindex="${c + 1}" class="${headerClass}" draggable="true" data-drag-axis="col" data-drag-name="${escapeAttr(colName)}" data-drag-original="${colOriginal}" style="grid-column:${colGridFor(c)};grid-row:1;${clusterStyle}--heatmap-header-cell:${headerCellSize}px;" title="${escapeAttr(colName)}" data-cluster-col="${colOriginal}">${escapeAttr(colName)}</div>`,
             );
         }
 
@@ -289,7 +375,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
             const clusterStyle = isFirstInCluster ? 'border-top: 2px solid var(--accent);' : '';
             // Row label sits in column 1 of this row.
             cells.push(
-                `<div class="heatmap-row-label${labelClass}" draggable="true" data-drag-axis="row" data-drag-name="${escapeAttr(rowName)}" data-drag-original="${rowOriginal}" style="grid-column:1;grid-row:${rowGridFor(r)};${clusterStyle}min-height:${headerCellSize}px;height:${headerCellSize}px;" title="${escapeAttr(rowName)}" data-cluster-row="${rowOriginal}">${escapeAttr(rowName)}</div>`,
+                `<div role="rowheader" aria-rowindex="${r + 1}" class="heatmap-row-label${labelClass}" draggable="true" data-drag-axis="row" data-drag-name="${escapeAttr(rowName)}" data-drag-original="${rowOriginal}" style="grid-column:1;grid-row:${rowGridFor(r)};${clusterStyle}min-height:${headerCellSize}px;height:${headerCellSize}px;" title="${escapeAttr(rowName)}" data-cluster-row="${rowOriginal}">${escapeAttr(rowName)}</div>`,
             );
             for (let c = 0; c < size; c++) {
                 const colName = renderOrder[c]!;
@@ -300,16 +386,16 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
                     colorDomainMax,
                     rowName,
                     columnName: colName,
-                    interactive: rowOriginal !== colOriginal,
+                    interactive: rowOriginal !== colOriginal && value !== null && Number.isFinite(value),
                 });
                 cells.push(
-                    `<div class="heatmap-cell ${presentation.toneClass}" data-row="${rowOriginal}" data-col="${colOriginal}" data-row-name="${escapeAttr(rowName)}" data-col-name="${escapeAttr(colName)}" style="grid-column:${colGridFor(c)};grid-row:${rowGridFor(r)};background:${presentation.background};color:${presentation.textColor};cursor:${presentation.interactive ? 'pointer' : 'default'};" aria-label="${escapeAttr(presentation.tooltip)}" title="${escapeAttr(presentation.tooltip)}" tabindex="${presentation.interactive ? '0' : '-1'}">${presentation.signedValue}</div>`,
+                    `<div role="gridcell" aria-rowindex="${r + 2}" aria-colindex="${c + 2}" class="heatmap-cell ${presentation.toneClass}" data-row="${rowOriginal}" data-col="${colOriginal}" data-row-name="${escapeAttr(rowName)}" data-col-name="${escapeAttr(colName)}" data-correlation-value="${Number.isFinite(value) ? value : ''}" style="grid-column:${colGridFor(c)};grid-row:${rowGridFor(r)};background:${presentation.background};color:${presentation.textColor};cursor:${presentation.interactive ? 'pointer' : 'default'};" aria-label="${escapeAttr(presentation.tooltip)}" title="${escapeAttr(presentation.tooltip)}" tabindex="${presentation.interactive ? '0' : '-1'}">${presentation.signedValue}</div>`,
                 );
             }
         }
 
         let html = '<div class="heatmap-shell">';
-        html += `<div class="heatmap-grid" style="display:grid;grid-template-columns:${colTemplate};grid-template-rows:${rowTemplate};">`;
+        html += `<div role="grid" aria-rowcount="${size + 1}" aria-colcount="${size + 1}" aria-label="${escapeAttr(metricLabel)} correlation matrix. Select an off-diagonal cell to inspect that pair." class="heatmap-grid" style="display:grid;grid-template-columns:${colTemplate};grid-template-rows:${rowTemplate};">`;
         html += cells.join('');
         html += '</div>';
         html += '<div class="heatmap-scale" aria-label="Correlation color scale">';
@@ -326,22 +412,69 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
             + `<span class="heatmap-footer__sep" aria-hidden="true">·</span>`
             + `<span class="heatmap-footer__size">${size}×${size} matrix</span>`
             + `<span class="heatmap-footer__sep" aria-hidden="true">·</span>`
-            + `<span class="heatmap-footer__hint">Click any cell to open that pair in Scatter</span>`
+            + `<span class="heatmap-footer__hint">Click any off-diagonal cell for pair details</span>`
             + `</div>`;
+        const pairs: Array<{ x: string; y: string; value: number }> = [];
+        for (let row = 0; row < size; row += 1) {
+            for (let column = row + 1; column < size; column += 1) {
+                const value = Number(data[row]?.[column]);
+                if (Number.isFinite(value)) pairs.push({ x: columns[row]!, y: columns[column]!, value });
+            }
+        }
+        const top = [...pairs].sort((left, right) => Math.abs(right.value) - Math.abs(left.value)).slice(0, 3);
+        const negatives = [...pairs].filter((pair) => pair.value < 0).sort((left, right) => left.value - right.value).slice(0, 3);
+        html += `<div class="heatmap-stat-summary">Top 3 |r|: ${escapeAttr(top.map((pair) => `${pair.x}×${pair.y} ${pair.value.toFixed(4)}`).join(', ') || 'none')}`
+            + ` · Top negative: ${escapeAttr(negatives.map((pair) => `${pair.x}×${pair.y} ${pair.value.toFixed(4)}`).join(', ') || 'none')}</div>`;
+        if (pairs.length > 0) {
+            const suggestionPairs = (heatmapSuggestionsSorted
+                ? [...pairs].sort((left, right) => Math.abs(right.value) - Math.abs(left.value))
+                : pairs).slice(0, 6);
+            html += '<div class="heatmap-suggestions" aria-label="Strongest pair suggestions">';
+            html += `<button type="button" class="heatmap-suggestion-sort" data-heatmap-suggestion-sort aria-pressed="${heatmapSuggestionsSorted}">Sort: ${heatmapSuggestionsSorted ? '|r| desc' : 'unsorted'}</button>`;
+            for (const pair of suggestionPairs) {
+                html += `<button type="button" class="heatmap-suggestion-chip" data-heatmap-pair-x="${escapeAttr(pair.x)}" data-heatmap-pair-y="${escapeAttr(pair.y)}" data-heatmap-pair-value="${pair.value}">${escapeAttr(pair.x)} ↔ ${escapeAttr(pair.y)} · |r| ${Math.abs(pair.value).toFixed(4)}</button>`;
+            }
+            html += '</div>';
+        }
+        if (heatmapClusterEnabled && orderChanged && !heatmapOrderLocked) {
+            html += `<div class="heatmap-order-caption" role="status">Order updated by clustering under ${escapeAttr(metricLabel)}.</div>`;
+        }
 
         container.innerHTML = html;
         // Bind cell click: navigate to the scatter page with the chosen
         // X/Y columns preselected. Already supported by the existing
         // implementation; preserved here.
         container.onclick = (event: MouseEvent) => {
+            const sortToggle = (event.target as HTMLElement).closest<HTMLElement>('[data-heatmap-suggestion-sort]');
+            if (sortToggle) {
+                heatmapSuggestionsSorted = !heatmapSuggestionsSorted;
+                renderHeatmap();
+                return;
+            }
+            const suggestion = (event.target as HTMLElement).closest<HTMLElement>('[data-heatmap-pair-x][data-heatmap-pair-y]');
+            if (suggestion) {
+                const x = suggestion.dataset.heatmapPairX || '';
+                const y = suggestion.dataset.heatmapPairY || '';
+                if (!x || !y) return;
+                openPairDialog(x, y, Number(suggestion.dataset.heatmapPairValue), suggestion);
+                return;
+            }
             const cell = (event.target as HTMLElement).closest<HTMLElement>('.heatmap-cell');
             if (!cell) return;
             const rowIndex = Number.parseInt(cell.dataset.row || '', 10);
             const colIndex = Number.parseInt(cell.dataset.col || '', 10);
             if (!Number.isFinite(rowIndex) || !Number.isFinite(colIndex) || rowIndex === colIndex) return;
-            setDropdownValue('scatter-x-col', columns[rowIndex]!);
-            setDropdownValue('scatter-y-col', columns[colIndex]!);
-            deps.showPage('scatter');
+            const x = cell.dataset.rowName || columns[rowIndex]!;
+            const y = cell.dataset.colName || columns[colIndex]!;
+            openPairDialog(x, y, Number(cell.dataset.correlationValue), cell);
+        };
+
+        container.onkeydown = (event: KeyboardEvent) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            const cell = (event.target as HTMLElement).closest<HTMLElement>('.heatmap-cell');
+            if (!cell) return;
+            event.preventDefault();
+            cell.click();
         };
 
         // C10: Excel-style row/column hover highlight. When the user
@@ -360,8 +493,18 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
                 const target = event.target as HTMLElement;
                 const rowLabel = target.closest<HTMLElement>('.heatmap-row-label');
                 const colHeader = target.closest<HTMLElement>('.heatmap-header');
+                const cell = target.closest<HTMLElement>('.heatmap-cell');
                 clearHighlights();
-                if (rowLabel && grid) {
+                if (cell && grid) {
+                    const row = cell.dataset.row;
+                    const col = cell.dataset.col;
+                    grid.querySelectorAll<HTMLElement>(`.heatmap-cell[data-row="${row}"]`)
+                        .forEach((el) => el.classList.add('heatmap-row-highlight'));
+                    grid.querySelectorAll<HTMLElement>(`.heatmap-cell[data-col="${col}"]`)
+                        .forEach((el) => el.classList.add('heatmap-col-highlight'));
+                    grid.querySelector<HTMLElement>(`.heatmap-row-label[data-cluster-row="${row}"]`)?.classList.add('heatmap-row-highlight');
+                    grid.querySelector<HTMLElement>(`.heatmap-header[data-cluster-col="${col}"]`)?.classList.add('heatmap-col-highlight');
+                } else if (rowLabel && grid) {
                     const row = rowLabel.dataset.clusterRow;
                     if (row !== undefined) {
                         grid.querySelectorAll<HTMLElement>(`.heatmap-cell[data-row="${row}"]`)
@@ -487,8 +630,8 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
         emptyStateMessageId: 'heatmap-empty-state-message',
         exportConfig: {
             key: 'heatmap',
-            png: { fn: exportElementPNG, filename: 'edatime_heatmap.png' },
-            svg: { fn: exportElementSVG, filename: 'edatime_heatmap.svg' },
+            png: { fn: (filename) => exportElementPNG('heatmap-container', filename), filename: 'edatime_heatmap.png' },
+            svg: { fn: (filename) => exportElementSVG('heatmap-container', filename), filename: 'edatime_heatmap.svg' },
             html: { fn: (filename) => exportElementHTML('heatmap-container', filename), filename: 'edatime_heatmap.html' },
             csv: {
                 fn: (filename) => {
@@ -510,6 +653,8 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
             const sizeInput = document.getElementById('heatmap-cell-size') as HTMLInputElement | null;
             const sizeValue = document.getElementById('heatmap-cell-size-value') as HTMLElement | null;
             const clusterToggle = document.getElementById('heatmap-cluster-toggle') as HTMLInputElement | null;
+            const lockOrderToggle = document.getElementById('heatmap-lock-order') as HTMLInputElement | null;
+            const lockOrderStatus = document.getElementById('heatmap-order-locked-status') as HTMLElement | null;
             const fitToggle = document.getElementById('heatmap-fit-toggle') as HTMLButtonElement | null;
             const axisFitToggle = document.getElementById('heatmap-axis-fit-toggle') as HTMLButtonElement | null;
             const addMatrixColumnsButton = document.getElementById('heatmap-add-columns-to-plan') as HTMLButtonElement | null;
@@ -517,7 +662,56 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
             const planSummary = document.getElementById('heatmap-plan-columns-summary');
             const planConfirm = document.getElementById('heatmap-plan-columns-confirm') as HTMLButtonElement | null;
             const planCancel = document.getElementById('heatmap-plan-columns-cancel') as HTMLButtonElement | null;
+            const pairOpen = document.getElementById('heatmap-pair-open') as HTMLButtonElement | null;
+            const pairClose = document.getElementById('heatmap-pair-close') as HTMLButtonElement | null;
+            const pairDialog = document.getElementById('heatmap-pair-dialog') as HTMLDialogElement | null;
             if (!container) return;
+
+            pairClose?.addEventListener('click', () => closePairDialog(), listenerOptions);
+            pairDialog?.addEventListener('cancel', (event) => {
+                event.preventDefault();
+                closePairDialog();
+            }, listenerOptions);
+            pairDialog?.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    closePairDialog();
+                    return;
+                }
+                if (event.key !== 'Tab') return;
+                const focusable = Array.from(pairDialog.querySelectorAll<HTMLElement>(
+                    'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+                )).filter((element) => !element.hidden);
+                if (focusable.length === 0) {
+                    event.preventDefault();
+                    return;
+                }
+                const first = focusable[0]!;
+                const last = focusable[focusable.length - 1]!;
+                if (!pairDialog.contains(document.activeElement)) {
+                    event.preventDefault();
+                    (event.shiftKey ? last : first).focus();
+                } else if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first.focus();
+                }
+            }, listenerOptions);
+            document.addEventListener('wheel', (event) => {
+                if (!pairDialog?.open || pairDialog.contains(event.target as Node)) return;
+                event.preventDefault();
+                event.stopPropagation();
+            }, { signal: controlAbort.signal, capture: true, passive: false });
+            pairOpen?.addEventListener('click', () => {
+                const x = pairOpen.dataset.xColumn || '';
+                const y = pairOpen.dataset.yColumn || '';
+                if (!x || !y) return;
+                closePairDialog(false);
+                openScatterPair(x, y);
+            }, listenerOptions);
 
             const selectedPlanColumns = (): string[] | null => {
                 const plan = deps.cleaningPlanStore?.getSnapshot();
@@ -530,13 +724,14 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
                 else planDialog.hidden = true;
             };
             addMatrixColumnsButton?.addEventListener('click', () => {
+                const plan = deps.cleaningPlanStore?.getSnapshot();
                 const columns = selectedPlanColumns();
-                if (!columns) {
+                if (!plan || !columns) {
                     if (planSummary) planSummary.textContent = 'Load a correlation matrix before creating a stage.';
                     return;
                 }
                 if (planSummary) {
-                    planSummary.textContent = `This adds a keep-columns stage for the canonical time column and ${columns.length - 1} numeric matrix column${columns.length === 2 ? '' : 's'}. It does not alter values or remove rows; nonnumeric columns are excluded.`;
+                    planSummary.textContent = `Stage added on confirmation: 'Keep ${columns.length - 1} columns' as Step ${plan.stages.length + 1} in the current Preparation plan. It keeps the canonical time column plus the numeric matrix columns. It does not alter values or remove rows.`;
                 }
                 if (typeof planDialog?.showModal === 'function') planDialog.showModal();
                 else if (planDialog) planDialog.hidden = false;
@@ -556,12 +751,15 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
                     columns,
                     mode: 'keep',
                 });
+                try { window.sessionStorage.setItem('edatime-highlight-correlation-stage', '1'); } catch { /* optional */ }
                 deps.onPlanChanged?.();
-                if (planSummary) planSummary.textContent = 'Added the keep-columns stage to the Pipeline Workbench. You can review or edit it there before previewing.';
+                const stageMessage = `Stage added: 'Keep ${columns.length - 1} columns' as Step ${plan.stages.length + 1} in the current Preparation plan.`;
+                if (planSummary) planSummary.textContent = stageMessage;
+                toast(stageMessage, 'success');
                 closePlanDialog();
             }, listenerOptions);
 
-            metric = normalizeCorrelationMetric(getSetting('defaultCorrelationMetric'));
+            metric = readHeatmapMetricPref();
             setDropdownValue('heatmap-metric', metric);
             syncMetricGuide();
             bindInfoPopovers();
@@ -570,6 +768,8 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
 
             // Sync initial control state with module-level defaults.
             if (clusterToggle) clusterToggle.checked = heatmapClusterEnabled;
+            if (lockOrderToggle) lockOrderToggle.checked = heatmapOrderLocked;
+            if (lockOrderStatus) lockOrderStatus.hidden = !heatmapOrderLocked;
             // Restore the "Fit to screen" pref, defaulting to on so the
             // heatmap uses the page width on first visit.
             heatmapFitToScreen = readHeatmapFitPref();
@@ -581,6 +781,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
                 axisFitToggle.setAttribute('aria-pressed', String(heatmapAxisFit));
                 axisFitToggle.classList.toggle('is-active', heatmapAxisFit);
             }
+            if (sizeValue) sizeValue.textContent = `${heatmapCellSize} px`;
             // Sync the custom `--range-fill` property so the slider
             // track's accent fill matches the current value on first
             // render (CSS uses this to draw a filled progress portion).
@@ -588,13 +789,13 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
 
             metricSelect?.addEventListener('change', () => {
                 metric = normalizeCorrelationMetric(getDropdownValue('heatmap-metric'));
-                updateSetting('defaultCorrelationMetric', metric);
+                writeHeatmapMetricPref(metric);
                 syncMetricGuide();
                 void loadMatrix(metric);
             }, listenerOptions);
             sizeInput?.addEventListener('input', () => {
                 heatmapCellSize = Math.max(24, Math.min(72, Number(sizeInput.value || 36)));
-                if (sizeValue) sizeValue.textContent = String(heatmapCellSize);
+                if (sizeValue) sizeValue.textContent = `${heatmapCellSize} px`;
                 updateRangeFill(sizeInput);
                 renderHeatmap();
             }, listenerOptions);
@@ -604,6 +805,13 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
                 // the next render reflects the new clustering state from
                 // scratch; users can drag again afterwards.
                 userColumnOrder = null;
+                renderHeatmap();
+            }, listenerOptions);
+            lockOrderToggle?.addEventListener('change', () => {
+                heatmapOrderLocked = !!lockOrderToggle.checked;
+                if (heatmapOrderLocked && lastRenderedOrder) userColumnOrder = [...lastRenderedOrder];
+                if (!heatmapOrderLocked) userColumnOrder = null;
+                if (lockOrderStatus) lockOrderStatus.hidden = !heatmapOrderLocked;
                 renderHeatmap();
             }, listenerOptions);
             fitToggle?.addEventListener('click', () => {

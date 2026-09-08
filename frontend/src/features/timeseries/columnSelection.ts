@@ -9,6 +9,8 @@ import {
     timeseriesInteraction,
 } from './interaction.js';
 import { getTimeseriesSelection, setTimeseriesSelection, type SelectionWorkspace } from './selectionIntent.js';
+import { getEffectiveNumericColumns } from '../../platform/analyticsColumns.js';
+import { cleaningPlanStore } from '../../cleaning/store.js';
 
 /**
  * Remove selected columns that are blocked, temporal, or no longer present in metadata.
@@ -21,9 +23,7 @@ export function sanitizeSelectedColumns(workspace: SelectionWorkspace): void {
             .filter((col) => /date|time/i.test(String(col?.dtype ?? '')))
             .map((col) => String(col?.name ?? '').toLowerCase()),
     );
-    const validColNames = new Set(
-        (workspace.getSnapshot().dataset.metadata?.columns ?? []).map((col) => String(col?.name ?? '').trim()),
-    );
+    const validColNames = new Set(getEffectiveNumericColumns(workspace.getSnapshot().dataset.metadata, cleaningPlanStore.getSnapshot()));
 
     setTimeseriesSelection(
         workspace,

@@ -22,6 +22,7 @@ export interface TimeSeriesDataModelInput {
     selectedColorColumn: string | null;
     showMarkers: boolean;
     showRawData: boolean;
+    normalizeEachSeries?: boolean;
 }
 
 interface ColorCandidate {
@@ -32,7 +33,7 @@ interface ColorCandidate {
 }
 
 export function buildTimeSeriesDataModel(input: TimeSeriesDataModelInput): TimeSeriesDataModel {
-    const { data, columns, visibilityByName, selectedColorColumn, showMarkers, showRawData } = input;
+    const { data, columns, visibilityByName, selectedColorColumn, showMarkers, showRawData, normalizeEachSeries = false } = input;
     const displayYValues: number[] = [];
     const annotations: AnnotationConfig[] = [];
     const baseSeries: SeriesConfig[] = [];
@@ -52,10 +53,22 @@ export function buildTimeSeriesDataModel(input: TimeSeriesDataModelInput): TimeS
         const yValues = seriesData?.y ?? data.values?.[column];
         const xValues = seriesData?.x ?? data.ts;
         const points: [number, number][] = [];
+        let seriesMin = Number.POSITIVE_INFINITY;
+        let seriesMax = Number.NEGATIVE_INFINITY;
+        for (const raw of yValues ?? []) {
+            const value = Number(raw);
+            if (!Number.isFinite(value)) continue;
+            seriesMin = Math.min(seriesMin, value);
+            seriesMax = Math.max(seriesMax, value);
+        }
+        const seriesSpan = seriesMax - seriesMin;
         const count = Math.min(xValues?.length ?? 0, yValues?.length ?? 0);
         for (let pointIndex = 0; pointIndex < count; pointIndex++) {
             const x = Number(xValues![pointIndex]);
-            const y = Number(yValues![pointIndex]);
+            const rawY = Number(yValues![pointIndex]);
+            const y = normalizeEachSeries && Number.isFinite(rawY)
+                ? (seriesSpan > 0 ? (rawY - seriesMin) / seriesSpan : 0.5)
+                : rawY;
             if (!Number.isFinite(x)) continue;
             // Preserve a filtered sample as NaN so line renderers break at
             // that timestamp instead of joining the points on either side.
@@ -93,7 +106,13 @@ export function buildTimeSeriesDataModel(input: TimeSeriesDataModelInput): TimeS
     if (colorScaleInfo) {
         for (const candidate of colorCandidates) {
             const result = buildColorizedSeries(
-                candidate.column, candidate.points, candidate.colorValues, colorScaleInfo, candidate.visible, showMarkers,
+                candidate.column,
+                candidate.points,
+                candidate.colorValues,
+                colorScaleInfo,
+                candidate.visible,
+                showMarkers,
+                candidate.column === selectedColorColumn,
             );
             decoratedSeries.push(...result.series as SeriesConfig[]);
             annotations.push(...result.annotations as AnnotationConfig[]);

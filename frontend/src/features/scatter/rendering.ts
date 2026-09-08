@@ -111,12 +111,14 @@ function renderColorbarCanvas(): void {
 
 export function updateColorbarUI(): void {
     const ctl = currentControls();
+    const densityFallback = document.getElementById('scatter-chart')?.dataset.scatterDensitySupport === 'false';
+    const renderMode = densityFallback && ctl.renderMode === 'density' ? 'scatter' : ctl.renderMode;
     const presentation = buildScatterColorbarPresentation({
         activeView: scatterState.activeView,
-        renderMode: ctl.renderMode,
+        renderMode,
         colormap: ctl.colormap,
         colorScale: ctl.colorScale,
-        selectedColorColumn: ctl.selectedColorColumn,
+        selectedColorColumn: densityFallback ? null : ctl.selectedColorColumn,
         colorValues: scatterState.colorValues,
         colorMin: scatterState.colorMin,
         colorMax: scatterState.colorMax,
@@ -329,6 +331,9 @@ export function updateMarginalPlots(): void {
         return;
     }
     if (marginalY) marginalY.hidden = false;
+    // Reserve space for both the distribution and the density/color legend.
+    chartEl?.parentElement?.style.setProperty('--scatter-right', colorbarActive ? '128px' : '72px');
+    requestAnimationFrame(() => scatterState.chart?.resize?.());
 
     const view = scatterState.view;
     const visiblePoints = scatterState.points.filter((p) => {
@@ -355,9 +360,13 @@ export function updateMarginalPlots(): void {
         const binSize = Number(cache?.metrics?.binSizeCss ?? cache?.binSize);
         if (marginalX && xCounts && Number.isFinite(binSize) && binSize > 0) {
             requestAnimationFrame(() => drawDensityMarginalX(marginalX, xCounts, binSize));
+        } else if (marginalX) {
+            requestAnimationFrame(() => drawMarginalX(marginalX, xValues, view.xMin, view.xMax, mode));
         }
         if (marginalY && yCounts && Number.isFinite(binSize) && binSize > 0) {
             requestAnimationFrame(() => drawDensityMarginalY(marginalY, yCounts, binSize));
+        } else if (marginalY) {
+            requestAnimationFrame(() => drawMarginalY(marginalY, yValues, view.yMin, view.yMax, mode));
         }
         return;
     }
@@ -483,9 +492,7 @@ export function updateCorrelationStats(): void {
     // even when only Y changes (the Y handler does not re-fetch).
     // The active-mode map mirrors `correlationsByColumn` and is preserved
     // for callers that depend on it.
-    const pearsonMap = mode.startsWith('spearman')
-        ? scatterState.correlationsByMode.get('spearman_raw')
-        : scatterState.correlationsByMode.get('pearson_raw');
+    const pearsonMap = scatterState.correlationsByMode.get('pearson_raw');
     const spearmanMap = scatterState.correlationsByMode.get('spearman_raw');
     const pearsonRow = pearsonMap?.get(yValue || '');
     const spearmanRow = spearmanMap?.get(yValue || '');
@@ -506,8 +513,8 @@ export function updateCorrelationStats(): void {
         : (isFiniteNumber(spearmanRow?.value) ? spearmanRow!.value! : pairStats?.spearmanRaw ?? null);
     const pearsonNumber: number | null = typeof pearson === 'number' && Number.isFinite(pearson) ? pearson : null;
     const spearmanNumber: number | null = typeof spearman === 'number' && Number.isFinite(spearman) ? spearman : null;
-    const pearsonValue = pearsonNumber !== null ? pearsonNumber.toFixed(3) : '—';
-    const spearmanValue = spearmanNumber !== null ? spearmanNumber.toFixed(3) : '—';
+    const pearsonValue = pearsonNumber !== null ? pearsonNumber.toFixed(4) : '—';
+    const spearmanValue = spearmanNumber !== null ? spearmanNumber.toFixed(4) : '—';
     // Count comes from whichever row actually carried the value.
     const countSource = useDiffBasis
         ? (pearsonDiffRow ?? spearmanDiffRow ?? pearsonRow ?? spearmanRow)
@@ -516,12 +523,15 @@ export function updateCorrelationStats(): void {
         ? `${countSource!.count} aligned pairs`
         : '';
     if (openCausalBtn) openCausalBtn.disabled = !(xValue && yValue);
+    const basis = getCorrelationModeBasisLabel(mode);
     setStats({
         primaryLabel: 'Pearson r',
         primaryValue: pearsonValue,
         secondaryLabel: 'Spearman ρ',
         secondaryValue: spearmanValue,
-        correlationContext: count ? `${getCorrelationModeBasisLabel(mode)} · ${count}` : getCorrelationModeBasisLabel(mode),
+        correlationContext: useDiffBasis
+            ? `Raw-value plot · correlations of first differences${count ? ` · ${count}` : ''}`
+            : `Raw-value plot · ${basis}${count ? ` · ${count}` : ''}${document.getElementById('scatter-chart')?.dataset.scatterDensitySupport === 'false' && mode === 'pearson_raw' ? ' · density unavailable in Canvas fallback' : ''}`,
     });
     setCorrelationOverlayText(pearsonNumber, spearmanNumber);
 }
@@ -535,11 +545,30 @@ export function syncModeUI(onToolbarLayoutChange?: () => void): void {
     const isMatrix = view === 'matrix';
     const isDensity = isPlot && ctl.renderMode === 'density';
     const isScatter = isPlot && ctl.renderMode === 'scatter';
+    const densityFallback = document.getElementById('scatter-chart')?.dataset.scatterDensitySupport === 'false';
     const toggle = (el: HTMLElement | null, visible: boolean) => { if (el) el.style.display = visible ? '' : 'none'; };
 
-    toggle(getEl('scatter-analytics-group'), !isMatrix);
+    // Keep the Plot/Matrix switch visible in both views. Only the pair-axis
+    // fields are irrelevant in Matrix mode; hiding their parent used to
+    // remove the only obvious way back to Plot.
+    toggle(getEl('scatter-analytics-group'), true);
+    toggle(document.querySelector('.scatter-toolbar__segment--view [for="scatter-x-col"]'), !isMatrix);
+    toggle(document.querySelector('.scatter-toolbar__segment--view [for="scatter-y-col"]'), !isMatrix);
     toggle(getEl('scatter-mode-label'), isPlot);
     toggle(getEl('scatter-render-mode'), isPlot);
+    const renderMode = getEl('scatter-render-mode');
+    if (renderMode) {
+        renderMode.title = densityFallback && isDensity
+            ? 'Density is unavailable in the Canvas fallback; the plot shows ordinary scatter points.'
+            : '';
+    }
+    const fallbackNote = getEl('scatter-density-fallback-note');
+    if (fallbackNote) {
+        fallbackNote.hidden = !(densityFallback && isDensity);
+        fallbackNote.textContent = densityFallback && isDensity
+            ? 'Canvas fallback: ordinary scatter points; density legend unavailable.'
+            : '';
+    }
     // The Refine segment hosts the density sub-group (Bins + Scale
     // Linear/Log) inline. Show it only in density mode and hide it
     // for scatter/matrix views to avoid leaving orphan labels.

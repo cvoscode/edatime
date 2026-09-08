@@ -264,7 +264,7 @@ fn generate_python_polars(
                 } else {
                     format!("({predicate}).not() | ({predicate}).is_null()")
                 };
-                lines.push(format!("    lf = lf.filter({expression})"));
+                lines.push(format!("    lf = lf.with_columns(pl.when({expression}).then(pl.col({0})).otherwise(None).alias({0}))", code_quote(column)));
             }
             CleaningStageDto::MissingValue {
                 column,
@@ -498,7 +498,7 @@ fn generate_rust_polars(
                 } else {
                     format!("{predicate}.is_null().or({predicate}.not())")
                 };
-                lines.push(format!("    lf = lf.filter({expression});"));
+                lines.push(format!("    lf = lf.with_columns([when({expression}).then(col({0})).otherwise(lit(NULL)).alias({0})]);", code_quote(column)));
             }
             CleaningStageDto::MissingValue {
                 column,
@@ -672,8 +672,26 @@ pub struct CleaningPreviewResponse {
     pub rows_removed: usize,
     pub columns_before: usize,
     pub columns_after: usize,
+    pub source_columns: Vec<String>,
+    pub result_columns: Vec<String>,
+    pub examples: CleaningPreviewExamples,
     pub stage_impacts: Vec<CleaningStageImpact>,
     pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CleaningPreviewExamples {
+    pub raw: Vec<CleaningPreviewRow>,
+    pub working: Vec<CleaningPreviewRow>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CleaningPreviewRow {
+    pub row_number: usize,
+    pub timestamp: String,
+    pub values: BTreeMap<String, String>,
 }
 
 /// Exact row-membership change at each saved plan stage. These values are
@@ -783,8 +801,20 @@ pub(crate) fn compile_request_frame(
         state.config.budgets.max_cleaning_stages as u128,
     )?;
     let (version, plan_hash) = validate_envelope(state, envelope)?;
+    let key = (version.id.clone(), plan_hash.clone());
+    let mut cache = state
+        .working_plan_cache
+        .lock()
+        .map_err(|_| AppError::internal("Working plan cache lock poisoned"))?;
+    if let Some(frame) = cache.get(&key) {
+        return Ok((version, plan_hash, frame.clone()));
+    }
     let source = state.dataset_snapshot_for_version(&version.id)?;
     let frame = compile_cleaning_plan(source, &envelope.plan).map_err(AppError::from)?;
+    if cache.len() >= 8 {
+        cache.clear();
+    }
+    cache.insert(key, frame.clone());
     Ok((version, plan_hash, frame))
 }
 
@@ -865,6 +895,53 @@ pub async fn preview(
     let result_schema = frame.collect_schema().map_err(|error| {
         AppError::bad_request(format!("Cleaning result schema unavailable: {error}"))
     })?;
+    async fn collect_examples(
+        state: &AppState,
+        frame: polars::prelude::LazyFrame,
+        time_column: &str,
+    ) -> Result<Vec<CleaningPreviewRow>, AppError> {
+        let data = state
+            .query_executor
+            .execute_async(frame.limit(3))
+            .await
+            .map_err(AppError::from)?;
+        let mut rows = Vec::with_capacity(data.height());
+        for row_number in 0..data.height() {
+            let timestamp = data
+                .column(time_column)
+                .ok()
+                .and_then(|column| column.get(row_number).ok())
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| "—".to_string());
+            let mut values = BTreeMap::new();
+            for column in data.columns() {
+                let name = column.name().as_str();
+                if name == time_column || values.len() >= 8 {
+                    continue;
+                }
+                if let Ok(value) = column.get(row_number) {
+                    values.insert(name.to_string(), value.to_string());
+                }
+            }
+            rows.push(CleaningPreviewRow {
+                row_number,
+                timestamp,
+                values,
+            });
+        }
+        Ok(rows)
+    }
+    let raw_examples = collect_examples(&state, source.clone(), &envelope.plan.time_column).await?;
+    let working_examples =
+        collect_examples(&state, frame.clone(), &envelope.plan.time_column).await?;
+    let source_columns = source_schema
+        .iter_names()
+        .map(|name| name.to_string())
+        .collect();
+    let result_columns = result_schema
+        .iter_names()
+        .map(|name| name.to_string())
+        .collect();
     let rows_after = prior_rows;
     Ok(Json(CleaningPreviewResponse {
         dataset_revision: version.revision,
@@ -875,6 +952,12 @@ pub async fn preview(
         rows_removed: rows_before.saturating_sub(rows_after),
         columns_before: source_schema.len(),
         columns_after: result_schema.len(),
+        source_columns,
+        result_columns,
+        examples: CleaningPreviewExamples {
+            raw: raw_examples,
+            working: working_examples,
+        },
         stage_impacts,
         warnings: preview_warnings(&envelope.plan),
     }))
@@ -1488,13 +1571,13 @@ mod tests {
             .expect("preview")
             .0;
         assert_eq!(response.rows_before, 3);
-        assert_eq!(response.rows_after, 2);
+        assert_eq!(response.rows_after, 3);
         assert_eq!(response.stage_impacts.len(), 1);
         assert_eq!(response.stage_impacts[0].stage_id, "range");
         assert!(response.stage_impacts[0].executed);
         assert_eq!(response.stage_impacts[0].rows_before, 3);
-        assert_eq!(response.stage_impacts[0].rows_after, 2);
-        assert_eq!(response.stage_impacts[0].rows_removed, 1);
+        assert_eq!(response.stage_impacts[0].rows_after, 3);
+        assert_eq!(response.stage_impacts[0].rows_removed, 0);
 
         let export = export_data(
             State(state.clone()),
@@ -1533,15 +1616,15 @@ mod tests {
         let data = ParquetReader::new(std::io::Cursor::new(body))
             .finish()
             .expect("streamed parquet");
-        assert_eq!(data.height(), 2);
+        assert_eq!(data.height(), 3);
         assert_eq!(
             data.column("value")
                 .expect("value")
                 .f64()
                 .expect("f64")
-                .into_no_null_iter()
+                .into_iter()
                 .collect::<Vec<_>>(),
-            vec![2.0, 3.0]
+            vec![None, Some(2.0), Some(3.0)]
         );
     }
 
@@ -1624,7 +1707,7 @@ mod tests {
                 .collect()
                 .expect("working")
                 .height(),
-            2
+            3
         );
     }
 
@@ -1654,7 +1737,7 @@ mod tests {
         let child = state.current_dataset_version().expect("child");
         assert!(child.id.starts_with("artifact-"));
         assert!(child.dataset_fingerprint.starts_with("fnv1a-parquet-"));
-        assert_eq!(state.dataset_rows().await, 2);
+        assert_eq!(state.dataset_rows().await, 3);
         assert_eq!(
             state
                 .query_executor
@@ -1662,7 +1745,7 @@ mod tests {
                 .await
                 .expect("scan child")
                 .height(),
-            2
+            3
         );
         let catalog = state
             .artifact_store
@@ -1820,7 +1903,7 @@ mod tests {
         assert_eq!(manifest["sourceVersion"]["id"], "source-0");
         assert_eq!(manifest["rootSourceVersion"]["id"], "source-0");
         assert_eq!(manifest["before"]["rows"], 3);
-        assert_eq!(manifest["after"]["rows"], 2);
+        assert_eq!(manifest["after"]["rows"], 3);
         assert_eq!(manifest["after"]["columns"], 2);
         assert_eq!(
             manifest["executionProvenance"]["application"],

@@ -8,6 +8,8 @@ export interface ProfileRow {
     min: number | null;
     max: number | null;
     histCounts: number[];
+    /** True when the row is a schema-only placeholder awaiting profiling. */
+    profilePending?: boolean;
     [key: string]: unknown;
 }
 

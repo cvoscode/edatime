@@ -6,6 +6,7 @@ import {
     disposeScatterPageRuntime,
     getScatterEmptyStateController,
     syncScatterEmptyState,
+    setScatterPointsResolved,
     syncScatterFilterBadge,
     getGpuUnavailable,
     setGpuUnavailable,
@@ -198,6 +199,23 @@ describe('syncScatterEmptyState', () => {
         buildDom();
         setGpuUnavailable(false);
         scatterState.points = [];
+        scatterState.loading = false;
+        setScatterPointsResolved(false);
+    });
+
+    it('does not blame filters before the initial points request starts', () => {
+        syncScatterEmptyState();
+        expect(emptyStateUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+            visible: false, reason: 'loading', showClearAction: false,
+        }));
+    });
+
+    it('shows a genuine empty result after a completed points request', () => {
+        setScatterPointsResolved(true);
+        syncScatterEmptyState();
+        expect(emptyStateUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+            visible: true, reason: 'no-data-after-filters', showClearAction: true,
+        }));
     });
 
     it('shows no-columns-selected when axes are not chosen', () => {

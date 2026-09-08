@@ -36,7 +36,9 @@ export function initToolbarCollapse(): () => void {
         const sync = () => {
             const collapsed = page.classList.contains('workspace-controls-collapsed');
             button.setAttribute('aria-pressed', String(collapsed));
-            button.title = collapsed ? 'Show workspace controls' : 'Focus view and hide workspace controls';
+            button.title = collapsed
+                ? 'Show sidebar and header controls'
+                : 'Hide sidebar and header chrome for a distraction-free chart view';
             button.setAttribute('aria-label', collapsed ? 'Show workspace controls' : 'Focus view');
             label.textContent = collapsed ? 'Show controls' : 'Focus view';
         };

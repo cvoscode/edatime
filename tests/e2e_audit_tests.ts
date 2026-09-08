@@ -38,6 +38,36 @@ test.beforeAll(async ({ request }) => {
 });
 
 test.describe('Audit Verification Tests', () => {
+
+  test('sample dataset profile replaces pending statistics', async ({ page }) => {
+    await page.locator('[data-sample-dataset="ettm2"]').click();
+    await expect(page.locator('#page-timeseries')).toBeVisible({ timeout: 60_000 });
+    await openPage(page, 'upload');
+    const rows = page.locator('#profile-grid-rows');
+    await expect(rows).toContainText('HUFL');
+    await expect(rows).not.toContainText('Pending', { timeout: 30_000 });
+    await expect(rows).toContainText('69,680');
+  });
+
+  test('pair plot does not show filter failure while suggestions load', async ({ page }) => {
+    let release!: () => void;
+    const hold = new Promise<void>((resolve) => { release = resolve; });
+    await page.route('**/api/v1/scatter/correlations', async (route) => {
+      await hold;
+      await route.continue();
+    });
+    const requested = page.waitForRequest('**/api/v1/scatter/correlations');
+    try {
+      await openPage(page, 'scatter');
+      await requested;
+      await expect(page.locator('#scatter-empty-state')).toBeHidden();
+    } finally {
+      release();
+    }
+    await expect(page.locator('#scatter-marginal-x')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('#scatter-marginal-y')).toBeVisible();
+    await expect(page.locator('#scatter-empty-state')).toBeHidden();
+  });
   
   test.beforeEach(async ({ page }) => {
     // Navigate to the app
@@ -205,7 +235,7 @@ test.describe('Audit Verification Tests', () => {
     await expect(html).toHaveAttribute('lang', 'en');
     
     // Check for landmark navigation
-    const nav = page.locator('nav, [role="navigation"]');
+    const nav = page.getByRole('navigation', { name: 'Primary navigation' });
     await expect(nav).toHaveCount(1);
     
     await expect(page.locator('a[href="#main"]')).toBeVisible();

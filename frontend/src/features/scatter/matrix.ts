@@ -24,6 +24,8 @@ import { scatterState } from '../../store/scatterState.js';
 import { setDropdownValue } from '../../ui/primitives/Dropdown.js';
 import { describeDistributionMode, renderMatrixGrid } from './matrixGrid.js';
 import type { WorkspaceSnapshot } from '../../contracts/workspace.js';
+import { getEffectiveNumericColumns } from '../../platform/analyticsColumns.js';
+import { cleaningPlanStore } from '../../cleaning/store.js';
 
 type ScatterIntent = Pick<WorkspaceSnapshot, 'filters' | 'viewport'>;
 
@@ -40,7 +42,7 @@ function collectOverviewColumns(): string[] {
         push(item?.y);
         if (columns.length >= MATRIX_MAX_COLUMNS) break;
     }
-    for (const column of (scatterState.metadata as any)?.numeric_columns || []) {
+    for (const column of getEffectiveNumericColumns(scatterState.metadata, cleaningPlanStore.getSnapshot())) {
         push(column);
         if (columns.length >= MATRIX_MAX_COLUMNS) break;
     }

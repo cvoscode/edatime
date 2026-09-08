@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::AtomicUsize;
 
 use chrono::Utc;
 use polars::prelude::{DataFrame, DataType, LazyFrame, ScanArgsParquet, SchemaExt, len};
@@ -64,11 +65,20 @@ pub struct AppState {
     /// The wire body has its own byte limit; this gate prevents concurrent
     /// parser/dataframe peaks from accumulating in process memory.
     pub upload_admission: Arc<Semaphore>,
+    /// Bytes reserved by uploads admitted through decode. The reservation is
+    /// conservative and complements (rather than replaces) the concurrency
+    /// semaphore and wire-size limit.
+    pub upload_memory_reserved: Arc<AtomicUsize>,
     pub db_pool: Arc<RwLock<Option<Arc<DbPool>>>>,
     pub db_info: Arc<RwLock<Option<DbConnectionInfo>>>,
     pub correlation_matrix_cache: Arc<Mutex<Option<(u64, CorrelationMatrixCacheEntry)>>>,
     correlation_single_flight:
         Arc<tokio::sync::Mutex<BTreeMap<u64, std::sync::Weak<tokio::sync::Mutex<()>>>>>,
+    /// Bounded compiled working plans, keyed by immutable source and semantic hash.
+    pub working_plan_cache: Arc<Mutex<BTreeMap<(String, String), LazyFrame>>>,
+    /// Latest working matrix; the async lock also coalesces simultaneous requests.
+    pub working_correlation_cache:
+        Arc<tokio::sync::Mutex<Option<((String, String), CorrelationMatrixCacheEntry)>>>,
     pub profile_cache: Arc<Mutex<BTreeMap<String, ProfileCacheEntry>>>,
     immediate_metadata_cache: Arc<Mutex<BTreeMap<String, Value>>>,
     pub query_log: Arc<Mutex<VecDeque<QueryEntry>>>,
@@ -87,10 +97,13 @@ impl Clone for AppState {
             metrics: Arc::clone(&self.metrics),
             config: Arc::clone(&self.config),
             upload_admission: Arc::clone(&self.upload_admission),
+            upload_memory_reserved: Arc::clone(&self.upload_memory_reserved),
             db_pool: Arc::clone(&self.db_pool),
             db_info: Arc::clone(&self.db_info),
             correlation_matrix_cache: Arc::clone(&self.correlation_matrix_cache),
             correlation_single_flight: Arc::clone(&self.correlation_single_flight),
+            working_plan_cache: Arc::clone(&self.working_plan_cache),
+            working_correlation_cache: Arc::clone(&self.working_correlation_cache),
             profile_cache: Arc::clone(&self.profile_cache),
             immediate_metadata_cache: Arc::clone(&self.immediate_metadata_cache),
             query_log: Arc::clone(&self.query_log),
@@ -199,10 +212,13 @@ impl AppState {
             metrics,
             config: Arc::new(config),
             upload_admission,
+            upload_memory_reserved: Arc::new(AtomicUsize::new(0)),
             db_pool: Arc::new(RwLock::new(None)),
             db_info: Arc::new(RwLock::new(None)),
             correlation_matrix_cache: Arc::new(Mutex::new(None)),
             correlation_single_flight: Arc::new(tokio::sync::Mutex::new(BTreeMap::new())),
+            working_plan_cache: Arc::new(Mutex::new(BTreeMap::new())),
+            working_correlation_cache: Arc::new(tokio::sync::Mutex::new(None)),
             profile_cache: Arc::new(Mutex::new(BTreeMap::new())),
             immediate_metadata_cache: Arc::new(Mutex::new(BTreeMap::new())),
             query_log: Arc::new(Mutex::new(VecDeque::with_capacity(max_stored))),
@@ -400,9 +416,20 @@ impl AppState {
     /// a fresh scan-backed root version without collecting the full dataset.
     pub async fn replace_dataset_lazy_root(
         &self,
+        frame: LazyFrame,
+        source_name: Option<String>,
+        time_column: String,
+    ) -> Result<DatasetVersionRecord, AppError> {
+        self.replace_dataset_lazy_root_with_resources(frame, source_name, time_column, ())
+            .await
+    }
+
+    pub async fn replace_dataset_lazy_root_with_resources<R: Send + 'static>(
+        &self,
         mut frame: LazyFrame,
         source_name: Option<String>,
         time_column: String,
+        resources: R,
     ) -> Result<DatasetVersionRecord, AppError> {
         let store = self.artifact_store.as_ref().ok_or_else(|| {
             AppError::internal("Lazy root ingest requires managed artifact storage")
@@ -416,7 +443,11 @@ impl AppState {
             .collect::<Vec<_>>();
         let version_id = self.dataset_versions.allocate_artifact_version_id();
         let temp = store.prepare_lazy_parquet(&version_id)?;
-        if let Err(error) = self.query_executor.sink_parquet_async(frame, temp).await {
+        if let Err(error) = self
+            .query_executor
+            .sink_parquet_with_resources(frame, temp, resources)
+            .await
+        {
             store.discard_pending_lazy_parquet(&version_id);
             return Err(error);
         }

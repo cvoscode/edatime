@@ -107,6 +107,35 @@ fn json_with_execution_identity<T: serde::Serialize>(
     add_execution_identity_headers(Json(value).into_response(), identity)
 }
 
+/// Share the evaluated matrix across modes and base-column changes. A LazyFrame
+/// alone caches the query plan, not its collected results.
+async fn working_correlation_matrix(
+    state: &AppState,
+    lf: LazyFrame,
+    identity: &ExecutionIdentity,
+) -> Result<CorrelationMatrixData, AppError> {
+    let key = (
+        identity.source_version_id.clone(),
+        identity.plan_hash.clone().unwrap_or_default(),
+    );
+    let mut cache = state.working_correlation_cache.lock().await;
+    if let Some((cached_key, entry)) = cache.as_ref() {
+        if cached_key == &key {
+            return Ok(CorrelationMatrixData::from_cache(entry.clone()));
+        }
+    }
+    let metrics = Arc::clone(&state.metrics);
+    let data = state
+        .query_executor
+        .run_interactive(CpuStage::Correlations, move || {
+            compute_correlation_matrix(lf, metrics)
+        })
+        .await
+        .map_err(AppError::from)??;
+    *cache = Some((key, data.clone().into_cache()));
+    Ok(data)
+}
+
 async fn scatter_correlations_response(
     state: AppState,
     params: ScatterCorrelationsQuery,
@@ -123,6 +152,18 @@ async fn scatter_correlations_response(
     let requested_base = params.base.clone();
     let mode = params.mode.unwrap_or(CorrelationMode::PearsonRaw);
     let mode_telemetry = mode.telemetry_mode();
+    if identity.plan_hash.is_some() {
+        let data = working_correlation_matrix(&state, lf, &identity).await?;
+        return Ok(json_with_execution_identity(
+            build_scatter_correlations_from_matrix_data(
+                &data,
+                requested_base.as_deref(),
+                threshold,
+                mode,
+            )?,
+            &identity,
+        ));
+    }
     let revision = identity.source_revision;
     let metrics = Arc::clone(&state.metrics);
 
@@ -677,7 +718,7 @@ fn build_scatter_correlations_from_matrix_data(
         .filter(|(_, column)| *column != &base_column)
         .map(|(index, column)| CorrelationItem {
             column: column.clone(),
-            count: data.counts[base_index][index],
+            count: effective_mode_count(data.counts[base_index][index], mode),
             value: selected[base_index][index],
         })
         .collect::<Vec<_>>();
@@ -732,7 +773,7 @@ fn top_pairs_from_matrix(
                 x: data.columns[i].clone(),
                 y: data.columns[j].clone(),
                 correlation: *value,
-                count: data.counts[i][j],
+                count: effective_mode_count(data.counts[i][j], mode),
             });
         }
     }
@@ -747,6 +788,21 @@ fn top_pairs_from_matrix(
     });
     pairs.truncate(limit);
     pairs
+}
+
+/// Difference correlations are computed from adjacent aligned observations,
+/// so a complete raw pair with N observations contributes N-1 differences.
+/// Keep the cache compact (it still stores the raw aligned count) while
+/// exposing the effective sample size for the selected metric family.
+fn effective_mode_count(raw_count: usize, mode: CorrelationMode) -> usize {
+    if matches!(
+        mode,
+        CorrelationMode::PearsonDiff | CorrelationMode::SpearmanDiff | CorrelationMode::KendallDiff
+    ) {
+        raw_count.saturating_sub(1)
+    } else {
+        raw_count
+    }
 }
 
 fn build_scatter_correlations_from_cached_matrix(
@@ -800,6 +856,16 @@ async fn correlation_matrix_response(
 ) -> Result<Response, AppError> {
     let mode = params.mode;
     let (lf, identity) = correlation_frame_with_plan(&state, &params.cleaning_plan)?;
+    if identity.plan_hash.is_some() {
+        let data = working_correlation_matrix(&state, lf, &identity).await?;
+        return Ok(json_with_execution_identity(
+            match mode {
+                Some(mode) => data.to_response_for_mode(mode),
+                None => data.to_response(),
+            },
+            &identity,
+        ));
+    }
     let revision = identity.source_revision;
     let metrics = Arc::clone(&state.metrics);
     if identity.plan_hash.is_none()
@@ -923,6 +989,37 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn working_matrix_reuses_results_and_invalidates_on_plan_change() {
+        let frame = DataFrame::new(
+            3,
+            vec![
+                Series::new("a".into(), [1.0_f64, 2.0, 3.0]).into(),
+                Series::new("b".into(), [2.0_f64, 4.0, 6.0]).into(),
+            ],
+        )
+        .expect("frame");
+        let state = AppState::new(frame.clone(), AppConfig::default());
+        let mut identity = ExecutionIdentity::from_version(
+            state.current_dataset_version().expect("version"),
+            Some("plan-a".into()),
+        );
+        let first = working_correlation_matrix(&state, frame.clone().lazy(), &identity)
+            .await
+            .expect("first");
+        // An empty input would fail to reproduce the first matrix without a cache hit.
+        let cached = working_correlation_matrix(&state, frame.head(Some(0)).lazy(), &identity)
+            .await
+            .expect("cached");
+        assert_eq!(first.counts, cached.counts);
+        identity.plan_hash = Some("plan-b".into());
+        let changed = working_correlation_matrix(&state, frame.head(Some(2)).lazy(), &identity)
+            .await
+            .expect("changed");
+        assert_eq!(changed.counts[0][1], 2);
+        assert_eq!(first.counts[0][1], 3);
+    }
+
     #[test]
     fn cached_matrix_builds_sorted_correlations_for_requested_base() {
         let cached = edatime_store::cache::CorrelationMatrixCacheEntry {
@@ -980,7 +1077,7 @@ mod tests {
             vec!["c", "a"]
         );
         assert_eq!(response.correlations[0].value, Some(0.72));
-        assert_eq!(response.correlations[0].count, 3);
+        assert_eq!(response.correlations[0].count, 2);
         assert_eq!(response.suggestions.len(), 1);
         assert_eq!(response.suggestions[0].x, "b");
         assert_eq!(response.suggestions[0].y, "c");
@@ -1228,6 +1325,24 @@ mod tests {
         assert_eq!(result.pearson_diff[0][1], None);
         assert_eq!(result.spearman_diff[0][1], None);
         assert_eq!(result.kendall_diff[0][1], None);
+    }
+
+    #[test]
+    fn masking_one_trace_does_not_reduce_other_pair_counts() {
+        let df = DataFrame::new(
+            4,
+            vec![
+                Series::new("a".into(), [None, Some(2.0_f64), None, Some(4.0)]).into(),
+                Series::new("b".into(), [10.0_f64, 20.0, 30.0, 40.0]).into(),
+                Series::new("c".into(), [40.0_f64, 30.0, 20.0, 10.0]).into(),
+            ],
+        )
+        .expect("frame");
+        let matrix = compute_correlation_matrix(df.lazy(), test_metrics()).expect("matrix");
+        assert_eq!(matrix.counts[0][1], 2);
+        assert_eq!(matrix.counts[1][2], 4);
+        assert_eq!(matrix.pearson_raw[1][2], Some(-1.0));
+        assert_eq!(matrix.spearman_raw[1][2], Some(-1.0));
     }
 
     #[test]

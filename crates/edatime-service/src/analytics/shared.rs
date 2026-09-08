@@ -60,20 +60,11 @@ pub fn extract_f64_column_opt(
         .collect())
 }
 
-/// Extract a named column as `Vec<f64>`, replacing non-finite/null values with 0.0.
+/// Preserve missing values as gaps; never turn a masked observation into zero.
 pub fn extract_f64_column(df: &DataFrame, col_name: &str) -> Result<Vec<f64>, AppError> {
-    let series = df
-        .column(col_name)
-        .map(|c| c.as_materialized_series())
-        .map_err(|e| AppError::internal(format!("Missing '{}': {e}", col_name)))?;
-    let f64_series = series
-        .cast(&DataType::Float64)
-        .map_err(|e| AppError::internal(format!("Cast '{}': {e}", col_name)))?;
-    Ok(f64_series
-        .f64()
-        .map_err(|e| AppError::internal(format!("Read '{}': {e}", col_name)))?
+    Ok(extract_f64_column_opt(df, col_name)?
         .into_iter()
-        .map(|v| v.unwrap_or(0.0))
+        .map(|v| v.unwrap_or(f64::NAN))
         .collect())
 }
 

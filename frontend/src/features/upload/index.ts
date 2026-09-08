@@ -8,3 +8,4 @@ export {
 export { initUploadHelp } from './help.js';
 
 export { uploadUi, setProfileFilterText, setProfileFilterCategory, setPreviewSelectedColumns, setPreviewTimeColumn, setProfileGridSort, setProfileGridColWidths, setProfileGridBound, setProfileGridHeaderBound, type ProfileFilterCategory } from './uploadUi.js';
+export { loadCurrentDatasetProfile as loadProfile } from './currentProfile.js';

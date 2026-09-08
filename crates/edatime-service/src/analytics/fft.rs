@@ -74,14 +74,17 @@ pub fn compute_fft(
         let values = extract_f64_column(df, col_name)?;
 
         let n = values.len();
-        if n < 4 {
+        let valid_count = values.iter().filter(|v| v.is_finite()).count();
+        if valid_count < 4 {
             continue;
         }
 
-        let mean = values.iter().sum::<f64>() / n as f64;
+        // Missing observations contribute no term to the centered transform.
+        // Keep their time positions rather than compressing the sampling grid.
+        let mean = values.iter().filter(|v| v.is_finite()).sum::<f64>() / valid_count as f64;
         let mut buffer: Vec<Complex<f64>> = values
             .iter()
-            .map(|&v| Complex::new(v - mean, 0.0))
+            .map(|&v| Complex::new(if v.is_finite() { v - mean } else { 0.0 }, 0.0))
             .collect();
 
         for (i, sample) in buffer.iter_mut().enumerate() {
@@ -101,7 +104,7 @@ pub fn compute_fft(
 
         for (i, val) in buffer.iter().enumerate().take(half) {
             frequencies.push(i as f64 * df_freq);
-            let mag = val.norm() / n as f64;
+            let mag = val.norm() / valid_count as f64;
             let magnitude = if i == 0 || i == n / 2 { mag } else { 2.0 * mag };
             magnitudes.push(magnitude);
             psd.push(magnitude * magnitude);
@@ -121,4 +124,41 @@ pub fn compute_fft(
     }
 
     Ok(results)
+}
+
+#[cfg(test)]
+mod mask_tests {
+    use super::*;
+    use polars::prelude::*;
+
+    #[test]
+    fn masked_values_do_not_become_zero_observations() {
+        let frame = DataFrame::new(
+            8,
+            vec![
+                Series::new("ts".into(), (0_i64..8).collect::<Vec<_>>())
+                    .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))
+                    .unwrap()
+                    .into(),
+                Series::new(
+                    "value".into(),
+                    [
+                        Some(100.0),
+                        Some(100.0),
+                        None,
+                        None,
+                        Some(100.0),
+                        Some(100.0),
+                        Some(100.0),
+                        Some(100.0),
+                    ],
+                )
+                .into(),
+            ],
+        )
+        .unwrap();
+        let results = compute_fft(&frame, &["value".into()], Some(1.0)).unwrap();
+        assert_eq!(results.len(), 1);
+        assert!(results[0].magnitudes.iter().all(|v| *v == 0.0));
+    }
 }

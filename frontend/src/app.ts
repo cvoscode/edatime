@@ -23,8 +23,9 @@ import {
     createTimeseriesModule,
     createAnalyticsOverlayController,
     sanitizeSelectedColumns,
-    createTimeseriesPlanFilterSync,
+    setAdaptiveFilterColumn,
 } from './features/timeseries/index.js';
+import { createTimeseriesPlanFilterSync } from './platform/planFilterSync.js';
 // Scatter is dynamically imported on first navigation through the feature
 // registry, keeping its heavy chunks out of the initial application bundle.
 import { initAppShell } from './app/shell.js';
@@ -54,7 +55,6 @@ import type { DatasetMetadata, DataObject, AnomalyResponse } from './types/api.j
 import type { ChartInstance, ViewSnapshot } from './types/chart.js';
 
 import { primaryChart } from './charts/primaryChart.js';
-import { setAdaptiveFilterColumn } from './features/timeseries/index.js';
 
 type DataChartCtorType = new (
     containerId: string,
@@ -129,6 +129,7 @@ export function createApp(): AppRoot {
                 disposeCleaningPanel = mountCleaningPlanPanel({
                     planStore: cleaningPlanStore,
                     getViewport: () => workspace.getSnapshot().viewport,
+                    getColumns: () => (workspace.getSnapshot().dataset.metadata?.columns ?? []).map((column) => column.name),
                     onPlanChanged: refreshCleaningPlanConsumers,
                     onPlanApplied: () => timeseriesModule.refreshAfterMutation(),
                 });
@@ -250,6 +251,9 @@ export function createApp(): AppRoot {
         const { loadPageDescriptors } = await import('./app/pageModules.js');
         await loadPageDescriptors(featureRegistry, {
             getRenderTimeseries: () => timeseriesModule.renderCurrentData(),
+            getCurrentTimeseriesData: () => timeseriesModule.getCurrentData(),
+            refreshDatasetAfterMutation: () => timeseriesModule.refreshAfterMutation(),
+            registerCleanup: runtime.registerCleanup,
             showPage,
             chipColor: (col) => getAnalyticsChipColor(col),
             setLoading: setComputeLoading,

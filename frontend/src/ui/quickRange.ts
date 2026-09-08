@@ -30,15 +30,44 @@ function getDatasetRange(workspace: RangeWorkspace): { min: number; max: number 
 
 function updateButtonStates(workspace: RangeWorkspace): void {
     const range = getDatasetRange(workspace);
+    const totalRows = Number(workspace.getSnapshot().dataset.metadata?.total_rows ?? 0);
     for (const preset of PRESETS) {
         const btn = document.getElementById(preset.id) as HTMLButtonElement | null;
         if (!btn) continue;
-        btn.disabled = !range;
+        const estimatedPoints = range && preset.durationMs !== null && totalRows > 0
+            ? Math.round(totalRows * Math.min(1, preset.durationMs / (range.max - range.min)))
+            : null;
+        const tooSparse = estimatedPoints !== null && estimatedPoints < 50;
+        btn.disabled = !range || tooSparse;
         btn.removeAttribute('aria-disabled');
         if (range) {
             btn.title = preset.durationMs === null
                 ? `Full dataset range (${new Date(range.min).toISOString()} – ${new Date(range.max).toISOString()} UTC)`
-                : `Last ${preset.label} ending at ${new Date(range.max).toISOString()} UTC`;
+                : tooSparse
+                    ? `Last ${preset.label} would contain about ${estimatedPoints} points; use Custom or a longer range.`
+                    : `Last ${preset.label} ending at ${new Date(range.max).toISOString()} UTC (about ${estimatedPoints ?? 'unknown'} points)`;
+        }
+    }
+    const custom = document.getElementById('quick-range-custom') as HTMLDetailsElement | null;
+    if (custom) {
+        custom.toggleAttribute('data-disabled', !range);
+        const start = document.getElementById('quick-range-custom-start') as HTMLInputElement | null;
+        const end = document.getElementById('quick-range-custom-end') as HTMLInputElement | null;
+        const toLocalValue = (value: number) => {
+            const date = new Date(value - new Date(value).getTimezoneOffset() * 60_000);
+            return date.toISOString().slice(0, 16);
+        };
+        if (range && start && end) {
+            const min = toLocalValue(range.min);
+            const max = toLocalValue(range.max);
+            start.min = min;
+            start.max = max;
+            end.min = min;
+            end.max = max;
+            const currentStart = start.value ? new Date(start.value).getTime() : Number.NaN;
+            const currentEnd = end.value ? new Date(end.value).getTime() : Number.NaN;
+            if (!Number.isFinite(currentStart) || currentStart < range.min || currentStart >= range.max) start.value = min;
+            if (!Number.isFinite(currentEnd) || currentEnd > range.max || currentEnd <= range.min) end.value = max;
         }
     }
 }
@@ -82,6 +111,27 @@ export function initQuickRangeControls(
         btn.parentNode?.replaceChild(clone, btn);
         clone.addEventListener('click', () => applyPreset(preset.durationMs, fetchAndRender, workspace), { signal: lifetime.signal });
     }
+    const custom = document.getElementById('quick-range-custom') as HTMLDetailsElement | null;
+    const customApply = document.getElementById('quick-range-custom-apply') as HTMLButtonElement | null;
+    custom?.addEventListener('toggle', () => {
+        if (custom.hasAttribute('data-disabled')) custom.open = false;
+    }, { signal: lifetime.signal });
+    customApply?.addEventListener('click', () => {
+        const range = getDatasetRange(workspace);
+        const startInput = document.getElementById('quick-range-custom-start') as HTMLInputElement | null;
+        const endInput = document.getElementById('quick-range-custom-end') as HTMLInputElement | null;
+        const error = document.getElementById('quick-range-custom-error');
+        const startMs = startInput?.value ? new Date(startInput.value).getTime() : Number.NaN;
+        const endMs = endInput?.value ? new Date(endInput.value).getTime() : Number.NaN;
+        if (!range || !Number.isFinite(startMs) || !Number.isFinite(endMs) || startMs >= endMs
+            || startMs < range.min || endMs > range.max) {
+            if (error) error.textContent = 'Choose a valid range within the dataset extent.';
+            return;
+        }
+        if (error) error.textContent = '';
+        applyViewport({ xMin: startMs, xMax: endMs, yMin: null, yMax: null }, fetchAndRender, 'custom-range', workspace);
+        if (custom) custom.open = false;
+    }, { signal: lifetime.signal });
     const unsubscribe = workspace.subscribe(() => updateButtonStates(workspace));
     updateButtonStates(workspace);
     return () => { lifetime.abort(); unsubscribe(); };

@@ -1,5 +1,6 @@
 use std::io::Write;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 
 use axum::{
     Json,
@@ -12,7 +13,7 @@ use tempfile::{Builder, TempPath};
 use tokio::sync::OwnedSemaphorePermit;
 
 use crate::error::AppError;
-use crate::handlers::routes::metadata::build_immediate_dataset_metadata_from_path_with_time_column;
+use crate::handlers::routes::metadata::build_dataset_metadata_from_path_with_time_column;
 use crate::handlers::scatter::spawn_correlation_matrix_warmup;
 use edatime_ingest::ingest::IngestParams;
 use edatime_query::validation::validate_upload_size_with_limit;
@@ -21,6 +22,18 @@ use edatime_store::state::AppState;
 struct UploadPermit {
     _permit: OwnedSemaphorePermit,
     metrics: Arc<edatime_core::metrics::AppMetrics>,
+}
+
+#[derive(Debug)]
+struct UploadMemoryPermit {
+    reserved: usize,
+    current: Arc<std::sync::atomic::AtomicUsize>,
+}
+
+impl Drop for UploadMemoryPermit {
+    fn drop(&mut self) {
+        self.current.fetch_sub(self.reserved, Ordering::AcqRel);
+    }
 }
 
 impl Drop for UploadPermit {
@@ -38,7 +51,13 @@ pub async fn upload_data(
     let _permit = acquire_upload_permit(&state).await?;
 
     let (path, ingest_params, file_name) = extract_upload_parts(&state, multipart).await?;
-    let source_path = path.to_path_buf();
+    let _memory_permit = reserve_upload_memory(&state, path.as_ref())?;
+    // Both the awaiting handler and decoder own these resources. Dropping
+    // the handler must not release admission or remove the input while a
+    // detached blocking decoder is still running.
+    let resources = Arc::new((_permit, _memory_permit, path));
+    let worker_resources = Arc::clone(&resources);
+    let source_path = resources.2.to_path_buf();
     let (row_count, column_names, numeric_columns, time_column_name) = if state
         .artifact_store
         .is_some()
@@ -47,6 +66,7 @@ pub async fn upload_data(
         let lazy = state
             .query_executor
             .run_blocking_io(edatime_core::metrics::CpuStage::Materialization, move || {
+                let _resources = worker_resources;
                 let lazy = edatime_ingest::ingest::load_lazyframe_scan_backed(
                     &source_path,
                     &ingest_params,
@@ -81,10 +101,11 @@ pub async fn upload_data(
         let column_names = lazy.column_names;
         let numeric_columns = lazy.numeric_columns;
         state
-            .replace_dataset_lazy_root(
+            .replace_dataset_lazy_root_with_resources(
                 lazy.frame,
                 Some(file_name.clone()),
                 time_column_name.clone(),
+                Arc::clone(&resources),
             )
             .await?;
         (
@@ -99,6 +120,7 @@ pub async fn upload_data(
             .run_blocking_io(
                 edatime_core::metrics::CpuStage::Materialization,
                 move || {
+                    let _resources = worker_resources;
                     edatime_ingest::ingest::load_dataframe_partial(&source_path, &ingest_params)
                 },
             )
@@ -149,13 +171,17 @@ pub async fn preview_upload_data(
     let _permit = acquire_upload_permit(&state).await?;
 
     let (path, time_column) = extract_preview_file(&state, multipart).await?;
+    let _memory_permit = reserve_upload_memory(&state, path.as_ref())?;
+    let resources = Arc::new((_permit, _memory_permit, path));
+    let worker_resources = Arc::clone(&resources);
     let metadata = state
         .query_executor
         .run_blocking_io(
             edatime_core::metrics::CpuStage::Materialization,
             move || {
-                let raw = build_immediate_dataset_metadata_from_path_with_time_column(
-                    path.as_ref(),
+                let resources = worker_resources;
+                let raw = build_dataset_metadata_from_path_with_time_column(
+                    resources.2.as_ref(),
                     time_column.as_deref(),
                 )?;
                 // Normalize temporal dtypes in the returned metadata so the
@@ -208,6 +234,56 @@ async fn acquire_upload_permit(state: &AppState) -> Result<UploadPermit, AppErro
                 metrics: Arc::clone(&state.metrics),
             }
         })
+}
+
+fn reserve_upload_memory(
+    state: &AppState,
+    path: &std::path::Path,
+) -> Result<UploadMemoryPermit, AppError> {
+    let payload_bytes = std::fs::metadata(path)
+        .map_err(|error| AppError::io(format!("Could not inspect upload: {error}")))?
+        .len()
+        .min(usize::MAX as u64) as usize;
+    let multiplier = state.config.upload.resident_memory_multiplier.max(1);
+    let estimate = payload_bytes.saturating_mul(multiplier).max(payload_bytes);
+    let limit = state.config.upload.max_estimated_resident_bytes;
+    if estimate > limit {
+        state.metrics.record_upload_rejected(false);
+        return Err(AppError::framework(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            format!(
+                "Upload needs an estimated {estimate} bytes of resident memory; the configured admission budget is {limit} bytes"
+            ),
+        ));
+    }
+
+    let current = Arc::clone(&state.upload_memory_reserved);
+    loop {
+        let used = current.load(Ordering::Acquire);
+        let Some(next) = used.checked_add(estimate) else {
+            state.metrics.record_upload_rejected(false);
+            return Err(AppError::framework(
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "Upload resident-memory admission budget is exhausted",
+            ));
+        };
+        if next > limit {
+            state.metrics.record_upload_rejected(false);
+            return Err(AppError::framework(
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "Upload resident-memory admission budget is busy; retry after another upload completes",
+            ));
+        }
+        if current
+            .compare_exchange(used, next, Ordering::AcqRel, Ordering::Acquire)
+            .is_ok()
+        {
+            return Ok(UploadMemoryPermit {
+                reserved: estimate,
+                current,
+            });
+        }
+    }
 }
 
 async fn extract_upload_parts(
@@ -491,6 +567,59 @@ mod tests {
         assert_eq!(snapshot.upload_admission.rejected_total, 1);
         assert_eq!(snapshot.upload_admission.queue_timeouts_total, 1);
         drop(held);
+    }
+
+    #[test]
+    fn upload_memory_admission_rejects_before_decode_and_releases_on_drop() {
+        let mut config = AppConfig::default();
+        config.upload.max_estimated_resident_bytes = 32;
+        config.upload.resident_memory_multiplier = 1;
+        let state = AppState::new(DataFrame::default(), config);
+        let file = create_temp_upload_file(Some("fixture.csv"), "edatime-memory-test-")
+            .expect("source temp file")
+            .into_temp_path();
+        fs::write(&file, b"123456789012345678901234567890123").expect("write fixture");
+
+        let error = reserve_upload_memory(&state, &file).expect_err("budget must reject");
+        assert_eq!(error.code, crate::error::ErrorCode::PayloadTooLarge);
+        assert_eq!(state.upload_memory_reserved.load(Ordering::Acquire), 0);
+
+        fs::write(&file, b"12345678901234567890123456789012").expect("write boundary fixture");
+        let permit = reserve_upload_memory(&state, &file).expect("boundary must admit");
+        assert_eq!(state.upload_memory_reserved.load(Ordering::Acquire), 32);
+        drop(permit);
+        assert_eq!(state.upload_memory_reserved.load(Ordering::Acquire), 0);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn detached_decoder_retains_upload_resources_until_exit() {
+        let state = AppState::new(DataFrame::default(), AppConfig::default());
+        let path = create_temp_upload_file(Some("fixture.csv"), "edatime-lifetime-")
+            .expect("temporary input")
+            .into_temp_path();
+        fs::write(&path, b"test").expect("input");
+        let input_path = path.to_path_buf();
+        let permit = acquire_upload_permit(&state).await.expect("admission");
+        let memory = reserve_upload_memory(&state, &path).expect("memory");
+        let resources = Arc::new((permit, memory, path));
+        let worker_resources = Arc::clone(&resources);
+        let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+        let (finish_tx, finish_rx) = std::sync::mpsc::channel();
+        let worker = tokio::task::spawn_blocking(move || {
+            let _resources = worker_resources;
+            started_tx.send(()).expect("notify start");
+            finish_rx.recv().expect("release worker");
+        });
+        started_rx.await.expect("worker started");
+        drop(resources);
+        assert!(input_path.exists());
+        assert_eq!(state.upload_admission.available_permits(), 0);
+        assert!(state.upload_memory_reserved.load(Ordering::Acquire) > 0);
+        finish_tx.send(()).expect("finish");
+        worker.await.expect("worker exited");
+        assert!(!input_path.exists());
+        assert_eq!(state.upload_admission.available_permits(), 1);
+        assert_eq!(state.upload_memory_reserved.load(Ordering::Acquire), 0);
     }
 
     #[tokio::test(flavor = "multi_thread")]

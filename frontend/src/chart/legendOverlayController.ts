@@ -45,11 +45,17 @@ export class LegendOverlayController {
             button.className = 'timeseries-legend-overlay__row';
             button.dataset.seriesName = entry.name;
             button.setAttribute('aria-pressed', entry.visible ? 'true' : 'false');
-            button.title = `${entry.visible ? 'Hide' : 'Show'} ${entry.name}`;
+            button.title = `${entry.visible ? 'Hide' : 'Show'} ${entry.name}${entry.colorSource ? ' (color source)' : ''}`;
+            button.classList.toggle('is-color-source', !!entry.colorSource);
 
             const swatch = document.createElement('span');
             swatch.className = 'timeseries-legend-overlay__swatch';
-            swatch.style.backgroundColor = entry.color;
+            if (entry.colorSource) {
+                swatch.classList.add('timeseries-legend-overlay__swatch--color-source');
+                swatch.title = `${entry.name} supplies the color scale`;
+            } else {
+                swatch.style.backgroundColor = entry.color;
+            }
 
             const label = document.createElement('span');
             label.className = 'timeseries-legend-overlay__label';

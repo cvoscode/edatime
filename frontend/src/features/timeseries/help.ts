@@ -76,7 +76,7 @@ export const TIMESERIES_HELP: PageHelpContent = {
         },
     ],
     shortcuts: [
-        { keys: '⌥2', description: 'Open the Timeseries page (this page)' },
+        { keys: '⌥2', description: 'Open the Signals page (this page)' },
         { keys: '?', description: 'Show the global keyboard shortcuts modal' },
         { keys: 'Double-click', description: 'Reset zoom to the initial view' },
         { keys: 'Drag', description: 'Pan the chart or draw a zoom box' },

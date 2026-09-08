@@ -106,6 +106,8 @@ describe('createTimeseriesControls', () => {
             deps.workspace,
             expect.any(Function),
             deps.getCurrentData,
+            undefined,
+            expect.any(Function),
         );
         expect(initDatasetSearchInputsMock).toHaveBeenCalledTimes(1);
         expect(initTimeseriesActionsMock).toHaveBeenCalledTimes(1);

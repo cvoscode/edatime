@@ -15,6 +15,7 @@ export interface FilterModalControllerDeps {
     openColumnFilter: (column: string | null) => void;
     getCurrentData: () => DataObject | null;
     cleaningPlanStore?: Pick<CleaningPlanStore, 'getSnapshot' | 'addStage' | 'updateStage' | 'removeStage'>;
+    rebuildColumns?: () => void;
 }
 
 export interface ColumnFilterModalController {
@@ -137,8 +138,33 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
 
     function setHint(text: string) { hintEl.textContent = text || ''; }
 
+    function boundsHint(bounds: { min: number; max: number }): string {
+        return `Bounds scope: source profile (${formatAnalysisNumber(bounds.min)} → ${formatAnalysisNumber(bounds.max)}). Trace filters replace excluded values with null; timestamps and other traces stay unchanged. The chart viewport does not redefine these bounds. Text values are preserved exactly.`;
+    }
+
+    function setOutOfRangeHint(value: number, bounds: { min: number; max: number }): void {
+        hintEl.replaceChildren();
+        hintEl.append(document.createTextNode(
+            `Value ${formatAnalysisNumber(value)} outside data range (${formatAnalysisNumber(bounds.min)} to ${formatAnalysisNumber(bounds.max)}). `,
+        ));
+        const reset = document.createElement('button');
+        reset.type = 'button';
+        reset.className = 'btn btn-ghost btn-sm';
+        reset.textContent = 'Reset';
+        reset.addEventListener('click', () => {
+            syncInputsFromValues(bounds.min, bounds.max);
+            validateTextInputs();
+            minTextInput.focus();
+        }, { signal });
+        hintEl.append(reset);
+    }
+
     function formatInputValue(value: number): string {
         const n = Number(value);
+        // Keep a readable two-decimal display while storing the canonical
+        // value in a data attribute below. This preserves the existing compact
+        // control while reopening/applying an unchanged rule retains every bit
+        // of the original boundary precision.
         return Number.isFinite(n) ? n.toFixed(2) : '';
     }
 
@@ -212,33 +238,67 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
     function syncInputsFromValues(from: number, to: number) {
         minTextInput.value = formatInputValue(from);
         maxTextInput.value = formatInputValue(to);
+        minTextInput.dataset.exactValue = String(from);
+        maxTextInput.dataset.exactValue = String(to);
+        minTextInput.dataset.exactDisplay = minTextInput.value;
+        maxTextInput.dataset.exactDisplay = maxTextInput.value;
+        minTextInput.title = `Stored lower bound: ${minTextInput.value}`;
+        maxTextInput.title = `Stored upper bound: ${maxTextInput.value}`;
         syncSliderValues(from, to);
         updateRangeFill(from, to);
     }
 
-    function readInputs(): { from: number; to: number } {
-        let from = Number.parseFloat(minTextInput.value);
-        let to = Number.parseFloat(maxTextInput.value);
+    function readInputs(): { from: number; to: number; valid: boolean; reason?: 'number' | 'order' | 'bounds'; outsideValue?: number } {
+        const fromText = minTextInput.value.trim();
+        const toText = maxTextInput.value.trim();
+        if ((fromText && !Number.isFinite(Number.parseFloat(fromText)))
+            || (toText && !Number.isFinite(Number.parseFloat(toText)))) {
+            return { from: Number.NaN, to: Number.NaN, valid: false, reason: 'number' };
+        }
+        let from = Number.parseFloat(fromText);
+        let to = Number.parseFloat(toText);
 
         if (activeBounds) {
             if (!Number.isFinite(from)) from = activeBounds.min;
             if (!Number.isFinite(to)) to = activeBounds.max;
-            from = clampToBounds(from, activeBounds);
-            to = clampToBounds(to, activeBounds);
         }
 
-        if (from > to) {
-            const tmp = from;
-            from = to;
-            to = tmp;
+        if (!Number.isFinite(from) || !Number.isFinite(to)) {
+            return { from, to, valid: false, reason: 'number' };
         }
+        if (from >= to) return { from, to, valid: false, reason: 'order' };
+        if (activeBounds && (from < activeBounds.min || from > activeBounds.max)) {
+            return { from, to, valid: false, reason: 'bounds', outsideValue: from };
+        }
+        if (activeBounds && (to < activeBounds.min || to > activeBounds.max)) {
+            return { from, to, valid: false, reason: 'bounds', outsideValue: to };
+        }
+        return { from, to, valid: true };
+    }
 
-        return { from, to };
+    function validateTextInputs(): { from: number; to: number } | null {
+        const result = readInputs();
+        minTextInput.setAttribute('aria-invalid', String(!result.valid));
+        maxTextInput.setAttribute('aria-invalid', String(!result.valid));
+        applyButton.disabled = !result.valid;
+        if (!result.valid) {
+            if (result.reason === 'order') setHint('Min must be less than Max');
+            else if (result.reason === 'bounds' && activeBounds && Number.isFinite(result.outsideValue)) {
+                setOutOfRangeHint(result.outsideValue!, activeBounds);
+            } else setHint('Enter valid numeric bounds, or leave a bound empty to use the source-profile edge.');
+            return null;
+        }
+        if (activeBounds) setHint(boundsHint(activeBounds));
+        return { from: result.from, to: result.to };
     }
 
     function syncFromNumericInputs() {
-        const { from, to } = readInputs();
-        syncInputsFromValues(from, to);
+        const values = validateTextInputs();
+        // Preserve the user's exact typed text. Only the slider and fill need
+        // to follow it while the range is valid.
+        if (!values) return;
+        syncSliderValues(values.from, values.to);
+        updateRangeFill(values.from, values.to);
     }
 
     function syncFromRangeInputs(changed: 'min' | 'max') {
@@ -256,6 +316,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
         }
 
         syncInputsFromValues(from, to);
+        validateTextInputs();
     }
 
     function setActiveRangeHandle(handle: 'min' | 'max') {
@@ -300,17 +361,21 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
     }
 
     function getFullBoundsForCol(col: string): { min: number; max: number } | null {
+        // Profile bounds describe the source/effective pipeline distribution.
+        // The currently fetched chart window may be zoomed, downsampled, or
+        // lookaround-expanded and must never silently redefine a saved rule.
+        const profile = (deps.workspace.getSnapshot().dataset.metadata?.column_profiles || []).find((item) => item?.name === col);
+        const profileMin = Number(profile?.min);
+        const profileMax = Number(profile?.max);
+        if (Number.isFinite(profileMin) && Number.isFinite(profileMax) && profileMax >= profileMin) {
+            return { min: profileMin, max: profileMax };
+        }
         const currentData = deps.getCurrentData();
         const rawValues = currentData?.values?.[col];
         const filteredSeries = (currentData as unknown as { series?: Record<string, { y?: Float64Array }> })?.series;
         const filteredValues = filteredSeries?.[col]?.y;
         const dataBounds = computeBounds(rawValues || filteredValues || new Float64Array(0));
         if (dataBounds) return dataBounds;
-
-        const profile = (deps.workspace.getSnapshot().dataset.metadata?.column_profiles || []).find((item) => item?.name === col);
-        const min = Number(profile?.min);
-        const max = Number(profile?.max);
-        if (Number.isFinite(min) && Number.isFinite(max)) return { min, max };
 
         return null;
     }
@@ -360,7 +425,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
         syncInputsFromValues(cur.from, cur.to);
         applyButton.disabled = false;
         clearButton.disabled = false;
-        setHint(`Available range: ${formatAnalysisNumber(full.min)} → ${formatAnalysisNumber(full.max)}`);
+        setHint(boundsHint(full));
     }
 
     let disposed = false;
@@ -400,8 +465,16 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
         onApply: (from: string, to: string) => {
             const col = getDropdownValue('column-filter-col');
             if (!col) return;
-            let fromNum = Number.parseFloat(from);
-            let toNum = Number.parseFloat(to);
+            const validated = validateTextInputs();
+            if (!validated) return;
+            let fromNum = validated.from;
+            let toNum = validated.to;
+            if (from === minTextInput.dataset.exactDisplay && minTextInput.dataset.exactValue) {
+                fromNum = Number(minTextInput.dataset.exactValue);
+            }
+            if (to === maxTextInput.dataset.exactDisplay && maxTextInput.dataset.exactValue) {
+                toNum = Number(maxTextInput.dataset.exactValue);
+            }
             const full = getFullBoundsForCol(col);
             if (full) {
                 if (!Number.isFinite(fromNum)) fromNum = full.min;
@@ -411,8 +484,8 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
                 setHint('Enter a valid min and max.');
                 return;
             }
-            if (fromNum > toNum) { [fromNum, toNum] = [toNum, fromNum]; }
             setColumnRange(col, { from: fromNum, to: toNum });
+            deps.rebuildColumns?.();
             buildRangeControls(deps.workspace, deps.openColumnFilter);
             deps.renderCurrentData();
             primaryChart.current?.fitYToData?.();
@@ -443,6 +516,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
         const full = getFullBoundsForCol(col);
         if (!col || !full) return;
         clearColumnRange(col, { from: full.min, to: full.max });
+        deps.rebuildColumns?.();
         buildRangeControls(deps.workspace, deps.openColumnFilter);
         deps.renderCurrentData();
         primaryChart.current?.fitYToData?.();

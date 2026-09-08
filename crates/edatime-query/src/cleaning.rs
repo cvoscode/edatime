@@ -917,6 +917,56 @@ mod tests {
     }
 
     #[test]
+    fn trace_masks_preserve_timestamps_and_other_columns() {
+        let stages = vec![
+            CleaningStageDto::ColumnRange {
+                base: base("range"),
+                column: "value".into(),
+                from: 2.0,
+                to: 4.0,
+                mode: RangeMode::KeepInside,
+                retain_nulls: false,
+            },
+            CleaningStageDto::AdaptiveLine {
+                base: base("line"),
+                column: "value".into(),
+                x1_ms: 2.0,
+                y1: 3.0,
+                x2_ms: 3.0,
+                y2: 3.0,
+                keep_above: true,
+                apply_within_segment_only: true,
+            },
+        ];
+        let df = DataFrame::new(
+            4,
+            vec![
+                Series::new("ts".into(), [1_i64, 2, 3, 4]).into(),
+                Series::new("value".into(), [1.0_f64, 2.0, 3.0, 4.0]).into(),
+                Series::new("other".into(), [10.0_f64, 20.0, 30.0, 40.0]).into(),
+            ],
+        )
+        .expect("frame");
+        let result = compile_cleaning_plan(df.clone().lazy(), &plan(stages))
+            .expect("compile")
+            .collect()
+            .expect("collect");
+        assert_eq!(result.height(), df.height());
+        assert_eq!(result.column("ts").unwrap(), df.column("ts").unwrap());
+        assert_eq!(result.column("other").unwrap(), df.column("other").unwrap());
+        assert_eq!(
+            result
+                .column("value")
+                .unwrap()
+                .f64()
+                .unwrap()
+                .into_iter()
+                .collect::<Vec<_>>(),
+            vec![None, None, Some(3.0), Some(4.0)]
+        );
+    }
+
+    #[test]
     fn compiles_enabled_stages_in_order() {
         let plan = plan(vec![
             CleaningStageDto::TimeRange {
@@ -946,7 +996,17 @@ mod tests {
             .expect("compile")
             .collect()
             .expect("collect");
-        assert_eq!(result.height(), 2);
+        assert_eq!(result.height(), 3);
+        assert_eq!(
+            result
+                .column("value")
+                .expect("value")
+                .f64()
+                .expect("f64")
+                .into_iter()
+                .collect::<Vec<_>>(),
+            vec![None, Some(2.0), Some(3.0)]
+        );
     }
 
     #[test]
@@ -1007,7 +1067,17 @@ mod tests {
             .expect("compile")
             .collect()
             .expect("collect");
-        assert_eq!(result.height(), 2);
+        assert_eq!(result.height(), 4);
+        assert_eq!(
+            result
+                .column("value")
+                .expect("value")
+                .f64()
+                .expect("f64")
+                .into_iter()
+                .collect::<Vec<_>>(),
+            vec![None, None, Some(3.0), None]
+        );
         assert_eq!(
             result
                 .column("ts")
@@ -1016,7 +1086,7 @@ mod tests {
                 .expect("i64")
                 .into_no_null_iter()
                 .collect::<Vec<_>>(),
-            vec![3, 4]
+            vec![1, 2, 3, 4]
         );
     }
 
@@ -1046,6 +1116,7 @@ mod tests {
             .expect("compile")
             .collect()
             .expect("collect");
+        assert_eq!(result.column("value").expect("value").null_count(), 3);
         assert_eq!(
             result
                 .column("ts")
@@ -1054,7 +1125,7 @@ mod tests {
                 .expect("i64")
                 .into_no_null_iter()
                 .collect::<Vec<_>>(),
-            vec![1, 2]
+            vec![1, 2, 3, 4]
         );
     }
 
@@ -1402,7 +1473,17 @@ mod tests {
             .expect("compile")
             .collect()
             .expect("collect");
-        assert_eq!(result.height(), 2);
+        assert_eq!(result.height(), 3);
+        assert_eq!(
+            result
+                .column("value")
+                .expect("value")
+                .f64()
+                .expect("f64")
+                .into_iter()
+                .collect::<Vec<_>>(),
+            vec![None, Some(2.0), Some(3.0)]
+        );
     }
 
     #[test]

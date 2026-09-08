@@ -121,18 +121,21 @@ impl<'a> PcmciPlus<'a> {
         cancellation.check()?;
 
         // Step 2: Skeleton with contemporaneous conditions via MCI
-        let mut graph = self.skeleton_step(config, &pc_result.all_parents);
+        let mut graph =
+            self.skeleton_step_cancellable(config, &pc_result.all_parents, cancellation)?;
         tracing::info!("PCMCI+ Step 2 (skeleton) complete");
+        cancellation.check()?;
 
         // Apply threshold to skeleton
         graph.threshold(config.alpha_level);
 
         // Step 3: Collider orientation
-        self.orient_colliders(&mut graph);
+        self.orient_colliders_with_cancellation(&mut graph, Some(cancellation))?;
         tracing::info!("PCMCI+ Step 3 (colliders) complete");
+        cancellation.check()?;
 
         // Step 4: Meek rules
-        self.apply_meek_rules(&mut graph);
+        self.apply_meek_rules_with_cancellation(&mut graph, Some(cancellation))?;
         tracing::info!("PCMCI+ Step 4 (Meek rules) complete");
 
         let result = CausalResult::from_graph(&graph, &self.df.var_names);
@@ -147,6 +150,28 @@ impl<'a> PcmciPlus<'a> {
         config: &PcmciConfig,
         all_parents: &HashMap<usize, Vec<VarLag>>,
     ) -> CausalGraph {
+        self.skeleton_step_with_cancellation(config, all_parents, None)
+            .expect("non-cancellable skeleton step never returns AppError")
+    }
+
+    fn skeleton_step_cancellable(
+        &self,
+        config: &PcmciConfig,
+        all_parents: &HashMap<usize, Vec<VarLag>>,
+        cancellation: &CancellationProbe,
+    ) -> Result<CausalGraph, AppError> {
+        self.skeleton_step_with_cancellation(config, all_parents, Some(cancellation))
+    }
+
+    /// Skeleton sweep shared by ordinary and cancellable PCMCI+ execution.
+    /// Each parallel task checks before constructing its conditioning array;
+    /// the synchronous independence kernel remains the final latency bound.
+    fn skeleton_step_with_cancellation(
+        &self,
+        config: &PcmciConfig,
+        all_parents: &HashMap<usize, Vec<VarLag>>,
+        cancellation: Option<&CancellationProbe>,
+    ) -> Result<CausalGraph, AppError> {
         let n = self.df.n_vars;
         let tau_max = config.tau_max;
 
@@ -170,6 +195,9 @@ impl<'a> PcmciPlus<'a> {
         let results: Vec<(usize, usize, usize, f64, f64)> = tasks
             .par_iter()
             .map(|&(i, j, tau)| {
+                if let Some(cancellation) = cancellation {
+                    cancellation.check()?;
+                }
                 let neg_tau = -(tau as i32);
 
                 let x = vec![(i, neg_tau)];
@@ -208,13 +236,17 @@ impl<'a> PcmciPlus<'a> {
 
                 let (array, xyz) = self.df.construct_array(&x, &y, &z, config.tau_max);
                 if array.ncols() < 5 {
-                    return (i, j, tau, 0.0, 1.0);
+                    return Ok((i, j, tau, 0.0, 1.0));
                 }
 
                 let result = self.test.run_test(&array, &xyz, config.alpha_level);
-                (i, j, tau, result.val, result.pval)
+                Ok((i, j, tau, result.val, result.pval))
             })
-            .collect();
+            .collect::<Result<Vec<(usize, usize, usize, f64, f64)>, AppError>>()?;
+
+        if let Some(cancellation) = cancellation {
+            cancellation.check()?;
+        }
 
         // Assemble graph
         let mut graph = CausalGraph::new(n, tau_max);
@@ -229,7 +261,7 @@ impl<'a> PcmciPlus<'a> {
             }
         }
 
-        graph
+        Ok(graph)
     }
 
     /// Step 3: Orient colliders (v-structures).
@@ -240,13 +272,31 @@ impl<'a> PcmciPlus<'a> {
     /// - The separating set for (a, c) does NOT contain b
     /// - Orient as a → b ← c.
     fn orient_colliders(&self, graph: &mut CausalGraph) {
+        self.orient_colliders_with_cancellation(graph, None)
+            .expect("ordinary orientation cannot be cancelled");
+    }
+
+    fn orient_colliders_with_cancellation(
+        &self,
+        graph: &mut CausalGraph,
+        cancellation: Option<&CancellationProbe>,
+    ) -> Result<(), AppError> {
+        if let Some(probe) = cancellation {
+            probe.check()?;
+        }
         let n = graph.n_vars;
         let tau_max = graph.tau_max;
 
         // Collect all active contemporaneous links (these are the ones to orient)
         let mut contemp_adj: Vec<(usize, usize)> = Vec::new();
         for i in 0..n {
+            if let Some(probe) = cancellation {
+                probe.check()?;
+            }
             for j in (i + 1)..n {
+                if let Some(probe) = cancellation {
+                    probe.check()?;
+                }
                 if graph.get_link(i, j, 0).is_active() {
                     contemp_adj.push((i, j));
                 }
@@ -255,10 +305,19 @@ impl<'a> PcmciPlus<'a> {
 
         // For each node b, find triples a — b — c where a and c are not adjacent
         for b in 0..n {
+            if let Some(probe) = cancellation {
+                probe.check()?;
+            }
             // Collect all neighbors of b (both lagged and contemporaneous)
             let mut neighbors: Vec<VarLag> = Vec::new();
             for a in 0..n {
+                if let Some(probe) = cancellation {
+                    probe.check()?;
+                }
                 for tau in 0..=tau_max {
+                    if let Some(probe) = cancellation {
+                        probe.check()?;
+                    }
                     if tau == 0 && a == b {
                         continue;
                     }
@@ -270,7 +329,13 @@ impl<'a> PcmciPlus<'a> {
 
             // Check all pairs of neighbors
             for ni in 0..neighbors.len() {
+                if let Some(probe) = cancellation {
+                    probe.check()?;
+                }
                 for nj in (ni + 1)..neighbors.len() {
+                    if let Some(probe) = cancellation {
+                        probe.check()?;
+                    }
                     let (a, tau_a) = neighbors[ni];
                     let (c, tau_c) = neighbors[nj];
 
@@ -293,6 +358,7 @@ impl<'a> PcmciPlus<'a> {
                 }
             }
         }
+        Ok(())
     }
 
     /// Check if two nodes are adjacent in the graph.
@@ -328,15 +394,36 @@ impl<'a> PcmciPlus<'a> {
     /// R2: If a → b → c and a — c, orient a → c
     /// R3: If a — b, a — c, b → d ← c, and a — d, orient a → d
     fn apply_meek_rules(&self, graph: &mut CausalGraph) {
+        self.apply_meek_rules_with_cancellation(graph, None)
+            .expect("ordinary orientation cannot be cancelled");
+    }
+
+    fn apply_meek_rules_with_cancellation(
+        &self,
+        graph: &mut CausalGraph,
+        cancellation: Option<&CancellationProbe>,
+    ) -> Result<(), AppError> {
+        if let Some(probe) = cancellation {
+            probe.check()?;
+        }
         let n = graph.n_vars;
         let max_iterations = 100;
 
         for _iter in 0..max_iterations {
+            if let Some(probe) = cancellation {
+                probe.check()?;
+            }
             let mut changed = false;
 
             // Rule R1: a → b — c, a ⊥ c ⟹ b → c
             for b in 0..n {
+                if let Some(probe) = cancellation {
+                    probe.check()?;
+                }
                 for c in 0..n {
+                    if let Some(probe) = cancellation {
+                        probe.check()?;
+                    }
                     if b == c {
                         continue;
                     }
@@ -347,9 +434,15 @@ impl<'a> PcmciPlus<'a> {
 
                     // Find a such that a → b and a ⊥ c
                     for a in 0..n {
+                        if let Some(probe) = cancellation {
+                            probe.check()?;
+                        }
                         // Check a → b at any lag
                         let mut a_to_b = false;
                         for tau in 0..=graph.tau_max {
+                            if let Some(probe) = cancellation {
+                                probe.check()?;
+                            }
                             if graph.get_link(a, b, tau) == LinkType::Directed {
                                 a_to_b = true;
                                 break;
@@ -362,6 +455,9 @@ impl<'a> PcmciPlus<'a> {
                         // Check a ⊥ c (not adjacent at any lag)
                         let mut a_adj_c = false;
                         for tau in 0..=graph.tau_max {
+                            if let Some(probe) = cancellation {
+                                probe.check()?;
+                            }
                             if graph.get_link(a, c, tau).is_active()
                                 || graph.get_link(c, a, tau).is_active()
                             {
@@ -383,7 +479,13 @@ impl<'a> PcmciPlus<'a> {
 
             // Rule R2: a → b → c, a — c ⟹ a → c
             for b in 0..n {
+                if let Some(probe) = cancellation {
+                    probe.check()?;
+                }
                 for a in 0..n {
+                    if let Some(probe) = cancellation {
+                        probe.check()?;
+                    }
                     if a == b {
                         continue;
                     }
@@ -393,6 +495,9 @@ impl<'a> PcmciPlus<'a> {
                     }
 
                     for c in 0..n {
+                        if let Some(probe) = cancellation {
+                            probe.check()?;
+                        }
                         if c == a || c == b {
                             continue;
                         }
@@ -416,6 +521,7 @@ impl<'a> PcmciPlus<'a> {
                 break;
             }
         }
+        Ok(())
     }
 }
 

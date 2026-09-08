@@ -34,8 +34,20 @@ export function initDrawControls(
     const adaptiveClearBtn = document.getElementById('adaptive-clear-btn') as HTMLElement | null;
     const drawHelpBtn = document.getElementById('draw-help-btn') as HTMLElement | null;
 
+    const syncChartCapabilities = () => {
+        const drawingAvailable = primaryChart.current?.capabilities?.drawing !== false;
+        const controls = [drawTool, drawColor, drawWidth, drawClearBtn].filter(
+            (control): control is HTMLSelectElement | HTMLInputElement | HTMLButtonElement => control instanceof HTMLElement,
+        );
+        for (const control of controls) control.toggleAttribute('disabled', !drawingAvailable);
+        if (!drawingAvailable) {
+            const message = 'Drawing is unavailable in the Canvas fallback; PNG, SVG, and HTML export remain available.';
+            for (const control of controls) control.setAttribute('title', message);
+        }
+    };
+
     const updateDrawMode = () => {
-        if (primaryChart.current && primaryChart.current.setDrawMode) {
+        if (primaryChart.current?.capabilities?.drawing !== false && primaryChart.current?.setDrawMode) {
             primaryChart.current.setDrawMode(getDropdownValue('draw-tool'), drawColor!.value, parseInt(drawWidth!.value, 10));
         }
     };
@@ -81,6 +93,8 @@ export function initDrawControls(
         drawHelpBtn.dataset.bound = '1';
     }
     syncAdaptiveClearButton(workspace);
+    syncChartCapabilities();
+    const unsubscribeChart = primaryChart.subscribe(syncChartCapabilities);
     const unsubscribe = workspace.subscribeSelector
         ? workspace.subscribeSelector(
             (snapshot) => snapshot.filters.adaptiveLines.length,
@@ -90,6 +104,7 @@ export function initDrawControls(
     return () => {
         lifetime.abort();
         unsubscribe();
+        unsubscribeChart();
         if (adaptiveClearBtn) delete adaptiveClearBtn.dataset.bound;
         if (drawHelpBtn) delete drawHelpBtn.dataset.bound;
     };

@@ -259,9 +259,9 @@ fn apply_filters_with_range_filter() {
     }];
     let lf = apply_filters(df.lazy(), None, None, None, &range_filters, &[]).unwrap();
     let result = lf.with_new_streaming(true).collect().unwrap();
-    // Values 50..100 ⇒ indices 25..50 ⇒ 26 rows
-    assert!(result.height() > 0);
-    assert!(result.height() < 100);
+    // Values 50..100 remain on their original rows; other values become null.
+    assert_eq!(result.height(), 100);
+    assert_eq!(result.column("value").unwrap().null_count(), 74);
 }
 
 // ─── Pipeline: filter_time_range ──────────────────────────────────────────────
@@ -323,6 +323,8 @@ async fn repository_revision_increments() {
 fn config_default_is_valid() {
     let config = AppConfig::default();
     assert!(config.upload.max_upload_bytes > 0);
+    assert!(config.upload.max_estimated_resident_bytes >= config.upload.max_upload_bytes);
+    assert!(config.upload.resident_memory_multiplier > 0);
     assert!(config.rate_limit.max_requests > 0);
     assert!(config.validation.max_viewport_width > 0);
     assert!(config.validation.max_scatter_limit > 0);

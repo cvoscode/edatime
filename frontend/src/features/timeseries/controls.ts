@@ -46,7 +46,11 @@ export function createTimeseriesControls(deps: TimeseriesFeatureDeps) {
 
     const buildWorkspaceRangeControls = () => buildRangeControls(deps.workspace, openColumnFilter, deps.cleaningPlanStore);
     const rebuildColumns = () => {
-        buildColumnToggles(deps.fetchAndRender, buildWorkspaceRangeControls, deps.renderCurrentData, deps.workspace, openColumnFilter);
+        if (deps.cleaningPlanStore) {
+            buildColumnToggles(deps.fetchAndRender, buildWorkspaceRangeControls, deps.renderCurrentData, deps.workspace, openColumnFilter, deps.cleaningPlanStore);
+        } else {
+            buildColumnToggles(deps.fetchAndRender, buildWorkspaceRangeControls, deps.renderCurrentData, deps.workspace, openColumnFilter);
+        }
     };
 
     const dispose = () => {
@@ -76,6 +80,7 @@ export function createTimeseriesControls(deps: TimeseriesFeatureDeps) {
                     openColumnFilter,
                     deps.getCurrentData,
                     deps.cleaningPlanStore,
+                    rebuildColumns,
                 )
                 : initColumnFilterModal(
                     deps.renderCurrentData,
@@ -83,6 +88,8 @@ export function createTimeseriesControls(deps: TimeseriesFeatureDeps) {
                     deps.workspace,
                     openColumnFilter,
                     deps.getCurrentData,
+                    undefined,
+                    rebuildColumns,
                 );
             registerCleanup(() => modalController?.dispose());
             registerCleanup(initChartPageFilterGesture(openColumnFilter));
@@ -90,6 +97,25 @@ export function createTimeseriesControls(deps: TimeseriesFeatureDeps) {
                 rebuildColumnToggles: rebuildColumns,
                 renderColumnProfilesGrid: deps.renderColumnProfilesGrid ?? (() => { }),
             }));
+            const onLegendToggle = (event: Event) => {
+                const detail = (event as CustomEvent<{ name?: string; visible?: boolean }>).detail;
+                const name = detail?.name;
+                if (!name) return;
+                const selection = deps.workspace.getSnapshot().selection.columns;
+                const next = detail.visible
+                    ? (selection.includes(name) ? selection : [...selection, name])
+                    : selection.filter((column) => column !== name);
+                deps.workspace.setSelection(next, deps.workspace.getSnapshot().selection.colorColumn);
+                rebuildColumns();
+            };
+            window.addEventListener('edatime:timeseries-legend-toggle', onLegendToggle);
+            registerCleanup(() => window.removeEventListener('edatime:timeseries-legend-toggle', onLegendToggle));
+            const normalizeToggle = document.getElementById('timeseries-normalize-series') as HTMLInputElement | null;
+            if (normalizeToggle) {
+                const onNormalize = () => deps.renderCurrentData();
+                normalizeToggle.addEventListener('change', onNormalize);
+                registerCleanup(() => normalizeToggle.removeEventListener('change', onNormalize));
+            }
             initTimeseriesActions({
                 rebuildColumnToggles: rebuildColumns,
                 buildRangeControls: buildWorkspaceRangeControls,

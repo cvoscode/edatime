@@ -4,6 +4,7 @@ import { onFeatureEvent } from '../../platform/featureEvents.js';
 import { onNavigationChange } from '../../platform/navigationEvents.js';
 import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
 import { toast } from '../../utils/toast.js';
+import '../../../css/modules/workflow-context.css';
 
 export type WorkflowStepId = 'upload' | 'timeseries' | 'correlations' | 'scatter' | 'causal' | 'prepare';
 
@@ -52,10 +53,10 @@ export interface GuidedWorkflowDeps {
 const STORAGE_KEY = 'edatime-guided-workflow';
 const WORKFLOW_STEPS: Array<{ id: WorkflowStepId; label: string; page: string }> = [
     { id: 'upload', label: 'Upload', page: 'upload' },
-    { id: 'timeseries', label: 'Timeseries', page: 'timeseries' },
+    { id: 'timeseries', label: 'Signals', page: 'timeseries' },
     { id: 'correlations', label: 'Correlations', page: 'correlations' },
-    { id: 'scatter', label: 'Scatter', page: 'scatter' },
-    { id: 'causal', label: 'Causal', page: 'causal' },
+    { id: 'scatter', label: 'Pair plot', page: 'scatter' },
+    { id: 'causal', label: 'Causality', page: 'causal' },
     { id: 'prepare', label: 'Prepare', page: 'prepare' },
 ];
 
@@ -148,6 +149,29 @@ function currentPage(): string {
     return active?.dataset.page || _currentNavPage || 'home';
 }
 
+function contextualGuideHtml(): string {
+    const contexts: Record<string, { purpose: string; tasks: string }> = {
+        home: { purpose: 'Orient yourself in the active analysis workspace.', tasks: 'Load data or continue the next recommended analysis step.' },
+        upload: { purpose: 'Load and profile a time-series dataset.', tasks: 'Choose a sample or upload a file, then verify its time column.' },
+        timeseries: { purpose: 'Inspect signals, ranges, filters, and anomalies over time.', tasks: 'Toggle series, choose a time range, color by a column, or draw a filter.' },
+        prepare: { purpose: 'Build and preview a reversible data-cleaning pipeline.', tasks: 'Review quality findings, add stages, preview their effect, then materialize.' },
+        correlations: { purpose: 'Screen numeric relationships across the dataset.', tasks: 'Choose a metric, inspect strongest pairs, and open a pair for detail.' },
+        scatter: { purpose: 'Inspect one relationship as density or individual points.', tasks: 'Choose X/Y, clip outliers, brush a range, or compare correlation metrics.' },
+        scattermatrix: { purpose: 'Compare many pairwise distributions in one matrix.', tasks: 'Switch plot modes, scan relationships, and open a pair for detail.' },
+        fft: { purpose: 'Inspect periodic structure in selected signals.', tasks: 'Choose traces, configure the spectrum, then inspect peak frequencies.' },
+        spectrogram: { purpose: 'See how frequency content changes over time.', tasks: 'Choose a signal and window size, then compute the time-frequency view.' },
+        causal: { purpose: 'Explore candidate directed relationships.', tasks: 'Configure a method, run discovery, and inspect supported links.' },
+        drift: { purpose: 'Compare distributions across time windows.', tasks: 'Choose reference/current windows and review drift severity.' },
+        settings: { purpose: 'Set workspace defaults for analysis and display.', tasks: 'Choose theme, chart defaults, sampling behavior, and preferred metrics.' },
+    };
+    const context = contexts[currentPage()] ?? { purpose: 'Work with the current analysis page.', tasks: 'Use the page controls and Help for detailed guidance.' };
+    return `<div class="workflow-panel__context">`
+        + `<div><strong>What this page does</strong><span>${escapeHtml(context.purpose)}</span></div>`
+        + `<div><strong>Common tasks</strong><span>${escapeHtml(context.tasks)}</span></div>`
+        + `<div><strong>Keyboard shortcuts</strong><span>? opens Help · Alt+1–0 changes analysis pages</span></div>`
+        + `</div>`;
+}
+
 function readSelectValue(id: string): string {
     return getDropdownValue(id);
 }
@@ -223,9 +247,9 @@ export function computeWorkflowProgress(snapshot: WorkflowSnapshot): WorkflowPro
 function defaultSuggestionForStep(stepId: WorkflowStepId | null): WorkflowSuggestion {
     if (stepId === 'timeseries') {
         return {
-            title: 'Open Timeseries next',
+            title: 'Open Signals next',
             body: 'Start with 2 to 4 important numeric series so the first chart remains readable.',
-            actionLabel: 'Open Timeseries',
+            actionLabel: 'Open Signals',
             actionPage: 'timeseries',
         };
     }
@@ -240,17 +264,17 @@ function defaultSuggestionForStep(stepId: WorkflowStepId | null): WorkflowSugges
     }
     if (stepId === 'scatter') {
         return {
-            title: 'Deep dive in Scatter',
-            body: 'Pick a candidate pair and inspect its shape, outliers, and filter sensitivity in the detailed scatter view.',
-            actionLabel: 'Open Scatter',
+            title: 'Deep dive in Pair plot',
+            body: 'Pick a candidate pair and inspect its shape, outliers, and filter sensitivity in the detailed pair plot.',
+            actionLabel: 'Open Pair plot',
             actionPage: 'scatter',
         };
     }
     if (stepId === 'causal') {
         return {
-            title: 'Use Causal as the late-stage check',
+            title: 'Use Causality as the late-stage check',
             body: 'After narrowing the candidate variables, test a small plausible set with lag-aware causal discovery.',
-            actionLabel: 'Open Causal',
+            actionLabel: 'Open Causality',
             actionPage: 'causal',
         };
     }
@@ -296,9 +320,9 @@ export function buildWorkflowSuggestion(snapshot: WorkflowSnapshot): WorkflowSug
             };
         }
         return {
-            title: 'Move to Timeseries',
+            title: 'Move to Signals',
             body: 'Choose a small set of important series first so you can establish baseline trend, co-movement, and suspicious windows.',
-            actionLabel: 'Open Timeseries',
+            actionLabel: 'Open Signals',
             actionPage: 'timeseries',
         };
     }
@@ -312,14 +336,19 @@ export function buildWorkflowSuggestion(snapshot: WorkflowSnapshot): WorkflowSug
                 actionPage: null,
             };
         }
-        return { title: '', body: '', actionLabel: null, actionPage: null };
+        return {
+            title: 'Inspect the selected signals',
+            body: 'Review trend, range, anomalies, and filters. Open the page Help for control-by-control guidance.',
+            actionLabel: null,
+            actionPage: null,
+        };
     }
 
     if (snapshot.currentPage === 'correlations' || snapshot.currentPage === 'heatmap') {
         return {
             title: 'Choose the strongest pair',
-            body: 'Use the heatmap to pick a promising relationship, then inspect it in Scatter where filter context and color-by are easier to read.',
-            actionLabel: 'Open Scatter',
+            body: 'Use the heatmap to pick a promising relationship, then inspect it in the Pair plot where filter context and color-by are easier to read.',
+            actionLabel: 'Open Pair plot',
             actionPage: 'scatter',
         };
     }
@@ -327,8 +356,8 @@ export function buildWorkflowSuggestion(snapshot: WorkflowSnapshot): WorkflowSug
     if (snapshot.currentPage === 'scattermatrix') {
         return {
             title: 'Use matrix cells as a drill-down',
-            body: 'Click any off-diagonal matrix cell to open the full scatter detail view for that exact pair.',
-            actionLabel: 'Open Scatter',
+            body: 'Click any off-diagonal matrix cell to open the full pair plot for that exact pair.',
+            actionLabel: 'Open Pair plot',
             actionPage: 'scatter',
             hint: 'Matrix click-through is already wired into the detailed scatter view.',
         };
@@ -344,10 +373,10 @@ export function buildWorkflowSuggestion(snapshot: WorkflowSnapshot): WorkflowSug
             };
         }
         return {
-            title: 'Use Causal as the final check',
-            body: 'After narrowing the variables, move to Causal with a small plausible set instead of starting broad.',
-            actionLabel: 'Open Causal',
-            actionPage: 'causal',
+            title: 'Return to Preparation with evidence',
+            body: 'Record what you observed, review the reversible pipeline, and preview its impact before deciding whether an advanced analysis is needed.',
+            actionLabel: 'Open Preparation',
+            actionPage: 'prepare',
         };
     }
 
@@ -377,14 +406,30 @@ export function buildWorkflowSuggestion(snapshot: WorkflowSnapshot): WorkflowSug
         };
     }
 
-    if (
-        snapshot.currentPage === 'fft'
-        || snapshot.currentPage === 'spectrogram'
-        || snapshot.currentPage === 'drift'
-        || snapshot.currentPage === 'settings'
-    ) {
-        return { title: '', body: '', actionLabel: null, actionPage: null };
-    }
+    if (snapshot.currentPage === 'fft') return {
+        title: 'Inspect periodic structure',
+        body: 'Choose traces, compute their spectrum, and compare the strongest frequencies with the Signals view.',
+        actionLabel: null,
+        actionPage: null,
+    };
+    if (snapshot.currentPage === 'spectrogram') return {
+        title: 'Track frequency over time',
+        body: 'Choose a signal and window, compute the spectrogram, then inspect when its frequency content changes.',
+        actionLabel: null,
+        actionPage: null,
+    };
+    if (snapshot.currentPage === 'drift') return {
+        title: 'Compare time windows',
+        body: 'Set reference and current windows, select signals, then inspect the magnitude and evidence for drift.',
+        actionLabel: null,
+        actionPage: null,
+    };
+    if (snapshot.currentPage === 'settings') return {
+        title: 'Tune workspace defaults',
+        body: 'Adjust display and analysis defaults here; page-level Help explains settings with analytical consequences.',
+        actionLabel: null,
+        actionPage: null,
+    };
 
     return defaultSuggestionForStep(progress.nextStepId);
 }
@@ -490,18 +535,14 @@ export function renderGuidedWorkflow(): void {
         toggleBtn.classList.toggle('btn-accent', prefs.enabled);
         toggleBtn.classList.toggle('btn-ghost', !prefs.enabled);
         toggleBtn.setAttribute('aria-pressed', prefs.enabled ? 'true' : 'false');
+        toggleBtn.setAttribute('aria-label', prefs.enabled ? 'Close guided workflow panel' : 'Open guided workflow panel');
+        toggleBtn.title = prefs.enabled ? 'Close guided workflow panel' : 'Open guided workflow panel';
     }
     if (!prefs.enabled) return;
 
     const snapshot = collectSnapshot();
     const progress = computeWorkflowProgress(snapshot);
     const suggestion = buildWorkflowSuggestion(snapshot);
-
-    // If the current page has no suggestion (e.g., timeseries), hide the panel
-    if (!suggestion.actionLabel && !suggestion.body) {
-        panel.hidden = true;
-        return;
-    }
 
     const isRepeat = isRepeatVisitor(snapshot);
 
@@ -536,6 +577,7 @@ function renderCompactAssistant(
                 ` : ''}
                 <button class="btn btn-ghost btn-sm" type="button" data-workflow-action="skip" title="Hide guide">✕</button>
             </div>
+            ${contextualGuideHtml()}
         </div>
     `;
 }
@@ -574,6 +616,7 @@ function renderFullWorkflowPanel(
             </div>
         </div>
         <div class="workflow-panel__crumbs">${crumbs}</div>
+        ${contextualGuideHtml()}
         ${suggestion.hint ? `<div class="workflow-panel__hint">${escapeHtml(suggestion.hint)}</div>` : ''}
     `;
 }

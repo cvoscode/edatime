@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { initPreparePage } from './index.js';
+import { formatPipelinePreviewCaption, initPreparePage } from './index.js';
 import { cleaningPlanStore } from '../../cleaning/store.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 let workspace = createWorkspaceStore();
@@ -12,7 +12,31 @@ describe('Prepare page', () => {
         workspace = createWorkspaceStore();
     });
 
-    afterEach(() => cleaningPlanStore.clear());
+    afterEach(() => {
+        cleaningPlanStore.clear();
+        vi.unstubAllGlobals();
+    });
+
+    it('limits the visible pipeline caption to three stages while retaining the full hover text', () => {
+        const stages = Array.from({ length: 5 }, (_, index) => ({
+            id: `stage-${index}`,
+            kind: 'timeRange' as const,
+            executionClass: 'polarsExpression' as const,
+            scope: 'row' as const,
+            enabled: true,
+            sourcePage: 'timeseries' as const,
+            label: `Window ${index}`,
+            createdAt: 'now',
+            updatedAt: 'now',
+            startMs: index,
+            endMs: index + 1,
+            mode: 'keepInside' as const,
+        }));
+
+        const caption = formatPipelinePreviewCaption(stages);
+        expect(caption.text).toBe('After 5 stages: Keep time range → Keep time range → Keep time range → +2 more…');
+        expect(caption.title.match(/Keep time range/g)).toHaveLength(5);
+    });
 
     it('renders the canonical graph and opens the shared workbench for editing', () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
@@ -112,6 +136,35 @@ describe('Prepare page', () => {
             kind: 'missingValue', column: 'value', dropNulls: true, dropNonFinite: true,
         }]);
         expect(onPlanChanged).toHaveBeenCalledTimes(1);
+        dispose();
+    });
+
+    it('explains disabled moves, fades disabled stages, and confirms permanent removal', () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        cleaningPlanStore.addStage({
+            kind: 'missingValue', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+            sourcePage: 'manual', label: 'Drop missing values from HUFL', column: 'HUFL',
+            dropNulls: true, dropNonFinite: true,
+        });
+        const confirm = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true);
+        vi.stubGlobal('confirm', confirm);
+        const dispose = initPreparePage({ workspace });
+
+        const findButton = (label: string) => Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
+            .find((candidate) => candidate.textContent === label)!;
+        expect(findButton('Up').title).toBe('Cannot move the only remaining stage');
+        expect(findButton('Down').title).toBe('Cannot move the only remaining stage');
+        expect(findButton('Remove').title).toBe('Permanently delete this stage from the plan');
+
+        findButton('Disable').click();
+        expect(document.querySelector('.prepare-workspace__stage')?.classList.contains('is-disabled')).toBe(true);
+        expect(findButton('Enable')).toBeTruthy();
+
+        findButton('Remove').click();
+        expect(confirm).toHaveBeenCalledWith("Remove 'Drop missing values from HUFL'? This cannot be undone.");
+        expect(cleaningPlanStore.getSnapshot()?.stages).toHaveLength(1);
+        findButton('Remove').click();
+        expect(cleaningPlanStore.getSnapshot()?.stages).toHaveLength(0);
         dispose();
     });
 

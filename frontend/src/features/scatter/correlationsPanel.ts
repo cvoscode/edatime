@@ -8,6 +8,9 @@
  */
 
 import { fetchScatterCorrelations } from '../../services/api/index.js';
+import { getEffectiveNumericColumns } from '../../platform/analyticsColumns.js';
+import { cleaningPlanStore } from '../../cleaning/store.js';
+import { canonicalPlanSemanticValue } from '../../cleaning/planHash.js';
 import { scatterState } from '../../store/scatterState.js';
 import type { ScatterState } from '../../store/scatterState.js';
 import { getDropdownValue, setDropdownOptions, setDropdownValue } from '../../ui/primitives/Dropdown.js';
@@ -27,6 +30,8 @@ import type { ScatterFetchOptions } from '../../types/scatter.js';
  * X/Y selection, so re-clicking the active pill is a no-op.
  */
 export type SuggestionApplyHandler = (x: string, y: string) => void | Promise<void>;
+
+let correlationRequestGeneration = 0;
 
 function isFiniteNumber(value: unknown): value is number {
     return typeof value === 'number' && Number.isFinite(value);
@@ -88,7 +93,7 @@ export function renderSuggestions(
 
             const summary = document.createElement('span');
             summary.className = 'scatter-suggestion-empty';
-            summary.textContent = `Showing top ${topPairs.length} by |corr|`;
+            summary.textContent = `Showing top ${topPairs.length} by |corr|; below-threshold fallback (${normalizeCorrelationMetric(getSetting('defaultCorrelationMetric'))})`;
             fallback.appendChild(summary);
 
             for (const pair of topPairs) {
@@ -113,6 +118,15 @@ export function renderSuggestions(
         if (!x || !y) continue;
         box.appendChild(buildSuggestionButton(x, y, item.correlation, xValue, yValue, onSuggestionApply));
     }
+}
+
+/** Threshold changes only filter the complete correlation list already loaded. */
+export function renderSuggestionsFromCache(onSuggestionApply?: SuggestionApplyHandler): void {
+    const x = getDropdownValue('scatter-x-col');
+    const suggestions = Array.from(scatterState.correlationsByColumn.entries())
+        .filter(([, row]) => isFiniteNumber(row.value) && Math.abs(row.value) >= scatterState.suggestionThreshold)
+        .map(([y, row]) => ({ x, y, correlation: row.value as number }));
+    renderSuggestions(suggestions, onSuggestionApply);
 }
 
 function buildSuggestionButton(
@@ -157,12 +171,20 @@ export async function refreshCorrelationsAndSuggestions(
         queryContext?: ScatterFetchOptions;
     } = {},
 ): Promise<void> {
+    const generation = ++correlationRequestGeneration;
+    // Store snapshots are defensive clones, so compare executable contents.
+    const planKey = () => {
+        const plan = cleaningPlanStore.getSnapshot();
+        return JSON.stringify(plan ? canonicalPlanSemanticValue(plan) : null);
+    };
+    const requestedPlanKey = planKey();
+    const isCurrent = () => generation === correlationRequestGeneration && requestedPlanKey === planKey();
     const xSelect = getEl('scatter-x-col');
     const ySelect = getEl('scatter-y-col');
     if (!xSelect || !ySelect) return;
 
     const meta = scatterState.metadata as any;
-    const numericCols = Array.isArray(meta?.numeric_columns) ? meta.numeric_columns : [];
+    const numericCols = getEffectiveNumericColumns(meta, cleaningPlanStore.getSnapshot());
     if (numericCols.length < 2) return;
 
     const currentX = getDropdownValue('scatter-x-col');
@@ -175,6 +197,8 @@ export async function refreshCorrelationsAndSuggestions(
         mode,
         options.queryContext ?? null,
     );
+
+    if (!isCurrent()) return;
 
     const numeric = Array.isArray(response.numeric_columns) ? response.numeric_columns : [];
     if (numeric.length < 2) throw new Error('Need at least two numeric columns for scatter plotting.');
@@ -193,9 +217,16 @@ export async function refreshCorrelationsAndSuggestions(
         ? currentY
         : (topPairs[0]?.y ?? numeric.find((c: string) => c !== preferredX) ?? numeric[1] ?? numeric[0]);
 
-    const selectedX = ensureOptions(xSelect, numeric, preferredX, { searchable: true });
+    const axisSearchable = numeric.length > 11;
+    const selectedX = ensureOptions(xSelect, numeric, preferredX, {
+        searchable: axisSearchable,
+        deferSearchUntilTyping: true,
+    });
     const yCandidates = numeric.filter((c: string) => c !== selectedX);
-    const selectedY = ensureOptions(ySelect, yCandidates, preferredY, { searchable: true });
+    const selectedY = ensureOptions(ySelect, yCandidates, preferredY, {
+        searchable: axisSearchable,
+        deferSearchUntilTyping: true,
+    });
 
     if (getEl('scatter-color-column')) {
         const colorOptions = [''].concat(
@@ -209,7 +240,8 @@ export async function refreshCorrelationsAndSuggestions(
             label: col || 'None',
         })), {
             preferredValue: colorOptions.includes(preferredColor) ? preferredColor : '',
-            searchable: true,
+            searchable: colorOptions.length > 11,
+            deferSearchUntilTyping: true,
         });
     }
 
@@ -228,6 +260,7 @@ export async function refreshCorrelationsAndSuggestions(
             options.queryContext ?? null,
         )] as const;
     }));
+    if (!isCurrent()) return;
     const responsesByMode = new Map<string, typeof response>();
     for (const settled of settledResponses) {
         if (settled.status === 'fulfilled') {
@@ -256,7 +289,7 @@ export async function refreshCorrelationsAndSuggestions(
     const activeY = getDropdownValue('scatter-y-col') || selectedY || '';
     scatterState.currentPairStats = activeY ? buildCurrentPairStats(responsesByMode, activeY) : null;
 
-    renderSuggestions(activeResponse.suggestions || [], options.onSuggestionApply);
+    renderSuggestionsFromCache(options.onSuggestionApply);
     updateCorrelationStats();
     updateColorbarUI();
 }

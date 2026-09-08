@@ -173,7 +173,10 @@ pub fn apply_range_stage<I: Into<LazyFrame>>(
     } else {
         policy
     };
-    Ok(lf.filter(policy))
+    Ok(lf.with_columns([when(policy)
+        .then(col(column))
+        .otherwise(lit(NULL))
+        .alias(column)]))
 }
 
 /// Apply one portable adaptive-line stage. Segment-only stages pass rows
@@ -225,7 +228,12 @@ pub fn apply_line_stage<I: Into<LazyFrame>>(
     } else {
         comparison
     };
-    Ok(lf.filter(keep_or_drop_predicate(predicate, true)))
+    Ok(
+        lf.with_columns([when(keep_or_drop_predicate(predicate, true))
+            .then(col(column))
+            .otherwise(lit(NULL))
+            .alias(column)]),
+    )
 }
 
 // ── Composite filter application ───────────────────────────────────────────
@@ -299,7 +307,10 @@ pub fn apply_filters<I: Into<LazyFrame>>(
                 )));
             }
         };
-        lf = lf.filter(expr);
+        lf = lf.with_columns([when(expr)
+            .then(col(column))
+            .otherwise(lit(NULL))
+            .alias(column)]);
     }
 
     if !line_filters.is_empty() {
@@ -351,7 +362,10 @@ pub fn apply_filters<I: Into<LazyFrame>>(
                 .clone()
                 .gt_eq(lit(min_x))
                 .and(ts_expr.clone().lt_eq(lit(max_x)));
-            lf = lf.filter(within_expr.not().or(cmp_expr));
+            lf = lf.with_columns([when(within_expr.not().or(cmp_expr))
+                .then(col(column))
+                .otherwise(lit(NULL))
+                .alias(column)]);
         }
     }
 

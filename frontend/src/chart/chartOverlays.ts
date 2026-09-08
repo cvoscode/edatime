@@ -9,7 +9,7 @@ import { buildAdaptiveLineY } from '../services/timeseries/filtering.js';
 import { getChartPalette } from '../utils/theme.js';
 import { getColumnSeriesColor } from '../utils/seriesColors.js';
 import { getAnnotationsForPage } from './annotations.js';
-import type { AdaptiveLineFilter } from '../types/store.js';
+import type { AdaptiveLineFilter, ColumnRange } from '../types/store.js';
 
 interface ChartOverlayOptions {
     getXMin: () => number | null;
@@ -18,6 +18,7 @@ interface ChartOverlayOptions {
     getOverlayCanvas: () => HTMLCanvasElement | null;
     getGrid: () => { left: number; right: number; top: number; bottom: number };
     getYRange: () => { min: number; max: number } | null;
+    getColumnRangeFilters?: () => Readonly<Record<string, ColumnRange>>;
     getAdaptiveLineFilters: () => readonly AdaptiveLineFilter[];
     getPendingAdaptivePoint: () => { column: string; x: number; y: number; x2?: number; y2?: number } | null;
 }
@@ -79,8 +80,80 @@ export class ChartOverlays {
     renderAll(ctx: CanvasRenderingContext2D, scale: { x: number; y: number }): void {
         this._renderRollingBandsToCtx(ctx, scale);
         this._renderAnomalyRegionsToCtx(ctx, scale);
+        this._renderColumnRangeFiltersToCtx(ctx, scale);
         this._renderAdaptiveFilterLinesToCtx(ctx, scale);
         this._renderAnnotationsToCtx(ctx, scale);
+    }
+
+    private _renderColumnRangeFiltersToCtx(ctx: CanvasRenderingContext2D, scale: { x: number; y: number }): void {
+        const ranges = this._opts.getColumnRangeFilters?.() ?? {};
+        const visibleRanges = Object.entries(ranges).filter(([column, range]) => (
+            this._selectedColumns.includes(column)
+            && Number.isFinite(Number(range.from))
+            && Number.isFinite(Number(range.to))
+        ));
+        if (visibleRanges.length === 0) return;
+
+        const yRange = this._opts.getYRange();
+        if (!yRange || !(yRange.max > yRange.min)) return;
+        const metrics = getOverlayPlotMetrics(
+            this._opts.getContainer(),
+            this._opts.getOverlayCanvas(),
+            this._opts.getGrid(),
+            scale,
+        );
+        if (!metrics) return;
+        const { plotLeft, plotTop, plotBottom, plotWidth, plotHeight, strokeScale } = metrics;
+        const ySpan = yRange.max - yRange.min;
+        const toY = (value: number) => plotBottom - ((value - yRange.min) / ySpan) * plotHeight;
+
+        ctx.save();
+        // Range bands belong to the data area. Clipping at the plot edge keeps
+        // their fill, dashed border, and label clear of the Y-axis tick labels.
+        ctx.beginPath();
+        ctx.rect(plotLeft, plotTop, plotWidth, plotHeight);
+        ctx.clip();
+        ctx.font = `${Math.max(10, 11 * strokeScale)}px Inter, system-ui, -apple-system, sans-serif`;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+
+        for (const [column, range] of visibleRanges) {
+            const from = Math.min(Number(range.from), Number(range.to));
+            const to = Math.max(Number(range.from), Number(range.to));
+            if (to < yRange.min || from > yRange.max) continue;
+
+            const bandTop = Math.max(plotTop, toY(Math.min(to, yRange.max)));
+            const bandBottom = Math.min(plotBottom, toY(Math.max(from, yRange.min)));
+            const bandHeight = Math.max(1, bandBottom - bandTop);
+            const color = getColumnSeriesColor(column);
+
+            ctx.fillStyle = this._applyAlphaToColor(color, 0.12);
+            ctx.fillRect(plotLeft, bandTop, plotWidth, bandHeight);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = Math.max(1, 1.5 * strokeScale);
+            ctx.setLineDash([6 * strokeScale, 4 * strokeScale]);
+            ctx.strokeRect(plotLeft, bandTop, plotWidth, bandHeight);
+            ctx.setLineDash([]);
+
+            const label = `${column} [${from.toFixed(2)}, ${to.toFixed(2)}]`;
+            const labelWidth = ctx.measureText(label).width;
+            const labelHeight = 17 * strokeScale;
+            const labelX = plotLeft + 6 * strokeScale;
+            const labelY = Math.max(
+                plotTop + labelHeight / 2 + 2 * strokeScale,
+                Math.min(plotBottom - labelHeight / 2 - 2 * strokeScale, bandTop + labelHeight / 2 + 3 * strokeScale),
+            );
+            ctx.fillStyle = 'rgba(8, 12, 20, 0.88)';
+            ctx.fillRect(
+                labelX - 3 * strokeScale,
+                labelY - labelHeight / 2,
+                labelWidth + 6 * strokeScale,
+                labelHeight,
+            );
+            ctx.fillStyle = color;
+            ctx.fillText(label, labelX, labelY);
+        }
+        ctx.restore();
     }
 
     private _renderRollingBandsToCtx(ctx: CanvasRenderingContext2D, scale: { x: number; y: number }): void {
@@ -235,6 +308,12 @@ export class ChartOverlays {
         ctx.save();
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
+        // A filter may extend beyond the current Y viewport after filtering or
+        // resize. Clip every adaptive primitive to the plot rectangle so it
+        // cannot paint over ticks, labels, or neighboring controls.
+        ctx.beginPath();
+        ctx.rect(plotLeft, plotTop, plotWidth, plotHeight);
+        ctx.clip();
         ctx.setLineDash([8 * strokeScale, 6 * strokeScale]);
         const adaptivePalette = getChartPalette();
 
@@ -257,12 +336,26 @@ export class ChartOverlays {
             ctx.moveTo(sx, sy);
             ctx.lineTo(ex, ey);
             ctx.stroke();
-            const label = `${filter.column} ${filter.keepAbove ? 'keep above' : 'keep below'}`;
-            ctx.fillStyle = stroke;
+            const fullLabel = `${filter.column} ${filter.keepAbove ? 'keep above' : 'keep below'}`;
             ctx.font = `${Math.max(10, 11 * strokeScale)}px Inter, system-ui, -apple-system, sans-serif`;
             ctx.textAlign = 'left';
             ctx.textBaseline = 'bottom';
-            ctx.fillText(label, Math.min(ex, plotRight - 140 * strokeScale), Math.min(sy, ey) - 4 * strokeScale);
+            const maxLabelWidth = Math.max(1, plotWidth - 12 * strokeScale);
+            let label = fullLabel;
+            if (ctx.measureText(label).width > maxLabelWidth) {
+                const suffix = '…';
+                while (label.length > 1 && ctx.measureText(label + suffix).width > maxLabelWidth) {
+                    label = label.slice(0, -1);
+                }
+                label += suffix;
+            }
+            const labelWidth = Math.min(maxLabelWidth, ctx.measureText(label).width);
+            const labelX = Math.max(plotLeft + 4 * strokeScale, Math.min(ex, plotRight - labelWidth - 6 * strokeScale));
+            const labelY = Math.max(plotTop + 18 * strokeScale, Math.min(plotBottom - 8 * strokeScale, Math.min(sy, ey) - 6 * strokeScale));
+            ctx.fillStyle = 'rgba(8, 12, 20, 0.82)';
+            ctx.fillRect(labelX - 3 * strokeScale, labelY - 14 * strokeScale, labelWidth + 6 * strokeScale, 17 * strokeScale);
+            ctx.fillStyle = stroke;
+            ctx.fillText(label, labelX, labelY);
         }
 
         if (pending && this._selectedColumns.includes(pending.column)) {

@@ -22,6 +22,19 @@ struct AdmissionLane {
 }
 
 impl AdmissionLane {
+    async fn acquire_queued(&self) -> Result<OwnedSemaphorePermit, AppError> {
+        if let Ok(permit) = Arc::clone(&self.running).try_acquire_owned() {
+            return Ok(permit);
+        }
+        let _queued = Arc::clone(&self.waiting)
+            .try_acquire_owned()
+            .map_err(|_| AppError::overloaded("background work queue is full"))?;
+        Arc::clone(&self.running)
+            .acquire_owned()
+            .await
+            .map_err(|_| AppError::internal("background work admission closed"))
+    }
+
     fn new(max_running: usize, max_waiting: usize) -> Self {
         Self {
             running: Arc::new(Semaphore::new(max_running.max(1))),
@@ -100,6 +113,7 @@ impl QueryAdmission {
 enum WorkClass {
     Interactive,
     Background,
+    BackgroundQueued,
     BackgroundExternal,
     BlockingIo,
 }
@@ -250,6 +264,7 @@ impl QueryExecutor {
                 WorkClass::Background | WorkClass::BackgroundExternal => {
                     admission.acquire_background().await
                 }
+                WorkClass::BackgroundQueued => admission.background.acquire_queued().await,
                 WorkClass::BlockingIo => admission.acquire_blocking_io().await,
             };
             match acquired {
@@ -269,17 +284,20 @@ impl QueryExecutor {
             let worker_probe = cancellation.clone();
             let result = match class {
                 WorkClass::BlockingIo | WorkClass::BackgroundExternal => work(worker_probe),
-                WorkClass::Interactive | WorkClass::Background => {
+                WorkClass::Interactive | WorkClass::Background | WorkClass::BackgroundQueued => {
                     pool.install(|| work(worker_probe))
                 }
             };
             if cancellation.is_some_and(|probe| probe.is_cancelled()) {
                 metrics_guard.cancelled_after_start();
+                return Err(AppError::Cancelled(
+                    "interactive request cancelled".to_string(),
+                ));
             }
-            result
+            Ok(result)
         })
         .await
-        .map_err(|error| AppError::internal(format!("Blocking worker join error: {error}")))
+        .map_err(|error| AppError::internal(format!("Blocking worker join error: {error}")))?
     }
 
     pub async fn run_interactive<T, F>(&self, stage: CpuStage, work: F) -> Result<T, AppError>
@@ -320,6 +338,31 @@ impl QueryExecutor {
     {
         self.run_admitted(WorkClass::Background, stage, None, move |_| work())
             .await
+    }
+
+    /// Observable session jobs may wait behind other background work without
+    /// the short HTTP admission deadline. Both running and waiting counts
+    /// remain bounded; dropping the future releases its waiting slot.
+    pub async fn run_queued_background<T, F>(&self, stage: CpuStage, work: F) -> Result<T, AppError>
+    where
+        T: Send + 'static,
+        F: FnOnce() -> T + Send + 'static,
+    {
+        self.run_admitted(WorkClass::BackgroundQueued, stage, None, move |_| work())
+            .await
+    }
+
+    pub async fn execute_queued_background_async(
+        &self,
+        lf: LazyFrame,
+    ) -> Result<edatime_core::types::DataFrame, AppError> {
+        let ctx = self.ctx.clone();
+        self.run_queued_background(CpuStage::Query, move || match ctx {
+            ExecutionContext::Eager | ExecutionContext::Parallel => lf.collect(),
+            ExecutionContext::Streaming => lf.with_new_streaming(true).collect(),
+        })
+        .await?
+        .map_err(|e| AppError::Query(format!("Collect: {}", e)))
     }
 
     pub async fn run_blocking_io<T, F>(&self, stage: CpuStage, work: F) -> Result<T, AppError>
@@ -379,6 +422,17 @@ impl QueryExecutor {
     /// streaming sink. The returned frame is intentionally discarded: the
     /// durable file is the output boundary.
     pub async fn sink_parquet_async(&self, lf: LazyFrame, path: PathBuf) -> Result<(), AppError> {
+        self.sink_parquet_with_resources(lf, path, ()).await
+    }
+
+    /// Retain input files and admission guards until the sink worker exits,
+    /// including when the awaiting request is dropped.
+    pub async fn sink_parquet_with_resources<R: Send + 'static>(
+        &self,
+        lf: LazyFrame,
+        path: PathBuf,
+        resources: R,
+    ) -> Result<(), AppError> {
         use polars::lazy::dsl::{FileWriteFormat, SinkDestination, SinkTarget, UnifiedSinkArgs};
         use polars::prelude::{ParquetWriteOptions, PlRefPath};
 
@@ -395,6 +449,7 @@ impl QueryExecutor {
             .map_err(|error| AppError::Query(format!("Build Parquet sink: {error}")))?;
         let pool = Arc::clone(&self.thread_pool);
         self.run_external_background(CpuStage::Materialization, move || {
+            let _resources = resources;
             // Polars' file sink owns an async IO runtime internally. Run it on
             // a plain child thread so it is not nested inside Tokio's runtime
             // context inherited by `spawn_blocking`.
@@ -492,6 +547,28 @@ mod tests {
         assert_eq!(configured_worker_count(Some("0"), 6), 6);
         assert_eq!(configured_worker_count(Some("invalid"), 16), 8);
         assert_eq!(configured_worker_count(None, 2), 2);
+    }
+
+    #[tokio::test]
+    async fn session_jobs_wait_past_http_deadline_with_bounded_queue() {
+        let admission = QueryAdmission::new(1, 1, 1, 1, Duration::from_millis(5));
+        let running = admission.acquire_background().await.expect("running job");
+        let waiting = admission.background.acquire_queued();
+        tokio::pin!(waiting);
+        assert!(
+            tokio::time::timeout(Duration::from_millis(20), &mut waiting)
+                .await
+                .is_err()
+        );
+        assert!(matches!(
+            admission.background.acquire_queued().await,
+            Err(AppError::Overloaded(_))
+        ));
+        drop(running);
+        let admitted = waiting.await.expect("session job remains queued");
+        assert_eq!(admission.background.waiting.available_permits(), 1);
+        drop(admitted);
+        assert_eq!(admission.background.running.available_permits(), 1);
     }
 
     #[tokio::test]

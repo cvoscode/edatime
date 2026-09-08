@@ -9,6 +9,14 @@ const VALID_PAGES = new Set([
     'home', 'upload', 'timeseries', 'prepare', 'correlations', 'scatter',
     'scattermatrix', 'fft', 'spectrogram', 'causal', 'drift', 'settings',
 ]);
+const PUBLIC_PAGE_NAMES: Record<string, string> = {
+    prepare: 'preparation',
+    correlations: 'correlation-matrix',
+    scatter: 'pair-plot',
+};
+const INTERNAL_PAGE_NAMES: Record<string, string> = Object.fromEntries(
+    Object.entries(PUBLIC_PAGE_NAMES).map(([internal, publicName]) => [publicName, internal]),
+);
 import { onNavigationChange } from '../platform/navigationEvents.js';
 
 let activeRouterDisposer: (() => void) | null = null;
@@ -18,11 +26,14 @@ export type PageNavigator = (page: string) => void | Promise<void>;
 function normalizePage(page: string | null): string | null {
     const trimmed = String(page || '').trim();
     if (!trimmed) return null;
-    return VALID_PAGES.has(trimmed) ? trimmed : null;
+    const internal = INTERNAL_PAGE_NAMES[trimmed] ?? trimmed;
+    return VALID_PAGES.has(internal) ? internal : null;
 }
 
 function getCanonicalPageUrl(page: string): string {
-    return `${location.pathname}#page=${encodeURIComponent(page)}`;
+    const internal = normalizePage(page);
+    const publicName = internal ? (PUBLIC_PAGE_NAMES[internal] ?? internal) : page;
+    return `${location.pathname}#page=${encodeURIComponent(publicName)}`;
 }
 
 function readHashPage(): string | null {

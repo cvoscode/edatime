@@ -64,5 +64,6 @@ describe('initTimeseriesActions clear-all-filters', () => {
             lineFilters: [],
         });
         expect(workspace.getSnapshot().filters).toEqual({ columnRanges: {}, adaptiveLines: [] });
+        expect(deps.rebuildColumnToggles).toHaveBeenCalledOnce();
     });
 });

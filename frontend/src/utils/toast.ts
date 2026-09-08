@@ -30,9 +30,9 @@ interface ActiveToast {
 
 const DEFAULT_DURATIONS: Record<ToastKind, number> = {
     // Bumped important messages to 5–6s — see `usage_issue.md` §7.8.
-    success: 5200,
-    info: 6000,
-    warning: 6000,
+    success: 5000,
+    info: 5000,
+    warning: 5000,
     // Errors stay sticky so the user can read and dismiss them.
     error: 0,
 };
@@ -65,6 +65,9 @@ function normalizeOptions(durationOrOpts?: number | ToastOptions): ToastOptions 
 }
 
 function resolveDuration(kind: ToastKind, opts: ToastOptions): number {
+    // Errors are always user-dismissed. A caller-provided timeout must not
+    // make diagnostic details disappear while someone is still reading them.
+    if (kind === 'error') return 0;
     if (typeof opts.duration === 'number') return opts.duration;
     return DEFAULT_DURATIONS[kind];
 }

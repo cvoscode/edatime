@@ -18,7 +18,7 @@ import {
 } from './seriesColors.js';
 export { COLOR_SCALES, getColorFromScale, type ColorScaleName } from './colorScales.js';
 
-export type ThemeMode = 'dark' | 'light' | 'auto';
+export type ThemeMode = 'dark' | 'light' | 'high-contrast' | 'colorblind' | 'auto';
 export type LayoutDensity = 'compact' | 'roomy' | 'spacious';
 export type SpectrogramPointLimit = 16_384 | 32_768 | 65_536;
 export type { CorrelationMetric } from './correlationModes.js';
@@ -186,9 +186,12 @@ export function applyTheme(theme: ThemeMode): void {
 
     if (theme === 'auto') {
         effectiveTheme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-    } else {
+    } else if (theme === 'light' || theme === 'dark') {
         effectiveTheme = theme;
     }
+
+    document.documentElement.toggleAttribute('data-appearance', theme === 'high-contrast' || theme === 'colorblind');
+    if (theme === 'high-contrast' || theme === 'colorblind') document.documentElement.setAttribute('data-appearance', theme);
 
     setResolvedTheme(effectiveTheme);
 

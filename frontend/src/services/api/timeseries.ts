@@ -168,7 +168,7 @@ export async function fetchData(
         if (valCol) {
             const valArray = new Float64Array(len);
             for (let i = 0; i < len; i++) {
-                valArray[i] = Number(valCol.get(i));
+                valArray[i] = Number(valCol.get(i) ?? Number.NaN);
             }
             dataObj.values[colName] = valArray;
         }

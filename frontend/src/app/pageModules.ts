@@ -22,10 +22,16 @@
 import type { FeatureRegistry } from './featureRegistry.js';
 import type { CleaningPlanStore } from '../cleaning/store.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
+import type { DataObject } from '../types/api.js';
 import { ensureStyleModule, type StyleModuleName } from '../utils/pageStyles.js';
+import { initDatasetSwitcher } from '../ui/datasetSwitcher.js';
+import { initBreadcrumbs } from '../ui/breadcrumbs.js';
 
 export interface PageDescriptorInitDeps {
     getRenderTimeseries: () => void;
+    getCurrentTimeseriesData: () => DataObject | null;
+    refreshDatasetAfterMutation: () => void | Promise<void>;
+    registerCleanup: (cleanup: () => void) => void;
     showPage: (name: string) => void;
     chipColor: (col: string, idx: number) => string;
     setLoading: (btnId: string, overlayId: string, loading: boolean, label?: string) => void;
@@ -53,7 +59,7 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
         requiresMetadata: true,
         async load(deps) {
             const { initPreparePage } = await import('../features/prepare/index.js');
-            return { init: () => initPreparePage({ workspace: deps.workspace, onPlanChanged: deps.onCleaningPlanChanged }) };
+            return { init: () => initPreparePage({ workspace: deps.workspace, showPage: deps.showPage, onPlanChanged: deps.onCleaningPlanChanged, getCurrentData: deps.getCurrentTimeseriesData }) };
         },
     },
     {
@@ -129,6 +135,12 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
  * eagerly but their modules are not loaded until the page is navigated to.
  */
 export async function loadPageDescriptors(registry: FeatureRegistry, deps: PageDescriptorInitDeps): Promise<void> {
+    deps.registerCleanup(initDatasetSwitcher({
+        workspace: deps.workspace,
+        showPage: deps.showPage,
+        onDatasetSelected: deps.refreshDatasetAfterMutation,
+    }));
+    deps.registerCleanup(initBreadcrumbs(deps.showPage));
     for (const descriptor of PAGE_DESCRIPTORS) {
         registry.register(descriptor.name, {
             requiresMetadata: descriptor.requiresMetadata,

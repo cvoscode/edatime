@@ -34,6 +34,11 @@ let disposeScatterTheme: (() => void) | null = null;
 
 let scatterEmptyStateController: ReturnType<typeof createEmptyStateController> | null = null;
 let workspace: Pick<WorkspaceStore, 'getSnapshot'> | null = null;
+let hasCompletedPointsRequest = false;
+
+export function setScatterPointsResolved(resolved: boolean): void {
+    hasCompletedPointsRequest = resolved;
+}
 
 /** Supplies the feature-owned workspace snapshot to scatter runtime UI. */
 export function configureScatterRuntime(nextWorkspace: Pick<WorkspaceStore, 'getSnapshot'> | null): void {
@@ -61,7 +66,16 @@ function syncScatterFilterBanner(): void {
     const adaptiveCount = intent
         ? intent.filters.adaptiveLines.length
         : 0;
-    const hasZoomRange = intent?.viewport?.xMin != null && intent?.viewport?.xMax != null;
+    const viewportStart = intent?.viewport?.xMin;
+    const viewportEnd = intent?.viewport?.xMax;
+    const datasetRange = intent?.dataset?.metadata?.time_range;
+    const hasZoomRange = viewportStart != null && viewportEnd != null && (
+        !datasetRange
+        || !Number.isFinite(Number(datasetRange.min))
+        || !Number.isFinite(Number(datasetRange.max))
+        || Number(viewportStart) > Number(datasetRange.min)
+        || Number(viewportEnd) < Number(datasetRange.max)
+    );
     const hasFilters = hasZoomRange || columnCount > 0 || adaptiveCount > 0;
 
     banner.hidden = !hasFilters;
@@ -132,7 +146,13 @@ export function syncScatterEmptyState(message?: string): void {
     const emptyState = getScatterEmptyStateController();
     const hasAxes = !!getDropdownValue('scatter-x-col') && !!getDropdownValue('scatter-y-col');
     const hasRenderablePoints = scatterState.points.length > 0;
-    const isLoading = scatterState.loading && hasAxes && !(_gpuUnavailable && !scatterState.chart);
+    // Correlation suggestions are fetched before the first points request.
+    // Until that request starts, an empty buffer is not evidence of a filter
+    // excluding all rows.
+    const isLoading = (scatterState.loading || (!hasCompletedPointsRequest && !hasRenderablePoints))
+        && hasAxes && !(_gpuUnavailable && !scatterState.chart);
+    const loadingOverlay = getEl('scatter-chart-loading');
+    if (loadingOverlay) loadingOverlay.hidden = !isLoading;
     syncScatterFilterBadge();
     syncScatterFilterBanner();
 

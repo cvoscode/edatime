@@ -45,6 +45,7 @@ function createProfileRow(raw: any): ProfileRow | null {
         min: toFiniteNumberOrNull(raw?.min),
         max: toFiniteNumberOrNull(raw?.max),
         histCounts: counts,
+        profilePending: false,
     };
 }
 
@@ -60,6 +61,7 @@ function createProfileStub(column: { name?: string | null; dtype?: string | null
         min: null,
         max: null,
         histCounts: [],
+        profilePending: true,
     };
 }
 
@@ -348,6 +350,14 @@ function createHistogramCell(profile: ProfileRow): HTMLDivElement {
     const cell = document.createElement('div');
     cell.className = 'profile-cell';
 
+    if (profile.profilePending) {
+        const pending = document.createElement('span');
+        pending.className = 'profile-hist-empty';
+        pending.textContent = 'Pending';
+        cell.appendChild(pending);
+        return cell;
+    }
+
     const counts = Array.isArray(profile.histCounts) ? profile.histCounts : [];
     if (counts.length === 0) {
         const empty = document.createElement('span');
@@ -419,6 +429,7 @@ export function renderColumnProfilesGrid(resetScroll = false): void {
 
     for (let idx = start; idx < end; idx++) {
         const profile = profiles[idx];
+        const pending = profile.profilePending === true;
         const totalCount = profile.nonNullCount + profile.nullCount;
         const nonNullPct = totalCount > 0 ? (profile.nonNullCount / totalCount) * 100 : 0;
 
@@ -429,13 +440,13 @@ export function renderColumnProfilesGrid(resetScroll = false): void {
         row.appendChild(createSelectionCell(profile));
         row.appendChild(createProfileCell(profile.name));
         row.appendChild(createProfileCell(normalizeDtypeLabel(profile.dtype), 'muted'));
-        row.appendChild(createProfileCell(`${formatCount(profile.nonNullCount)} (${nonNullPct.toFixed(1)}%)`, 'num'));
-        row.appendChild(createProfileCell(formatCount(profile.nullCount), 'num'));
-        const minCell = createProfileCell(formatProfileValue(profile.min, profile.dtype), 'num');
+        row.appendChild(createProfileCell(pending ? 'Pending' : `${formatCount(profile.nonNullCount)} (${nonNullPct.toFixed(1)}%)`, pending ? 'muted' : 'num'));
+        row.appendChild(createProfileCell(pending ? 'Pending' : formatCount(profile.nullCount), pending ? 'muted' : 'num'));
+        const minCell = createProfileCell(pending ? 'Pending' : formatProfileValue(profile.min, profile.dtype), pending ? 'muted' : 'num');
         const minTitle = formatProfileValueTitle(profile.min, profile.dtype);
         if (minTitle) minCell.title = minTitle;
         row.appendChild(minCell);
-        const maxCell = createProfileCell(formatProfileValue(profile.max, profile.dtype), 'num');
+        const maxCell = createProfileCell(pending ? 'Pending' : formatProfileValue(profile.max, profile.dtype), pending ? 'muted' : 'num');
         const maxTitle = formatProfileValueTitle(profile.max, profile.dtype);
         if (maxTitle) maxCell.title = maxTitle;
         row.appendChild(maxCell);

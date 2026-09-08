@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { scatterState } from '../../store/scatterState.js';
-import { applyView, buildOption, updateCorrelationStats, updateMarginalPlots } from './rendering.js';
+import { applyView, buildOption, syncModeUI, updateCorrelationStats, updateMarginalPlots } from './rendering.js';
 import { buildDensitySeries, buildDensityTooltipCache, densityTooltipFormatterFactory } from './renderingDensity.js';
+import { updateSetting } from '../../utils/settings.js';
 
 class MockCanvasContext2D {
     ops: string[] = [];
@@ -97,7 +98,7 @@ describe('scatter marginal rendering modes', () => {
                 <option value="kde">KDE</option>
                 <option value="boxplot">Box Plot</option>
             </select>
-            <select id="scatter-color-column"><option value="" selected>None</option></select>
+            <label id="scatter-color-column-field"><select id="scatter-color-column"><option value="" selected>None</option></select></label>
             <div id="scatter-color-scale-field"><select id="scatter-color-scale"><option value="viridis" selected>Viridis</option></select></div>
             <input id="scatter-matrix-mode" value="scatter">
             <input id="scatter-matrix-cell-size" value="160">
@@ -154,6 +155,19 @@ describe('scatter marginal rendering modes', () => {
         expect(rightPanel.dataset.marginalActive).toBe('1');
         // #scatter-chart should reserve the 64px top strip via the .with-x-marginal class.
         expect(document.getElementById('scatter-chart')?.classList.contains('with-x-marginal')).toBe(true);
+    });
+
+    it('only exposes Color column when scatter rendering can use it', () => {
+        const renderMode = document.getElementById('scatter-render-mode') as HTMLSelectElement;
+        const field = document.getElementById('scatter-color-column-field') as HTMLElement;
+
+        renderMode.value = 'density';
+        syncModeUI();
+        expect(field.style.display).toBe('none');
+
+        renderMode.value = 'scatter';
+        syncModeUI();
+        expect(field.style.display).toBe('');
     });
 
     it('draws histogram, kde, and boxplot marginals in density mode', () => {
@@ -302,6 +316,7 @@ describe('scatter marginal rendering modes', () => {
 
 describe('updateCorrelationStats', () => {
     beforeEach(() => {
+        localStorage.clear();
         document.body.innerHTML = `
             <select id="scatter-x-col"><option value="HUFL" selected>HUFL</option></select>
             <select id="scatter-y-col"><option value="HULL" selected>HULL</option></select>
@@ -316,8 +331,8 @@ describe('updateCorrelationStats', () => {
 
     it('renders Pearson and Spearman values for the active pair', () => {
         updateCorrelationStats();
-        expect(document.getElementById('scatter-pearson')?.textContent).toBe('Pearson r: 0.671');
-        expect(document.getElementById('scatter-spearman')?.textContent).toBe('Spearman ρ: 0.642');
+        expect(document.getElementById('scatter-pearson')?.textContent).toBe('Pearson r: 0.6710');
+        expect(document.getElementById('scatter-spearman')?.textContent).toBe('Spearman ρ: 0.6420');
     });
 
     it('reads from per-mode maps when only Y changes (currentPairStats stale)', () => {
@@ -334,8 +349,21 @@ describe('updateCorrelationStats', () => {
         // Stale pairStats — built for the previous (X, HULL) pair.
         (scatterState as any).currentPairStats = { pearsonRaw: 0.671, spearmanRaw: 0.642, count: 42 };
         updateCorrelationStats();
-        expect(document.getElementById('scatter-pearson')?.textContent).toBe('Pearson r: 0.931');
-        expect(document.getElementById('scatter-spearman')?.textContent).toBe('Spearman ρ: 0.928');
+        expect(document.getElementById('scatter-pearson')?.textContent).toBe('Pearson r: 0.9310');
+        expect(document.getElementById('scatter-spearman')?.textContent).toBe('Spearman ρ: 0.9280');
+    });
+
+    it('keeps Pearson and Spearman distinct when Spearman is the preferred metric', () => {
+        updateSetting('defaultCorrelationMetric', 'spearman_raw');
+        scatterState.correlationsByMode = new Map([
+            ['pearson_raw', new Map([['HULL', { column: 'HULL', value: 0.6557, count: 69_680 }]])],
+            ['spearman_raw', new Map([['HULL', { column: 'HULL', value: 0.6923, count: 69_680 }]])],
+        ]);
+
+        updateCorrelationStats();
+
+        expect(document.getElementById('scatter-pearson')?.textContent).toBe('Pearson r: 0.6557');
+        expect(document.getElementById('scatter-spearman')?.textContent).toBe('Spearman ρ: 0.6923');
     });
 });
 

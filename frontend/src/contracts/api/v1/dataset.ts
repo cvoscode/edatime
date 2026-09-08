@@ -38,6 +38,9 @@ export interface ColumnProfile {
     /** Numeric distribution facts from a completed profile. */
     finite_count?: number;
     zero_count?: number;
+    longest_zero_run?: number;
+    longest_zero_run_start_ms?: number;
+    longest_zero_run_end_ms?: number;
     distinct_count?: number;
     is_constant?: boolean;
     q25?: number | null;

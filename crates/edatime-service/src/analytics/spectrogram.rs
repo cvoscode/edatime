@@ -191,6 +191,16 @@ fn compute_spectrogram_with_cancellation(
         };
         times_ms.push(t);
 
+        // Omit windows crossing a masked observation; preserve their time slots.
+        if values[pos..pos + window_size]
+            .iter()
+            .any(|value| !value.is_finite())
+        {
+            magnitudes.push(vec![f64::NAN; half]);
+            pos += hop_size;
+            windows_processed += 1;
+            continue;
+        }
         let mean: f64 = values[pos..pos + window_size].iter().sum::<f64>() / window_size as f64;
         let mut buffer: Vec<Complex<f64>> = values[pos..pos + window_size]
             .iter()
@@ -465,57 +475,77 @@ pub fn apply_spectral_filter(
     let fs = sample_rate_hz.unwrap_or_else(|| estimate_sample_rate_hz(&ts_ms));
     let nyquist = fs / 2.0;
 
-    let mean = values.iter().sum::<f64>() / n as f64;
-
-    let mut buffer: Vec<Complex<f64>> = values
-        .iter()
-        .map(|&v| Complex::new(v - mean, 0.0))
-        .collect();
-
-    let mut planner = FftPlanner::<f64>::new();
-    let fft_forward = planner.plan_fft_forward(n);
-    fft_forward.process(&mut buffer);
-
-    let df_freq = fs / n as f64;
-    for (i, c) in buffer.iter_mut().enumerate() {
-        let freq = if i <= n / 2 {
-            i as f64 * df_freq
-        } else {
-            (n - i) as f64 * df_freq
-        };
-
-        let pass = match filter_type {
-            FilterType::Lowpass => {
-                let cutoff = high_hz.unwrap_or(nyquist);
-                freq <= cutoff
-            }
-            FilterType::Highpass => {
-                let cutoff = low_hz.unwrap_or(0.0);
-                freq >= cutoff
-            }
-            FilterType::Bandpass => {
-                let lo = low_hz.unwrap_or(0.0);
-                let hi = high_hz.unwrap_or(nyquist);
-                freq >= lo && freq <= hi
-            }
-            FilterType::Bandstop => {
-                let lo = low_hz.unwrap_or(0.0);
-                let hi = high_hz.unwrap_or(nyquist);
-                freq < lo || freq > hi
-            }
-        };
-
-        if !pass {
-            c.re = 0.0;
-            c.im = 0.0;
+    let mut filtered = vec![f64::NAN; n];
+    let mut start = 0;
+    while start < values.len() {
+        if !values[start].is_finite() {
+            start += 1;
+            continue;
         }
+        let end = (start..values.len())
+            .find(|&i| !values[i].is_finite())
+            .unwrap_or(values.len());
+        let segment = &values[start..end];
+        let n = segment.len();
+        if n < 4 {
+            start = end;
+            continue;
+        }
+        let mean = segment.iter().sum::<f64>() / n as f64;
+
+        let mut buffer: Vec<Complex<f64>> = segment
+            .iter()
+            .map(|&v| Complex::new(v - mean, 0.0))
+            .collect();
+
+        let mut planner = FftPlanner::<f64>::new();
+        let fft_forward = planner.plan_fft_forward(n);
+        fft_forward.process(&mut buffer);
+
+        let df_freq = fs / n as f64;
+        for (i, c) in buffer.iter_mut().enumerate() {
+            let freq = if i <= n / 2 {
+                i as f64 * df_freq
+            } else {
+                (n - i) as f64 * df_freq
+            };
+
+            let pass = match filter_type {
+                FilterType::Lowpass => {
+                    let cutoff = high_hz.unwrap_or(nyquist);
+                    freq <= cutoff
+                }
+                FilterType::Highpass => {
+                    let cutoff = low_hz.unwrap_or(0.0);
+                    freq >= cutoff
+                }
+                FilterType::Bandpass => {
+                    let lo = low_hz.unwrap_or(0.0);
+                    let hi = high_hz.unwrap_or(nyquist);
+                    freq >= lo && freq <= hi
+                }
+                FilterType::Bandstop => {
+                    let lo = low_hz.unwrap_or(0.0);
+                    let hi = high_hz.unwrap_or(nyquist);
+                    freq < lo || freq > hi
+                }
+            };
+
+            if !pass {
+                c.re = 0.0;
+                c.im = 0.0;
+            }
+        }
+
+        let fft_inverse = planner.plan_fft_inverse(n);
+        fft_inverse.process(&mut buffer);
+
+        let scale = 1.0 / n as f64;
+        for (output, value) in filtered[start..end].iter_mut().zip(&buffer) {
+            *output = value.re * scale + mean;
+        }
+        start = end;
     }
-
-    let fft_inverse = planner.plan_fft_inverse(n);
-    fft_inverse.process(&mut buffer);
-
-    let scale = 1.0 / n as f64;
-    let filtered: Vec<f64> = buffer.iter().map(|c| c.re * scale + mean).collect();
 
     Ok((ts_ms, filtered))
 }
@@ -525,6 +555,53 @@ mod tests {
     use super::*;
     use crate::error::ErrorCode;
     use edatime_core::cancellation::cancellation_pair;
+
+    #[test]
+    fn spectral_filter_preserves_masked_gaps_between_valid_segments() {
+        use polars::prelude::*;
+        let frame = DataFrame::new(
+            9,
+            vec![
+                Series::new("ts".into(), (0_i64..9).collect::<Vec<_>>())
+                    .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))
+                    .unwrap()
+                    .into(),
+                Series::new(
+                    "value".into(),
+                    [
+                        Some(10.0),
+                        Some(10.0),
+                        Some(10.0),
+                        Some(10.0),
+                        None,
+                        Some(20.0),
+                        Some(20.0),
+                        Some(20.0),
+                        Some(20.0),
+                    ],
+                )
+                .into(),
+            ],
+        )
+        .unwrap();
+        let spectrum = compute_spectrogram(&frame, "value", 4, 1).unwrap();
+        assert!(spectrum.magnitudes[0].iter().all(|value| *value == 0.0));
+        assert!(spectrum.magnitudes[1].iter().all(|value| value.is_nan()));
+        assert!(spectrum.magnitudes[5].iter().all(|value| *value == 0.0));
+        let (times, values) = apply_spectral_filter(
+            &frame,
+            "value",
+            FilterType::Lowpass,
+            None,
+            Some(0.5),
+            Some(1.0),
+        )
+        .unwrap();
+        assert_eq!(times.len(), 9);
+        assert_eq!(&values[..4], &[10.0; 4]);
+        assert!(values[4].is_nan());
+        assert_eq!(&values[5..], &[20.0; 4]);
+    }
 
     fn make_result(values: Vec<f64>) -> SpectrogramResult {
         SpectrogramResult {

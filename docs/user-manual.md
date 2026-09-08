@@ -173,6 +173,8 @@ Chip interactions:
 - `Ctrl+click` a chip to set it as the adaptive-filter target
 - double right-click a chip to open its numeric filter modal
 
+Numeric range and adaptive-line filters mask only the targeted trace: excluded values become null in the working dataset. Timestamps and other traces remain unchanged. Charts show gaps, exports retain nulls, and correlations omit missing values separately for each pair. Spectrogram windows containing masked values are omitted.
+
 ### Draw And Labels
 
 The main toolbar includes:
@@ -593,6 +595,10 @@ Confirmed manual-edit behavior:
 - clicking `+ Edge` enables add-edge mode and prompts you to click two nodes to create a pair edge
 
 The summary line reports the current graph size, including node count, pair-edge count, raw connection count, and manual/meta nodes.
+
+## Downsampling
+
+Dense Signals views are reduced to a representative set of points before rendering so interaction stays responsive. The status beneath the chart reports the number rendered and the number represented. Downsampling changes only the visual sample: filters, summaries, pipeline stages, and exports continue to use the underlying working dataset unless an export explicitly states a row limit. Zoom into a shorter time range to request a denser view of that interval.
 
 ## Practical Tips
 

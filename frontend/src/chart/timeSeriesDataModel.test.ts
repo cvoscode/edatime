@@ -49,6 +49,27 @@ describe('buildTimeSeriesDataModel', () => {
         expect(model.series.every((series: any) => series.visible === false)).toBe(true);
     });
 
+    it('emphasizes the color-source trace while retaining value-based segment colors', () => {
+        const model = buildTimeSeriesDataModel({
+            data: {
+                ts: new Float64Array([0, 1, 2]),
+                values: { temperature: new Float64Array([1, 2, 3]), humidity: new Float64Array([3, 2, 1]) },
+                colorByColumn: { temperature: [1, 2, 3], humidity: [1, 2, 3] },
+            } as any,
+            columns: ['temperature', 'humidity'],
+            visibilityByName: new Map(),
+            selectedColorColumn: 'temperature',
+            showMarkers: false,
+            showRawData: true,
+        });
+        const source = model.series.filter((series) => String(series.name).includes('temperature')) as any[];
+        const peer = model.series.filter((series) => String(series.name).includes('humidity')) as any[];
+
+        expect(source.every((series) => series.lineStyle.width === 2.8)).toBe(true);
+        expect(peer.every((series) => series.lineStyle.width === 1.4)).toBe(true);
+        expect(new Set(source.map((series) => series.color)).size).toBeGreaterThan(1);
+    });
+
     it('keeps the data domain while hiding raw series for smooth-only display', () => {
         const model = buildTimeSeriesDataModel({
             data: {

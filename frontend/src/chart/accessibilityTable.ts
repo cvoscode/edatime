@@ -9,6 +9,9 @@ export interface SeriesSummary {
     min: number;
     max: number;
     mean: number;
+    std?: number;
+    median?: number;
+    missingCount?: number;
 }
 
 /**
@@ -18,9 +21,10 @@ export interface SeriesSummary {
 export function createAccessibilitySummaryTable(
     chartTitle: string,
     summaries: readonly SeriesSummary[],
+    options: { visible?: boolean } = {},
 ): HTMLTableElement {
     const table = document.createElement('table');
-    table.className = 'sr-only';
+    table.className = options.visible ? 'chart-summary-table' : 'sr-only';
     table.setAttribute('aria-label', `Statistical summary for ${chartTitle}`);
 
     const caption = document.createElement('caption');
@@ -30,7 +34,7 @@ export function createAccessibilitySummaryTable(
     const thead = document.createElement('thead');
     const headerRow = document.createElement('tr');
 
-    const headers = ['Series Name', 'Point Count', 'Min Value', 'Max Value', 'Mean Value'];
+    const headers = ['Series', 'Count', 'Min', 'Max', 'Mean', 'Std', 'Median', 'Missing %'];
     for (const text of headers) {
         const th = document.createElement('th');
         th.setAttribute('scope', 'col');
@@ -64,6 +68,25 @@ export function createAccessibilitySummaryTable(
         const tdMean = document.createElement('td');
         tdMean.textContent = summary.mean.toLocaleString(undefined, { maximumFractionDigits: 4 });
         row.appendChild(tdMean);
+
+        const tdStd = document.createElement('td');
+        tdStd.textContent = Number.isFinite(summary.std)
+            ? summary.std!.toLocaleString(undefined, { maximumFractionDigits: 4 })
+            : '—';
+        row.appendChild(tdStd);
+
+        const tdMedian = document.createElement('td');
+        tdMedian.textContent = Number.isFinite(summary.median)
+            ? summary.median!.toLocaleString(undefined, { maximumFractionDigits: 4 })
+            : '—';
+        row.appendChild(tdMedian);
+
+        const tdMissing = document.createElement('td');
+        const missingCount = Math.max(0, summary.missingCount ?? 0);
+        const observedCount = Math.max(0, summary.count);
+        const denominator = observedCount + missingCount;
+        tdMissing.textContent = denominator > 0 ? `${((missingCount / denominator) * 100).toFixed(2)}%` : '—';
+        row.appendChild(tdMissing);
 
         tbody.appendChild(row);
     }

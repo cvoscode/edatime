@@ -158,6 +158,7 @@ export function buildColorizedSeries(
     scaleInfo: ColorScaleInfo,
     visible: boolean,
     showMarkers: boolean,
+    colorSource = false,
 ): ColorizedResult {
     const series: any[] = [];
     const annotations: any[] = [];
@@ -167,7 +168,11 @@ export function buildColorizedSeries(
 
     if (points.length === 1) {
         const pointColor = colorForScaleValue(colorValues[0], scaleInfo) || getSeriesColor(colName, 0);
-        series.push({ type: 'line', name: colName, color: pointColor, visible, data: [points[0], points[0]] });
+        series.push({
+            type: 'line', name: colName, color: pointColor, visible,
+            lineStyle: { width: colorSource ? 2.8 : 1.4, opacity: colorSource ? 1 : 0.82 },
+            data: [points[0], points[0]],
+        });
         if (showMarkers && visible) {
             annotations.push({ type: 'point', x: points[0][0], y: points[0][1], layer: 'aboveSeries', marker: { symbol: 'circle', size: 5, style: { color: pointColor } } });
         }
@@ -179,6 +184,11 @@ export function buildColorizedSeries(
     if (scaleInfo.isNumeric) {
         const min = scaleInfo.min as number;
         const span = (scaleInfo.max as number) - min;
+        const finiteColorValues = colorValues.map(Number).filter(Number.isFinite);
+        const meanColorValue = finiteColorValues.length > 0
+            ? finiteColorValues.reduce((sum, value) => sum + value, 0) / finiteColorValues.length
+            : min;
+        const legendColor = getInterpolatedColor(span > 0 ? (meanColorValue - min) / span : 0, scaleName);
         const buckets = new Uint8Array(points.length);
         for (let i = 0; i < points.length; i++) {
             const v = Number(colorValues[i]);
@@ -203,7 +213,9 @@ export function buildColorizedSeries(
                 type: 'line',
                 name: segIdx === 0 ? colName : `__color_segment__${colName}::${segIdx}`,
                 color,
+                legendColor,
                 visible,
+                lineStyle: { width: colorSource ? 2.8 : 1.4, opacity: colorSource ? 1 : 0.82 },
                 showInLegend: false,
                 data: segData,
             });
@@ -212,6 +224,10 @@ export function buildColorizedSeries(
         }
     } else {
         const labels = colorValues.map((v) => String(v ?? ''));
+        const counts = new Map<string, number>();
+        for (const label of labels) counts.set(label, (counts.get(label) ?? 0) + 1);
+        const representative = [...counts].sort((left, right) => right[1] - left[1])[0]?.[0] ?? '';
+        const legendColor = categoryColorFor(representative, scaleInfo.categories);
         let segIdx = 0;
         let runStart = 0;
         while (runStart < labels.length) {
@@ -229,7 +245,9 @@ export function buildColorizedSeries(
                 type: 'line',
                 name: segIdx === 0 ? colName : `__color_segment__${colName}::${segIdx}`,
                 color,
+                legendColor,
                 visible,
+                lineStyle: { width: colorSource ? 2.8 : 1.4, opacity: colorSource ? 1 : 0.82 },
                 showInLegend: false,
                 data: segData,
             });

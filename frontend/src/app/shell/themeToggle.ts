@@ -6,10 +6,12 @@
  * persist + apply work to settings. There is no separate runtime here.
  */
 
-import { applyTheme, loadSettings, saveSettings } from '../../utils/settings.js';
+import { applyTheme, loadSettings, saveSettings, type ThemeMode } from '../../utils/settings.js';
 
-function nextTheme(current: 'light' | 'dark'): 'light' | 'dark' {
-    return current === 'light' ? 'dark' : 'light';
+function nextTheme(current: ThemeMode): ThemeMode {
+    const themes: ThemeMode[] = ['dark', 'light', 'high-contrast', 'colorblind'];
+    const index = themes.indexOf(current);
+    return themes[(index + 1) % themes.length]!;
 }
 
 /** Wire the header theme toggle button. */
@@ -20,11 +22,11 @@ export function initThemeToggle(): () => void {
 
     const onClick = () => {
         const settings = loadSettings();
-        const current = settings.theme === 'light' ? 'light' : 'dark';
-        const target = nextTheme(current);
+        const target = nextTheme(settings.theme);
         settings.theme = target;
         saveSettings(settings);
         applyTheme(target);
+        btn.setAttribute('title', `Theme: ${target.replace('-', ' ')}. Click for the next theme.`);
     };
     btn.addEventListener('click', onClick);
     return () => {

@@ -211,6 +211,38 @@ describe('initFilterModalController', () => {
     });
 
     describe('apply button', () => {
+        it('rejects reversed or equal bounds instead of silently swapping them', () => {
+            initFilterModalController({ renderCurrentData: vi.fn(), updateAnalysisYRange: vi.fn() });
+            openFilterForColumn('HUFL');
+            const minInput = document.getElementById('column-filter-min') as HTMLInputElement;
+            const maxInput = document.getElementById('column-filter-max') as HTMLInputElement;
+            const apply = document.getElementById('column-filter-apply-btn') as HTMLButtonElement;
+
+            minInput.value = '0.8';
+            maxInput.value = '0.2';
+            minInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+            expect(apply.disabled).toBe(true);
+            expect(document.getElementById('column-filter-hint')?.textContent).toContain('Min must be less than Max');
+            expect(workspace.getSnapshot().filters.columnRanges).toEqual({});
+        });
+
+        it('rejects values outside the source profile and offers a reset', () => {
+            initFilterModalController({ renderCurrentData: vi.fn(), updateAnalysisYRange: vi.fn() });
+            openFilterForColumn('HUFL');
+            const minInput = document.getElementById('column-filter-min') as HTMLInputElement;
+            const apply = document.getElementById('column-filter-apply-btn') as HTMLButtonElement;
+
+            minInput.value = '-2';
+            minInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+            expect(apply.disabled).toBe(true);
+            expect(document.getElementById('column-filter-hint')?.textContent).toContain('Value -2.00 outside data range (0.00 to 1.00)');
+            (document.getElementById('column-filter-hint')!.querySelector('button') as HTMLButtonElement).click();
+            expect(minInput.value).toBe('0.00');
+            expect(apply.disabled).toBe(false);
+        });
+
         it('writes edited bounds to workspace filters', () => {
             const renderCurrentData = vi.fn();
             const updateAnalysisYRange = vi.fn();

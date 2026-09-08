@@ -158,7 +158,7 @@ impl<'a> Pcmci<'a> {
         cancellation.check()?;
 
         // Step 2: MCI tests
-        let mut graph = self.run_mci(config, &pc_result.all_parents);
+        let mut graph = self.run_mci_cancellable(config, &pc_result.all_parents, cancellation)?;
 
         // FDR correction
         if config.fdr_method == "fdr_bh" {
@@ -218,7 +218,18 @@ impl<'a> Pcmci<'a> {
         cancellation: &CancellationProbe,
     ) -> Result<CausalResult, AppError> {
         cancellation.check()?;
-        let result = self.run_fullci(config);
+        let n = self.df.n_vars;
+        let all_parents = self.build_fullci_parents(config, n);
+        let mci_config = PcmciConfig {
+            max_conds_px: Some(0),
+            ..config.clone()
+        };
+        let mut graph = self.run_mci_cancellable(&mci_config, &all_parents, cancellation)?;
+        if config.fdr_method == "fdr_bh" {
+            graph.fdr_correction();
+        }
+        graph.threshold(config.alpha_level);
+        let result = CausalResult::from_graph(&graph, &self.df.var_names);
         cancellation.check()?;
         Ok(result)
     }
@@ -262,7 +273,25 @@ impl<'a> Pcmci<'a> {
         cancellation: &CancellationProbe,
     ) -> Result<CausalResult, AppError> {
         cancellation.check()?;
-        let result = self.run_bivci(config);
+        let n = self.df.n_vars;
+        let mut all_parents: HashMap<usize, Vec<VarLag>> = HashMap::new();
+        for j in 0..n {
+            cancellation.check()?;
+            let parents = (config.tau_min.max(1)..=config.tau_max)
+                .map(|tau| (j, -(tau as i32)))
+                .collect();
+            all_parents.insert(j, parents);
+        }
+        let mci_config = PcmciConfig {
+            max_conds_px: Some(0),
+            ..config.clone()
+        };
+        let mut graph = self.run_mci_cancellable(&mci_config, &all_parents, cancellation)?;
+        if config.fdr_method == "fdr_bh" {
+            graph.fdr_correction();
+        }
+        graph.threshold(config.alpha_level);
+        let result = CausalResult::from_graph(&graph, &self.df.var_names);
         cancellation.check()?;
         Ok(result)
     }
@@ -307,6 +336,64 @@ impl<'a> Pcmci<'a> {
         }
 
         graph
+    }
+
+    /// Cancellable MCI sweep. Each Rayon task checks the request-owned probe
+    /// before constructing its conditioning array and the caller checks again
+    /// after the parallel join. An independence test itself remains an opaque
+    /// synchronous kernel, so its duration is the remaining cancellation
+    /// latency bound.
+    fn run_mci_cancellable(
+        &self,
+        config: &PcmciConfig,
+        all_parents: &HashMap<usize, Vec<VarLag>>,
+        cancellation: &CancellationProbe,
+    ) -> Result<CausalGraph, AppError> {
+        cancellation.check()?;
+        let n = self.df.n_vars;
+        let tau_max = config.tau_max;
+        let tau_min = config.tau_min;
+        let mut tasks: Vec<(usize, usize, usize)> = Vec::new();
+        for j in 0..n {
+            for i in 0..n {
+                for tau in tau_min..=tau_max {
+                    if tau == 0 && i == j {
+                        continue;
+                    }
+                    tasks.push((i, j, tau));
+                }
+            }
+        }
+
+        let results: Vec<(usize, usize, usize, f64, f64)> = tasks
+            .par_iter()
+            .map(|&(i, j, tau)| {
+                cancellation.check()?;
+                let (val, pval) = self.mci_test(i, j, tau, config, all_parents);
+                Ok((i, j, tau, val, pval))
+            })
+            .collect::<Result<Vec<_>, AppError>>()?;
+        cancellation.check()?;
+
+        let mut graph = CausalGraph::new(n, tau_max);
+        for (i, j, tau, val, pval) in results {
+            graph.set_val(i, j, tau, val);
+            graph.set_pval(i, j, tau, pval);
+        }
+        Ok(graph)
+    }
+
+    fn build_fullci_parents(&self, config: &PcmciConfig, n: usize) -> HashMap<usize, Vec<VarLag>> {
+        let mut all_parents = HashMap::new();
+        for j in 0..n {
+            let parents = (0..n)
+                .flat_map(|i| {
+                    (config.tau_min.max(1)..=config.tau_max).map(move |tau| (i, -(tau as i32)))
+                })
+                .collect();
+            all_parents.insert(j, parents);
+        }
+        all_parents
     }
 
     /// Single MCI test: X^i_{t-τ} ⊥ X^j_t | parents(j) ∪ shifted_parents(i).

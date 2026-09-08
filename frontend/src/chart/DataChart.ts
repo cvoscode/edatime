@@ -10,7 +10,7 @@ import { defaultGpuPowerPreference } from '../utils/platform.js';
 import type { PendingAdaptivePoint } from '../types/store.js';
 import { analyticsState } from '../store/analyticsState.js';
 import { subscribe } from '../store/events.js';
-import type { AdaptiveLineFilter } from '../types/store.js';
+import type { AdaptiveLineFilter, ColumnRange } from '../types/store.js';
 import type {
     ChartTextOverlays,
     FilteredDataObject,
@@ -112,6 +112,7 @@ export class DataChart {
     _lastDataYMin: number | null = null;
     _lastDataYMax: number | null = null;
     _activeColumns: readonly string[] = [];
+    _columnRangeFilters: Readonly<Record<string, ColumnRange>> = {};
     _adaptiveLineFilters: readonly AdaptiveLineFilter[] = [];
     _lastSeriesList: SeriesConfig[] | null = null;
     _lastXDomainMin: number | null = null;
@@ -140,6 +141,7 @@ export class DataChart {
         columns: string[];
         colorColumn: string | null;
         adaptiveLines: AdaptiveLineFilter[];
+        columnRanges: Record<string, ColumnRange>;
     } | null = null;
     _currentGrid: GridLayout = { ...DEFAULT_CHART_GRID };
     _legendOverlay: LegendOverlayController | null = null;
@@ -406,15 +408,15 @@ export class DataChart {
         });
         const onSettingsChanged = () => {
             if (!this._lastDataInput) return;
-            const { dataObj, columns, colorColumn, adaptiveLines } = this._lastDataInput;
-            this.updateDataMulti(dataObj, columns, colorColumn, adaptiveLines);
+            const { dataObj, columns, colorColumn, adaptiveLines, columnRanges } = this._lastDataInput;
+            this.updateDataMulti(dataObj, columns, colorColumn, adaptiveLines, columnRanges);
         };
         document.addEventListener('edatime:settings-changed', onSettingsChanged);
         this._settingsUnsub = () => document.removeEventListener('edatime:settings-changed', onSettingsChanged);
         const refreshRollingView = () => {
             if (!this._lastDataInput) return;
-            const { dataObj, columns, colorColumn, adaptiveLines } = this._lastDataInput;
-            this.updateDataMulti(dataObj, columns, colorColumn, adaptiveLines);
+            const { dataObj, columns, colorColumn, adaptiveLines, columnRanges } = this._lastDataInput;
+            this.updateDataMulti(dataObj, columns, colorColumn, adaptiveLines, columnRanges);
         };
         const unsubscribeDisplayMode = subscribe('analytics:rollingDisplayMode', refreshRollingView);
         const unsubscribeRollingEnabled = subscribe('analytics:rollingEnabled', refreshRollingView);
@@ -558,14 +560,19 @@ export class DataChart {
         columns: string[],
         colorColumn: string | null = null,
         adaptiveLines: readonly AdaptiveLineFilter[] = [],
+        columnRanges: Readonly<Record<string, ColumnRange>> = {},
     ): void {
         this._lastDataInput = {
             dataObj,
             columns: [...columns],
             colorColumn,
             adaptiveLines: adaptiveLines.map((filter) => ({ ...filter })),
+            columnRanges: Object.fromEntries(
+                Object.entries(columnRanges).map(([column, range]) => [column, { ...range }]),
+            ),
         };
         this._activeColumns = [...columns];
+        this._columnRangeFilters = this._lastDataInput.columnRanges;
         this._adaptiveLineFilters = adaptiveLines.map((filter) => ({ ...filter }));
         this._overlays?.setSelectedColumns(this._activeColumns);
         if (!this.chartInstance) return;
@@ -579,6 +586,7 @@ export class DataChart {
             selectedColorColumn: colorColumn,
             showMarkers: dataObj._meta?.downsampled === false,
             showRawData: !analyticsState.rollingEnabled || analyticsState.rollingDisplayMode !== 'smooth',
+            normalizeEachSeries: !!(document.getElementById('timeseries-normalize-series') as HTMLInputElement | null)?.checked,
         });
         this._lastSeriesList = model.series;
         this._lastDisplayYValues = model.displayYValues;
@@ -662,24 +670,37 @@ export class DataChart {
             if (!values || values.length === 0) continue;
 
             let count = 0;
+            let missingCount = 0;
             let min = Number.POSITIVE_INFINITY;
             let max = Number.NEGATIVE_INFINITY;
             let total = 0;
+            const finiteValues: number[] = [];
             for (const value of values) {
-                if (!Number.isFinite(value)) continue;
+                if (!Number.isFinite(value)) {
+                    missingCount += 1;
+                    continue;
+                }
                 count += 1;
+                finiteValues.push(value);
                 min = Math.min(min, value);
                 max = Math.max(max, value);
                 total += value;
             }
             if (count > 0) {
-                summaries.push({ name: column, count, min, max, mean: total / count });
+                finiteValues.sort((left, right) => left - right);
+                const midpoint = Math.floor(finiteValues.length / 2);
+                const median = finiteValues.length % 2 === 0
+                    ? (finiteValues[midpoint - 1]! + finiteValues[midpoint]!) / 2
+                    : finiteValues[midpoint]!;
+                const mean = total / count;
+                const variance = finiteValues.reduce((sum, value) => sum + (value - mean) ** 2, 0) / count;
+                summaries.push({ name: column, count, min, max, mean, std: Math.sqrt(variance), median, missingCount });
             }
         }
 
         if (summaries.length === 0) return;
         const title = this._chartTitle || 'Timeseries chart';
-        const table = createAccessibilitySummaryTable(title, summaries);
+        const table = createAccessibilitySummaryTable(title, summaries, { visible: true });
         table.dataset.chartSummary = 'timeseries';
         container.appendChild(table);
         this._accessibilityTable = table;
@@ -801,7 +822,9 @@ export class DataChart {
 
     private _getLegendEntries(): { name: string; color: string; visible: boolean }[] {
         const seriesList = Array.isArray(this._lastSeriesList) ? this._lastSeriesList : [];
-        return buildLegendEntries(seriesList, this._getChartColorPalette(), baseSeriesName);
+        const colorSource = this._lastDataInput?.colorColumn;
+        return buildLegendEntries(seriesList, this._getChartColorPalette(), baseSeriesName)
+            .map((entry) => ({ ...entry, colorSource: !!colorSource && entry.name === colorSource }));
     }
 
     private _toggleLegendTrace(name: string): void {
@@ -831,6 +854,9 @@ export class DataChart {
         this._lastSeriesList = nextSeries as SeriesConfig[];
         this._syncLegendOverlay();
         this._renderDrawings();
+        window.dispatchEvent(new CustomEvent('edatime:timeseries-legend-toggle', {
+            detail: { name, visible: !(currentEntry?.visible ?? true) },
+        }));
     }
 
     private _suppressChartHover(): void {
@@ -892,6 +918,7 @@ export class DataChart {
             getOverlayCanvas: () => this._overlayCanvas,
             getGrid: () => this._currentGrid,
             getYRange: () => this.getYRange(),
+            getColumnRangeFilters: () => this._columnRangeFilters,
             getAdaptiveLineFilters: () => this._adaptiveLineFilters,
             getPendingAdaptivePoint: () => this._getPendingAdaptivePoint(),
         });

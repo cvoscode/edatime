@@ -151,6 +151,7 @@ impl<'a> Lpcmci<'a> {
 
         for iter in 0..n_preliminary_iterations {
             cancellation.check()?;
+            cancellation.check()?;
             let pc_result = pc::run_pc_stable_cancellable(
                 self.df,
                 self.test,
@@ -161,11 +162,19 @@ impl<'a> Lpcmci<'a> {
                 config.max_combinations,
                 cancellation,
             )?;
-            let graph = self.ancestral_removal_phase(config, &pc_result.all_parents, true);
+            let graph = self.ancestral_removal_phase_with_cancellation(
+                config,
+                &pc_result.all_parents,
+                true,
+                Some(cancellation),
+            )?;
             for j in 0..n {
+                cancellation.check()?;
                 let entry = def_ancs.entry(j).or_default();
                 for i in 0..n {
+                    cancellation.check()?;
                     for tau in 1..=tau_max {
+                        cancellation.check()?;
                         if graph.get_link(i, j, tau).is_active() {
                             let vl = (i, -(tau as i32));
                             if !entry.contains(&vl) {
@@ -192,9 +201,11 @@ impl<'a> Lpcmci<'a> {
                 cancellation,
             )?;
             for j in 0..n {
+                cancellation.check()?;
                 let mut parents = pc_result.all_parents.get(&j).cloned().unwrap_or_default();
                 if let Some(ancs) = def_ancs.get(&j) {
                     for &a in ancs {
+                        cancellation.check()?;
                         if !parents.contains(&a) {
                             parents.push(a);
                         }
@@ -205,14 +216,24 @@ impl<'a> Lpcmci<'a> {
         }
 
         cancellation.check()?;
-        let mut graph = self.ancestral_removal_phase(config, &merged_parents, false);
+        let mut graph = self.ancestral_removal_phase_with_cancellation(
+            config,
+            &merged_parents,
+            false,
+            Some(cancellation),
+        )?;
         tracing::info!("LPCMCI ancestral removal complete");
 
         cancellation.check()?;
-        self.non_ancestral_phase(config, &mut graph, &merged_parents);
+        self.non_ancestral_phase_with_cancellation(
+            config,
+            &mut graph,
+            &merged_parents,
+            Some(cancellation),
+        )?;
         tracing::info!("LPCMCI non-ancestral phase complete");
 
-        self.orient_edges(&mut graph);
+        self.orient_edges_with_cancellation(&mut graph, Some(cancellation))?;
         tracing::info!("LPCMCI orientation complete");
 
         let result = CausalResult::from_graph(&graph, &self.df.var_names);
@@ -229,14 +250,38 @@ impl<'a> Lpcmci<'a> {
         all_parents: &HashMap<usize, Vec<VarLag>>,
         preliminary: bool,
     ) -> CausalGraph {
+        self.ancestral_removal_phase_with_cancellation(config, all_parents, preliminary, None)
+            .expect("ordinary LPCMCI cannot be cancelled")
+    }
+
+    fn ancestral_removal_phase_with_cancellation(
+        &self,
+        config: &PcmciConfig,
+        all_parents: &HashMap<usize, Vec<VarLag>>,
+        preliminary: bool,
+        cancellation: Option<&CancellationProbe>,
+    ) -> Result<CausalGraph, AppError> {
+        if let Some(probe) = cancellation {
+            probe.check()?;
+        }
+
         let n = self.df.n_vars;
         let tau_max = config.tau_max;
 
         // Build test tasks
         let mut tasks: Vec<(usize, usize, usize)> = Vec::new();
         for j in 0..n {
+            if let Some(probe) = cancellation {
+                probe.check()?;
+            }
             for i in 0..n {
+                if let Some(probe) = cancellation {
+                    probe.check()?;
+                }
                 for tau in 0..=tau_max {
+                    if let Some(probe) = cancellation {
+                        probe.check()?;
+                    }
                     if tau == 0 && i >= j {
                         continue;
                     }
@@ -251,6 +296,9 @@ impl<'a> Lpcmci<'a> {
         let results: Vec<(usize, usize, usize, f64, f64)> = tasks
             .par_iter()
             .map(|&(i, j, tau)| {
+                if let Some(probe) = cancellation {
+                    probe.check()?;
+                }
                 let neg_tau = -(tau as i32);
                 let x = vec![(i, neg_tau)];
                 let y = vec![(j, 0i32)];
@@ -262,6 +310,9 @@ impl<'a> Lpcmci<'a> {
                 if let Some(parents_j) = all_parents.get(&j) {
                     let limit = config.max_conds_py.unwrap_or(parents_j.len());
                     for &p in parents_j.iter().take(limit) {
+                        if let Some(probe) = cancellation {
+                            probe.check()?;
+                        }
                         if p != (i, neg_tau) && seen.insert(p) {
                             z.push(p);
                         }
@@ -272,6 +323,9 @@ impl<'a> Lpcmci<'a> {
                 if !preliminary && let Some(parents_i) = all_parents.get(&i) {
                     let limit = config.max_conds_px.unwrap_or(parents_i.len());
                     for &(k, tau_k) in parents_i.iter().take(limit) {
+                        if let Some(probe) = cancellation {
+                            probe.check()?;
+                        }
                         let shifted = (k, tau_k + neg_tau);
                         let abs_lag = (-shifted.1) as usize;
                         if abs_lag <= 2 * config.tau_max
@@ -285,17 +339,20 @@ impl<'a> Lpcmci<'a> {
 
                 let (array, xyz) = self.df.construct_array(&x, &y, &z, config.tau_max);
                 if array.ncols() < 5 {
-                    return (i, j, tau, 0.0, 1.0);
+                    return Ok((i, j, tau, 0.0, 1.0));
                 }
 
                 let result = self.test.run_test(&array, &xyz, config.alpha_level);
-                (i, j, tau, result.val, result.pval)
+                Ok((i, j, tau, result.val, result.pval))
             })
-            .collect();
+            .collect::<Result<Vec<_>, AppError>>()?;
 
         // Assemble graph
         let mut graph = CausalGraph::new(n, tau_max);
         for (i, j, tau, val, pval) in results {
+            if let Some(probe) = cancellation {
+                probe.check()?;
+            }
             graph.set_val(i, j, tau, val);
             graph.set_pval(i, j, tau, pval);
 
@@ -318,7 +375,10 @@ impl<'a> Lpcmci<'a> {
             }
         }
 
-        graph
+        if let Some(probe) = cancellation {
+            probe.check()?;
+        }
+        Ok(graph)
     }
 
     /// Non-ancestral phase: refine contemporaneous links by testing with
@@ -329,13 +389,34 @@ impl<'a> Lpcmci<'a> {
         graph: &mut CausalGraph,
         all_parents: &HashMap<usize, Vec<VarLag>>,
     ) {
+        self.non_ancestral_phase_with_cancellation(config, graph, all_parents, None)
+            .expect("ordinary LPCMCI cannot be cancelled")
+    }
+
+    fn non_ancestral_phase_with_cancellation(
+        &self,
+        config: &PcmciConfig,
+        graph: &mut CausalGraph,
+        all_parents: &HashMap<usize, Vec<VarLag>>,
+        cancellation: Option<&CancellationProbe>,
+    ) -> Result<(), AppError> {
+        if let Some(probe) = cancellation {
+            probe.check()?;
+        }
+
         let n = graph.n_vars;
         let tau_max = graph.tau_max;
 
         // Collect contemporaneous adjacencies to refine
         let mut contemp_pairs: Vec<(usize, usize)> = Vec::new();
         for i in 0..n {
+            if let Some(probe) = cancellation {
+                probe.check()?;
+            }
             for j in (i + 1)..n {
+                if let Some(probe) = cancellation {
+                    probe.check()?;
+                }
                 if graph.get_link(i, j, 0).is_active() {
                     contemp_pairs.push((i, j));
                 }
@@ -344,6 +425,9 @@ impl<'a> Lpcmci<'a> {
 
         // For each contemporaneous pair, test with extended conditioning
         for &(i, j) in &contemp_pairs {
+            if let Some(probe) = cancellation {
+                probe.check()?;
+            }
             let x = vec![(i, 0i32)];
             let y = vec![(j, 0i32)];
 
@@ -354,6 +438,9 @@ impl<'a> Lpcmci<'a> {
             // Lagged parents of j
             if let Some(parents_j) = all_parents.get(&j) {
                 for &p in parents_j {
+                    if let Some(probe) = cancellation {
+                        probe.check()?;
+                    }
                     if p != (i, 0) && seen.insert(p) {
                         z.push(p);
                     }
@@ -363,6 +450,9 @@ impl<'a> Lpcmci<'a> {
             // Lagged parents of i
             if let Some(parents_i) = all_parents.get(&i) {
                 for &p in parents_i {
+                    if let Some(probe) = cancellation {
+                        probe.check()?;
+                    }
                     if p != (j, 0) && seen.insert(p) {
                         z.push(p);
                     }
@@ -371,6 +461,9 @@ impl<'a> Lpcmci<'a> {
 
             // Other contemporaneous neighbors of j
             for k in 0..n {
+                if let Some(probe) = cancellation {
+                    probe.check()?;
+                }
                 if k == i && k != j && graph.get_link(k, j, 0).is_active() {
                     let vl = (k, 0i32);
                     if seen.insert(vl) {
@@ -398,21 +491,47 @@ impl<'a> Lpcmci<'a> {
             graph.set_val(j, i, 0, result.val);
             graph.set_pval(j, i, 0, result.pval);
         }
+        if let Some(probe) = cancellation {
+            probe.check()?;
+        }
+        Ok(())
     }
 
     /// Final orientation: orient edges based on collider detection and
     /// ancestral rules. Latent-confounder-aware: surviving undirected
     /// contemporaneous edges become Undirected (potential bidirected).
     fn orient_edges(&self, graph: &mut CausalGraph) {
+        self.orient_edges_with_cancellation(graph, None)
+            .expect("ordinary LPCMCI cannot be cancelled")
+    }
+
+    fn orient_edges_with_cancellation(
+        &self,
+        graph: &mut CausalGraph,
+        cancellation: Option<&CancellationProbe>,
+    ) -> Result<(), AppError> {
+        if let Some(probe) = cancellation {
+            probe.check()?;
+        }
+
         let n = graph.n_vars;
         let tau_max = graph.tau_max;
 
         // Orient colliders: for each unshielded triple a → b - c,
         // if a and c are not adjacent, orient b ← c as well (collider at b)
         for b in 0..n {
+            if let Some(probe) = cancellation {
+                probe.check()?;
+            }
             let mut neighbors: Vec<VarLag> = Vec::new();
             for a in 0..n {
+                if let Some(probe) = cancellation {
+                    probe.check()?;
+                }
                 for tau in 0..=tau_max {
+                    if let Some(probe) = cancellation {
+                        probe.check()?;
+                    }
                     if tau == 0 && a == b {
                         continue;
                     }
@@ -423,7 +542,13 @@ impl<'a> Lpcmci<'a> {
             }
 
             for ni in 0..neighbors.len() {
+                if let Some(probe) = cancellation {
+                    probe.check()?;
+                }
                 for nj in (ni + 1)..neighbors.len() {
+                    if let Some(probe) = cancellation {
+                        probe.check()?;
+                    }
                     let (a, tau_a) = neighbors[ni];
                     let (c, tau_c) = neighbors[nj];
 
@@ -448,13 +573,23 @@ impl<'a> Lpcmci<'a> {
         // Remaining uncertain contemporaneous links become Undirected
         // (represent possible latent confounders: X o-o Y)
         for i in 0..n {
+            if let Some(probe) = cancellation {
+                probe.check()?;
+            }
             for j in (i + 1)..n {
+                if let Some(probe) = cancellation {
+                    probe.check()?;
+                }
                 if graph.get_link(i, j, 0) == LinkType::Uncertain {
                     graph.set_link(i, j, 0, LinkType::Undirected);
                     graph.set_link(j, i, 0, LinkType::Undirected);
                 }
             }
         }
+        if let Some(probe) = cancellation {
+            probe.check()?;
+        }
+        Ok(())
     }
 
     fn are_adjacent(

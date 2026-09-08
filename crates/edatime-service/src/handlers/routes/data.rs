@@ -571,7 +571,7 @@ mod tests {
                 .headers()
                 .get("x-edatime-filtered-rows")
                 .and_then(|value| value.to_str().ok()),
-            Some("2"),
+            Some("3"),
         );
         assert!(
             response

@@ -11,7 +11,7 @@ export interface LegendDragState {
     startTop: number;
 }
 
-export interface LegendEntry { name: string; color: string; visible: boolean }
+export interface LegendEntry { name: string; color: string; visible: boolean; colorSource?: boolean }
 
 export class LegendWindowListenerScope {
     private listeners: { type: string; handler: EventListener }[] = [];
@@ -28,7 +28,7 @@ export class LegendWindowListenerScope {
 }
 
 export function buildLegendEntries(
-    series: readonly { type?: string; name?: string; color?: string; visible?: boolean }[],
+    series: readonly { type?: string; name?: string; color?: string; legendColor?: string; visible?: boolean }[],
     palette: readonly string[],
     baseName: (name: string) => string,
 ): LegendEntry[] {
@@ -39,7 +39,7 @@ export function buildLegendEntries(
         if (!name) continue;
         const existing = byName.get(name);
         if (existing) { existing.visible ||= item.visible !== false; continue; }
-        byName.set(name, { name, color: item.color || palette[byName.size % palette.length] || '#000000', visible: item.visible !== false });
+        byName.set(name, { name, color: item.legendColor || item.color || palette[byName.size % palette.length] || '#000000', visible: item.visible !== false });
     }
     return [...byName.values()];
 }

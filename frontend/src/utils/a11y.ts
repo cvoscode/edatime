@@ -110,13 +110,13 @@ export interface KeyboardShortcut {
 const SHORTCUTS: KeyboardShortcut[] = [
     // Navigation
     { keys: 'Alt+1', description: 'Upload page', category: 'Navigation' },
-    { keys: 'Alt+2', description: 'Timeseries page', category: 'Navigation' },
-    { keys: 'Alt+3', description: 'Scatter page', category: 'Navigation' },
+    { keys: 'Alt+2', description: 'Signals page', category: 'Navigation' },
+    { keys: 'Alt+3', description: 'Pair plot page', category: 'Navigation' },
     { keys: 'Alt+4', description: 'Scatter matrix view', category: 'Navigation' },
     { keys: 'Alt+6', description: 'FFT page', category: 'Navigation' },
     { keys: 'Alt+7', description: 'Correlations page', category: 'Navigation' },
     { keys: 'Alt+8', description: 'Spectrogram page', category: 'Navigation' },
-    { keys: 'Alt+9', description: 'Causal page', category: 'Navigation' },
+    { keys: 'Alt+9', description: 'Causality page', category: 'Navigation' },
     { keys: 'Alt+0', description: 'Drift page', category: 'Navigation' },
     { keys: 'Ctrl+K', description: 'Command palette', category: 'Navigation' },
     { keys: 'Ctrl+I', description: 'Analysis context panel', category: 'Navigation' },

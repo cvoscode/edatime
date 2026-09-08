@@ -651,6 +651,13 @@ header.app-topbar {
   box-shadow: none;
 }
 
+.scatter-density-fallback-note {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  line-height: 1.2;
+  max-width: 220px;
+}
+
 #page-scatter .scatter-stats-bar__correlations {
   border-left: 1px solid var(--border-subtle);
 }
@@ -664,67 +671,6 @@ header.app-topbar {
 #page-heatmap .heatmap-corner__axis,
 #page-heatmap .heatmap-scale {
   color: var(--accent);
-}
-
-/* Desktop Correlation toolbar: the responsive details wrapper previously used
-   display:contents. Combined with flex stretching, that made the Metric block
-   as tall as three stacked neighboring groups and left the controls visibly
-   squeezed into half the available width. Treat the secondary controls as one
-   real flex region and let the four groups share the full row. */
-@media (min-width: 1280px) {
-  #page-heatmap > .scatter-toolbar {
-    display: grid;
-    grid-template-columns: 430px minmax(0, 1fr);
-    align-items: center;
-    column-gap: 0;
-  }
-
-  #page-heatmap > .scatter-toolbar > .scatter-toolbar__segment--view {
-    width: auto;
-    height: auto;
-  }
-
-  #page-heatmap .heatmap-secondary-controls {
-    display: block;
-    min-width: 0;
-  }
-
-  #page-heatmap .heatmap-secondary-controls > .analysis-secondary-disclosure__summary {
-    display: none;
-  }
-
-  #page-heatmap .heatmap-secondary-controls > .analysis-secondary-disclosure__content {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    min-width: 0;
-  }
-
-  #page-heatmap .heatmap-secondary-controls .scatter-toolbar__segment {
-    width: auto;
-    height: auto;
-  }
-
-  #page-heatmap .heatmap-secondary-controls .scatter-toolbar__segment--display {
-    flex: 0 0 540px;
-    min-width: 540px;
-  }
-
-  #page-heatmap .scatter-toolbar__field--range {
-    flex: 0 0 230px;
-    min-width: 230px;
-  }
-
-  #page-heatmap .scatter-toolbar__field--fit > .toolbar-field__label {
-    /* The segment eyebrow already names this control group, while both
-       buttons have complete labels. Removing the repeated tiny "Fit" label
-       gives the range value a reliable gutter at mid-size desktop widths. */
-    display: none;
-  }
-
-  #page-heatmap .heatmap-secondary-controls .toolbar-group--push {
-    margin-left: 0;
-  }
 }
 
 /* The same wrapper pattern is used by Pair plot and Drift. Give it a real

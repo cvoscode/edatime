@@ -53,6 +53,16 @@ describe('hash router valid pages', () => {
         expect(getHashPage()).toBe('prepare');
     });
 
+    it('accepts public page names that match navigation labels', async () => {
+        const { getHashPage } = await import('./router.js');
+        window.history.replaceState(null, '', '#page=pair-plot');
+        expect(getHashPage()).toBe('scatter');
+        window.history.replaceState(null, '', '#page=correlation-matrix');
+        expect(getHashPage()).toBe('correlations');
+        window.history.replaceState(null, '', '#page=preparation');
+        expect(getHashPage()).toBe('prepare');
+    });
+
     it('keeps scattermatrix as a first-class hash-routed page', async () => {
         const { getHashPage } = await import('./router.js');
         window.history.replaceState(null, '', '#page=scattermatrix');
@@ -161,7 +171,7 @@ describe('hash router valid pages', () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
 
         expect(window.location.search).toBe('');
-        expect(window.location.hash).toBe('#page=correlations');
+        expect(window.location.hash).toBe('#page=correlation-matrix');
         expect((document.querySelector('.page[data-page-name="heatmap"]') as HTMLElement).hidden).toBe(false);
     });
 
@@ -181,8 +191,8 @@ describe('hash router valid pages', () => {
 
         const walk: Array<[string, string]> = [
             ['timeseries', '#page=timeseries'],
-            ['correlations', '#page=correlations'],
-            ['scatter', '#page=scatter'],
+            ['correlations', '#page=correlation-matrix'],
+            ['scatter', '#page=pair-plot'],
             ['fft', '#page=fft'],
             ['spectrogram', '#page=spectrogram'],
             ['causal', '#page=causal'],
@@ -222,6 +232,6 @@ describe('hash router valid pages', () => {
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 
-        expect(window.location.hash).toBe('#page=scatter');
+        expect(window.location.hash).toBe('#page=pair-plot');
     });
 });

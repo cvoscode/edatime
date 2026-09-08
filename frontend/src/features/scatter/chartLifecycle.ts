@@ -8,6 +8,7 @@ import { initSelectionZoom } from './selectionZoom.js';
 import { isGPUAvailable, setGpuUnavailable } from './runtime.js';
 import type { DensityViewRefresh } from './rendering.js';
 import { createAccessibilitySummaryTable, type SeriesSummary } from '../../chart/accessibilityTable.js';
+import { currentControls } from './state.js';
 
 export interface ScatterChartLifecycleOptions {
     container: HTMLElement;
@@ -19,17 +20,16 @@ export interface ScatterChartLifecycleOptions {
 
 function syncAccessibilitySummary(container: HTMLElement, option: unknown): void {
     container.querySelector('table[data-chart-summary="scatter"]')?.remove();
-    const series = Array.isArray((option as { series?: unknown[] } | null)?.series)
-        ? (option as { series: unknown[] }).series
-        : [];
-    const summaries: SeriesSummary[] = series.flatMap((entry, index) => {
-        const item = entry as { name?: unknown; data?: unknown[] };
-        const values = (item.data ?? []).map((point) => {
-            if (Array.isArray(point)) return Number(point[1]);
-            if (point && typeof point === 'object') return Number((point as { value?: unknown[] }).value?.[1]);
-            return Number.NaN;
-        }).filter((value) => Number.isFinite(value));
+    void option;
+    const controls = currentControls();
+    const axes: Array<{ name: string; index: 0 | 1 }> = [
+        { name: controls.x || 'X axis', index: 0 },
+        { name: controls.y || 'Y axis', index: 1 },
+    ];
+    const summaries: SeriesSummary[] = axes.flatMap(({ name, index }) => {
+        const values = scatterState.points.map((point) => Number(point[index])).filter(Number.isFinite);
         if (values.length === 0) return [];
+        const sorted = [...values].sort((left, right) => left - right);
         const total = values.reduce((sum, value) => sum + value, 0);
         let min = values[0];
         let max = values[0];
@@ -37,16 +37,32 @@ function syncAccessibilitySummary(container: HTMLElement, option: unknown): void
             min = Math.min(min, value);
             max = Math.max(max, value);
         }
-        return [{
-            name: typeof item.name === 'string' ? item.name : `Series ${index + 1}`,
-            count: values.length,
-            min,
-            max,
-            mean: total / values.length,
-        }];
+        const mean = total / values.length;
+        const midpoint = Math.floor(sorted.length / 2);
+        const median = sorted.length % 2 === 0 ? (sorted[midpoint - 1]! + sorted[midpoint]!) / 2 : sorted[midpoint]!;
+        const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
+        return [{ name, count: values.length, min, max, mean, std: Math.sqrt(variance), median, missingCount: 0 }];
     });
     if (summaries.length === 0) return;
-    const table = createAccessibilitySummaryTable('Scatter chart', summaries);
+    const table = createAccessibilitySummaryTable('Scatter chart', summaries, { visible: true });
+    const correlationRows: Array<[string, number | null | undefined]> = [
+        ['Pearson r', scatterState.currentPairStats?.pearsonRaw],
+        ['Spearman ρ', scatterState.currentPairStats?.spearmanRaw],
+    ];
+    const correlationBody = document.createElement('tbody');
+    correlationBody.className = 'chart-summary-table__correlations';
+    for (const [name, value] of correlationRows) {
+        const row = document.createElement('tr');
+        const heading = document.createElement('th');
+        heading.scope = 'row';
+        heading.textContent = name;
+        const cell = document.createElement('td');
+        cell.colSpan = 7;
+        cell.textContent = typeof value === 'number' && Number.isFinite(value) ? value.toFixed(4) : '—';
+        row.append(heading, cell);
+        correlationBody.append(row);
+    }
+    table.append(correlationBody);
     table.dataset.chartSummary = 'scatter';
     container.appendChild(table);
 }

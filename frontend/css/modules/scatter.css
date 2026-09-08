@@ -868,6 +868,14 @@
   outline-offset: 1px;
 }
 
+.heatmap-cell:focus-visible {
+  position: relative;
+  z-index: 2;
+  outline: 3px solid var(--text);
+  outline-offset: -3px;
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
 .heatmap-scale {
   display: grid;
   grid-template-columns: auto 18px;
@@ -1055,6 +1063,50 @@
   font-weight: 600;
 }
 
+.heatmap-stat-summary,
+.heatmap-order-caption {
+  margin-top: 8px;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+}
+
+.heatmap-order-caption {
+  color: var(--accent);
+}
+
+.heatmap-suggestions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.heatmap-suggestion-sort,
+.heatmap-suggestion-chip { padding: 5px 9px; border: 1px solid var(--border-hi); border-radius: 999px; color: var(--text); background: var(--surface-1); font: inherit; font-size: .75rem; cursor: pointer; }
+.heatmap-suggestion-sort { color: var(--accent); background: transparent; }
+.heatmap-suggestion-sort:hover,
+.heatmap-suggestion-sort:focus-visible,
+.heatmap-suggestion-chip:hover,
+.heatmap-suggestion-chip:focus-visible { border-color: var(--accent); background: var(--accent-dim); outline: none; }
+
+#heatmap-metric,
+#heatmap-metric .dropdown__trigger { width: 100%; min-width: 260px; }
+#heatmap-metric .dropdown__label { max-width: none; text-overflow: clip; }
+
+/* Marked by the relationship-page overflow controller only when real toolbar
+   groups wrap; no device-width guess is involved. */
+.analysis-secondary-disclosure[data-collapse-on-overflow][data-toolbar-overflowed="true"] { display: block; min-width: 152px; }
+.analysis-secondary-disclosure[data-collapse-on-overflow][data-toolbar-overflowed="true"] > .analysis-secondary-disclosure__summary { display: flex; min-height: var(--analysis-control-h, 32px); align-items: center; justify-content: space-between; gap: 10px; padding: 0 10px; color: var(--text); cursor: pointer; }
+.analysis-secondary-disclosure[data-collapse-on-overflow][data-toolbar-overflowed="true"]:not([open]) > .analysis-secondary-disclosure__content { display: none !important; }
+.analysis-secondary-disclosure[data-collapse-on-overflow][data-toolbar-overflowed="true"][open] > .analysis-secondary-disclosure__content { display: flex !important; flex-wrap: wrap; gap: 8px; padding: 8px; }
+
+.scatter-outlier-count {
+  position: absolute;
+  z-index: 12;
+  top: 12px;
+  right: calc(var(--scatter-right, 72px) + 12px);
+  width: auto;
+  pointer-events: none;
+}
+
+#scatter-chart.with-x-marginal ~ .scatter-outlier-count {
+  top: 76px;
+}
+
 .heatmap-footer__sep {
   color: var(--tb-divider);
 }
@@ -1138,5 +1190,89 @@
 @media (min-width: 1024px) {
   #page-heatmap .scatter-toolbar__segment--actions {
     margin-left: auto;
+  }
+}
+
+/* Give the Correlation controls the full toolbar width. Keeping this rule in
+   the page-owned stylesheet also avoids charging it to every workspace page. */
+@media (min-width: 1280px) {
+  #page-heatmap > .scatter-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: center;
+    gap: 6px;
+  }
+
+  #page-heatmap > .scatter-toolbar > .scatter-toolbar__segment--view {
+    width: 100%;
+    height: auto;
+  }
+
+  #page-heatmap > .scatter-toolbar > .scatter-toolbar__segment--view .scatter-toolbar__fields {
+    display: grid;
+    grid-template-columns: minmax(280px, 1fr) auto auto auto auto;
+    width: 100%;
+  }
+
+  #page-heatmap > .scatter-toolbar > .scatter-toolbar__segment--view .scatter-toolbar__field:first-child {
+    width: 100%;
+    max-width: none;
+  }
+
+  #page-heatmap .heatmap-secondary-controls {
+    display: block;
+    min-width: 0;
+  }
+
+  #page-heatmap .heatmap-secondary-controls > .analysis-secondary-disclosure__summary {
+    display: none;
+  }
+
+  #page-heatmap .heatmap-secondary-controls > .analysis-secondary-disclosure__content {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    min-width: 0;
+  }
+
+  #page-heatmap .heatmap-secondary-controls .scatter-toolbar__segment {
+    width: auto;
+    height: auto;
+  }
+
+  #page-heatmap .heatmap-secondary-controls .scatter-toolbar__segment--display {
+    width: 100%;
+    min-width: 0;
+  }
+
+  #page-heatmap .scatter-toolbar__field--range {
+    flex: 0 0 230px;
+    min-width: 230px;
+  }
+
+  #page-heatmap .scatter-toolbar__field--fit > .toolbar-field__label {
+    display: none;
+  }
+
+  #page-heatmap .heatmap-secondary-controls .toolbar-group--push {
+    margin-left: 0;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1279px) {
+  #page-heatmap > .scatter-toolbar > .scatter-toolbar__segment--view {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  #page-heatmap > .scatter-toolbar > .scatter-toolbar__segment--view .scatter-toolbar__fields {
+    display: grid;
+    grid-template-columns: minmax(280px, 1fr) auto auto auto auto;
+    width: 100%;
+  }
+
+  #page-heatmap > .scatter-toolbar > .scatter-toolbar__segment--view .scatter-toolbar__field:first-child {
+    width: 100%;
+    max-width: none;
   }
 }

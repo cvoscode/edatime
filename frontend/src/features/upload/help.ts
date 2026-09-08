@@ -32,7 +32,7 @@ export const UPLOAD_HELP: PageHelpContent = {
                 'File name — appears below the drop zone once a file is selected; press the file name area to re-open the picker',
                 'Load options — toggle "Partial load" to cap rows, skip leading rows, and (optionally) restrict to a time range',
                 'Time column — defaults to Auto-detect; override it if the file has multiple time-like columns',
-                'Upload & Ingest — commits the file into the active dataset and loads the Timeseries page when done',
+                'Upload & Ingest — commits the file into the active dataset and loads the Signals page when done',
             ],
         },
         {
@@ -77,7 +77,7 @@ export const UPLOAD_HELP: PageHelpContent = {
     ],
     shortcuts: [
         { keys: '⌥1', description: 'Open the Upload page (this page)' },
-        { keys: '⌥2', description: 'Open the Timeseries page (auto-navigates after a successful upload)' },
+        { keys: '⌥2', description: 'Open the Signals page (auto-navigates after a successful upload)' },
         { keys: 'Ctrl+K', description: 'Command palette — every action above is searchable here' },
         { keys: 'Ctrl+S', description: 'Save the current session, including the active dataset metadata' },
         { keys: '?', description: 'Show the global keyboard shortcuts modal' },

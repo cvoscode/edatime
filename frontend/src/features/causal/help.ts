@@ -1,7 +1,7 @@
 /**
- * causalHelp — page-level "?" help for the Causal Discovery page.
+ * causalHelp — page-level "?" help for the Causality page.
  *
- * The Causal page wraps Tigramite-style algorithms (PCMCI, PCMCI+,
+ * The Causality page wraps Tigramite-style algorithms (PCMCI, PCMCI+,
  * FullCI, BivCI, LPCMCI) and renders the directed graph with edge
  * lags and p-values. The help modal covers the algorithm choice,
  * the parameters, and the graph interactions.
@@ -78,8 +78,8 @@ export const CAUSAL_HELP: PageHelpContent = {
         },
     ],
     shortcuts: [
-        { keys: '⌥9', description: 'Open the Causal page (this page)' },
-        { keys: '⌥2', description: 'Open the Timeseries page — pick your columns there first' },
+        { keys: '⌥9', description: 'Open the Causality page (this page)' },
+        { keys: '⌥2', description: 'Open the Signals page — pick your columns there first' },
         { keys: '?', description: 'Show the global keyboard shortcuts modal' },
         { keys: 'Ctrl+K', description: 'Command palette — every action above is searchable here' },
     ],

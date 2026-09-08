@@ -39,8 +39,22 @@ export interface CleaningPreviewResponse {
     rowsRemoved: number;
     columnsBefore: number;
     columnsAfter: number;
+    sourceColumns?: string[];
+    resultColumns?: string[];
+    examples?: CleaningPreviewExamples;
     stageImpacts: CleaningStageImpact[];
     warnings: string[];
+}
+
+export interface CleaningPreviewExamples {
+    raw: CleaningPreviewRow[];
+    working: CleaningPreviewRow[];
+}
+
+export interface CleaningPreviewRow {
+    rowNumber: number;
+    timestamp: string;
+    values: Record<string, string>;
 }
 
 /** Exact row-membership change at one saved stage from an explicit preview. */

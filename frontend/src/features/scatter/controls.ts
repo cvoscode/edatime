@@ -31,7 +31,11 @@ import {
     buildScatterOverviewContext,
     isLinkedBrushEnabled,
     normalizeAnalyticsView,
+    ensureOptions,
 } from './state.js';
+import { renderSuggestionsFromCache } from './correlationsPanel.js';
+import { consumeScatterPairIntent } from './pairIntent.js';
+import { getEffectiveNumericColumns } from '../../platform/analyticsColumns.js';
 import {
     buildOption,
     updateColorbarUI,
@@ -130,6 +134,8 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
     const diagonalModeSelect = getEl('scatter-diagonal-mode') as HTMLElement | null;
     const colorColumnSelect = getEl('scatter-color-column') as HTMLElement | null;
     const linkBrushInput = getEl('scatter-link-brush') as HTMLInputElement | null;
+    const clipOutliersInput = getEl('scatter-clip-outliers') as HTMLInputElement | null;
+    const backToMatrix = getEl('scatter-back-to-matrix') as HTMLButtonElement | null;
     const suggestionThresholdInput = getEl('scatter-suggestion-threshold') as HTMLInputElement | null;
     const suggestionThresholdValue = getEl('scatter-suggestion-threshold-value');
     const suggestionThresholdLabel = getEl('scatter-suggestions-label');
@@ -186,16 +192,18 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
         if (suggestionThresholdLabel) {
             suggestionThresholdLabel.textContent = `Suggestions (|corr| ≥ ${scatterState.suggestionThreshold.toFixed(2)})`;
         }
-    });
-    if (suggestionThresholdInput) listen(suggestionThresholdInput, 'change', async () => {
-        try {
-            await cb.refreshCorrelationsAndSuggestions();
-        } catch (err: any) {
-            cb.handleErr(err);
-        }
+        renderSuggestionsFromCache(async () => {
+            await Promise.all([cb.refreshCorrelationsAndSuggestions(), cb.renderScatter()]);
+        });
     });
     if (linkBrushInput) listen(linkBrushInput, 'change', async () => {
+        const icon = linkBrushInput.closest('label')?.querySelector<HTMLElement>('.scatter-link-icon');
+        if (icon) icon.textContent = linkBrushInput.checked ? '🔗' : '⛓';
         try { await cb.renderScatter(); } catch (err: any) { cb.handleErr(err); }
+    });
+    if (clipOutliersInput) listen(clipOutliersInput, 'change', () => { void cb.rerenderScatterFromCache(true); });
+    if (backToMatrix) listen(backToMatrix, 'click', () => {
+        document.querySelector<HTMLElement>('.sidebar .nav-item[data-page="correlations"]')?.click();
     });
 
     // Matrix mode toggle buttons (replaces <select>)
@@ -282,6 +290,23 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
             unsubscribeViewport();
         }, { once: true });
     }
+    let previousEffectiveSchema = getEffectiveNumericColumns(scatterState.metadata, cleaningPlanStore.getSnapshot()).join('|');
+    const unsubscribePlan = cleaningPlanStore.subscribe(() => {
+        const metadata = scatterState.metadata;
+        if (!metadata || document.getElementById('page-scatter')?.hidden) return;
+        const numeric = getEffectiveNumericColumns(metadata, cleaningPlanStore.getSnapshot());
+        const nextSchema = numeric.join('|');
+        if (nextSchema === previousEffectiveSchema) return;
+        previousEffectiveSchema = nextSchema;
+        const currentX = getEl('scatter-x-col') ? (getEl('scatter-x-col') as HTMLSelectElement).value : '';
+        const currentY = getEl('scatter-y-col') ? (getEl('scatter-y-col') as HTMLSelectElement).value : '';
+        const selectedX = ensureOptions(xSelect, numeric, numeric.includes(currentX) ? currentX : numeric[0], { searchable: true });
+        ensureOptions(ySelect, numeric.filter((column) => column !== selectedX), numeric.includes(currentY) && currentY !== selectedX ? currentY : numeric.find((column) => column !== selectedX), { searchable: true });
+        void cb.refreshCorrelationsAndSuggestions()
+            .then(() => cb.refreshActiveScatterView())
+            .catch((error) => cb.handleErr(error));
+    });
+    controller.signal.addEventListener('abort', unsubscribePlan, { once: true });
     controller.signal.addEventListener('abort', onFeatureEvent('filters:clear', async () => {
         for (const stage of cleaningPlanStore.getSnapshot()?.stages ?? []) {
             if (stage.enabled && ['columnRange', 'adaptiveLine', 'timeRange'].includes(stage.kind)) {
@@ -333,7 +358,20 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
                 await cb.initScatterPage(cb.workspace?.getSnapshot().dataset.metadata as DatasetMetadata);
             }
 
-            const nextView = normalizeAnalyticsView(change.analyticsView ?? 'plot');
+            const pairIntent = consumeScatterPairIntent();
+            if (pairIntent) {
+                const numeric = getEffectiveNumericColumns(scatterState.metadata, cleaningPlanStore.getSnapshot());
+                const selectedX = ensureOptions(xSelect, numeric, pairIntent.x, { searchable: true });
+                ensureOptions(ySelect, numeric.filter((column) => column !== selectedX), pairIntent.y, { searchable: true });
+            }
+            // A specific pair intent always opens the Plot view. Ordinary
+            // sidebar navigation carries no view override, so the user's last
+            // Plot/Matrix choice remains active for this browser session.
+            const nextView = pairIntent
+                ? 'plot'
+                : change.analyticsView == null
+                    ? scatterState.activeView
+                    : normalizeAnalyticsView(change.analyticsView);
             const ctl = currentControls();
             // The overview context key includes X, Y, and the color-column
             // selection (in addition to the filter payload) so a navigation
@@ -359,7 +397,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
             scatterState.activeView = nextView;
             await cb.setScatterView(scatterState.activeView, { render: false });
             if (!scatterState.pageInitialized) {
-                cb.refreshCorrelationsAndSuggestions()
+                await cb.refreshCorrelationsAndSuggestions()
                     .then(() => (nextView === 'matrix' ? cb.refreshActiveScatterView() : cb.renderScatter()))
                     .then(() => { scatterState.pageInitialized = true; })
                     .catch((err: any) => { cb.handleErr(err); });

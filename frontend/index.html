@@ -57,7 +57,7 @@
   <div id="aria-live-region" aria-live="polite" aria-atomic="true" class="sr-only"></div>
   <div class="app-layout" data-sidebar-open="false">
 
-    <nav class="sidebar" id="sidebar">
+    <nav class="sidebar" id="sidebar" aria-label="Primary navigation">
       <div class="sidebar-title">EdaTime</div>
       <button class="nav-item active" type="button" data-page="home" title="Overview" aria-label="Overview">
         <span class="nav-icon">
@@ -93,7 +93,8 @@
         <span class="nav-text">Signals</span>
         <kbd class="nav-shortcut">⌥2</kbd>
       </button>
-      <button class="nav-item" type="button" data-page="prepare" title="Prepare data" aria-label="Prepare data">
+      <button class="nav-item" type="button" data-page="prepare" title="Preparation · URL key: preparation"
+        aria-label="Preparation">
         <span class="nav-icon">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
             stroke-linejoin="round" aria-hidden="true">
@@ -105,7 +106,8 @@
         </span>
         <span class="nav-text">Preparation</span>
       </button>
-      <button class="nav-item" type="button" data-page="correlations" title="Correlation matrix (Alt+7)"
+      <button class="nav-item" type="button" data-page="correlations"
+        title="Correlation matrix · URL key: correlation-matrix (Alt+7)"
         aria-label="Correlation matrix">
         <span class="nav-icon">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
@@ -124,7 +126,8 @@
         <span class="nav-text">Correlation matrix</span>
         <kbd class="nav-shortcut">⌥7</kbd>
       </button>
-      <button class="nav-item" type="button" data-page="scatter" title="Pair plot (Alt+3)" aria-label="Pair plot">
+      <button class="nav-item" type="button" data-page="scatter" title="Pair plot · URL key: pair-plot (Alt+3)"
+        aria-label="Pair plot">
         <span class="nav-icon">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
             stroke-linejoin="round" aria-hidden="true">
@@ -246,6 +249,14 @@
         </div>
 
         <div class="header-meta" id="header-meta">
+          <details id="dataset-switcher" class="dataset-switcher">
+            <summary class="dataset-switcher__summary" title="Switch the active dataset">
+              <span id="dataset-switcher-label">No dataset</span><span aria-hidden="true">▾</span>
+            </summary>
+            <div id="dataset-switcher-menu" class="dataset-switcher__menu" role="menu" aria-label="Loaded datasets">
+              <span class="dataset-switcher__status">Open to load datasets…</span>
+            </div>
+          </details>
           <!-- Data freshness indicator -->
           <div id="data-freshness-indicator" class="data-freshness" hidden aria-label="Data freshness">
             <span class="data-freshness-dot" aria-hidden="true"></span>
@@ -280,7 +291,7 @@
             Preparation
           </button>
           <button class="btn btn-ghost btn-sm theme-toggle" id="theme-toggle-btn" type="button"
-            title="Toggle light/dark theme" aria-label="Toggle light or dark theme">
+            title="Cycle Dark, Light, High contrast, and Colorblind-safe themes" aria-label="Toggle light or dark theme">
             <svg id="theme-icon-dark" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
               stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
               <path d="M14 8.5A6.5 6.5 0 017.5 2 6.5 6.5 0 1014 8.5z" />
@@ -345,21 +356,29 @@
             aria-label="Show help for the Signals page" title="Show help for the Signals page (?)"><span
               aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
         </div>
-        <div class="toolbar toolbar--series timeseries-command-bar">
-          <div class="timeseries-command-bar__left toolbar-group" role="group" aria-label="Series selection tools">
-            <span class="toolbar-label">Series</span>
-            <div class="timeseries-filter-shell">
-              <input type="text" id="column-filter-input" name="column-filter" class="column-filter-input"
-                placeholder="Filter columns…" aria-label="Filter columns">
+        <div class="timeseries-context-bar" aria-label="Signals color controls">
+          <div id="timeseries-color-slot" class="timeseries-color-slot"></div>
+        </div>
+        <details
+          class="toolbar toolbar--series timeseries-command-bar timeseries-series-disclosure analysis-secondary-disclosure analysis-collapse-tablet"
+          data-responsive-collapse="1024" open>
+          <summary class="analysis-secondary-disclosure__summary">
+            <span>Series</span><span id="timeseries-series-disclosure-value">Choose visible columns</span>
+          </summary>
+          <div class="analysis-secondary-disclosure__content timeseries-series-disclosure__content">
+            <div class="timeseries-command-bar__left toolbar-group" role="group" aria-label="Series selection tools">
+              <span class="toolbar-label">Series</span>
+              <div class="timeseries-filter-shell">
+                <input type="text" id="column-filter-input" name="column-filter" class="column-filter-input"
+                  placeholder="Filter columns…" aria-label="Filter columns">
+              </div>
+            </div>
+            <div class="timeseries-command-bar__center">
+              <div class="series-toggles timeseries-chip-rail" id="column-toggles"></div>
+              <p id="timeseries-series-summary" class="timeseries-series-summary" aria-live="polite"></p>
             </div>
           </div>
-          <div class="timeseries-command-bar__center">
-            <div class="series-toggles timeseries-chip-rail" id="column-toggles"></div>
-          </div>
-          <div class="timeseries-command-bar__right" aria-label="Signals context">
-            <div id="timeseries-color-slot" class="timeseries-color-slot"></div>
-          </div>
-        </div>
+        </details>
 
         <details class="timeseries-range-menu analysis-compact-disclosure" data-responsive-collapse="900">
           <summary>Range</summary>
@@ -372,8 +391,7 @@
         </details>
 
         <details
-          class="toolbar toolbar--tools scatter-toolbar timeseries-utility-shelf analysis-secondary-disclosure analysis-collapse-tablet"
-          data-responsive-collapse="1024" open>
+          class="toolbar toolbar--tools scatter-toolbar timeseries-utility-shelf analysis-secondary-disclosure analysis-collapse-tablet">
           <summary class="analysis-secondary-disclosure__summary">
             <span>Chart tools</span><span>Annotations, analytics, display, export</span>
           </summary>
@@ -431,6 +449,10 @@
                     <span class="toolbar-label">Edit labels</span>
                     <span class="toolbar-disclosure__value">Title + axes</span>
                   </button>
+                  <label class="toolbar-field__control scatter-link-toggle" title="Rescale every series to its own minimum and maximum so relative movement is comparable.">
+                    <input id="timeseries-normalize-series" type="checkbox">
+                    <span>Normalize each series</span>
+                  </label>
                 </div>
               </div>
 
@@ -507,6 +529,15 @@
                     disabled>30d</button>
                   <button class="btn btn-ghost btn-sm" id="quick-range-all" type="button" title="Full dataset range"
                     disabled>All</button>
+                  <details id="quick-range-custom" class="quick-range-custom">
+                    <summary class="btn btn-ghost btn-sm">Custom…</summary>
+                    <div class="quick-range-custom__popover" role="group" aria-label="Custom date range">
+                      <label>Start <input id="quick-range-custom-start" type="datetime-local"></label>
+                      <label>End <input id="quick-range-custom-end" type="datetime-local"></label>
+                      <p id="quick-range-custom-error" class="field-error" aria-live="polite"></p>
+                      <button id="quick-range-custom-apply" class="btn btn-primary btn-sm" type="button">Apply range</button>
+                    </div>
+                  </details>
                   <details class="scatter-toolbar__overflow" hidden>
                     <summary class="scatter-toolbar__overflow-btn" aria-label="More range options">
                       <span class="scatter-toolbar__overflow-icon" aria-hidden="true">⋯</span>
@@ -560,6 +591,8 @@
             aria-live="polite" aria-label="Chart sampling indicator">
             <span class="timeseries-sampling-indicator__label" data-sampling-label></span>
             <span class="timeseries-sampling-indicator__detail" data-sampling-detail></span>
+            <a class="timeseries-sampling-indicator__help" href="docs/user-manual.html#downsampling"
+              title="Learn how EdaTime downsamples dense charts" aria-label="Learn about chart downsampling">ⓘ</a>
           </div>
           <div class="scatter-overlay-stack" id="timeseries-overlays">
             <div id="timeseries-colorbar-wrap" class="scatter-colorbar-wrap scatter-colorbar-wrap--ts" hidden
@@ -570,6 +603,7 @@
                 <div id="timeseries-colorbar" class="scatter-colorbar"></div>
                 <span id="timeseries-colorbar-max" class="scatter-colorbar-bound">1</span>
               </div>
+              <span id="timeseries-colorbar-caption" class="scatter-colorbar-caption"></span>
             </div>
             <div id="timeseries-categorical-wrap" class="scatter-colorbar-wrap scatter-colorbar-wrap--ts" hidden
               role="group" aria-label="Categorical color legend">
@@ -593,13 +627,15 @@
             <p class="page-header__description">Compare two signals, examine density, and understand inherited filters.
             </p>
           </div>
+          <button id="scatter-back-to-matrix" class="btn btn-ghost btn-sm" type="button"
+            title="Return to the correlation matrix">← Back to matrix</button>
           <button id="scatter-help-btn" class="page-help-trigger" type="button"
             aria-label="Show help for the Pair plot page" title="Show help for the Pair plot page (?)"><span
               aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
         </div>
         <div class="toolbar scatter-toolbar">
           <div id="scatter-analytics-group" class="scatter-toolbar__cluster">
-            <div class="scatter-toolbar__segment scatter-toolbar__segment--view">
+            <div class="scatter-toolbar__segment scatter-toolbar__segment--view" data-toolbar-priority="high">
               <span class="scatter-toolbar__eyebrow">View</span>
               <div class="scatter-toolbar__fields">
                 <div class="btn-toggle-group scatter-view-toggle" role="group" aria-label="Pair plot view">
@@ -626,24 +662,26 @@
             </div>
 
             <details class="scatter-secondary-controls analysis-secondary-disclosure analysis-collapse-tablet"
-              data-responsive-collapse="1024" open>
+              data-collapse-on-overflow data-toolbar-priority="low" open>
               <summary class="analysis-secondary-disclosure__summary">
-                <span>Display</span><span>Rendering, color, selection</span>
+                <span>⋯ More</span><span>Rendering, color, selection, outliers</span>
               </summary>
               <div class="analysis-secondary-disclosure__content">
-                <div class="scatter-toolbar__segment scatter-toolbar__segment--display">
-                  <span class="scatter-toolbar__eyebrow">Display</span>
+                <div class="scatter-toolbar__segment scatter-toolbar__segment--display" data-toolbar-priority="medium">
+                  <span class="scatter-toolbar__eyebrow">Render</span>
                   <div class="scatter-toolbar__fields">
                     <label id="scatter-mode-label" class="toolbar-field scatter-toolbar__field"
                       for="scatter-render-mode">
-                      <span class="toolbar-field__label">Mode</span>
-                      <select id="scatter-render-mode" class="modal-select" aria-label="Scatter render mode">
+                      <span class="toolbar-field__label">Render</span>
+                      <select id="scatter-render-mode" class="modal-select" aria-label="Scatter render mode"
+                        title="Color column is applied in Scatter mode; Density mode visualizes point concentration.">
                         <option value="density" selected>Density</option>
                         <option value="scatter">Scatter</option>
                       </select>
+                      <span id="scatter-density-fallback-note" class="scatter-density-fallback-note" role="status" hidden></span>
                     </label>
                     <label class="toolbar-field scatter-toolbar__field" for="scatter-diagonal-mode">
-                      <span class="toolbar-field__label">Distribution</span>
+                      <span class="toolbar-field__label">Marginal</span>
                       <select id="scatter-diagonal-mode" class="modal-select" aria-label="Distribution plot mode">
                         <option value="histogram" selected>Histogram</option>
                         <option value="kde">KDE</option>
@@ -654,9 +692,10 @@
                       class="toolbar-field toolbar-field--toggle scatter-toolbar__field scatter-toolbar__field--toggle"
                       for="scatter-link-brush">
                       <span class="toolbar-field__label">Selection</span>
-                      <span class="toolbar-field__control scatter-link-toggle">
+                      <span class="toolbar-field__control scatter-link-toggle"
+                        title="When on, the visible X/Y range is locked to the displayed data; when off, brush a subset and only the in-brush points are recomputed.">
                         <input id="scatter-link-brush" type="checkbox" checked>
-                        <span>Link chart range</span>
+                        <span aria-hidden="true" class="scatter-link-icon">🔗</span><span>Link chart range</span>
                       </span>
                     </label>
                     <details class="scatter-toolbar__overflow" hidden>
@@ -668,7 +707,7 @@
                   </div>
                 </div>
 
-                <div class="scatter-toolbar__segment scatter-toolbar__segment--refine">
+                <div class="scatter-toolbar__segment scatter-toolbar__segment--refine" data-toolbar-priority="low">
                   <span class="scatter-toolbar__eyebrow">Refine</span>
                   <div class="scatter-toolbar__fields">
                     <label id="scatter-color-column-field" class="toolbar-field scatter-toolbar__field"
@@ -677,6 +716,14 @@
                       <select id="scatter-color-column" class="modal-select" aria-label="Scatter color-by column">
                         <option value="">None</option>
                       </select>
+                    </label>
+                    <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field" for="scatter-clip-outliers">
+                      <span class="toolbar-field__label">Outliers</span>
+                      <span class="toolbar-field__control scatter-link-toggle"
+                        title="Hide X or Y values beyond 1.5 × IQR.">
+                        <input id="scatter-clip-outliers" type="checkbox">
+                        <span>Clip 1.5× IQR</span>
+                      </span>
                     </label>
                     <div id="scatter-density-controls" class="scatter-toolbar-group-inline scatter-toolbar__density"
                       hidden>
@@ -709,7 +756,7 @@
             </details>
           </div>
 
-          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions toolbar-group--push">
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions toolbar-group--push" data-toolbar-priority="high">
             <span class="scatter-toolbar__eyebrow">Result</span>
             <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
               <details class="toolbar-disclosure toolbar-disclosure--end scatter-export-group">
@@ -759,6 +806,8 @@
           <main class="main">
             <canvas id="scatter-marginal-x" class="scatter-marginal-x" aria-hidden="true" hidden></canvas>
             <div id="scatter-chart"></div>
+            <span id="scatter-outlier-count" class="scatter-stat-chip scatter-outlier-count" role="status"
+              aria-live="polite" hidden></span>
             <div id="scatter-empty-state" class="plot-empty-state" hidden>
               <strong id="scatter-empty-title">Choose scatter axes</strong>
               <span id="scatter-empty-message">Choose X and Y numeric columns to render the scatter plot.</span>
@@ -769,7 +818,7 @@
                   filters</button>
               </div>
             </div>
-            <div id="scatter-chart-loading" class="chart-loading-overlay" hidden>
+            <div id="scatter-chart-loading" class="chart-loading-overlay" hidden role="status" aria-live="polite">
               <div class="chart-loading-spinner"></div>
             </div>
             <div id="scatter-right-panel" class="scatter-right-panel" hidden>
@@ -815,7 +864,7 @@
               </div>
             </div>
             <div id="scatter-matrix" class="scatter-matrix"></div>
-            <div id="scatter-matrix-loading" class="chart-loading-overlay" hidden>
+            <div id="scatter-matrix-loading" class="chart-loading-overlay" hidden role="status" aria-live="polite">
               <div class="chart-loading-spinner"></div>
               <span class="chart-loading-label">Loading scatter…</span>
             </div>
@@ -994,7 +1043,7 @@
             <button id="fft-empty-compute-btn" class="btn btn-accent btn-sm" type="button" disabled>Compute
               spectrum</button>
           </div>
-          <div id="fft-chart-loading" class="chart-loading-overlay" hidden>
+          <div id="fft-chart-loading" class="chart-loading-overlay" hidden role="status" aria-live="polite">
             <div class="chart-loading-spinner"></div>
             <span class="chart-loading-label">Computing FFT…</span>
           </div>
@@ -1013,7 +1062,7 @@
               class="page-help-trigger__label">Help</span></button>
         </div>
         <div class="toolbar scatter-toolbar">
-          <div class="scatter-toolbar__segment scatter-toolbar__segment--view">
+          <div class="scatter-toolbar__segment scatter-toolbar__segment--view" data-toolbar-priority="high">
             <span class="scatter-toolbar__eyebrow">Metric</span>
             <div class="scatter-toolbar__fields">
               <label class="toolbar-field scatter-toolbar__field" for="heatmap-metric">
@@ -1036,15 +1085,26 @@
                   <span>Clustered</span>
                 </span>
               </label>
+              <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field" for="heatmap-lock-order">
+                <span class="toolbar-field__label">Order</span>
+                <span class="toolbar-field__control scatter-link-toggle">
+                  <input id="heatmap-lock-order" type="checkbox" aria-label="Lock matrix order">
+                  <span>Lock order</span>
+                </span>
+              </label>
+              <span id="heatmap-order-locked-status" class="scatter-stat-chip" role="status" hidden>Order locked</span>
+              <button class="btn btn-ghost btn-sm" type="button" data-action-proxy="heatmap-export-png-btn"
+                title="Export correlation matrix as PNG">PNG</button>
             </div>
           </div>
 
-          <details class="heatmap-secondary-controls analysis-secondary-disclosure" data-responsive-collapse="640" open>
+          <details class="heatmap-secondary-controls analysis-secondary-disclosure" data-collapse-on-overflow
+            data-toolbar-priority="low" open>
             <summary class="analysis-secondary-disclosure__summary">
-              <span>Display</span><span>Cell size, fit, pipeline, export</span>
+              <span>⋯ More</span><span>Cell size, fit, pipeline, export</span>
             </summary>
             <div class="analysis-secondary-disclosure__content">
-              <div class="scatter-toolbar__segment scatter-toolbar__segment--display">
+              <div class="scatter-toolbar__segment scatter-toolbar__segment--display" data-toolbar-priority="medium">
                 <span class="scatter-toolbar__eyebrow">Display</span>
                 <div class="scatter-toolbar__fields">
                   <label class="toolbar-field scatter-toolbar__field scatter-toolbar__field--range"
@@ -1052,8 +1112,10 @@
                     <span class="toolbar-field__label">Cell size</span>
                     <span class="toolbar-field__control">
                       <input id="heatmap-cell-size" type="range" min="24" max="72" step="4" value="36"
-                        aria-label="Heatmap cell size">
-                      <span id="heatmap-cell-size-value" class="range-value">36</span>
+                        aria-label="Heatmap cell size in pixels" aria-describedby="heatmap-cell-size-help"
+                        title="Cell size: 24–72 pixels">
+                      <span id="heatmap-cell-size-value" class="range-value" aria-hidden="true">36 px</span>
+                      <span id="heatmap-cell-size-help" class="sr-only">Range: 24 to 72 pixels.</span>
                     </span>
                   </label>
                   <div class="toolbar-field scatter-toolbar__field scatter-toolbar__field--fit" role="group"
@@ -1061,11 +1123,11 @@
                     <span class="toolbar-field__label">Fit</span>
                     <span class="toolbar-field__control">
                       <button id="heatmap-fit-toggle" type="button" class="btn btn-ghost btn-sm toolbar-toggle-btn"
-                        aria-pressed="false" title="Snap matrix to panel width">
+                        aria-pressed="false" title="Snap to panel — automatically resize cells to fit the panel width">
                         Snap to panel
                       </button>
                       <button id="heatmap-axis-fit-toggle" type="button" class="btn btn-ghost btn-sm toolbar-toggle-btn"
-                        aria-pressed="false" title="Fit the color axis to the strongest off-diagonal correlation">
+                        aria-pressed="false" title="Fit color axis — set color scale to actual data range">
                         Fit color axis
                       </button>
                     </span>
@@ -1085,7 +1147,7 @@
                 </div>
               </div>
 
-              <div class="scatter-toolbar__segment scatter-toolbar__segment--actions toolbar-group--push">
+              <div class="scatter-toolbar__segment scatter-toolbar__segment--actions toolbar-group--push" data-toolbar-priority="medium">
                 <span class="scatter-toolbar__eyebrow">Export</span>
                 <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
                   <details class="toolbar-disclosure toolbar-disclosure--end">
@@ -1102,7 +1164,7 @@
                   </details>
                 </div>
               </div>
-              <div class="scatter-toolbar__segment scatter-toolbar__segment--actions">
+              <div class="scatter-toolbar__segment scatter-toolbar__segment--actions" data-toolbar-priority="low">
                 <span class="scatter-toolbar__eyebrow">Pipeline</span>
                 <div class="scatter-toolbar__fields">
                   <button id="heatmap-add-columns-to-plan" class="btn btn-ghost btn-sm" type="button"
@@ -1139,12 +1201,26 @@
             <span id="heatmap-empty-state-message">Pick a dataset with at least two numeric columns to populate the
               matrix.</span>
           </div>
-          <div id="heatmap-loading" class="chart-loading-overlay" hidden>
+          <div id="heatmap-loading" class="chart-loading-overlay" hidden role="status" aria-live="polite">
             <div class="chart-loading-spinner"></div>
             <span class="chart-loading-label" id="heatmap-loading-label">Loading correlation matrix…</span>
           </div>
         </main>
       </section>
+      <dialog id="heatmap-pair-dialog" class="modal modal--compact" aria-modal="true"
+        aria-labelledby="heatmap-pair-title" aria-describedby="heatmap-pair-summary" hidden>
+        <div class="modal-header">
+          <h2 id="heatmap-pair-title">Pair details</h2>
+        </div>
+        <div class="modal-body">
+          <p id="heatmap-pair-summary" class="modal-hint"></p>
+          <p class="modal-hint">The matrix remains open behind this dialog so you can close it and compare another cell.</p>
+        </div>
+        <div class="modal-actions">
+          <button id="heatmap-pair-close" class="btn btn-ghost" type="button">Close</button>
+          <button id="heatmap-pair-open" class="btn btn-primary" type="button">Open in Pair plot</button>
+        </div>
+      </dialog>
       <dialog id="heatmap-plan-columns-dialog" class="modal modal--compact"
         aria-labelledby="heatmap-plan-columns-title">
         <div class="modal-header">
@@ -1329,7 +1405,7 @@
             <span id="spectrogram-empty-message">Pick a numeric column, keep the current time range, and update the
               spectrogram.</span>
           </div>
-          <div id="spectrogram-loading" class="chart-loading-overlay" hidden>
+          <div id="spectrogram-loading" class="chart-loading-overlay" hidden role="status" aria-live="polite">
             <div class="chart-loading-spinner"></div>
             <span class="chart-loading-label">Computing spectrogram…</span>
           </div>
@@ -1452,7 +1528,7 @@
             <strong>No causal graph yet</strong>
             <span>Select at least two numeric columns above, then run discovery to build the graph.</span>
           </div>
-          <div id="causal-loading" class="chart-loading-overlay" hidden>
+          <div id="causal-loading" class="chart-loading-overlay" hidden role="status" aria-live="polite">
             <div class="chart-loading-spinner"></div>
             <span class="chart-loading-label">Running causal discovery…</span>
           </div>
@@ -1781,7 +1857,7 @@
             <strong>No drift analysis yet</strong>
             <span>Select a column, adjust the reference window, and run the drift analysis.</span>
           </div>
-          <div id="drift-loading" class="chart-loading-overlay" hidden>
+          <div id="drift-loading" class="chart-loading-overlay" hidden role="status" aria-live="polite">
             <div class="chart-loading-spinner"></div>
             <span class="chart-loading-label">Computing drift…</span>
           </div>
@@ -2415,7 +2491,7 @@
                 aria-label="Outlier threshold">
             </label>
             <div class="modal-hint">Calculates global bounds over the current pipeline for selected numeric columns and
-              adds reviewable keep-range stages. Nothing is changed until you preview or materialize the plan.</div>
+              adds reviewable keep-range stages. The working view updates as stages are edited; the retained original source is unchanged until you materialize a new version.</div>
             <div class="modal-hint" id="outlier-error" style="color:#ff4a6e;"></div>
             <div class="modal-hint" id="outlier-result" style="color:var(--green);"></div>
           </div>
@@ -2589,8 +2665,16 @@
                   <select id="settings-theme" class="modal-select">
                     <option value="dark">Dark</option>
                     <option value="light">Light</option>
+                    <option value="high-contrast">High contrast</option>
+                    <option value="colorblind">Colorblind-safe</option>
                     <option value="auto">Auto (system)</option>
                   </select>
+                  <div class="theme-previews" aria-label="Theme previews">
+                    <span data-theme-preview="dark" title="Dark"></span>
+                    <span data-theme-preview="light" title="Light"></span>
+                    <span data-theme-preview="high-contrast" title="High contrast"></span>
+                    <span data-theme-preview="colorblind" title="Colorblind-safe"></span>
+                  </div>
                 </div>
               </div>
             </div>

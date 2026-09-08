@@ -1,7 +1,7 @@
 /** Chart renderer contracts and data projections. */
 
 import type { DataFetchMeta } from './api.js';
-import type { AdaptiveLineFilter, PendingAdaptivePoint } from './store.js';
+import type { AdaptiveLineFilter, ColumnRange, PendingAdaptivePoint } from './store.js';
 
 export interface SeriesData {
     x: Float64Array;
@@ -39,6 +39,14 @@ export interface ViewSnapshot {
 export type YMode = 'fit' | 'lock' | 'restore';
 
 export interface ChartInstance {
+    /** Optional renderer capabilities used to keep fallback-only controls honest. */
+    capabilities?: {
+        drawing?: boolean;
+        exportPNG?: boolean;
+        exportSVG?: boolean;
+        exportHTML?: boolean;
+        pointInspection?: boolean;
+    };
     setPendingAdaptivePointReader?(reader: () => PendingAdaptivePoint | null): void;
     init(): Promise<void>;
     updateDataMulti(
@@ -46,6 +54,7 @@ export interface ChartInstance {
         columns: string[],
         colorColumn?: string | null,
         adaptiveLines?: readonly AdaptiveLineFilter[],
+        columnRanges?: Readonly<Record<string, ColumnRange>>,
     ): void;
     setXRange(min: number, max: number): void;
     setYRange(min: number, max: number): void;

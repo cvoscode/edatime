@@ -1,4 +1,4 @@
-import { getNumericColumns } from '../../platform/analyticsColumns.js';
+import { getEffectiveNumericColumns } from '../../platform/analyticsColumns.js';
 /**
  * Column toggle chip UI + column range filter controls.
  *
@@ -35,6 +35,7 @@ export function buildColumnToggles(
     renderCurrentDataFn: (() => void) | null = null,
     workspace: SelectionWorkspace,
     openColumnFilter: (column: string | null) => void = () => {},
+    cleaningPlanStore?: Pick<CleaningPlanStore, 'getSnapshot'>,
 ): void {
     const container = document.getElementById('column-toggles');
     if (!container || (container as any)?.dataset?.rebuilding) return;
@@ -47,7 +48,17 @@ export function buildColumnToggles(
     bindChipContextMenu(container, openColumnFilter);
     renderColorByControl({
         workspace,
-        onColorColumnChange: fetchAndRender,
+        onColorColumnChange: () => {
+            buildColumnToggles(
+                fetchAndRender,
+                buildRangeControlsFn,
+                renderCurrentDataFn,
+                workspace,
+                openColumnFilter,
+                cleaningPlanStore,
+            );
+            fetchAndRender();
+        },
     });
 
     const items = composeChipListItems({
@@ -64,13 +75,37 @@ export function buildColumnToggles(
         empty.className = 'series-empty';
         empty.textContent = 'No matching columns';
         container.appendChild(empty);
+        const summary = document.getElementById('timeseries-series-summary');
+        if (summary) summary.textContent = 'No matching series.';
+        const disclosureValue = document.getElementById('timeseries-series-disclosure-value');
+        if (disclosureValue) disclosureValue.textContent = 'No matching series';
         finish();
         return;
     }
 
+    const syncSummary = () => {
+        const total = getEffectiveNumericColumns(workspace.getSnapshot().dataset.metadata, cleaningPlanStore?.getSnapshot()).length;
+        const active = workspace.getSnapshot().selection.columns.length;
+        const summaryText = total > 0
+            ? `${active} of ${total} active. Click chips to add more.`
+            : 'No numeric series available.';
+        container.setAttribute('title', summaryText);
+        container.setAttribute('aria-label', summaryText);
+        const summary = document.getElementById('timeseries-series-summary');
+        if (summary) summary.textContent = summaryText;
+        const disclosureValue = document.getElementById('timeseries-series-disclosure-value');
+        if (disclosureValue) disclosureValue.textContent = `${active} of ${total} active`;
+    };
+
     renderSeriesChipList({
         container,
-        items: items.map((item) => ({ ...item, onToggle: item.onToggle })),
+        items: items.map((item) => ({
+            ...item,
+            onToggle: (checked: boolean) => {
+                item.onToggle(checked);
+                syncSummary();
+            },
+        })),
         chipClass: 'timeseries-chip',
         onColorUpdate: (col, color) => {
             const chip = container.querySelector(`[data-col="${col}"]`) as HTMLElement | null;
@@ -78,16 +113,24 @@ export function buildColumnToggles(
         },
     });
 
+    const colorSource = workspace.getSnapshot().selection.colorColumn;
+    if (colorSource) {
+        const sourceChip = Array.from(container.querySelectorAll<HTMLElement>('.series-chip'))
+            .find((chip) => chip.dataset.col === colorSource);
+        if (sourceChip) {
+            sourceChip.classList.add('is-color-source');
+            const badge = document.createElement('span');
+            badge.className = 'scatter-filter-badge series-chip__color-source-badge';
+            badge.textContent = 'Color source';
+            sourceChip.appendChild(badge);
+            sourceChip.title = `${sourceChip.title ? `${sourceChip.title}. ` : ''}${colorSource} is active as the coloring source.`;
+        }
+    }
+
     // Annotate the rail container with the active / total counts so the
     // information previously shown in the removed chip-status summary row
     // is still available via the native tooltip on hover/focus.
-    const total = Array.isArray(getNumericColumns(workspace.getSnapshot().dataset.metadata)) ? getNumericColumns(workspace.getSnapshot().dataset.metadata).length : 0;
-    const active = workspace.getSnapshot().selection.columns.length;
-    const summaryText = total > 0
-        ? `${active} of ${total} active. Click chips to add more.`
-        : 'No numeric series available.';
-    container.setAttribute('title', summaryText);
-    container.setAttribute('aria-label', summaryText);
+    syncSummary();
 
     bindChipCtrlClick(
         container,
@@ -115,6 +158,7 @@ export function initColumnFilterModal(
     openColumnFilter: (column: string | null) => void,
     getCurrentData: () => DataObject | null,
     cleaningPlanStore?: Pick<CleaningPlanStore, 'getSnapshot' | 'addStage' | 'updateStage' | 'removeStage'>,
+    rebuildColumns?: () => void,
 ) {
     return initFilterModalController({
         renderCurrentData,
@@ -123,5 +167,6 @@ export function initColumnFilterModal(
         openColumnFilter,
         getCurrentData,
         cleaningPlanStore,
+        rebuildColumns,
     });
 }

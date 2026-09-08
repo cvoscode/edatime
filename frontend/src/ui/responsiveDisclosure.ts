@@ -19,6 +19,7 @@ export function initResponsiveDisclosures(): () => void {
         sync();
         cleanups.push(() => details.open = true);
     });
+
     return () => {
         controller.abort();
         cleanups.forEach((cleanup) => cleanup());

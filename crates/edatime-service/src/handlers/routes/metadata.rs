@@ -107,6 +107,12 @@ pub struct ColumnProfile {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub zero_count: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub longest_zero_run: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub longest_zero_run_start_ms: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub longest_zero_run_end_ms: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub distinct_count: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_constant: Option<bool>,
@@ -232,6 +238,9 @@ fn profile_from_aggregate(
         non_finite_count,
         finite_count: None,
         zero_count: None,
+        longest_zero_run: None,
+        longest_zero_run_start_ms: None,
+        longest_zero_run_end_ms: None,
         distinct_count: None,
         is_constant: None,
         min,
@@ -349,6 +358,18 @@ fn build_dataset_metadata_from_lazyframe(
     lf: LazyFrame,
     time_column_override: Option<&str>,
 ) -> Result<DatasetMetadata, AppError> {
+    // File previews are explicitly a profiling surface, not the lightweight
+    // metadata bootstrap. When no override is needed, collect once and use
+    // the canonical frame profiler so counts, extrema, quantiles, zero rates,
+    // and histograms are all populated together. The override path retains
+    // the lazy aggregate implementation because it must preserve a caller's
+    // selected time column semantics.
+    if time_column_override.is_none() {
+        let frame = lf
+            .collect()
+            .map_err(|e| AppError::bad_request(format!("Failed to profile uploaded file: {e}")))?;
+        return build_dataset_metadata(&frame, true, None);
+    }
     let schema_ref = lf
         .clone()
         .collect_schema()
@@ -605,6 +626,17 @@ pub fn build_dataset_metadata(
 
     let mut columns = Vec::with_capacity(df.width());
     let mut numeric_columns = Vec::new();
+    let zero_run_times = df.column(time_col_name).ok().and_then(|series| {
+        let dtype = series.dtype().clone();
+        let casted = series.cast(&DataType::Int64).ok()?;
+        let values = casted.i64().ok()?;
+        Some(
+            values
+                .into_iter()
+                .map(|value| value.map(|v| temporal::native_to_epoch_ms(v, &dtype).round() as i64))
+                .collect::<Vec<_>>(),
+        )
+    });
     let mut column_profiles = Vec::with_capacity(df.width());
 
     for series in df.materialized_column_iter() {
@@ -635,6 +667,9 @@ pub fn build_dataset_metadata(
             non_finite_count: 0,
             finite_count: None,
             zero_count: None,
+            longest_zero_run: None,
+            longest_zero_run_start_ms: None,
+            longest_zero_run_end_ms: None,
             distinct_count: None,
             is_constant: None,
             min: None,
@@ -654,17 +689,40 @@ pub fn build_dataset_metadata(
             let mut finite_values = Vec::with_capacity(non_null_count);
             let mut distinct_values = HashSet::with_capacity(non_null_count);
             let mut zero_count = 0usize;
+            let mut current_zero_run = 0usize;
+            let mut longest_zero_run = 0usize;
+            let mut current_zero_run_start = 0usize;
+            let mut longest_zero_run_start = None;
+            let mut longest_zero_run_end = None;
             let mut non_finite_count = 0usize;
 
-            for value in values.into_iter().flatten() {
+            for (index, value) in values.into_iter().enumerate() {
+                let Some(value) = value else {
+                    current_zero_run = 0;
+                    continue;
+                };
                 if !value.is_finite() {
                     non_finite_count += 1;
+                    current_zero_run = 0;
                     continue;
                 }
                 min = min.min(value);
                 max = max.max(value);
                 finite_values.push(value);
                 zero_count += usize::from(value == 0.0);
+                if value == 0.0 {
+                    if current_zero_run == 0 {
+                        current_zero_run_start = index;
+                    }
+                    current_zero_run += 1;
+                    if current_zero_run > longest_zero_run {
+                        longest_zero_run = current_zero_run;
+                        longest_zero_run_start = Some(current_zero_run_start);
+                        longest_zero_run_end = Some(index);
+                    }
+                } else {
+                    current_zero_run = 0;
+                }
                 distinct_values.insert(if value == 0.0 { 0 } else { value.to_bits() });
             }
 
@@ -691,6 +749,15 @@ pub fn build_dataset_metadata(
             profile.non_finite_count = non_finite_count;
             profile.finite_count = Some(finite_values.len());
             profile.zero_count = Some(zero_count);
+            profile.longest_zero_run = Some(longest_zero_run);
+            if let (Some(start), Some(end), Some(times)) = (
+                longest_zero_run_start,
+                longest_zero_run_end,
+                zero_run_times.as_ref(),
+            ) {
+                profile.longest_zero_run_start_ms = times.get(start).copied().flatten();
+                profile.longest_zero_run_end_ms = times.get(end).copied().flatten();
+            }
             profile.distinct_count = Some(distinct_values.len());
             profile.is_constant = Some(!finite_values.is_empty() && min == max);
         } else if matches!(dtype, DataType::Datetime(_, _) | DataType::Date) {
@@ -904,10 +971,20 @@ fn profile_response(
     algorithm_version: &'static str,
 ) -> Result<ProfileResponse, AppError> {
     let version = state.current_dataset_version()?;
-    let entry = state.cached_profile(&profile_cache_key(&version, algorithm_version));
+    let key = profile_cache_key(&version, algorithm_version);
+    let mut entry = state.cached_profile(&key);
     let job = entry
         .as_ref()
         .and_then(|entry| state.jobs.record(&entry.job_id));
+    // Publication stores the result before completing the job. The worker can
+    // finish between these two reads; refresh the earlier cache snapshot so a
+    // completed profile is never incorrectly reported as not_started.
+    if job
+        .as_ref()
+        .is_some_and(|job| job.status == JobStatus::Completed)
+    {
+        entry = state.cached_profile(&key);
+    }
     let status = match (
         entry.as_ref().and_then(|entry| entry.result.as_ref()),
         job.as_ref(),
@@ -1032,7 +1109,7 @@ async fn start_profile_mode(
 
         let frame = match worker_state
             .query_executor
-            .execute_background_async(snapshot)
+            .execute_queued_background_async(snapshot)
             .await
         {
             Ok(frame) => frame,
@@ -1057,7 +1134,7 @@ async fn start_profile_mode(
         let display_name = worker_state.time_column_display_name_sync();
         let report = match worker_state
             .query_executor
-            .run_background(edatime_core::metrics::CpuStage::Analytics, move || {
+            .run_queued_background(edatime_core::metrics::CpuStage::Analytics, move || {
                 build_dataset_metadata(&frame, true, display_name.as_deref())
             })
             .await
@@ -1370,6 +1447,100 @@ mod tests {
         assert_eq!(constant.distinct_count, Some(1));
         assert_eq!(constant.is_constant, Some(true));
         assert_eq!(constant.interquartile_range, Some(0.0));
+    }
+
+    #[test]
+    fn completed_profiles_report_zero_runs_and_skip_nulls() {
+        let base = 1_700_000_000_000_i64;
+        let df = DataFrame::new(
+            7,
+            vec![
+                polars::prelude::Series::new(
+                    "ts".into(),
+                    (0..7).map(|index| base + index * 1_000).collect::<Vec<_>>(),
+                )
+                .into(),
+                polars::prelude::Series::new(
+                    "signal".into(),
+                    vec![
+                        Some(0.0_f64),
+                        Some(1.0),
+                        None,
+                        Some(0.0),
+                        Some(1.0),
+                        Some(0.0),
+                        Some(0.0),
+                    ],
+                )
+                .into(),
+            ],
+        )
+        .expect("dataframe");
+
+        let metadata = build_dataset_metadata(&df, false, None).expect("metadata");
+        let profile = metadata
+            .column_profiles
+            .iter()
+            .find(|profile| profile.name == "signal")
+            .expect("signal profile");
+        assert_eq!(profile.zero_count, Some(4));
+        assert_eq!(profile.longest_zero_run, Some(2));
+        assert_eq!(profile.longest_zero_run_start_ms, Some(base + 5_000));
+        assert_eq!(profile.longest_zero_run_end_ms, Some(base + 6_000));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn sample_dataset_exact_profile_completes() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../ETTm2.csv");
+        let artifacts = tempfile::tempdir().expect("artifact directory");
+        let mut config = AppConfig::default();
+        config.data.artifact_dir = Some(artifacts.path().to_path_buf());
+        let state = AppState::new(DataFrame::default(), config);
+        let loaded = edatime_ingest::ingest::load_lazyframe_partial(
+            &path,
+            &edatime_ingest::ingest::IngestParams::default(),
+        )
+        .expect("sample ingest");
+        state
+            .replace_dataset_lazy_root(
+                loaded.frame,
+                Some("ETTm2.csv".into()),
+                loaded.time_column_name.expect("time column"),
+            )
+            .await
+            .expect("managed sample upload");
+        let _ = start_profile(State(state.clone())).await.expect("start");
+        for _ in 0..1000 {
+            let response = get_profile(State(state.clone())).await.expect("profile").0;
+            assert!(
+                matches!(response.status.as_str(), "queued" | "running" | "ready"),
+                "unexpected profile state: {} {:?}",
+                response.status,
+                response.job
+            );
+            if response.status == "ready" {
+                let report: DatasetMetadata =
+                    serde_json::from_value(response.metadata.expect("report"))
+                        .expect("profile metadata");
+                assert_eq!(report.total_rows, 69_680);
+                assert_eq!(report.column_profiles.len(), 8);
+                assert_eq!(report.profile_status, "exact");
+                for column in &report.column_profiles {
+                    assert_eq!(column.non_null_count, report.total_rows);
+                    assert_eq!(column.null_count, 0);
+                }
+                let hufl = report
+                    .column_profiles
+                    .iter()
+                    .find(|column| column.name == "HUFL")
+                    .expect("HUFL profile");
+                assert!(hufl.min.is_some() && hufl.max.is_some());
+                assert!(hufl.histogram.is_some());
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        panic!("sample profile did not finish");
     }
 
     #[tokio::test]

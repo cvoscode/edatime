@@ -28,6 +28,9 @@ import { createCleaningPlanStore } from '../cleaning/store.js';
 function createDeps(): PageDescriptorInitDeps {
     return {
         getRenderTimeseries: vi.fn(),
+        getCurrentTimeseriesData: vi.fn(() => null),
+        refreshDatasetAfterMutation: vi.fn(),
+        registerCleanup: vi.fn(),
         showPage: vi.fn(),
         chipColor: vi.fn(() => '#fff'),
         setLoading: vi.fn(),
@@ -58,7 +61,12 @@ describe('page module descriptors', () => {
         await prepare!.init();
 
         expect(mocks.initPreparePage).toHaveBeenCalledTimes(1);
-        expect(mocks.initPreparePage).toHaveBeenCalledWith({ workspace: deps.workspace, onPlanChanged: deps.onCleaningPlanChanged });
+        expect(mocks.initPreparePage).toHaveBeenCalledWith({
+            workspace: deps.workspace,
+            showPage: deps.showPage,
+            onPlanChanged: deps.onCleaningPlanChanged,
+            getCurrentData: deps.getCurrentTimeseriesData,
+        });
     });
 
     it('loads Scatter directly from its descriptor only on first page initialization', async () => {

@@ -11,7 +11,7 @@ import {
     previewCleaningPlan,
     selectDatasetVersion,
 } from './api.js';
-import type { CleaningPreviewResponse, CleaningStageImpact } from './api.js';
+import type { CleaningPreviewResponse, CleaningPreviewRow, CleaningStageImpact } from './api.js';
 import { buildPipelineGraph, renderPipelineGraphSvg, serializePipelineGraph } from './pipelineGraph.js';
 import { formatResampleAggregations, hasAscendingTimeSortBefore, normalizeFixedDuration, parseResampleAggregations } from './resample.js';
 import type { CleaningPlan, CleaningStage } from './types.js';
@@ -19,13 +19,14 @@ import type { CleaningPlanHistoryAction, CleaningPlanHistoryEntry, CleaningPlanS
 import { downloadBlob } from '../utils/dom.js';
 
 type PlanPanelStore = Pick<CleaningPlanStore,
-    'getSnapshot' | 'getHistory' | 'subscribe' | 'setPlan' | 'addStage' | 'updateStage' | 'removeStage' | 'setStageEnabled' | 'reorderStage' | 'canUndo' | 'canRedo' | 'isDirty' | 'undo' | 'redo' | 'restoreHistoryEntry'>;
+    'getSnapshot' | 'getHistory' | 'subscribe' | 'setPlan' | 'addStage' | 'updateStage' | 'removeStage' | 'setStageEnabled' | 'reorderStage' | 'canUndo' | 'canRedo' | 'isDirty' | 'undo' | 'redo' | 'restoreHistoryEntry' | 'clear'>;
 type WorkbenchTab = 'pipeline' | 'stages' | 'export';
-type StageComposerKind = 'missingValue' | 'deduplicate' | 'columnSelect' | 'sort' | 'fillNull' | 'resample' | 'chronologicalSplit';
+type StageComposerKind = 'missingValue' | 'deduplicate' | 'columnSelect' | 'sort' | 'fillNull' | 'resample' | 'chronologicalSplit' | 'derivedColumn';
 
 export interface CleaningPlanPanelDeps {
     planStore: PlanPanelStore;
     getViewport: () => { xMin: number | null; xMax: number | null } | null;
+    getColumns?: () => string[];
     onPlanChanged?: () => void;
     onPlanApplied?: () => Promise<void> | void;
 }
@@ -78,6 +79,58 @@ function previewSummary(result: CleaningPreviewResponse): string {
         : ' Columns: ' + String(result.columnsBefore) + ' → ' + String(result.columnsAfter) + '.';
     const warnings = result.warnings.length === 0 ? '' : ' Warnings: ' + result.warnings.join(' ');
     return rows + columns + warnings;
+}
+
+function renderPreviewEvidence(result: CleaningPreviewResponse): HTMLElement | null {
+    if (!result.examples && !result.sourceColumns && !result.resultColumns) return null;
+    const evidence = document.createElement('section');
+    evidence.className = 'cleaning-plan-preview-evidence';
+    const heading = document.createElement('h3');
+    heading.textContent = 'Raw source versus working view';
+    const schema = document.createElement('p');
+    schema.className = 'pipeline-workbench__hint';
+    schema.textContent = `Source columns: ${(result.sourceColumns ?? []).join(', ') || 'unknown'} · Working columns: ${(result.resultColumns ?? []).join(', ') || 'unknown'}`;
+    evidence.append(heading, schema);
+
+    const renderRows = (title: string, rows: CleaningPreviewRow[] | undefined) => {
+        const section = document.createElement('details');
+        section.open = true;
+        const summary = document.createElement('summary');
+        summary.textContent = `${title} examples (${rows?.length ?? 0})`;
+        section.appendChild(summary);
+        if (!rows?.length) {
+            const empty = document.createElement('p');
+            empty.className = 'pipeline-workbench__hint';
+            empty.textContent = 'No example rows were returned.';
+            section.appendChild(empty);
+            return section;
+        }
+        const table = document.createElement('table');
+        table.className = 'cleaning-plan-preview-table';
+        const head = document.createElement('tr');
+        for (const label of ['Row', 'Timestamp', 'Values']) {
+            const cell = document.createElement('th');
+            cell.scope = 'col';
+            cell.textContent = label;
+            head.appendChild(cell);
+        }
+        const thead = document.createElement('thead'); thead.appendChild(head); table.appendChild(thead);
+        const tbody = document.createElement('tbody');
+        for (const row of rows) {
+            const tr = document.createElement('tr');
+            for (const value of [String(row.rowNumber), row.timestamp, Object.entries(row.values).map(([key, item]) => `${key}=${item}`).join(' · ')]) {
+                const cell = document.createElement('td');
+                cell.textContent = value;
+                tr.appendChild(cell);
+            }
+            tbody.appendChild(tr);
+        }
+        table.appendChild(tbody);
+        section.appendChild(table);
+        return section;
+    };
+    evidence.append(renderRows('Raw', result.examples?.raw), renderRows('Working', result.examples?.working));
+    return evidence;
 }
 
 function stageImpactSummary(stage: CleaningStage, impact: CleaningStageImpact | undefined): string {
@@ -249,13 +302,15 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
     tabsWrap.append(pipelineTab, stagesTab, exportTab);
     const panel = document.createElement('div');
     panel.className = 'pipeline-workbench__panel';
-    const preview = document.createElement('p');
+    const preview = document.createElement('div');
     preview.className = 'cleaning-plan-preview';
     preview.dataset.planPreview = 'true';
     preview.setAttribute('aria-live', 'polite');
     const actions = document.createElement('div');
     actions.className = 'cleaning-plan-actions';
-    body.append(status, tabsWrap, panel, preview, actions);
+    // Keep the result summary above the scrollable editor and sticky action
+    // row so a preview cannot be hidden behind the footer on short screens.
+    body.append(status, tabsWrap, preview, panel, actions);
     modal.append(header, body);
     backdrop.appendChild(modal);
     document.body.appendChild(backdrop);
@@ -266,6 +321,46 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
     let selectedHistoryEntryId: string | null = null;
     let stageComposerKind: StageComposerKind = 'missingValue';
     let lastPreview: { planId: string; planRevision: number; result: CleaningPreviewResponse } | null = null;
+    let lastMaterialized: {
+        sourceVersionId: string;
+        parentVersionId: string;
+        planHash: string;
+        insightNotes: string[];
+        rowsRemoved: number | null;
+        columnsBefore: number | null;
+        columnsAfter: number | null;
+    } | null = null;
+
+    const enhanceColumnInputs = (root: HTMLElement) => {
+        const columns = [...new Set((deps.getColumns?.() ?? []).map((column) => column.trim()).filter(Boolean))];
+        if (columns.length === 0) return;
+        let list = document.getElementById('cleaning-column-options') as HTMLDataListElement | null;
+        if (!list) {
+            list = document.createElement('datalist');
+            list.id = 'cleaning-column-options';
+            document.body.appendChild(list);
+        }
+        list.replaceChildren(...columns.map((column) => {
+            const option = document.createElement('option');
+            option.value = column;
+            return option;
+        }));
+        const inputs = root.querySelectorAll<HTMLInputElement>('input[name="column"], input[name="columns"], input[name$="Columns"], input[name="missingValueColumn"]');
+        for (const input of inputs) {
+            input.setAttribute('list', list.id);
+            if (!input.placeholder || /comma-separated|numeric column/i.test(input.placeholder)) {
+                input.placeholder = columns.slice(0, input.name === 'column' || input.name === 'missingValueColumn' ? 1 : 2).join(', ');
+            }
+            const validate = () => {
+                const invalid = input.value.split(',').map((value) => value.trim()).filter(Boolean)
+                    .find((column) => !columns.includes(column));
+                input.setCustomValidity(invalid ? `Column '${invalid}' not in dataset` : '');
+                input.title = input.validationMessage || `Available columns: ${columns.join(', ')}`;
+            };
+            input.addEventListener('input', validate);
+            validate();
+        }
+    };
 
     const notify = (stage?: CleaningStage) => {
         if (stage === undefined || executable(stage)) deps.onPlanChanged?.();
@@ -324,7 +419,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         historyHeading.textContent = 'Graph history';
         const historyCopy = document.createElement('p');
         historyCopy.className = 'pipeline-workbench__hint';
-        historyCopy.textContent = 'Choose any revision to inspect its graph, then restore it when you want its stages applied to the live plot.';
+        historyCopy.textContent = 'Choose any revision to inspect its graph, then restore it when you want its stages applied to the live plot. Restore baseline selects the source revision without confirmation.';
         const historyList = document.createElement('ol');
         historyList.className = 'pipeline-workbench__history-list';
         for (let index = history.length - 1; index >= 0; index -= 1) {
@@ -789,6 +884,37 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             if (!Number.isFinite(trainEndMs) || !Number.isFinite(validationEndMs) || !Number.isFinite(embargoMs) || trainEndMs >= validationEndMs || embargoMs < 0 || !outputColumn) { preview.textContent = 'Train end must precede validation end; embargo must be non-negative; choose an output column.'; return; }
             deps.planStore.addStage({ kind: 'chronologicalSplit', executionClass: 'polarsExpression', scope: 'schema', enabled: true, sourcePage: 'manual', label: 'Chronological split', trainEndMs, validationEndMs, embargoMs, outputColumn }); notify();
         });
+        const addDerivedForm = document.createElement('form');
+        addDerivedForm.className = 'pipeline-workbench__add-stage';
+        addDerivedForm.dataset.stageComposerKind = 'derivedColumn';
+        const derivedHeading = document.createElement('h3');
+        derivedHeading.textContent = 'Add derived column';
+        const derivedFields = document.createElement('div');
+        derivedFields.className = 'modal-grid';
+        derivedFields.append(
+            textInput('Expression', '', 'derivedExpression'),
+            textInput('Output column', '', 'derivedOutputColumn'),
+        );
+        const derivedActions = document.createElement('div');
+        derivedActions.className = 'pipeline-workbench__editor-actions';
+        const addDerived = button('Add derived column', 'btn btn-primary btn-sm');
+        addDerived.type = 'submit';
+        derivedActions.appendChild(addDerived);
+        addDerivedForm.append(derivedHeading, derivedFields, derivedActions);
+        addDerivedForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const expression = readText(addDerivedForm, 'derivedExpression').trim();
+            const outputColumn = readText(addDerivedForm, 'derivedOutputColumn').trim();
+            if (!expression || !outputColumn) {
+                preview.textContent = 'Derived columns need an expression and output column.';
+                return;
+            }
+            deps.planStore.addStage({
+                kind: 'derivedColumn', executionClass: 'polarsExpression', scope: 'schema', enabled: true,
+                sourcePage: 'manual', label: 'Derive ' + outputColumn, expression, outputColumn,
+            });
+            notify();
+        });
         const list = document.createElement('div');
         list.className = 'cleaning-plan-stages';
         if (plan.stages.length === 0) {
@@ -804,6 +930,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             const row = document.createElement('div');
             row.className = 'cleaning-plan-stage';
             row.classList.toggle('is-selected', stage.id === selectedStageId);
+            row.classList.toggle('is-disabled', !stage.enabled);
             const description = button(String(index + 1) + '. ' + (stage.label || stage.kind) + ' — ' + stageSummary(stage), 'cleaning-plan-stage__summary');
             description.setAttribute('aria-pressed', String(stage.id === selectedStageId));
             description.classList.toggle('is-disabled', !stage.enabled);
@@ -823,6 +950,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             });
             const up = button('Move up');
             up.disabled = index === 0;
+            if (up.disabled) up.title = plan.stages.length === 1 ? 'Cannot move the only remaining stage' : 'Already the first stage';
             up.addEventListener('click', () => {
                 const stages = [...plan.stages];
                 stages.splice(index - 1, 0, stages.splice(index, 1)[0]);
@@ -833,6 +961,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             });
             const down = button('Move down');
             down.disabled = index === plan.stages.length - 1;
+            if (down.disabled) down.title = plan.stages.length === 1 ? 'Cannot move the only remaining stage' : 'Already the last stage';
             down.addEventListener('click', () => {
                 const stages = [...plan.stages];
                 stages.splice(index + 1, 0, stages.splice(index, 1)[0]);
@@ -842,7 +971,10 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
                 notify(stage);
             });
             const remove = button('Remove');
+            remove.title = 'Permanently delete this stage from the plan';
             remove.addEventListener('click', () => {
+                if (typeof window.confirm === 'function'
+                    && !window.confirm(`Remove '${stage.label || stageSummary(stage)}'? This cannot be undone.`)) return;
                 const stages = plan.stages.filter((candidate) => candidate.id !== stage.id);
                 const error = resampleOrderingError({ ...plan, stages });
                 if (error) { preview.textContent = error; return; }
@@ -875,6 +1007,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             ['fillNull', 'Ordered null fill'],
             ['resample', 'Fixed-duration resampling'],
             ['chronologicalSplit', 'Chronological split'],
+            ['derivedColumn', 'Derived column'],
         ]);
         const composerControl = composerSelect.querySelector('select')!;
         composerControl.addEventListener('change', () => {
@@ -889,12 +1022,14 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             fillNull: addFillForm,
             resample: addResampleForm,
             chronologicalSplit: addSplitForm,
+            derivedColumn: addDerivedForm,
         };
         composer.append(composerHeading, composerSelect, forms[stageComposerKind]);
         panel.append(stageHeader, list);
         const selected = plan.stages.find((stage) => stage.id === selectedStageId);
         if (selected) panel.appendChild(renderEditor(selected));
         panel.appendChild(composer);
+        enhanceColumnInputs(panel);
     };
     const exportText = (content: string, filename: string, type: string) => {
         downloadBlob(new Blob([content], { type }), filename);
@@ -975,6 +1110,12 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         const storage = document.createElement('p');
         storage.className = 'pipeline-workbench__hint';
         storage.textContent = 'Managed artifact storage is not loaded.';
+        const storageWhy = document.createElement('details');
+        const storageWhySummary = document.createElement('summary');
+        storageWhySummary.textContent = 'Why?';
+        const storageWhyCopy = document.createElement('p');
+        storageWhyCopy.textContent = 'Artifact storage requires backend pipeline jobs to be enabled. Check Settings → Backend.';
+        storageWhy.append(storageWhySummary, storageWhyCopy);
         const refreshStorage = button('Refresh storage usage');
         refreshStorage.addEventListener('click', async () => {
             refreshStorage.disabled = true;
@@ -1038,7 +1179,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             }
         });
         controls.append(planExport, manifestExport, bundleExport, graphExport, svgExport, pythonExport, rustExport, importPlan, importInput, refreshStorage, refreshJobs);
-        panel.append(copy, controls, storage, jobs);
+        panel.append(copy, controls, storage, storageWhy, jobs);
     };
     const renderActions = (plan: CleaningPlan) => {
         actions.replaceChildren();
@@ -1105,6 +1246,23 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             preview.textContent = 'Materializing a new dataset version…';
             try {
                 const result = await applyCleaningPlan(current);
+                lastMaterialized = {
+                    sourceVersionId: result.sourceVersion.id,
+                    parentVersionId: current.sourceVersionId,
+                    planHash: result.planHash,
+                    insightNotes: current.stages
+                        .filter((stage) => stage.kind === 'annotation' && stage.note?.trim())
+                        .map((stage) => stage.note!.trim()),
+                    rowsRemoved: lastPreview?.planId === current.id && lastPreview.planRevision === current.planRevision
+                        ? lastPreview.result.rowsRemoved
+                        : null,
+                    columnsBefore: lastPreview?.planId === current.id && lastPreview.planRevision === current.planRevision
+                        ? lastPreview.result.columnsBefore
+                        : null,
+                    columnsAfter: lastPreview?.planId === current.id && lastPreview.planRevision === current.planRevision
+                        ? lastPreview.result.columnsAfter
+                        : null,
+                };
                 preview.textContent = 'Created ' + result.sourceVersion.id + ' from ' + current.sourceVersionId + ' · job ' + result.jobId + '.';
                 await deps.onPlanApplied?.();
             } catch (error) {
@@ -1115,14 +1273,24 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         });
         const resetOriginal = button('Use original dataset');
         resetOriginal.addEventListener('click', async () => {
+            const activeCount = plan.stages.filter((stage) => executable(stage) && stage.enabled).length;
+            if (typeof window.confirm === 'function'
+                && !window.confirm(`Revert to source baseline? This discards ${activeCount} active stage${activeCount === 1 ? '' : 's'}.`)) return;
             resetOriginal.disabled = true;
             preview.textContent = 'Restoring the original source dataset…';
             try {
                 const versions = await listDatasetVersions();
-                const root = versions.find((version) => version.id === version.rootId);
+                const current = versions.find((version) => version.id === plan.sourceVersionId);
+                const rootId = current?.rootId || plan.sourceVersionId;
+                const root = versions.find((version) => version.id === rootId);
                 if (!root) throw new Error('The original source version is no longer available.');
                 await selectDatasetVersion(root.id);
-                preview.textContent = 'Restored ' + root.id + '.';
+                // A raw-source request is an explicit request for a visible
+                // baseline. Do not let a draft saved under the root version
+                // silently reapply the child plan on the next metadata refresh.
+                deps.planStore.clear();
+                preview.textContent = 'Restored original source ' + (root.sourceName || root.id)
+                    + ' (' + root.id + '). The working plan was cleared.';
                 await deps.onPlanApplied?.();
             } catch (error) {
                 preview.textContent = error instanceof Error ? error.message : 'Could not restore the original dataset.';
@@ -1138,17 +1306,46 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         updateToolbarSummary(plan);
         if (!plan) {
             lastPreview = null;
-            preview.textContent = '';
+            preview.textContent = lastMaterialized
+                ? `Last materialized version ${lastMaterialized.sourceVersionId} · parent ${lastMaterialized.parentVersionId} · plan ${lastMaterialized.planHash}`
+                : '';
             status.textContent = 'Load a dataset to start an accumulated cleaning plan.';
             panel.replaceChildren();
             actions.replaceChildren();
             return;
         }
         if (lastPreview && (lastPreview.planId !== plan.id || lastPreview.planRevision !== plan.planRevision)) lastPreview = null;
-        preview.textContent = lastPreview ? previewSummary(lastPreview.result) : '';
+        preview.replaceChildren();
+        if (lastPreview) {
+            const summary = document.createElement('p');
+            summary.textContent = previewSummary(lastPreview.result);
+            preview.appendChild(summary);
+            const evidence = renderPreviewEvidence(lastPreview.result);
+            if (evidence) preview.appendChild(evidence);
+        } else if (lastMaterialized) {
+            const provenance = document.createElement('p');
+            const impact = lastMaterialized.rowsRemoved == null
+                ? ''
+                : ` · preview impact ${lastMaterialized.rowsRemoved.toLocaleString()} rows removed, columns ${lastMaterialized.columnsBefore} → ${lastMaterialized.columnsAfter}`;
+            provenance.textContent = `Last materialized version ${lastMaterialized.sourceVersionId} · parent ${lastMaterialized.parentVersionId} · plan ${lastMaterialized.planHash}${impact}`;
+            preview.appendChild(provenance);
+            if (lastMaterialized.insightNotes.length > 0) {
+                const notes = document.createElement('details');
+                const summary = document.createElement('summary');
+                summary.textContent = `${lastMaterialized.insightNotes.length} saved insight annotation${lastMaterialized.insightNotes.length === 1 ? '' : 's'}`;
+                notes.appendChild(summary);
+                for (const note of lastMaterialized.insightNotes) {
+                    const item = document.createElement('p');
+                    item.className = 'pipeline-workbench__hint';
+                    item.textContent = note;
+                    notes.appendChild(item);
+                }
+                preview.appendChild(notes);
+            }
+        }
         const activeCount = plan.stages.filter((stage) => executable(stage) && stage.enabled).length;
         status.textContent = String(activeCount) + ' active executable stage' + (activeCount === 1 ? '' : 's') + ' · source ' + plan.sourceVersionId + ' · revision ' + plan.datasetRevision
-            + ' · ' + (deps.planStore.isDirty() ? 'unmaterialized changes' : 'source baseline');
+            + ' · ' + (deps.planStore.isDirty() ? 'Not yet applied — preview to see effect' : 'source baseline');
         if (activeTab === 'pipeline') renderPipeline(plan);
         else if (activeTab === 'stages') renderStages(plan);
         else renderExport(plan);

@@ -65,6 +65,14 @@ pub struct UploadSettings {
     pub max_concurrent_uploads: usize,
     /// Maximum time an upload waits for an admission permit.
     pub queue_timeout_ms: u64,
+    /// Conservative resident-memory estimate reserved for one upload while
+    /// decoding and replacing the active dataset. This is an admission guard,
+    /// not a process RSS hard limit; parser and decompression implementations
+    /// may allocate outside the estimate.
+    pub max_estimated_resident_bytes: usize,
+    /// Multiplier applied to the wire payload when reserving the estimate.
+    /// It accounts for decoded values, validity buffers, and parser overhead.
+    pub resident_memory_multiplier: usize,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -253,6 +261,8 @@ impl Default for UploadSettings {
             max_upload_bytes: 256 * 1024 * 1024,
             max_concurrent_uploads: 1,
             queue_timeout_ms: 1_000,
+            max_estimated_resident_bytes: 1024 * 1024 * 1024,
+            resident_memory_multiplier: 4,
         }
     }
 }
@@ -405,6 +415,20 @@ impl AppConfig {
             && queue_timeout_ms > 0
         {
             self.upload.queue_timeout_ms = queue_timeout_ms;
+        }
+        if let Ok(max_estimated_resident_bytes) =
+            env::var("EDATIME_UPLOAD_MAX_ESTIMATED_RESIDENT_BYTES")
+            && let Ok(max_estimated_resident_bytes) = max_estimated_resident_bytes.parse::<usize>()
+            && max_estimated_resident_bytes > 0
+        {
+            self.upload.max_estimated_resident_bytes = max_estimated_resident_bytes;
+        }
+        if let Ok(resident_memory_multiplier) =
+            env::var("EDATIME_UPLOAD_RESIDENT_MEMORY_MULTIPLIER")
+            && let Ok(resident_memory_multiplier) = resident_memory_multiplier.parse::<usize>()
+            && resident_memory_multiplier > 0
+        {
+            self.upload.resident_memory_multiplier = resident_memory_multiplier;
         }
         if let Ok(artifact_dir) = env::var("EDATIME_ARTIFACT_DIR") {
             let artifact_dir = artifact_dir.trim();

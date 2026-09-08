@@ -61,7 +61,10 @@ export function exportContainerCanvasPNG(containerId: string, filename: string):
  */
 export async function exportElementPNG(elementId: string, filename: string): Promise<void> {
     const el = document.getElementById(elementId);
-    if (!el) { toast('Element not found for export.', 'warning'); return; }
+    if (!el) {
+        toast('Chart element unavailable. Wait for the chart to render, then retry or use CSV.', 'warning');
+        return;
+    }
 
     const rect = el.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;

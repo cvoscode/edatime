@@ -20,6 +20,10 @@ export class EchartsScatterChart {
         if (!container) throw new Error('Scatter fallback container not found');
 
         this._container = container;
+        // This adapter renders ordinary scatter points. Mark the capability
+        // explicitly so the shared density controls do not advertise a
+        // density legend for a uniform point layer.
+        container.dataset.scatterDensitySupport = 'false';
         this._chart = echarts.init(container, undefined, { renderer: 'canvas' });
         this._resizeObserver?.disconnect();
         this._resizeObserver = new ResizeObserver((entries) => {

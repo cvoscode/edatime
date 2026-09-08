@@ -131,6 +131,20 @@ describe('API client fetch helpers', () => {
     });
 
     describe('fetchData', () => {
+        it('decodes null trace values as gaps while preserving the other trace', async () => {
+            const { fetchData } = await import('./services/api/index.js');
+            arrowMockState.rows.value = [1, null, 3];
+            arrowMockState.rows.other = [10, 20, 30];
+            mockFetch.mockResolvedValueOnce({
+                ok: true, headers: new Map(),
+                arrayBuffer: () => Promise.resolve(new ArrayBuffer(100)),
+            });
+            const result = await fetchData('0', '1000', 500, 'value,other');
+            expect(Array.from(result.values.value!)).toEqual([1, NaN, 3]);
+            expect(Array.from(result.values.other!)).toEqual([10, 20, 30]);
+            expect(result.ts).toHaveLength(3);
+        });
+
         beforeEach(async () => {
             const { cleaningPlanStore } = await import('./cleaning/store.js');
             cleaningPlanStore.resetForDataset({

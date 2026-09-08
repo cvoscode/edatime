@@ -240,7 +240,7 @@ describe('createTimeseriesPageController', () => {
             series: expect.objectContaining({
                 workspace: expect.objectContaining({ y: Float64Array.from([Number.NaN, 3]) }),
             }),
-        }), ['workspace'], 'workspace-color', []);
+        }), ['workspace'], 'workspace-color', [], { workspace: { from: 2, to: 4 } });
         expect((window as any).__edatime?.debugYSnapshot).toBeUndefined();
     });
 

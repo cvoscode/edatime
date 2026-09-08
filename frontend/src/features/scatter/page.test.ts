@@ -211,6 +211,7 @@ describe('initScatterPage view toggles', () => {
     beforeEach(() => {
         vi.resetModules();
         vi.clearAllMocks();
+        window.sessionStorage.clear();
         windowListeners.length = 0;
         originalAddEventListener = window.addEventListener.bind(window);
         vi.spyOn(window, 'addEventListener').mockImplementation((type, listener, options) => {
@@ -344,6 +345,29 @@ describe('initScatterPage view toggles', () => {
         expect(document.getElementById('scatter-view-matrix-btn')?.getAttribute('aria-pressed')).toBe('true');
         expect((document.querySelector('[data-scatter-view-panel="plot"]') as HTMLElement).hidden).toBe(true);
         expect((document.querySelector('[data-scatter-view-panel="matrix"]') as HTMLElement).hidden).toBe(false);
+        expect(window.sessionStorage.getItem('edatime_pair_plot_view')).toBe('matrix');
+    });
+
+    it('restores the last Plot or Matrix choice within the browser session', async () => {
+        window.sessionStorage.setItem('edatime_pair_plot_view', 'matrix');
+        const { initScatterPage } = await import('./page.js');
+
+        await initScatterPage({
+            total_rows: 2,
+            columns: [
+                { name: 'HUFL', dtype: 'Float64' },
+                { name: 'HULL', dtype: 'Float64' },
+            ],
+            numeric_columns: ['HUFL', 'HULL'],
+            time_column: 'ts',
+            time_range: { min: 0, max: 1_000 },
+            column_profiles: [],
+        } as any);
+
+        expect(freshScatterState.activeView).toBe('matrix');
+        expect(document.getElementById('scatter-view-plot-btn')?.getAttribute('aria-pressed')).toBe('false');
+        expect(document.getElementById('scatter-view-matrix-btn')?.getAttribute('aria-pressed')).toBe('true');
+        expect(renderScatterMatrixViewMock).toHaveBeenCalled();
     });
 
     it('binds exports when lazy initialization follows the first page-change event', async () => {

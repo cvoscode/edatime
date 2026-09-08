@@ -450,6 +450,56 @@
   display: contents;
 }
 
+/* A <details> element has an internal disclosure box, so display:contents on
+   its child does not participate in the outer toolbar's flex row reliably.
+   Give the Series content its own row layout on wide screens; the responsive
+   disclosure rules below still hide the whole content at <=1024px. */
+.timeseries-series-disclosure {
+  display: block;
+}
+
+.timeseries-series-disclosure > .timeseries-series-disclosure__content {
+  display: flex;
+  align-items: stretch;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
+/* Chart tools always use the same compact disclosure, independent of width.
+   This gives the plot a predictable initial height and lets it absorb all
+   space released by the closed toolbar. */
+#page-timeseries > .timeseries-utility-shelf.analysis-collapse-tablet {
+  display: block !important;
+  width: 100%;
+  min-height: 40px;
+  padding: 0;
+}
+
+#page-timeseries > .timeseries-utility-shelf > .analysis-secondary-disclosure__summary {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 var(--workspace-pad, 18px);
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#page-timeseries > .timeseries-utility-shelf > .analysis-secondary-disclosure__summary span:last-child {
+  color: var(--text-dim);
+  font-size: 0.6875rem;
+  font-weight: 500;
+}
+
+#page-timeseries > .timeseries-utility-shelf[open] > .analysis-secondary-disclosure__content {
+  display: grid;
+  padding: 0 7px 7px;
+}
+
 .timeseries-range-menu {
   display: none;
 }
@@ -1683,6 +1733,19 @@
   border-color: var(--accent);
 }
 
+#draw-tool,
+#draw-tool.dropdown,
+#draw-tool .dropdown__trigger {
+  min-width: 140px;
+}
+
+/* These labels have explicit full-text requirements. The shared 12ch cap for
+   dense diagnostic controls must not override their intrinsic widths. */
+#draw-tool .dropdown__label {
+  max-width: none;
+  text-overflow: clip;
+}
+
 #draw-color {
   width: 28px;
   height: 28px;
@@ -1871,6 +1934,7 @@
   overflow-x: auto;
   padding-bottom: 2px;
 }
+
 
 .workflow-panel__copy,
 .workflow-panel__hint {

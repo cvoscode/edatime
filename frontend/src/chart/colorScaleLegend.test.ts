@@ -4,7 +4,7 @@ import { renderColorScaleLegend } from './colorScaleLegend.js';
 function mountLegend(): HTMLElement {
     const root = document.createElement('div');
     root.innerHTML = `
-        <div id="timeseries-colorbar-wrap"><span id="timeseries-colorbar-name"></span><span id="timeseries-colorbar-min"></span><span id="timeseries-colorbar-max"></span><span id="timeseries-colorbar"></span></div>
+        <div id="timeseries-colorbar-wrap"><span id="timeseries-colorbar-name"></span><span id="timeseries-colorbar-min"></span><span id="timeseries-colorbar-max"></span><span id="timeseries-colorbar"></span><span id="timeseries-colorbar-caption"></span></div>
         <div id="timeseries-categorical-wrap"><span id="timeseries-categorical-name"></span><div id="timeseries-categorical-legend"></div></div>`;
     document.body.appendChild(root);
     return root;
@@ -32,5 +32,18 @@ describe('renderColorScaleLegend', () => {
         expect(legend.querySelectorAll('.scatter-distribution-legend-item')).toHaveLength(2);
         renderColorScaleLegend(null, null);
         expect(document.getElementById('timeseries-categorical-wrap')?.hidden).toBe(true);
+    });
+
+    it('explains when a single series is colored by its own values', () => {
+        const root = mountLegend();
+        const chips = document.createElement('div');
+        chips.id = 'column-toggles';
+        chips.innerHTML = '<span class="series-chip active" data-col="temperature"></span>';
+        root.append(chips);
+
+        renderColorScaleLegend('temperature', { isNumeric: true, min: 1.25, max: 3.5, categories: [] });
+
+        expect(document.getElementById('timeseries-colorbar-caption')?.textContent)
+            .toBe('Single series colored by its own values (1.25..3.50).');
     });
 });

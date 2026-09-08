@@ -143,3 +143,31 @@
 
   color-scheme: light;
 }
+
+:root[data-appearance="high-contrast"] {
+  --bg: #000;
+  --surface-0: #000;
+  --surface-1: #080808;
+  --surface-2: #111;
+  --text: #fff;
+  --text-dim: #fff;
+  --text-muted: #e8e8e8;
+  --border: #fff;
+  --border-hi: #fff;
+  --accent: #00e5ff;
+  --accent-dim: rgba(0, 229, 255, 0.22);
+}
+
+:root[data-appearance="colorblind"] {
+  --accent: #56b4e9;
+  --cyan: #009e73;
+  --green: #009e73;
+  --amber: #f0e442;
+  --red: #d55e00;
+}
+
+.theme-previews { display: flex; gap: 6px; margin-top: 8px; }
+.theme-previews span { width: 28px; height: 18px; border: 1px solid var(--border-hi); border-radius: 4px; background: #0b0f14; }
+.theme-previews [data-theme-preview="light"] { background: #f4f7fb; }
+.theme-previews [data-theme-preview="high-contrast"] { background: linear-gradient(90deg, #000 50%, #fff 50%); }
+.theme-previews [data-theme-preview="colorblind"] { background: linear-gradient(90deg, #440154, #21918c, #fde725); }

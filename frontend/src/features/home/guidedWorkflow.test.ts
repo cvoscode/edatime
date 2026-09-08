@@ -91,7 +91,7 @@ describe('buildWorkflowSuggestion', () => {
         expect(suggestion.body).toContain('Click');
     });
 
-    it('hides the workflow prompt on side-analysis pages once the core path is underway', () => {
+    it('keeps page-specific guidance available on side-analysis pages', () => {
         const suggestion = buildWorkflowSuggestion(snapshot({
             currentPage: 'fft',
             hasDataset: true,
@@ -102,10 +102,10 @@ describe('buildWorkflowSuggestion', () => {
         }));
         expect(suggestion.actionPage).toBeNull();
         expect(suggestion.actionLabel).toBeNull();
-        expect(suggestion.body).toBe('');
+        expect(suggestion.body).toContain('strongest frequencies');
     });
 
-    it('hides the workflow prompt on drift as well', () => {
+    it('keeps page-specific guidance available on drift as well', () => {
         const suggestion = buildWorkflowSuggestion(snapshot({
             currentPage: 'drift',
             hasDataset: true,
@@ -116,7 +116,7 @@ describe('buildWorkflowSuggestion', () => {
         }));
         expect(suggestion.actionPage).toBeNull();
         expect(suggestion.actionLabel).toBeNull();
-        expect(suggestion.body).toBe('');
+        expect(suggestion.body).toContain('reference and current windows');
     });
 
     it('guides a completed causal run into the pipeline workbench handoff', () => {
@@ -183,7 +183,26 @@ describe('initGuidedWorkflow', () => {
 
         await vi.advanceTimersByTimeAsync(50);
 
-        expect(document.getElementById('workflow-panel')?.hidden).toBe(true);
+        expect(document.getElementById('workflow-panel')?.hidden).toBe(false);
+        expect(document.getElementById('workflow-panel')?.textContent).toContain('Inspect the selected signals');
+        expect(document.getElementById('workflow-toggle-btn')?.getAttribute('aria-label')).toBe('Close guided workflow panel');
+    });
+
+    it('opens and closes the visible panel from the Guide button', async () => {
+        vi.resetModules();
+        const { initGuidedWorkflow } = await import('./guidedWorkflow.js');
+        initGuidedWorkflow(workflowDeps());
+        const panel = document.getElementById('workflow-panel') as HTMLElement;
+        const toggle = document.getElementById('workflow-toggle-btn') as HTMLButtonElement;
+
+        expect(panel.hidden).toBe(false);
+        toggle.click();
+        expect(panel.hidden).toBe(true);
+        expect(toggle.getAttribute('aria-pressed')).toBe('false');
+
+        toggle.click();
+        expect(panel.hidden).toBe(false);
+        expect(toggle.getAttribute('aria-pressed')).toBe('true');
     });
 
     it('renders workflow step crumbs with the styled class contract', async () => {

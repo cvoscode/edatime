@@ -43,7 +43,10 @@ function registerSegment(segment: HTMLElement, fieldsSelector: string): SegmentI
 function updateOverflowSummary(info: SegmentInfo, count: number, showCount: boolean): void {
     const summary = info.overflow.querySelector<HTMLElement>('.scatter-toolbar__overflow-btn');
     if (!summary) return;
-    const label = count === 1 ? '1 hidden option' : `${count} hidden options`;
+    const isExport = !!info.segment.closest('[aria-label*="Export"], .export-toolbar');
+    const label = count === 1
+        ? (isExport ? '1 additional export option' : '1 hidden option')
+        : `${count} hidden options`;
     summary.setAttribute('aria-label', label);
     summary.setAttribute('title', label);
     if (!showCount) return;

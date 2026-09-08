@@ -30,6 +30,14 @@ describe('toast controller', () => {
         expect(document.querySelectorAll('.toast').length).toBe(1);
     });
 
+    it('does not let a call-site timeout dismiss an error toast', () => {
+        toast('Rendering failed', 'error', { duration: 100 });
+
+        vi.advanceTimersByTime(10_000);
+
+        expect(document.querySelectorAll('.toast').length).toBe(1);
+    });
+
     it('refreshes duplicates instead of stacking identical toasts', () => {
         toast('Session restored', 'success');
         toast('Session restored', 'success');

@@ -75,7 +75,7 @@ export function applyResolvedThemeFromSettings(): ResolvedTheme {
     let next: ResolvedTheme;
     if (raw === 'light') {
         next = 'light';
-    } else if (raw === 'dark') {
+    } else if (raw === 'dark' || raw === 'high-contrast' || raw === 'colorblind') {
         next = 'dark';
     } else {
         // 'auto' — fall back to media query, defaulting to dark.

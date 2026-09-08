@@ -27,6 +27,9 @@ describe('responsive all-page layout contract', () => {
         expect(indexHtml).toContain('class="causal-result-toolbar"');
         expect(indexHtml).toContain('drift-secondary-controls analysis-secondary-disclosure');
         expect(indexHtml).toContain('heatmap-secondary-controls analysis-secondary-disclosure');
+        expect(indexHtml).toContain('data-collapse-on-overflow');
+        expect(indexHtml).toContain('data-toolbar-priority="high"');
+        expect(indexHtml).toContain('data-toolbar-priority="low"');
         expect(toolbarCss).toContain('.analysis-secondary-disclosure__summary');
     });
 

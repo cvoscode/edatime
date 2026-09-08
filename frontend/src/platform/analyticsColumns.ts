@@ -1,5 +1,6 @@
 import type { DatasetMetadata } from '../types/api.js';
-import { getColumnSeriesColor, isLikelyTargetColumn } from '../utils/seriesColors.js';
+import type { CleaningPlan } from '../cleaning/types.js';
+import { getColumnSeriesColor } from '../utils/seriesColors.js';
 
 /**
  * Returns the color to use for an analytics chip (FFT/spectrogram/etc.).
@@ -26,6 +27,22 @@ export function getNumericColumns(metadata: DatasetMetadata | null): string[] {
         });
 }
 
+/** Numeric schema visible before materialization when a draft adds columns. */
+export function getEffectiveNumericColumns(metadata: DatasetMetadata | null, plan?: CleaningPlan | null): string[] {
+    let columns = getNumericColumns(metadata);
+    if (!plan) return columns;
+    for (const stage of plan.stages) {
+        if (!stage.enabled) continue;
+        if (stage.kind === 'derivedColumn') {
+            if (!columns.includes(stage.outputColumn)) columns = [...columns, stage.outputColumn];
+        } else if (stage.kind === 'columnSelect') {
+            const selected = new Set(stage.columns);
+            columns = stage.mode === 'keep' ? columns.filter((column) => selected.has(column)) : columns.filter((column) => !selected.has(column));
+        }
+    }
+    return columns;
+}
+
 /**
  * Pick a target-aware default selection for the timeseries chart.
  *
@@ -42,13 +59,7 @@ export function getNumericColumns(metadata: DatasetMetadata | null): string[] {
  * The returned list is always ordered to put the target column last, so
  * the timeseries chart draws the target on top of the feature columns.
  */
-export function getDefaultTimeseriesColumns(metadata: DatasetMetadata | null): string[] {
-    const numeric = getNumericColumns(metadata);
-    if (numeric.length === 0) return [];
-    const target = numeric.find((column) => isLikelyTargetColumn(column));
-    if (!target) return numeric.slice(0, Math.min(3, numeric.length));
-    const others = numeric.filter((column) => column !== target);
-    const selection = others.slice(0, 2);
-    selection.push(target);
-    return selection;
+export function getDefaultTimeseriesColumns(metadata: DatasetMetadata | null, plan?: CleaningPlan | null): string[] {
+    const numeric = getEffectiveNumericColumns(metadata, plan);
+    return numeric;
 }

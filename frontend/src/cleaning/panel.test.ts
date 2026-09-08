@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { previewMock, applyMock, exportPlanMock, exportCodeMock, exportManifestMock, exportBundleMock, listVersionsMock, selectVersionMock, storageUsageMock, sessionJobsMock, cancelSessionJobMock, downloadBlobMock } = vi.hoisted(() => ({
     previewMock: vi.fn(),
@@ -41,6 +41,8 @@ function chooseStageComposer(kind: string): HTMLFormElement {
 }
 
 describe('cleaning plan panel', () => {
+    afterEach(() => vi.unstubAllGlobals());
+
     beforeEach(() => {
         document.body.innerHTML = '<button id="open-cleaning-plan-btn"></button>';
         previewMock.mockReset();
@@ -277,16 +279,43 @@ describe('cleaning plan panel', () => {
     it('restores the retained original source through an explicit control', async () => {
         const planStore = createCleaningPlanStore();
         planStore.resetForDataset({ sourceVersionId: 'source-2', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        planStore.addStage({
+            kind: 'missingValue', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+            sourcePage: 'manual', label: 'Drop missing values from value', column: 'value',
+            dropNulls: true, dropNonFinite: true,
+        });
         listVersionsMock.mockResolvedValue([{ id: 'source-1', rootId: 'source-1' }, { id: 'source-2', rootId: 'source-1' }]);
         selectVersionMock.mockResolvedValue({ id: 'source-1' });
+        const confirm = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true);
+        vi.stubGlobal('confirm', confirm);
         mountCleaningPlanPanel({ planStore, getViewport: () => null });
 
         document.getElementById('open-cleaning-plan-btn')!.click();
-        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Use original dataset')!.click();
+        const useOriginal = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Use original dataset')!;
+        useOriginal.click();
+        expect(confirm).toHaveBeenCalledWith('Revert to source baseline? This discards 1 active stage.');
+        expect(selectVersionMock).not.toHaveBeenCalled();
+
+        useOriginal.click();
         await Promise.resolve();
         await Promise.resolve();
 
         expect(selectVersionMock).toHaveBeenCalledWith('source-1');
+    });
+
+    it('uses plural reset copy when no executable stages are active', () => {
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        const confirm = vi.fn(() => false);
+        vi.stubGlobal('confirm', confirm);
+        mountCleaningPlanPanel({ planStore, getViewport: () => null });
+
+        document.getElementById('open-cleaning-plan-btn')!.click();
+        Array.from(document.querySelectorAll('button'))
+            .find((button) => button.textContent === 'Use original dataset')!
+            .click();
+
+        expect(confirm).toHaveBeenCalledWith('Revert to source baseline? This discards 0 active stages.');
     });
 
     it('renders the current plan as a selectable graph and edits the selected stage through the plan store', () => {

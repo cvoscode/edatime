@@ -1,0 +1,5 @@
+.workflow-panel__context { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+.workflow-panel__context > div { display: grid; gap: 3px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-md); }
+.workflow-panel__context strong { color: var(--text); font-size: .72rem; }
+.workflow-panel__context span { color: var(--text-dim); font-size: .7rem; line-height: 1.4; }
+@media (max-width: 800px) { .workflow-panel__context { grid-template-columns: 1fr; } }

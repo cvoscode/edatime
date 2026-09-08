@@ -162,6 +162,7 @@ export function initTimeseriesActions(deps: TimeseriesActionDeps): void {
         const filters = deps.workspace.getSnapshot().filters;
         deps.workspace.setFilters({ ...filters, columnRanges: {}, adaptiveLines: [] });
         clearScatterViewSnapshots();
+        deps.rebuildColumnToggles();
         deps.buildRangeControls();
         deps.renderCurrentData();
         await deps.fetchAndRender();
