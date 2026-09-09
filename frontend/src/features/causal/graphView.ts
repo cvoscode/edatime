@@ -44,11 +44,14 @@ export function isCausalChartReadyForInit(): boolean {
     return !!(page && !page.hidden && _chartEl && _chartEl.clientWidth > 0 && _chartEl.clientHeight > 0);
 }
 
-export async function initChart(generation = chartRefreshGeneration): Promise<void> {
-    if (generation !== chartRefreshGeneration) return;
-    if (!_chartEl || !isCausalChartReadyForInit()) return;
-    if (_eChart) { _eChart.resize(); return; }
-    if (_chartInitPromise) { await _chartInitPromise; return; }
+export async function initChart(generation = chartRefreshGeneration): Promise<boolean> {
+    if (generation !== chartRefreshGeneration) return false;
+    if (!_chartEl || !isCausalChartReadyForInit()) return false;
+    if (_eChart) { _eChart.resize(); return true; }
+    if (_chartInitPromise) {
+        await _chartInitPromise;
+        return generation === chartRefreshGeneration && !!_eChart && isCausalChartReadyForInit();
+    }
 
     const task = (async () => {
         const echarts = await import('echarts');
@@ -69,6 +72,7 @@ export async function initChart(generation = chartRefreshGeneration): Promise<vo
     } finally {
         if (_chartInitPromise === task) _chartInitPromise = null;
     }
+    return generation === chartRefreshGeneration && !!_eChart && isCausalChartReadyForInit();
 }
 
 export function scheduleCausalChartRefresh(attempts = 6): void {
@@ -340,8 +344,8 @@ function edgeTooltip(group: PairEdgeGroup): string {
         </div>`;
 }
 
-export function renderEChartsGraph(): void {
-    if (!_eChart) return;
+export function renderEChartsGraph(): boolean {
+    if (!_eChart || !isCausalChartReadyForInit() || _currentColumns.length === 0) return false;
     captureRenderedNodePositions(_eChart);
     seedNodePositions(_chartEl);
     const selfLoops = collectSelfLoops();
@@ -369,37 +373,43 @@ export function renderEChartsGraph(): void {
     });
 
     const chartPalette = getChartPalette();
-    _eChart.setOption({
-        backgroundColor: 'transparent',
-        animation: false,
-        tooltip: {
-            trigger: 'item', enterable: true, confine: true,
-            backgroundColor: chartPalette.surfaceElevated, borderColor: chartPalette.borderHi, borderWidth: 1,
-            padding: [8, 12], textStyle: { color: chartPalette.text, fontSize: 12 },
-            formatter: (params: any) => {
-                if (params.dataType === 'node') return nodeTooltip(String(params.data.id), selfLoops);
-                if (params.dataType === 'edge') { const group = getPairGroup(String(params.data._key)); if (group) return edgeTooltip(group); }
-                return '';
+    try {
+        _eChart.setOption({
+            backgroundColor: 'transparent',
+            animation: false,
+            tooltip: {
+                trigger: 'item', enterable: true, confine: true,
+                backgroundColor: chartPalette.surfaceElevated, borderColor: chartPalette.borderHi, borderWidth: 1,
+                padding: [8, 12], textStyle: { color: chartPalette.text, fontSize: 12 },
+                formatter: (params: any) => {
+                    if (params.dataType === 'node') return nodeTooltip(String(params.data.id), selfLoops);
+                    if (params.dataType === 'edge') { const group = getPairGroup(String(params.data._key)); if (group) return edgeTooltip(group); }
+                    return '';
+                },
             },
-        },
-        graphic: buildLegendGraphic(),
-        series: [{
-            type: 'graph', layout: 'none',
-            data: nodes,
-            links: groups.map(buildPairEdge),
-            roam: true, draggable: true, symbol: 'circle',
-            edgeLabel: {
-                show: true, position: 'middle', distance: 14, rotate: false,
-                color: chartPalette.text, fontSize: groups.length > 8 ? 9 : 10,
-                lineHeight: groups.length > 8 ? 11 : 12, fontWeight: 600,
-                backgroundColor: chartPalette.background, borderColor: chartPalette.borderHi,
-                borderWidth: 1, borderRadius: 14, padding: [6, 10],
-                shadowBlur: 16, shadowColor: 'rgba(0,0,0,0.32)',
-                formatter: (params: any) => String(params.data?._labelText || ''),
-            },
-            emphasis: { focus: 'adjacency' },
-        }],
-    }, true);
+            graphic: buildLegendGraphic(),
+            series: [{
+                type: 'graph', layout: 'none',
+                data: nodes,
+                links: groups.map(buildPairEdge),
+                roam: true, draggable: true, symbol: 'circle',
+                edgeLabel: {
+                    show: true, position: 'middle', distance: 14, rotate: false,
+                    color: chartPalette.text, fontSize: groups.length > 8 ? 9 : 10,
+                    lineHeight: groups.length > 8 ? 11 : 12, fontWeight: 600,
+                    backgroundColor: chartPalette.background, borderColor: chartPalette.borderHi,
+                    borderWidth: 1, borderRadius: 14, padding: [6, 10],
+                    shadowBlur: 16, shadowColor: 'rgba(0,0,0,0.32)',
+                    formatter: (params: any) => String(params.data?._labelText || ''),
+                },
+                emphasis: { focus: 'adjacency' },
+            }],
+        }, true);
+        return true;
+    } catch (error) {
+        console.error('[edatime:causal] graph render failed', error);
+        return false;
+    }
 }
 
 // Re-export for causalPage callers

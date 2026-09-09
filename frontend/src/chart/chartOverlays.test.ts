@@ -14,7 +14,7 @@ describe('ChartOverlays adaptive filter presentation', () => {
         const ctx = {
             save: vi.fn(), restore: vi.fn(), setLineDash: vi.fn(), beginPath: vi.fn(),
             rect: vi.fn(), clip: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), stroke: vi.fn(),
-            fillRect, fillText, strokeRect, arc: vi.fn(), fill: vi.fn(),
+            fillRect, fillText, strokeRect, strokeText: vi.fn(), arc: vi.fn(), fill: vi.fn(),
             measureText: vi.fn((text: string) => ({ width: text.length * 7 })),
             lineCap: 'butt', lineJoin: 'miter', strokeStyle: '', fillStyle: '', lineWidth: 1,
             font: '', textAlign: 'start', textBaseline: 'alphabetic',
@@ -36,10 +36,11 @@ describe('ChartOverlays adaptive filter presentation', () => {
 
         expect(ctx.rect).toHaveBeenCalledWith(44, 10, 180, 100);
         expect(ctx.clip).toHaveBeenCalledOnce();
-        expect(strokeRect).toHaveBeenCalledWith(44, 98, 180, 7);
-        expect(fillText).toHaveBeenCalledWith('HULL [5.00, 12.00]', 50, expect.any(Number));
+        expect(strokeRect).toHaveBeenCalledWith(54, 98, 170, 7);
+        expect(ctx.strokeText).toHaveBeenCalledWith('HULL [5.00, 12.00]', 60, expect.any(Number));
+        expect(fillText).toHaveBeenCalledWith('HULL [5.00, 12.00]', 60, expect.any(Number));
         const labelBackground = fillRect.mock.calls.at(-1)! as number[];
-        expect(labelBackground[0]).toBeGreaterThanOrEqual(44);
+        expect(labelBackground[0]).toBeGreaterThan(44);
         expect(labelBackground[1]).toBeGreaterThanOrEqual(10);
         expect(labelBackground[1] + labelBackground[3]).toBeLessThanOrEqual(110);
     });

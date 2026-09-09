@@ -160,6 +160,8 @@ describe('initFilterModalController', () => {
             // Default range is the full bounds from current feature data (0 to 1)
             expect(minInput.value).toBe('0.00');
             expect(maxInput.value).toBe('1.00');
+            expect(minInput.getAttribute('aria-invalid')).toBe('false');
+            expect(maxInput.getAttribute('aria-invalid')).toBe('false');
         });
     });
 
@@ -243,6 +245,28 @@ describe('initFilterModalController', () => {
             expect(apply.disabled).toBe(false);
         });
 
+        it('accepts a displayed endpoint that rounds just beyond the exact profile bound', () => {
+            workspace.commitDataset(workspace.beginDatasetSession(), {
+                ...workspace.getSnapshot().dataset.metadata,
+                column_profiles: [{ name: 'HUFL', min: -13.904999, max: 36.43899917602539 }],
+            } as any, 2);
+            initFilterModalController({ renderCurrentData: vi.fn(), updateAnalysisYRange: vi.fn() });
+            openFilterForColumn('HUFL');
+            const minInput = document.getElementById('column-filter-min') as HTMLInputElement;
+            const maxInput = document.getElementById('column-filter-max') as HTMLInputElement;
+            const apply = document.getElementById('column-filter-apply-btn') as HTMLButtonElement;
+
+            expect(minInput.value).toBe('-13.90');
+            expect(maxInput.value).toBe('36.44');
+            maxInput.value = '36.44';
+            maxInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+            expect(apply.disabled).toBe(false);
+            expect(minInput.getAttribute('aria-invalid')).toBe('false');
+            expect(maxInput.getAttribute('aria-invalid')).toBe('false');
+            expect(document.getElementById('column-filter-hint')?.textContent).not.toContain('outside data range');
+        });
+
         it('writes edited bounds to workspace filters', () => {
             const renderCurrentData = vi.fn();
             const updateAnalysisYRange = vi.fn();
@@ -258,6 +282,27 @@ describe('initFilterModalController', () => {
             applyBtn.click();
 
             expect(workspace.getSnapshot().filters.columnRanges.HUFL).toEqual({ from: 0.3, to: 0.7 });
+        });
+
+        it('reapplies a saved range when observed data bounds have narrowed inside it', () => {
+            setWorkspaceRanges({ HUFL: { from: 0.2, to: 0.8 } });
+            workspace.commitDataset(workspace.beginDatasetSession(), {
+                ...workspace.getSnapshot().dataset.metadata,
+                column_profiles: [{ name: 'HUFL', min: 0.25, max: 0.75 }],
+            } as any, 2);
+            currentData.values.HUFL = new Float64Array([0.25, 0.5, 0.75]);
+            initFilterModalController({ renderCurrentData: vi.fn(), updateAnalysisYRange: vi.fn() });
+
+            openFilterForColumn('HUFL');
+
+            const apply = document.getElementById('column-filter-apply-btn') as HTMLButtonElement;
+            expect((document.getElementById('column-filter-min') as HTMLInputElement).value).toBe('0.20');
+            expect((document.getElementById('column-filter-max') as HTMLInputElement).value).toBe('0.80');
+            expect(document.getElementById('column-filter-hint')?.textContent).toContain('Bounds scope: filter');
+            expect(apply.disabled).toBe(false);
+            apply.click();
+            expect(document.getElementById('column-filter-modal')!.hidden).toBe(true);
+            expect(workspace.getSnapshot().filters.columnRanges.HUFL).toEqual({ from: 0.2, to: 0.8 });
         });
 
         it('publishes edited bounds to workspace filters', () => {

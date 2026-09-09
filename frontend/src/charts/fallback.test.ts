@@ -94,29 +94,36 @@ describe('FallbackChart', () => {
 
     describe('updateDataMulti', () => {
         let chart: FallbackChart;
+        let mockCtx: Record<string, any>;
 
         beforeEach(async () => {
+            vi.restoreAllMocks();
             document.body.innerHTML = '<div id="chart-box" style="width:200px;height:100px;"></div>';
-            chart = new FallbackChart('chart-box');
-            await chart.init();
-
-            // Happy-dom canvas mock: ensure getContext returns a mock 2D context
-            const canvas = document.querySelector('canvas')!;
-            const mockCtx = {
+            mockCtx = {
                 clearRect: vi.fn(),
                 fillRect: vi.fn(),
                 beginPath: vi.fn(),
                 moveTo: vi.fn(),
                 lineTo: vi.fn(),
                 stroke: vi.fn(),
+                strokeRect: vi.fn(),
                 fillText: vi.fn(),
+                strokeText: vi.fn(),
+                rect: vi.fn(),
+                clip: vi.fn(),
+                save: vi.fn(),
+                restore: vi.fn(),
+                setLineDash: vi.fn(),
+                measureText: vi.fn((text: string) => ({ width: text.length * 7 })),
                 fillStyle: '',
                 strokeStyle: '',
                 lineWidth: 1,
                 font: '',
+                textAlign: 'start',
+                textBaseline: 'alphabetic',
             };
-            vi.spyOn(canvas, 'getContext').mockReturnValue(mockCtx as any);
-            // Re-init to pick up mocked context
+            vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(mockCtx as any);
+            chart = new FallbackChart('chart-box');
             await chart.init();
         });
 
@@ -150,6 +157,20 @@ describe('FallbackChart', () => {
                 colorByColumn: {},
             };
             expect(() => chart.updateDataMulti(data, ['a', 'b'])).not.toThrow();
+        });
+
+        it('keeps a column-range annotation inside the plot gutter with a halo', () => {
+            const data: FilteredDataObject = {
+                series: {
+                    HULL: { x: new Float64Array([1, 2]), y: new Float64Array([0, 20]) },
+                },
+                colorByColumn: {},
+            };
+
+            chart.updateDataMulti(data, ['HULL'], null, [], { HULL: { from: 5, to: 12 } });
+
+            expect(mockCtx.strokeRect).toHaveBeenCalledWith(52, expect.any(Number), expect.any(Number), expect.any(Number));
+            expect(mockCtx.strokeText).toHaveBeenCalledWith('HULL [5.00, 12.00]', 58, expect.any(Number));
         });
 
         it('handles missing column gracefully', () => {

@@ -26,6 +26,7 @@ import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
 import { emitFeatureEvent } from '../../platform/featureEvents.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import { onThemeChange } from '../../utils/theme.js';
+import { formatAnalysisNumber } from '../../utils/format.js';
 
 /** Module-level runtime handle for the scatter page lifecycle. */
 let scatterRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
@@ -62,7 +63,11 @@ function syncScatterFilterBanner(): void {
         y: controls.y,
         colorColumn: controls.selectedColorColumn,
     }, intent)));
-    const columnCount = activeColumns.length;
+    const columnFilters = activeColumns.map((column) => {
+        const range = intent?.filters.columnRanges[column];
+        return range ? `${column} [${formatAnalysisNumber(range.from)}, ${formatAnalysisNumber(range.to)}]` : column;
+    });
+    const columnCount = columnFilters.length;
     const adaptiveCount = intent
         ? intent.filters.adaptiveLines.length
         : 0;
@@ -86,7 +91,7 @@ function syncScatterFilterBanner(): void {
 
     const parts: string[] = [];
     if (hasZoomRange) parts.push('zoom range');
-    if (columnCount > 0) parts.push(`${columnCount} column filter${columnCount === 1 ? '' : 's'}`);
+    if (columnCount > 0) parts.push(columnFilters.join('; '));
     if (adaptiveCount > 0) parts.push(`${adaptiveCount} adaptive filter${adaptiveCount === 1 ? '' : 's'}`);
     text.textContent = `Signals filters carry over here: ${parts.join(', ')}`;
 

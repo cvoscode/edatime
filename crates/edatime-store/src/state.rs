@@ -41,6 +41,9 @@ pub struct ProfileCacheEntry {
     pub result: Option<Value>,
 }
 
+type WorkingCorrelationCache =
+    Arc<tokio::sync::Mutex<Option<((String, String), CorrelationMatrixCacheEntry)>>>;
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RetainedStateSnapshot {
@@ -77,8 +80,7 @@ pub struct AppState {
     /// Bounded compiled working plans, keyed by immutable source and semantic hash.
     pub working_plan_cache: Arc<Mutex<BTreeMap<(String, String), LazyFrame>>>,
     /// Latest working matrix; the async lock also coalesces simultaneous requests.
-    pub working_correlation_cache:
-        Arc<tokio::sync::Mutex<Option<((String, String), CorrelationMatrixCacheEntry)>>>,
+    pub working_correlation_cache: WorkingCorrelationCache,
     pub profile_cache: Arc<Mutex<BTreeMap<String, ProfileCacheEntry>>>,
     immediate_metadata_cache: Arc<Mutex<BTreeMap<String, Value>>>,
     pub query_log: Arc<Mutex<VecDeque<QueryEntry>>>,

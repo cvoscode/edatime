@@ -49,7 +49,7 @@ describe('Causal graph lifecycle', () => {
         const chart = document.getElementById('causal-chart') as HTMLDivElement;
         graph.setChartEl(chart);
 
-        await graph.initChart();
+        await expect(graph.initChart()).resolves.toBe(true);
         const editor = document.createElement('input');
         editor.className = 'causal-node-edit';
         document.body.appendChild(editor);
@@ -60,6 +60,31 @@ describe('Causal graph lifecycle', () => {
         expect(graph._eChart).toBeNull();
         expect(graph._chartEl).toBeNull();
         expect(document.querySelector('.causal-node-edit')).toBeNull();
+    });
+
+    it('reports whether a populated graph was actually handed to a visible chart', async () => {
+        const chartInstance = {
+            on: vi.fn(),
+            resize: vi.fn(),
+            dispose: vi.fn(),
+            setOption: vi.fn(),
+            getOption: vi.fn(() => ({ series: [] })),
+        };
+        echarts.init.mockReturnValue(chartInstance);
+        const graph = await import('./graphView.js');
+        const state = await import('./selectionState.js');
+        const chart = document.getElementById('causal-chart') as HTMLDivElement;
+        graph.setChartEl(chart);
+        state.setCurrentColumns(['HUFL', 'HULL']);
+        state.setCurrentLinks([{ source: 'HUFL', target: 'HULL', lag: 1, type: '-->', value: 0.5, pvalue: 0.01 }]);
+
+        await expect(graph.initChart()).resolves.toBe(true);
+        expect(graph.renderEChartsGraph()).toBe(true);
+        expect(chartInstance.setOption).toHaveBeenCalledOnce();
+        expect(chartInstance.setOption.mock.calls[0]?.[0].series[0].data).toHaveLength(2);
+
+        chart.closest('section')!.hidden = true;
+        expect(graph.renderEChartsGraph()).toBe(false);
     });
 
     it('makes a deferred refresh harmless after disposal', async () => {

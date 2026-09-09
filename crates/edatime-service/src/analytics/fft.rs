@@ -129,7 +129,6 @@ pub fn compute_fft(
 #[cfg(test)]
 mod mask_tests {
     use super::*;
-    use polars::prelude::*;
 
     #[test]
     fn masked_values_do_not_become_zero_observations() {

@@ -22,7 +22,13 @@ import {
     ensureNodeMetadata,
     workspaceMetadata,
 } from './selectionState.js';
-import { setProgress, hideProgress, setStatus } from './statusView.js';
+import {
+    hideProgress,
+    setProgress,
+    setStatus,
+    showCausalGraphRenderFailure,
+    syncCausalEmptyState,
+} from './statusView.js';
 import { initChart, renderEChartsGraph } from './graphView.js';
 import type { CausalDeps } from './selectionState.js';
 import { getDropdownValueFromElement, setDropdownDisabledForElement } from '../../ui/primitives/Dropdown.js';
@@ -136,6 +142,7 @@ export async function handleComputeClick(
     const signal = causalComputeController.signal;
     let progressId: number | undefined;
     try {
+        syncCausalEmptyState(_selectedColumns.size);
         deps.setLoading('causal-compute-btn', 'causal-loading', true, 'Run discovery');
         setStatus(`${methodLabel}: running causal discovery...`);
         setProgress(0, methodLabel + ': preparing');
@@ -150,17 +157,25 @@ export async function handleComputeClick(
         setProgress(100, methodLabel + ': complete');
         window.setTimeout(hideProgress, 800);
         const cols = [...resp.columns, ...manualOnly.filter((col) => !resp.columns.includes(col))];
-        setStatus(`${methodLabel}: graph updated with ${cols.length} nodes and ${resp.links.length} links.`, 'success');
         setCurrentColumns(cols);
         setCurrentLinks(resp.links);
         setCurrentTauMax(resp.tau_max);
-        syncCausalGraphActionState(resp.links.length > 0 && cols.length >= 2);
+        for (const col of cols) ensureNodeMetadata(col, meta, deps);
+        const chartReady = await initChart();
+        const graphRendered = chartReady && renderEChartsGraph();
+        syncCausalGraphActionState(graphRendered && resp.links.length > 0 && cols.length >= 2);
+        if (!graphRendered) {
+            showCausalGraphRenderFailure(cols.length, resp.links.length);
+            setStatus(
+                `${methodLabel}: discovery returned ${cols.length} nodes and ${resp.links.length} links, but the graph could not be displayed. Resize or revisit the page and try again.`,
+                'error',
+            );
+            return;
+        }
         notifyCausalGraphUpdated(cols, resp.links);
         emitFeatureEvent('workflow:refresh', undefined);
-        for (const col of cols) ensureNodeMetadata(col, meta, deps);
-        await initChart();
-        renderEChartsGraph();
         onComplete?.();
+        setStatus(`${methodLabel}: graph updated with ${cols.length} nodes and ${resp.links.length} links.`, 'success');
     } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
             // Superseded by a newer compute run; the newer run owns status UI.

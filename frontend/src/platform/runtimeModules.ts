@@ -7,7 +7,6 @@
  */
 
 import { registerChartType } from '../charts/registry.js';
-import { FallbackChart } from '../charts/fallback.js';
 import type { AnomalyResponse, DataObject, DatasetMetadata } from '../types/api.js';
 import type { ChartInstance, ViewSnapshot } from '../types/chart.js';
 import type { ApiRequestOptions } from '../services/api/http.js';
@@ -69,9 +68,10 @@ export async function ensureChartModules(): Promise<ChartModules> {
     if (pending) return pending;
 
     pending = (async () => {
-        const [baseModules, chartModule] = await Promise.all([
+        const [baseModules, chartModule, fallbackModule] = await Promise.all([
             ensureDataModules(),
             import('../chart/DataChart.js'),
+            import('../charts/fallback.js'),
         ]);
         const result: ChartModules = {
             ...baseModules,
@@ -96,7 +96,7 @@ export async function ensureChartModules(): Promise<ChartModules> {
             label: 'Fallback (Canvas 2D)',
             create: (containerId: string, callbacks: Record<string, unknown> = {}) => {
                 const cb = callbacks as unknown as BootstrapChartCallbacks;
-                return new FallbackChart(
+                return new fallbackModule.FallbackChart(
                     containerId,
                     cb.onZoom ?? null,
                     cb.onYRange ?? null,

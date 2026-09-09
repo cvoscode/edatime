@@ -399,7 +399,16 @@ describe('bindScatterControls', () => {
         buildScatterQueryContextMock.mockReturnValueOnce({ start: undefined, end: undefined, filters: [], lineFilters: [] });
         buildOverviewContextKeyMock.mockReturnValueOnce('key:HUFL|HULL||f0.l0');
 
-        bindScatterControls(callbacks);
+        bindScatterControls({
+            ...callbacks,
+            workspace: {
+                getSnapshot: () => ({
+                    filters: { columnRanges: { HUFL: { from: 0, to: 50 } }, adaptiveLines: [] },
+                    viewport: null,
+                }),
+                subscribe: () => () => { },
+            } as any,
+        });
         callbacks.setScatterView.mockClear();
 
         emitNavigationChange({ page: 'scatter', analyticsView: 'plot' });
@@ -408,6 +417,9 @@ describe('bindScatterControls', () => {
 
         expect(callbacks.setScatterView).toHaveBeenCalledTimes(1);
         expect(callbacks.setScatterView).toHaveBeenCalledWith('plot', { render: false });
+        expect(callbacks.refreshCorrelationsAndSuggestions).toHaveBeenCalledTimes(1);
+        expect(callbacks.renderScatter).toHaveBeenCalledTimes(1);
+        expect(callbacks.rerenderScatterFromCache).not.toHaveBeenCalled();
     });
 
     it('refreshes the matrix view on first scatter page-change when analyticsView requests matrix', async () => {

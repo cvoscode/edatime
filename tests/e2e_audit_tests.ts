@@ -152,6 +152,38 @@ test.describe('Audit Verification Tests', () => {
     expect(zeroSizeWarnings.length).toBe(0);
   });
 
+  test('causal discovery renders a visible graph before enabling graph actions', async ({ page }) => {
+    test.setTimeout(120_000);
+    await openPage(page, 'causal');
+
+    await expect(page.locator('#causal-add-edge-btn')).toBeDisabled();
+    await expect(page.locator('#causal-export-btn')).toBeDisabled();
+    await expect(page.locator('#causal-save-run-btn')).toBeDisabled();
+    await page.locator('#causal-compute-btn').click();
+    await expect(page.getByText(/graph updated with \d+ nodes and \d+ links/i)).toBeVisible({ timeout: 120_000 });
+
+    const chart = page.locator('#causal-chart');
+    const canvas = chart.locator('canvas');
+    await expect(canvas).toBeVisible();
+    const paintedSamples = await canvas.evaluate((element: HTMLCanvasElement) => {
+      const context = element.getContext('2d');
+      if (!context || element.width === 0 || element.height === 0) return 0;
+      const pixels = context.getImageData(0, 0, element.width, element.height).data;
+      let painted = 0;
+      // Sampling every eighth pixel keeps the assertion cheap while still
+      // covering nodes, labels, edges, and the in-chart legend.
+      for (let index = 3; index < pixels.length; index += 32) {
+        if (pixels[index] > 0) painted += 1;
+      }
+      return painted;
+    });
+    expect(paintedSamples).toBeGreaterThan(100);
+    await expect(page.locator('#causal-empty-state')).toBeHidden();
+    await expect(page.locator('#causal-add-edge-btn')).toBeEnabled();
+    await expect(page.locator('#causal-export-btn')).toBeEnabled();
+    await expect(page.locator('#causal-save-run-btn')).toBeEnabled();
+  });
+
   test('scatter matrix is a sub-tab inside Scatter page', async ({ page }) => {
     // Navigate to scatter page
     await openPage(page, 'scatter');
@@ -178,6 +210,59 @@ test.describe('Audit Verification Tests', () => {
     await page.getByRole('tab', { name: 'Export' }).click();
     await expect(page.getByRole('button', { name: 'Export graph JSON' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Export graph SVG' })).toBeVisible();
+  });
+
+  test('saved Signals filters remain editable and Pair plot describes their data scope', async ({ page }) => {
+    // Warm the Pair plot first so the return trip exercises the initialized
+    // cache path, where source-data suggestions previously survived a later
+    // Signals filter change.
+    await openPage(page, 'scatter');
+    await expect(page.locator('#scatter-suggestions')).not.toBeEmpty({ timeout: 20_000 });
+    await openPage(page, 'timeseries');
+    await expect(page.locator('#main-chart')).toBeVisible({ timeout: 20_000 });
+
+    await page.getByRole('button', { name: 'Filter range for HULL' }).click();
+    await expect(page.locator('#column-filter-min')).toHaveAttribute('aria-invalid', 'false');
+    await expect(page.locator('#column-filter-max')).toHaveAttribute('aria-invalid', 'false');
+    await page.locator('#column-filter-max').fill('36.44');
+    await expect(page.locator('#column-filter-apply-btn')).toBeEnabled();
+    await page.locator('#column-filter-min').fill('5');
+    await page.locator('#column-filter-max').fill('12');
+    await page.locator('#column-filter-apply-btn').click();
+    await expect(page.locator('.series-chip[data-col="HULL"]')).toContainText('[5.00, 12.00]');
+
+    await page.getByRole('button', { name: 'Filter range for HULL' }).click();
+    await expect(page.locator('#column-filter-apply-btn')).toBeEnabled();
+    await expect(page.locator('#column-filter-hint')).toContainText('Bounds scope: filter');
+    await page.locator('#column-filter-apply-btn').click();
+    await expect(page.locator('#column-filter-modal')).toBeHidden();
+
+    const chartTools = page.locator('.timeseries-utility-shelf');
+    if (!(await chartTools.evaluate((details: HTMLDetailsElement) => details.open))) {
+      await chartTools.locator(':scope > summary').click();
+    }
+    await page.locator('#quick-range-24h:visible').click();
+
+    await openPage(page, 'correlations');
+    const pairCell = page.locator('.heatmap-cell[data-row-name="HULL"][data-col-name="MULL"]').first();
+    await expect(pairCell).toBeVisible({ timeout: 20_000 });
+    await pairCell.click();
+    await page.locator('#heatmap-pair-open').click();
+    await expect(page.locator('#page-scatter')).toBeVisible();
+    await expect(page.locator('#scatter-filter-banner-text')).toContainText('zoom range');
+    await expect(page.locator('#scatter-filter-banner-text')).toContainText('HULL [5.00, 12.00]');
+
+    await page.locator('#scatter-suggestion-threshold').evaluate((input: HTMLInputElement) => {
+      input.value = '0.5';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const activeSuggestion = page.locator('.scatter-suggestion-btn[data-x-column="HULL"][data-y-column="MULL"]');
+    await expect(activeSuggestion).toBeVisible({ timeout: 20_000 });
+    const suggestionText = await activeSuggestion.textContent();
+    const pearsonText = await page.locator('#scatter-pearson').textContent();
+    const suggestionValue = Number(suggestionText?.match(/(-?\d+\.\d+)\s*$/)?.[1]);
+    const pearsonValue = Math.abs(Number(pearsonText?.match(/-?\d+\.\d+/)?.[0]));
+    expect(suggestionValue).toBe(Number(pearsonValue.toFixed(2)));
   });
 
   test('API response times are acceptable', async ({ page }) => {

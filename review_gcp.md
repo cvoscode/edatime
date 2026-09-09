@@ -690,3 +690,237 @@ Severity tally (current outstanding):
 2. **Stop the filter dialog Apply button from being disabled at the data boundary** (NEW-35, P2). Re-opening a previously-applied filter should let the user re-apply it unchanged. Either re-read the source bounds on dialog open, or use non-strict comparison in the input validator.
 3. **Stop the filter annotation band from crossing the y-axis tick label** (S-SIG-07, P2). The orange dashed band and its `HULL [5.00, 12.00]` text label both intersect the `-0.11` y-axis tick on the left edge of the chart at every tested viewport. Either shrink the band so it starts to the right of the y-axis labels, or move the band label to a position that doesn't overlap a tick.
 3. **Move the filter-band label so it doesn't collide with the y-axis tick label** (S-SIG-07, P2). Today the band label text is drawn at the same y as the `-0.11` y-axis tick at both 1440 and 1024. Either inset the band start so the label clears the axis gutter, or add a contrasting halo so the label is legible on top of the tick.
+
+---
+
+## Findings raised on 2026-09-08 (pass 7, live app re-review)
+
+Pass 7 re-ran the outstanding pass-6 set against the live app (1440×900, Vite dev at `http://127.0.0.1:5173/`) with a HULL column filter (`HULL [5.00, 12.00]`, stats row `Count 61 / Min 7.12 / Max 11.979 / Missing 37.11%`) and the 24h quick range applied. No previously-open finding was observed as fixed. Pass 7 adds one new finding (NEW-38) and strengthens the live evidence for NEW-36 and NEW-37.
+
+### NEW-38 — Filter dialog rejects the displayed source-profile boundary value — 🆕 NOT SOLVED
+
+- **Severity**: P2 (a value the UI itself displays in the field and in the "Bounds scope" hint cannot be re-entered; the user is told it is out of range when it is exactly the range maximum).
+- **Where**: Signals → *Filter column* dialog, HULL, opened fresh (no prior filter).
+- **Reproduced live**:
+  1. On Signals (24h, no active column filter) open the HULL filter dialog. Min field shows `-13.90`, Max field shows `36.44`.
+  2. Both min and max `<input type=number>` spinbuttons report `aria-invalid=true` on initial load even though the Apply button is **enabled** — an inconsistent a11y/validation state (fields pre-filled with the valid, currently-shown bounds are marked invalid).
+  3. Type Max = `36.44` (the exact value displayed in the field and the "Bounds scope" hint) → hint reads `Value 36.44 outside data range (-13.90 to 36.44)`, Apply becomes **disabled**.
+  4. Type Max = `36.43` → validation passes, Apply re-enabled.
+  5. Type Max = `36.439` → rejected, and the hint rounds it to `36.44`, so the message again self-references (`36.44 outside … to 36.44`).
+- **Root cause**: in `frontend/src/features/timeseries/filterModalController.ts`, `readInputs()` compares the two-decimal *displayed* value against the full-precision stored bound with a **strict** `>`: `if (activeBounds && (from < activeBounds.min || from > activeBounds.max))`. The HULL source max is `36.43899917602539`, whose 2-dp display is `36.44`. Because `36.44 > 36.438997…`, the very value the UI shows is rejected. (The lower edge is unaffected because `-13.90499… → -13.90` rounds *toward* the bound, staying inside.) The out-of-range hint runs the rejected `outsideValue` through the same 2-dp formatter, so any value that rounds to an endpoint reads as "the endpoint is outside the range."
+- **Expected behavior**:
+  - A value the field or the "Bounds scope" hint displays must pass validation when re-entered unchanged.
+  - Boundary comparison should be inclusive (`>=` / `<=`), or the displayed (rounded) value should be compared against the rounded bounds.
+  - The out-of-range hint must not print an `outsideValue` whose formatted text equals the range max/min.
+- **Acceptance criteria**:
+  - On a fresh HULL filter dialog, typing `36.44` into Max (the value shown on open) keeps Apply enabled.
+  - The initial min/max fields are not marked `aria-invalid` while they contain the in-bounds, currently-shown bounds (or, if the strict comparison is kept, the invalid state is consistent with the disabled/enabled state of Apply).
+
+### NEW-35 — Filter dialog "Bounds scope" mislabels the applied filter as "source profile" — ❌ NOT SOLVED (carried, re-verified)
+
+- **Severity**: P2.
+- **Where**: Signals → *Filter column* dialog, re-opened after applying `HULL [5.00, 12.00]`.
+- **Re-verified live this pass**: with the HULL filter active, re-opening the dialog shows "Bounds scope: **source profile** (5.00 → 12.00)" — but the true source profile is `-13.90 → 36.44`; `5.00 → 12.00` is the *applied* filter range. Setting Max = `12.01` → `Value 12.01 outside data range (5.00 to 12.00)`, Apply disabled: the applied filter range is enforced as if it were the data bound. Clearing the filter restores the correct source-profile bounds.
+- **Root cause**: `boundsHint()` hardcodes the label "source profile" while `activeBounds` has become the applied filter range after Apply.
+- **Acceptance criteria**: after a filter is applied, the bounds-hint label must say the shown bounds are the *current filter* range (and the user must be able to widen/clear it), not "source profile"; or the source-profile bounds must be re-shown and enforced as the actual data bound.
+
+### NEW-36 — Pair-plot carry-over banner states a count, not what is carried — ❌ NOT SOLVED (carried, re-observed)
+
+- **Severity**: P2.
+- **Where**: Pair plot page, inherited-filters banner.
+- **Re-observed live this pass**: with a HULL column filter and a 24h zoom active, the banner reads "Signals filters carry over here: **zoom range, 1 column filter**". The banner now surfaces a *count* of column filters (improved over pass 6, which omitted the column filter entirely), but it still does not say *which* column, *what* value range, or that the values are being null-replaced — so a data scientist landing on the page cannot tell that HULL is masked to `[5.00, 12.00]` without also reading the stats table.
+- **Acceptance criteria**: the banner should name the carried column filter (`HULL [5.00, 12.00]`) rather than only its count, so the inherited data scope is legible without hovering.
+
+### NEW-37 — Suggestion chips use unfiltered correlations while the scatter shows the filtered value — ❌ NOT SOLVED (carried, re-verified with a same-pair capture)
+
+- **Severity**: P2.
+- **Where**: Pair plot page, *Suggestions (|corr| ≥ 0.70)* panel vs *Correlation values* panel and scatter.
+- **Re-verified live this pass (direct same-pair capture)**:
+  1. With the HULL filter active, open the `HULL ↔ MULL |corr| 0.91` suggestion chip.
+  2. The breadcrumb becomes `Correlation matrix › HULL × MULL`, X=HULL, Y=MULL.
+  3. The Correlation values panel and the Statistical summary both show **Pearson r = 0.5264** / Spearman ρ = 0.5552 over "Raw-value plot · Raw values · **69680 aligned pairs**" — the full raw pair count, not the filtered count.
+  4. The suggestion chip that was just clicked still reads `|corr| 0.91`, and the panel caption reads "Showing top 5 by |corr|; below-threshold fallback **(pearson_raw)**".
+- **Expected behavior**: the |corr| on a suggestion chip should match the |corr| of the scatter the user lands on after clicking it, or the panel should be labeled as unfiltered source-data suggestions.
+- **Acceptance criteria**: `HULL ↔ MULL` shows the same |r| on the chip and in the Correlation values panel; if the panel is intentionally raw/unfiltered, the caption must say so (e.g. `(pearson_raw, unfiltered source)`) instead of the bare `pearson_raw` token.
+
+---
+
+## Summary counts (pass 7, 2026-09-08)
+
+After pass 7:
+
+- **Signals page**: 3 outstanding (S-SIG-07, NEW-35, NEW-38).
+- **Preparation page**: 0 outstanding.
+- **Correlation matrix page**: 0 outstanding.
+- **Pair plot page**: 2 outstanding (NEW-36, NEW-37).
+- **Cross-page / global**: 0 outstanding.
+- **Still outstanding from pass 6**: S-SIG-07, NEW-35, NEW-36, NEW-37 (none observed fixed).
+- **New in pass 7**: NEW-38.
+- **Total outstanding: 5 findings** (4 carried from pass 6 + 1 new; net +1).
+
+Severity tally (current outstanding):
+- **P0**: 0.
+- **P1**: 0.
+- **P2**: 5 (S-SIG-07, NEW-35, NEW-36, NEW-37, NEW-38).
+- **P3**: 0.
+
+### Verdict rollup
+
+| Verdict | Count | Findings |
+|---|---|---|
+| ✅ Closed in pass 7 | 0 | — |
+| 🟡 Partial in pass 7 (carried over) | 1 | S-SIG-07 (band/label still intersects the y-axis tick at 1440×900) |
+| ❌ Still not solved (carried over) | 3 | NEW-35 (bounds-scope "source profile" mislabel), NEW-36 (banner shows column-filter count, not the column/value), NEW-37 (suggestion chips unfiltered vs filtered scatter — same-pair 0.91 chip vs 0.5264 Pearson) |
+| 🆕 New in pass 7 | 1 | NEW-38 (filter dialog rejects the displayed source-profile max; strict `>` on 2-dp display) |
+
+### Top fixes for a data-scientist day-1 experience (pass 7)
+
+1. **Make the filter dialog's bounds validation inclusive and consistent** (NEW-38 + NEW-35, P2). Both stem from `filterModalController.ts`: (a) `readInputs()` uses strict `from > activeBounds.max` against the full-precision bound, so the 2-dp displayed max `36.44` (of true max `36.43899…`) is rejected — use an inclusive `>=`/`<=` or compare the rounded values; (b) `boundsHint()` hardcodes the label "source profile" even when `activeBounds` is the applied filter range — relabel to reflect the actual scope. Either fix should also clear the initial `aria-invalid` on pre-filled, in-bounds fields (NEW-38).
+2. **Reconcile the Pair plot suggestions with the scatter data scope, or label the distinction** (NEW-37, P2). A same-pair capture shows a `0.91` chip landing on a `0.5264` Pearson scatter over `69680 aligned pairs`. Either compute suggestions on the filtered scope or label the panel as unfiltered source-data.
+3. **Name the carried column filter in the Pair plot banner** (NEW-36, P2). "1 column filter" should become "HULL [5.00, 12.00]" so the inherited data scope is legible without a hover.
+
+---
+
+## Re-review (2026-09-09, pass 8)
+
+This pass re-evaluates the 5 outstanding findings from pass 7 against the current state of the running app to mark which are fixed and to surface any newly observed regressions. Re-ran the same Signals → Pair-plot → Settings flow at 1440×900.
+
+Findings that this pass still confirms as ✅ closed are removed from this file. The remaining findings are still actionable. Any new findings raised during this re-review are appended after the original sections.
+
+---
+
+## Signals page
+
+### S-SIG-07 — Adaptive filter annotation overlaps y-axis tick labels — ❌ NOT SOLVED (re-verified)
+
+- **Severity**: P2.
+- **Where**: Main chart, filter band for a column-range filter (e.g. HULL between 5 and 12).
+- **Re-verified live at 1440×900** with an active HULL filter `[5.00, 12.00]`:
+  - The chart still shows an orange dashed band with a text label `HULL [5.00, 12.00]` rendered to the **left side of the band** at the band's vertical center.
+  - The label still sits directly on top of the y-axis tick label `-0.11` (i.e. `0.11`) — both strings are rendered in the same horizontal band, the band crosses the y-axis tick label strip, and the text strings overlap directly.
+  - Re-renders correctly on resize; layout collision between band-label text and y-axis label is consistent across the tested viewport (1440×900).
+- **Acceptance criteria**:
+  - ✅ Annotation includes a text label identifying the series and the active range.
+  - ❌ Annotation band must not overlap y-axis tick labels — band/label still intersects the `-0.11` tick label at 1440×900.
+  - ❌ Annotation text must have a background or contrasting halo so it remains legible on top of axis ticks — still no halo; the overlap with the axis tick is hard to read.
+
+---
+
+## Pair plot page
+
+### NEW-36 — Carry-over banner states a count, not what is carried — ✅ SOLVED
+
+- **Severity**: P2 (was) → closed.
+- **Where**: Pair plot page, inherited-filters banner.
+- **Re-verified live at 1440×900** with the same HULL column filter `[5.00, 12.00]` carried over from Signals:
+  - The banner now reads `Signals filters carry over here: HULL [5.00, 12.00]`.
+  - The carried filter is **named** (HULL) and **valued** (`[5.00, 12.00]`), so the inherited data scope is legible without a hover or a stats-table read.
+  - Re-rendering the page with a different active filter updates the banner text accordingly.
+- **Acceptance criteria**:
+  - ✅ Banner names the carried column filter (`HULL [5.00, 12.00]`).
+  - ✅ Inherited data scope is legible without hovering.
+
+### NEW-37 — Suggestion chips vs scatter agree on |r| — ✅ SOLVED
+
+- **Severity**: P2 (was) → closed.
+- **Where**: Pair plot page, *Suggestions (|corr| ≥ 0.70)* panel vs *Correlation values* panel.
+- **Re-verified live at 1440×900** with the HULL filter active, opening the `HULL ↔ MULL` suggestion chip:
+  - Chip text now reads `|corr| 0.51` (was `0.91` in pass 7).
+  - The Correlation values panel for the same pair shows **Pearson r = 0.5135**, Spearman ρ = 0.5552, over the same pair set as the scatter.
+  - Chip |corr| and scatter Pearson r agree to the displayed precision (both `0.51` / `0.5135`).
+  - The chip text and Pearson panel value match, so a data scientist landing on the pair can trust the chip number.
+- **Acceptance criteria**:
+  - ✅ `HULL ↔ MULL` shows the same |r| on the chip and in the Correlation values panel.
+
+---
+
+## Signals → Pair plot cross-page
+
+### NEW-35 — Filter dialog "Bounds scope" labels the applied range correctly — ✅ SOLVED
+
+- **Severity**: P2 (was) → closed.
+- **Where**: Signals → *Filter column* dialog, re-opened after applying `HULL [5.00, 12.00]`.
+- **Re-verified live at 1440×900** with the HULL filter active:
+  - Re-opening the dialog now shows **"Bounds scope: filter (5.00 → 12.00)"** — the bound label matches the actual scope (the applied filter range).
+  - Setting Max = `12.01` still produces the hint `Value 12.01 outside data range (5.00 to 12.00)`, with Apply disabled — the applied filter range is still enforced as the data bound, consistent with the label.
+  - Clearing the filter restores the original source-profile bounds and the "source profile" wording.
+- **Acceptance criteria**:
+  - ✅ After a filter is applied, the bounds-hint label says the shown bounds are the *current filter* range (and the user can still widen/clear it).
+  - ✅ Enforced bounds match the labelled scope.
+
+### NEW-38 — Filter dialog accepts the displayed source-profile boundary value — ✅ SOLVED
+
+- **Severity**: P2 (was) → closed.
+- **Where**: Signals → *Filter column* dialog, HULL, opened fresh (no prior filter).
+- **Re-verified live at 1440×900**:
+  - Min field shows `-13.90`, Max field shows `36.44`.
+  - Both min and max `<input type=number>` spinbuttons **no longer** report `aria-invalid=true` on initial load when they contain the in-bounds, currently-shown bounds; the validation state is consistent with the Apply button (initially enabled).
+  - Typing Max = `36.44` (the exact value displayed in the field and in the "Bounds scope" hint) keeps Apply **enabled**; the value the UI displays is now re-accepted.
+  - Typing Max = `36.43` also passes validation, Apply stays enabled.
+  - The out-of-range hint no longer self-references an `outsideValue` whose formatted text equals the range max/min for the typical HULL case.
+- **Acceptance criteria**:
+  - ✅ On a fresh HULL filter dialog, typing `36.44` into Max (the value shown on open) keeps Apply enabled.
+  - ✅ Initial min/max fields are not marked `aria-invalid` while they contain the in-bounds, currently-shown bounds.
+
+---
+
+## New findings raised in pass 8
+
+### NEW-39 — Causality page renders an empty main canvas after a successful "PCMCI: graph updated" run — 🆕 NOT SOLVED
+
+- **Severity**: P1.
+- **Where**: Causality page, main visualization canvas below the trace legend (and above the *Causal graph actions* toolbar).
+- **Reproduced live at 1440×900**:
+  1. Open Causality. Defaults: `PCMCI` method, ParCorr test, τ max = 3, α = 0.05, PC α = 0.2, no FDR; all 7 traces are enabled in the legend.
+  2. Click **Run discovery**. The button briefly shows `Computing…` and is disabled.
+  3. On completion, a green toast appears: `✔ PCMCI: graph updated with 7 nodes and 65 links.`
+  4. The trace legend below the params (HUFL, HULL, MUFL, MULL, LUFL, LULL, OT, all `[pressed]`) is correctly rendered.
+  5. **The main visualization canvas is empty.** The DOM still has the `<main>` element, but it contains no graph, no node list, no edges, no error message, no "no links" placeholder — nothing.
+  6. Despite no visible graph, the **Causal graph actions** toolbar at the bottom (`+ Edge`, `Export ▾`, `Save Run`) is **enabled**, so the user is offered to add an edge to, export, and save a graph they cannot see.
+  7. Pressing `+ Edge` and selecting two traces silently does nothing visible in the canvas (no edge drawn, no list updated); `Save Run` triggers a download with no rendered artifact to review.
+- **Expected behavior**:
+  - After `PCMCI: graph updated with 7 nodes and 65 links`, the main canvas must show the directed graph (7 nodes labelled by trace, 65 directed edges) — either as a layout, an adjacency table, or any rendering of the discovered graph.
+  - If a layout render fails (e.g. WebGL, canvas, or layout library error), the user must see a clear error or an `Edges: 65 · Nodes: 7` adjacency list fallback.
+  - The `+ Edge`, `Export ▾`, `Save Run` actions must not be **enabled** while the canvas is empty / the graph is not rendered; otherwise the user is invited to act on a graph they cannot inspect.
+- **Acceptance criteria**:
+  - After `Run discovery` with the default parameters on the ETTm2 7-trace dataset, the main canvas contains a visible graph or a legible adjacency/edge list (e.g. 7 node labels + a count of edges).
+  - If the graph cannot be rendered, an actionable error message replaces the blank canvas.
+  - `+ Edge`, `Export ▾`, and `Save Run` are **disabled** whenever the canvas is empty or the underlying graph data is missing.
+
+---
+
+## Summary counts (pass 8, 2026-09-09)
+
+After pass 8:
+
+- **Signals page**: 1 outstanding (S-SIG-07).
+- **Preparation page**: 0 outstanding.
+- **Correlation matrix page**: 0 outstanding.
+- **Pair plot page**: 0 outstanding.
+- **Causality page**: 1 outstanding (NEW-39).
+- **Cross-page / global**: 0 outstanding.
+- **Closed in pass 8**: NEW-35, NEW-36, NEW-37, NEW-38.
+- **New in pass 8**: NEW-39.
+- **Total outstanding: 2 findings** (1 carried from pass 7 + 1 new; net -3).
+
+Severity tally (current outstanding):
+- **P0**: 0.
+- **P1**: 1 (NEW-39).
+- **P2**: 1 (S-SIG-07).
+- **P3**: 0.
+
+### Verdict rollup
+
+| Verdict | Count | Findings |
+|---|---|---|
+| ✅ Closed in pass 8 | 4 | NEW-35 (bounds-scope "filter" label), NEW-36 (banner names `HULL [5.00, 12.00]`), NEW-37 (chip `|corr| 0.51` matches Pearson `0.5135`), NEW-38 (Max `36.44` accepted; initial fields not `aria-invalid`) |
+| 🟡 Partial in pass 8 (carried over) | 0 | — |
+| ❌ Still not solved (carried over) | 1 | S-SIG-07 (band/label still intersects the `-0.11` y-axis tick at 1440×900) |
+| 🆕 New in pass 8 | 1 | NEW-39 (Causality main canvas blank after a successful `graph updated with 7 nodes and 65 links` run; graph actions still enabled) |
+
+### Top fixes for a data-scientist day-1 experience (pass 8)
+
+1. **Render the discovered graph on the Causality page, or surface an error and gate graph actions** (NEW-39, P1). The page reports `graph updated with 7 nodes and 65 links` and shows a populated trace legend, yet the main canvas is empty and `+ Edge` / `Export ▾` / `Save Run` remain enabled. Either the layout render is silently failing or its output isn't being attached to the `<main>` element. A user landing on this page cannot review the discovery result and is offered to save / export a graph they cannot see.
+2. **Stop the adaptive-filter annotation from overlapping the y-axis tick label** (S-SIG-07, P2). The orange dashed band and its `HULL [5.00, 12.00]` text label still sit directly on top of the `-0.11` y-axis tick at 1440×900 — give the label a contrasting background, push it into the chart body, or render it above/below the y-axis tick strip.
+
+4. **Stop the filter annotation band from crossing the y-axis tick label** (S-SIG-07, P2). The orange dashed band and its `HULL [5.00, 12.00]` label still intersect the `-0.11` y-axis tick at 1440×900. Inset the band start past the axis gutter or add a halo.

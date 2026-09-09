@@ -103,7 +103,7 @@ describe('causal page chart bootstrap', () => {
               <button id="causal-edit-apply" type="button">Apply</button>
               <button id="causal-edit-delete" type="button">Delete</button>
               <div id="causal-chart"></div>
-              <div id="causal-empty-state"></div>
+              <div id="causal-empty-state"><strong>No causal graph yet</strong><span>Select columns.</span></div>
               <div id="causal-loading" hidden></div>
               <div id="causal-compare-panel">
                 <select id="causal-compare-run-a"></select>
@@ -255,6 +255,49 @@ describe('causal page chart bootstrap', () => {
         expect((document.getElementById('causal-compare-run-btn') as HTMLButtonElement).disabled).toBe(true);
         expect((document.getElementById('causal-compare-clear-btn') as HTMLButtonElement).disabled).toBe(true);
         expect(document.getElementById('causal-saved-runs-list')?.textContent).toContain('Run Compute first');
+    });
+
+    it('keeps graph actions disabled and surfaces returned counts when the chart cannot initialize', async () => {
+        const { fetchCausalGraph } = await import('../../services/api/index.js');
+        const { handleComputeClick } = await import('./workflow.js');
+        const { resetSelectionState, _selectedColumns } = await import('./selectionState.js');
+        resetSelectionState();
+        _selectedColumns.add('HUFL');
+        _selectedColumns.add('HULL');
+        vi.mocked(fetchCausalGraph).mockResolvedValueOnce({
+            columns: ['HUFL', 'HULL'],
+            tau_max: 3,
+            links: [{ source: 'HUFL', target: 'HULL', lag: 1, type: '-->', value: 0.5, pvalue: 0.01 }],
+            graph: [],
+            val_matrix: [],
+            p_matrix: [],
+        });
+
+        // The section is intentionally still hidden, reproducing the
+        // zero-size lifecycle path that previously reported success and
+        // enabled actions while renderEChartsGraph silently returned.
+        await handleComputeClick(
+            causalDeps({
+                numeric_columns: ['HUFL', 'HULL'],
+                columns: [{ name: 'HUFL', dtype: 'Float64' }, { name: 'HULL', dtype: 'Float64' }],
+            }),
+            document.getElementById('causal-method-select'),
+            document.getElementById('causal-tau-max') as HTMLInputElement,
+            document.getElementById('causal-alpha') as HTMLInputElement,
+            document.getElementById('causal-max-conds') as HTMLInputElement,
+            document.getElementById('causal-test-select'),
+            document.getElementById('causal-fdr-select'),
+        );
+
+        expect((document.getElementById('causal-add-edge-btn') as HTMLButtonElement).disabled).toBe(true);
+        expect((document.getElementById('causal-export-btn') as HTMLButtonElement).disabled).toBe(true);
+        expect((document.getElementById('causal-save-run-btn') as HTMLButtonElement).disabled).toBe(true);
+        expect(document.getElementById('causal-empty-state')?.textContent).toContain('2 nodes and 1 links');
+        expect(mocks.toast).toHaveBeenLastCalledWith(
+            expect.stringContaining('graph could not be displayed'),
+            'error',
+            { duration: 0 },
+        );
     });
 
 });

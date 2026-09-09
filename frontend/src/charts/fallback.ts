@@ -5,7 +5,14 @@
 
 import { getColumnSeriesColor } from '../utils/seriesColors.js';
 import { getChartPalette, onThemeChange } from '../utils/theme.js';
-import type { ChartInstance, FilteredDataObject, CrosshairData, ClickData, ViewSnapshot } from '../types/chart.js';
+import type {
+    ChartInstance,
+    ClickData,
+    CrosshairData,
+    FilteredDataObject,
+    ViewSnapshot,
+} from '../types/chart.js';
+import type { AdaptiveLineFilter, ColumnRange } from '../types/store.js';
 import { formatTimestamp } from '../formatUtils.js';
 import { downloadBlob, downloadUrl } from '../utils/dom.js';
 
@@ -49,6 +56,7 @@ export class FallbackChart implements ChartInstance {
     private lastData: FilteredDataObject | null = null;
     private lastColumns: string[] = [];
     private lastColorColumn: string | null = null;
+    private columnRanges: Readonly<Record<string, ColumnRange>> = {};
     private crosshairCallback: ((data: CrosshairData) => void) | null = null;
     private clickCallback: ((data: ClickData) => void) | null = null;
     private chartText = { title: '', xLabel: 'Time', yLabel: 'Value' };
@@ -222,11 +230,13 @@ export class FallbackChart implements ChartInstance {
         dataObj: FilteredDataObject,
         columns: string[],
         colorColumn: string | null = null,
-        _adaptiveLines = [],
+        _adaptiveLines: readonly AdaptiveLineFilter[] = [],
+        columnRanges: Readonly<Record<string, ColumnRange>> = {},
     ): void {
         this.lastData = dataObj;
         this.lastColumns = columns;
         this.lastColorColumn = colorColumn;
+        this.columnRanges = columnRanges;
         this.inspectionIndex = 0;
         this.ensureInspector();
         this.redraw();
@@ -441,6 +451,8 @@ export class FallbackChart implements ChartInstance {
         const viewYMin = this.yMin ?? yMin;
         const viewYMax = this.yMax ?? yMax;
 
+        this.drawColumnRangeBands(ctx, width, height, pad, viewYMin, viewYMax);
+
         ctx.strokeStyle = theme.borderHi;
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -502,6 +514,72 @@ export class FallbackChart implements ChartInstance {
             const mode = this.lastData?._meta?.downsampled === true ? 'rendered approximations' : 'raw observations';
             container.setAttribute('aria-label', `Signals chart. ${this.chartText.xLabel} in ${Intl.DateTimeFormat().resolvedOptions().timeZone}; Y axis ${this.chartText.yLabel}. Hover or focus the point inspector for ${mode}.`);
         }
+    }
+
+    private drawColumnRangeBands(
+        ctx: CanvasRenderingContext2D,
+        width: number,
+        height: number,
+        pad: number,
+        yMin: number,
+        yMax: number,
+    ): void {
+        if (!(yMax > yMin)) return;
+        const plotLeft = pad;
+        const plotRight = width - pad;
+        const plotTop = pad;
+        const plotBottom = height - pad;
+        const plotHeight = plotBottom - plotTop;
+        // Fallback Y ticks are canvas text that begins at x=2. Leave enough
+        // room for their widest values before the annotation starts.
+        const bandLeft = plotLeft + 24;
+        const bandWidth = Math.max(1, plotRight - bandLeft);
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(plotLeft, plotTop, plotRight - plotLeft, plotHeight);
+        ctx.clip();
+        ctx.font = '11px Inter, system-ui, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+
+        for (const [column, range] of Object.entries(this.columnRanges)) {
+            if (!this.lastColumns.includes(column)) continue;
+            const from = Math.min(Number(range.from), Number(range.to));
+            const to = Math.max(Number(range.from), Number(range.to));
+            if (!Number.isFinite(from) || !Number.isFinite(to) || to < yMin || from > yMax) continue;
+            const toY = (value: number) => plotBottom - ((value - yMin) / (yMax - yMin)) * plotHeight;
+            const bandTop = Math.max(plotTop, toY(Math.min(to, yMax)));
+            const bandBottom = Math.min(plotBottom, toY(Math.max(from, yMin)));
+            const bandHeight = Math.max(1, bandBottom - bandTop);
+            const color = getColumnSeriesColor(column);
+            const label = `${column} [${from.toFixed(2)}, ${to.toFixed(2)}]`;
+            const labelX = bandLeft + 6;
+            const labelY = Math.max(plotTop + 11, Math.min(plotBottom - 11, bandTop + 12));
+            const labelWidth = ctx.measureText(label).width;
+
+            ctx.fillStyle = this.alphaColor(color, 0.12);
+            ctx.fillRect(bandLeft, bandTop, bandWidth, bandHeight);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([6, 4]);
+            ctx.strokeRect(bandLeft, bandTop, bandWidth, bandHeight);
+            ctx.setLineDash([]);
+            ctx.fillStyle = 'rgba(8, 12, 20, 0.88)';
+            ctx.fillRect(labelX - 3, labelY - 8.5, labelWidth + 6, 17);
+            ctx.strokeStyle = 'rgba(8, 12, 20, 0.96)';
+            ctx.lineWidth = 3;
+            ctx.strokeText(label, labelX, labelY);
+            ctx.fillStyle = color;
+            ctx.fillText(label, labelX, labelY);
+        }
+        ctx.restore();
+    }
+
+    private alphaColor(color: string, alpha: number): string {
+        const match = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/iu.exec(color);
+        if (!match) return `rgba(255, 192, 65, ${alpha})`;
+        return `rgba(${parseInt(match[1], 16)}, ${parseInt(match[2], 16)}, ${parseInt(match[3], 16)}, ${alpha})`;
     }
 
     destroy(): void {

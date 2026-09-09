@@ -154,7 +154,7 @@ describe('syncScatterFilterBadge', () => {
         scatterState.totalPoints = 42;
         configureScatterRuntime({
             getSnapshot: () => ({
-                filters: { columnRanges: {}, adaptiveLines: [{ column: 'OT' }] },
+                filters: { columnRanges: { HUFL: { from: 5, to: 12 } }, adaptiveLines: [{ column: 'OT' }] },
                 viewport: { xMin: 0, xMax: 1_000, yMin: null, yMax: null },
             }),
         } as any);
@@ -166,7 +166,7 @@ describe('syncScatterFilterBadge', () => {
         expect(banner.hidden).toBe(false);
         expect(text.textContent).toContain('Signals filters carry over');
         expect(text.textContent).toContain('zoom range');
-        expect(text.textContent).toContain('1 column filter');
+        expect(text.textContent).toContain('HUFL [5.00, 12.00]');
         expect(text.textContent).toContain('1 adaptive filter');
     });
 

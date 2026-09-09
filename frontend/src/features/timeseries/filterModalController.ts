@@ -75,7 +75,6 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
     };
 
     let activeBounds: { min: number; max: number } | null = null;
-
     function setColumnRange(col: string, range: { from: number; to: number }): void {
         const plan = deps.cleaningPlanStore?.getSnapshot();
         if (plan && deps.cleaningPlanStore) {
@@ -138,8 +137,11 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
 
     function setHint(text: string) { hintEl.textContent = text || ''; }
 
-    function boundsHint(bounds: { min: number; max: number }): string {
-        return `Bounds scope: source profile (${formatAnalysisNumber(bounds.min)} → ${formatAnalysisNumber(bounds.max)}). Trace filters replace excluded values with null; timestamps and other traces stay unchanged. The chart viewport does not redefine these bounds. Text values are preserved exactly.`;
+    function boundsHint(bounds: { min: number; max: number }, column: string): string {
+        const scope = deps.workspace.getSnapshot().filters.columnRanges[column]
+            ? 'filter'
+            : 'source profile';
+        return `Bounds scope: ${scope} (${formatAnalysisNumber(bounds.min)} → ${formatAnalysisNumber(bounds.max)}). Trace filters replace excluded values with null; timestamps and other traces stay unchanged. The chart viewport does not redefine these bounds. Text values are preserved exactly.`;
     }
 
     function setOutOfRangeHint(value: number, bounds: { min: number; max: number }): void {
@@ -166,6 +168,14 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
         // control while reopening/applying an unchanged rule retains every bit
         // of the original boundary precision.
         return Number.isFinite(n) ? n.toFixed(2) : '';
+    }
+
+    function isWithinDisplayedBounds(value: number, bounds: { min: number; max: number }): boolean {
+        // Text fields expose two decimals. Validate at that same precision so
+        // a displayed endpoint such as 36.44 remains valid when the exact
+        // profile maximum is 36.438999.... Untouched endpoints still retain
+        // their canonical precision through data-exact-value on apply.
+        return value >= bounds.min - 0.005 && value <= bounds.max + 0.005;
     }
 
     function clampToBounds(value: number, bounds: { min: number; max: number } | null): number {
@@ -267,10 +277,10 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
             return { from, to, valid: false, reason: 'number' };
         }
         if (from >= to) return { from, to, valid: false, reason: 'order' };
-        if (activeBounds && (from < activeBounds.min || from > activeBounds.max)) {
+        if (activeBounds && !isWithinDisplayedBounds(from, activeBounds)) {
             return { from, to, valid: false, reason: 'bounds', outsideValue: from };
         }
-        if (activeBounds && (to < activeBounds.min || to > activeBounds.max)) {
+        if (activeBounds && !isWithinDisplayedBounds(to, activeBounds)) {
             return { from, to, valid: false, reason: 'bounds', outsideValue: to };
         }
         return { from, to, valid: true };
@@ -288,7 +298,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
             } else setHint('Enter valid numeric bounds, or leave a bound empty to use the source-profile edge.');
             return null;
         }
-        if (activeBounds) setHint(boundsHint(activeBounds));
+        if (activeBounds) setHint(boundsHint(activeBounds, getDropdownValue('column-filter-col')));
         return { from: result.from, to: result.to };
     }
 
@@ -367,17 +377,36 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
         const profile = (deps.workspace.getSnapshot().dataset.metadata?.column_profiles || []).find((item) => item?.name === col);
         const profileMin = Number(profile?.min);
         const profileMax = Number(profile?.max);
+        let bounds: { min: number; max: number } | null = null;
         if (Number.isFinite(profileMin) && Number.isFinite(profileMax) && profileMax >= profileMin) {
-            return { min: profileMin, max: profileMax };
+            bounds = { min: profileMin, max: profileMax };
         }
-        const currentData = deps.getCurrentData();
-        const rawValues = currentData?.values?.[col];
-        const filteredSeries = (currentData as unknown as { series?: Record<string, { y?: Float64Array }> })?.series;
-        const filteredValues = filteredSeries?.[col]?.y;
-        const dataBounds = computeBounds(rawValues || filteredValues || new Float64Array(0));
-        if (dataBounds) return dataBounds;
+        if (!bounds) {
+            const currentData = deps.getCurrentData();
+            const rawValues = currentData?.values?.[col];
+            const filteredSeries = (currentData as unknown as { series?: Record<string, { y?: Float64Array }> })?.series;
+            const filteredValues = filteredSeries?.[col]?.y;
+            bounds = computeBounds(rawValues || filteredValues || new Float64Array(0));
+        }
 
-        return null;
+        // When deferred profile metadata is unavailable, currentData may
+        // already reflect this saved filter. Its observed min/max can then be
+        // narrower than the rule that produced it (for example 5.03–11.98 for
+        // a saved 5.00–12.00 range). Keep the canonical saved endpoints inside
+        // the validation envelope so reopening and applying an unchanged rule
+        // is always a valid no-op.
+        const savedRange = deps.workspace.getSnapshot().filters.columnRanges[col];
+        const savedFrom = Number(savedRange?.from);
+        const savedTo = Number(savedRange?.to);
+        if (Number.isFinite(savedFrom) && Number.isFinite(savedTo)) {
+            const savedMin = Math.min(savedFrom, savedTo);
+            const savedMax = Math.max(savedFrom, savedTo);
+            bounds = bounds
+                ? { min: Math.min(bounds.min, savedMin), max: Math.max(bounds.max, savedMax) }
+                : { min: savedMin, max: savedMax };
+        }
+
+        return bounds;
     }
 
     function populateColumns(selectedCol: string | null = null) {
@@ -423,9 +452,8 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
             ?? { from: full.min, to: full.max };
         updateSliderConfig(full);
         syncInputsFromValues(cur.from, cur.to);
-        applyButton.disabled = false;
         clearButton.disabled = false;
-        setHint(boundsHint(full));
+        validateTextInputs();
     }
 
     let disposed = false;

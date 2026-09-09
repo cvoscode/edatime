@@ -79,6 +79,26 @@ export function setStatus(message: string, tone: 'info' | 'error' | 'success' = 
 export function syncCausalEmptyState(columnsLength: number): void {
     const empty = document.getElementById('causal-empty-state') as HTMLElement | null;
     if (!empty) return;
+    if (empty.dataset.emptyReason === 'render-failed') {
+        const title = empty.querySelector('strong');
+        const detail = empty.querySelector('span');
+        if (title) title.textContent = 'No causal graph yet';
+        if (detail) detail.textContent = 'Select at least two numeric columns above, then run discovery to build the graph.';
+    }
     empty.hidden = columnsLength >= 2;
     empty.setAttribute('data-empty-reason', columnsLength >= 2 ? '' : 'no-columns-selected');
+}
+
+/** Replace a silent blank chart with an actionable, data-backed fallback. */
+export function showCausalGraphRenderFailure(nodeCount: number, edgeCount: number): void {
+    const empty = document.getElementById('causal-empty-state') as HTMLElement | null;
+    if (!empty) return;
+    const title = empty.querySelector('strong');
+    const detail = empty.querySelector('span');
+    if (title) title.textContent = 'Causal graph could not be displayed';
+    if (detail) {
+        detail.textContent = `Discovery returned ${nodeCount} nodes and ${edgeCount} links. Resize or revisit the page, then run discovery again.`;
+    }
+    empty.hidden = false;
+    empty.dataset.emptyReason = 'render-failed';
 }

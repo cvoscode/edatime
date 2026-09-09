@@ -409,6 +409,12 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
                         || Object.keys(activeFilters?.columnRanges ?? {}).length > 0
                         || (activeFilters?.adaptiveLines.length ?? 0) > 0
                     ) {
+                        // Points and correlation suggestions are two views of
+                        // the same scoped query. Refresh them together when a
+                        // carried filter or pair selection changes; otherwise
+                        // a previously-loaded Pair plot can show source-data
+                        // suggestions beside filtered scatter statistics.
+                        await cb.refreshCorrelationsAndSuggestions();
                         await cb.renderScatter();
                     } else {
                         await cb.rerenderScatterFromCache(true);

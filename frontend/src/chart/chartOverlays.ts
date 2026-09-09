@@ -103,9 +103,12 @@ export class ChartOverlays {
             scale,
         );
         if (!metrics) return;
-        const { plotLeft, plotTop, plotBottom, plotWidth, plotHeight, strokeScale } = metrics;
+        const { plotLeft, plotTop, plotRight, plotBottom, plotWidth, plotHeight, strokeScale } = metrics;
         const ySpan = yRange.max - yRange.min;
         const toY = (value: number) => plotBottom - ((value - yRange.min) / ySpan) * plotHeight;
+        const bandInset = Math.max(8, 10 * strokeScale);
+        const bandLeft = Math.min(plotRight - 1, plotLeft + bandInset);
+        const bandWidth = Math.max(1, plotRight - bandLeft);
 
         ctx.save();
         // Range bands belong to the data area. Clipping at the plot edge keeps
@@ -128,17 +131,17 @@ export class ChartOverlays {
             const color = getColumnSeriesColor(column);
 
             ctx.fillStyle = this._applyAlphaToColor(color, 0.12);
-            ctx.fillRect(plotLeft, bandTop, plotWidth, bandHeight);
+            ctx.fillRect(bandLeft, bandTop, bandWidth, bandHeight);
             ctx.strokeStyle = color;
             ctx.lineWidth = Math.max(1, 1.5 * strokeScale);
             ctx.setLineDash([6 * strokeScale, 4 * strokeScale]);
-            ctx.strokeRect(plotLeft, bandTop, plotWidth, bandHeight);
+            ctx.strokeRect(bandLeft, bandTop, bandWidth, bandHeight);
             ctx.setLineDash([]);
 
             const label = `${column} [${from.toFixed(2)}, ${to.toFixed(2)}]`;
             const labelWidth = ctx.measureText(label).width;
             const labelHeight = 17 * strokeScale;
-            const labelX = plotLeft + 6 * strokeScale;
+            const labelX = bandLeft + 6 * strokeScale;
             const labelY = Math.max(
                 plotTop + labelHeight / 2 + 2 * strokeScale,
                 Math.min(plotBottom - labelHeight / 2 - 2 * strokeScale, bandTop + labelHeight / 2 + 3 * strokeScale),
@@ -151,6 +154,9 @@ export class ChartOverlays {
                 labelHeight,
             );
             ctx.fillStyle = color;
+            ctx.strokeStyle = 'rgba(8, 12, 20, 0.96)';
+            ctx.lineWidth = Math.max(2, 3 * strokeScale);
+            ctx.strokeText(label, labelX, labelY);
             ctx.fillText(label, labelX, labelY);
         }
         ctx.restore();

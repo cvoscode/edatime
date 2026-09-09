@@ -10,7 +10,6 @@ import type { TimeseriesRuntimeCache } from './runtimeCache.js';
 import type { ChartInstance, ViewSnapshot } from '../../types/chart.js';
 import { checkWebGPU } from '../../chart/webgpuGuard.js';
 import { getChartType } from '../../charts/registry.js';
-import { FallbackChart } from '../../charts/fallback.js';
 import { primaryChart, setPrimaryChartInstance } from '../../charts/primaryChart.js';
 import { bindAnalysisChartEvents, getCurrentView } from '../../ui/toolbar.js';
 import { initAdaptiveFilterGesture } from './adaptiveGesture.js';
@@ -168,9 +167,17 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                             onYRange: deps.onYRange,
                             onZoomOut: deps.onZoomOut,
                         };
-                        setPrimaryChartInstance(fallbackType
-                            ? fallbackType.create('main-chart', fallbackCallbacks)
-                            : new FallbackChart('main-chart', deps.onZoom, deps.onYRange, deps.onZoomOut));
+                        if (fallbackType) {
+                            setPrimaryChartInstance(fallbackType.create('main-chart', fallbackCallbacks));
+                        } else {
+                            const { FallbackChart } = await import('../../charts/fallback.js');
+                            setPrimaryChartInstance(new FallbackChart(
+                                'main-chart',
+                                deps.onZoom,
+                                deps.onYRange,
+                                deps.onZoomOut,
+                            ));
+                        }
 
                         ownedChart = primaryChart.current as ChartInstance | null;
                         await primaryChart.current!.init();
