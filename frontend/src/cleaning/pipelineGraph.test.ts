@@ -106,6 +106,9 @@ describe('pipeline graph', () => {
         expect(svg).not.toContain('Source <data>');
         expect(svg).toContain('pipeline-graph__node--disabled is-selected');
         expect(svg).toContain('pipeline-graph__edge--bypassed');
+        expect(svg).toContain('pipeline-graph__selection-bar');
+        expect(svg).toContain('markerWidth="10"');
+        expect(svg).toContain('markerUnits="userSpaceOnUse"');
     });
 
     it('keeps real spaces between wrapped SVG detail lines', () => {

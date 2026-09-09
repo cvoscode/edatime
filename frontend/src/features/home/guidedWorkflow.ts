@@ -344,22 +344,12 @@ export function buildWorkflowSuggestion(snapshot: WorkflowSnapshot): WorkflowSug
         };
     }
 
-    if (snapshot.currentPage === 'correlations' || snapshot.currentPage === 'heatmap') {
+    if (snapshot.currentPage === 'correlations' || snapshot.currentPage === 'heatmap' || snapshot.currentPage === 'scattermatrix') {
         return {
             title: 'Choose the strongest pair',
-            body: 'Use the heatmap to pick a promising relationship, then inspect it in the Pair plot where filter context and color-by are easier to read.',
+            body: 'Click a promising relationship in either matrix, then inspect it in the Pair plot where filter context and color-by are easier to read.',
             actionLabel: 'Open Pair plot',
             actionPage: 'scatter',
-        };
-    }
-
-    if (snapshot.currentPage === 'scattermatrix') {
-        return {
-            title: 'Use matrix cells as a drill-down',
-            body: 'Click any off-diagonal matrix cell to open the full pair plot for that exact pair.',
-            actionLabel: 'Open Pair plot',
-            actionPage: 'scatter',
-            hint: 'Matrix click-through is already wired into the detailed scatter view.',
         };
     }
 

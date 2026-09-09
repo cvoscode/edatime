@@ -112,7 +112,7 @@ const SHORTCUTS: KeyboardShortcut[] = [
     { keys: 'Alt+1', description: 'Upload page', category: 'Navigation' },
     { keys: 'Alt+2', description: 'Signals page', category: 'Navigation' },
     { keys: 'Alt+3', description: 'Pair plot page', category: 'Navigation' },
-    { keys: 'Alt+4', description: 'Scatter matrix view', category: 'Navigation' },
+    { keys: 'Alt+4', description: 'Scatter matrix on Correlations', category: 'Navigation' },
     { keys: 'Alt+6', description: 'FFT page', category: 'Navigation' },
     { keys: 'Alt+7', description: 'Correlations page', category: 'Navigation' },
     { keys: 'Alt+8', description: 'Spectrogram page', category: 'Navigation' },

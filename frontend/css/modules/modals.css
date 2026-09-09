@@ -145,14 +145,18 @@
 .pipeline-graph__edge--bypassed { stroke: var(--text-muted); stroke-dasharray: 5 5; }
 .pipeline-graph__edge--annotation { stroke: var(--amber); stroke-width: 1.5; stroke-dasharray: 4 4; }
 .pipeline-graph marker path { fill: var(--accent); }
-.pipeline-graph__node rect { fill: var(--shell-surface-elevated); stroke: var(--shell-border-strong); stroke-width: 1.5; }
-.pipeline-graph__node--source rect { fill: color-mix(in srgb, var(--cyan) 8%, var(--shell-surface-elevated)); stroke: var(--cyan); }
-.pipeline-graph__node--result rect { fill: color-mix(in srgb, var(--green) 8%, var(--shell-surface-elevated)); stroke: var(--green); }
-.pipeline-graph__node--disabled rect { opacity: 0.55; stroke: var(--text-muted); stroke-dasharray: 5 4; }
-.pipeline-graph__node--annotation rect { fill: var(--amber); fill-opacity: 0.09; stroke: var(--amber); stroke-dasharray: 4 3; }
-.pipeline-graph__node.is-selected rect { stroke: var(--accent); stroke-width: 3; }
+.pipeline-graph__node > .pipeline-graph__card { fill: var(--shell-surface-elevated); stroke: var(--shell-border-strong); stroke-width: 1.5; transition: fill var(--transition), stroke var(--transition), stroke-width var(--transition); }
+.pipeline-graph__node--active > .pipeline-graph__card { fill: color-mix(in srgb, var(--accent) 7%, var(--shell-surface-elevated)); stroke: color-mix(in srgb, var(--accent) 62%, var(--shell-border-strong)); stroke-width: 2; }
+.pipeline-graph__node--source > .pipeline-graph__card { fill: color-mix(in srgb, var(--cyan) 8%, var(--shell-surface-elevated)); stroke: var(--cyan); }
+.pipeline-graph__node--result > .pipeline-graph__card { fill: color-mix(in srgb, var(--green) 8%, var(--shell-surface-elevated)); stroke: var(--green); }
+.pipeline-graph__node--disabled > .pipeline-graph__card { opacity: 0.55; stroke: var(--text-muted); stroke-dasharray: 5 4; }
+.pipeline-graph__node--annotation > .pipeline-graph__card { fill: var(--amber); fill-opacity: 0.09; stroke: var(--amber); stroke-dasharray: 4 3; }
+.pipeline-graph__node.is-selected > .pipeline-graph__card { fill: color-mix(in srgb, var(--accent) 10%, var(--shell-surface-elevated)); stroke: var(--accent); stroke-width: 3; }
+.pipeline-graph__selection-halo { fill: none; stroke: var(--accent); stroke-width: 6; stroke-opacity: 0.2; }
+.pipeline-graph__selection-bar, .pipeline-graph__selection-dot { fill: var(--accent); stroke: none; }
 .pipeline-graph__node[role="button"] { cursor: pointer; }
-.pipeline-graph__node:focus rect { stroke: var(--text); stroke-width: 3; outline: none; }
+.pipeline-graph__node[role="button"]:hover > .pipeline-graph__card,
+.pipeline-graph__node[role="button"]:focus > .pipeline-graph__card { stroke: var(--accent); stroke-width: 2.5; outline: none; }
 .pipeline-graph__eyebrow { fill: var(--text-muted); font-size: 9px; font-weight: 700; letter-spacing: 0.11em; }
 .pipeline-graph__label { fill: var(--text); font-size: 13px; font-weight: 700; }
 .pipeline-graph__detail { fill: var(--text-dim); font-size: 10px; }

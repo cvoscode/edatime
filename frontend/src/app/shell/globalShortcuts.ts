@@ -22,7 +22,7 @@ const ALT_NAVIGATION: Record<string, string> = {
     '1': 'upload',
     '2': 'timeseries',
     '3': 'scatter',
-    '4': 'scattermatrix',
+    '4': 'correlations',
     '6': 'fft',
     '7': 'correlations',
     '8': 'spectrogram',

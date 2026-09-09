@@ -85,14 +85,6 @@ let toolbarOverflow: ToolbarOverflowController | null = null;
 let matrixRenderSession: MatrixRenderSession = createMatrixRenderSession();
 const SCATTER_VIEW_STORAGE_KEY = 'edatime_pair_plot_view';
 
-function readScatterViewPreference(): 'plot' | 'matrix' {
-    try {
-        return window.sessionStorage.getItem(SCATTER_VIEW_STORAGE_KEY) === 'matrix' ? 'matrix' : 'plot';
-    } catch {
-        return 'plot';
-    }
-}
-
 function writeScatterViewPreference(view: 'plot' | 'matrix'): void {
     try {
         window.sessionStorage.setItem(SCATTER_VIEW_STORAGE_KEY, view);
@@ -181,7 +173,10 @@ function syncScatterViewButtons(viewName: string): void {
 }
 
 async function setScatterView(viewName: string, options: { render?: boolean } = {}): Promise<void> {
-    const nextView = normalizeAnalyticsView(viewName) as 'plot' | 'matrix';
+    const requestedView = normalizeAnalyticsView(viewName) as 'plot' | 'matrix';
+    const nextView = requestedView === 'matrix' && !document.querySelector('[data-scatter-view-panel="matrix"]')
+        ? 'plot'
+        : requestedView;
     const shouldRender = options.render !== false;
     if (_scatterDebounceTimer) {
         clearTimeout(_scatterDebounceTimer);
@@ -443,7 +438,7 @@ export async function initScatterPage(
     const ySelect = getEl('scatter-y-col');
     if (!page || !xSelect || !ySelect) return disposeScatterPage;
 
-    if (!scatterState.initialized) scatterState.activeView = readScatterViewPreference();
+    if (!scatterState.initialized) scatterState.activeView = 'plot';
 
     const numeric = getEffectiveNumericColumns(metadata, cleaningPlanStore.getSnapshot());
     const pairIntent = consumeScatterPairIntent();

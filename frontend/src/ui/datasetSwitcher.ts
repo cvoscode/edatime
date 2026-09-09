@@ -21,6 +21,7 @@ export function initDatasetSwitcher(deps: DatasetSwitcherDeps): () => void {
     const root = document.getElementById('dataset-switcher') as HTMLDetailsElement | null;
     const label = document.getElementById('dataset-switcher-label');
     const menu = document.getElementById('dataset-switcher-menu');
+    const summary = root?.querySelector<HTMLElement>('summary');
     if (!root || !label || !menu) return () => {};
     const lifetime = new AbortController();
     let loadGeneration = 0;
@@ -29,6 +30,12 @@ export function initDatasetSwitcher(deps: DatasetSwitcherDeps): () => void {
         const text = datasetLabel(deps);
         label.textContent = text;
         root.setAttribute('aria-label', `Active dataset: ${text}`);
+    };
+
+    const syncExpanded = () => {
+        const expanded = String(root.open);
+        root.setAttribute('aria-expanded', expanded);
+        summary?.setAttribute('aria-expanded', expanded);
     };
 
     const loadMenu = async () => {
@@ -55,12 +62,17 @@ export function initDatasetSwitcher(deps: DatasetSwitcherDeps): () => void {
                 item.textContent = `${version.id === activeId ? '✓ ' : ''}${name} · revision ${version.revision}`;
                 item.title = version.id;
                 item.addEventListener('click', async () => {
-                    if (version.id === activeId) { root.open = false; return; }
+                    if (version.id === activeId) {
+                        root.open = false;
+                        syncExpanded();
+                        return;
+                    }
                     item.disabled = true;
                     item.textContent = `Switching to ${name}…`;
                     try {
                         await selectDatasetVersion(version.id, { signal: lifetime.signal });
                         root.open = false;
+                        syncExpanded();
                         await deps.onDatasetSelected();
                         syncLabel();
                     } catch (error) {
@@ -83,6 +95,7 @@ export function initDatasetSwitcher(deps: DatasetSwitcherDeps): () => void {
             loadNew.textContent = '+ Load new dataset';
             loadNew.addEventListener('click', () => {
                 root.open = false;
+                syncExpanded();
                 deps.showPage('upload');
             }, { signal: lifetime.signal });
             menu.append(loadNew);
@@ -97,13 +110,32 @@ export function initDatasetSwitcher(deps: DatasetSwitcherDeps): () => void {
             loadNew.type = 'button';
             loadNew.className = 'dataset-switcher__item dataset-switcher__item--load';
             loadNew.textContent = '+ Load new dataset';
-            loadNew.addEventListener('click', () => deps.showPage('upload'), { signal: lifetime.signal });
+            loadNew.addEventListener('click', () => {
+                root.open = false;
+                syncExpanded();
+                deps.showPage('upload');
+            }, { signal: lifetime.signal });
             menu.append(loadNew);
         }
     };
 
-    root.addEventListener('toggle', () => { if (root.open) void loadMenu(); }, { signal: lifetime.signal });
+    const toggleMenu = () => {
+        root.open = !root.open;
+        syncExpanded();
+        if (root.open) void loadMenu();
+    };
+    summary?.addEventListener('click', (event) => {
+        event.preventDefault();
+        toggleMenu();
+    }, { signal: lifetime.signal });
+    summary?.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        toggleMenu();
+    }, { signal: lifetime.signal });
+    root.addEventListener('toggle', syncExpanded, { signal: lifetime.signal });
     const unsubscribe = deps.workspace.subscribe(syncLabel);
     syncLabel();
+    syncExpanded();
     return () => { lifetime.abort(); unsubscribe(); };
 }

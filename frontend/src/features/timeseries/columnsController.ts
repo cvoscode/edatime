@@ -75,8 +75,8 @@ export function buildColumnToggles(
         empty.className = 'series-empty';
         empty.textContent = 'No matching columns';
         container.appendChild(empty);
-        const summary = document.getElementById('timeseries-series-summary');
-        if (summary) summary.textContent = 'No matching series.';
+        container.setAttribute('title', 'No matching series.');
+        container.setAttribute('aria-label', 'No matching series.');
         const disclosureValue = document.getElementById('timeseries-series-disclosure-value');
         if (disclosureValue) disclosureValue.textContent = 'No matching series';
         finish();
@@ -91,8 +91,6 @@ export function buildColumnToggles(
             : 'No numeric series available.';
         container.setAttribute('title', summaryText);
         container.setAttribute('aria-label', summaryText);
-        const summary = document.getElementById('timeseries-series-summary');
-        if (summary) summary.textContent = summaryText;
         const disclosureValue = document.getElementById('timeseries-series-disclosure-value');
         if (disclosureValue) disclosureValue.textContent = `${active} of ${total} active`;
     };

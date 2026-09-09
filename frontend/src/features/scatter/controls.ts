@@ -206,27 +206,6 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
         document.querySelector<HTMLElement>('.sidebar .nav-item[data-page="correlations"]')?.click();
     });
 
-    // Matrix mode toggle buttons (replaces <select>)
-    const matrixModeHidden = getEl('scatter-matrix-mode') as HTMLInputElement | null;
-    const matrixSizeInput = getEl('scatter-matrix-cell-size') as HTMLInputElement | null;
-    const matrixSizeValue = getEl('scatter-matrix-cell-size-value');
-    document.querySelectorAll<HTMLButtonElement>('[data-matrix-mode]').forEach((btn) => {
-        listen(btn, 'click', () => {
-            const mode = btn.dataset.matrixMode || 'scatter';
-            if (matrixModeHidden) matrixModeHidden.value = mode;
-            document.querySelectorAll<HTMLButtonElement>('[data-matrix-mode]').forEach((b) => {
-                b.classList.toggle('active', b.dataset.matrixMode === mode);
-                b.setAttribute('aria-pressed', b.dataset.matrixMode === mode ? 'true' : 'false');
-            });
-            void cb.refreshActiveScatterView();
-        });
-    });
-    if (matrixSizeInput) listen(matrixSizeInput, 'input', () => {
-        if (matrixSizeValue) matrixSizeValue.textContent = matrixSizeInput.value;
-        updateRangeFill(matrixSizeInput);
-        if (scatterState.activeView === 'matrix') void cb.refreshActiveScatterView();
-    });
-
     // Export buttons
     const exportPng = getEl('scatter-export-png-btn');
     const exportSvg = getEl('scatter-export-svg-btn');

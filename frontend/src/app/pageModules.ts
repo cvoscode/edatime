@@ -25,7 +25,6 @@ import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 import type { DataObject } from '../types/api.js';
 import { ensureStyleModule, type StyleModuleName } from '../utils/pageStyles.js';
 import { initDatasetSwitcher } from '../ui/datasetSwitcher.js';
-import { initBreadcrumbs } from '../ui/breadcrumbs.js';
 
 export interface PageDescriptorInitDeps {
     getRenderTimeseries: () => void;
@@ -73,22 +72,34 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
     {
         name: 'heatmap',
         requiresMetadata: true,
+        cssModules: ['scatter'],
         async load(deps) {
-            const { initHeatmapPage } = await import('../features/heatmap/index.js');
+            const { initHeatmapPage, initHeatmapScatterMatrix } = await import('../features/heatmap/index.js');
             return {
-                init: () => initHeatmapPage({
-                    showPage: deps.showPage,
-                    cleaningPlanStore: deps.cleaningPlanStore,
-                    onPlanChanged: deps.onCleaningPlanChanged,
-                }),
+                init: async () => {
+                    const disposeHeatmap = await initHeatmapPage({
+                        showPage: deps.showPage,
+                        cleaningPlanStore: deps.cleaningPlanStore,
+                        onPlanChanged: deps.onCleaningPlanChanged,
+                    });
+                    const metadata = deps.workspace.getSnapshot().dataset.metadata;
+                    const disposeMatrix = metadata
+                        ? await initHeatmapScatterMatrix(metadata, {
+                            workspace: deps.workspace,
+                            showPage: deps.showPage,
+                        })
+                        : undefined;
+                    return () => {
+                        disposeMatrix?.();
+                        disposeHeatmap?.();
+                    };
+                },
             };
         },
     },
     {
         name: 'scatter',
         requiresMetadata: true,
-        // Page-owned stylesheet is preloaded alongside the descriptor to avoid
-        // an unsightly flash of unstyled content on first navigation.
         cssModules: ['scatter'],
         async load(deps) {
             const { initScatterPage } = await import('../features/scatter/index.js');
@@ -140,7 +151,6 @@ export async function loadPageDescriptors(registry: FeatureRegistry, deps: PageD
         showPage: deps.showPage,
         onDatasetSelected: deps.refreshDatasetAfterMutation,
     }));
-    deps.registerCleanup(initBreadcrumbs(deps.showPage));
     for (const descriptor of PAGE_DESCRIPTORS) {
         registry.register(descriptor.name, {
             requiresMetadata: descriptor.requiresMetadata,

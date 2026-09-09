@@ -73,8 +73,6 @@ let userColumnOrder: string[] | null = null;
 /** Release the current Heatmap feature instance and invalidate its loading work. */
 export function disposeHeatmapPage(): void {
     matrixLoadSequence += 1;
-    const pairDialog = document.getElementById('heatmap-pair-dialog') as HTMLDialogElement | null;
-    if (pairDialog?.open && typeof pairDialog.close === 'function') pairDialog.close();
     heatmapPageCleanup?.();
     heatmapPageCleanup = null;
     matrixData = null;
@@ -164,43 +162,11 @@ function syncMetricGuide(): void {
 
 export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void> {
     disposeHeatmapPage();
-    let pairDialogOrigin: HTMLElement | null = null;
     const openScatterPair = (x: string, y: string): void => {
         requestScatterPair(x, y);
         setDropdownValue('scatter-x-col', x, { emitChange: false });
         setDropdownValue('scatter-y-col', y, { emitChange: false });
         deps.showPage('scatter');
-    };
-    const closePairDialog = (restoreFocus = true): void => {
-        const dialog = document.getElementById('heatmap-pair-dialog') as HTMLDialogElement | null;
-        if (!dialog) return;
-        if (dialog.open && typeof dialog.close === 'function') dialog.close();
-        else dialog.hidden = true;
-        dialog.hidden = true;
-        const origin = pairDialogOrigin;
-        pairDialogOrigin = null;
-        if (restoreFocus && origin?.isConnected) origin.focus();
-    };
-    const openPairDialog = (x: string, y: string, value: number, origin?: HTMLElement): void => {
-        const dialog = document.getElementById('heatmap-pair-dialog') as HTMLDialogElement | null;
-        const title = document.getElementById('heatmap-pair-title');
-        const summary = document.getElementById('heatmap-pair-summary');
-        const openButton = document.getElementById('heatmap-pair-open') as HTMLButtonElement | null;
-        if (!dialog || !title || !summary || !openButton) {
-            openScatterPair(x, y);
-            return;
-        }
-        const magnitude = Math.abs(value);
-        const strength = magnitude >= 0.8 ? 'Very strong' : magnitude >= 0.6 ? 'Strong' : magnitude >= 0.4 ? 'Moderate' : magnitude >= 0.2 ? 'Weak' : 'Very weak';
-        const direction = value < 0 ? 'negative' : 'positive';
-        title.textContent = `${x} × ${y}`;
-        summary.textContent = `${getCorrelationModeLabel(metric)}: ${value >= 0 ? '+' : ''}${value.toFixed(4)}. ${strength} ${direction} association. Correlation does not establish causation.`;
-        openButton.dataset.xColumn = x;
-        openButton.dataset.yColumn = y;
-        pairDialogOrigin = origin ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
-        dialog.hidden = false;
-        if (typeof dialog.showModal === 'function' && !dialog.open) dialog.showModal();
-        (document.getElementById('heatmap-pair-close') as HTMLButtonElement | null)?.focus();
     };
 
     async function loadMatrix(nextMetric: CorrelationMetric = metric): Promise<void> {
@@ -412,7 +378,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
             + `<span class="heatmap-footer__sep" aria-hidden="true">·</span>`
             + `<span class="heatmap-footer__size">${size}×${size} matrix</span>`
             + `<span class="heatmap-footer__sep" aria-hidden="true">·</span>`
-            + `<span class="heatmap-footer__hint">Click any off-diagonal cell for pair details</span>`
+            + `<span class="heatmap-footer__hint">Select an off-diagonal cell to open its Pair plot. Correlation does not establish causation.</span>`
             + `</div>`;
         const pairs: Array<{ x: string; y: string; value: number }> = [];
         for (let row = 0; row < size; row += 1) {
@@ -456,7 +422,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
                 const x = suggestion.dataset.heatmapPairX || '';
                 const y = suggestion.dataset.heatmapPairY || '';
                 if (!x || !y) return;
-                openPairDialog(x, y, Number(suggestion.dataset.heatmapPairValue), suggestion);
+                openScatterPair(x, y);
                 return;
             }
             const cell = (event.target as HTMLElement).closest<HTMLElement>('.heatmap-cell');
@@ -466,7 +432,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
             if (!Number.isFinite(rowIndex) || !Number.isFinite(colIndex) || rowIndex === colIndex) return;
             const x = cell.dataset.rowName || columns[rowIndex]!;
             const y = cell.dataset.colName || columns[colIndex]!;
-            openPairDialog(x, y, Number(cell.dataset.correlationValue), cell);
+            openScatterPair(x, y);
         };
 
         container.onkeydown = (event: KeyboardEvent) => {
@@ -662,57 +628,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
             const planSummary = document.getElementById('heatmap-plan-columns-summary');
             const planConfirm = document.getElementById('heatmap-plan-columns-confirm') as HTMLButtonElement | null;
             const planCancel = document.getElementById('heatmap-plan-columns-cancel') as HTMLButtonElement | null;
-            const pairOpen = document.getElementById('heatmap-pair-open') as HTMLButtonElement | null;
-            const pairClose = document.getElementById('heatmap-pair-close') as HTMLButtonElement | null;
-            const pairDialog = document.getElementById('heatmap-pair-dialog') as HTMLDialogElement | null;
             if (!container) return;
-
-            pairClose?.addEventListener('click', () => closePairDialog(), listenerOptions);
-            pairDialog?.addEventListener('cancel', (event) => {
-                event.preventDefault();
-                closePairDialog();
-            }, listenerOptions);
-            pairDialog?.addEventListener('keydown', (event) => {
-                if (event.key === 'Escape') {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    closePairDialog();
-                    return;
-                }
-                if (event.key !== 'Tab') return;
-                const focusable = Array.from(pairDialog.querySelectorAll<HTMLElement>(
-                    'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-                )).filter((element) => !element.hidden);
-                if (focusable.length === 0) {
-                    event.preventDefault();
-                    return;
-                }
-                const first = focusable[0]!;
-                const last = focusable[focusable.length - 1]!;
-                if (!pairDialog.contains(document.activeElement)) {
-                    event.preventDefault();
-                    (event.shiftKey ? last : first).focus();
-                } else if (event.shiftKey && document.activeElement === first) {
-                    event.preventDefault();
-                    last.focus();
-                } else if (!event.shiftKey && document.activeElement === last) {
-                    event.preventDefault();
-                    first.focus();
-                }
-            }, listenerOptions);
-            document.addEventListener('wheel', (event) => {
-                if (!pairDialog?.open || pairDialog.contains(event.target as Node)) return;
-                event.preventDefault();
-                event.stopPropagation();
-            }, { signal: controlAbort.signal, capture: true, passive: false });
-            pairOpen?.addEventListener('click', () => {
-                const x = pairOpen.dataset.xColumn || '';
-                const y = pairOpen.dataset.yColumn || '';
-                if (!x || !y) return;
-                closePairDialog(false);
-                openScatterPair(x, y);
-            }, listenerOptions);
-
             const selectedPlanColumns = (): string[] | null => {
                 const plan = deps.cleaningPlanStore?.getSnapshot();
                 if (!plan || !matrixData || matrixData.columns.length === 0) return null;

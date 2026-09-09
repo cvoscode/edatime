@@ -119,7 +119,16 @@ function shorten(value: string, limit = 28): string {
 }
 
 function wrapWords(value: string, limit = 30): string[] {
-    const words = value.trim().split(/\s+/u).filter(Boolean);
+    const words = value.trim().split(/\s+/u).filter(Boolean)
+        .flatMap((word) => {
+            if (word.length <= limit) return [word];
+            const chunks: string[] = [];
+            for (let offset = 0; offset < word.length; offset += limit - 1) {
+                const chunk = word.slice(offset, offset + limit - 1);
+                chunks.push(offset + limit - 1 < word.length ? `${chunk}…` : chunk);
+            }
+            return chunks;
+        });
     if (words.length === 0) return [''];
     const lines: string[] = [];
     let line = '';
@@ -326,9 +335,15 @@ export function renderPipelineGraphSvg(graph: PipelineGraph, options: PipelineGr
             // browser automation read "HUFLrows" / "savedorder".
             .map((line, index) => `<tspan x="${position.x + 15}" dy="${index ? 16 : 0}">${escapeXml(line)}</tspan>`).join(' ');
         const tooltip = node.tooltip ? `<title>${escapeXml(node.tooltip)}</title>` : '';
-        return `<g class="${className}" data-node-id="${escapeXml(node.id)}"${node.stageId ? ` data-stage-id="${escapeXml(node.stageId)}"` : ''} tabindex="${node.stageId ? '0' : '-1'}" role="${node.stageId ? 'button' : 'img'}" aria-label="${escapeXml(`${node.label}: ${node.detail}${node.tooltip ? `. ${node.tooltip}` : ''}`)}">${tooltip}<rect x="${position.x}" y="${position.y}" width="${nodeWidth}" height="${nodeHeight}" rx="12" /><text x="${position.x + 15}" y="${position.y + 19}" class="pipeline-graph__eyebrow">${eyebrow}</text><text x="${position.x + 15}" y="${position.y + 44}" class="pipeline-graph__label">${label}</text><text x="${position.x + 15}" y="${position.y + 65}" class="pipeline-graph__detail">${detail}</text></g>`;
+        const selectedHalo = selected
+            ? `<rect class="pipeline-graph__selection-halo" x="${position.x - 3}" y="${position.y - 3}" width="${nodeWidth + 6}" height="${nodeHeight + 6}" rx="15" />`
+            : '';
+        const selectedIndicator = selected
+            ? `<rect class="pipeline-graph__selection-bar" x="${position.x}" y="${position.y + 12}" width="4" height="${nodeHeight - 24}" rx="2" /><circle class="pipeline-graph__selection-dot" cx="${position.x + 10}" cy="${position.y + 16}" r="2" />`
+            : '';
+        return `<g class="${className}" data-node-id="${escapeXml(node.id)}"${node.stageId ? ` data-stage-id="${escapeXml(node.stageId)}"` : ''} tabindex="${node.stageId ? '0' : '-1'}" role="${node.stageId ? 'button' : 'img'}" aria-label="${escapeXml(`${node.label}: ${node.detail}${node.tooltip ? `. ${node.tooltip}` : ''}`)}">${tooltip}${selectedHalo}<rect class="pipeline-graph__card" x="${position.x}" y="${position.y}" width="${nodeWidth}" height="${nodeHeight}" rx="12" />${selectedIndicator}<text x="${position.x + 15}" y="${position.y + 19}" class="pipeline-graph__eyebrow">${eyebrow}</text><text x="${position.x + 15}" y="${position.y + 44}" class="pipeline-graph__label">${label}</text><text x="${position.x + 15}" y="${position.y + 65}" class="pipeline-graph__detail">${detail}</text></g>`;
     }).join('');
     const title = escapeXml(options.title || `EdaTime pipeline for ${graph.sourceVersionId}`);
 
-    return `<svg xmlns="http://www.w3.org/2000/svg" class="pipeline-graph" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-labelledby="pipeline-graph-title pipeline-graph-description"><title id="pipeline-graph-title">${title}</title><desc id="pipeline-graph-description">Source dataset through ${mainNodes.length - 2} ordered transformation stage${mainNodes.length - 2 === 1 ? '' : 's'} to a working dataset.</desc><defs><marker id="pipeline-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M 0 0 L 8 4 L 0 8 z" /></marker></defs>${edgeSvg}${nodeSvg}</svg>`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" class="pipeline-graph" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-labelledby="pipeline-graph-title pipeline-graph-description"><title id="pipeline-graph-title">${title}</title><desc id="pipeline-graph-description">Source dataset through ${mainNodes.length - 2} ordered transformation stage${mainNodes.length - 2 === 1 ? '' : 's'} to a working dataset.</desc><defs><marker id="pipeline-arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M 0 0 L 10 5 L 0 10 z" /></marker></defs>${edgeSvg}${nodeSvg}</svg>`;
 }

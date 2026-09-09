@@ -18,7 +18,7 @@ const DATASET_BOOTSTRAP_PAGES = new Set([
 
 const PAGE_BACKING_ALIASES: Record<string, string> = {
     correlations: 'heatmap',
-    scattermatrix: 'scatter',
+    scattermatrix: 'heatmap',
 };
 
 export function resolveBackingPageName(pageName: string | null | undefined): string | null {

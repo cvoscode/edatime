@@ -445,6 +445,10 @@
     width: 100%;
   }
 
+  .timeseries-command-bar__center {
+    flex-wrap: wrap;
+  }
+
   .timeseries-chip-rail {
     flex: 1 1 100%;
     min-width: 0;

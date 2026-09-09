@@ -9,7 +9,6 @@ function buildDom(): void {
     document.body.innerHTML = `
         <div id="header-meta"></div>
         <div id="column-toggles"></div>
-        <p id="timeseries-series-summary"></p>
         <span id="timeseries-series-disclosure-value"></span>
         <div id="timeseries-color-slot"></div>
     `;
@@ -64,7 +63,8 @@ describe('buildColumnToggles', () => {
             .find((chip) => chip.querySelector('.chip-label')?.textContent === 'HULL');
         expect(rebuiltHullChip?.classList.contains('active')).toBe(false);
         expect(rebuiltHullChip?.querySelector<HTMLInputElement>('input[type="checkbox"]')?.checked).toBe(false);
-        expect(document.getElementById('timeseries-series-summary')?.textContent).toBe('2 of 7 active. Click chips to add more.');
+        expect(document.getElementById('column-toggles')?.getAttribute('aria-label')).toBe('2 of 7 active. Click chips to add more.');
+        expect(document.getElementById('column-toggles')?.getAttribute('title')).toBe('2 of 7 active. Click chips to add more.');
         expect(document.getElementById('timeseries-series-disclosure-value')?.textContent).toBe('2 of 7 active');
         expect(fetchAndRender).toHaveBeenCalledTimes(1);
     });

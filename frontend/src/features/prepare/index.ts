@@ -201,54 +201,6 @@ function hasMissingValuePolicy(plan: CleaningPlan, column: string, kind: 'null' 
         && (kind === 'null' ? stage.dropNulls : stage.dropNonFinite));
 }
 
-function renderPipelinePreviewChart(data: DataObject | null, columns: readonly string[]): HTMLElement {
-    const frame = createElement('div', 'prepare-workspace__preview-chart');
-    if (!data || data.ts.length === 0) {
-        frame.textContent = 'Preview data is loading…';
-        frame.setAttribute('role', 'status');
-        return frame;
-    }
-    const visible = columns.filter((column) => data.values[column]).slice(0, 3);
-    const values = visible.flatMap((column) => Array.from(data.values[column] ?? [], Number).filter(Number.isFinite));
-    if (visible.length === 0 || values.length === 0) {
-        frame.textContent = 'Select a numeric series in Signals to populate this preview.';
-        return frame;
-    }
-    let yMin = Number.POSITIVE_INFINITY;
-    let yMax = Number.NEGATIVE_INFINITY;
-    for (const value of values) {
-        yMin = Math.min(yMin, value);
-        yMax = Math.max(yMax, value);
-    }
-    const ySpan = Math.max(1e-12, yMax - yMin);
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('viewBox', '0 0 600 150');
-    svg.setAttribute('role', 'img');
-    svg.setAttribute('aria-label', `Post-pipeline preview of ${visible.join(', ')}`);
-    const colors = ['var(--cyan)', 'var(--amber)', 'var(--green)'];
-    visible.forEach((column, seriesIndex) => {
-        const series = data.values[column]!;
-        const stride = Math.max(1, Math.ceil(series.length / 240));
-        const points: string[] = [];
-        for (let index = 0; index < series.length; index += stride) {
-            const value = Number(series[index]);
-            if (!Number.isFinite(value)) continue;
-            const x = series.length > 1 ? 8 + (index / (series.length - 1)) * 584 : 300;
-            const y = 142 - ((value - yMin) / ySpan) * 134;
-            points.push(`${x.toFixed(2)},${y.toFixed(2)}`);
-        }
-        const path = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-        path.setAttribute('points', points.join(' '));
-        path.setAttribute('fill', 'none');
-        path.setAttribute('stroke', colors[seriesIndex]!);
-        path.setAttribute('stroke-width', '1.5');
-        path.setAttribute('vector-effect', 'non-scaling-stroke');
-        svg.append(path);
-    });
-    frame.append(svg);
-    return frame;
-}
-
 /**
  * Surface immediate metadata findings first. More expensive cadence, duplicate,
  * and distribution findings belong to the progressive profile job rather than
@@ -717,11 +669,7 @@ function renderPrepareWorkspace(
     previewCaption.title = caption.title;
     const graphScroll = createElement('div', 'prepare-workspace__graph-scroll');
     graphScroll.innerHTML = renderPipelineGraphSvg(buildPipelineGraph(plan));
-    const previewChart = renderPipelinePreviewChart(
-        deps.getCurrentData?.() ?? null,
-        deps.workspace?.getSnapshot().selection.columns ?? [],
-    );
-    graphSection.append(graphTitle, graphCopy, previewCaption, previewChart, graphScroll);
+    graphSection.append(graphTitle, graphCopy, previewCaption, graphScroll);
 
     const stagesSection = createElement('section', 'prepare-workspace__stages');
     stagesSection.id = 'prepare-pipeline-stages';

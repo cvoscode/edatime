@@ -14,8 +14,6 @@
 .prepare-workspace__quality-table th, .prepare-workspace__quality-table td { padding: 7px 9px; border-bottom: 1px solid var(--border); text-align: left; }
 .prepare-workspace__quality-table th { color: var(--text-dim); font-weight: 600; }
 .prepare-workspace__quality-progress { display: inline-flex; align-items: center; min-height: 30px; color: var(--accent); font-size: .78rem; }
-.prepare-workspace__preview-chart { display: grid; min-height: 150px; margin: 10px 0; place-items: center; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--text-dim); background: var(--surface-0); font-size: .8rem; }
-.prepare-workspace__preview-chart svg { display: block; width: 100%; height: 150px; }
 .prepare-workspace__quality-finding { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-md); }
 .prepare-workspace__quality-finding > div { display: grid; gap: 3px; min-width: 0; }
 .prepare-workspace__quality-finding span, .prepare-workspace__quality-empty { color: var(--text-dim); font-size: 0.8125rem; }

@@ -78,7 +78,7 @@ export const SCATTER_HELP: PageHelpContent = {
     ],
     shortcuts: [
         { keys: '⌥3', description: 'Open the Pair plot (this page)' },
-        { keys: '⌥4', description: 'Switch to the Matrix view from any pair' },
+        { keys: '⌥4', description: 'Open the Scatter matrix on Correlations' },
         { keys: '⌥7', description: 'Open the Correlations page — useful for picking a pair' },
         { keys: '?', description: 'Show the global keyboard shortcuts modal' },
         { keys: 'P', description: 'Export the chart as PNG' },

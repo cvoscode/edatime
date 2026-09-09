@@ -348,7 +348,7 @@ describe('initScatterPage view toggles', () => {
         expect(window.sessionStorage.getItem('edatime_pair_plot_view')).toBe('matrix');
     });
 
-    it('restores the last Plot or Matrix choice within the browser session', async () => {
+    it('always opens the dedicated Pair plot in Plot mode', async () => {
         window.sessionStorage.setItem('edatime_pair_plot_view', 'matrix');
         const { initScatterPage } = await import('./page.js');
 
@@ -364,10 +364,9 @@ describe('initScatterPage view toggles', () => {
             column_profiles: [],
         } as any);
 
-        expect(freshScatterState.activeView).toBe('matrix');
-        expect(document.getElementById('scatter-view-plot-btn')?.getAttribute('aria-pressed')).toBe('false');
-        expect(document.getElementById('scatter-view-matrix-btn')?.getAttribute('aria-pressed')).toBe('true');
-        expect(renderScatterMatrixViewMock).toHaveBeenCalled();
+        expect(freshScatterState.activeView).toBe('plot');
+        expect(document.getElementById('scatter-view-plot-btn')?.getAttribute('aria-pressed')).toBe('true');
+        expect(document.getElementById('scatter-view-matrix-btn')?.getAttribute('aria-pressed')).toBe('false');
     });
 
     it('binds exports when lazy initialization follows the first page-change event', async () => {

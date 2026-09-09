@@ -63,11 +63,11 @@ describe('hash router valid pages', () => {
         expect(getHashPage()).toBe('prepare');
     });
 
-    it('keeps scattermatrix as a first-class hash-routed page', async () => {
+    it('redirects the legacy scattermatrix route to Correlations', async () => {
         const { getHashPage } = await import('./router.js');
         window.history.replaceState(null, '', '#page=scattermatrix');
 
-        expect(getHashPage()).toBe('scattermatrix');
+        expect(getHashPage()).toBe('correlations');
     });
 
     it('rejects unknown hash-routed pages', async () => {

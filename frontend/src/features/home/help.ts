@@ -60,7 +60,7 @@ export const HOME_HELP: PageHelpContent = {
         { keys: '⌥1', description: 'Open Data source' },
         { keys: '⌥2', description: 'Open Signals' },
         { keys: '⌥3', description: 'Open Pair plot' },
-        { keys: '⌥4', description: 'Open the Scatter matrix view' },
+        { keys: '⌥4', description: 'Open the Scatter matrix on Correlations' },
         { keys: '⌥6–0', description: 'Spectrum, Correlation matrix, Time-frequency, Causality, Drift' },
         { keys: 'Ctrl+K', description: 'Command palette' },
         { keys: 'Ctrl+I', description: 'Analysis context panel' },

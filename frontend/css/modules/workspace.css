@@ -663,7 +663,34 @@ header.app-topbar {
 }
 
 #page-heatmap .main--padded {
+  flex: 0 0 auto;
+  min-height: 480px;
   padding: 12px var(--workspace-pad);
+}
+
+.heatmap-scatter-matrix {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  min-height: 480px;
+  margin: 0 var(--workspace-pad) 18px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-0);
+}
+
+.heatmap-scatter-matrix .scatter-panel-head {
+  align-items: center;
+}
+
+.heatmap-scatter-matrix .scatter-panel-head h2 {
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+}
+
+.heatmap-scatter-matrix .scatter-matrix {
+  min-height: 360px;
 }
 
 #page-heatmap .heatmap-header,

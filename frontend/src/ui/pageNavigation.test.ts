@@ -23,7 +23,7 @@ vi.mock('../utils/pageStyles.js', () => ({
 vi.mock('../utils/pageBootstrap.js', () => ({
     pageNeedsDatasetBootstrap: (page: string) => pageNeedsDatasetBootstrapMock(page),
     resolveBackingPageName: (page: string | null | undefined) => (
-        page === 'scattermatrix' ? 'scatter' : (page ?? null)
+        page === 'scattermatrix' || page === 'correlations' ? 'heatmap' : (page ?? null)
     ),
 }));
 
@@ -34,6 +34,7 @@ function buildDom(): void {
             <button class="nav-item" data-page="home" type="button">Home</button>
             <button class="nav-item" data-page="upload" type="button">Upload</button>
             <button class="nav-item" data-page="timeseries" type="button">Timeseries</button>
+            <button class="nav-item" data-page="correlations" type="button">Correlations</button>
             <button class="nav-item" data-page="scatter" type="button">Scatter</button>
             <button class="nav-item" data-page="settings" type="button">Settings</button>
             <button id="sidebar-collapse-btn" type="button">Collapse</button>
@@ -44,6 +45,7 @@ function buildDom(): void {
           <section class="page" data-page-name="home"></section>
           <section class="page" data-page-name="upload" hidden></section>
           <section class="page" data-page-name="timeseries" hidden></section>
+          <section class="page" data-page-name="heatmap" hidden></section>
           <section class="page" data-page-name="scatter" hidden></section>
         </main>
         </div>
@@ -157,9 +159,9 @@ describe('initPageNavigation', () => {
         expect(timeseriesPage.hidden).toBe(false);
     });
 
-    it('opens scattermatrix hashes through the shared scatter page with matrix analytics metadata', async () => {
+    it('opens legacy scattermatrix hashes through the Correlations page', async () => {
         window.history.replaceState(null, '', '#page=scattermatrix');
-        pageNeedsDatasetBootstrapMock.mockImplementation((page) => page === 'scatter');
+        pageNeedsDatasetBootstrapMock.mockImplementation((page) => page === 'heatmap');
         const pageChangeHandler = vi.fn();
         const { onNavigationChange } = await import('../platform/navigationEvents.js');
         const unsubscribeNavigation = onNavigationChange(pageChangeHandler);
@@ -169,16 +171,16 @@ describe('initPageNavigation', () => {
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 
-        const scatterPage = document.querySelector('[data-page-name="scatter"]') as HTMLElement;
+        const heatmapPage = document.querySelector('[data-page-name="heatmap"]') as HTMLElement;
         const homePage = document.querySelector('[data-page-name="home"]') as HTMLElement;
 
         expect(homePage.hidden).toBe(true);
-        expect(scatterPage.hidden).toBe(false);
-        expect(pageNeedsDatasetBootstrapMock).toHaveBeenCalledWith('scatter');
-        expect(ensureDatasetReadyMock).toHaveBeenCalledWith('scatter');
-        expect(ensurePageModuleLoadedMock).toHaveBeenCalledWith('scatter');
+        expect(heatmapPage.hidden).toBe(false);
+        expect(pageNeedsDatasetBootstrapMock).toHaveBeenCalledWith('heatmap');
+        expect(ensureDatasetReadyMock).toHaveBeenCalledWith('heatmap');
+        expect(ensurePageModuleLoadedMock).toHaveBeenCalledWith('heatmap');
         expect(pageChangeHandler).toHaveBeenCalledWith(expect.objectContaining({
-            page: 'scatter', navPage: 'scattermatrix', analyticsView: 'matrix',
+            page: 'heatmap', navPage: 'correlations', analyticsView: null,
         }));
         unsubscribeNavigation();
     });

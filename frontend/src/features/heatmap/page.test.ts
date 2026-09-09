@@ -178,7 +178,6 @@ describe('heatmapPage with clustering', () => {
             <button id="heatmap-fit-toggle" type="button" class="btn btn-ghost btn-sm toolbar-toggle-btn" aria-pressed="false">Snap to panel</button>
             <button id="heatmap-axis-fit-toggle" type="button" class="btn btn-ghost btn-sm toolbar-toggle-btn" aria-pressed="false">Fit color axis</button>
             <button id="heatmap-add-columns-to-plan" type="button">Keep matrix columns…</button>
-            <dialog id="heatmap-pair-dialog" hidden><h2 id="heatmap-pair-title"></h2><p id="heatmap-pair-summary"></p><button id="heatmap-pair-close" type="button">Close</button><button id="heatmap-pair-open" type="button">Open in Pair plot</button></dialog>
             <dialog id="heatmap-plan-columns-dialog"><p id="heatmap-plan-columns-summary"></p><button id="heatmap-plan-columns-cancel" type="button">Cancel</button><button id="heatmap-plan-columns-confirm" type="button">Add keep-columns stage</button></dialog>
             <select id="scatter-x-col"><option value=""></option><option value="a1">a1</option><option value="a2">a2</option><option value="a3">a3</option><option value="b1">b1</option><option value="b2">b2</option><option value="b3">b3</option></select>
             <select id="scatter-y-col"><option value=""></option><option value="a1">a1</option><option value="a2">a2</option><option value="a3">a3</option><option value="b1">b1</option><option value="b2">b2</option><option value="b3">b3</option></select>
@@ -363,7 +362,7 @@ describe('heatmapPage with clustering', () => {
         expect(crossCell).not.toBeNull();
     });
 
-    it('opens pair details without leaving the matrix, then navigates on explicit request', async () => {
+    it('opens the selected cell directly in the standalone Pair plot', async () => {
         const showPage = vi.fn();
         const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage });
@@ -379,11 +378,6 @@ describe('heatmapPage with clustering', () => {
         expect(handler).toBeTypeOf('function');
         (handler as (ev: Partial<MouseEvent>) => void).call(container, { target: cell } as unknown as MouseEvent);
 
-        expect(document.getElementById('heatmap-pair-title')?.textContent).toBe('a1 × b1');
-        expect(document.getElementById('heatmap-pair-summary')?.textContent).toContain('Pearson (raw): +0.0000');
-        expect(showPage).not.toHaveBeenCalled();
-
-        document.getElementById('heatmap-pair-open')!.click();
         const xCol = document.getElementById('scatter-x-col') as HTMLSelectElement;
         const yCol = document.getElementById('scatter-y-col') as HTMLSelectElement;
         expect(xCol.value).toBe('a1');
@@ -391,37 +385,10 @@ describe('heatmapPage with clustering', () => {
         expect(showPage).toHaveBeenCalledWith('scatter');
     });
 
-    it('moves focus into pair details, closes on Escape, and restores the originating cell', async () => {
+    it('opens the Pair plot with both Enter and Space', async () => {
+        const showPage = vi.fn();
         const { initHeatmapPage } = await import('./page.js');
-        await initHeatmapPage({ showPage: vi.fn() });
-        await activateHeatmap();
-
-        const cell = document.querySelector('.heatmap-cell[data-row="0"][data-col="3"]') as HTMLElement;
-        const container = document.getElementById('heatmap-container') as HTMLElement;
-        cell.focus();
-        container.onclick!.call(container, { target: cell } as unknown as PointerEvent);
-
-        const dialog = document.getElementById('heatmap-pair-dialog') as HTMLDialogElement;
-        expect(document.activeElement).toBe(document.getElementById('heatmap-pair-close'));
-
-        const closeButton = document.getElementById('heatmap-pair-close') as HTMLButtonElement;
-        const openButton = document.getElementById('heatmap-pair-open') as HTMLButtonElement;
-        openButton.focus();
-        dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
-        expect(document.activeElement).toBe(closeButton);
-        dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }));
-        expect(document.activeElement).toBe(openButton);
-
-        dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
-
-        expect(dialog.open).toBe(false);
-        expect(dialog.hidden).toBe(true);
-        expect(document.activeElement).toBe(cell);
-    });
-
-    it('opens pair details with both Enter and Space', async () => {
-        const { initHeatmapPage } = await import('./page.js');
-        await initHeatmapPage({ showPage: vi.fn() });
+        await initHeatmapPage({ showPage });
         await activateHeatmap();
 
         const cell = document.querySelector('.heatmap-cell[data-row="0"][data-col="3"]') as HTMLElement;
@@ -433,23 +400,11 @@ describe('heatmapPage with clustering', () => {
                 target: cell,
                 preventDefault: vi.fn(),
             } as unknown as KeyboardEvent);
-            expect((document.getElementById('heatmap-pair-dialog') as HTMLDialogElement).open).toBe(true);
-            document.getElementById('heatmap-pair-close')!.click();
+            expect((document.getElementById('scatter-x-col') as HTMLSelectElement).value).toBe('a1');
+            expect((document.getElementById('scatter-y-col') as HTMLSelectElement).value).toBe('b1');
         }
-    });
-
-    it('blocks background wheel events while pair details are modal', async () => {
-        const { initHeatmapPage } = await import('./page.js');
-        await initHeatmapPage({ showPage: vi.fn() });
-        await activateHeatmap();
-
-        const cell = document.querySelector('.heatmap-cell[data-row="0"][data-col="3"]') as HTMLElement;
-        const container = document.getElementById('heatmap-container') as HTMLElement;
-        container.onclick!.call(container, { target: cell } as unknown as PointerEvent);
-
-        const wheel = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 10 });
-        expect(container.dispatchEvent(wheel)).toBe(false);
-        expect(wheel.defaultPrevented).toBe(true);
+        expect(showPage).toHaveBeenCalledTimes(2);
+        expect(showPage).toHaveBeenLastCalledWith('scatter');
     });
 
     it('opens the selected pair after axis selects have been upgraded to dropdowns', async () => {
@@ -464,8 +419,6 @@ describe('heatmapPage with clustering', () => {
             const cell = document.querySelector('.heatmap-cell[data-row="0"][data-col="3"]') as HTMLElement;
             const container = document.getElementById('heatmap-container')!;
             container.onclick!.call(container, { target: cell } as unknown as PointerEvent);
-            expect(showPage).not.toHaveBeenCalled();
-            document.getElementById('heatmap-pair-open')!.click();
             expect(showPage).toHaveBeenCalledWith('scatter');
             expect(getDropdownValue('scatter-x-col')).toBe('a1');
             expect(getDropdownValue('scatter-y-col')).toBe('b1');
@@ -801,7 +754,7 @@ describe('heatmapPage audit follow-ups (C1–C11)', () => {
         const footer = document.querySelector('.heatmap-footer');
         expect(footer).not.toBeNull();
         expect(footer?.textContent).toMatch(/6×6 matrix/);
-        expect(footer?.textContent).toMatch(/Click any off-diagonal cell for pair details/);
+        expect(footer?.textContent).toMatch(/Select an off-diagonal cell to open its Pair plot/);
     });
 
     // C4 — row label height matches cell height under a small viewport.

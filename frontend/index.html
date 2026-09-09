@@ -249,8 +249,9 @@
         </div>
 
         <div class="header-meta" id="header-meta">
-          <details id="dataset-switcher" class="dataset-switcher">
-            <summary class="dataset-switcher__summary" title="Switch the active dataset">
+          <details id="dataset-switcher" class="dataset-switcher" aria-expanded="false">
+            <summary class="dataset-switcher__summary" title="Switch the active dataset"
+              aria-controls="dataset-switcher-menu" aria-expanded="false">
               <span id="dataset-switcher-label">No dataset</span><span aria-hidden="true">▾</span>
             </summary>
             <div id="dataset-switcher-menu" class="dataset-switcher__menu" role="menu" aria-label="Loaded datasets">
@@ -356,9 +357,6 @@
             aria-label="Show help for the Signals page" title="Show help for the Signals page (?)"><span
               aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
         </div>
-        <div class="timeseries-context-bar" aria-label="Signals color controls">
-          <div id="timeseries-color-slot" class="timeseries-color-slot"></div>
-        </div>
         <details
           class="toolbar toolbar--series timeseries-command-bar timeseries-series-disclosure analysis-secondary-disclosure analysis-collapse-tablet"
           data-responsive-collapse="1024" open>
@@ -375,7 +373,7 @@
             </div>
             <div class="timeseries-command-bar__center">
               <div class="series-toggles timeseries-chip-rail" id="column-toggles"></div>
-              <p id="timeseries-series-summary" class="timeseries-series-summary" aria-live="polite"></p>
+              <div id="timeseries-color-slot" class="timeseries-color-slot"></div>
             </div>
           </div>
         </details>
@@ -624,7 +622,7 @@
         <div class="page-header">
           <div class="page-header__copy">
             <h1 class="page-header__title">Pair plot</h1>
-            <p class="page-header__description">Compare two signals, examine density, and understand inherited filters.
+            <p class="page-header__description">Compare two signals, examine density, and understand inherited filters. Correlation does not establish causation.
             </p>
           </div>
           <button id="scatter-back-to-matrix" class="btn btn-ghost btn-sm" type="button"
@@ -638,12 +636,6 @@
             <div class="scatter-toolbar__segment scatter-toolbar__segment--view" data-toolbar-priority="high">
               <span class="scatter-toolbar__eyebrow">View</span>
               <div class="scatter-toolbar__fields">
-                <div class="btn-toggle-group scatter-view-toggle" role="group" aria-label="Pair plot view">
-                  <button type="button" class="btn active" id="scatter-view-plot-btn" aria-label="Show pair plot"
-                    aria-pressed="true" data-scatter-view="plot">Plot</button>
-                  <button type="button" class="btn" id="scatter-view-matrix-btn" aria-pressed="false"
-                    data-scatter-view="matrix">Matrix</button>
-                </div>
                 <label class="toolbar-field scatter-toolbar__field" for="scatter-x-col">
                   <span class="toolbar-field__label">X axis</span>
                   <select id="scatter-x-col" class="modal-select" aria-label="Scatter X column"></select>
@@ -836,48 +828,6 @@
           </main>
         </div>
 
-        <div class="scatter-view" data-scatter-view-panel="matrix" hidden>
-          <div class="scatter-panel">
-            <div class="scatter-panel-head">
-              <span class="toolbar-label">Scatter Matrix</span>
-              <span id="scatter-matrix-status" class="scatter-panel-status">Shows pairwise scatter plots with
-                configurable diagonal distributions.</span>
-              <div class="scatter-matrix-controls">
-                <span class="scatter-inline-label">Cells</span>
-                <div class="btn-toggle-group" role="group" aria-label="Matrix cell render mode">
-                  <button type="button" class="btn active" id="scatter-matrix-mode-scatter" aria-pressed="true"
-                    data-matrix-mode="scatter">Scatter</button>
-                  <button type="button" class="btn" id="scatter-matrix-mode-density" aria-pressed="false"
-                    data-matrix-mode="density">Density</button>
-                </div>
-                <input type="hidden" id="scatter-matrix-mode" value="scatter">
-                <label class="scatter-inline-label" for="scatter-matrix-cell-size">Size</label>
-                <input id="scatter-matrix-cell-size" type="range" min="80" max="320" step="20" value="160"
-                  style="width:90px;" aria-label="Matrix cell size">
-                <span id="scatter-matrix-cell-size-value" class="range-value">160</span>
-                <label class="scatter-link-toggle" for="scatter-matrix-link-range"
-                  title="Link scatter matrix and FFT to the current chart time window">
-                  <input id="scatter-matrix-link-range" type="checkbox"
-                    aria-label="Link chart time range to scatter matrix">
-                  <span>Link range</span>
-                </label>
-              </div>
-            </div>
-            <div id="scatter-matrix" class="scatter-matrix"></div>
-            <div id="scatter-matrix-loading" class="chart-loading-overlay" hidden role="status" aria-live="polite">
-              <div class="chart-loading-spinner"></div>
-              <span class="chart-loading-label">Loading scatter…</span>
-            </div>
-          </div>
-          <div class="scatter-panel scatter-matrix-fft-panel" id="scatter-matrix-fft-panel" hidden>
-            <div class="scatter-panel-head">
-              <span class="toolbar-label">FFT / PSD</span>
-              <span id="scatter-matrix-fft-status" class="scatter-panel-status"></span>
-            </div>
-            <div id="scatter-matrix-fft-charts" class="scatter-matrix-fft-charts"></div>
-          </div>
-        </div>
-
       </section>
 
       <section class="page page--analysis-scroll" id="page-fft" data-page-name="fft" data-toolbar-collapse hidden>
@@ -1050,7 +1000,7 @@
         </main>
       </section>
 
-      <section class="page" id="page-heatmap" data-page-name="heatmap" data-toolbar-collapse hidden>
+      <section class="page page--analysis-scroll" id="page-heatmap" data-page-name="heatmap" data-toolbar-collapse hidden>
         <div class="page-header">
           <div class="page-header__copy">
             <h1 class="page-header__title">Correlation matrix</h1>
@@ -1206,21 +1156,53 @@
             <span class="chart-loading-label" id="heatmap-loading-label">Loading correlation matrix…</span>
           </div>
         </main>
+        <section class="heatmap-scatter-matrix" aria-labelledby="heatmap-scatter-matrix-title">
+          <div class="scatter-panel-head">
+            <div>
+              <h2 id="heatmap-scatter-matrix-title">Scatter matrix</h2>
+              <span id="scatter-matrix-status" class="scatter-panel-status">Pairwise plots use the current filters and linked time window.</span>
+            </div>
+            <div class="scatter-matrix-controls">
+              <label class="scatter-inline-label" for="heatmap-scatter-diagonal-mode">Diagonal</label>
+              <select id="heatmap-scatter-diagonal-mode" class="modal-select" aria-label="Scatter matrix diagonal mode">
+                <option value="histogram" selected>Histogram</option>
+                <option value="kde">KDE</option>
+                <option value="boxplot">Box Plot</option>
+              </select>
+              <span class="scatter-inline-label">Cells</span>
+              <div class="btn-toggle-group" role="group" aria-label="Matrix cell render mode">
+                <button type="button" class="btn active" id="scatter-matrix-mode-scatter" aria-pressed="true"
+                  data-matrix-mode="scatter">Scatter</button>
+                <button type="button" class="btn" id="scatter-matrix-mode-density" aria-pressed="false"
+                  data-matrix-mode="density">Density</button>
+              </div>
+              <input type="hidden" id="scatter-matrix-mode" value="scatter">
+              <label class="scatter-inline-label" for="scatter-matrix-cell-size">Size</label>
+              <input id="scatter-matrix-cell-size" type="range" min="80" max="320" step="20" value="160"
+                style="width:90px;" aria-label="Matrix cell size">
+              <span id="scatter-matrix-cell-size-value" class="range-value">160</span>
+              <label class="scatter-link-toggle" for="scatter-matrix-link-range"
+                title="Link scatter matrix and FFT to the current chart time window">
+                <input id="scatter-matrix-link-range" type="checkbox"
+                  aria-label="Link chart time range to scatter matrix">
+                <span>Link range</span>
+              </label>
+            </div>
+          </div>
+          <div id="scatter-matrix" class="scatter-matrix"></div>
+          <div id="scatter-matrix-loading" class="chart-loading-overlay" hidden role="status" aria-live="polite">
+            <div class="chart-loading-spinner"></div>
+            <span class="chart-loading-label">Loading scatter matrix…</span>
+          </div>
+          <div class="scatter-panel scatter-matrix-fft-panel" id="scatter-matrix-fft-panel" hidden>
+            <div class="scatter-panel-head">
+              <span class="toolbar-label">FFT / PSD</span>
+              <span id="scatter-matrix-fft-status" class="scatter-panel-status"></span>
+            </div>
+            <div id="scatter-matrix-fft-charts" class="scatter-matrix-fft-charts"></div>
+          </div>
+        </section>
       </section>
-      <dialog id="heatmap-pair-dialog" class="modal modal--compact" aria-modal="true"
-        aria-labelledby="heatmap-pair-title" aria-describedby="heatmap-pair-summary" hidden>
-        <div class="modal-header">
-          <h2 id="heatmap-pair-title">Pair details</h2>
-        </div>
-        <div class="modal-body">
-          <p id="heatmap-pair-summary" class="modal-hint"></p>
-          <p class="modal-hint">The matrix remains open behind this dialog so you can close it and compare another cell.</p>
-        </div>
-        <div class="modal-actions">
-          <button id="heatmap-pair-close" class="btn btn-ghost" type="button">Close</button>
-          <button id="heatmap-pair-open" class="btn btn-primary" type="button">Open in Pair plot</button>
-        </div>
-      </dialog>
       <dialog id="heatmap-plan-columns-dialog" class="modal modal--compact"
         aria-labelledby="heatmap-plan-columns-title">
         <div class="modal-header">
@@ -2033,8 +2015,7 @@
               </svg>
             </div>
             <h3 class="home-card-title">Correlation matrix <kbd>⌥7</kbd></h3>
-            <p class="home-card-desc">Screen pairs in the correlation heatmap, then jump into the detailed scatter view
-              for the promising relationships.</p>
+            <p class="home-card-desc">Screen relationships in the correlation heatmap and pairwise Scatter matrix.</p>
           </div>
           <div class="home-card" data-home-nav="scatter" tabindex="0" role="button">
             <div class="home-card-icon">
@@ -2048,8 +2029,7 @@
               </svg>
             </div>
             <h3 class="home-card-title">Pair plot <kbd>⌥3</kbd></h3>
-            <p class="home-card-desc">Inspect the selected pair in detail, color by an extra column, and switch to
-              matrix view with <kbd>⌥4</kbd> for pairwise screening inside the same workspace.</p>
+            <p class="home-card-desc">Inspect one selected pair in detail using density or individual-point rendering.</p>
           </div>
         </div>
 

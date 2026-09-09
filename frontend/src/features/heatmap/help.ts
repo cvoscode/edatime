@@ -16,7 +16,7 @@ import { initPageHelp, type PageHelpContent } from '../../ui/pageHelp.js';
 export const HEATMAP_HELP: PageHelpContent = {
     pageName: 'Correlation matrix',
     intro:
-        'A correlation matrix that shows how every numeric column in the dataset moves with every other one. Pick a metric, scan for strong off-diagonal cells, then click any cell to jump to a detailed scatter view.',
+        'Correlation and scatter matrices showing how numeric columns move together. Pick a metric, scan the heatmap or pairwise plots, then open any pair on its dedicated page.',
     sections: [
         {
             title: 'Metric toolbar',
@@ -70,14 +70,14 @@ export const HEATMAP_HELP: PageHelpContent = {
     ],
     shortcuts: [
         { keys: '⌥7', description: 'Open the Correlations page (this page)' },
-        { keys: '⌥3', description: 'Open the Pair plot — landing target when you click a cell' },
+        { keys: '⌥3', description: 'Open the Pair plot for detailed density and scatter inspection' },
         { keys: '?', description: 'Show the global keyboard shortcuts modal' },
         { keys: 'Ctrl+K', description: 'Command palette — every action above is searchable here' },
     ],
     tips: [
         'Start with Pearson on raw values for a first look; switch to Spearman if the data has clear outliers, and to first-differences if the columns drift over time.',
         'Strong off-diagonal cells in the same row/column often cluster around a common driver — the cluster reorder surfaces this visually.',
-        'Click a cell to jump straight to a pair plot of that relationship; the linked time-window and filters from Signals are carried over.',
+        'Select a cell in either matrix to open its Pair plot; the linked time-window and filters from Signals are carried over.',
         'Save the session (Ctrl+S) if you have a manual column order you want to keep — the order is persisted with the session.',
     ],
 };

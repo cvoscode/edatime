@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
     initPreparePage: vi.fn(),
     initFftPage: vi.fn(),
     initHeatmapPage: vi.fn(),
+    initHeatmapScatterMatrix: vi.fn(),
     initScatterPage: vi.fn(),
     initSpectrogramPage: vi.fn(),
     initCausalPage: vi.fn(),
@@ -14,7 +15,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../utils/pageStyles.js', () => ({ ensureStyleModule: mocks.ensureStyleModule }));
 vi.mock('../features/prepare/index.js', () => ({ initPreparePage: mocks.initPreparePage }));
 vi.mock('../features/fft/index.js', () => ({ initFftPage: mocks.initFftPage }));
-vi.mock('../features/heatmap/index.js', () => ({ initHeatmapPage: mocks.initHeatmapPage }));
+vi.mock('../features/heatmap/index.js', () => ({
+    initHeatmapPage: mocks.initHeatmapPage,
+    initHeatmapScatterMatrix: mocks.initHeatmapScatterMatrix,
+}));
 vi.mock('../features/scatter/index.js', () => ({ initScatterPage: mocks.initScatterPage }));
 vi.mock('../features/spectrogram/index.js', () => ({ initSpectrogramPage: mocks.initSpectrogramPage }));
 vi.mock('../features/causal/index.js', () => ({ initCausalPage: mocks.initCausalPage }));
@@ -69,28 +73,16 @@ describe('page module descriptors', () => {
         });
     });
 
-    it('loads Scatter directly from its descriptor only on first page initialization', async () => {
+    it('loads the correlation heatmap and Scatter matrix together', async () => {
         const metadata = { total_rows: 0, numeric_columns: [], columns: [], column_profiles: [], time_column: '', time_range: { min: 0, max: 1 } } as any;
-        const workspace = {
-            getSnapshot: vi.fn(() => makeWorkspaceSnapshot({ dataset: { metadata } })),
-            setFilters: vi.fn(),
-            subscribe: vi.fn(() => vi.fn()),
+        const deps = {
+            ...createDeps(),
+            workspace: {
+                getSnapshot: vi.fn(() => makeWorkspaceSnapshot({ dataset: { metadata } })),
+                setFilters: vi.fn(),
+                subscribe: vi.fn(() => vi.fn()),
+            },
         };
-        const deps = { ...createDeps(), workspace };
-        const register = vi.fn();
-        await loadPageDescriptors({ register } as unknown as FeatureRegistry, deps);
-        const scatter = register.mock.calls.find(([name]) => name === 'scatter')?.[1];
-
-        expect(scatter).toBeDefined();
-        expect(mocks.ensureStyleModule).not.toHaveBeenCalledWith('scatter');
-        await scatter!.init();
-
-        expect(mocks.ensureStyleModule).toHaveBeenCalledWith('scatter');
-        expect(mocks.initScatterPage).toHaveBeenCalledWith(metadata, { workspace: deps.workspace });
-    });
-
-    it('loads Heatmap directly from its descriptor only on initialization', async () => {
-        const deps = createDeps();
         const register = vi.fn();
         await loadPageDescriptors({ register } as unknown as FeatureRegistry, deps);
         const heatmap = register.mock.calls.find(([name]) => name === 'heatmap')?.[1];
@@ -98,11 +90,35 @@ describe('page module descriptors', () => {
         expect(mocks.initHeatmapPage).not.toHaveBeenCalled();
         await heatmap!.init();
 
+        expect(mocks.ensureStyleModule).toHaveBeenCalledWith('scatter');
         expect(mocks.initHeatmapPage).toHaveBeenCalledWith({
             showPage: deps.showPage,
             cleaningPlanStore: deps.cleaningPlanStore,
             onPlanChanged: deps.onCleaningPlanChanged,
         });
+        expect(mocks.initHeatmapScatterMatrix).toHaveBeenCalledWith(metadata, {
+            workspace: deps.workspace,
+            showPage: deps.showPage,
+        });
+    });
+
+    it('keeps the Pair plot on its own lazy descriptor', async () => {
+        const metadata = { total_rows: 0, numeric_columns: [], columns: [], column_profiles: [], time_column: '', time_range: { min: 0, max: 1 } } as any;
+        const deps = {
+            ...createDeps(),
+            workspace: {
+                getSnapshot: vi.fn(() => makeWorkspaceSnapshot({ dataset: { metadata } })),
+                setFilters: vi.fn(),
+                subscribe: vi.fn(() => vi.fn()),
+            },
+        };
+        const register = vi.fn();
+        await loadPageDescriptors({ register } as unknown as FeatureRegistry, deps);
+        const scatter = register.mock.calls.find(([name]) => name === 'scatter')?.[1];
+
+        await scatter!.init();
+
+        expect(mocks.initScatterPage).toHaveBeenCalledWith(metadata, { workspace: deps.workspace });
     });
 
     it('loads FFT directly from its descriptor only on initialization', async () => {

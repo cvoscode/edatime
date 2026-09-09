@@ -7,7 +7,7 @@
 
 const VALID_PAGES = new Set([
     'home', 'upload', 'timeseries', 'prepare', 'correlations', 'scatter',
-    'scattermatrix', 'fft', 'spectrogram', 'causal', 'drift', 'settings',
+    'fft', 'spectrogram', 'causal', 'drift', 'settings',
 ]);
 const PUBLIC_PAGE_NAMES: Record<string, string> = {
     prepare: 'preparation',
@@ -17,6 +17,10 @@ const PUBLIC_PAGE_NAMES: Record<string, string> = {
 const INTERNAL_PAGE_NAMES: Record<string, string> = Object.fromEntries(
     Object.entries(PUBLIC_PAGE_NAMES).map(([internal, publicName]) => [publicName, internal]),
 );
+const LEGACY_PAGE_NAMES: Record<string, string> = {
+    scattermatrix: 'correlations',
+    'scatter-matrix': 'correlations',
+};
 import { onNavigationChange } from '../platform/navigationEvents.js';
 
 let activeRouterDisposer: (() => void) | null = null;
@@ -26,7 +30,7 @@ export type PageNavigator = (page: string) => void | Promise<void>;
 function normalizePage(page: string | null): string | null {
     const trimmed = String(page || '').trim();
     if (!trimmed) return null;
-    const internal = INTERNAL_PAGE_NAMES[trimmed] ?? trimmed;
+    const internal = LEGACY_PAGE_NAMES[trimmed] ?? INTERNAL_PAGE_NAMES[trimmed] ?? trimmed;
     return VALID_PAGES.has(internal) ? internal : null;
 }
 
