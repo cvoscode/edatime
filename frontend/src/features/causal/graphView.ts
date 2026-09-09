@@ -75,25 +75,36 @@ export async function initChart(generation = chartRefreshGeneration): Promise<bo
     return generation === chartRefreshGeneration && !!_eChart && isCausalChartReadyForInit();
 }
 
-export function scheduleCausalChartRefresh(attempts = 6): void {
+export function scheduleCausalChartRefresh(
+    attempts = 6,
+    onRendered?: (rendered: boolean) => void,
+): void {
     const generation = ++chartRefreshGeneration;
-    scheduleChartRefresh(attempts, generation);
+    scheduleChartRefresh(attempts, generation, onRendered);
 }
 
-function scheduleChartRefresh(attempts: number, generation: number): void {
+function scheduleChartRefresh(
+    attempts: number,
+    generation: number,
+    onRendered?: (rendered: boolean) => void,
+): void {
     if (generation !== chartRefreshGeneration) return;
     // A deferred retry may outlive a test environment or an application root.
     // Never schedule another browser timer once the DOM has been torn down.
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
     if (!isCausalChartReadyForInit()) {
-        if (attempts <= 0) return;
-        window.setTimeout(() => scheduleChartRefresh(attempts - 1, generation), 0);
+        if (attempts <= 0) {
+            onRendered?.(false);
+            return;
+        }
+        window.setTimeout(() => scheduleChartRefresh(attempts - 1, generation, onRendered), 0);
         return;
     }
     void initChart(generation).then(() => {
         if (generation !== chartRefreshGeneration || !isCausalChartReadyForInit()) return;
         _eChart?.resize();
-        if (_currentColumns.length > 0) renderEChartsGraph();
+        const rendered = _currentColumns.length > 0 && renderEChartsGraph();
+        onRendered?.(rendered);
     });
 }
 

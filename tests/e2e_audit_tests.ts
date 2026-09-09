@@ -154,6 +154,7 @@ test.describe('Audit Verification Tests', () => {
 
   test('causal discovery renders a visible graph before enabling graph actions', async ({ page }) => {
     test.setTimeout(120_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
     await openPage(page, 'causal');
 
     await expect(page.locator('#causal-add-edge-btn')).toBeDisabled();
@@ -213,6 +214,7 @@ test.describe('Audit Verification Tests', () => {
   });
 
   test('saved Signals filters remain editable and Pair plot describes their data scope', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
     // Warm the Pair plot first so the return trip exercises the initialized
     // cache path, where source-data suggestions previously survived a later
     // Signals filter change.

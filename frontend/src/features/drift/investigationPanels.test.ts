@@ -64,6 +64,55 @@ describe('drift investigation panels', () => {
         expect(panels.quality).toMatch(/200×/);
     });
 
+    it('renders every ranked and reliability column without silently truncating the results', () => {
+        const columnNames = ['HUFL', 'HULL', 'MUFL', 'MULL', 'LUFL', 'LULL', 'OT'];
+        const fullInvestigation = {
+            ...investigation,
+            overview: {
+                ...investigation.overview,
+                columnsFlagged: columnNames.length,
+                totalColumns: columnNames.length,
+            },
+            rankings: {
+                ...investigation.rankings,
+                features: columnNames.map((column, index) => ({
+                    column,
+                    driftScore: 100 - index,
+                    latestLevel: 'red' as const,
+                    flaggedWindows: index + 1,
+                    firstChangePoint: null,
+                })),
+                changePoints: columnNames.map((column, index) => ({
+                    column,
+                    windowIndex: index,
+                    isoTime: `2025-01-0${index + 1}T00:00:00Z`,
+                    label: `Window ${index + 1}`,
+                    triggerReasons: ['ks'],
+                })),
+            },
+            columns: Object.fromEntries(columnNames.map((column) => [column, {
+                column,
+                windows: [],
+                metadata: {
+                    computation_time_ms: 1,
+                    num_windows: 0,
+                    reference_samples: 1000,
+                    avg_window_samples: 50,
+                    psi_sample_ratio_warning: true,
+                },
+            }])),
+        } as unknown as DriftInvestigationResponse;
+
+        const panels = buildDriftInvestigationPanelHtml(fullInvestigation);
+
+        for (const column of columnNames) {
+            expect(panels.overview).toContain(`<strong>${column}</strong>`);
+            expect(panels.quality).toContain(`<strong>${column}</strong>`);
+        }
+        expect(panels.overview.match(/class="drift-column-card__header"/g)).toHaveLength(19);
+        expect(panels.quality.match(/class="drift-column-card__header"/g)).toHaveLength(7);
+    });
+
     it('clears every panel when no investigation is available', () => {
         expect(buildDriftInvestigationPanelHtml(null)).toEqual({
             overview: '',

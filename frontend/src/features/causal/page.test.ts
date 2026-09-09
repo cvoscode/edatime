@@ -300,4 +300,39 @@ describe('causal page chart bootstrap', () => {
         );
     });
 
+    it('enables persisted graph actions only after the remounted chart renders', async () => {
+        const { initCausalPage } = await import('./page.js');
+        const {
+            resetSelectionState,
+            setCurrentColumns,
+            setCurrentLinks,
+        } = await import('./selectionState.js');
+        resetSelectionState();
+        setCurrentColumns(['HUFL', 'HULL']);
+        setCurrentLinks([
+            { source: 'HUFL', target: 'HULL', lag: 1, type: '-->', value: 0.5, pvalue: 0.01 },
+        ]);
+
+        initCausalPage(causalDeps({
+            numeric_columns: ['HUFL', 'HULL'],
+            columns: [
+                { name: 'HUFL', dtype: 'Float64' },
+                { name: 'HULL', dtype: 'Float64' },
+            ],
+        }));
+
+        expect((document.getElementById('causal-add-edge-btn') as HTMLButtonElement).disabled).toBe(true);
+        expect((document.getElementById('causal-export-btn') as HTMLButtonElement).disabled).toBe(true);
+        expect((document.getElementById('causal-save-run-btn') as HTMLButtonElement).disabled).toBe(true);
+
+        (document.getElementById('page-causal') as HTMLElement).hidden = false;
+        emitNavigationChange({ page: 'causal' });
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect((document.getElementById('causal-add-edge-btn') as HTMLButtonElement).disabled).toBe(false);
+        expect((document.getElementById('causal-export-btn') as HTMLButtonElement).disabled).toBe(false);
+        expect((document.getElementById('causal-save-run-btn') as HTMLButtonElement).disabled).toBe(false);
+    });
+
 });

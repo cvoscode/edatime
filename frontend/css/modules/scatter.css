@@ -278,6 +278,21 @@
   flex: 1 1 260px;
 }
 
+.scatter-suggestion-fallback {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.scatter-suggestion-fallback__chips {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+  overflow-x: auto;
+}
+
 .scatter-suggestion-btn {
   height: 26px;
   padding: 0 10px;

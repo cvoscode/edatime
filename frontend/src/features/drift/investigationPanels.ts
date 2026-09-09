@@ -25,7 +25,7 @@ function escapeHtml(value: string): string {
 }
 
 function renderFeatureRankCards(ranks: DriftFeatureRank[]): string {
-    return ranks.slice(0, 5).map((rank) => `
+    return ranks.map((rank) => `
         <article class="drift-column-card">
             <div class="drift-column-card__header">
                 <strong>${escapeHtml(rank.column)}</strong>
@@ -42,7 +42,7 @@ function renderFeatureRankCards(ranks: DriftFeatureRank[]): string {
 
 function renderSimpleList<T>(items: T[], renderItem: (item: T) => string, emptyText: string): string {
     if (items.length === 0) return `<div class="drift-column-card"><div class="drift-column-card__body">${emptyText}</div></div>`;
-    return items.slice(0, 5).map(renderItem).join('');
+    return items.map(renderItem).join('');
 }
 
 function renderQualityColumnCards(columns: DriftResponse[]): string {
@@ -53,7 +53,7 @@ function renderQualityColumnCards(columns: DriftResponse[]): string {
             || response.windows.some((window) => window.low_sample_warning);
     });
     if (flagged.length === 0) return '';
-    return flagged.slice(0, 5).map((response) => {
+    return flagged.map((response) => {
         const metadata = response.metadata;
         const sampleSize = metadata?.avg_window_samples ?? 0;
         const referenceSamples = metadata?.reference_samples ?? 0;

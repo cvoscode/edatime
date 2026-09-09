@@ -58,6 +58,10 @@ describe('renderSuggestions', () => {
         expect(container.textContent).toContain('HUFL');
         expect(container.textContent).toContain('OT');
         expect(container.querySelectorAll('button')).toHaveLength(2);
+        const fallback = container.querySelector('.scatter-suggestion-fallback');
+        expect(fallback?.firstElementChild?.classList.contains('scatter-suggestion-empty')).toBe(true);
+        expect(fallback?.lastElementChild?.classList.contains('scatter-suggestion-fallback__chips')).toBe(true);
+        expect(fallback?.lastElementChild?.querySelectorAll('button')).toHaveLength(2);
     });
 
     it('uses the explicit apply handler after selecting a suggestion', async () => {

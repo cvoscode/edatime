@@ -89,8 +89,13 @@ export function initCausalPage(deps: CausalDeps): () => void {
     // Release page-level help with the page's controls and subscriptions.
     listenerController.signal.addEventListener('abort', initCausalHelp(), { once: true });
     applyMethodControlState(getDropdownValue('causal-method-select') || 'pcmci');
-    syncCausalGraphActionState(_currentLinks.length > 0 && _currentColumns.length >= 2);
-    scheduleCausalChartRefresh();
+    const scheduleGraphRefresh = () => {
+        syncCausalGraphActionState(false);
+        scheduleCausalChartRefresh(6, (rendered) => {
+            syncCausalGraphActionState(rendered && _currentLinks.length > 0 && _currentColumns.length >= 2);
+        });
+    };
+    scheduleGraphRefresh();
     const unsubscribeTheme = onThemeChange(() => scheduleCausalChartRefresh());
     listenerController.signal.addEventListener('abort', unsubscribeTheme, { once: true });
 
@@ -141,7 +146,7 @@ export function initCausalPage(deps: CausalDeps): () => void {
         if (change.page === 'causal' && workspaceMetadata(deps)) {
             seedSelectedColumnsFromDataset(deps);
             renderColumnChips(deps, columnsBar, openEditPanel);
-            scheduleCausalChartRefresh();
+            scheduleGraphRefresh();
             syncCausalEmptyState(_selectedColumns.size);
         }
     });

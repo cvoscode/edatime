@@ -96,12 +96,15 @@ export function renderSuggestions(
             summary.textContent = `Showing top ${topPairs.length} by |corr|; below-threshold fallback (${normalizeCorrelationMetric(getSetting('defaultCorrelationMetric'))})`;
             fallback.appendChild(summary);
 
+            const chips = document.createElement('div');
+            chips.className = 'scatter-suggestion-fallback__chips';
             for (const pair of topPairs) {
                 const fallbackButton = buildSuggestionButton(pair.x, pair.y, pair.correlation, xValue, yValue, onSuggestionApply);
                 fallbackButton.classList.add('scatter-suggestion-btn-top-pair');
                 fallbackButton.setAttribute('aria-label', `Top pair ${pair.x} and ${pair.y}`);
-                fallback.insertAdjacentElement('beforeend', fallbackButton);
+                chips.appendChild(fallbackButton);
             }
+            fallback.appendChild(chips);
             box.appendChild(fallback);
             return;
         }
