@@ -23,6 +23,7 @@ import type {
     DriftResponse,
 } from './viewModels.js';
 import { exportEChartsPNG } from '../../utils/chartExport.js';
+import { markDataUpdated } from '../../ui/freshnessIndicator.js';
 import {
     getECharts,
     getEChartsModule,
@@ -128,6 +129,8 @@ export async function initDriftPage(
     const detailEl = document.getElementById('drift-detail-chart') as HTMLDivElement | null;
     const detailColumnSelect = document.getElementById('drift-detail-col-select') as HTMLElement | null;
     const loadingOverlay = document.getElementById('drift-loading') as HTMLElement | null;
+    const loadingLabel = document.getElementById('drift-loading-label') as HTMLElement | null;
+    const cancelComputeBtn = document.getElementById('drift-cancel-btn') as HTMLButtonElement | null;
     const emptyState = document.getElementById('drift-empty') as HTMLElement | null;
     const detailHeader = document.getElementById('drift-detail-header') as HTMLElement | null;
     const detailStatsEl = document.getElementById('drift-detail-stats') as HTMLElement | null;
@@ -238,9 +241,16 @@ export async function initDriftPage(
 
     function syncEmptyState(show: boolean, message?: string): void {
         if (!emptyState) return;
-        if (message) emptyState.innerHTML = `<strong>No drift data</strong><span>${message}</span>`;
+        if (message) {
+            emptyState.replaceChildren();
+            const title = document.createElement('strong');
+            title.textContent = 'No drift data';
+            const detail = document.createElement('span');
+            detail.textContent = message;
+            emptyState.append(title, detail);
+        }
         emptyState.hidden = !show;
-        driftLayoutEl?.classList.toggle('drift-empty-active', show);
+        if (driftLayoutEl) driftLayoutEl.hidden = show;
     }
 
     function setIdleStatus(): void {
@@ -258,8 +268,13 @@ export async function initDriftPage(
             setIdleStatus();
             return;
         }
-        const hint = summary.flaggedTotal === summary.windowsTotal && summary.windowsTotal > 0
-            ? ' Every window is flagged; consider relaxing thresholds or using a longer baseline.'
+        const allFlagged = summary.flaggedTotal === summary.windowsTotal && summary.windowsTotal > 0;
+        const hasReliabilityWarning = Array.from(responsesByColumn.values())
+            .some((response) => response.metadata?.psi_sample_ratio_warning || response.metadata?.bin_count_warning);
+        const hint = allFlagged
+            ? hasReliabilityWarning
+                ? ' Every window is flagged; the method-reliability warning above may explain this. Use a longer window or shorter reference before changing thresholds.'
+                : ' Every window is flagged; consider relaxing thresholds or using a longer baseline.'
             : '';
         statusEl.textContent = `Drift analysis complete. ${summary.flaggedTotal} of ${summary.windowsTotal} windows flagged.${hint}`;
     }
@@ -342,8 +357,13 @@ export async function initDriftPage(
         const counts = { all: rows.length, drifting, stable: rows.length - drifting };
         (Object.keys(counts) as Array<keyof typeof counts>).forEach((key) => {
             const element = document.querySelector<HTMLElement>(`[data-drift-count="${key}"]`);
-            if (element) element.textContent = String(counts[key]);
+            if (element) {
+                element.textContent = String(counts[key]);
+                element.hidden = rows.length === 0;
+            }
         });
+        const hint = document.getElementById('drift-filter-prerun');
+        if (hint) hint.hidden = rows.length > 0;
     }
 
     function applyTraceFilter(): void {
@@ -480,17 +500,37 @@ export async function initDriftPage(
     }
 
     // Module-level request task for drift compute — cancel-before-new semantics
+    let loadingStartedAt = 0;
+    let loadingTimer: number | undefined;
+    const syncLoadingElapsed = () => {
+        if (!loadingLabel || !loadingStartedAt) return;
+        loadingLabel.textContent = `Computing drift · ${Math.floor((performance.now() - loadingStartedAt) / 1000)}s elapsed`;
+    };
     const driftComputeTask = createRequestTask({
         setLoading: (loading: boolean) => {
             // loading=true means the overlay should be visible; loading=false
             // hides it once work completes.
             if (loadingOverlay) loadingOverlay.hidden = !loading;
+            if (loading) {
+                loadingStartedAt = performance.now();
+                syncLoadingElapsed();
+                loadingTimer = window.setInterval(syncLoadingElapsed, 1000);
+            } else {
+                if (loadingTimer !== undefined) window.clearInterval(loadingTimer);
+                loadingTimer = undefined;
+                loadingStartedAt = 0;
+                if (loadingLabel) loadingLabel.textContent = 'Computing drift…';
+            }
         },
         onError: (message: string) => {
             toast(`Drift failed: ${message}`, 'error', { duration: 0 });
             syncEmptyState(true, message || 'Computation failed. Check column and date ranges.');
         },
     });
+    cancelComputeBtn?.addEventListener('click', () => {
+        driftComputeTask.cancel();
+        if (statusEl) statusEl.textContent = 'Drift analysis canceled. Adjust the setup and run again when ready.';
+    }, { signal: pageAbortController.signal });
 
     async function runCompute(): Promise<void> {
         const columns = getSelectedColumns();
@@ -543,6 +583,7 @@ export async function initDriftPage(
                 _pendingFullReset = true;
 
                 applyRenderedResponses(results, investigation);
+                markDataUpdated();
                 setActiveTab('timeline');
                 scheduleDriftChartRefresh();
 
@@ -788,6 +829,8 @@ export async function initDriftPage(
     });
     const disposeRuntime = driftRuntime.mount();
     driftPageCleanup = () => {
+        driftComputeTask.cancel();
+        if (loadingTimer !== undefined) window.clearInterval(loadingTimer);
         pageAbortController.abort();
         disposeControls();
         resetDriftControlsState();

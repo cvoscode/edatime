@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+    setFlexibleNumberInputBounds,
     setupFlexibleNumberInput,
     upgradeFlexibleNumberInputs,
 } from './FlexibleNumberInput.js';
@@ -122,6 +123,25 @@ describe('FlexibleNumberInput primitive', () => {
 
         expect(input.value).toBe('0.12');
         expect(input.classList.contains('is-clamped')).toBe(false);
+    });
+
+    it('uses runtime soft bounds and precision without native input constraints', () => {
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.min = '0';
+        input.step = '0.001';
+        document.body.appendChild(input);
+        setupFlexibleNumberInput(input);
+
+        setFlexibleNumberInputBounds(input, { min: 0, max: 0.0005, step: 'any' });
+        input.value = '0.00025';
+        input.dispatchEvent(new Event('blur', { bubbles: true }));
+
+        expect(input.value).toBe('0.00025');
+        expect(input.hasAttribute('min')).toBe(false);
+        expect(input.hasAttribute('max')).toBe(false);
+        expect(input.dataset.flexMax).toBe('0.0005');
+        expect(input.dataset.flexStep).toBe('any');
     });
 
     it('clears the warning class on the next keystroke', () => {

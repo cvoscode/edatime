@@ -67,8 +67,8 @@ export const FFT_HELP: PageHelpContent = {
         },
     ],
     shortcuts: [
-        { keys: '⌥6', description: 'Open the FFT / PSD page (this page)' },
-        { keys: '⌥8', description: 'Open the Spectrogram page — useful for time-localized frequency content' },
+        { keys: '⌥5', description: 'Open the FFT / PSD page (this page)' },
+        { keys: '⌥6', description: 'Open the Spectrogram page — useful for time-localized frequency content' },
         { keys: '?', description: 'Show the global keyboard shortcuts modal' },
         { keys: 'P', description: 'Export the chart as PNG' },
         { keys: 'E', description: 'Export the FFT traces as CSV' },

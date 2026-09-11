@@ -37,6 +37,7 @@ import { setPreviewSelectedColumns, setPreviewTimeColumn, uploadUi } from './upl
 import { toast } from '../../utils/toast.js';
 import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
 import type { DatasetMetadata } from '../../types/api.js';
+import { confirmDatasetReplacement } from '../../ui/datasetReplacement.js';
 
 interface UploadPanelDeps {
     workspace?: Pick<WorkspaceStore, 'getSnapshot'>;
@@ -76,6 +77,7 @@ export function initUploadPanel(
     const uploadLoading = document.getElementById('upload-loading') as HTMLElement | null;
     const selectAllBtn = document.getElementById('profile-select-all-btn');
     const selectNoneBtn = document.getElementById('profile-select-none-btn');
+    const selectInvertBtn = document.getElementById('profile-select-invert-btn');
     const selectAllCheckbox = document.getElementById('profile-select-all-checkbox') as HTMLInputElement | null;
 
     if (
@@ -212,6 +214,10 @@ export function initUploadPanel(
 
     uploadProfile.metadata = deps.workspace?.getSnapshot().dataset.metadata ?? null;
     applyTimeRangeFromMetadata(uploadProfile.metadata, false);
+    setProfileMode('dataset');
+    if (uploadProfile.metadata) {
+        setUploadPreviewStatus('Showing the active dataset profile');
+    }
     syncUploadButtonState();
 
     // If no preview is active and we have no metadata yet, fetch existing dataset state
@@ -232,11 +238,12 @@ export function initUploadPanel(
 
     selectAllBtn?.addEventListener('click', () => setSelectionMode('all'), listenerOptions);
     selectNoneBtn?.addEventListener('click', () => setSelectionMode('none'), listenerOptions);
+    selectInvertBtn?.addEventListener('click', () => setSelectionMode('invert'), listenerOptions);
     selectAllCheckbox?.addEventListener('change', () => {
         setSelectionMode(selectAllCheckbox!.checked ? 'all' : 'none');
     }, listenerOptions);
 
-    function setSelectionMode(mode: 'all' | 'none') {
+    function setSelectionMode(mode: 'all' | 'none' | 'invert') {
         const columns = Array.isArray(uploadProfile.columnProfiles)
             ? uploadProfile.columnProfiles.map((profile) => profile.name)
             : [];
@@ -244,6 +251,11 @@ export function initUploadPanel(
         if (uploadUi.previewTimeColumn) next.add(uploadUi.previewTimeColumn);
         if (mode === 'all') {
             for (const name of columns) next.add(name);
+        } else if (mode === 'invert') {
+            const selected = new Set(uploadUi.previewSelectedColumns);
+            for (const name of columns) {
+                if (!selected.has(name)) next.add(name);
+            }
         }
         setPreviewSelectedColumns(Array.from(next));
         renderColumnProfilesGrid(false);
@@ -255,6 +267,7 @@ export function initUploadPanel(
             notify('Please select a file first.', 'error');
             return;
         }
+        if (!confirmDatasetReplacement(deps.workspace, selectedFile.name)) return;
 
         void submitFileUpload({
             selectedFile,
@@ -338,9 +351,10 @@ export function initUploadPanel(
         dbLoadBtn.addEventListener('click', () => {
             const schema = (document.getElementById('db-schema-input') as HTMLInputElement | null)?.value.trim() || 'public';
             const table = (document.getElementById('db-table-input') as HTMLInputElement | null)?.value.trim()
-                ?? getDropdownValue('db-table-select')
-                ?? '';
+                || getDropdownValue('db-table-select')
+                || '';
             const timeColumn = (document.getElementById('db-time-col-input') as HTMLInputElement | null)?.value.trim();
+            if (!table || !confirmDatasetReplacement(deps.workspace, `${schema}.${table}`)) return;
             void handleDatabaseLoad({
                 schema,
                 table,

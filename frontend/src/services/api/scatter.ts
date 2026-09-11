@@ -154,6 +154,7 @@ export async function fetchScatterPoints(
     if (color !== null && color !== undefined && String(color).trim() !== '') {
         payload.color = String(color);
     }
+    if (options?.timeColorMode) payload.time_color_mode = options.timeColorMode;
     const start = Number(options?.start);
     const end = Number(options?.end);
     if (Number.isFinite(start) && Number.isFinite(end)) {
@@ -326,6 +327,7 @@ export async function fetchScatterMatrix(
     if (color !== null && color !== undefined && String(color).trim() !== '') {
         payload.color = String(color);
     }
+    if (options?.timeColorMode) payload.time_color_mode = options.timeColorMode;
     const start = Number(options?.start);
     const end = Number(options?.end);
     if (Number.isFinite(start) && Number.isFinite(end)) {

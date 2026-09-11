@@ -10,7 +10,6 @@ const PAGE_STYLE_MODULES = {
     drift: ['drift'],
     home: ['home'],
     heatmap: ['scatter'],
-    scatter: ['scatter'],
     scattermatrix: ['scatter'],
 } as const satisfies Record<string, readonly StyleModuleName[]>;
 

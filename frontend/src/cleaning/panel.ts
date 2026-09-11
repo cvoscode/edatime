@@ -19,7 +19,7 @@ import type { CleaningPlanHistoryAction, CleaningPlanHistoryEntry, CleaningPlanS
 import { downloadBlob } from '../utils/dom.js';
 
 type PlanPanelStore = Pick<CleaningPlanStore,
-    'getSnapshot' | 'getHistory' | 'subscribe' | 'setPlan' | 'addStage' | 'updateStage' | 'removeStage' | 'setStageEnabled' | 'reorderStage' | 'canUndo' | 'canRedo' | 'isDirty' | 'undo' | 'redo' | 'restoreHistoryEntry' | 'clear'>;
+    'getSnapshot' | 'getHistory' | 'subscribe' | 'setPlan' | 'addStage' | 'updateStage' | 'removeStage' | 'setStageEnabled' | 'reorderStage' | 'canUndo' | 'canRedo' | 'isDirty' | 'undo' | 'redo' | 'restoreHistoryEntry' | 'deleteHistoryEntry' | 'clear'>;
 type WorkbenchTab = 'pipeline' | 'stages' | 'export';
 type StageComposerKind = 'missingValue' | 'deduplicate' | 'columnSelect' | 'sort' | 'fillNull' | 'resample' | 'chronologicalSplit' | 'derivedColumn';
 
@@ -284,7 +284,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
     subtitle.className = 'pipeline-workbench__subtitle';
     subtitle.textContent = 'Inspect and change the reversible preprocessing pipeline.';
     titleWrap.append(title, subtitle);
-    const closeButton = button('Close');
+    const closeButton = button('×', 'modal-close');
     closeButton.dataset.planClose = 'true';
     closeButton.setAttribute('aria-label', 'Close pipeline workbench');
     header.append(titleWrap, closeButton);
@@ -299,6 +299,9 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
     const pipelineTab = createTab('Pipeline', 'pipeline');
     const stagesTab = createTab('Stages', 'stages');
     const exportTab = createTab('Export', 'export');
+    pipelineTab.title = 'Inspect the current graph and revision history';
+    stagesTab.title = 'Add, edit, reorder, or disable preparation stages';
+    exportTab.title = 'Export the plan, graph, code, or reproducibility bundle';
     tabsWrap.append(pipelineTab, stagesTab, exportTab);
     const panel = document.createElement('div');
     panel.className = 'pipeline-workbench__panel';
@@ -319,6 +322,8 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
     let activeTab: WorkbenchTab = 'pipeline';
     let selectedStageId: string | null = null;
     let selectedHistoryEntryId: string | null = null;
+    let comparisonHistoryEntryId: string | null = null;
+    const historyComparisons = new Map<string, { earlier: CleaningPreviewResponse; current: CleaningPreviewResponse }>();
     let stageComposerKind: StageComposerKind = 'missingValue';
     let lastPreview: { planId: string; planRevision: number; result: CleaningPreviewResponse } | null = null;
     let lastMaterialized: {
@@ -385,7 +390,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         panel.replaceChildren();
         const legend = document.createElement('div');
         legend.className = 'pipeline-workbench__legend';
-        legend.textContent = 'Active stages can filter rows, alter values or schema, or establish row order. Executable stage edits refresh plots immediately; applying still creates a dataset version only when explicitly requested.';
+        legend.textContent = 'Enabled stages can filter rows, alter values or schema, or establish row order. They update analysis previews immediately; the source stays unchanged until you explicitly create a prepared dataset.';
         const history = deps.planStore.getHistory();
         const currentEntry = history.at(-1) ?? null;
         const selectedEntry = selectedHistoryEntryId ? history.find((entry) => entry.id === selectedHistoryEntryId) ?? null : null;
@@ -419,7 +424,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         historyHeading.textContent = 'Graph history';
         const historyCopy = document.createElement('p');
         historyCopy.className = 'pipeline-workbench__hint';
-        historyCopy.textContent = 'Choose any revision to inspect its graph, then restore it when you want its stages applied to the live plot. Restore baseline selects the source revision without confirmation.';
+        historyCopy.textContent = 'Choose any revision to inspect its graph. Restoring asks for confirmation before it replaces the live plan.';
         const historyList = document.createElement('ol');
         historyList.className = 'pipeline-workbench__history-list';
         for (let index = history.length - 1; index >= 0; index -= 1) {
@@ -432,6 +437,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             inspect.setAttribute('aria-pressed', String(entry.id === viewedEntry?.id));
             inspect.addEventListener('click', () => {
                 selectedHistoryEntryId = entry.id;
+                comparisonHistoryEntryId = null;
                 selectedStageId = null;
                 render();
             });
@@ -442,20 +448,82 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
             detail.className = 'pipeline-workbench__history-detail';
             detail.textContent = 'Revision ' + entry.plan.planRevision + ' · ' + entry.plan.stages.filter((stage) => executable(stage) && stage.enabled).length + ' live stage' + (entry.plan.stages.filter((stage) => executable(stage) && stage.enabled).length === 1 ? '' : 's');
             item.append(inspect, detail, timestamp);
+            if (entry.id !== currentEntry?.id) {
+                const entryActions = document.createElement('div');
+                entryActions.className = 'pipeline-workbench__editor-actions';
+                const compare = button('Compare with current', 'btn btn-ghost btn-sm pipeline-workbench__history-action');
+                compare.addEventListener('click', async () => {
+                    selectedHistoryEntryId = entry.id;
+                    comparisonHistoryEntryId = entry.id;
+                    selectedStageId = null;
+                    render();
+                    if (!currentEntry) return;
+                    const comparisonKey = `${entry.id}:${currentEntry.id}`;
+                    if (historyComparisons.has(comparisonKey)) return;
+                    try {
+                        const [earlier, current] = await Promise.all([
+                            previewCleaningPlan(entry.plan),
+                            previewCleaningPlan(currentEntry.plan),
+                        ]);
+                        historyComparisons.set(comparisonKey, { earlier, current });
+                        if (comparisonHistoryEntryId === entry.id) render();
+                    } catch (error) {
+                        preview.textContent = error instanceof Error ? error.message : String(error);
+                    }
+                });
+                const restore = button('Restore', 'btn btn-ghost btn-sm pipeline-workbench__history-action');
+                restore.addEventListener('click', () => {
+                    if (typeof window.confirm === 'function'
+                        && !window.confirm(`Restore pipeline revision ${entry.plan.planRevision}? This replaces the current draft plan.`)) return;
+                    selectedHistoryEntryId = null;
+                    comparisonHistoryEntryId = null;
+                    selectedStageId = null;
+                    if (!deps.planStore.restoreHistoryEntry(entry.id)) return;
+                    lastPreview = null;
+                    preview.textContent = 'Restored this graph revision. Plots are updating with the restored plan.';
+                    deps.onPlanChanged?.();
+                });
+                const remove = button('Delete', 'btn btn-ghost btn-sm pipeline-workbench__history-action');
+                remove.addEventListener('click', () => {
+                    if (typeof window.confirm === 'function'
+                        && !window.confirm(`Delete pipeline revision ${entry.plan.planRevision} from graph history?`)) return;
+                    if (!deps.planStore.deleteHistoryEntry(entry.id)) return;
+                    if (selectedHistoryEntryId === entry.id) selectedHistoryEntryId = null;
+                    if (comparisonHistoryEntryId === entry.id) comparisonHistoryEntryId = null;
+                    for (const key of historyComparisons.keys()) {
+                        if (key.startsWith(`${entry.id}:`)) historyComparisons.delete(key);
+                    }
+                    render();
+                });
+                entryActions.append(compare, restore, remove);
+                item.appendChild(entryActions);
+            } else {
+                const entryActions = document.createElement('div');
+                entryActions.className = 'pipeline-workbench__editor-actions';
+                const remove = button('Delete', 'btn btn-ghost btn-sm pipeline-workbench__history-action');
+                remove.disabled = true;
+                remove.title = 'The current revision cannot be deleted';
+                entryActions.appendChild(remove);
+                item.appendChild(entryActions);
+            }
             historyList.appendChild(item);
         }
         historySection.append(historyHeading, historyCopy, historyList);
-        if (viewingHistory && selectedEntry) {
-            const restore = button('Restore this revision', 'btn btn-primary btn-sm');
-            restore.addEventListener('click', () => {
-                selectedHistoryEntryId = null;
-                selectedStageId = null;
-                if (!deps.planStore.restoreHistoryEntry(selectedEntry.id)) return;
-                lastPreview = null;
-                preview.textContent = 'Restored this graph revision. Plots are updating with the restored plan.';
-                deps.onPlanChanged?.();
-            });
-            historySection.appendChild(restore);
+        if (viewingHistory && selectedEntry && comparisonHistoryEntryId === selectedEntry.id) {
+            const comparison = document.createElement('div');
+            comparison.className = 'pipeline-workbench__hint';
+            comparison.setAttribute('role', 'region');
+            comparison.setAttribute('aria-label', 'Revision comparison');
+            const result = currentEntry
+                ? historyComparisons.get(`${selectedEntry.id}:${currentEntry.id}`)
+                : undefined;
+            const schema = result
+                ? ` Schema: ${(result.earlier.resultColumns ?? []).join(', ') || 'names unavailable'} → ${(result.current.resultColumns ?? []).join(', ') || 'names unavailable'}.`
+                : '';
+            comparison.textContent = result
+                ? `Earlier: ${result.earlier.rowsAfter.toLocaleString()} rows, ${result.earlier.columnsAfter} columns. Current: ${result.current.rowsAfter.toLocaleString()} rows, ${result.current.columnsAfter} columns.${schema}`
+                : 'Comparing materialized row counts and schemas…';
+            historySection.appendChild(comparison);
         }
         panel.append(legend, scroll, hint, historySection);
     };
@@ -1183,6 +1251,12 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
     };
     const renderActions = (plan: CleaningPlan) => {
         actions.replaceChildren();
+        const outputName = `${plan.sourceName || plan.sourceVersionId} · prepared r${plan.planRevision}`;
+        const output = document.createElement('span');
+        output.className = 'pipeline-workbench__output-name';
+        const outputLabel = document.createElement('span');
+        outputLabel.textContent = 'New dataset';
+        output.append(outputLabel, document.createTextNode(outputName));
         const undo = button('Undo last change', 'pipeline-workbench__history-action');
         undo.disabled = !deps.planStore.canUndo();
         undo.addEventListener('click', () => {
@@ -1238,7 +1312,8 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
                 preview.textContent = error instanceof Error ? error.message : 'Could not preview this plan.';
             }
         });
-        const apply = button('Apply as new dataset', 'btn btn-primary btn-sm');
+        const apply = button('Create prepared dataset', 'btn btn-primary btn-sm');
+        apply.title = `Materialize the current plan as ${outputName}`;
         apply.addEventListener('click', async () => {
             const current = deps.planStore.getSnapshot();
             if (!current) return;
@@ -1271,7 +1346,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
                 apply.disabled = false;
             }
         });
-        const resetOriginal = button('Use original dataset');
+        const resetOriginal = button('Restore source dataset', 'btn btn-danger btn-sm');
         resetOriginal.addEventListener('click', async () => {
             const activeCount = plan.stages.filter((stage) => executable(stage) && stage.enabled).length;
             if (typeof window.confirm === 'function'
@@ -1298,7 +1373,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
                 resetOriginal.disabled = false;
             }
         });
-        actions.append(undo, redo, addViewport, previewButton, apply, resetOriginal);
+        actions.append(output, undo, redo, addViewport, previewButton, resetOriginal, apply);
     };
     const render = () => {
         const plan = deps.planStore.getSnapshot();

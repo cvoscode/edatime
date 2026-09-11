@@ -34,7 +34,7 @@ This document defines the UI design language and patterns for edatime's user int
 - Zoom & Pan: scroll or drag to zoom; click-drag pan with modifier. Maintain a zoom history stack for quick undo (back/forward buttons).
 - Selection & Linking: selection in Timeseries sets the default query window for Scatter; selection gestures are additive with Shift and exclusive with Alt.
 - Adaptive Filters: drawn with Ctrl+click pairs; display small handle markers and a clear affordance to remove filters. Keep filters local until explicitly saved.
-- Keyboard Shortcuts: expose and document core shortcuts (`Alt+1..9`, `Shift+R`, modifier-click interactions). Offer an in-app help overlay listing shortcuts.
+- Keyboard Shortcuts: expose and document core shortcuts (`Alt+1..8`, `Shift+R`, modifier-click interactions). Offer an in-app help overlay listing shortcuts.
 
 ## Visual System
 

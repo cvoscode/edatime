@@ -89,7 +89,8 @@ function buildUploadDom(): void {
         <button id="profile-select-none-btn" type="button"></button>
         <input id="profile-select-all-checkbox" type="checkbox" />
         <span id="upload-preview-status"></span>
-        <span id="profile-mode-badge" data-mode="dataset">Current dataset</span>
+        <span id="upload-preview-heading"></span>
+        <span id="profile-mode-badge" data-mode="dataset">Active dataset</span>
         <span id="time-range-hint"></span>
         <select id="time-column-select"></select>
         <button id="upload-source-file-btn" type="button"></button>
@@ -350,21 +351,23 @@ describe('initUploadPanel column selection helpers', () => {
 
 describe('setProfileMode', () => {
     beforeEach(() => {
-        document.body.innerHTML = '<span id="profile-mode-badge" data-mode="dataset">Current dataset</span>';
+        document.body.innerHTML = '<span id="upload-preview-heading"></span><span id="profile-mode-badge" data-mode="dataset">Active dataset</span>';
     });
 
     it('sets dataset mode', () => {
         setProfileMode('dataset');
         const el = document.getElementById('profile-mode-badge')!;
         expect(el.getAttribute('data-mode')).toBe('dataset');
-        expect(el.textContent).toBe('Current dataset');
+        expect(el.textContent).toBe('Active dataset');
+        expect(document.getElementById('upload-preview-heading')?.textContent).toBe('Current dataset profile');
     });
 
     it('sets preview mode', () => {
         setProfileMode('preview');
         const el = document.getElementById('profile-mode-badge')!;
         expect(el.getAttribute('data-mode')).toBe('preview');
-        expect(el.textContent).toBe('Upload preview');
+        expect(el.textContent).toBe('Not loaded yet');
+        expect(document.getElementById('upload-preview-heading')?.textContent).toBe('Incoming file preview');
     });
 
     it('toggles between modes', () => {
@@ -372,7 +375,7 @@ describe('setProfileMode', () => {
         setProfileMode('dataset');
         const el = document.getElementById('profile-mode-badge')!;
         expect(el.getAttribute('data-mode')).toBe('dataset');
-        expect(el.textContent).toBe('Current dataset');
+        expect(el.textContent).toBe('Active dataset');
     });
 
     it('is a no-op when element is missing', () => {

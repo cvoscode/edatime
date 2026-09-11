@@ -30,7 +30,7 @@ import { initCausalHelp } from './help.js';
 import { openEditPanel, bindEditPanelEvents } from './editPanel.js';
 import { handleExport } from './export.js';
 import { initCausalComparison } from './causalComparison.js';
-import { applyMethodControlState, toggleAddEdgeMode, cancelAddEdgeMode, handleComputeClick, syncCausalGraphActionState } from './workflow.js';
+import { applyMethodControlState, toggleAddEdgeMode, cancelAddEdgeMode, cancelCausalCompute, handleComputeClick, syncCausalGraphActionState, syncCausalParameterSummary } from './workflow.js';
 import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
 import { bindInfoPopovers } from '../../ui/infoPopovers.js';
 import { onFeatureEvent } from '../../platform/featureEvents.js';
@@ -71,6 +71,7 @@ export function initCausalPage(deps: CausalDeps): () => void {
     const maxCondsInput = document.getElementById('causal-max-conds') as HTMLInputElement | null;
     const fdrSelect = document.getElementById('causal-fdr-select') as HTMLElement | null;
     const computeBtn = document.getElementById('causal-compute-btn') as HTMLButtonElement | null;
+    const cancelComputeBtn = document.getElementById('causal-cancel-btn') as HTMLButtonElement | null;
     const columnsBar = document.getElementById('causal-columns-bar') as HTMLElement | null;
     const addEdgeBtn = document.getElementById('causal-add-edge-btn') as HTMLButtonElement | null;
     const exportBtn = document.getElementById('causal-export-btn') as HTMLButtonElement | null;
@@ -93,6 +94,7 @@ export function initCausalPage(deps: CausalDeps): () => void {
         syncCausalGraphActionState(false);
         scheduleCausalChartRefresh(6, (rendered) => {
             syncCausalGraphActionState(rendered && _currentLinks.length > 0 && _currentColumns.length >= 2);
+            syncCausalEmptyState(_selectedColumns.size, rendered && _currentColumns.length >= 2);
         });
     };
     scheduleGraphRefresh();
@@ -109,6 +111,10 @@ export function initCausalPage(deps: CausalDeps): () => void {
     listenerController.signal.addEventListener('abort', unsubscribePreselect, { once: true });
 
     methodSelect?.addEventListener('change', () => applyMethodControlState(getDropdownValue('causal-method-select') || 'pcmci'), listenerOptions);
+    for (const control of [testSelect, tauInput, alphaInput, maxCondsInput, fdrSelect, document.getElementById('causal-pc-alpha')]) {
+        control?.addEventListener('input', syncCausalParameterSummary, listenerOptions);
+        control?.addEventListener('change', syncCausalParameterSummary, listenerOptions);
+    }
 
     addEdgeBtn?.addEventListener('click', () => {
         toggleAddEdgeMode(addEdgeBtn);
@@ -138,9 +144,10 @@ export function initCausalPage(deps: CausalDeps): () => void {
             maxCondsInput,
             testSelect,
             fdrSelect,
-            () => syncCausalEmptyState(_selectedColumns.size),
+            undefined,
         );
     }, listenerOptions);
+    cancelComputeBtn?.addEventListener('click', cancelCausalCompute, listenerOptions);
 
     const unsubscribeNavigation = onNavigationChange((change) => {
         if (change.page === 'causal' && workspaceMetadata(deps)) {

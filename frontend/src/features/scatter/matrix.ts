@@ -2,7 +2,7 @@
  * Scatter matrix view: pairwise grid with mini scatter canvases and diagonal distributions.
  */
 
-import { fetchScatterMatrix, fetchFft } from '../../services/api/index.js';
+import { fetchScatterMatrix } from '../../services/api/index.js';
 import {
     getEl,
     fmt,
@@ -95,12 +95,13 @@ function buildMatrixBatchCacheKey(
     return JSON.stringify({
         pairs,
         colorColumn: colorColumn || '',
+        timeColorMode: context.timeColorMode || 'bucket',
         context: buildOverviewContextKey(context),
         limit: MATRIX_POINT_LIMIT,
     });
 }
 
-async function fetchMatrixBatchData(
+export async function fetchMatrixBatchData(
     pairs: [string, string][],
     context: ReturnType<typeof buildScatterQueryContext>,
     colorColumn: string,
@@ -143,13 +144,13 @@ async function fetchMatrixBatchData(
 export async function selectMatrixPair(
     x: string,
     y: string,
-    refreshCorrelations: () => Promise<void>,
+    refreshCorrelations: (preferredY?: string) => Promise<void>,
     renderScatter: () => Promise<void>,
     setScatterView: (view: string, opts?: { render?: boolean }) => Promise<void>,
 ): Promise<void> {
     if (!getEl('scatter-x-col') || !getEl('scatter-y-col')) return;
     setDropdownValue('scatter-x-col', x);
-    await refreshCorrelations();
+    await refreshCorrelations(y);
     setDropdownValue('scatter-y-col', y);
     await setScatterView('plot', { render: false });
     await renderScatter();
@@ -275,146 +276,8 @@ export async function renderScatterMatrixView(
     session: MatrixRenderSession = createMatrixRenderSession(),
 ): Promise<void> {
     await renderScatterOverview(onCellClick, intent, session);
-    requestAnimationFrame(() => {
-        void renderMatrixFftPanel(intent, session.currentSignal());
-    });
 }
 
 /* ── Matrix FFT panel ─────────────────────────────────── */
-
-function drawMiniFftCanvas(canvas: HTMLCanvasElement, frequencies: number[], values: number[], label: string): void {
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    const w = Math.max(rect.width || 200, 60);
-    const h = Math.max(rect.height || 120, 60);
-    canvas.width = w * dpr;
-    canvas.height = h * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-    const pad = { left: 8, right: 8, top: 22, bottom: 8 };
-    const plotW = w - pad.left - pad.right;
-    const plotH = h - pad.top - pad.bottom;
-
-    // Log-transform for readability
-    const yVals = values.map((v) => (v > 0 ? Math.log10(v) : -10));
-    let yMin = Infinity, yMax = -Infinity, xMaxRaw = 0;
-    for (let i = 0; i < frequencies.length; i++) {
-        if (frequencies[i] > xMaxRaw) xMaxRaw = frequencies[i];
-        if (Number.isFinite(yVals[i])) {
-            if (yVals[i] < yMin) yMin = yVals[i];
-            if (yVals[i] > yMax) yMax = yVals[i];
-        }
-    }
-    if (!Number.isFinite(yMin)) yMin = 0;
-    if (!Number.isFinite(yMax)) yMax = 1;
-    if (yMax <= yMin) yMax = yMin + 1;
-
-    // Auto-scale x axis
-    let xScale = 1;
-    if (xMaxRaw > 0 && xMaxRaw < 0.001) xScale = 1e6;
-    else if (xMaxRaw > 0 && xMaxRaw < 1) xScale = 1000;
-    else if (xMaxRaw >= 1000) xScale = 0.001;
-    const xMax = Math.max(xMaxRaw * xScale, 1e-12);
-
-    ctx.fillStyle = 'rgba(14, 18, 32, 0.95)';
-    ctx.fillRect(0, 0, w, h);
-
-    // Column label
-    ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    ctx.font = `bold 11px Inter, system-ui, sans-serif`;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillText(label, pad.left, 6);
-
-    // Data line
-    ctx.strokeStyle = '#7ad151';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    let started = false;
-    for (let i = 0; i < frequencies.length; i++) {
-        if (!Number.isFinite(yVals[i])) continue;
-        const px = pad.left + ((frequencies[i] * xScale) / xMax) * plotW;
-        const py = pad.top + plotH - ((yVals[i] - yMin) / (yMax - yMin)) * plotH;
-        if (!started) { ctx.moveTo(px, py); started = true; } else ctx.lineTo(px, py);
-    }
-    ctx.stroke();
-
-    // Border
-    ctx.strokeStyle = 'rgba(54, 63, 98, 0.7)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
-}
-
-export async function renderMatrixFftPanel(intent?: ScatterIntent, signal: AbortSignal = new AbortController().signal): Promise<void> {
-    const panel = getEl('scatter-matrix-fft-panel');
-    const chartsContainer = getEl('scatter-matrix-fft-charts');
-    if (!panel || !chartsContainer) return;
-
-    const controls = currentControls();
-    const context = buildScatterQueryContext({
-        x: controls.x,
-        y: controls.y,
-        colorColumn: controls.selectedColorColumn,
-    }, intent);
-    if (!context.start || !context.end) {
-        (panel as HTMLElement).hidden = true;
-        return;
-    }
-
-    const columns = buildOverviewColumns();
-    if (columns.length < 1) { (panel as HTMLElement).hidden = true; return; }
-
-    (panel as HTMLElement).hidden = false;
-    setPanelStatus('scatter-matrix-fft-status', 'Computing FFT…');
-
-    try {
-        const startIso = new Date(context.start).toISOString();
-        const endIso = new Date(context.end).toISOString();
-        const resp = await fetchFft(startIso, endIso, columns.join(','), 4096, { signal });
-
-        chartsContainer.innerHTML = '';
-        for (const result of resp.results || []) {
-            const card = document.createElement('div');
-            card.className = 'scatter-matrix-fft-card';
-            const canvas = document.createElement('canvas');
-            canvas.className = 'scatter-matrix-fft-canvas';
-            canvas.style.width = '100%';
-            canvas.style.height = '120px';
-            card.appendChild(canvas);
-            chartsContainer.appendChild(card);
-
-            // Navigate to FFT page and compute for this column on click
-            const colName = result.column;
-            card.title = `Open FFT page for ${colName}`;
-            card.style.cursor = 'pointer';
-            card.addEventListener('click', () => {
-                const navBtn = document.querySelector('.sidebar .nav-item[data-page="fft"]') as HTMLElement | null;
-                navBtn?.click();
-                // Activate the column chip on the FFT page after navigation
-                requestAnimationFrame(() => {
-                    const chip = document.querySelector<HTMLElement>(`.fft-trace-chip[data-col="${colName}"]`);
-                    if (chip && !chip.classList.contains('active')) chip.click();
-                });
-            });
-
-            // Defer draw until canvas is in DOM and has layout
-            requestAnimationFrame(() => {
-                if (signal.aborted) return;
-                drawMiniFftCanvas(canvas, result.frequencies, result.magnitudes, result.column);
-            });
-        }
-
-        setPanelStatus('scatter-matrix-fft-status', `${resp.sample_count ?? 0} samples`);
-    } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') {
-            // Superseded matrix render — let the next render repopulate the panel.
-            return;
-        }
-        setPanelStatus('scatter-matrix-fft-status', 'FFT unavailable for current range.');
-        (panel as HTMLElement).hidden = true;
-    }
-}
 
 export { renderMatrixGrid } from './matrixGrid.js';

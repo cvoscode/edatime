@@ -2,6 +2,7 @@
 export { initHomePage } from './help.js';
 export { wireSampleDatasetCards } from './sampleDatasets.js';
 export { wireHomeNavigationCards } from './navigation.js';
+export { initHomeWorkspaceSummary } from './workspaceSummary.js';
 export {
     disableGuidedWorkflow,
     enableGuidedWorkflow,

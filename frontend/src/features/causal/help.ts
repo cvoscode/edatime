@@ -78,7 +78,7 @@ export const CAUSAL_HELP: PageHelpContent = {
         },
     ],
     shortcuts: [
-        { keys: '⌥9', description: 'Open the Causality page (this page)' },
+        { keys: '⌥7', description: 'Open the Causality page (this page)' },
         { keys: '⌥2', description: 'Open the Signals page — pick your columns there first' },
         { keys: '?', description: 'Show the global keyboard shortcuts modal' },
         { keys: 'Ctrl+K', description: 'Command palette — every action above is searchable here' },

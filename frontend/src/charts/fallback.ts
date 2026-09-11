@@ -16,7 +16,7 @@ import type { AdaptiveLineFilter, ColumnRange } from '../types/store.js';
 import { formatTimestamp } from '../formatUtils.js';
 import { downloadBlob, downloadUrl } from '../utils/dom.js';
 
-const FALLBACK_GRID = { left: 28, right: 28, top: 28, bottom: 28 };
+const FALLBACK_GRID = { left: 96, right: 28, top: 28, bottom: 56 };
 
 function escapeHtml(value: string): string {
     return value.replace(/[&<>"']/g, (character) => ({
@@ -375,7 +375,9 @@ export class FallbackChart implements ChartInstance {
         const ctx = this.ctx;
         const width = this.canvas.width;
         const height = this.canvas.height;
-        const pad = FALLBACK_GRID.left;
+        const { left, right, top, bottom } = FALLBACK_GRID;
+        const plotWidth = Math.max(1, width - left - right);
+        const plotHeight = Math.max(1, height - top - bottom);
         const theme = getChartPalette();
 
         ctx.clearRect(0, 0, width, height);
@@ -385,7 +387,7 @@ export class FallbackChart implements ChartInstance {
         if (!dataObj) {
             ctx.fillStyle = theme.textDim;
             ctx.font = '12px sans-serif';
-            ctx.fillText('No data to display', pad, pad + 2);
+            ctx.fillText('No data to display', left, top + 2);
             return;
         }
 
@@ -442,7 +444,7 @@ export class FallbackChart implements ChartInstance {
         if (seriesToDraw.length === 0 || !hasFiniteDomain) {
             ctx.fillStyle = theme.textDim;
             ctx.font = '12px sans-serif';
-            ctx.fillText('No data to display', pad, pad + 2);
+            ctx.fillText('No data to display', left, top + 2);
             return;
         }
 
@@ -451,15 +453,15 @@ export class FallbackChart implements ChartInstance {
         const viewYMin = this.yMin ?? yMin;
         const viewYMax = this.yMax ?? yMax;
 
-        this.drawColumnRangeBands(ctx, width, height, pad, viewYMin, viewYMax);
+        this.drawColumnRangeBands(ctx, width, height, viewYMin, viewYMax);
 
         ctx.strokeStyle = theme.borderHi;
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(pad, height - pad);
-        ctx.lineTo(width - pad, height - pad);
-        ctx.moveTo(pad, pad);
-        ctx.lineTo(pad, height - pad);
+        ctx.moveTo(left, height - bottom);
+        ctx.lineTo(width - right, height - bottom);
+        ctx.moveTo(left, top);
+        ctx.lineTo(left, height - bottom);
         ctx.stroke();
 
         // Fallback axes intentionally carry their own labels. This keeps a
@@ -471,14 +473,23 @@ export class FallbackChart implements ChartInstance {
         ctx.font = '11px sans-serif';
         for (let i = 0; i <= 4; i++) {
             const x = viewXMin + xSpan * i / 4;
-            const px = pad + (i / 4) * (width - 2 * pad);
-            ctx.fillText(formatTimestamp(x, xSpan), Math.max(0, px - 30), height - 8);
+            const px = left + (i / 4) * plotWidth;
+            ctx.textAlign = i === 0 ? 'left' : i === 4 ? 'right' : 'center';
+            ctx.fillText(formatTimestamp(x, xSpan), px, height - bottom + 18);
             const y = viewYMin + ySpan * (4 - i) / 4;
-            const py = pad + (i / 4) * (height - 2 * pad);
-            ctx.fillText(y.toLocaleString(undefined, { maximumFractionDigits: 4 }), 2, py + 4);
+            const py = top + (i / 4) * plotHeight;
+            ctx.textAlign = 'right';
+            ctx.fillText(y.toLocaleString(undefined, { maximumFractionDigits: 4 }), left - 8, py + 4);
         }
-        ctx.fillText(`${this.chartText.xLabel} · ${Intl.DateTimeFormat().resolvedOptions().timeZone}`, Math.max(pad, width / 2 - 100), height - 2);
-        if (this.chartText.title) ctx.fillText(this.chartText.title, pad, 14);
+        ctx.textAlign = 'center';
+        ctx.fillText(this.chartText.xLabel, left + plotWidth / 2, height - 8);
+        ctx.save();
+        ctx.translate(14, top + plotHeight / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText(this.chartText.yLabel, 0, 0, plotHeight);
+        ctx.restore();
+        ctx.textAlign = 'left';
+        if (this.chartText.title) ctx.fillText(this.chartText.title, left, 14);
 
         for (let s = 0; s < seriesToDraw.length; s++) {
             const { col, xs, ys } = seriesToDraw[s];
@@ -496,8 +507,8 @@ export class FallbackChart implements ChartInstance {
                 }
                 if (x < viewXMin || x > viewXMax || y < viewYMin || y > viewYMax) continue;
 
-                const px = pad + ((x - viewXMin) / (viewXMax - viewXMin)) * (width - 2 * pad);
-                const py = height - pad - ((y - viewYMin) / (viewYMax - viewYMin)) * (height - 2 * pad);
+                const px = left + ((x - viewXMin) / (viewXMax - viewXMin)) * plotWidth;
+                const py = height - bottom - ((y - viewYMin) / (viewYMax - viewYMin)) * plotHeight;
 
                 if (!started) {
                     ctx.moveTo(px, py);
@@ -512,7 +523,7 @@ export class FallbackChart implements ChartInstance {
         const container = document.getElementById(this.containerId);
         if (container) {
             const mode = this.lastData?._meta?.downsampled === true ? 'rendered approximations' : 'raw observations';
-            container.setAttribute('aria-label', `Signals chart. ${this.chartText.xLabel} in ${Intl.DateTimeFormat().resolvedOptions().timeZone}; Y axis ${this.chartText.yLabel}. Hover or focus the point inspector for ${mode}.`);
+            container.setAttribute('aria-label', `Signals chart. X axis ${this.chartText.xLabel}; Y axis ${this.chartText.yLabel}. Hover or focus the point inspector for ${mode}.`);
         }
     }
 
@@ -520,19 +531,16 @@ export class FallbackChart implements ChartInstance {
         ctx: CanvasRenderingContext2D,
         width: number,
         height: number,
-        pad: number,
         yMin: number,
         yMax: number,
     ): void {
         if (!(yMax > yMin)) return;
-        const plotLeft = pad;
-        const plotRight = width - pad;
-        const plotTop = pad;
-        const plotBottom = height - pad;
+        const plotLeft = FALLBACK_GRID.left;
+        const plotRight = width - FALLBACK_GRID.right;
+        const plotTop = FALLBACK_GRID.top;
+        const plotBottom = height - FALLBACK_GRID.bottom;
         const plotHeight = plotBottom - plotTop;
-        // Fallback Y ticks are canvas text that begins at x=2. Leave enough
-        // room for their widest values before the annotation starts.
-        const bandLeft = plotLeft + 24;
+        const bandLeft = plotLeft + 8;
         const bandWidth = Math.max(1, plotRight - bandLeft);
 
         ctx.save();
@@ -556,7 +564,7 @@ export class FallbackChart implements ChartInstance {
             const label = `${column} [${from.toFixed(2)}, ${to.toFixed(2)}]`;
             const labelX = bandLeft + 6;
             const labelY = Math.max(plotTop + 11, Math.min(plotBottom - 11, bandTop + 12));
-            const labelWidth = ctx.measureText(label).width;
+            const labelWidth = Math.min(ctx.measureText(label).width, Math.max(1, Math.min(220, bandWidth - 12)));
 
             ctx.fillStyle = this.alphaColor(color, 0.12);
             ctx.fillRect(bandLeft, bandTop, bandWidth, bandHeight);
@@ -571,7 +579,7 @@ export class FallbackChart implements ChartInstance {
             ctx.lineWidth = 3;
             ctx.strokeText(label, labelX, labelY);
             ctx.fillStyle = color;
-            ctx.fillText(label, labelX, labelY);
+            ctx.fillText(label, labelX, labelY, labelWidth);
         }
         ctx.restore();
     }

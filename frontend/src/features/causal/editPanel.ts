@@ -301,7 +301,10 @@ export function bindEditPanelEvents(): () => void {
     _disposeEditPanelEvents?.();
     const controller = new AbortController();
     const listenerOptions = { signal: controller.signal };
-    document.getElementById('causal-edit-close')?.addEventListener('click', closeEditPanel, listenerOptions);
+    document.getElementById('causal-edit-close')?.addEventListener('click', (event) => {
+        event.stopPropagation();
+        closeEditPanel();
+    }, listenerOptions);
     document.getElementById('causal-edit-apply')?.addEventListener('click', applyEditPanel, listenerOptions);
     document.getElementById('causal-edit-delete')?.addEventListener('click', () => {
         const t = _editTarget;
@@ -318,6 +321,11 @@ export function bindEditPanelEvents(): () => void {
         hideCtxMenu();
     }, listenerOptions);
     document.addEventListener('click', hideCtxMenu, listenerOptions);
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        const panel = document.getElementById('causal-edit-panel') as HTMLElement | null;
+        if (panel && !panel.hidden) closeEditPanel();
+    }, listenerOptions);
     const dispose = () => {
         controller.abort();
         if (_disposeEditPanelEvents === dispose) _disposeEditPanelEvents = null;

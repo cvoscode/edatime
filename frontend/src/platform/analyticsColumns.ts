@@ -61,5 +61,10 @@ export function getEffectiveNumericColumns(metadata: DatasetMetadata | null, pla
  */
 export function getDefaultTimeseriesColumns(metadata: DatasetMetadata | null, plan?: CleaningPlan | null): string[] {
     const numeric = getEffectiveNumericColumns(metadata, plan);
-    return numeric;
+    if (numeric.length <= 3) return numeric;
+
+    const targetNames = new Set(['ot', 'target', 'y', 'label', 'output']);
+    const target = numeric.find((column) => targetNames.has(column.trim().toLowerCase()));
+    if (!target) return numeric.slice(0, 3);
+    return [...numeric.filter((column) => column !== target).slice(0, 2), target];
 }

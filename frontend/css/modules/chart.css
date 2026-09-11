@@ -17,7 +17,7 @@
 }
 
 .chart-xlabel-overlay {
-  bottom: 22px;
+  bottom: 2px;
   left: 50%;
   transform: translateX(-50%);
   color: var(--text-dim);
@@ -228,8 +228,8 @@
 
 .plot-empty-state strong {
   color: var(--text);
-  font-size: 0.95rem;
-  font-weight: 700;
+  font-size: 0.875rem;
+  font-weight: 500;
 }
 
 .plot-empty-state span {

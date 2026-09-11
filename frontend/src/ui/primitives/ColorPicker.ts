@@ -92,16 +92,22 @@ export function ColorPicker(props: ColorPickerProps): ColorPickerHandle {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'color-picker__swatch';
-    button.setAttribute('aria-label', props.label);
-    button.title = props.label;
     button.setAttribute('aria-haspopup', 'dialog');
     button.setAttribute('aria-expanded', 'false');
-    button.style.setProperty('--color-picker-current', props.value);
 
     const swatchPreview = document.createElement('span');
     swatchPreview.className = 'color-picker__swatch-fill';
-    swatchPreview.style.backgroundColor = props.value;
     button.appendChild(swatchPreview);
+
+    let currentValue = props.value;
+    const syncValue = (next: string) => {
+        currentValue = next;
+        swatchPreview.style.backgroundColor = next;
+        button.style.setProperty('--color-picker-current', next);
+        button.setAttribute('aria-label', `${props.label}, currently ${next}`);
+        button.title = `${props.label}, currently ${next}`;
+    };
+    syncValue(currentValue);
 
     const popoverId = `color-picker-popover-${Math.random().toString(36).slice(2, 9)}`;
     button.dataset.colorPickerId = popoverId;
@@ -129,15 +135,14 @@ export function ColorPicker(props: ColorPickerProps): ColorPickerHandle {
             presetBtn.style.setProperty('--color-picker-current', preset);
             presetBtn.setAttribute('aria-label', `Use color ${preset}`);
             presetBtn.dataset.color = preset;
-            if (preset.toLowerCase() === props.value.toLowerCase()) {
+            if (preset.toLowerCase() === currentValue.toLowerCase()) {
                 presetBtn.classList.add('is-active');
                 presetBtn.setAttribute('aria-pressed', 'true');
             }
             presetBtn.addEventListener('click', (event) => {
-                presetBtn.dispatchEvent(makeSyntheticInputEvent(props.value));
+                presetBtn.dispatchEvent(makeSyntheticInputEvent(preset));
                 props.onInput?.(preset, event);
-                swatchPreview.style.backgroundColor = preset;
-                button.style.setProperty('--color-picker-current', preset);
+                syncValue(preset);
             });
             const fill = document.createElement('span');
             fill.className = 'color-picker__preset-fill';
@@ -157,13 +162,12 @@ export function ColorPicker(props: ColorPickerProps): ColorPickerHandle {
         hexInput.spellcheck = false;
         hexInput.maxLength = 7;
         hexInput.className = 'color-picker__hex-input';
-        hexInput.value = props.value;
+        hexInput.value = currentValue;
         hexInput.setAttribute('aria-label', `${props.label} hex value`);
         hexInput.addEventListener('input', () => {
             const candidate = hexInput.value.trim();
             if (!isValidHex(candidate)) return;
-            swatchPreview.style.backgroundColor = candidate;
-            button.style.setProperty('--color-picker-current', candidate);
+            syncValue(candidate);
             props.onInput?.(candidate, new Event('input'));
         });
         hexLabel.appendChild(hexInput);
@@ -181,11 +185,10 @@ export function ColorPicker(props: ColorPickerProps): ColorPickerHandle {
         const nativeFallback = ColorInput({
             id: props.id ? `${props.id}-native` : undefined,
             label: props.label,
-            value: props.value,
+            value: currentValue,
             className: 'color-picker__native-input',
             onInput: (next, event) => {
-                swatchPreview.style.backgroundColor = next;
-                button.style.setProperty('--color-picker-current', next);
+                syncValue(next);
                 hexInput.value = next;
                 props.onInput?.(next, event);
             },
@@ -239,8 +242,7 @@ export function ColorPicker(props: ColorPickerProps): ColorPickerHandle {
         element: root,
         updateValue: (next: string) => {
             if (!isValidHex(next)) return;
-            swatchPreview.style.backgroundColor = next;
-            button.style.setProperty('--color-picker-current', next);
+            syncValue(next);
             const popover = button.ownerDocument?.querySelector<HTMLElement>(`.color-picker-popover[data-owner="${popoverId}"]`);
             if (popover) {
                 for (const btn of popover.querySelectorAll<HTMLButtonElement>('.color-picker__preset')) {

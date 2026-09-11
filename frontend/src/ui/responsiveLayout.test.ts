@@ -34,14 +34,14 @@ describe('responsive all-page layout contract', () => {
     });
 
     it('reserves useful phone result regions on dense analysis pages', () => {
-        expect(scatterCss).toMatch(/#page-scatter\s*>\s*\.scatter-view[^}]*min-height:\s*300px/s);
+        expect(scatterCss).toMatch(/#heatmap-pair-plot\s*>\s*\.scatter-view[^}]*min-height:\s*300px/s);
         expect(driftCss).toMatch(/#page-drift\s*>\s*\.main--chart[^}]*min-height:\s*300px/s);
         expect(driftCss).toMatch(/#page-causal\s*>\s*\.main[^}]*min-height:\s*300px/s);
     });
 
     it('keeps the ETTm2 reference pages internally scrollable instead of widening the app shell', () => {
         expect(scatterCss).toMatch(/\.heatmap-shell\s*\{[^}]*overflow-x:\s*auto/s);
-        expect(scatterCss).toMatch(/#page-scatter\s*\{[^}]*overflow-y:\s*auto/s);
+        expect(scatterCss).toMatch(/#heatmap-pair-plot\s*\{[^}]*overflow-y:\s*auto/s);
         expect(driftCss).toMatch(/#page-drift\s*\{[^}]*overflow-y:\s*auto/s);
     });
 });

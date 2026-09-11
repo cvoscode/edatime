@@ -28,9 +28,12 @@ export function setUploadPreviewStatus(text: string, kind = ''): void {
 
 export function setProfileMode(mode: 'dataset' | 'preview'): void {
     const badge = document.getElementById('profile-mode-badge');
-    if (!badge) return;
-    badge.setAttribute('data-mode', mode);
-    badge.textContent = mode === 'preview' ? 'Upload preview' : 'Current dataset';
+    const heading = document.getElementById('upload-preview-heading');
+    if (badge) {
+        badge.setAttribute('data-mode', mode);
+        badge.textContent = mode === 'preview' ? 'Not loaded yet' : 'Active dataset';
+    }
+    if (heading) heading.textContent = mode === 'preview' ? 'Incoming file preview' : 'Current dataset profile';
 }
 
 // ── Preview lifecycle ───────────────────────────────────────────────────────

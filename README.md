@@ -223,9 +223,9 @@ The toolbar export menu supports:
 
 ---
 
-### Scatter analysis — the Scatter page
+### Pair analysis — the Correlations page
 
-Navigate via the sidebar (**S**) or press `Alt+3`.
+Navigate via the sidebar or press `Alt+4`, then open the Pair plot view.
 
 - The page opens with **correlation suggestions** — pairs of columns ranked by how strongly they correlate, to help you pick a useful X/Y combination.
 - Select an **X column** and **Y column** from the dropdowns (or pick a suggested pair).
@@ -244,13 +244,13 @@ Navigate via the sidebar (**S**) or press `Alt+3`.
 | Shortcut | Action |
 |---|---|
 | `Alt+1` | Go to Upload page |
-| `Alt+2` | Go to Timeseries page |
-| `Alt+3` | Go to Scatter page |
-| `Alt+6` | Go to FFT / PSD page |
-| `Alt+7` | Go to Correlations page |
-| `Alt+8` | Go to Spectrogram page |
-| `Alt+9` | Go to Causal Graph page |
-| `Alt+0` | Go to Drift Analysis page |
+| `Alt+2` | Go to Signals page |
+| `Alt+3` | Go to Preparation page |
+| `Alt+4` | Go to Correlations page |
+| `Alt+5` | Go to Spectrum page |
+| `Alt+6` | Go to Time-frequency page |
+| `Alt+7` | Go to Causality page |
+| `Alt+8` | Go to Drift page |
 | `Shift+R` | Reset chart zoom to full dataset view |
 | `Ctrl+click` chip | Set series as adaptive filter target |
 | `Ctrl+click` chart ×2 | Draw an adaptive filter segment |

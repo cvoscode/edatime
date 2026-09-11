@@ -29,8 +29,27 @@ export interface FlexibleNumberInputController {
     destroy(): void;
 }
 
+export interface FlexibleNumberInputBounds {
+    min?: number | null;
+    max?: number | null;
+    step?: number | 'any' | null;
+}
+
 const FLEXIBLE_SELECTOR = 'input.flexible-number, input.modal-input[type="number"], input[type="number"].ctrl-sm';
 const WARNING_CLASS = 'is-clamped';
+
+/** Update the soft constraints used by an upgraded number input at runtime. */
+export function setFlexibleNumberInputBounds(
+    input: HTMLInputElement,
+    bounds: FlexibleNumberInputBounds,
+): void {
+    if (bounds.min !== undefined) input.dataset.flexMin = bounds.min === null ? '' : String(bounds.min);
+    if (bounds.max !== undefined) input.dataset.flexMax = bounds.max === null ? '' : String(bounds.max);
+    if (bounds.step !== undefined) input.dataset.flexStep = bounds.step === null ? '' : String(bounds.step);
+    input.removeAttribute('min');
+    input.removeAttribute('max');
+    if (bounds.step !== undefined) input.step = bounds.step === null ? 'any' : String(bounds.step);
+}
 
 function readNumericBounds(input: HTMLInputElement): { min: number | null; max: number | null; step: number | null } {
     // Read bounds from the preserved dataset (set when the input was upgraded

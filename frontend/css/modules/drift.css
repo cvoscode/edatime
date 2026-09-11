@@ -803,12 +803,17 @@
 
 .drift-detail-header-row {
   display: grid;
-  grid-template-columns: minmax(210px, 1fr) auto auto 150px;
+  grid-template-columns: minmax(210px, 1fr) minmax(300px, auto);
   align-items: center;
   gap: 12px;
   min-height: 54px;
   padding: 8px 12px;
   border-bottom: 1px solid var(--border-subtle);
+}
+
+.drift-evidence-controls {
+  display: grid;
+  gap: 8px;
 }
 
 .drift-view-field--detail {

@@ -22,9 +22,9 @@ describe('fft layout shell', () => {
         expect(indexHtml).not.toContain('fft-export-csv-btn-fallback');
     });
 
-    it('provides compute actions in both the toolbar and empty state', () => {
+    it('provides one stable compute action in the toolbar', () => {
         expect(indexHtml).toContain('id="fft-compute-btn"');
-        expect(indexHtml).toContain('id="fft-empty-compute-btn"');
+        expect(indexHtml).not.toContain('id="fft-empty-compute-btn"');
     });
 
     it('reserves a sampling badge element for the FFT page', () => {

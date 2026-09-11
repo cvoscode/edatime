@@ -25,6 +25,13 @@ export const fmt = new Intl.NumberFormat(undefined);
 
 export { escapeHtml, downloadUrl, downloadBlob, getEl };
 
+/** Whether the embedded Pair plot and its owning correlation page are visible. */
+export function isScatterSurfaceVisible(): boolean {
+    const surface = document.getElementById('heatmap-pair-plot');
+    const page = surface?.closest<HTMLElement>('.page');
+    return Boolean(surface && !surface.hidden && !page?.hidden);
+}
+
 export function showError(message: string | null): void {
     const el = getEl('scatter-error');
     if (!el) return;
@@ -435,16 +442,27 @@ export function computeValueBounds(seriesList: DistributionSeries[]): { min: num
     return { min, max };
 }
 
-export function drawDistributionCanvas(canvas: HTMLCanvasElement, mode: string, seriesList: DistributionSeries[]): void {
+export function drawDistributionCanvas(
+    canvas: HTMLCanvasElement,
+    mode: string,
+    seriesList: DistributionSeries[],
+    options: { background?: string; showEmptyLabel?: boolean } = {},
+): void {
     const frame = getCanvasFrame(canvas, 320, 120);
     if (!frame) return;
     const { ctx, width, height } = frame;
+    if (options.background) {
+        ctx.fillStyle = options.background;
+        ctx.fillRect(0, 0, width, height);
+    }
     const usableSeries = (seriesList || []).filter((s) => Array.isArray(s?.values) && s.values.length > 0);
     if (usableSeries.length === 0) {
-        ctx.fillStyle = 'rgba(122, 134, 164, 0.7)';
-        ctx.font = '12px Inter, system-ui, sans-serif';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText('No distribution', width / 2, height / 2);
+        if (options.showEmptyLabel !== false) {
+            ctx.fillStyle = 'rgba(122, 134, 164, 0.7)';
+            ctx.font = '12px Inter, system-ui, sans-serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText('No distribution', width / 2, height / 2);
+        }
         return;
     }
     ctx.strokeStyle = 'rgba(54, 63, 98, 0.7)'; ctx.lineWidth = 1;
@@ -517,6 +535,39 @@ export function drawMiniScatterCanvas(canvas: HTMLCanvasElement, points: [number
     const colorLabels = Array.isArray(config.colorLabels) ? config.colorLabels : null;
     const colorScale = config.colorScale || 'viridis';
     const categoryColors = config.categoryColors instanceof Map ? config.categoryColors : null;
+    if (config.background) {
+        ctx.fillStyle = config.background;
+        ctx.fillRect(0, 0, width, height);
+    }
+
+    const drawBadge = () => {
+        const badge = config.badge;
+        if (!badge?.text) return;
+        const text = String(badge.text);
+        const fontSize = Math.max(11, Math.min(14, Math.round(width * 0.11)));
+        const padX = 4;
+        const padY = 2;
+        const badgeWidth = Math.ceil(text.length * fontSize * 0.62) + padX * 2;
+        const badgeHeight = fontSize + padY * 2;
+        const badgeX = Math.max(2, width - badgeWidth - 3);
+        const badgeY = 3;
+        ctx.save();
+        ctx.fillStyle = badge.background || (badge.color === '#15202B'
+            ? 'rgba(255,255,255,0.86)'
+            : 'rgba(8,12,20,0.78)');
+        ctx.fillRect(badgeX, badgeY, badgeWidth, badgeHeight);
+        ctx.strokeStyle = badge.border || (badge.color === '#15202B'
+            ? 'rgba(21,32,43,0.28)'
+            : 'rgba(255,255,255,0.34)');
+        ctx.lineWidth = 1;
+        ctx.strokeRect(badgeX + 0.5, badgeY + 0.5, badgeWidth - 1, badgeHeight - 1);
+        ctx.font = `700 ${fontSize}px Inter, system-ui, sans-serif`;
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = badge.color || '#ffffff';
+        ctx.fillText(text, width - 3 - padX, badgeY + padY);
+        ctx.restore();
+    };
 
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (const p of points) {
@@ -526,8 +577,11 @@ export function drawMiniScatterCanvas(canvas: HTMLCanvasElement, points: [number
         if (y < minY) minY = y; if (y > maxY) maxY = y;
     }
     if (!Number.isFinite(minX) || !Number.isFinite(maxX) || !Number.isFinite(minY) || !Number.isFinite(maxY)) {
-        ctx.fillStyle = 'rgba(122, 134, 164, 0.7)'; ctx.font = '12px Inter, system-ui, sans-serif';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('No points', width / 2, height / 2);
+        if (config.showEmptyLabel !== false) {
+            ctx.fillStyle = 'rgba(122, 134, 164, 0.7)'; ctx.font = '12px Inter, system-ui, sans-serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('No points', width / 2, height / 2);
+        }
+        drawBadge();
         return;
     }
     const pad = 8;
@@ -537,7 +591,7 @@ export function drawMiniScatterCanvas(canvas: HTMLCanvasElement, points: [number
     ctx.strokeStyle = 'rgba(54, 63, 98, 0.7)'; ctx.lineWidth = 1; ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
     const palette = paletteForScale(colorScale);
     const colorExtent = computeColorExtent(colorValues);
-    ctx.globalAlpha = 0.45;
+    ctx.globalAlpha = Number.isFinite(config.pointAlpha) ? config.pointAlpha : 0.45;
     for (let i = 0; i < points.length; i += stride) {
         const x = Number(points[i]?.[0]); const y = Number(points[i]?.[1]);
         if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
@@ -550,9 +604,10 @@ export function drawMiniScatterCanvas(canvas: HTMLCanvasElement, points: [number
             const v = Number(colorValues[i]);
             if (Number.isFinite(v)) fill = sampleGradient(palette, (v - colorExtent.min) / (colorExtent.max - colorExtent.min));
         }
-        ctx.fillStyle = fill; ctx.beginPath(); ctx.arc(px, py, 1.5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = fill; ctx.beginPath(); ctx.arc(px, py, config.pointRadius || 1.5, 0, Math.PI * 2); ctx.fill();
     }
     ctx.globalAlpha = 1;
+    drawBadge();
 }
 
 /**

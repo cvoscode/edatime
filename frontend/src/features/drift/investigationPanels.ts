@@ -24,15 +24,34 @@ function escapeHtml(value: string): string {
     })[character] ?? character);
 }
 
-function renderFeatureRankCards(ranks: DriftFeatureRank[]): string {
-    return ranks.map((rank) => `
+function latestFeatureMetrics(response: DriftResponse | undefined): { peakPsi: number | null; peakWasserstein: number | null } {
+    if (!response || response.windows.length === 0) return { peakPsi: null, peakWasserstein: null };
+    return {
+        peakPsi: Math.max(...response.windows.map((window) => window.psi).filter(Number.isFinite)),
+        peakWasserstein: Math.max(...response.windows.map((window) => window.wasserstein).filter(Number.isFinite)),
+    };
+}
+
+function formatMetric(value: number | null): string {
+    return value !== null && Number.isFinite(value) ? value.toFixed(3) : '—';
+}
+
+function renderFeatureRankCards(ranks: DriftFeatureRank[], columns: Record<string, DriftResponse>): string {
+    const ranked = ranks
+        .map((rank) => ({ rank, metrics: latestFeatureMetrics(columns[rank.column]) }))
+        .sort((left, right) => right.rank.driftScore - left.rank.driftScore
+            || (right.metrics.peakPsi ?? -Infinity) - (left.metrics.peakPsi ?? -Infinity)
+            || left.rank.column.localeCompare(right.rank.column));
+    return ranked.map(({ rank, metrics }, index) => `
         <article class="drift-column-card">
             <div class="drift-column-card__header">
-                <strong>${escapeHtml(rank.column)}</strong>
+                <strong>#${index + 1} · ${escapeHtml(rank.column)}</strong>
                 <span class="drift-column-card__level drift-${rank.latestLevel}">${rank.latestLevel.toUpperCase()}</span>
             </div>
             <div class="drift-column-card__body">
                 <div>Score: ${rank.driftScore}</div>
+                <div>Peak PSI: ${formatMetric(metrics.peakPsi)}</div>
+                <div>Peak Wasserstein: ${formatMetric(metrics.peakWasserstein)}</div>
                 <div>Flagged windows: ${rank.flaggedWindows}</div>
                 <div>First change: ${rank.firstChangePoint || 'None'}</div>
             </div>
@@ -53,7 +72,8 @@ function renderQualityColumnCards(columns: DriftResponse[]): string {
             || response.windows.some((window) => window.low_sample_warning);
     });
     if (flagged.length === 0) return '';
-    return flagged.map((response) => {
+    const groups = new Map<string, { columns: string[]; warnings: string[] }>();
+    for (const response of flagged) {
         const metadata = response.metadata;
         const sampleSize = metadata?.avg_window_samples ?? 0;
         const referenceSamples = metadata?.reference_samples ?? 0;
@@ -69,11 +89,20 @@ function renderQualityColumnCards(columns: DriftResponse[]): string {
         if (lowSampleWindows > 0) {
             warnings.push(`${lowSampleWindows} window(s) had fewer than 5 samples — drift metrics were zeroed.`);
         }
+        const key = warnings.join('\u0000');
+        const group = groups.get(key);
+        if (group) group.columns.push(response.column);
+        else groups.set(key, { columns: [response.column], warnings });
+    }
+    return Array.from(groups.values()).map((group) => {
+        const shared = group.columns.length > 1;
+        const title = shared ? `All ${group.columns.length} columns` : group.columns[0]!;
         return `
             <article class="drift-column-card">
-                <div class="drift-column-card__header"><strong>${escapeHtml(response.column)}</strong><span class="drift-column-card__level drift-amber">${warnings.length} warning${warnings.length === 1 ? '' : 's'}</span></div>
+                <div class="drift-column-card__header"><strong>${escapeHtml(title)}</strong><span class="drift-column-card__level drift-amber">${group.warnings.length} ${shared ? 'shared ' : ''}warning${group.warnings.length === 1 ? '' : 's'}</span></div>
                 <div class="drift-column-card__body">
-                    ${warnings.map((warning) => `<div>${escapeHtml(warning)}</div>`).join('')}
+                    ${shared ? `<div class="drift-reliability-columns">${group.columns.map(escapeHtml).join(', ')}</div>` : ''}
+                    ${group.warnings.map((warning) => `<div>${escapeHtml(warning)}</div>`).join('')}
                 </div>
             </article>
         `;
@@ -115,16 +144,22 @@ export function buildDriftInvestigationPanelHtml(
         </div>
         <h3 class="drift-investigation-subhead">Top features</h3>
         <div class="drift-investigation-grid">
-            ${renderFeatureRankCards(investigation.rankings.features)}
+            ${renderFeatureRankCards(investigation.rankings.features, investigation.columns ?? {})}
         </div>
         <h3 class="drift-investigation-subhead">Change points</h3>
         <div class="drift-investigation-grid">
-            ${renderSimpleList<DriftChangePointRank>(investigation.rankings.changePoints, (item) => `
+            ${renderSimpleList<DriftChangePointRank>(investigation.rankings.changePoints, (item) => {
+                const separator = item.label.indexOf(' - ');
+                const range = separator >= 0
+                    ? `<div><strong>Start:</strong> ${escapeHtml(item.label.slice(0, separator))}</div><div><strong>End:</strong> ${escapeHtml(item.label.slice(separator + 3))}</div>`
+                    : `<div><strong>Window:</strong> ${escapeHtml(item.label)}</div>`;
+                return `
                 <article class="drift-column-card">
-                    <div class="drift-column-card__header"><strong>${escapeHtml(item.column)}</strong><span>${escapeHtml(item.label)}</span></div>
-                    <div class="drift-column-card__body"><div>Change point: ${escapeHtml(item.isoTime)}</div><div>Reasons: ${item.triggerReasons.map((reason) => escapeHtml(reason)).join(', ') || 'none'}</div></div>
+                    <div class="drift-column-card__header"><strong>${escapeHtml(item.column)}</strong></div>
+                    <div class="drift-column-card__body">${range}<div>Change point: ${escapeHtml(item.isoTime)}</div><div>Reasons: ${item.triggerReasons.map((reason) => escapeHtml(reason)).join(', ') || 'none'}</div></div>
                 </article>
-            `, 'No change points detected.')}
+            `;
+            }, 'No change points detected.')}
         </div>
     `;
 

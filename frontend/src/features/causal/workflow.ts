@@ -20,6 +20,7 @@ import {
     setCurrentTauMax,
     isNumericColumn,
     ensureNodeMetadata,
+    uniqueCausalLinks,
     workspaceMetadata,
 } from './selectionState.js';
 import {
@@ -32,8 +33,54 @@ import {
 import { initChart, renderEChartsGraph } from './graphView.js';
 import type { CausalDeps } from './selectionState.js';
 import { getDropdownValueFromElement, setDropdownDisabledForElement } from '../../ui/primitives/Dropdown.js';
+import { markDataUpdated } from '../../ui/freshnessIndicator.js';
 
 export const METHOD_PC_STAGE = new Set(['pcmci', 'pcmciplus', 'lpcmci']);
+
+const TEST_LABELS: Readonly<Record<string, string>> = {
+    par_corr: 'ParCorr',
+    robust_parcorr: 'RobustParCorr',
+    cmi_knn: 'CMI-KNN',
+    gsquared: 'G-squared',
+    cmi_symb: 'CMI-Symb',
+};
+
+/** Build the compact, method-aware summary shown on the collapsed control. */
+export function buildCausalParameterSummary(input: {
+    method: string;
+    test: string;
+    tauMax: string;
+    alpha: string;
+    pcAlpha: string;
+    maxConds: string;
+    fdr: string;
+}): string {
+    const parts = [
+        TEST_LABELS[input.test] ?? input.test,
+        `tau ${input.tauMax || '3'}`,
+        `alpha ${input.alpha || '0.05'}`,
+    ];
+    if (METHOD_PC_STAGE.has(input.method)) {
+        parts.push(`PC alpha ${input.pcAlpha || '0.2'}`);
+        parts.push(`max conds ${input.maxConds || 'auto'}`);
+    }
+    parts.push(input.fdr === 'fdr_bh' ? 'BH FDR' : 'no FDR');
+    return parts.join(' · ');
+}
+
+export function syncCausalParameterSummary(): void {
+    const summary = document.getElementById('causal-parameters-summary');
+    if (!summary) return;
+    summary.textContent = buildCausalParameterSummary({
+        method: getDropdownValueFromElement(document.getElementById('causal-method-select')) || 'pcmci',
+        test: getDropdownValueFromElement(document.getElementById('causal-test-select')) || 'par_corr',
+        tauMax: (document.getElementById('causal-tau-max') as HTMLInputElement | null)?.value ?? '3',
+        alpha: (document.getElementById('causal-alpha') as HTMLInputElement | null)?.value ?? '0.05',
+        pcAlpha: (document.getElementById('causal-pc-alpha') as HTMLInputElement | null)?.value ?? '0.2',
+        maxConds: (document.getElementById('causal-max-conds') as HTMLInputElement | null)?.value ?? '',
+        fdr: getDropdownValueFromElement(document.getElementById('causal-fdr-select')) || 'none',
+    });
+}
 
 export function syncCausalGraphActionState(hasGraph: boolean): void {
     const addEdgeBtn = document.getElementById('causal-add-edge-btn') as HTMLButtonElement | null;
@@ -44,7 +91,7 @@ export function syncCausalGraphActionState(hasGraph: boolean): void {
     const syncAction = (button: HTMLButtonElement | null, enabledTitle: string) => {
         if (!button) return;
         button.disabled = !hasGraph;
-        button.title = hasGraph ? enabledTitle : 'Run Compute first';
+        button.title = hasGraph ? enabledTitle : 'Run discovery first';
     };
     syncAction(addEdgeBtn, 'Click two nodes to add an edge between them');
     syncAction(exportBtn, 'Export graph');
@@ -82,6 +129,7 @@ export function applyMethodControlState(method: string): void {
     const usesPcStage = METHOD_PC_STAGE.has(method);
     setControlEnabled(pcAlphaInput, usesPcStage, method.toUpperCase() + ' does not use PC alpha.');
     setControlEnabled(maxCondsInput, usesPcStage, method.toUpperCase() + ' does not use max conditioning sets.');
+    syncCausalParameterSummary();
 }
 
 // ─── Add-edge mode ────────────────────────────────────────────────────────────
@@ -157,25 +205,28 @@ export async function handleComputeClick(
         setProgress(100, methodLabel + ': complete');
         window.setTimeout(hideProgress, 800);
         const cols = [...resp.columns, ...manualOnly.filter((col) => !resp.columns.includes(col))];
+        const links = uniqueCausalLinks(resp.links);
         setCurrentColumns(cols);
-        setCurrentLinks(resp.links);
+        setCurrentLinks(links);
         setCurrentTauMax(resp.tau_max);
         for (const col of cols) ensureNodeMetadata(col, meta, deps);
         const chartReady = await initChart();
         const graphRendered = chartReady && renderEChartsGraph();
-        syncCausalGraphActionState(graphRendered && resp.links.length > 0 && cols.length >= 2);
+        syncCausalGraphActionState(graphRendered && links.length > 0 && cols.length >= 2);
         if (!graphRendered) {
-            showCausalGraphRenderFailure(cols.length, resp.links.length);
+            showCausalGraphRenderFailure(cols.length, links.length);
             setStatus(
-                `${methodLabel}: discovery returned ${cols.length} nodes and ${resp.links.length} links, but the graph could not be displayed. Resize or revisit the page and try again.`,
+                `${methodLabel}: discovery returned ${cols.length} nodes and ${links.length} links, but the graph could not be displayed. Resize or revisit the page and try again.`,
                 'error',
             );
             return;
         }
-        notifyCausalGraphUpdated(cols, resp.links);
+        syncCausalEmptyState(cols.length, true);
+        notifyCausalGraphUpdated(cols, links);
+        markDataUpdated();
         emitFeatureEvent('workflow:refresh', undefined);
         onComplete?.();
-        setStatus(`${methodLabel}: graph updated with ${cols.length} nodes and ${resp.links.length} links.`, 'success');
+        setStatus(`${methodLabel}: graph updated with ${cols.length} nodes and ${links.length} links.`, 'success');
     } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
             // Superseded by a newer compute run; the newer run owns status UI.
@@ -201,6 +252,15 @@ let causalComputeController: AbortController | null = null;
 export function disposeCausalCompute(): void {
     if (causalComputeController) causalComputeController.abort();
     causalComputeController = null;
+}
+
+/** Cancel the active request from the visible compute overlay. */
+export function cancelCausalCompute(): void {
+    if (!causalComputeController) return;
+    causalComputeController.abort();
+    causalComputeController = null;
+    hideProgress();
+    setStatus('Causal discovery canceled.');
 }
 
 /** Test-only alias for resetting the Causal compute request state. */

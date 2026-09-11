@@ -920,34 +920,30 @@ pub async fn get_metadata(
 ) -> Result<Json<DatasetMetadata>, AppError> {
     let version = state.current_dataset_version()?;
     let display_name = state.time_column_display_name_sync();
-    let metadata_key = format!(
-        "{}:{}",
-        version.dataset_fingerprint,
-        display_name.as_deref().unwrap_or("")
-    );
+    let metadata_key = immediate_metadata_cache_key(&version, display_name.as_deref());
     if let Some(cached) = state.cached_immediate_metadata(&metadata_key) {
         let metadata = serde_json::from_value(cached)
             .map_err(|error| AppError::internal(format!("Decode cached metadata: {error}")))?;
         return Ok(Json(metadata));
     }
-    // Capture state handles for the admitted worker.
-    let repo = state.repository.clone();
+    // Resolve the immutable source before yielding to the admitted worker.
+    // The active repository may be replaced by another upload while metadata
+    // is being computed, but this response must remain internally consistent.
+    let source = state.dataset_snapshot_for_version(&version.id)?;
+    let worker_display_name = display_name.clone();
 
     let metadata = state
         .query_executor
         .run_interactive(edatime_core::metrics::CpuStage::Query, move || {
-            let lf = repo.snapshot();
-            let time_col_display = repo.time_column_display_name_sync();
-            let mut metadata = build_immediate_dataset_metadata_from_lazyframe(lf, None)?;
-            apply_time_column_display_name(&mut metadata, time_col_display.as_deref());
+            let mut metadata = build_immediate_dataset_metadata_from_lazyframe(source, None)?;
+            apply_time_column_display_name(&mut metadata, worker_display_name.as_deref());
             Ok::<_, AppError>(metadata)
         })
         .await
         .map_err(AppError::from)??;
 
-    let revision = state.repository.revision();
     let mut metadata = metadata;
-    metadata.revision = revision;
+    metadata.revision = version.revision;
     metadata.source_version_id = Some(version.id);
     metadata.source_version_revision = Some(version.revision);
     metadata.root_source_version_id = Some(version.root_id);
@@ -957,6 +953,18 @@ pub async fn get_metadata(
     metadata.source_name = version.source_name;
     state.store_immediate_metadata(metadata_key, serde_json::to_value(&metadata)?);
     Ok(Json(metadata))
+}
+
+fn immediate_metadata_cache_key(
+    version: &DatasetVersionRecord,
+    display_name: Option<&str>,
+) -> String {
+    format!(
+        "{}:{}:{}",
+        version.id,
+        version.revision,
+        display_name.unwrap_or("")
+    )
 }
 
 fn profile_cache_key(version: &DatasetVersionRecord, algorithm_version: &str) -> String {
@@ -1275,6 +1283,56 @@ mod tests {
         assert_eq!(metadata.profile_status, "immediate");
         assert_eq!(metadata.time_quality, None);
         assert!(metadata.column_profiles.is_empty());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn immediate_metadata_cache_keeps_identical_upload_versions_distinct() {
+        let df = DataFrame::new(
+            2,
+            vec![
+                polars::prelude::Series::new(
+                    "ts".into(),
+                    vec![1_700_000_000_000_i64, 1_700_000_001_000],
+                )
+                .into(),
+                polars::prelude::Series::new("value".into(), vec![1.0_f64, 2.0]).into(),
+            ],
+        )
+        .expect("dataframe");
+        let mut config = AppConfig::default();
+        config.retention.max_resident_versions = 1;
+        let state = AppState::new(DataFrame::default(), config);
+
+        state
+            .replace_dataset(df.clone())
+            .await
+            .expect("first upload");
+        let first = get_metadata(State(state.clone()))
+            .await
+            .expect("first metadata")
+            .0;
+
+        state.replace_dataset(df).await.expect("second upload");
+        let second = get_metadata(State(state.clone()))
+            .await
+            .expect("second metadata")
+            .0;
+        let active = state.current_dataset_version().expect("active version");
+
+        assert_ne!(first.source_version_id, second.source_version_id);
+        assert_eq!(
+            second.source_version_id.as_deref(),
+            Some(active.id.as_str())
+        );
+        assert_eq!(second.source_version_revision, Some(active.revision));
+        assert!(state.dataset_snapshot_for_version(&active.id).is_ok());
+        assert!(
+            state
+                .dataset_snapshot_for_version(
+                    first.source_version_id.as_deref().expect("first source id")
+                )
+                .is_err()
+        );
     }
 
     #[test]

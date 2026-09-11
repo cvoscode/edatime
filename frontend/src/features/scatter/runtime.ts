@@ -253,7 +253,7 @@ export function initScatterPageRuntime(): ReturnType<typeof createAnalysisPageRu
     if (scatterRuntime) return scatterRuntime;
 
     scatterRuntime = createAnalysisPageRuntime({
-        page: 'scatter',
+        page: 'heatmap',
         emptyStateRootId: 'scatter-empty-state',
         statusElId: 'scatter-status',
         bindExportsOnInit: false,

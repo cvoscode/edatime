@@ -23,17 +23,17 @@ The app is organized as page-based workflows in the left sidebar.
 The app opens on the Home page by default. The main navigation lives in the left sidebar.
 
 - `Alt+1`: Upload
-- `Alt+2`: Timeseries
-- `Alt+3`: Scatter
-- `Alt+6`: FFT
-- `Alt+7`: Correlations
-- `Alt+8`: Spectrogram
-- `Alt+9`: Causal
-- `Alt+0`: Drift
+- `Alt+2`: Signals
+- `Alt+3`: Preparation
+- `Alt+4`: Correlations
+- `Alt+5`: Spectrum
+- `Alt+6`: Time-frequency
+- `Alt+7`: Causality
+- `Alt+8`: Drift
 
-The main workflow pages are `Upload`, `Prepare`, `Timeseries`, `Correlations`, and `Scatter`.
+The main workflow pages are `Upload`, `Preparation`, `Signals`, and `Correlations`.
 
-The advanced analysis group contains `FFT / PSD`, `Spectrogram`, `Causal Graph`, and `Drift Analysis`.
+The advanced analysis group contains `Spectrum`, `Time-frequency`, `Causality`, and `Drift`.
 
 The header shows the active dataset summary, including row count, numeric-series count, and the currently plotted primary series.
 

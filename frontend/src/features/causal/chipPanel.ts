@@ -3,7 +3,7 @@
  * Uses renderSeriesChipList; does not own chart state.
  */
 import { renderSeriesChipList } from '../../ui/index.js';
-import { syncCausalEmptyState } from './statusView.js';
+import { setStatus, syncCausalEmptyState } from './statusView.js';
 import {
     _chipColors,
     _selectedColumns,
@@ -62,12 +62,15 @@ export function renderColumnChips(
                 checked: active,
                 color: currentColor,
                 title: numericColumn
-                    ? `Toggle ${col} for causal discovery`
+                    ? `Include ${col} in causal discovery`
                     : `Toggle ${col} as a manual graph/meta node`,
                 onToggle: (checked) => {
                     if (!numericColumn) return;
                     if (checked) _selectedColumns.add(col);
-                    else _selectedColumns.delete(col);
+                    else if (selectedNumericCount() <= 2) {
+                        setStatus('Keep at least 2 numeric traces selected for causal discovery.', 'error');
+                        return;
+                    } else _selectedColumns.delete(col);
                     renderColumnChips(deps, columnsBar, openEditPanel);
                     syncCausalEmptyState(selectedNumericCount());
                 },
@@ -100,8 +103,11 @@ export function renderColumnChips(
         metaChip.className = 'series-chip fft-trace-chip causal-chip-nonnumeric';
         metaChip.dataset.col = item.name;
         metaChip.setAttribute('role', 'note');
-        metaChip.setAttribute('title', `${item.name} metadata column`);
-        metaChip.innerHTML = `<span class="chip-label">${item.name}</span>`;
+        metaChip.setAttribute('title', `${item.name} is metadata and is not used in numeric discovery`);
+        const label = document.createElement('span');
+        label.className = 'chip-label';
+        label.textContent = `${item.name} · metadata`;
+        metaChip.append(label);
         existing.replaceWith(metaChip);
     }
 }

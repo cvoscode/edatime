@@ -1,11 +1,10 @@
 /**
- * scatterHelp — page-level "?" help for the Scatter page.
+ * scatterHelp — help for the Pair plot embedded in Correlations.
  *
  * The Scatter page is the deep-dive view for a chosen pair of
  * numeric columns. It can render in two modes (Scatter / Density),
- * color points by an extra column, switch to a Matrix view for
- * pairwise screening, and propagate filters back to the Timeseries
- * page. The help modal covers all of that.
+ * color points by an extra column, and propagate filters back to the
+ * Timeseries page. The help modal covers all of that.
  *
  * Wired from `initScatterPage` so the help loads the first time the
  * user navigates to the page (lazy via `pageModules`).
@@ -16,16 +15,15 @@ import { initPageHelp, type PageHelpContent } from '../../ui/pageHelp.js';
 export const SCATTER_HELP: PageHelpContent = {
     pageName: 'Pair plot',
     intro:
-        'Deep-dive view for a chosen pair of numeric columns. Switch between Scatter (every point) and Density (binned heatmap), optionally color points by a third column, and use the linked filters to scope both axes.',
+        'Live detail view for the selected correlation-matrix cell. Switch between Scatter (every point) and Density (binned heatmap), optionally color points by a third column, and use linked filters to scope both axes.',
     sections: [
         {
             title: 'View toolbar',
             body:
-                'The first segment picks the X and Y columns and the page view mode.',
+                'The first segment picks the X and Y columns; changing either selection highlights the matching matrix cell.',
             bullets: [
                 'X axis / Y axis — pick any two numeric columns from the dropdowns; the page rerenders automatically',
-                'Plot — single pair view; choose Scatter or Density mode in the Display segment',
-                'Matrix — pairwise grid that pairs every numeric column with every other one; useful for screening',
+                'Select a matrix cell to update both axes at once, or use either dropdown directly',
             ],
         },
         {
@@ -77,9 +75,7 @@ export const SCATTER_HELP: PageHelpContent = {
         },
     ],
     shortcuts: [
-        { keys: '⌥3', description: 'Open the Pair plot (this page)' },
-        { keys: '⌥4', description: 'Open the Scatter matrix on Correlations' },
-        { keys: '⌥7', description: 'Open the Correlations page — useful for picking a pair' },
+        { keys: '⌥4', description: 'Open the combined Correlations page' },
         { keys: '?', description: 'Show the global keyboard shortcuts modal' },
         { keys: 'P', description: 'Export the chart as PNG' },
         { keys: 'E', description: 'Export the filtered points as CSV' },

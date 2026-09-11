@@ -18,7 +18,7 @@ function createDeps() {
 function renderPage(page = 'timeseries'): void {
     document.body.innerHTML = `
         <div class="page" data-page-name="timeseries" ${page === 'timeseries' ? '' : 'hidden'}></div>
-        <div class="page" data-page-name="scatter" ${page === 'scatter' ? '' : 'hidden'}></div>
+        <div class="page" data-page-name="heatmap" ${page === 'heatmap' ? '' : 'hidden'}></div>
         <button id="adaptive-clear-btn" type="button"></button>
         <button id="scatter-export-csv-btn" type="button"></button>
     `;

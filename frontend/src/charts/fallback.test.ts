@@ -113,6 +113,8 @@ describe('FallbackChart', () => {
                 clip: vi.fn(),
                 save: vi.fn(),
                 restore: vi.fn(),
+                translate: vi.fn(),
+                rotate: vi.fn(),
                 setLineDash: vi.fn(),
                 measureText: vi.fn((text: string) => ({ width: text.length * 7 })),
                 fillStyle: '',
@@ -169,8 +171,21 @@ describe('FallbackChart', () => {
 
             chart.updateDataMulti(data, ['HULL'], null, [], { HULL: { from: 5, to: 12 } });
 
-            expect(mockCtx.strokeRect).toHaveBeenCalledWith(52, expect.any(Number), expect.any(Number), expect.any(Number));
-            expect(mockCtx.strokeText).toHaveBeenCalledWith('HULL [5.00, 12.00]', 58, expect.any(Number));
+            expect(mockCtx.strokeRect).toHaveBeenCalledWith(104, expect.any(Number), expect.any(Number), expect.any(Number));
+            expect(mockCtx.strokeText).toHaveBeenCalledWith('HULL [5.00, 12.00]', 110, expect.any(Number));
+        });
+
+        it('renders and announces the configured axis labels', () => {
+            chart.setChartText('', 'Time (Europe/Berlin)', 'HULL (source units not provided)');
+            chart.updateDataMulti({
+                series: { HULL: { x: new Float64Array([1, 2]), y: new Float64Array([5, 7]) } },
+                colorByColumn: {},
+            }, ['HULL']);
+
+            expect(mockCtx.fillText).toHaveBeenCalledWith('Time (Europe/Berlin)', expect.any(Number), expect.any(Number));
+            expect(mockCtx.fillText).toHaveBeenCalledWith('HULL (source units not provided)', 0, 0, expect.any(Number));
+            expect(document.getElementById('chart-box')?.getAttribute('aria-label'))
+                .toContain('Y axis HULL (source units not provided)');
         });
 
         it('handles missing column gracefully', () => {

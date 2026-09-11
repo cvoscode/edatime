@@ -38,6 +38,7 @@ import { createSpectrogramChartController, type SpectrogramChartController } fro
 import { syncSpectrogramClipControls, syncSpectrogramClipLabel } from './spectrogramClipControls.js';
 import { onThemeChange } from '../../utils/theme.js';
 import { describeSpectrogramFailure } from './spectrogramFailure.js';
+import { markDataUpdated } from '../../ui/freshnessIndicator.js';
 
 interface SpectrogramPageDeps {
     setLoading: (btnId: string, overlayId: string, loading: boolean, label?: string) => void;
@@ -373,6 +374,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     await renderSpectrogramChart();
                     spectrogramRenderError = null;
                     syncSpectrogramEmptyState();
+                    markDataUpdated();
                 } catch (error: unknown) {
                     console.error('[edatime:spectrogram] generation failed', error);
                     spectrogramResult = null;
@@ -404,11 +406,12 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             // ── Column select population ───────────────────────────────────────
             const metadata = workspaceMetadata();
             if (metadata) {
+                const selectedSignal = workspaceSnapshot()?.selection.columns.find((column) => metadata.numeric_columns.includes(column));
                 setDropdownOptions('spectrogram-col-select', metadata.numeric_columns.map((column) => ({
                     value: column,
                     label: column,
                 })), {
-                    preferredValue: getDropdownValue('spectrogram-col-select'),
+                    preferredValue: getDropdownValue('spectrogram-col-select') || selectedSignal,
                 });
             }
             syncSpectrogramEmptyState();
@@ -479,7 +482,8 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     value: column,
                     label: column,
                 })), {
-                    preferredValue: getDropdownValue('spectrogram-col-select'),
+                    preferredValue: getDropdownValue('spectrogram-col-select')
+                        || workspaceSnapshot()?.selection.columns.find((column) => metadata.numeric_columns.includes(column)),
                 });
                 spectrogramChartController?.resizeWhenReady();
             }

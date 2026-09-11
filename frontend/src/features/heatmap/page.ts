@@ -29,11 +29,12 @@ import { buildHeatmapRenderOrder } from './orderingPolicy.js';
 import { buildHeatmapCellPresentation } from './cellPresentation.js';
 import { classifyHeatmapLoadError } from './loadErrorPolicy.js';
 import type { CleaningPlanStore } from '../../cleaning/store.js';
-import { requestScatterPair } from '../scatter/pairIntent.js';
 import { toast } from '../../utils/toast.js';
 
 interface HeatmapPageDeps {
     showPage: (pageName: string) => void;
+    /** Select a pair in the embedded Pair plot without leaving this page. */
+    selectPair?: (x: string, y: string) => void | Promise<void>;
     /** Optional so the page stays embeddable in isolated visual tests. */
     cleaningPlanStore?: Pick<CleaningPlanStore, 'getSnapshot' | 'addStage'>;
     onPlanChanged?: () => void;
@@ -48,7 +49,6 @@ let heatmapClusterEnabled = true;
 // load; users can still turn it off when they want slider-driven overflow.
 let heatmapFitToScreen = true;
 let heatmapAxisFit = false;
-let heatmapSuggestionsSorted = true;
 let heatmapOrderLocked = false;
 let lastRenderedOrder: string[] | null = null;
 const HEATMAP_FIT_STORAGE_KEY = 'edatime_heatmap_fit_to_screen';
@@ -162,11 +162,23 @@ function syncMetricGuide(): void {
 
 export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void> {
     disposeHeatmapPage();
+    const syncSelectedPair = (x: string, y: string): void => {
+        document.querySelectorAll<HTMLElement>('#heatmap-container .heatmap-cell').forEach((cell) => {
+            const selected = cell.dataset.rowName === x && cell.dataset.colName === y;
+            cell.classList.toggle('is-selected', selected);
+            cell.setAttribute('aria-selected', String(selected));
+        });
+    };
     const openScatterPair = (x: string, y: string): void => {
-        requestScatterPair(x, y);
+        syncSelectedPair(x, y);
+        if (deps.selectPair) {
+            void deps.selectPair(x, y);
+            return;
+        }
+        // Isolated embeds and tests can still synchronize the native controls
+        // without pulling in the complete Pair plot runtime.
         setDropdownValue('scatter-x-col', x, { emitChange: false });
-        setDropdownValue('scatter-y-col', y, { emitChange: false });
-        deps.showPage('scatter');
+        setDropdownValue('scatter-y-col', y, { emitChange: true });
     };
 
     async function loadMatrix(nextMetric: CorrelationMetric = metric): Promise<void> {
@@ -244,18 +256,6 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
 
         syncHeatmapEmptyState('', false);
         const colorDomainMax = getColorDomainMax(data, heatmapAxisFit);
-        const containerRect = container.getBoundingClientRect();
-        const mainRect = container.closest<HTMLElement>('main')?.getBoundingClientRect();
-        const visualViewportHeight = window.visualViewport?.height;
-        const viewportBottom = Number.isFinite(visualViewportHeight)
-            ? Number(visualViewportHeight)
-            : (document.documentElement.clientHeight || window.innerHeight);
-        // Measure against the visible panel, never against the container's
-        // content-driven height. Using container.clientHeight here creates a
-        // feedback loop: an oversized grid reports an oversized budget, so it
-        // can never shrink. Keep one main-panel padding unit below the shell.
-        const visibleBottom = Math.min(viewportBottom, mainRect?.bottom ?? viewportBottom);
-        const availableHeight = Math.max(0, visibleBottom - containerRect.top - 12);
         const gridLayout = buildHeatmapGridLayout({
             columnCount: size,
             preferredCellSize: heatmapCellSize,
@@ -263,7 +263,6 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
             container.clientWidth || 0,
             container.getBoundingClientRect().width || 0,
             ),
-            containerHeight: availableHeight,
             fitToScreen: heatmapFitToScreen,
         });
         const { labelWidth, responsiveCell, headerCellSize, useVerticalHeaders, colTemplate, rowTemplate } = gridLayout;
@@ -306,9 +305,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
         const metricLabel = getCorrelationModeLabel(metric);
         cells.push(
             `<div class="heatmap-corner" style="grid-column:1;grid-row:1;" aria-label="Rows are shown vertically, columns horizontally. Active metric: ${escapeAttr(metricLabel)}.">`
-            + `<span class="heatmap-corner__axis heatmap-corner__axis--y" aria-hidden="true">Y</span>`
-            + `<span class="heatmap-corner__sep" aria-hidden="true">/</span>`
-            + `<span class="heatmap-corner__axis heatmap-corner__axis--x" aria-hidden="true">X</span>`
+            + `<span class="heatmap-corner__axis" aria-hidden="true">Y / X</span>`
             + `<span class="heatmap-corner__metric" aria-hidden="true">${escapeAttr(metricLabel)}</span>`
             + `</div>`,
         );
@@ -355,7 +352,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
                     interactive: rowOriginal !== colOriginal && value !== null && Number.isFinite(value),
                 });
                 cells.push(
-                    `<div role="gridcell" aria-rowindex="${r + 2}" aria-colindex="${c + 2}" class="heatmap-cell ${presentation.toneClass}" data-row="${rowOriginal}" data-col="${colOriginal}" data-row-name="${escapeAttr(rowName)}" data-col-name="${escapeAttr(colName)}" data-correlation-value="${Number.isFinite(value) ? value : ''}" style="grid-column:${colGridFor(c)};grid-row:${rowGridFor(r)};background:${presentation.background};color:${presentation.textColor};cursor:${presentation.interactive ? 'pointer' : 'default'};" aria-label="${escapeAttr(presentation.tooltip)}" title="${escapeAttr(presentation.tooltip)}" tabindex="${presentation.interactive ? '0' : '-1'}">${presentation.signedValue}</div>`,
+                    `<div role="gridcell" aria-rowindex="${r + 2}" aria-colindex="${c + 2}" class="heatmap-cell ${presentation.toneClass}${rowOriginal === colOriginal ? ' heatmap-cell--diagonal' : ''}" data-row="${rowOriginal}" data-col="${colOriginal}" data-row-name="${escapeAttr(rowName)}" data-col-name="${escapeAttr(colName)}" data-correlation-value="${Number.isFinite(value) ? value : ''}" data-correlation-label="${escapeAttr(presentation.signedValue)}" data-cell-background="${escapeAttr(presentation.background)}" data-cell-color="${escapeAttr(presentation.textColor)}" style="grid-column:${colGridFor(c)};grid-row:${rowGridFor(r)};background:${presentation.background};color:${presentation.textColor};cursor:${presentation.interactive ? 'pointer' : 'default'};" aria-label="${escapeAttr(presentation.tooltip)}" title="${escapeAttr(presentation.tooltip)}" tabindex="${presentation.interactive ? '0' : '-1'}"><canvas class="heatmap-cell-canvas" data-css-height="${responsiveCell}" aria-hidden="true"></canvas></div>`,
                 );
             }
         }
@@ -364,67 +361,24 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
         html += `<div role="grid" aria-rowcount="${size + 1}" aria-colcount="${size + 1}" aria-label="${escapeAttr(metricLabel)} correlation matrix. Select an off-diagonal cell to inspect that pair." class="heatmap-grid" style="display:grid;grid-template-columns:${colTemplate};grid-template-rows:${rowTemplate};">`;
         html += cells.join('');
         html += '</div>';
-        html += '<div class="heatmap-scale" aria-label="Correlation color scale">';
-        html += `<span class="heatmap-scale__tick heatmap-scale__tick--positive">+${formatScaleTick(colorDomainMax)}</span>`;
-        html += `<div class="heatmap-scale__bar" aria-hidden="true" style="background:${correlationScaleGradient()}"></div>`;
-        html += `<span class="heatmap-scale__tick heatmap-scale__tick--negative">-${formatScaleTick(colorDomainMax)}</span>`;
+        html += '<div class="heatmap-grid-legend" aria-label="Correlation color scale">';
+        html += `<span class="heatmap-grid-legend__tick heatmap-grid-legend__tick--positive">+${formatScaleTick(colorDomainMax)}</span>`;
+        html += `<div class="heatmap-grid-legend__bar" aria-hidden="true" style="background:${correlationScaleGradient(undefined, '90deg')}"></div>`;
+        html += `<span class="heatmap-grid-legend__tick heatmap-grid-legend__tick--negative">-${formatScaleTick(colorDomainMax)}</span>`;
         html += '</div>';
         html += '</div>';
-        // Status footer below the matrix and the color scale. Tells
-        // users what they're looking at and how to interact with it,
-        // without scrolling back up to the toolbar.
-        html += `<div class="heatmap-footer" aria-label="Active correlation matrix summary">`
-            + `<span class="heatmap-footer__metric">${escapeAttr(metricLabel)}</span>`
-            + `<span class="heatmap-footer__sep" aria-hidden="true">·</span>`
-            + `<span class="heatmap-footer__size">${size}×${size} matrix</span>`
-            + `<span class="heatmap-footer__sep" aria-hidden="true">·</span>`
-            + `<span class="heatmap-footer__hint">Select an off-diagonal cell to open its Pair plot. Correlation does not establish causation.</span>`
-            + `</div>`;
-        const pairs: Array<{ x: string; y: string; value: number }> = [];
-        for (let row = 0; row < size; row += 1) {
-            for (let column = row + 1; column < size; column += 1) {
-                const value = Number(data[row]?.[column]);
-                if (Number.isFinite(value)) pairs.push({ x: columns[row]!, y: columns[column]!, value });
-            }
-        }
-        const top = [...pairs].sort((left, right) => Math.abs(right.value) - Math.abs(left.value)).slice(0, 3);
-        const negatives = [...pairs].filter((pair) => pair.value < 0).sort((left, right) => left.value - right.value).slice(0, 3);
-        html += `<div class="heatmap-stat-summary">Top 3 |r|: ${escapeAttr(top.map((pair) => `${pair.x}×${pair.y} ${pair.value.toFixed(4)}`).join(', ') || 'none')}`
-            + ` · Top negative: ${escapeAttr(negatives.map((pair) => `${pair.x}×${pair.y} ${pair.value.toFixed(4)}`).join(', ') || 'none')}</div>`;
-        if (pairs.length > 0) {
-            const suggestionPairs = (heatmapSuggestionsSorted
-                ? [...pairs].sort((left, right) => Math.abs(right.value) - Math.abs(left.value))
-                : pairs).slice(0, 6);
-            html += '<div class="heatmap-suggestions" aria-label="Strongest pair suggestions">';
-            html += `<button type="button" class="heatmap-suggestion-sort" data-heatmap-suggestion-sort aria-pressed="${heatmapSuggestionsSorted}">Sort: ${heatmapSuggestionsSorted ? '|r| desc' : 'unsorted'}</button>`;
-            for (const pair of suggestionPairs) {
-                html += `<button type="button" class="heatmap-suggestion-chip" data-heatmap-pair-x="${escapeAttr(pair.x)}" data-heatmap-pair-y="${escapeAttr(pair.y)}" data-heatmap-pair-value="${pair.value}">${escapeAttr(pair.x)} ↔ ${escapeAttr(pair.y)} · |r| ${Math.abs(pair.value).toFixed(4)}</button>`;
-            }
-            html += '</div>';
-        }
         if (heatmapClusterEnabled && orderChanged && !heatmapOrderLocked) {
             html += `<div class="heatmap-order-caption" role="status">Order updated by clustering under ${escapeAttr(metricLabel)}.</div>`;
         }
 
         container.innerHTML = html;
-        // Bind cell click: navigate to the scatter page with the chosen
-        // X/Y columns preselected. Already supported by the existing
-        // implementation; preserved here.
+        syncSelectedPair(
+            getDropdownValue('scatter-x-col'),
+            getDropdownValue('scatter-y-col'),
+        );
+        document.dispatchEvent(new CustomEvent('edatime:heatmap-grid-rendered'));
+        // A cell selects the live Pair plot on this page; it never navigates.
         container.onclick = (event: MouseEvent) => {
-            const sortToggle = (event.target as HTMLElement).closest<HTMLElement>('[data-heatmap-suggestion-sort]');
-            if (sortToggle) {
-                heatmapSuggestionsSorted = !heatmapSuggestionsSorted;
-                renderHeatmap();
-                return;
-            }
-            const suggestion = (event.target as HTMLElement).closest<HTMLElement>('[data-heatmap-pair-x][data-heatmap-pair-y]');
-            if (suggestion) {
-                const x = suggestion.dataset.heatmapPairX || '';
-                const y = suggestion.dataset.heatmapPairY || '';
-                if (!x || !y) return;
-                openScatterPair(x, y);
-                return;
-            }
             const cell = (event.target as HTMLElement).closest<HTMLElement>('.heatmap-cell');
             if (!cell) return;
             const rowIndex = Number.parseInt(cell.dataset.row || '', 10);
@@ -589,6 +543,20 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
         heatmapRuntime?.updateStatus(`${getCorrelationModeLabel(metric)} · ${buildHeatmapStatus(columns.length, heatmapCellSize)}`);
     }
 
+    const getVisibleHeatmapContainer = (): HTMLElement | null => {
+        const page = document.getElementById('page-heatmap');
+        const container = document.getElementById('heatmap-container');
+        if (!container || page?.hidden || !container.querySelector('.heatmap-grid')) return null;
+        return container;
+    };
+    const exportVisibleHeatmap = (
+        exporter: (element: HTMLElement, filename: string) => void | Promise<void>,
+        filename: string,
+    ): void => {
+        const container = getVisibleHeatmapContainer();
+        if (container) void exporter(container, filename);
+    };
+
     heatmapRuntime = createAnalysisPageRuntime({
         page: 'heatmap',
         emptyStateRootId: 'heatmap-empty-state',
@@ -596,14 +564,15 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
         emptyStateMessageId: 'heatmap-empty-state-message',
         exportConfig: {
             key: 'heatmap',
-            png: { fn: (filename) => exportElementPNG('heatmap-container', filename), filename: 'edatime_heatmap.png' },
-            svg: { fn: (filename) => exportElementSVG('heatmap-container', filename), filename: 'edatime_heatmap.svg' },
-            html: { fn: (filename) => exportElementHTML('heatmap-container', filename), filename: 'edatime_heatmap.html' },
+            png: { fn: (filename) => exportVisibleHeatmap(exportElementPNG, filename), filename: 'edatime_heatmap.png' },
+            svg: { fn: (filename) => exportVisibleHeatmap(exportElementSVG, filename), filename: 'edatime_heatmap.svg' },
+            html: { fn: (filename) => exportVisibleHeatmap(exportElementHTML, filename), filename: 'edatime_heatmap.html' },
             csv: {
                 fn: (filename) => {
                     const data = matrixData ? getSelectedCorrelationMatrix(matrixData, metric) : null;
                     if (!matrixData || !data) return;
-                    exportMatrixCSV(matrixData!.columns, data, filename);
+                    if (!getVisibleHeatmapContainer()) return;
+                    exportMatrixCSV(matrixData!.columns, data, `edatime_correlation_${metric}.csv`);
                 },
                 filename: `edatime_correlation_${metric}.csv`,
                 dataCheck: () => matrixData != null && getSelectedCorrelationMatrix(matrixData, metric) != null,
@@ -628,7 +597,21 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
             const planSummary = document.getElementById('heatmap-plan-columns-summary');
             const planConfirm = document.getElementById('heatmap-plan-columns-confirm') as HTMLButtonElement | null;
             const planCancel = document.getElementById('heatmap-plan-columns-cancel') as HTMLButtonElement | null;
+            const exportDisclosure = document.querySelector<HTMLDetailsElement>('#page-heatmap .toolbar-disclosure--end');
+            const exportSummary = exportDisclosure?.querySelector<HTMLElement>(':scope > summary');
             if (!container) return;
+            exportDisclosure?.addEventListener('keydown', (event) => {
+                if (event.key !== 'Escape' || !exportDisclosure.open) return;
+                event.preventDefault();
+                exportDisclosure.open = false;
+                exportSummary?.focus();
+            }, listenerOptions);
+            exportDisclosure?.querySelectorAll<HTMLButtonElement>('.toolbar-disclosure__menu button').forEach((button) => {
+                button.addEventListener('click', () => {
+                    exportDisclosure.open = false;
+                    exportSummary?.focus();
+                }, listenerOptions);
+            });
             const selectedPlanColumns = (): string[] | null => {
                 const plan = deps.cleaningPlanStore?.getSnapshot();
                 if (!plan || !matrixData || matrixData.columns.length === 0) return null;
@@ -744,6 +727,18 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
                 renderHeatmap();
             }, listenerOptions);
             document.addEventListener('edatime:settings-changed', renderHeatmap, listenerOptions);
+            document.addEventListener('edatime:scatter-pair-changed', (event) => {
+                const detail = (event as CustomEvent<{ x?: string; y?: string }>).detail;
+                syncSelectedPair(String(detail?.x || ''), String(detail?.y || ''));
+            }, listenerOptions);
+            document.addEventListener('change', (event) => {
+                const target = event.target as HTMLElement | null;
+                if (target?.id !== 'scatter-x-col' && target?.id !== 'scatter-y-col') return;
+                syncSelectedPair(
+                    getDropdownValue('scatter-x-col'),
+                    getDropdownValue('scatter-y-col'),
+                );
+            }, listenerOptions);
             heatmapResizeObserver?.disconnect();
             if (typeof ResizeObserver !== 'undefined') {
                 heatmapResizeObserver = new ResizeObserver(() => {

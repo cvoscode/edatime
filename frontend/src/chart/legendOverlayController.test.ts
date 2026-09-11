@@ -14,6 +14,8 @@ describe('LegendOverlayController', () => {
 
         const button = container.querySelector<HTMLButtonElement>('.timeseries-legend-overlay__row');
         expect(button?.getAttribute('aria-pressed')).toBe('true');
+        expect(button?.style.backgroundColor).toBe('rgba(0, 170, 255, 0.14)');
+        expect(button?.style.boxShadow).toContain('rgba(0, 170, 255, 0.48)');
         button?.click();
         expect(onToggleTrace).toHaveBeenCalledWith('temperature');
     });

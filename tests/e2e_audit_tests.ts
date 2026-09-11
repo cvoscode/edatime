@@ -10,7 +10,9 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const SAMPLE_DATASET_PATH = join(process.cwd(), 'ETTm2.csv');
-const backingPage = (pageName: string): string => pageName === 'correlations' ? 'heatmap' : pageName;
+const backingPage = (pageName: string): string => (
+  pageName === 'correlations' || pageName === 'scatter' ? 'heatmap' : pageName
+);
 
 async function openPage(page: Page, pageName: string): Promise<void> {
   await page.goto(`/#page=${pageName}`);
@@ -79,7 +81,7 @@ test.describe('Audit Verification Tests', () => {
   test('drift page routing works correctly', async ({ page }) => {
     // Navigate to drift page
     await openPage(page, 'drift');
-    
+
     // Check that drift page is visible
     const driftPage = page.locator('#page-drift');
     await expect(driftPage).toBeVisible();
@@ -185,20 +187,11 @@ test.describe('Audit Verification Tests', () => {
     await expect(page.locator('#causal-save-run-btn')).toBeEnabled();
   });
 
-  test('scatter matrix is a sub-tab inside Scatter page', async ({ page }) => {
-    // Navigate to scatter page
-    await openPage(page, 'scatter');
-    
-    // Check that Matrix button is a sub-tab in scatter toolbar
-    const matrixButton = page.locator('#scatter-view-matrix-btn');
-    await expect(matrixButton).toBeVisible();
-    
-    // Click on Matrix to switch view
-    await matrixButton.click();
-    
-    // Verify scatter matrix view is visible
-    const scatterMatrix = page.locator('[data-scatter-view-panel="matrix"]');
-    await expect(scatterMatrix).toBeVisible();
+  test('pair plot is embedded beside the correlation matrix', async ({ page }) => {
+    await openPage(page, 'correlations');
+
+    await expect(page.locator('.correlation-workspace__matrix')).toBeVisible();
+    await expect(page.locator('#heatmap-pair-plot')).toBeVisible();
   });
 
   test('pipeline workbench visualizes and exposes exports for the current plan', async ({ page }) => {
@@ -222,6 +215,7 @@ test.describe('Audit Verification Tests', () => {
     await expect(page.locator('#scatter-suggestions')).not.toBeEmpty({ timeout: 20_000 });
     await openPage(page, 'timeseries');
     await expect(page.locator('#main-chart')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('#main-chart')).toHaveAttribute('aria-label', /Y axis Series values/);
 
     await page.getByRole('button', { name: 'Filter range for HULL' }).click();
     await expect(page.locator('#column-filter-min')).toHaveAttribute('aria-invalid', 'false');
@@ -240,19 +234,34 @@ test.describe('Audit Verification Tests', () => {
     await expect(page.locator('#column-filter-modal')).toBeHidden();
 
     const chartTools = page.locator('.timeseries-utility-shelf');
+    await expect(chartTools.locator('.timeseries-tools-summary-detail')).toContainText('(Range active)');
+    await expect(chartTools).toHaveAttribute('title', /Range/);
     if (!(await chartTools.evaluate((details: HTMLDetailsElement) => details.open))) {
       await chartTools.locator(':scope > summary').click();
     }
     await page.locator('#quick-range-24h:visible').click();
 
     await openPage(page, 'correlations');
+    const legendClearance = await page.locator('.heatmap-shell').evaluate((shell) => {
+      const grid = shell.querySelector('.heatmap-grid')?.getBoundingClientRect();
+      const legend = shell.querySelector('.heatmap-grid-legend')?.getBoundingClientRect();
+      return grid && legend ? legend.left - grid.right : -1;
+    });
+    expect(legendClearance).toBeGreaterThanOrEqual(8);
     const pairCell = page.locator('.heatmap-cell[data-row-name="HULL"][data-col-name="MULL"]').first();
     await expect(pairCell).toBeVisible({ timeout: 20_000 });
     await pairCell.click();
-    await page.locator('#heatmap-pair-open').click();
-    await expect(page.locator('#page-scatter')).toBeVisible();
+    await expect(page.locator('#heatmap-pair-plot')).toBeVisible();
+    // The matrix click starts an asynchronous correlation refresh. Wait for
+    // the Pair plot controls to commit the requested pair before comparing
+    // its scoped statistics and suggestions.
+    await expect(page.locator('#scatter-x-col').getByRole('combobox')).toContainText('HULL');
+    await expect(page.locator('#scatter-y-col').getByRole('combobox')).toContainText('MULL');
+    await expect(pairCell).toHaveClass(/is-selected/);
     await expect(page.locator('#scatter-filter-banner-text')).toContainText('zoom range');
     await expect(page.locator('#scatter-filter-banner-text')).toContainText('HULL [5.00, 12.00]');
+    await expect(page.locator('table[data-chart-summary="scatter"]')).toHaveCount(1);
+    await expect(page.locator('.scatter-stats-bar__correlations')).toBeHidden();
 
     await page.locator('#scatter-suggestion-threshold').evaluate((input: HTMLInputElement) => {
       input.value = '0.5';
@@ -267,26 +276,81 @@ test.describe('Audit Verification Tests', () => {
     expect(suggestionValue).toBe(Number(pearsonValue.toFixed(2)));
   });
 
+  test('spectrum summary and filter state stay synchronized with the displayed transform', async ({ page }) => {
+    test.setTimeout(60_000);
+    await openPage(page, 'fft');
+    await page.locator('#fft-compute-btn').click();
+    const summary = page.locator('table[data-chart-summary="fft"]');
+    await expect(summary).toHaveCount(1, { timeout: 30_000 });
+    await expect(summary.locator('caption')).toHaveText(/log10 magnitude/);
+
+    await chooseDropdownOption(page, 'fft-normalize', 'minmax');
+    await expect(summary.locator('caption')).toHaveText(/minmax normalized/);
+    const extrema = await summary.locator('tbody tr').first().locator('td').evaluateAll((cells) => ({
+      min: Number(cells[1]?.textContent),
+      max: Number(cells[2]?.textContent),
+    }));
+    expect(extrema).toEqual({ min: 0, max: 1 });
+
+    await chooseDropdownOption(page, 'fft-filter-type', 'lowpass');
+    const highCutoff = page.locator('#fft-filter-high-hz');
+    const nyquistHz = Number(await highCutoff.getAttribute('data-flex-max'));
+    expect(nyquistHz).toBeGreaterThan(0);
+    const cutoffHz = String(nyquistHz / 2);
+    await highCutoff.fill(cutoffHz);
+    await expect(highCutoff).toHaveValue(cutoffHz);
+    await expect(page.locator('#fft-filter-apply-btn')).toBeEnabled();
+    await page.locator('#fft-filter-apply-btn').click();
+    await expect(page.locator('#fft-filter-status')).toContainText('lowpass preview active', { timeout: 30_000 });
+
+    await chooseDropdownOption(page, 'fft-filter-type', 'none');
+    await expect(page.locator('#fft-filter-status')).toBeEmpty();
+  });
+
+  test('reviewed shell and data-source affordances are present in the current UI', async ({ page }) => {
+    await openPage(page, 'upload');
+    await expect(page.locator('#profile-select-all-checkbox')).toBeVisible();
+    await expect(page.locator('#profile-select-invert-btn')).toHaveText('Invert');
+    await expect(page.locator('.db-examples')).toContainText('sslmode=require');
+    await expect(page.locator('.db-examples')).toContainText('schema');
+
+    const shortcutLabels = await page.locator('.sidebar .nav-shortcut').allTextContents();
+    expect(shortcutLabels).toEqual(['⌥1', '⌥2', '⌥3', '⌥4', '⌥5', '⌥6', '⌥7', '⌥8']);
+    for (const id of [
+      'keyboard-help-btn', 'settings-btn', 'workflow-toggle-btn',
+      'open-cleaning-plan-btn', 'theme-toggle-btn', 'provenance-toggle-btn',
+    ]) await expect(page.locator(`#${id}`)).toBeVisible();
+
+    await openPage(page, 'spectrogram');
+    await expect(page.locator('#spectrogram-win-size').getByRole('combobox')).toContainText('96 (1 day @ 15min)');
+    await expect(page.locator('#spectrogram-hop-size').getByRole('combobox')).toContainText('50% (50% overlap)');
+    await expect(page.locator('#spectrogram-zoom-reset-btn')).toHaveText('Reset zoom');
+    const summaryOutsideChart = await page.locator('#spectrogram-summary').evaluate((summaryElement) => (
+      !summaryElement.closest('.spectrogram-chart-row')
+    ));
+    expect(summaryOutsideChart).toBe(true);
+  });
+
   test('API response times are acceptable', async ({ page }) => {
     // Navigate to scatter page
     await openPage(page, 'scatter');
     
-    // Select columns to trigger API calls
-    const startTime = Date.now();
+    // Select a matrix pair to trigger the synchronized Pair-plot request.
+    const pairCell = page.locator('.heatmap-cell[data-row-name="HULL"][data-col-name="MULL"]').first();
+    await expect(pairCell).toBeVisible({ timeout: 20_000 });
     const responsePromise = page.waitForResponse(response =>
-      (response.url().includes('/api/v1/scatter/points')
-        || response.url().includes('/api/v1/scatter/correlations'))
+      response.url().includes('/api/v1/scatter/points')
       && response.ok(),
     );
-    await chooseDropdownOption(page, 'scatter-x-col', 'MUFL');
-    await chooseDropdownOption(page, 'scatter-y-col', 'MULL');
-    await responsePromise;
-    
-    const endTime = Date.now();
-    const duration = endTime - startTime;
-    
-    // Local sample-data interactions should stay responsive without a
-    // network-dependent microbenchmark threshold.
+    await pairCell.click();
+    const response = await responsePromise;
+    await response.finished();
+    const duration = response.request().timing().responseEnd;
+
+    // Measure the points API itself. The matrix click intentionally refreshes
+    // correlation context before requesting points, which is separate work
+    // and must not be folded into an endpoint-response assertion.
+    expect(duration).toBeGreaterThanOrEqual(0);
     expect(duration).toBeLessThan(1_000);
   });
 

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { emitNavigationChange } from '../../platform/navigationEvents.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
+import { analyticsState, setSpectralFilterPreview } from '../../store/analyticsState.js';
 
 const fftChartInstance = {
     init: vi.fn(async () => undefined),
@@ -109,6 +110,7 @@ describe('initFftPage', () => {
     afterEach(async () => {
         const module = await import('./page');
         module.__resetFftPageForTests();
+        setSpectralFilterPreview(null);
     });
 
     it('preselects the first two traces and computes within the advertised budget', async () => {
@@ -462,6 +464,32 @@ describe('initFftPage', () => {
         expect(highField.hidden).toBe(false);
     });
 
+    it('clears the active Signals preview when filter type returns to Off', async () => {
+        workspace.commitDataset(workspace.beginDatasetSession(), {
+            total_rows: 10,
+            columns: [],
+            numeric_columns: ['value'],
+            time_column: 'ts',
+            time_range: { min: 0, max: 1000 },
+            column_profiles: [],
+        } as any, 0);
+        workspace.setViewport({ xMin: 0, xMax: 1000, yMin: null, yMax: null });
+        const renderTimeseries = vi.fn();
+        const { initFftPage } = await import('./page');
+        await initFftPage({ workspace, renderTimeseries });
+        emitNavigationChange({ page: 'fft' });
+        setSpectralFilterPreview({
+            column: 'value', ts: [0, 1], values: [1, 2], filterType: 'lowpass', highHz: 0.1,
+        });
+        const filterType = document.getElementById('fft-filter-type') as HTMLSelectElement;
+        filterType.value = 'none';
+        filterType.dispatchEvent(new Event('change', { bubbles: true }));
+
+        expect(analyticsState.spectralFilterPreview).toBeNull();
+        expect(document.getElementById('fft-filter-status')?.textContent).toBe('');
+        expect(renderTimeseries).toHaveBeenCalled();
+    });
+
     it('formats spectral info in readable frequency units instead of raw exponential Hz', async () => {
         fetchFftMock.mockResolvedValueOnce({
             sample_count: 64,
@@ -503,7 +531,7 @@ describe('initFftPage', () => {
         });
         expect(document.getElementById('fft-spectral-info-rate')?.textContent).toBe('1 / 15.0 min');
         expect(document.getElementById('fft-spectral-info-nyquist')?.textContent).toBe('1 / 30.0 min');
-        expect(document.getElementById('fft-spectral-info-peaks')?.textContent).toContain('#1');
+        expect(document.getElementById('fft-spectral-info-peaks')?.textContent).toContain('Trend');
         expect(document.getElementById('fft-spectral-info-peaks')?.textContent).toMatch(/min|hr|day/);
     });
 });

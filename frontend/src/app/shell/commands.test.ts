@@ -54,7 +54,7 @@ describe('shell command registry', () => {
         expect(mocks.registerCommands).toHaveBeenCalledTimes(1);
         const commands = mocks.registerCommands.mock.calls[0][0] as Array<{ id: string; action: () => void | Promise<void> }>;
 
-        commands.find((command) => command.id === 'nav-heatmap')?.action();
+        commands.find((command) => command.id === 'nav-correlations')?.action();
         commands.find((command) => command.id === 'chart-reset')?.action();
         commands.find((command) => command.id === 'chart-zoomout')?.action();
         commands.find((command) => command.id === 'export-csv')?.action();

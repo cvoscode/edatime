@@ -1,21 +1,29 @@
+import type { WorkspaceStore } from '../../contracts/workspace.js';
+import { confirmDatasetReplacement } from '../../ui/datasetReplacement.js';
+
 export function wireSampleDatasetCards(
     showPage: (page: string) => void,
     refreshDatasetAfterMutation?: () => Promise<void>,
-): void {
+    workspace?: Pick<WorkspaceStore, 'getSnapshot'>,
+): () => void {
+    const controller = new AbortController();
     document.querySelectorAll<HTMLElement>('[data-sample-dataset]').forEach((element) => {
         element.addEventListener('click', () => {
             const dataset = element.dataset.sampleDataset;
             if (dataset) {
-                void loadSampleDataset(dataset, showPage, refreshDatasetAfterMutation);
+                void loadSampleDataset(dataset, showPage, refreshDatasetAfterMutation, workspace, element);
             }
-        });
+        }, { signal: controller.signal });
     });
+    return () => controller.abort();
 }
 
 async function loadSampleDataset(
     datasetId: string,
     showPage: (pageName: string) => void,
     refreshDatasetAfterMutation?: () => Promise<void>,
+    workspace?: Pick<WorkspaceStore, 'getSnapshot'>,
+    trigger?: HTMLElement,
 ): Promise<void> {
     const { toast } = await import('../../utils/toast.js');
     const { fetchSampleDataset, uploadDataset } = await import('../../services/api/index.js');
@@ -26,6 +34,12 @@ async function loadSampleDataset(
         weather: 'Weather Patterns',
     };
     const label = labels[datasetId] || 'Sample';
+    if (!confirmDatasetReplacement(workspace, `${label} sample data`)) return;
+    const button = trigger instanceof HTMLButtonElement ? trigger : null;
+    if (button) {
+        button.disabled = true;
+        button.setAttribute('aria-busy', 'true');
+    }
     const loadingToast = toast(`Loading ${label} sample dataset…`, 'info', 0);
     const dismissLoading = typeof loadingToast === 'function' ? loadingToast : () => { };
 
@@ -59,6 +73,11 @@ async function loadSampleDataset(
     } catch (err) {
         dismissLoading();
         toast(`Could not load ${label}: ${err}`, 'error');
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.removeAttribute('aria-busy');
+        }
     }
 }
 

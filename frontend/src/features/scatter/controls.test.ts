@@ -63,6 +63,7 @@ vi.mock('../../store/scatterState.js', () => ({
 
 vi.mock('./helpers.js', () => ({
     getEl: (id: string) => document.getElementById(id),
+    isScatterSurfaceVisible: () => true,
     normalizeScatterSuggestionThreshold: (value: unknown) => Number(value),
 }));
 
@@ -105,7 +106,7 @@ vi.mock('./rendering.js', () => ({
 function buildDom(): void {
     document.body.innerHTML = `
         <nav class="sidebar"><button class="nav-item" data-page="correlations" type="button">Matrix</button></nav>
-        <section id="page-scatter">
+        <section id="heatmap-pair-plot">
             <select id="scatter-x-col"><option value="HUFL" selected>HUFL</option></select>
             <select id="scatter-y-col"><option value="HULL" selected>HULL</option></select>
             <input id="scatter-bin-size" value="10">
@@ -174,7 +175,7 @@ describe('bindScatterControls', () => {
         expect(updateMarginalPlotsMock).toHaveBeenCalledTimes(1);
     });
 
-    it('returns to the correlation matrix from a deep pair-plot landing', async () => {
+    it('keeps the legacy back control compatible with the correlation route', async () => {
         const { bindScatterControls } = await import('./controls.js');
         const matrixNav = document.querySelector<HTMLButtonElement>('[data-page="correlations"]')!;
         const navigate = vi.fn();
@@ -326,7 +327,7 @@ describe('bindScatterControls', () => {
         // was silently ignored. The fix uses an `inFlight` guard that resets
         // when the work completes, so legitimate follow-up dispatches (for
         // example heatmap → scatter → heatmap → scatter, or two rapid filter
-        // changes that both reach `showPage('scatter')`) still run.
+        // changes that both reach the combined correlation page still run.
         const { bindScatterControls } = await import('./controls.js');
         const stateModule = await import('./state.js');
         const buildOverviewContextKeyMock = stateModule.buildOverviewContextKey as unknown as ReturnType<typeof vi.fn>;

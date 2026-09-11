@@ -50,7 +50,7 @@ describe('computeWorkflowProgress', () => {
             visitedPages: ['upload', 'timeseries', 'correlations'],
         }));
         expect(progress.completedStepIds).toContain('correlations');
-        expect(progress.nextStepId).toBe('scatter');
+        expect(progress.nextStepId).toBe('causal');
     });
 
     it('moves from causal discovery into Prepare before marking the workflow complete', () => {
@@ -63,7 +63,7 @@ describe('computeWorkflowProgress', () => {
             scatterY: 'OT',
             causalLinkCount: 4,
         }));
-        expect(progress.completedStepIds).toEqual(['upload', 'timeseries', 'correlations', 'scatter', 'causal']);
+        expect(progress.completedStepIds).toEqual(['upload', 'timeseries', 'correlations', 'causal']);
         expect(progress.nextStepId).toBe('prepare');
     });
 });
@@ -81,14 +81,14 @@ describe('buildWorkflowSuggestion', () => {
         expect(suggestion.body).toContain('2 to 4');
     });
 
-    it('describes matrix click-through as the scatter drill-down path', () => {
+    it('describes Pair plot selection as part of the combined correlations page', () => {
         const suggestion = buildWorkflowSuggestion(snapshot({
             currentPage: 'scattermatrix',
             hasDataset: true,
             selectedSeriesCount: 2,
         }));
-        expect(suggestion.actionPage).toBe('scatter');
-        expect(suggestion.body).toContain('Click');
+        expect(suggestion.actionPage).toBeNull();
+        expect(suggestion.body).toContain('Select');
     });
 
     it('keeps page-specific guidance available on side-analysis pages', () => {
@@ -205,15 +205,37 @@ describe('initGuidedWorkflow', () => {
         expect(toggle.getAttribute('aria-pressed')).toBe('true');
     });
 
-    it('renders workflow step crumbs with the styled class contract', async () => {
+    it('renders a compact one-row workflow summary', async () => {
         const { renderGuidedWorkflow } = await import('./guidedWorkflow.js');
 
         renderGuidedWorkflow();
 
-        const uploadStep = document.querySelector<HTMLElement>('[data-workflow-page="upload"]');
-        expect(uploadStep?.classList.contains('workflow-step')).toBe(true);
-        expect(uploadStep?.classList.contains('workflow-step--current')).toBe(true);
-        expect(document.querySelector('.workflow_step')).toBeNull();
+        const panel = document.getElementById('workflow-panel');
+        expect(panel?.classList.contains('workflow-panel--compact-shell')).toBe(true);
+        expect(panel?.textContent).toContain('Guided workflow · 1/5');
+        expect(panel?.textContent).toContain('Open Upload');
+    });
+
+    it('docks the guide directly below the active page header', async () => {
+        vi.resetModules();
+        document.body.innerHTML = `
+            <nav class="sidebar"><button class="nav-item active" data-page="timeseries">Signals</button></nav>
+            <button id="workflow-toggle-btn" type="button"></button>
+            <section id="workflow-panel"></section>
+            <section class="page" id="page-timeseries">
+                <div class="page-header"><button>Help</button></div>
+                <div class="toolbar"></div>
+            </section>
+        `;
+        const { initGuidedWorkflow } = await import('./guidedWorkflow.js');
+        const deps = workflowDeps({ total_rows: 2, numeric_columns: ['a', 'b'] }, ['a', 'b']);
+
+        initGuidedWorkflow(deps);
+
+        const header = document.querySelector('#page-timeseries > .page-header');
+        expect(header?.nextElementSibling).toBe(document.getElementById('workflow-panel'));
+        const cleanup = deps.registerCleanup.mock.calls[0]?.[0] as (() => void);
+        cleanup();
     });
 
     it('releases its workspace subscription through the shell cleanup hook', async () => {
@@ -258,7 +280,7 @@ describe('initGuidedWorkflow', () => {
         document.body.innerHTML = `
             <nav class="sidebar">
                 <button class="nav-item" data-page="home" type="button">Home</button>
-                <button class="nav-item active" data-page="scatter" type="button">Scatter</button>
+                <button class="nav-item active" data-page="correlations" type="button">Correlations</button>
             </nav>
             <button id="workflow-toggle-btn" type="button"></button>
             <section id="workflow-panel"></section>
@@ -292,7 +314,7 @@ describe('initGuidedWorkflow', () => {
         document.body.innerHTML = `
             <nav class="sidebar">
                 <button class="nav-item" data-page="home" type="button">Home</button>
-                <button class="nav-item active" data-page="scatter" type="button">Scatter</button>
+                <button class="nav-item active" data-page="correlations" type="button">Correlations</button>
             </nav>
             <button id="workflow-toggle-btn" type="button"></button>
             <section id="workflow-panel"></section>
@@ -307,7 +329,7 @@ describe('initGuidedWorkflow', () => {
         const { initGuidedWorkflow } = await import('./guidedWorkflow.js');
         initGuidedWorkflow(workflowDeps(metadata, ['HUFL', 'HULL', 'OT']));
 
-        expect(document.getElementById('workflow-panel')?.classList.contains('workflow-panel--compact-shell')).toBe(false);
+        expect(document.getElementById('workflow-panel')?.classList.contains('workflow-panel--compact-shell')).toBe(true);
     });
 
     it('refreshes workflow presentation after session restoration', async () => {

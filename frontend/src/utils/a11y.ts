@@ -4,6 +4,7 @@
  */
 
 import { toast } from './toast.js';
+import { createModalController } from '../ui/shell/createModalController.js';
 
 /* ── ARIA Live Region ──────────────────────────────── */
 
@@ -109,39 +110,44 @@ export interface KeyboardShortcut {
 
 const SHORTCUTS: KeyboardShortcut[] = [
     // Navigation
-    { keys: 'Alt+1', description: 'Upload page', category: 'Navigation' },
-    { keys: 'Alt+2', description: 'Signals page', category: 'Navigation' },
-    { keys: 'Alt+3', description: 'Pair plot page', category: 'Navigation' },
-    { keys: 'Alt+4', description: 'Scatter matrix on Correlations', category: 'Navigation' },
-    { keys: 'Alt+6', description: 'FFT page', category: 'Navigation' },
-    { keys: 'Alt+7', description: 'Correlations page', category: 'Navigation' },
-    { keys: 'Alt+8', description: 'Spectrogram page', category: 'Navigation' },
-    { keys: 'Alt+9', description: 'Causality page', category: 'Navigation' },
-    { keys: 'Alt+0', description: 'Drift page', category: 'Navigation' },
-    { keys: 'Ctrl+K', description: 'Command palette', category: 'Navigation' },
-    { keys: 'Ctrl+I', description: 'Analysis context panel', category: 'Navigation' },
+    { keys: 'Alt+1', description: 'Open Data source', category: 'Move around' },
+    { keys: 'Alt+2', description: 'Open Signals', category: 'Move around' },
+    { keys: 'Alt+3', description: 'Open Preparation', category: 'Move around' },
+    { keys: 'Alt+4', description: 'Open Correlations', category: 'Move around' },
+    { keys: 'Alt+5', description: 'Open Spectrum', category: 'Move around' },
+    { keys: 'Alt+6', description: 'Open Time-frequency', category: 'Move around' },
+    { keys: 'Alt+7', description: 'Open Causality', category: 'Move around' },
+    { keys: 'Alt+8', description: 'Open Drift', category: 'Move around' },
+    { keys: 'Ctrl+K', description: 'Find a command', category: 'Move around' },
+    { keys: 'Ctrl+I', description: 'Inspect analysis context', category: 'Inspect & edit' },
 
     // Chart
-    { keys: 'Double-click', description: 'Reset zoom', category: 'Chart' },
-    { keys: 'Ctrl+click', description: 'Set adaptive filter', category: 'Chart' },
-    { keys: 'Drag', description: 'Pan / draw', category: 'Chart' },
-    { keys: 'Shift+C', description: 'Clear adaptive filters', category: 'Chart' },
+    { keys: 'Double-click', description: 'Reset chart zoom', category: 'Inspect & edit' },
+    { keys: 'Ctrl+click', description: 'Set adaptive filter', category: 'Inspect & edit' },
+    { keys: 'Drag', description: 'Pan or draw', category: 'Inspect & edit' },
+    { keys: 'Shift+C', description: 'Clear adaptive filters', category: 'Inspect & edit' },
 
     // Session
-    { keys: 'Ctrl+S', description: 'Save session', category: 'Session' },
-    { keys: 'Ctrl+Shift+S', description: 'Export session file', category: 'Session' },
-    { keys: 'Ctrl+O', description: 'Import session file', category: 'Session' },
+    { keys: 'Ctrl+S', description: 'Save session', category: 'Save & export' },
+    { keys: 'Ctrl+Shift+S', description: 'Export session file', category: 'Save & export' },
+    { keys: 'Ctrl+O', description: 'Import session file', category: 'Save & export' },
 
     // Export
-    { keys: 'Ctrl+E', description: 'Export data', category: 'Export' },
+    { keys: 'Ctrl+E', description: 'Export data', category: 'Save & export' },
+
+    // Page-specific
+    { keys: 'Enter / D', description: 'Run Drift analysis', category: 'By page · Drift' },
+    { keys: 'E', description: 'Export Drift CSV', category: 'By page · Drift' },
+    { keys: 'J', description: 'Export Drift JSON', category: 'By page · Drift' },
+    { keys: 'P', description: 'Export Drift overview PNG', category: 'By page · Drift' },
 ];
 
 let _shortcutsModal: HTMLElement | null = null;
+let _shortcutsController: { close(): void; dispose(): void } | null = null;
 
 export function showKeyboardShortcutsHelp(): void {
     // Remove existing modal if present
-    const existing = document.getElementById('keyboard-help-modal');
-    if (existing) existing.remove();
+    _shortcutsController?.close();
 
     const categories = [...new Set(SHORTCUTS.map(s => s.category))];
 
@@ -151,6 +157,7 @@ export function showKeyboardShortcutsHelp(): void {
     modal.setAttribute('role', 'dialog');
     modal.setAttribute('aria-modal', 'true');
     modal.setAttribute('aria-labelledby', 'keyboard-help-title');
+    modal.hidden = true;
 
     const content = categories.map(cat => {
         const shortcuts = SHORTCUTS.filter(s => s.category === cat);
@@ -178,9 +185,14 @@ export function showKeyboardShortcutsHelp(): void {
                     </svg>
                 </button>
             </div>
+            <label class="keyboard-help-search">
+                <span class="sr-only">Search shortcuts</span>
+                <input id="keyboard-help-search" type="search" placeholder="Search shortcuts…" autocomplete="off">
+            </label>
             <div class="keyboard-help-content">
                 ${content}
             </div>
+            <p class="keyboard-help-empty keyboard-help-hint" role="status" hidden></p>
             <div class="keyboard-help-hint">
                 Press <kbd>?</kbd> to toggle this help, or <kbd>Esc</kbd> to close.
             </div>
@@ -188,38 +200,40 @@ export function showKeyboardShortcutsHelp(): void {
     `;
 
     document.body.appendChild(modal);
-
-    // Event listeners
-    const closeBtn = document.getElementById('keyboard-help-close');
-    closeBtn?.addEventListener('click', hideKeyboardShortcutsHelp);
-
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) hideKeyboardShortcutsHelp();
-    });
-
-    const escHandler = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') {
-            hideKeyboardShortcutsHelp();
-            window.removeEventListener('keydown', escHandler);
-        }
-    };
-    window.addEventListener('keydown', escHandler);
-
-    // Focus trap
-    const focusable = modal.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
-    if (focusable.length > 0) {
-        focusable[0].focus();
-    }
-
     _shortcutsModal = modal;
+    const controller = createModalController({
+        modalId: modal.id,
+        closeButtonIds: ['keyboard-help-close'],
+        onClose: () => {
+            modal.remove();
+            if (_shortcutsModal === modal) _shortcutsModal = null;
+            if (_shortcutsController === controller) _shortcutsController = null;
+        },
+    });
+    _shortcutsController = controller;
+    const search = modal.querySelector<HTMLInputElement>('#keyboard-help-search');
+    search?.addEventListener('input', () => {
+        const query = search.value.trim().toLowerCase();
+        let visibleRows = 0;
+        modal.querySelectorAll<HTMLElement>('.keyboard-shortcut-row').forEach((row) => {
+            row.hidden = Boolean(query) && !row.textContent?.toLowerCase().includes(query);
+            if (!row.hidden) visibleRows += 1;
+        });
+        modal.querySelectorAll<HTMLElement>('.keyboard-help-section').forEach((section) => {
+            section.hidden = !section.querySelector('.keyboard-shortcut-row:not([hidden])');
+        });
+        const empty = modal.querySelector<HTMLElement>('.keyboard-help-empty');
+        if (empty) {
+            empty.hidden = visibleRows > 0;
+            empty.textContent = visibleRows > 0 ? '' : `No shortcuts match '${search.value.trim()}'`;
+        }
+    });
+    controller.open();
+    search?.focus();
 }
 
 export function hideKeyboardShortcutsHelp(): void {
-    const modal = document.getElementById('keyboard-help-modal');
-    if (modal) {
-        modal.remove();
-        _shortcutsModal = null;
-    }
+    _shortcutsController?.close();
 }
 
 /* ── What's New Modal ─────────────────────────────── */

@@ -31,10 +31,10 @@ export interface DeferredShellDeps {
     resetZoom: () => void;
     updateAnalysisYRange: (min: number, max: number, sourceKind?: string) => void;
     requestAnnotationOverlayRender: () => void;
-    cleaningPlanStore?: Pick<CleaningPlanStore, 'getSnapshot' | 'addStage'>;
+    cleaningPlanStore?: Pick<CleaningPlanStore, 'getSnapshot' | 'subscribe' | 'isDirty' | 'addStage'>;
     onCleaningPlanChanged?: () => void;
     registerCleanup: (cleanup: () => void) => void;
-    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'setViewport' | 'subscribe'>;
+    workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setSelection' | 'setFilters' | 'setViewport' | 'subscribe'>;
 }
 
 export interface DeferredSubsystemRegistry {
@@ -158,7 +158,7 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
 
     registerSubsystem('provenance', async (deps) => {
         const { initProvenance } = await import('../../utils/provenance.js');
-        deps.registerCleanup(initProvenance(deps.workspace));
+        deps.registerCleanup(initProvenance(deps.workspace, deps.cleaningPlanStore));
     });
 
     registerSubsystem('settings-panel', async (deps) => {
@@ -183,8 +183,17 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
     });
 
     registerSubsystem('sample-datasets', async (deps) => {
-        const { wireSampleDatasetCards } = await import('../../features/home/index.js');
-        wireSampleDatasetCards(deps.showPage, () => deps.refreshDatasetAfterMutation());
+        const { initHomeWorkspaceSummary, wireSampleDatasetCards } = await import('../../features/home/index.js');
+        deps.registerCleanup(wireSampleDatasetCards(
+            deps.showPage,
+            () => deps.refreshDatasetAfterMutation(),
+            deps.workspace,
+        ));
+        deps.registerCleanup(initHomeWorkspaceSummary({
+            workspace: deps.workspace,
+            cleaningPlanStore: deps.cleaningPlanStore,
+            showPage: deps.showPage,
+        }));
     });
 
     registerSubsystem('page-help', async (deps) => {

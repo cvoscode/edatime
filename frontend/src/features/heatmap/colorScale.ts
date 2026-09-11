@@ -7,8 +7,11 @@ export function correlationColor(value: number, maxAbs = 1): string {
     return getColorFromScale((clamped + 1) / 2, getPlotColorScale('correlationMatrix'));
 }
 
-export function correlationScaleGradient(scale: ColorScaleName = getPlotColorScale('correlationMatrix')): string {
-    return `linear-gradient(180deg, ${[...paletteForColorScale(scale)].reverse().join(',')})`;
+export function correlationScaleGradient(
+    scale: ColorScaleName = getPlotColorScale('correlationMatrix'),
+    direction = '180deg',
+): string {
+    return `linear-gradient(${direction}, ${[...paletteForColorScale(scale)].reverse().join(',')})`;
 }
 
 export function getColorDomainMax(data: (number | null)[][], fitAxis: boolean): number {

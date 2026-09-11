@@ -34,6 +34,28 @@ describe('drift investigation panels', () => {
         expect(panels.relationships).toContain('No relationship drift detected.');
     });
 
+    it('ranks tied features by a differentiating drift metric', () => {
+        const withMetrics = {
+            ...investigation,
+            rankings: {
+                ...investigation.rankings,
+                features: [
+                    { column: 'a', driftScore: 100, latestLevel: 'red', flaggedWindows: 2, firstChangePoint: null },
+                    { column: 'b', driftScore: 100, latestLevel: 'red', flaggedWindows: 2, firstChangePoint: null },
+                ],
+            },
+            columns: {
+                a: { column: 'a', windows: [{ psi: 0.2, wasserstein: 0.4 }] },
+                b: { column: 'b', windows: [{ psi: 0.8, wasserstein: 0.6 }] },
+            },
+        } as unknown as DriftInvestigationResponse;
+
+        const overview = buildDriftInvestigationPanelHtml(withMetrics).overview;
+        expect(overview.indexOf('#1 · b')).toBeLessThan(overview.indexOf('#2 · a'));
+        expect(overview).toContain('Peak PSI: 0.800');
+        expect(overview).toContain('Peak Wasserstein: 0.600');
+    });
+
     it('renders a method reliability card when a column has a sample-size imbalance', () => {
         const imbalancedInvestigation = {
             ...investigation,
@@ -64,7 +86,7 @@ describe('drift investigation panels', () => {
         expect(panels.quality).toMatch(/200×/);
     });
 
-    it('renders every ranked and reliability column without silently truncating the results', () => {
+    it('renders every ranked column and aggregates a shared reliability warning', () => {
         const columnNames = ['HUFL', 'HULL', 'MUFL', 'MULL', 'LUFL', 'LULL', 'OT'];
         const fullInvestigation = {
             ...investigation,
@@ -106,11 +128,32 @@ describe('drift investigation panels', () => {
         const panels = buildDriftInvestigationPanelHtml(fullInvestigation);
 
         for (const column of columnNames) {
-            expect(panels.overview).toContain(`<strong>${column}</strong>`);
-            expect(panels.quality).toContain(`<strong>${column}</strong>`);
+            expect(panels.overview).toContain(`· ${column}</strong>`);
+            expect(panels.quality).toContain(column);
         }
         expect(panels.overview.match(/class="drift-column-card__header"/g)).toHaveLength(19);
-        expect(panels.quality.match(/class="drift-column-card__header"/g)).toHaveLength(7);
+        expect(panels.quality).toContain('<strong>All 7 columns</strong>');
+        expect(panels.quality.match(/class="drift-column-card__header"/g)).toHaveLength(1);
+    });
+
+    it('splits a change-point range into complete start and end rows', () => {
+        const withChangePoint = {
+            ...investigation,
+            rankings: {
+                ...investigation.rankings,
+                changePoints: [{
+                    column: 'temperature',
+                    label: '2025-01-01 00:00 - 2025-01-02 00:00',
+                    isoTime: '2025-01-01T00:00:00Z',
+                    driftScore: 80,
+                    triggerReasons: ['psi'],
+                }],
+            },
+        } as DriftInvestigationResponse;
+        const overview = buildDriftInvestigationPanelHtml(withChangePoint).overview;
+
+        expect(overview).toContain('<strong>Start:</strong> 2025-01-01 00:00');
+        expect(overview).toContain('<strong>End:</strong> 2025-01-02 00:00');
     });
 
     it('clears every panel when no investigation is available', () => {

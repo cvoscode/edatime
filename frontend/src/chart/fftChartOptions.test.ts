@@ -13,7 +13,7 @@ describe('buildFftChartOptions', () => {
             scaleOptions: { mode: 'zscore', clip: 'none', clipParam: 0 },
         });
 
-        expect(options.xAxis.name).toBe('Frequency (cycles/day)');
+        expect(options.xAxis.name).toBe('Frequency (cycles/day, µHz)');
         expect(options.xAxis.axisLabel.formatter(0.001)).toBe('86.40');
         expect(options.yAxis.min).toBe(-2);
         expect(options.yAxis.max).toBe(3);

@@ -8,7 +8,7 @@ const indexHtml = readFileSync(join(process.cwd(), 'frontend/index.html'), 'utf8
 describe('scatter page help button', () => {
     beforeEach(() => {
         document.body.innerHTML = `
-            <section id="page-scatter" data-page-name="scatter">
+            <section id="heatmap-pair-plot">
                 <div class="page-header">
                     <h1 class="page-header__title">Scatter</h1>
                     <button id="scatter-help-btn" type="button">?</button>
@@ -22,9 +22,9 @@ describe('scatter page help button', () => {
         document.body.innerHTML = '';
     });
 
-    it('ships a real <button> with id "scatter-help-btn" inside #page-scatter', () => {
+    it('ships a real help button inside the embedded Pair plot', () => {
         expect(indexHtml).toMatch(/<button[^>]*id="scatter-help-btn"[^>]*>/);
-        const match = indexHtml.match(/<section[^>]*id="page-scatter"[\s\S]*?<\/section>/);
+        const match = indexHtml.match(/<section[^>]*id="heatmap-pair-plot"[\s\S]*?<\/section>/);
         expect(match?.[0] ?? '').toContain('id="scatter-help-btn"');
     });
 

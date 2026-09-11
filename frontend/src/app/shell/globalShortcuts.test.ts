@@ -18,6 +18,26 @@ afterEach(() => {
 });
 
 describe('shell global shortcuts', () => {
+    it('maps Alt+1 through Alt+8 to the visible sidebar order', () => {
+        const deps = createDeps();
+        cleanup = createGlobalShortcuts().mount(deps);
+
+        for (const key of ['1', '2', '3', '4', '5', '6', '7', '8']) {
+            window.dispatchEvent(new KeyboardEvent('keydown', { key, altKey: true, bubbles: true }));
+        }
+
+        expect(deps.showPage.mock.calls.map(([page]) => page)).toEqual([
+            'upload',
+            'timeseries',
+            'prepare',
+            'correlations',
+            'fft',
+            'spectrogram',
+            'causal',
+            'drift',
+        ]);
+    });
+
     it('opens deferred commands and settings through injected shell actions', async () => {
         const deps = createDeps();
         cleanup = createGlobalShortcuts().mount(deps);

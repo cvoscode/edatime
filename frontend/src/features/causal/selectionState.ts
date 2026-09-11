@@ -87,6 +87,16 @@ export function resetSelectionState(): void {
     _selectedColumns.clear();
 }
 
+/** Keep one backend result for each logical directed lagged connection. */
+export function uniqueCausalLinks(links: readonly CausalLink[]): CausalLink[] {
+    const unique = new Map<string, CausalLink>();
+    for (const link of links) {
+        const key = `${link.source}\u0000${link.target}\u0000${link.lag}`;
+        if (!unique.has(key)) unique.set(key, { ...link });
+    }
+    return Array.from(unique.values());
+}
+
 // ─── Metadata helpers ───────────────────────────────────────────────────────
 
 export function metadataColumns(meta: CausalMetadata | null): MetadataColumn[] {
@@ -299,12 +309,25 @@ export function seedNodePositions(chartEl: HTMLDivElement | null): void {
     const missing = _currentColumns.filter((col) => !_nodePositions.has(col));
     if (missing.length === 0) return;
 
-    const radius = Math.max(90, Math.min(width, height) * 0.34);
+    if (missing.length === 3) {
+        const marginX = Math.min(56, width * 0.1);
+        const marginY = Math.min(48, height * 0.12);
+        const triangle = [
+            { x: centerX, y: marginY },
+            { x: width - marginX, y: height - marginY },
+            { x: marginX, y: height - marginY },
+        ];
+        missing.forEach((col, idx) => _nodePositions.set(col, triangle[idx]!));
+        return;
+    }
+
+    const radiusX = Math.max(90, (width - 48) * 0.46);
+    const radiusY = Math.max(72, (height - 48) * 0.46);
     missing.forEach((col, idx) => {
         const angle = (Math.PI * 2 * idx) / Math.max(missing.length, 1) - Math.PI / 2;
         _nodePositions.set(col, {
-            x: centerX + radius * Math.cos(angle),
-            y: centerY + radius * Math.sin(angle),
+            x: centerX + radiusX * Math.cos(angle),
+            y: centerY + radiusY * Math.sin(angle),
         });
     });
 }

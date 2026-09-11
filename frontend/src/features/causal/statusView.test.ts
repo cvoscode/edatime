@@ -20,8 +20,8 @@ describe('syncCausalEmptyState', () => {
         expect(empty.textContent).toContain('7 nodes and 65 links');
 
         syncCausalEmptyState(2);
-        expect(empty.hidden).toBe(true);
-        expect(empty.textContent).toContain('No causal graph yet');
+        expect(empty.hidden).toBe(false);
+        expect(empty.textContent).toContain('Ready to discover lag relationships');
     });
 
     it('keeps the empty state visible until at least two numeric columns are selected', () => {
@@ -29,6 +29,10 @@ describe('syncCausalEmptyState', () => {
         expect((document.getElementById('causal-empty-state') as HTMLElement).hidden).toBe(false);
 
         syncCausalEmptyState(2);
+        expect((document.getElementById('causal-empty-state') as HTMLElement).hidden).toBe(false);
+        expect(document.getElementById('causal-empty-state')?.dataset.emptyReason).toBe('ready');
+
+        syncCausalEmptyState(2, true);
         expect((document.getElementById('causal-empty-state') as HTMLElement).hidden).toBe(true);
     });
 });

@@ -31,6 +31,13 @@ struct ScatterMatrixCellMeta {
     color_kind: Option<&'static str>,
 }
 
+fn time_color_mode_label(mode: TimeColorMode) -> &'static str {
+    match mode {
+        TimeColorMode::Bucket => "bucket",
+        TimeColorMode::Raw => "raw",
+    }
+}
+
 fn normalize_pairs(pairs: Vec<ScatterMatrixPair>) -> Vec<ScatterMatrixPair> {
     let mut seen = std::collections::HashSet::new();
     let mut normalized = Vec::with_capacity(pairs.len());
@@ -108,7 +115,7 @@ async fn scatter_matrix_response(
     let pairs_key = serde_json::to_string(&pairs)
         .map_err(|error| AppError::internal(format!("Serialize scatter matrix pairs: {error}")))?;
     let cache_key = format!(
-        "scatter-matrix:source={}:revision={}:pairs={}:color={}:start={}:end={}:plan={}",
+        "scatter-matrix:source={}:revision={}:pairs={}:color={}:start={}:end={}:plan={}:time-color={}",
         identity.source_version_id,
         identity.source_revision,
         pairs_key,
@@ -116,6 +123,7 @@ async fn scatter_matrix_response(
         start.map(|value| value.to_string()).unwrap_or_default(),
         end.map(|value| value.to_string()).unwrap_or_default(),
         identity.plan_hash.as_deref().unwrap_or("none"),
+        time_color_mode_label(time_color_mode),
     );
     let sample_seed_prefix = format!(
         "scatter-matrix-reservoir:source={}:revision={}:color={}:start={}:end={}:plan={}",

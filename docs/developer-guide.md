@@ -163,14 +163,13 @@ See `SECURITY.md` for reporting expectations.
 Current chart and navigation shortcuts:
 
 - `Alt+1` opens the upload page
-- `Alt+2` opens the main chart page
-- `Alt+3` opens the scatter page
-- `Alt+4` opens the scatter matrix page
-- `Alt+5` opens the distributions page
-- `Alt+6` opens the FFT page
-- `Alt+7` opens the correlation heatmap page
-- `Alt+8` opens the spectrogram page
-- `Alt+9` opens the causal page
+- `Alt+2` opens the Signals page
+- `Alt+3` opens the Preparation page
+- `Alt+4` opens the Correlations page
+- `Alt+5` opens the Spectrum page
+- `Alt+6` opens the Time-frequency page
+- `Alt+7` opens the Causality page
+- `Alt+8` opens the Drift page
 - `Shift+R` resets the main chart zoom
 - `Shift+Z` zooms out one step on the main chart
 - `Shift+C` clears adaptive line filters on the main chart

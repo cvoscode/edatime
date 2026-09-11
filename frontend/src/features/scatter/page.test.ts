@@ -151,7 +151,7 @@ vi.mock('./matrix.js', () => ({
 
 function buildDom(): void {
     document.body.innerHTML = `
-        <section id="page-scatter" data-page-name="scatter">
+        <section id="heatmap-pair-plot">
             <div class="btn-toggle-group" role="group" aria-label="Scatter page view">
                 <button type="button" id="scatter-view-plot-btn" data-scatter-view="plot" aria-pressed="true">Plot</button>
                 <button type="button" id="scatter-view-matrix-btn" data-scatter-view="matrix" aria-pressed="false">Matrix</button>

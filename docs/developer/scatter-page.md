@@ -303,8 +303,7 @@ Response: { "pairs": [{ "x": "colA", "y": "colB", "pearson": 0.85 }, ...] }
 
 | Key | Action |
 |---|---|
-| `Alt+3` | Navigate to scatter page |
-| `Alt+4` | Open scatter matrix view (same page, switches view) |
+| `Alt+4` | Navigate to Correlations; pair and matrix views are selected within that page |
 
 ---
 

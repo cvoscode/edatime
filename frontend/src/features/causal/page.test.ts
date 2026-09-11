@@ -90,6 +90,7 @@ describe('causal page chart bootstrap', () => {
               <input id="causal-pc-alpha" value="0.2" />
               <input id="causal-max-conds" value="" />
               <select id="causal-fdr-select"><option value="none" selected>None</option></select>
+              <span id="causal-parameters-summary"></span>
               <button id="causal-compute-btn" type="button">Compute</button>
               <div id="causal-columns-bar"></div>
               <button id="causal-add-edge-btn" type="button">Add edge</button>
@@ -119,6 +120,24 @@ describe('causal page chart bootstrap', () => {
         const chartEl = document.getElementById('causal-chart') as HTMLDivElement;
         Object.defineProperty(chartEl, 'clientWidth', { configurable: true, value: 640 });
         Object.defineProperty(chartEl, 'clientHeight', { configurable: true, value: 360 });
+    });
+
+    it('keeps the collapsed parameter summary synchronized and method-aware', async () => {
+        const { initCausalPage } = await import('./page.js');
+        initCausalPage(causalDeps({
+            columns: [{ name: 'a', dtype: 'float64' }, { name: 'b', dtype: 'float64' }],
+            numeric_columns: ['a', 'b'],
+        }, ['a', 'b']));
+
+        expect(document.getElementById('causal-parameters-summary')?.textContent)
+            .toBe('ParCorr · tau 3 · alpha 0.05 · PC alpha 0.2 · max conds auto · no FDR');
+
+        const method = document.getElementById('causal-method-select') as HTMLSelectElement;
+        method.innerHTML += '<option value="fullci">FullCI</option>';
+        method.value = 'fullci';
+        method.dispatchEvent(new Event('change', { bubbles: true }));
+        expect(document.getElementById('causal-parameters-summary')?.textContent)
+            .toBe('ParCorr · tau 3 · alpha 0.05 · no FDR');
     });
 
     it('waits for the causal page to become visible before creating the chart', async () => {
@@ -249,9 +268,9 @@ describe('causal page chart bootstrap', () => {
         expect((document.getElementById('causal-add-edge-btn') as HTMLButtonElement).disabled).toBe(true);
         expect((document.getElementById('causal-export-btn') as HTMLButtonElement).disabled).toBe(true);
         expect((document.getElementById('causal-save-run-btn') as HTMLButtonElement).disabled).toBe(true);
-        expect((document.getElementById('causal-add-edge-btn') as HTMLButtonElement).title).toBe('Run Compute first');
-        expect((document.getElementById('causal-export-btn') as HTMLButtonElement).title).toBe('Run Compute first');
-        expect((document.getElementById('causal-save-run-btn') as HTMLButtonElement).title).toBe('Run Compute first');
+        expect((document.getElementById('causal-add-edge-btn') as HTMLButtonElement).title).toBe('Run discovery first');
+        expect((document.getElementById('causal-export-btn') as HTMLButtonElement).title).toBe('Run discovery first');
+        expect((document.getElementById('causal-save-run-btn') as HTMLButtonElement).title).toBe('Run discovery first');
         expect((document.getElementById('causal-compare-run-btn') as HTMLButtonElement).disabled).toBe(true);
         expect((document.getElementById('causal-compare-clear-btn') as HTMLButtonElement).disabled).toBe(true);
         expect(document.getElementById('causal-saved-runs-list')?.textContent).toContain('Run Compute first');

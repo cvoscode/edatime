@@ -4,7 +4,8 @@ import { defineConfig } from '@playwright/test';
  * Browser verification owns a packaged local application. CI/hosts can point
  * it at an already-running origin with EDATIME_E2E_BASE_URL instead.
  */
-const baseURL = process.env.EDATIME_E2E_BASE_URL ?? 'http://127.0.0.1:3000';
+const managedPort = process.env.EDATIME_E2E_PORT ?? '3100';
+const baseURL = process.env.EDATIME_E2E_BASE_URL ?? `http://127.0.0.1:${managedPort}`;
 
 export default defineConfig({
     testDir: './tests',
@@ -20,7 +21,8 @@ export default defineConfig({
         : {
             command: 'cargo run -p edatime-bin',
             url: baseURL,
-            reuseExistingServer: true,
+            env: { EDATIME_PORT: managedPort },
+            reuseExistingServer: false,
             timeout: 120_000,
         },
 });

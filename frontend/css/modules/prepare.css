@@ -6,6 +6,10 @@
 .prepare-workspace__copy { margin: 5px 0 0; color: var(--text-dim); max-width: 760px; }
 .prepare-workspace__identity, .prepare-workspace__quality, .prepare-workspace__graph, .prepare-workspace__signals-filters { padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--shell-surface-elevated); }
 .prepare-workspace__identity { color: var(--text-dim); font-size: 0.875rem; }
+.prepare-workspace__identity-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.prepare-workspace__identity-facts > div { min-width: 0; padding: 9px 10px; border-radius: var(--radius-md); background: var(--shell-bg); }
+.prepare-workspace__identity-facts dt { color: var(--text-muted); font-size: .6875rem; text-transform: uppercase; letter-spacing: .05em; }
+.prepare-workspace__identity-facts dd { margin: 4px 0 0; color: var(--text); overflow-wrap: anywhere; }
 .prepare-workspace__revision-link { padding: 0; border: 0; background: transparent; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
 .prepare-workspace__quality { display: grid; gap: 12px; }
 .prepare-workspace__quality h2 { margin: 0; font-size: 1rem; }
@@ -35,6 +39,10 @@
 .prepare-workspace__stage-controls > summary { display: none; }
 .prepare-workspace__policy-form { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--border-hi); border-radius: var(--radius-md); background: var(--shell-hover); }
 .prepare-workspace__policy-form h3 { width: 100%; margin: 0; font-size: 0.875rem; }
+.prepare-workspace__composer { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-md); }
+.prepare-workspace__composer-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.prepare-workspace__composer-heading .prepare-workspace__copy { margin: 0; }
+.prepare-workspace__composer-heading .modal-select { min-width: 230px; }
 .prepare-workspace__policy-form .modal-input { flex: 1 1 180px; }
 .prepare-workspace__policy-checkbox { display: inline-flex; align-items: center; gap: 7px; min-height: var(--ctrl-h); color: var(--text-dim); font-size: 0.8125rem; }
 .prepare-workspace__policy-status { width: 100%; margin: 0; color: var(--text-dim); font-size: 0.8125rem; }
@@ -45,4 +53,4 @@
 .prepare-workspace__stage-summary { display: grid; gap: 3px; min-width: 0; }
 .prepare-workspace__stage-summary span, .prepare-workspace__empty { color: var(--text-dim); font-size: 0.8125rem; }
 @media (max-width: 1599px) { .prepare-workspace__policy-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; } .prepare-workspace__policy-form h3, .prepare-workspace__policy-form .modal-input, .prepare-workspace__policy-form .prepare-workspace__policy-status { grid-column: 1 / -1; width: 100%; } .prepare-workspace__policy-form > .btn { justify-self: end; grid-column: 1 / -1; } }
-@media (max-width: 680px) { .page-prepare { padding: 14px; } .prepare-workspace__header, .prepare-workspace__quality-finding, .prepare-workspace__stage { flex-direction: column; align-items: stretch; } .prepare-workspace__local-nav { overflow-x: auto; } .prepare-workspace__local-nav a, .prepare-workspace__local-nav button { flex: 0 0 auto; } .prepare-workspace__history { top: 52px; } .prepare-workspace__stage-controls { width: 100%; } .prepare-workspace__stage-controls > summary { display: flex; min-height: 40px; align-items: center; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--text); cursor: pointer; } .prepare-workspace__stage-actions { padding-top: 8px; } .prepare-workspace__stage-actions .btn { flex: 1 1 calc(50% - 4px); } }
+@media (max-width: 680px) { .page-prepare { padding: 14px; } .prepare-workspace__header, .prepare-workspace__quality-finding, .prepare-workspace__stage, .prepare-workspace__composer-heading { flex-direction: column; align-items: stretch; } .prepare-workspace__identity-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } .prepare-workspace__composer-heading .modal-select { min-width: 0; width: 100%; } .prepare-workspace__local-nav { overflow-x: auto; } .prepare-workspace__local-nav a, .prepare-workspace__local-nav button { flex: 0 0 auto; } .prepare-workspace__history { top: 52px; } .prepare-workspace__stage-controls { width: 100%; } .prepare-workspace__stage-controls > summary { display: flex; min-height: 40px; align-items: center; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--text); cursor: pointer; } .prepare-workspace__stage-actions { padding-top: 8px; } .prepare-workspace__stage-actions .btn { flex: 1 1 calc(50% - 4px); } }

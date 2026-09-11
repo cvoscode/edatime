@@ -51,4 +51,6 @@ export interface ScatterFetchOptions {
     end?: number;
     filters?: ScatterFilterSpec[];
     lineFilters?: ScatterLineFilterSpec[];
+    /** Temporal colors can be grouped by hour or rendered as a chronological gradient. */
+    timeColorMode?: 'bucket' | 'raw';
 }

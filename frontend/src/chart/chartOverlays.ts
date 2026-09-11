@@ -141,11 +141,32 @@ export class ChartOverlays {
             const label = `${column} [${from.toFixed(2)}, ${to.toFixed(2)}]`;
             const labelWidth = ctx.measureText(label).width;
             const labelHeight = 17 * strokeScale;
-            const labelX = bandLeft + 6 * strokeScale;
             const labelY = Math.max(
                 plotTop + labelHeight / 2 + 2 * strokeScale,
                 Math.min(plotBottom - labelHeight / 2 - 2 * strokeScale, bandTop + labelHeight / 2 + 3 * strokeScale),
             );
+            let labelX = bandLeft + 6 * strokeScale;
+            const container = this._opts.getContainer();
+            const legend = container?.querySelector<HTMLElement>('.timeseries-legend-overlay');
+            if (container && legend) {
+                const containerRect = container.getBoundingClientRect();
+                const legendRect = legend.getBoundingClientRect();
+                const legendLeft = (legendRect.left - containerRect.left) * scale.x;
+                const legendRight = (legendRect.right - containerRect.left) * scale.x;
+                const legendTop = (legendRect.top - containerRect.top) * scale.y;
+                const legendBottom = (legendRect.bottom - containerRect.top) * scale.y;
+                const labelTop = labelY - labelHeight / 2;
+                const labelBottom = labelY + labelHeight / 2;
+                const overlapsVertically = labelBottom > legendTop && labelTop < legendBottom;
+                const overlapsHorizontally = labelX + labelWidth > legendLeft && labelX < legendRight;
+                if (overlapsVertically && overlapsHorizontally) {
+                    const rightCandidate = legendRight + 8 * strokeScale;
+                    const leftCandidate = legendLeft - labelWidth - 8 * strokeScale;
+                    if (rightCandidate + labelWidth <= plotRight) labelX = rightCandidate;
+                    else if (leftCandidate >= bandLeft) labelX = leftCandidate;
+                    else continue;
+                }
+            }
             ctx.fillStyle = 'rgba(8, 12, 20, 0.88)';
             ctx.fillRect(
                 labelX - 3 * strokeScale,

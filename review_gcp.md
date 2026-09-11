@@ -1055,4 +1055,252 @@ Severity tally (current outstanding):
 ### Top fixes for a data-scientist day-1 experience (pass 9)
 
 1. **Stop truncating the Drift Overview lists to 5** (NEW-40, P2). Either remove the `.slice(0, 5)` in `frontend/src/features/drift/investigationPanels.ts` (lines 28 and 42) so all flagged columns render, or add a `Showing N of M` indicator and an expand affordance. Today the header says `7 of 7` but the lists below show only 5, so the user has no way to see MULL, OT, or HULL depending on the panel.
+
+---
+
+## Re-review (2026-09-09, pass 10, focus: Spectrum & diagnose pages)
+
+This pass focuses the review on the **Spectrum & diagnose** sidebar group: the Spectrum (FFT) page, the Causality page, and the Drift page (the two entries under the "Diagnose" group). All three pages were exercised against the ETTm2 source-1 dataset (`source-1`, 69,680 rows, 7 numeric traces HUFL/HULL/MUFL/MULL/LUFL/LULL/OT) at 1440×900. The previously open findings from pass 9 (NEW-40 Drift truncation, NEW-41 Pair-plot suggestion fallback wrap) are re-verified, and additional issues specific to the Spectrum & diagnose pages are recorded.
+
+Findings that this pass still confirms as ✅ closed are removed from this file. The remaining findings are still actionable. Any new findings raised during this re-review are appended after the original sections.
+
+---
+
+## Spectrum page (FFT)
+
+### NEW-43 — Spectrum data summary table values are raw magnitudes, not the displayed log10 values — 🆕 NOT SOLVED (P2)
+
+- **Severity**: P2 (the chart and its data-summary table disagree about which scale is shown).
+- **Where**: Spectrum page, "Statistical summary for FFT chart" table that appears under the main chart (visible after scrolling past the chart canvas), shown for every selected trace.
+- **Reproduced live at 1440×900** with 3 traces (HUFL/HULL/MUFL) and Magnitude mode + Log scale on:
+  - Chart y-axis range = `-4.57 → 0.47`, axis title = `log10(Magnitude)`.
+  - Statistical summary table for HUFL: Count 32,769 · **Min 0** · **Max 2.4934** · **Mean 0.0125** · Std — · Median — · Missing % 0.00%.
+  - The Min/Max/Mean/Missing columns are linear magnitudes, not the log10 values the chart is currently drawing.
+  - Toggling Log off (linear Magnitude) does not change the table values (still Min=0, Max=2.4934, Mean=0.0125) — the table is independent of the chart scale toggle.
+- **Expected behavior**:
+  - The summary table should reflect the same data scale the chart is drawing. With Log on, Min should be `~log10(min_magnitude)` (≈ −4.57 for HUFL, not 0), Max should be `~log10(max_magnitude)` (≈ 0.47), Mean should be the mean of the displayed values.
+  - Or the table caption/header should make clear that the values are the underlying linear magnitudes (e.g. "Linear magnitude"), not the values the user sees on the chart axis.
+- **Actual behavior**: The table always shows the linear magnitudes regardless of the chart scale. The chart and its table disagree about what the user is looking at.
+- **Root cause**: the table values are produced from the raw `traces[*].magnitude` (or equivalent) series, while the chart axis labels are post-`log10`. They never get re-scaled together.
+- **Acceptance criteria**:
+  - When Log scale is on, the table's Min/Max/Mean match the values the chart y-axis displays (or include a `scale = log10` note in the header).
+  - When Normalize (Z-score / Min–max / Robust [Q1, Q3]) is on, the table reflects the same normalized values the chart axis shows (or includes a `scale = z-score → [0,1]` note).
+  - The table caption explicitly names the scale that the numbers refer to.
+
+### NEW-44 — Spectral filter High Hz accepts values far above Nyquist without validation — 🆕 NOT SOLVED (P2)
+
+- **Severity**: P2 (the filter accepts meaningless inputs and silently does nothing).
+- **Where**: Spectrum page, *Filter* toolbar, "High Hz" spinbutton (visible after picking Low-pass / High-pass / Band-pass / Band-stop in the Filter Type combobox).
+- **Reproduced live at 1440×900** with 7-trace ETTm2 source-1 (sample rate 1/15.0 min, Nyquist = 555.56 µHz ≈ 0.000556 cycles/day):
+  1. Set Filter Type = Low-pass. The High Hz spinbutton appears, value `auto`.
+  2. Type `0.0001` into High Hz → click *Preview filter on Signals* → toast `Spectral filter failed (400) [invalid_request] (request_id=…) lowpass requires high_hz`. **Apply is disabled.**
+  3. Type `100` into High Hz → click *Preview filter on Signals* → toast `✔ Spectral filter preview: lowpass applied to "HUFL". Switch to Timeseries to view.` The signal is "filtered" but the cutoff is 100 Hz, **~180,000,000× the Nyquist frequency**, so every frequency component of the spectrum passes the filter unchanged.
+  4. The Spectrum chart y-axis range shifts (e.g. -0.236 → 0.972 instead of -4.57 → 0.47) — the filter does affect the displayed spectrum, but the cutoff is meaningless because nothing in the data is above 100 Hz.
+  5. The signal shown on the Timeseries page (`HUFL [filtered]`) is identical to the unfiltered signal because the filter passes everything.
+- **Expected behavior**:
+  - The High Hz spinbutton should clamp/reject values above Nyquist (or at least clamp to Nyquist and inform the user), so the user cannot pick a value that makes the filter a no-op.
+  - For Low-pass at ≥ Nyquist, either disable the Preview button or show an inline hint like *"Cutoff is at/above Nyquist — the filter will pass everything"*.
+- **Actual behavior**: any positive number is accepted silently. A 100 Hz cutoff on data whose Nyquist is 555 µHz is a no-op, but the UI reports success.
+- **Acceptance criteria**:
+  - High Hz values > Nyquist are rejected (with an inline message and disabled Apply) or clamped to Nyquist with a visible note.
+  - The spinbutton has a `max` attribute bound to Nyquist (in Hz) for the current dataset.
+
+### NEW-45 — Switching Filter Type back to "Off" does not clear the "lowpass preview active" indicator — 🆕 NOT SOLVED (P2)
+
+- **Severity**: P2 (the toolbar advertises an active filter preview that the UI has no way to disable from this page).
+- **Where**: Spectrum page, *Filter* toolbar row, the text `lowpass preview active` (or similar) that appears to the right of the *Preview filter on Signals* button after a successful preview.
+- **Reproduced live at 1440×900**:
+  1. Compute spectrum (3 traces).
+  2. Set Filter Type = Low-pass, High Hz = 100, click *Preview filter on Signals* → indicator shows `lowpass preview active`. Timeseries now has `HUFL [filtered]`.
+  3. Change Filter Type back to **Off** — the indicator stays `lowpass preview active` even though the dropdown is now "Off".
+  4. The Spectrum chart still shows the *filtered* spectrum (no longer the source spectrum).
+  5. Clicking the *Preview filter on Signals* button toggles the indicator off — so the only way to clear it is to click the preview button again, even though the dropdown already says "Off".
+- **Expected behavior**:
+  - Switching Filter Type to "Off" clears the active preview and reverts the chart to the unfiltered spectrum.
+  - Or the indicator updates to read "Filter off — preview remains active until cleared" so the user knows the chart is still filtered.
+- **Actual behavior**: Filter Type dropdown says "Off" but the indicator still says `lowpass preview active` and the chart still shows the filtered data. Two pieces of UI disagree about whether the filter is applied.
+- **Acceptance criteria**:
+  - Either Filter Type = "Off" disables the preview and clears the indicator (and re-computes the unfiltered spectrum), or the indicator text is reworded to reflect the actual state (e.g. "Filter dropdown off · preview still active").
+
+---
+
+## Diagnose → Causality page
+
+### NEW-39 — Causality page renders an empty main canvas — ✅ SOLVED (re-verified)
+
+- **Severity**: P1 (was) → closed.
+- **Re-verified live at 1440×900** with PCMCI defaults on source-1:
+  - Click *Run discovery* → toast `✔ PCMCI: graph updated with 7 nodes and 104 links.`
+  - Main `<canvas>` element renders 7 colored node circles (HUFL/HULL/MUFL/MULL/LUFL/LULL/OT) connected by 65+ directed edges. (The pass-8 reviewer missed the canvas content because the accessibility-tree snapshot doesn't enumerate `<canvas>` children.)
+- **No outstanding action** for this finding.
+
+### NEW-46 — Toolbar "Parameters" disclosure summary is static and ignores the active method — 🆕 NOT SOLVED (P1)
+
+- **Severity**: P1 (the disclosure summary actively mis-describes which parameters apply to the currently selected method, and the user has no way to see the actual parameters without expanding the disclosure).
+- **Where**: Causality page, "Parameters" toolbar disclosure (the row that reads `ParCorr · τ 3 · α .05 · PC .2 · no FDR ⌄` on the right side of the toolbar).
+- **Reproduced live at 1440×900**:
+  1. Default state, Method = PCMCI → disclosure summary `ParCorr · τ 3 · α .05 · PC .2 · no FDR`. PC α = 0.2 is editable below.
+  2. Set Method = FullCI → the *PC stage significance level* and *Maximum conditioning set size* spinbuttons become `[disabled]`, with tooltips explaining they don't apply to FullCI.
+  3. The disclosure summary **still reads `ParCorr · τ 3 · α .05 · PC .2 · no FDR`** — it has not updated to reflect the new method.
+  4. Same for PCMCI+ / BivCI / LPCMCI (where applicable): the summary is the same hardcoded string regardless of the selected method.
+- **Expected behavior**:
+  - The summary should only mention parameters that are actually applied for the selected method. For FullCI / BivCI it should read something like `ParCorr · τ 3 · α .05 · no FDR` (drop `PC .2`, drop `Max conds`).
+  - The summary should also re-read the current spinner values, not a hardcoded default.
+- **Actual behavior**: The disclosure summary is a **hardcoded HTML string** in `frontend/index.html` (`<span>Parameters</span><span>ParCorr · τ 3 · α .05 · PC .2 · no FDR</span>`) that never updates from JavaScript. The actual disabled inputs and tooltips tell a different story.
+- **Root cause**: in `frontend/index.html:1391` (and the matching built copy in `crates/edatime-bin/frontend/dist/index.html:1451`).
+- **Acceptance criteria**:
+  - The disclosure summary updates whenever the user changes the method, the test, the τ/α inputs, or the FDR dropdown.
+  - When the method doesn't use PC α / Max conds, those tokens are omitted from the summary.
+
+### NEW-47 — Graph node-pair "X links ↪ τ…" labels overlap in the centre of the graph — 🆕 NOT SOLVED (P2)
+
+- **Severity**: P2 (large portions of the link-aggregated labels are unreadable when the graph is dense).
+- **Where**: Causality page, the `<svg>` main graph (below the trace legend, above the *Causal graph actions* toolbar). Each collapsed pair edge has its own label "N links ↪ τ1, 2, 3" that sits at the geometric midpoint of the two nodes.
+- **Reproduced live at 1440×900** with the default 7-trace graph from source-1:
+  - PCMCI, 7 nodes, 104 links → in the centre of the graph, three labels stack on top of each other:
+    - `6 links ↪ τ1, 2, 3` (HUFL ↔ LULL)
+    - `4 links ↪ τ1, 2, 3` (HUFL ↔ HULL? — overlaps the previous)
+    - `1 link ↪ τ1, 2, 3` (HUFL ↔ OT — appears as "1 link" overlapping another chip)
+  - The same stacking happens for the LULL ↔ MUFL / MULL ↔ OT / LUFL ↔ MULL region.
+  - Several labels overlap their own neighbours by 50–100% of their bounding box, making them unreadable.
+  - With FullCI (7 nodes, 77 links) the same overlap pattern persists, slightly less dense.
+- **Expected behavior**:
+  - Pair-edge labels should not overlap each other. Options: collision avoidance (move labels off the mid-line), fade non-hovered labels, or use a leader line to a non-overlapping margin label.
+- **Actual behavior**: Labels are placed at the geometric midpoint of the edge without any collision avoidance; in a complete graph K7 they overlap heavily.
+- **Acceptance criteria**:
+  - No two pair-edge labels overlap by more than a few pixels in the rendered graph at 1440×900 with all 7 traces selected and any of PCMCI / FullCI / PCMCI+ / BivCI / LPCMCI.
+  - Every "X links ↪ τ…" text is fully legible (the user can read all of "6 links" without other labels overlapping its text).
+
+### NEW-48 — Clicking the trace-legend chip deselects the trace from the analysis (no warning) — 🆕 NOT SOLVED (P2)
+
+- **Severity**: P2 (the trace-legend chip looks like a graph node but toggles inclusion in the discovery instead).
+- **Where**: Causality page, the row of trace-legend chips below the Parameters disclosure (`HUFL [pressed]`, `HULL [pressed]`, …) — each chip is a button labelled `Set HUFL color HUFL Edit HUFL causal node`.
+- **Reproduced live at 1440×900**:
+  1. Open Causality, all 7 traces selected (`pressed`). The graph shows 7 nodes.
+  2. Click the HUFL chip in the trace legend → the chip loses `pressed` state and the legend swaps to a `Select all` button. The trace is now excluded from the analysis.
+  3. Run *Run discovery* with only 6 traces → toast `✔ FULLCI: graph updated with 6 nodes and 37 links.` OT is missing from the graph (correct), but the user may not have intended to exclude HUFL.
+  4. There is no warning, no confirmation, no undo. The trace legend behaves like a toggle for inclusion in the discovery, not like a graph node selector.
+- **Expected behavior**:
+  - Either the trace legend chips should have an explicit `aria-pressed="false"` style and a tooltip like *"Include HUFL in causal discovery"* (so the toggle is intentional), AND a confirm-on-click when fewer than 2 traces would remain selected, OR
+  - The trace legend should be clearly separated from the graph nodes, with the graph nodes being the only clickable objects for selection / add-edge.
+- **Actual behavior**: The chip is a button without a tooltip explaining what it does. Clicking it silently deselects the trace and the next *Run discovery* run will exclude it.
+- **Acceptance criteria**:
+  - Hovering the trace-legend chip shows a tooltip like *"Toggle inclusion of HUFL in causal discovery"* (or similar).
+  - Clicking it shows a confirmation when fewer than 2 traces would remain selected, OR prevents deselecting the last 2 selected traces.
+
+### NEW-49 — Causal node edit modal's `Close` button is intercepted by its parent header div — 🆕 NOT SOLVED (P2)
+
+- **Severity**: P2 (mouse clicks on the modal's Close button are silently dropped, leaving the modal open).
+- **Where**: Causality page, the Causal-node edit modal that opens when the user clicks the `Edit <trace> causal node` pencil button next to a trace-legend chip (button id `causal-edit-close`).
+- **Reproduced live at 1440×900**:
+  1. Click the pencil icon (`Edit HUFL causal node`) → modal opens with title `Node: HUFL`, `Label`, `Color`, `Attributes (JSON)` fields, and `Apply` / `Delete` buttons plus a `Close` (`✕`) button in the header.
+  2. Click the `Close` button → click is intercepted; Playwright reports `attempting click action → <div class="causal-edit-header">…</div> intercepts pointer events`, and the modal stays open.
+  3. The user can still close the modal via the `Apply` or `Delete` buttons, or by pressing Escape (not tested).
+- **Expected behavior**:
+  - The `Close` button is reachable by a normal mouse click.
+- **Actual behavior**: A `<div class="causal-edit-header">` overlays the click target. The button only responds to programmatic clicks (e.g. via keyboard Enter / Space, or `Apply`/`Delete`).
+- **Acceptance criteria**:
+  - A mouse click on the `Close` button dismisses the modal.
+  - Or the header div does not overlap the Close button's hit area (z-index / pointer-events correctly set).
+
+### NEW-50 — Run Comparison "✕" delete-button is intercepted by the run-item container — 🆕 NOT SOLVED (P2)
+
+- **Severity**: P2 (the delete button on a saved run is unreachable by mouse click).
+- **Where**: Causality page, Run Comparison panel, each saved run's `✕` delete button (`title="Delete"`, class `causal-run-delete-btn`).
+- **Reproduced live at 1440×900** with one previously-saved run `fullci τ=3 α=0.05` showing in the panel:
+  1. Locate the `✕` button (Playwright reports it as `data-run-id="run_…"`).
+  2. Click → Playwright reports `<div class="causal-run-item">…</div> intercepts pointer events` — the click never reaches the button.
+  3. The user can still delete the run by clearing localStorage / refreshing — there is no in-UI way to remove a saved run.
+- **Expected behavior**:
+  - The `✕` button is reachable by a normal mouse click.
+- **Actual behavior**: A `<div class="causal-run-item">` overlays the click target. Only programmatic / keyboard activation works.
+- **Acceptance criteria**:
+  - A mouse click on the `✕` button removes the run from the list (with a confirm if there is no other path).
+  - Or the run-item div does not overlap the delete-button's hit area.
+
+### NEW-51 — Pair-edge detail panel has no close button — 🆕 NOT SOLVED (P2)
+
+- **Severity**: P2 (the panel stays open and dims the graph behind it; the user has no obvious way to dismiss it without reloading the page or selecting another pair).
+- **Where**: Causality page, the "Pair edge · <X> ↔ <Y>" detail panel that appears in the main `<main>` element when the user clicks an edge in the graph.
+- **Reproduced live at 1440×900** with a computed graph:
+  1. After *Run discovery* completes, click the edge between HUFL and LULL in the graph.
+  2. A panel appears in the main area with title `Pair edge · HUFL ↔ LULL`, the per-direction raw lag links (HUFL → LULL, LULL → HUFL, etc.) and the message *"Right-click to edit this pair edge and its raw lag-specific links."*
+  3. There is **no `Close` / `✕` / dismiss button** in the panel header.
+  4. Clicking another edge swaps the panel content but does not let the user dismiss it.
+  5. The graph behind the panel is dimmed (`opacity` ~0.4), but the panel sits in the middle of the chart area so the user can no longer see ~30% of the graph.
+- **Expected behavior**:
+  - A `Close` / `✕` button (or backdrop click, or Escape key) dismisses the panel and reveals the full graph.
+- **Actual behavior**: No close affordance is provided. The panel persists until the user clicks a different edge or reloads the page.
+- **Acceptance criteria**:
+  - The panel can be dismissed by clicking a close button, the backdrop, or pressing Escape.
+  - When dismissed, the graph is fully visible again.
+
+---
+
+## Diagnose → Drift page
+
+### NEW-40 — Drift Overview panels truncate Top-features / Change-points / Method-reliability to 5 — ✅ SOLVED (re-verified)
+
+- **Severity**: P2 (was) → closed.
+- **Re-verified live at 1440×900** on source-1 with all 7 traces selected and Daily / First 50% / Later windows defaults:
+  - Overview tab now renders all 7 traces in **Top features** (HUFL, HULL, LUFL, LULL, MUFL, MULL, OT) and **Change points** (same 7 traces, each card showing `2017-06-28 19:52 - 2017-06-29 19:52` and `Reasons: psi_major, wasserstein, ks, es`).
+  - Quality tab renders all 7 traces in **Method reliability** cards (HUFL "1 warning", HULL "1 warning", LUFL "1 warning", LULL "2 warnings" + extra "Bin count was reduced to 20", MUFL "1 warning", MULL "1 warning", OT "1 warning").
+  - The header tile "Columns flagged: 7 of 7" is now consistent with the number of cards rendered in each panel.
+- **No outstanding action** for this finding.
+
+---
+
+## Pair plot page
+
+### NEW-41 — Pair-plot suggestion chips wrap inconsistently in the below-threshold fallback layout — ✅ SOLVED (re-verified)
+
+- **Severity**: P3 (was) → closed.
+- **Re-verified live at 1440×900** on Pair plot with the default X=HUFL, Y=HULL and 3 inherited adaptive filters:
+  - The Suggestions panel now renders the summary `Showing top 5 by |corr|; below-threshold fallback (spearman_raw)` on **its own row** above the chips.
+  - All 5 chips render on **one horizontal row** in a horizontal flex container: `HULL ↔ MULL |corr| 0.90`, `LUFL ↔ LULL |corr| 0.87`, `HUFL ↔ HULL |corr| 0.69`, `HUFL ↔ LUFL |corr| 0.69`, `HUFL ↔ MUFL |corr| 0.69`.
+  - No wrapping, no displaced first chip, no fragmented layout.
+- **No outstanding action** for this finding.
+
+---
+
+## Summary counts (pass 10, 2026-09-09)
+
+After pass 10:
+
+- **Signals page**: 0 outstanding.
+- **Preparation page**: 0 outstanding.
+- **Correlation matrix page**: 0 outstanding.
+- **Pair plot page**: 0 outstanding (NEW-41 closed).
+- **Spectrum page (FFT)**: 3 outstanding (NEW-43 data summary table vs chart scale; NEW-44 filter cutoff accepts values above Nyquist; NEW-45 Filter Type Off does not clear preview indicator).
+- **Time-frequency page**: 0 outstanding (no new findings).
+- **Causality page (Diagnose)**: 6 outstanding (NEW-46 disclosure summary static, NEW-47 pair-edge label overlap, NEW-48 trace-legend chip toggles silently, NEW-49 edit modal Close intercepted, NEW-50 run delete ✕ intercepted, NEW-51 pair-edge panel has no close button).
+- **Drift page (Diagnose)**: 0 outstanding (NEW-40 closed).
+- **Cross-page / global**: 0 outstanding.
+- **Closed in pass 10**: NEW-39 (Causality `<canvas>` rendering confirmed), NEW-40 (Drift 7-of-7 rendering), NEW-41 (Pair-plot suggestion wrap).
+- **New in pass 10**: NEW-43, NEW-44, NEW-45 (Spectrum); NEW-46, NEW-47, NEW-48, NEW-49, NEW-50, NEW-51 (Causality).
+- **Total outstanding: 9 findings** (up from 2 in pass 9; net +7 because 3 closed and 9 new).
+
+Severity tally (current outstanding):
+- **P0**: 0.
+- **P1**: 1 (NEW-46 disclosure summary static).
+- **P2**: 8 (NEW-43, NEW-44, NEW-45, NEW-47, NEW-48, NEW-49, NEW-50, NEW-51).
+- **P3**: 0.
+
+### Verdict rollup
+
+| Verdict | Count | Findings |
+|---|---|---|
+| ✅ Closed in pass 10 | 3 | NEW-39 (Causality `<canvas>` renders the discovered graph), NEW-40 (Drift renders all 7 traces in Top-features / Change-points / Method-reliability), NEW-41 (Pair-plot suggestion chips render on one row above the summary caption) |
+| 🟡 Partial in pass 10 | 0 | — |
+| ❌ Still not solved (carried over) | 0 | — |
+| 🆕 New in pass 10 | 9 | NEW-43 (FFT data-summary table values are linear magnitudes, not the chart's log10), NEW-44 (FFT filter High Hz accepts values far above Nyquist without validation), NEW-45 (FFT Filter Type Off doesn't clear the "lowpass preview active" indicator), NEW-46 (Causality Parameters disclosure summary is hardcoded HTML and ignores the active method), NEW-47 (Causality pair-edge labels overlap heavily in the centre of a dense graph), NEW-48 (Causality trace-legend chips silently toggle inclusion in the discovery), NEW-49 (Causality edit-modal Close button is intercepted by .causal-edit-header), NEW-50 (Causality Run Comparison ✕ delete is intercepted by .causal-run-item), NEW-51 (Causality pair-edge detail panel has no close / dismiss affordance) |
+
+### Top fixes for a data-scientist day-1 experience (pass 10)
+
+1. **Make the Causality Parameters disclosure summary dynamic and method-aware** (NEW-46, P1). The summary is currently a hardcoded `<span>ParCorr · τ 3 · α .05 · PC .2 · no FDR</span>` in `frontend/index.html` (line 1391) that never updates. Switching to FullCI/BivCI leaves the summary claiming `PC .2` is active even though the input is disabled. Replace with a JS-driven summary that omits PC α / Max conds when not applicable and reflects current spinner values.
+2. **Cap the Spectrum filter cutoff at Nyquist** (NEW-44, P2). The "High Hz" / "Low Hz" spinbuttons accept any positive number. On ETTm2 (Nyquist ≈ 555 µHz) a 100 Hz cutoff silently does nothing. Clamp the input to `[0, Nyquist]` and warn if at/above Nyquist.
+3. **Stop the Causality pair-edge labels from overlapping** (NEW-47, P2). In a complete K7 graph every collapsed pair-edge label is placed at the geometric midpoint of the two nodes, producing 3-way and 4-way overlaps in the centre. Add collision avoidance (force-directed nudge, leader lines to margin labels, or fade-on-hover).
+4. **Add a close affordance to the Causality pair-edge detail panel and the edit modal** (NEW-51, NEW-49, P2). The pair-edge panel has no ✕; the edit modal's ✕ is intercepted by its header div. Either raise the button above its overlay (z-index / pointer-events) or wrap the click target more tightly.
+5. **Stop the Causality trace-legend chip from silently deselecting traces** (NEW-48, P2). Add a tooltip explaining the toggle and refuse to deselect when fewer than 2 traces would remain.
+6. **Make the Spectrum Filter Type "Off" actually clear the preview** (NEW-45, P2) and **show the FFT data summary table on the same scale as the chart** (NEW-43, P2). Both are quick wins once NEW-46-style dynamic UI is in place.
 2. **Give the Pair-plot suggestion-fallback wrapper a layout** (NEW-41, P3). The `.scatter-suggestion-fallback` `<div>` has no CSS rules; it inherits `display: block` so the inline-block summary + 5 chips wrap naturally into a fragmented layout. Either style the wrapper as a flex/inline-flex row, or move the summary out of the row entirely (e.g. summary as a caption above, chips as the only children of the existing flex `.scatter-suggestions` container).

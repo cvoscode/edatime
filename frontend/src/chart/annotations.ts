@@ -38,6 +38,10 @@ export interface Annotation {
 
 const STORAGE_KEY = 'edatime-annotations';
 
+function notifyAnnotationsChanged(): void {
+    if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('edatime:annotations-changed'));
+}
+
 /** In-memory annotation store */
 let annotations: Annotation[] = [];
 
@@ -106,6 +110,7 @@ export function createAnnotation(
     };
     annotations.push(annotation);
     saveAnnotations();
+    notifyAnnotationsChanged();
     return annotation;
 }
 
@@ -119,6 +124,7 @@ export function updateAnnotation(id: string, updates: Partial<Omit<Annotation, '
         updatedAt: Date.now(),
     };
     saveAnnotations();
+    notifyAnnotationsChanged();
     return annotations[idx];
 }
 
@@ -128,6 +134,7 @@ export function deleteAnnotation(id: string): boolean {
     if (idx < 0) return false;
     annotations.splice(idx, 1);
     saveAnnotations();
+    notifyAnnotationsChanged();
     return true;
 }
 
@@ -135,12 +142,14 @@ export function deleteAnnotation(id: string): boolean {
 export function clearAnnotationsForPage(page: string): void {
     annotations = annotations.filter((a) => a.page !== page);
     saveAnnotations();
+    notifyAnnotationsChanged();
 }
 
 /** Clear all annotations */
 export function clearAllAnnotations(): void {
     annotations = [];
     saveAnnotations();
+    notifyAnnotationsChanged();
 }
 
 /** Export annotations as JSON */
@@ -218,7 +227,7 @@ export function createScatterCallout(
         content,
         position: { x, y },
         columns: [xCol, yCol],
-        page: 'scatter',
+        page: 'correlations',
     });
 }
 

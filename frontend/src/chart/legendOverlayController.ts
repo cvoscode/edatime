@@ -12,6 +12,12 @@ export interface LegendOverlayCallbacks {
     suppressChartHover(): void;
 }
 
+function withAlpha(color: string, alpha: number): string {
+    const hex = color.trim().match(/^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i);
+    if (!hex) return color;
+    return `rgba(${Number.parseInt(hex[1]!, 16)}, ${Number.parseInt(hex[2]!, 16)}, ${Number.parseInt(hex[3]!, 16)}, ${alpha})`;
+}
+
 /**
  * Owns the DOM lifecycle and pointer interaction for the timeseries legend.
  * Chart state (series visibility and export entries) remains in DataChart.
@@ -45,6 +51,10 @@ export class LegendOverlayController {
             button.className = 'timeseries-legend-overlay__row';
             button.dataset.seriesName = entry.name;
             button.setAttribute('aria-pressed', entry.visible ? 'true' : 'false');
+            if (entry.visible) {
+                button.style.backgroundColor = withAlpha(entry.color, 0.14);
+                button.style.boxShadow = `inset 0 0 0 1px ${withAlpha(entry.color, 0.48)}`;
+            }
             button.title = `${entry.visible ? 'Hide' : 'Show'} ${entry.name}${entry.colorSource ? ' (color source)' : ''}`;
             button.classList.toggle('is-color-source', !!entry.colorSource);
 

@@ -88,7 +88,11 @@ function syncPickerLabel(allCols: string[] = numericCols): void {
     if (!pickerLabelEl) return;
     const total = allCols.length;
     const selected = selectedCols.size;
-    pickerLabelEl.textContent = total === 0 ? 'No numeric columns' : `${selected} of ${total} selected`;
+    const names = [...selectedCols];
+    pickerLabelEl.textContent = total === 0
+        ? 'No numeric columns'
+        : selected <= 2 ? names.join(', ') : `${selected} of ${total} selected`;
+    pickerLabelEl.title = names.length ? `Selected: ${names.join(', ')}` : 'No traces selected';
 }
 
 function renderColumnChips(colPickerList: HTMLElement | null, allCols: string[]): void {

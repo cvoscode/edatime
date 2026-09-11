@@ -40,6 +40,9 @@
   gap: 24px;
 }
 
+.keyboard-help-search { display: block; margin: -8px 0 18px; }
+.keyboard-help-search input { width: 100%; min-height: 38px; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); background: var(--surface-2); }
+
 .keyboard-help-section h4 {
   font-size: 0.75rem;
   font-weight: 600;

@@ -8,6 +8,7 @@ import {
     buildMatrixFetchPairs,
     createMatrixRenderSession,
     renderScatterOverview,
+    selectMatrixPair,
 } from './matrix.js';
 import { renderMatrixGrid } from './matrixGrid.js';
 
@@ -86,6 +87,32 @@ describe('buildMatrixFetchPairs', () => {
 
         expect(otWithCurrentAxis).toBeGreaterThanOrEqual(0);
         expect(unrelatedPair).toBeGreaterThan(otWithCurrentAxis);
+    });
+
+    it('carries the requested Y axis through the asynchronous correlation refresh', async () => {
+        const x = document.getElementById('scatter-x-col') as HTMLSelectElement;
+        const xOption = document.createElement('option');
+        xOption.value = 'HULL';
+        xOption.textContent = 'HULL';
+        x.add(xOption);
+        const refresh = vi.fn(async (preferredY?: string) => {
+            const y = document.getElementById('scatter-y-col') as HTMLSelectElement;
+            const yOption = document.createElement('option');
+            yOption.value = 'MULL';
+            yOption.textContent = 'MULL';
+            y.add(yOption);
+            y.value = preferredY || '';
+        });
+        const setView = vi.fn().mockResolvedValue(undefined);
+        const render = vi.fn().mockResolvedValue(undefined);
+
+        await selectMatrixPair('HULL', 'MULL', refresh, render, setView);
+
+        expect(refresh).toHaveBeenCalledWith('MULL');
+        expect(x.value).toBe('HULL');
+        expect((document.getElementById('scatter-y-col') as HTMLSelectElement).value).toBe('MULL');
+        expect(setView).toHaveBeenCalledWith('plot', { render: false });
+        expect(render).toHaveBeenCalledOnce();
     });
 
     it('ranks both x and y columns from a suggestion', () => {

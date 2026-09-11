@@ -21,13 +21,12 @@ function isTypingTarget(target: EventTarget | null): boolean {
 const ALT_NAVIGATION: Record<string, string> = {
     '1': 'upload',
     '2': 'timeseries',
-    '3': 'scatter',
+    '3': 'prepare',
     '4': 'correlations',
-    '6': 'fft',
-    '7': 'correlations',
-    '8': 'spectrogram',
-    '9': 'causal',
-    '0': 'drift',
+    '5': 'fft',
+    '6': 'spectrogram',
+    '7': 'causal',
+    '8': 'drift',
 };
 
 export interface GlobalShortcutsController {

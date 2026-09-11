@@ -40,7 +40,7 @@ export const TIMESERIES_HELP: PageHelpContent = {
                 'Draw — pick a Tool (Zoom/inspect, Arrow, or Box), a Color and a Width; click Clear drawings to remove all annotations; click the small "?" for an inline reminder of Ctrl+click',
                 'Labels — opens the chart title and axis label editor; changes apply to the chart and to exported PNG/SVG',
                 'Notes — opens the annotations panel: sticky notes, text callouts, and shapes that persist with the session',
-                'Export — PNG / CSV are one click each; "More" opens SVG, JSON, and Parquet options',
+                'Export — Export PNG and Export CSV are one click each; More export formats opens SVG, JSON, and Parquet options',
                 'Analytics — opens rolling bands, anomalies, and cleanup controls; results are rendered as overlays on the chart',
                 'Zoom — the −/↺ buttons zoom out one step and reset to the initial view; the badge shows the current zoom percentage',
                 'Quick range — 24h / 7d / 30d / All snap the time window to common ranges (UTC); the buttons enable once the dataset has a valid time column',

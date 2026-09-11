@@ -66,6 +66,15 @@ describe('timeseries layout shell', () => {
         expect(toolbarCss).toContain('#page-timeseries > .timeseries-utility-shelf.analysis-collapse-tablet');
     });
 
+    it('uses action-first export labels and one modal close vocabulary', () => {
+        expect(indexHtml).toContain('aria-label="Export chart as PNG">Export PNG</button>');
+        expect(indexHtml).toContain('aria-label="Export filtered data as CSV">Export CSV</button>');
+        expect(indexHtml).toContain('>More export formats</span>');
+        expect(indexHtml).not.toMatch(/id="(?:column-filter|transform|outlier|settings)-close-btn"[^>]*>Close</);
+        expect(indexHtml.match(/class="modal-close"[^>]*aria-label="Close"[^>]*>&times;<\/button>/g)?.length)
+            .toBeGreaterThanOrEqual(7);
+    });
+
     it('keeps the timeseries chart area in a scrollable analysis shell with a stable chart viewport', () => {
         expect(indexHtml).toContain('<section class="page page--analysis-scroll" id="page-timeseries"');
         expect(indexHtml).toContain('<main class="main main--analysis-chart" id="main">');

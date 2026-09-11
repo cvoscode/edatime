@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
     initAnnotationPanel: vi.fn(),
     initGuidedWorkflow: vi.fn(),
     initHomePage: vi.fn(),
+    initHomeWorkspaceSummary: vi.fn(),
     wireSampleDatasetCards: vi.fn(),
     initOutlierModal: vi.fn(),
     initTransformModal: vi.fn(),
@@ -35,6 +36,7 @@ vi.mock('../../ui/annotationPanel.js', () => ({ initAnnotationPanel: mocks.initA
 vi.mock('../../features/home/index.js', () => ({
     initGuidedWorkflow: mocks.initGuidedWorkflow,
     initHomePage: mocks.initHomePage,
+    initHomeWorkspaceSummary: mocks.initHomeWorkspaceSummary,
     wireSampleDatasetCards: mocks.wireSampleDatasetCards,
 }));
 vi.mock('../../features/dataMutation/index.js', () => ({
@@ -73,7 +75,13 @@ function createDeps(): DeferredShellDeps {
         updateAnalysisYRange: vi.fn(),
         requestAnnotationOverlayRender: vi.fn(),
         registerCleanup: vi.fn(),
-        workspace: { getSnapshot: vi.fn(), setFilters: vi.fn(), setViewport: vi.fn(), subscribe: vi.fn(() => vi.fn()) },
+        workspace: {
+            getSnapshot: vi.fn(),
+            setSelection: vi.fn(),
+            setFilters: vi.fn(),
+            setViewport: vi.fn(),
+            subscribe: vi.fn(() => vi.fn()),
+        },
     };
 }
 
@@ -90,6 +98,7 @@ describe('deferred shell subsystems', () => {
         mocks.initAnnotationPanel.mockClear();
         mocks.initGuidedWorkflow.mockClear();
         mocks.initHomePage.mockClear();
+        mocks.initHomeWorkspaceSummary.mockClear();
         mocks.wireSampleDatasetCards.mockClear();
         mocks.initOutlierModal.mockClear();
         mocks.initTransformModal.mockClear();
@@ -186,7 +195,13 @@ describe('deferred shell subsystems', () => {
         expect(mocks.wireSampleDatasetCards).toHaveBeenCalledWith(
             deps.showPage,
             expect.any(Function),
+            deps.workspace,
         );
+        expect(mocks.initHomeWorkspaceSummary).toHaveBeenCalledWith({
+            workspace: deps.workspace,
+            cleaningPlanStore: deps.cleaningPlanStore,
+            showPage: deps.showPage,
+        });
         const refresh = mocks.wireSampleDatasetCards.mock.calls[0]?.[1] as (() => Promise<void>) | undefined;
         await refresh?.();
         expect(deps.refreshDatasetAfterMutation).toHaveBeenCalledTimes(1);

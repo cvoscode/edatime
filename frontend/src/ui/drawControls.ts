@@ -10,14 +10,20 @@ import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 /**
  * Reflect the current adaptive-filter state on the Clear filters button.
- * The button stays hidden when there are no filters to clear so a user
- * who has not drawn any adaptive line cannot mis-click a no-op button.
+ * Keep the action visible for discoverability and disable it when there is
+ * nothing to clear.
  */
 function syncAdaptiveClearButton(workspace: Pick<WorkspaceStore, 'getSnapshot'>): void {
-    const btn = document.getElementById('adaptive-clear-btn') as HTMLElement | null;
+    const btn = document.getElementById('adaptive-clear-btn') as HTMLButtonElement | null;
     if (!btn) return;
     const hasFilters = workspace.getSnapshot().filters.adaptiveLines.length > 0;
-    btn.hidden = !hasFilters;
+    btn.hidden = false;
+    btn.disabled = !hasFilters;
+    const label = hasFilters
+        ? 'Clear adaptive filters'
+        : 'No adaptive filters — Ctrl+click a series to start';
+    btn.textContent = label;
+    btn.title = hasFilters ? 'Clear adaptive line filters (Shift+C)' : label;
 }
 
 export function initDrawControls(

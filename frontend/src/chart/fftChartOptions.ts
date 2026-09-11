@@ -38,7 +38,7 @@ export function buildFftChartOptions(input: {
         grid: FFT_GRID,
         xAxis: {
             type: 'value', min: xMin, max: xMax,
-            name: cyclesPerDay ? 'Frequency (cycles/day)' : `Frequency (${unit})`,
+            name: cyclesPerDay ? 'Frequency (cycles/day, µHz)' : `Frequency (${unit}, reciprocal period in tooltip)`,
             nameLocation: 'middle', nameGap: 32,
             nameTextStyle: { color: palette.text, fontSize: 12, fontWeight: 600, padding: [8, 0, 0, 0] },
             axisLabel: {

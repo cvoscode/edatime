@@ -10,7 +10,6 @@ function buildDom(): void {
             <button class="nav-item" data-page="upload" type="button">Upload</button>
             <button class="nav-item" data-page="timeseries" type="button">Timeseries</button>
             <button class="nav-item" data-page="correlations" type="button">Correlations</button>
-            <button class="nav-item" data-page="scatter" type="button">Scatter</button>
             <button class="nav-item" data-page="fft" type="button">FFT</button>
             <button class="nav-item" data-page="spectrogram" type="button">Spectrogram</button>
             <button class="nav-item" data-page="causal" type="button">Causal</button>
@@ -20,7 +19,6 @@ function buildDom(): void {
         <section class="page" data-page-name="upload" hidden></section>
         <section class="page" data-page-name="timeseries" hidden></section>
         <section class="page" data-page-name="heatmap" hidden></section>
-        <section class="page" data-page-name="scatter" hidden></section>
         <section class="page" data-page-name="fft" hidden></section>
         <section class="page" data-page-name="spectrogram" hidden></section>
         <section class="page" data-page-name="causal" hidden></section>
@@ -53,10 +51,10 @@ describe('hash router valid pages', () => {
         expect(getHashPage()).toBe('prepare');
     });
 
-    it('accepts public page names that match navigation labels', async () => {
+    it('redirects the legacy Pair plot route to the combined correlation page', async () => {
         const { getHashPage } = await import('./router.js');
         window.history.replaceState(null, '', '#page=pair-plot');
-        expect(getHashPage()).toBe('scatter');
+        expect(getHashPage()).toBe('correlations');
         window.history.replaceState(null, '', '#page=correlation-matrix');
         expect(getHashPage()).toBe('correlations');
         window.history.replaceState(null, '', '#page=preparation');
@@ -192,7 +190,6 @@ describe('hash router valid pages', () => {
         const walk: Array<[string, string]> = [
             ['timeseries', '#page=timeseries'],
             ['correlations', '#page=correlation-matrix'],
-            ['scatter', '#page=pair-plot'],
             ['fft', '#page=fft'],
             ['spectrogram', '#page=spectrogram'],
             ['causal', '#page=causal'],
@@ -228,10 +225,10 @@ describe('hash router valid pages', () => {
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 
-        (document.querySelector('.nav-item[data-page="scatter"]') as HTMLButtonElement).click();
+        (document.querySelector('.nav-item[data-page="correlations"]') as HTMLButtonElement).click();
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 0));
 
-        expect(window.location.hash).toBe('#page=pair-plot');
+        expect(window.location.hash).toBe('#page=correlation-matrix');
     });
 });

@@ -55,4 +55,20 @@ describe('causal comparison graph state', () => {
         expect(document.getElementById('causal-compare-panel')?.hidden).toBe(false);
         expect(mocks.toast).toHaveBeenCalledWith(expect.stringContaining('Saved run'), 'success');
     });
+
+    it('deletes a saved run from its dedicated button without bubbling', async () => {
+        const { initCausalComparison, loadSavedRuns, notifyCausalGraphUpdated } = await import('./causalComparison.js');
+        notifyCausalGraphUpdated(['HUFL', 'OT'], [
+            { source: 'HUFL', target: 'OT', lag: 1, type: '-->', value: 0.42, pvalue: 0.01 },
+        ]);
+        initCausalComparison();
+        (document.getElementById('causal-save-run-btn') as HTMLButtonElement).click();
+        const parentClick = vi.fn();
+        document.querySelector('.causal-run-item')?.addEventListener('click', parentClick);
+
+        (document.querySelector('.causal-run-delete-btn') as HTMLButtonElement).click();
+
+        expect(loadSavedRuns()).toHaveLength(0);
+        expect(parentClick).not.toHaveBeenCalled();
+    });
 });

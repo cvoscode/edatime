@@ -190,7 +190,7 @@ export function buildDriftSummaryPanelHtml(
         .map((row) => `<li><strong>${escapeHtml(row.column)}</strong> ${escapeHtml(row.evidence)} on ${row.flaggedWindows} of ${row.totalWindows} windows</li>`)
         .join('');
 
-    const changePoints = (investigation?.rankings?.changePoints ?? []).slice(0, 5);
+    const changePoints = investigation?.rankings?.changePoints ?? [];
     const changePointsCard = changePoints.length > 0
         ? `<div class="drift-verdict__change-points">
                 <strong>Change points:</strong>

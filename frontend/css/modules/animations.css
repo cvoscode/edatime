@@ -293,7 +293,13 @@
   line-height: 1;
   padding: 2px 4px;
   border-radius: 4px;
-  transition: color 0.12s;
+}
+
+.causal-edit-close,
+.causal-run-delete-btn {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 auto;
 }
 
 .causal-edit-close:hover {

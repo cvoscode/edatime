@@ -45,6 +45,40 @@ describe('ChartOverlays adaptive filter presentation', () => {
         expect(labelBackground[1] + labelBackground[3]).toBeLessThanOrEqual(110);
     });
 
+    it('hides a range label when the trace legend leaves no non-overlapping position', () => {
+        const container = document.createElement('div');
+        const legend = document.createElement('div');
+        legend.className = 'timeseries-legend-overlay';
+        container.appendChild(legend);
+        Object.defineProperty(container, 'getBoundingClientRect', {
+            value: () => ({ left: 0, top: 0, right: 240, bottom: 140, width: 240, height: 140 }),
+        });
+        Object.defineProperty(legend, 'getBoundingClientRect', {
+            value: () => ({ left: 50, top: 88, right: 190, bottom: 112, width: 140, height: 24 }),
+        });
+        const fillText = vi.fn();
+        const ctx = {
+            save: vi.fn(), restore: vi.fn(), setLineDash: vi.fn(), beginPath: vi.fn(),
+            rect: vi.fn(), clip: vi.fn(), fillRect: vi.fn(), fillText, strokeRect: vi.fn(),
+            strokeText: vi.fn(), measureText: vi.fn(() => ({ width: 150 })),
+            lineCap: 'butt', lineJoin: 'miter', strokeStyle: '', fillStyle: '', lineWidth: 1,
+            font: '', textAlign: 'start', textBaseline: 'alphabetic',
+        } as unknown as CanvasRenderingContext2D;
+        const overlays = new ChartOverlays({
+            getXMin: () => 0, getXMax: () => 100, getContainer: () => container,
+            getOverlayCanvas: () => null,
+            getGrid: () => ({ left: 44, right: 16, top: 10, bottom: 30 }),
+            getYRange: () => ({ min: 0, max: 100 }),
+            getColumnRangeFilters: () => ({ HULL: { from: 5, to: 12 } }),
+            getAdaptiveLineFilters: () => [], getPendingAdaptivePoint: () => null,
+        });
+        overlays.setSelectedColumns(['HULL']);
+
+        overlays.renderAll(ctx, { x: 1, y: 1 });
+
+        expect(fillText).not.toHaveBeenCalled();
+    });
+
     it('clips the line and keeps its contrasted label inside the resized plot', () => {
         const container = document.createElement('div');
         Object.defineProperty(container, 'getBoundingClientRect', {

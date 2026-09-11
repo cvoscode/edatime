@@ -19,38 +19,20 @@ describe('heatmap grid layout', () => {
         expect(layout.useVerticalHeaders).toBe(true);
     });
 
-    it('constrains snap-to-panel cells by the visible panel height', () => {
-        const panelHeight = 600;
-        const columnCount = 7;
+    it('uses the width of a landscape panel instead of shrinking to its height', () => {
         const layout = buildHeatmapGridLayout({
-            columnCount,
-            preferredCellSize: 36,
-            containerWidth: 1200,
-            containerHeight: panelHeight,
-            fitToScreen: true,
-        });
-        const renderedHeight = 20 + layout.labelWidth + layout.responsiveCell * columnCount + 2 * columnCount;
-
-        expect(layout.responsiveCell).toBeLessThan(100);
-        expect(renderedHeight).toBeLessThanOrEqual(panelHeight);
-    });
-
-    it('does not let snap mode exceed the height budget when width grows', () => {
-        const narrow = buildHeatmapGridLayout({
-            columnCount: 7,
-            preferredCellSize: 36,
-            containerWidth: 1024,
-            containerHeight: 600,
-            fitToScreen: true,
-        });
-        const wide = buildHeatmapGridLayout({
             columnCount: 7,
             preferredCellSize: 36,
             containerWidth: 1920,
-            containerHeight: 600,
             fitToScreen: true,
         });
 
-        expect(wide.responsiveCell).toBe(narrow.responsiveCell);
+        expect(layout.responsiveCell).toBe(180);
+    });
+
+    it('caps fitted cells so a small matrix does not become oversized', () => {
+        const layout = buildHeatmapGridLayout({ columnCount: 3, preferredCellSize: 36, containerWidth: 2400, fitToScreen: true });
+
+        expect(layout.responsiveCell).toBe(180);
     });
 });

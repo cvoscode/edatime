@@ -361,6 +361,9 @@ export function renderEChartsGraph(): boolean {
     seedNodePositions(_chartEl);
     const selfLoops = collectSelfLoops();
     const groups = listPairGroups();
+    const densePairLabels = groups.length > 2;
+    const canvasMin = Math.min(_chartEl?.clientWidth || 640, _chartEl?.clientHeight || 360);
+    const nodeSize = Math.max(44, Math.min(72, canvasMin * 0.13));
 
     const nodes = _currentColumns.map((col) => {
         const pos = _nodePositions.get(col) ?? { x: 80, y: 80 };
@@ -369,7 +372,7 @@ export function renderEChartsGraph(): boolean {
         const borderColor = _chipColors.get(col) || palette.accent;
         return {
             id: col, name: label,
-            x: pos.x, y: pos.y, fixed: true, draggable: true, symbolSize: 48,
+            x: pos.x, y: pos.y, fixed: true, draggable: true, symbolSize: nodeSize,
             label: {
                 show: true, position: 'inside' as const, color: palette.text,
                 fontSize: 10, fontWeight: 'bold' as const,
@@ -405,7 +408,7 @@ export function renderEChartsGraph(): boolean {
                 links: groups.map(buildPairEdge),
                 roam: true, draggable: true, symbol: 'circle',
                 edgeLabel: {
-                    show: true, position: 'middle', distance: 14, rotate: false,
+                    show: !densePairLabels, position: 'middle', distance: 14, rotate: false,
                     color: chartPalette.text, fontSize: groups.length > 8 ? 9 : 10,
                     lineHeight: groups.length > 8 ? 11 : 12, fontWeight: 600,
                     backgroundColor: chartPalette.background, borderColor: chartPalette.borderHi,
@@ -413,7 +416,7 @@ export function renderEChartsGraph(): boolean {
                     shadowBlur: 16, shadowColor: 'rgba(0,0,0,0.32)',
                     formatter: (params: any) => String(params.data?._labelText || ''),
                 },
-                emphasis: { focus: 'adjacency' },
+                emphasis: { focus: 'adjacency', edgeLabel: { show: true } },
             }],
         }, true);
         return true;

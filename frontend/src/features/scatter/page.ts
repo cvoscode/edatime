@@ -18,6 +18,7 @@ import {
     fmt,
     showError,
     normalizeScatterSuggestionThreshold,
+    isScatterSurfaceVisible,
 } from './helpers.js';
 import {
     currentControls,
@@ -75,7 +76,7 @@ import { renderScatterChart } from './chartLifecycle.js';
 import type { DatasetMetadata } from '../../types/api.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import { emitFeatureEvent } from '../../platform/featureEvents.js';
-import { consumeScatterPairIntent } from './pairIntent.js';
+import { consumeScatterPairIntent, publishScatterPairSelection } from './pairIntent.js';
 import { getEffectiveNumericColumns } from '../../platform/analyticsColumns.js';
 import { cleaningPlanStore } from '../../cleaning/store.js';
 
@@ -154,13 +155,9 @@ export function disposeScatterPage(): void {
 /* ── Sidebar / view management ────────────────────────── */
 
 function setSidebarAnalyticsSelection(viewName: string): void {
-    const navPage = viewName === 'matrix' ? 'scattermatrix' : 'scatter';
     for (const button of document.querySelectorAll('.sidebar .nav-item[data-page]')) {
         const page = (button as HTMLElement).dataset.page;
-        const active = page === navPage;
-        if (page === 'scatter' || page === 'scattermatrix') {
-            button.classList.toggle('active', active);
-        }
+        if (page === 'correlations') button.classList.toggle('active', viewName === 'plot' || viewName === 'matrix');
     }
 }
 
@@ -359,12 +356,16 @@ async function rerenderScatterFromCache(resetViewFlag = true): Promise<void> {
 // Export for the control binding and matrix selection.
 export { renderScatter, rerenderScatterFromCache, refreshActiveScatterView, setScatterView };
 
-async function applySuggestionPair(): Promise<void> {
+async function applySuggestionPair(x?: string, y?: string): Promise<void> {
     await Promise.all([refreshCorrelationsAndSuggestions(), renderScatter()]);
+    publishScatterPairSelection(
+        x || getDropdownValue('scatter-x-col'),
+        y || getDropdownValue('scatter-y-col'),
+    );
 }
 
 export function refreshCorrelationsAndSuggestions(
-    options: { preferTopPairOnFirstLoad?: boolean } = {},
+    options: { preferTopPairOnFirstLoad?: boolean; preferredY?: string } = {},
 ): Promise<void> {
     const controls = currentControls();
     const { queryContext } = buildScatterOverviewContext({
@@ -385,12 +386,24 @@ async function onMatrixCellClick(x: string, y: string): Promise<void> {
     const matrixLoading = getEl('scatter-matrix-loading');
     if (matrixLoading) matrixLoading.hidden = false;
     try {
-        await selectMatrixPair(x, y, refreshCorrelationsAndSuggestions, renderScatter, setScatterView);
+        await selectScatterPair(x, y);
     } catch (error: any) {
         handleErr(error);
     } finally {
         if (matrixLoading) matrixLoading.hidden = true;
     }
+}
+
+/** Select and render a pair in the Pair plot embedded by the heatmap page. */
+export async function selectScatterPair(x: string, y: string): Promise<void> {
+    await selectMatrixPair(
+        x,
+        y,
+        (preferredY) => refreshCorrelationsAndSuggestions({ preferredY }),
+        renderScatter,
+        setScatterView,
+    );
+    publishScatterPairSelection(x, y);
 }
 
 /* ── Control binding ──────────────────────────────────── */
@@ -433,7 +446,7 @@ export async function initScatterPage(
     matrixRenderSession = createMatrixRenderSession();
     workspace = deps.workspace ?? null;
     configureScatterRuntime(workspace);
-    const page = getEl('page-scatter');
+    const page = getEl('heatmap-pair-plot');
     const xSelect = getEl('scatter-x-col');
     const ySelect = getEl('scatter-y-col');
     if (!page || !xSelect || !ySelect) return disposeScatterPage;
@@ -482,7 +495,7 @@ export async function initScatterPage(
         // segments exist in their final shape. The overflow logic
         // is purely presentational, so a failure here must not
         // prevent the scatter page from rendering.
-        const toolbar = getEl('page-scatter')?.querySelector<HTMLElement>('.scatter-toolbar');
+        const toolbar = getEl('heatmap-pair-plot')?.querySelector<HTMLElement>('.scatter-toolbar');
         if (toolbar) {
             try {
                 toolbarOverflow?.dispose();
@@ -502,7 +515,7 @@ export async function initScatterPage(
         return disposeScatterPage;
     }
 
-    const isVisible = !page.hidden;
+    const isVisible = isScatterSurfaceVisible();
     if (!isVisible) return disposeScatterPage;
 
     // No usable columns: skip the fetch path entirely. Subsequent metadata

@@ -172,10 +172,10 @@
      fitting Mode and Distribution. Hide the Distribution (diagonal)
      select and let Mode own the segment. The diagonal option is
      still available via the analytics panel entry.
-     Scoped to #page-scatter so the spectrogram page — whose 2nd
+     Scoped to the embedded Pair plot so the spectrogram page — whose 2nd
      Display field is the FFT Window knob (functional, not decorative)
      — keeps the control visible at every viewport. */
-  #page-scatter .scatter-toolbar__segment--display .toolbar-field:nth-of-type(2) {
+  #heatmap-pair-plot .scatter-toolbar__segment--display .toolbar-field:nth-of-type(2) {
     display: none;
   }
 

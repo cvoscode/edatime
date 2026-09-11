@@ -54,8 +54,8 @@ describe('shared workspace visual system', () => {
     });
 
     it('gives Correlation controls full-width rows without loading page CSS globally', () => {
-        expect(scatter).toContain('grid-template-columns: minmax(280px, 1fr) auto auto auto auto');
-        expect(scatter).toContain('grid-template-columns: minmax(0, 1fr) auto auto');
+        expect(scatter).toContain('grid-template-columns: minmax(0, 360px) minmax(0, 220px) auto auto auto auto');
+        expect(scatter).toContain('grid-template-columns: minmax(0, 1fr) auto');
         expect(scatter).toContain('@media (min-width: 641px) and (max-width: 1279px)');
         expect(workspace).not.toContain('Desktop Correlation toolbar');
     });

@@ -84,6 +84,28 @@ describe('createTimeseriesPageController', () => {
         unsubscribe();
     });
 
+    it('keeps the default Y-axis label synchronized with the visible series', () => {
+        setWorkspaceSelection(['HUFL', 'HULL']);
+        const setChartText = vi.fn();
+        setPrimaryChartInstance({ setChartText } as any);
+        const controller = createTimeseriesPageController({
+            fetchData: vi.fn(),
+            buildRangeControls: vi.fn(),
+            updateAnalysisYRange: vi.fn(),
+            updateAnalysisZoom: vi.fn(),
+            getCurrentView: vi.fn(),
+            fetchAndRenderAnalytics: vi.fn(),
+        });
+
+        controller.renderCurrentData();
+
+        expect(setChartText).toHaveBeenCalledWith(
+            '',
+            expect.stringContaining('Time ('),
+            'Series values',
+        );
+    });
+
     it('preserves x and y ranges when zooming into a boxed viewport', () => {
         const chart = {
             setXRange: vi.fn(),

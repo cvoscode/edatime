@@ -82,6 +82,18 @@ describe('Causal graph lifecycle', () => {
         expect(graph.renderEChartsGraph()).toBe(true);
         expect(chartInstance.setOption).toHaveBeenCalledOnce();
         expect(chartInstance.setOption.mock.calls[0]?.[0].series[0].data).toHaveLength(2);
+        expect(chartInstance.setOption.mock.calls[0]?.[0].series[0].edgeLabel.show).toBe(true);
+
+        state.setCurrentColumns(['HUFL', 'HULL', 'OT']);
+        state.setCurrentLinks([
+            { source: 'HUFL', target: 'HULL', lag: 1, type: '-->', value: 0.5, pvalue: 0.01 },
+            { source: 'HUFL', target: 'OT', lag: 1, type: '-->', value: 0.4, pvalue: 0.02 },
+            { source: 'HULL', target: 'OT', lag: 1, type: '-->', value: 0.3, pvalue: 0.03 },
+        ]);
+        expect(graph.renderEChartsGraph()).toBe(true);
+        const denseSeries = chartInstance.setOption.mock.calls.at(-1)?.[0].series[0];
+        expect(denseSeries.edgeLabel.show).toBe(false);
+        expect(denseSeries.emphasis.edgeLabel.show).toBe(true);
 
         chart.closest('section')!.hidden = true;
         expect(graph.renderEChartsGraph()).toBe(false);

@@ -84,6 +84,27 @@ describe('drift summary panels', () => {
         expect(panels.summaryStrip).toContain('temperature');
     });
 
+    it('renders every flagged change point in the timeline verdict', () => {
+        const columns = ['HUFL', 'HULL', 'LUFL', 'LULL', 'MUFL', 'MULL', 'OT'];
+        const completeInvestigation = {
+            ...investigation,
+            rankings: {
+                ...investigation.rankings,
+                changePoints: columns.map((column) => ({
+                    column,
+                    label: 'Jan 2',
+                    isoTime: '2025-01-02T00:00:00Z',
+                    driftScore: 91,
+                    triggerReasons: ['psi_major'],
+                })),
+            },
+        } as DriftInvestigationResponse;
+
+        const panels = buildDriftSummaryPanelHtml(new Map([['temperature', response]]), completeInvestigation);
+        for (const column of columns) expect(panels.summaryStrip).toContain(column);
+        expect(panels.summaryStrip.match(/drift-change-point-chip/g)).toHaveLength(7);
+    });
+
     it('renders a "Why this verdict?" disclosure with the strongest evidence', () => {
         const panels = buildDriftSummaryPanelHtml(new Map([['temperature', response]]));
 

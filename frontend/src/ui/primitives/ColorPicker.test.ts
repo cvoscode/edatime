@@ -15,7 +15,7 @@ describe('ColorPicker', () => {
         document.body.appendChild(picker.element);
         const button = picker.element.querySelector('.color-picker__swatch') as HTMLButtonElement | null;
         expect(button).not.toBeNull();
-        expect(button?.getAttribute('aria-label')).toBe('HUFL');
+        expect(button?.getAttribute('aria-label')).toBe('HUFL, currently #00A8FF');
         expect(button?.style.getPropertyValue('--color-picker-current')).toBe('#00A8FF');
     });
 
@@ -71,6 +71,7 @@ describe('ColorPicker', () => {
         picker.updateValue('#FFC041');
         expect(picker.element.querySelector<HTMLElement>('.color-picker__swatch-fill')?.style.backgroundColor).toBe('#FFC041');
         expect(picker.element.querySelector<HTMLElement>('.color-picker__swatch')?.style.getPropertyValue('--color-picker-current')).toBe('#FFC041');
+        expect(picker.element.querySelector<HTMLElement>('.color-picker__swatch')?.getAttribute('aria-label')).toBe('HUFL, currently #FFC041');
     });
 
     it('updateValue updates active preset highlight when the popover is open', () => {

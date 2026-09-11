@@ -4,9 +4,8 @@ import { onFeatureEvent } from '../../platform/featureEvents.js';
 import { onNavigationChange } from '../../platform/navigationEvents.js';
 import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
 import { toast } from '../../utils/toast.js';
-import '../../../css/modules/workflow-context.css';
 
-export type WorkflowStepId = 'upload' | 'timeseries' | 'correlations' | 'scatter' | 'causal' | 'prepare';
+export type WorkflowStepId = 'upload' | 'timeseries' | 'correlations' | 'causal' | 'prepare';
 
 export interface WorkflowSnapshot {
     currentPage: string;
@@ -55,7 +54,6 @@ const WORKFLOW_STEPS: Array<{ id: WorkflowStepId; label: string; page: string }>
     { id: 'upload', label: 'Upload', page: 'upload' },
     { id: 'timeseries', label: 'Signals', page: 'timeseries' },
     { id: 'correlations', label: 'Correlations', page: 'correlations' },
-    { id: 'scatter', label: 'Pair plot', page: 'scatter' },
     { id: 'causal', label: 'Causality', page: 'causal' },
     { id: 'prepare', label: 'Prepare', page: 'prepare' },
 ];
@@ -149,29 +147,6 @@ function currentPage(): string {
     return active?.dataset.page || _currentNavPage || 'home';
 }
 
-function contextualGuideHtml(): string {
-    const contexts: Record<string, { purpose: string; tasks: string }> = {
-        home: { purpose: 'Orient yourself in the active analysis workspace.', tasks: 'Load data or continue the next recommended analysis step.' },
-        upload: { purpose: 'Load and profile a time-series dataset.', tasks: 'Choose a sample or upload a file, then verify its time column.' },
-        timeseries: { purpose: 'Inspect signals, ranges, filters, and anomalies over time.', tasks: 'Toggle series, choose a time range, color by a column, or draw a filter.' },
-        prepare: { purpose: 'Build and preview a reversible data-cleaning pipeline.', tasks: 'Review quality findings, add stages, preview their effect, then materialize.' },
-        correlations: { purpose: 'Screen numeric relationships across the dataset.', tasks: 'Choose a metric, inspect strongest pairs, and open a pair for detail.' },
-        scatter: { purpose: 'Inspect one relationship as density or individual points.', tasks: 'Choose X/Y, clip outliers, brush a range, or compare correlation metrics.' },
-        scattermatrix: { purpose: 'Compare many pairwise distributions in one matrix.', tasks: 'Switch plot modes, scan relationships, and open a pair for detail.' },
-        fft: { purpose: 'Inspect periodic structure in selected signals.', tasks: 'Choose traces, configure the spectrum, then inspect peak frequencies.' },
-        spectrogram: { purpose: 'See how frequency content changes over time.', tasks: 'Choose a signal and window size, then compute the time-frequency view.' },
-        causal: { purpose: 'Explore candidate directed relationships.', tasks: 'Configure a method, run discovery, and inspect supported links.' },
-        drift: { purpose: 'Compare distributions across time windows.', tasks: 'Choose reference/current windows and review drift severity.' },
-        settings: { purpose: 'Set workspace defaults for analysis and display.', tasks: 'Choose theme, chart defaults, sampling behavior, and preferred metrics.' },
-    };
-    const context = contexts[currentPage()] ?? { purpose: 'Work with the current analysis page.', tasks: 'Use the page controls and Help for detailed guidance.' };
-    return `<div class="workflow-panel__context">`
-        + `<div><strong>What this page does</strong><span>${escapeHtml(context.purpose)}</span></div>`
-        + `<div><strong>Common tasks</strong><span>${escapeHtml(context.tasks)}</span></div>`
-        + `<div><strong>Keyboard shortcuts</strong><span>? opens Help · Alt+1–0 changes analysis pages</span></div>`
-        + `</div>`;
-}
-
 function readSelectValue(id: string): string {
     return getDropdownValue(id);
 }
@@ -193,16 +168,10 @@ function collectSnapshot(): WorkflowSnapshot {
     };
 }
 
-/** Check if user is a repeat visitor who has completed at least the initial workflow */
-function isRepeatVisitor(snapshot: WorkflowSnapshot): boolean {
-    return snapshot.visitedPages.length >= 3;
-}
-
 function mapPageToStep(page: string, nextStepId: WorkflowStepId | null): WorkflowStepId | null {
     if (page === 'upload') return 'upload';
     if (page === 'timeseries') return 'timeseries';
-    if (page === 'correlations' || page === 'heatmap' || page === 'scattermatrix') return 'correlations';
-    if (page === 'scatter') return 'scatter';
+    if (page === 'correlations' || page === 'heatmap' || page === 'scattermatrix' || page === 'scatter') return 'correlations';
     if (page === 'causal') return 'causal';
     if (page === 'prepare') return 'prepare';
     if (page === 'fft' || page === 'spectrogram' || page === 'drift' || page === 'settings') return null;
@@ -219,7 +188,6 @@ export function computeWorkflowProgress(snapshot: WorkflowSnapshot): WorkflowPro
     if (visited.has('correlations') || visited.has('heatmap') || visited.has('scattermatrix')) {
         completedStepIds.push('correlations');
     }
-    if (snapshot.scatterX && snapshot.scatterY) completedStepIds.push('scatter');
     if (snapshot.causalLinkCount > 0) completedStepIds.push('causal');
     if (visited.has('prepare')) completedStepIds.push('prepare');
 
@@ -260,14 +228,6 @@ function defaultSuggestionForStep(stepId: WorkflowStepId | null): WorkflowSugges
             actionLabel: 'Open Correlations',
             actionPage: 'correlations',
             hint: 'Scatter Matrix cells already open the detailed scatter view when clicked.',
-        };
-    }
-    if (stepId === 'scatter') {
-        return {
-            title: 'Deep dive in Pair plot',
-            body: 'Pick a candidate pair and inspect its shape, outliers, and filter sensitivity in the detailed pair plot.',
-            actionLabel: 'Open Pair plot',
-            actionPage: 'scatter',
         };
     }
     if (stepId === 'causal') {
@@ -345,11 +305,19 @@ export function buildWorkflowSuggestion(snapshot: WorkflowSnapshot): WorkflowSug
     }
 
     if (snapshot.currentPage === 'correlations' || snapshot.currentPage === 'heatmap' || snapshot.currentPage === 'scattermatrix') {
+        if (!snapshot.scatterX || !snapshot.scatterY) {
+            return {
+                title: 'Choose the strongest pair',
+                body: 'Select a promising matrix cell to inspect its shape, outliers, and filter sensitivity in the live Pair plot.',
+                actionLabel: null,
+                actionPage: null,
+            };
+        }
         return {
-            title: 'Choose the strongest pair',
-            body: 'Click a promising relationship in either matrix, then inspect it in the Pair plot where filter context and color-by are easier to read.',
-            actionLabel: 'Open Pair plot',
-            actionPage: 'scatter',
+            title: 'Continue with evidence',
+            body: 'Use the synchronized matrix and Pair plot to validate the relationship, then review the reversible preparation pipeline.',
+            actionLabel: 'Open Preparation',
+            actionPage: 'prepare',
         };
     }
 
@@ -514,10 +482,20 @@ function scheduleGuidedWorkflowRender(delayMs = 50): void {
     }, delayMs);
 }
 
+/** Dock the guide inside the active page so it cannot cover page-level actions. */
+function dockWorkflowPanel(panel: HTMLElement): void {
+    const activeHeader = document.querySelector<HTMLElement>('.page:not([hidden]) > .page-header');
+    if (activeHeader && activeHeader.nextElementSibling !== panel) {
+        activeHeader.insertAdjacentElement('afterend', panel);
+    }
+}
+
 export function renderGuidedWorkflow(): void {
     const panel = document.getElementById('workflow-panel') as HTMLElement | null;
     const toggleBtn = document.getElementById('workflow-toggle-btn') as HTMLButtonElement | null;
     if (!panel) return;
+
+    dockWorkflowPanel(panel);
 
     const prefs = readPrefs();
     panel.hidden = !prefs.enabled;
@@ -534,14 +512,7 @@ export function renderGuidedWorkflow(): void {
     const progress = computeWorkflowProgress(snapshot);
     const suggestion = buildWorkflowSuggestion(snapshot);
 
-    const isRepeat = isRepeatVisitor(snapshot);
-
-    if (isRepeat && snapshot.hasDataset) {
-        renderCompactAssistant(panel, suggestion, progress);
-        return;
-    }
-
-    renderFullWorkflowPanel(panel, progress, suggestion);
+    renderCompactAssistant(panel, suggestion, progress);
 }
 
 function renderCompactAssistant(
@@ -551,63 +522,21 @@ function renderCompactAssistant(
 ): void {
     panel.classList.add('workflow-panel--compact-shell');
     const activeStep = progress.steps.find(s => s.status === 'current');
-    const summaryText = suggestion.actionLabel
-        ? `Next: ${suggestion.actionLabel}`
-        : (activeStep ? `Current: ${activeStep.label}` : 'Guided flow');
+    const activeIndex = activeStep ? progress.steps.indexOf(activeStep) + 1 : progress.steps.length;
     panel.innerHTML = `
         <div class="workflow-panel--compact">
             <div class="workflow-panel__summary">
-                <div class="workflow-panel__eyebrow">Guided Workflow</div>
-                <span class="workflow-panel__hint-text">${escapeHtml(summaryText)}</span>
-                ${activeStep ? `<span class="workflow-panel__current-step">→ ${escapeHtml(activeStep.label)}</span>` : ''}
+                <div class="workflow-panel__eyebrow">Guided workflow · ${activeIndex}/${progress.steps.length}</div>
+                <span class="workflow-panel__hint-text">${escapeHtml(suggestion.title)}</span>
+                <span class="workflow-panel__current-step">${escapeHtml(suggestion.body)}</span>
             </div>
             <div class="workflow-panel__actions">
                 ${suggestion.actionLabel && suggestion.actionPage ? `
-                    <button class="btn btn-accent btn-sm" type="button" data-workflow-action="next">${escapeHtml(suggestion.actionLabel)}</button>
+                    <button class="btn btn-accent btn-sm" type="button" data-workflow-action="next" title="${escapeHtml(suggestion.body)}">${escapeHtml(suggestion.actionLabel)}</button>
                 ` : ''}
                 <button class="btn btn-ghost btn-sm" type="button" data-workflow-action="skip" title="Hide guide">✕</button>
             </div>
-            ${contextualGuideHtml()}
         </div>
-    `;
-}
-
-function renderFullWorkflowPanel(
-    panel: HTMLElement,
-    progress: WorkflowProgress,
-    suggestion: WorkflowSuggestion,
-): void {
-    panel.classList.remove('workflow-panel--compact-shell');
-    const crumbs = progress.steps.map((step) => `
-        <button
-            class="workflow-step workflow-step--${step.status}"
-            type="button"
-            data-workflow-action="goto"
-            data-workflow-page="${escapeHtml(step.page)}"
-            title="Open ${escapeHtml(step.label)}"
-        >
-            <span class="workflow-step__dot"></span>
-            <span class="workflow-step__label">${escapeHtml(step.label)}</span>
-        </button>
-    `).join('');
-
-    panel.innerHTML = `
-        <div class="workflow-panel__header workflow-panel__header--compact">
-            <div class="workflow-panel__summary">
-                <div class="workflow-panel__eyebrow">Guided Workflow</div>
-                <div class="workflow-panel__title">${escapeHtml(suggestion.title)}</div>
-                <p class="workflow-panel__copy workflow-panel__copy--compact">${escapeHtml(suggestion.body)}</p>
-            </div>
-            <div class="workflow-panel__actions">
-                ${suggestion.actionLabel && suggestion.actionPage ? `
-                    <button class="btn btn-accent btn-sm" type="button" data-workflow-action="next">${escapeHtml(suggestion.actionLabel)}</button>
-                ` : ''}
-                <button class="btn btn-ghost btn-sm" type="button" data-workflow-action="skip">Hide Guide</button>
-            </div>
-        </div>
-        <div class="workflow-panel__crumbs">${crumbs}</div>
-        ${contextualGuideHtml()}
-        ${suggestion.hint ? `<div class="workflow-panel__hint">${escapeHtml(suggestion.hint)}</div>` : ''}
     `;
 }
 

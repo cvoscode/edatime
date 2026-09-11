@@ -29,7 +29,7 @@ import {
 import { buildFftDataModel, type FftDataModel, type FftTrace } from './fftDataModel.js';
 import { buildChartGpuTheme, getChartGpuColorPalette, withChartGpuTheme } from './chartThemeOptions.js';
 import { onThemeChange } from '../utils/theme.js';
-import { createAccessibilitySummaryTable, type SeriesSummary } from './accessibilityTable.js';
+import { createFftAccessibilitySummary } from './fftAccessibilitySummary.js';
 
 const FFT_GRID: GridLayout = { left: 112, right: 32, top: 52, bottom: 52 };
 
@@ -83,7 +83,7 @@ export class FftChart {
             palette: getChartGpuColorPalette(),
             xAxis: { type: 'value' },
             yAxis: { type: 'value' },
-            legend: { show: false, position: 'right' },
+            legend: { show: true, position: 'top' },
             series: [],
         };
         const powerPreference = defaultGpuPowerPreference();
@@ -208,6 +208,8 @@ export class FftChart {
         this._nyquistHz = 0;
         this._dominantPeaks = [];
         this._chart?.setOption({ series: [] });
+        this._accessibilityTable?.remove();
+        this._accessibilityTable = null;
         this._renderOverlay();
     }
 
@@ -241,29 +243,9 @@ export class FftChart {
     private _syncAccessibilitySummary(): void {
         this._accessibilityTable?.remove();
         this._accessibilityTable = null;
-        if (!this._container || this._traces.length === 0) return;
-
-        const summaries: SeriesSummary[] = this._traces.flatMap((trace) => {
-            const values = trace.magnitudes.filter((value) => Number.isFinite(value));
-            if (values.length === 0) return [];
-            const total = values.reduce((sum, value) => sum + value, 0);
-            let min = values[0];
-            let max = values[0];
-            for (const value of values) {
-                min = Math.min(min, value);
-                max = Math.max(max, value);
-            }
-            return [{
-                name: trace.column,
-                count: values.length,
-                min,
-                max,
-                mean: total / values.length,
-            }];
-        });
-        if (summaries.length === 0) return;
-        const table = createAccessibilitySummaryTable('FFT chart', summaries);
-        table.dataset.chartSummary = 'fft';
+        if (!this._container || !this._overlayModel) return;
+        const table = createFftAccessibilitySummary(this._overlayModel, this._mode, this._logScale, this._scaleOptions);
+        if (!table) return;
         this._container.appendChild(table);
         this._accessibilityTable = table;
     }

@@ -93,7 +93,7 @@ describe('FftChart.init', () => {
         expect(createChartMock).toHaveBeenCalledWith(
             expect.any(HTMLElement),
             expect.objectContaining({
-                legend: expect.objectContaining({ show: false }),
+                legend: expect.objectContaining({ show: true, position: 'top' }),
             }),
         );
     });
@@ -144,13 +144,24 @@ describe('FftChart.init', () => {
         const option = instance.setOption.mock.calls.at(-1)?.[0];
         expect(option.grid.left).toBeGreaterThanOrEqual(110);
         expect(option.grid.top).toBeGreaterThanOrEqual(32);
-        expect(option.xAxis.name).toBe('Frequency (cycles/day)');
+        expect(option.xAxis.name).toBe('Frequency (cycles/day, µHz)');
         expect(option.xAxis.axisLabel.formatter(0.00028)).toBe('24.19');
         expect(option.yAxis.nameGap).toBeGreaterThanOrEqual(72);
         expect(option.yAxis.axisLabel.formatter(-2.1873892)).toBe('0.0065');
         expect(option.yAxis.axisLabel.formatter(-0.8607398)).toBe('0.14');
         expect(overlayFillTextMock).not.toHaveBeenCalledWith('log10(Magnitude)', expect.any(Number), expect.any(Number));
-        expect(document.querySelector('table[data-chart-summary="fft"]')?.textContent).toContain('OT');
+        const summary = document.querySelector<HTMLTableElement>('table[data-chart-summary="fft"]');
+        expect(summary?.caption?.textContent).toBe('Statistical summary for FFT chart (log10 magnitude)');
+        const cells = summary?.querySelectorAll('tbody td');
+        expect(cells?.[1]?.textContent).toBe('-3.6601');
+        expect(cells?.[2]?.textContent).toBe('-2.3317');
+
+        chart.setScaleOptions({ mode: 'minmax', clip: 'none', clipParam: 0.5 });
+        const normalized = document.querySelector<HTMLTableElement>('table[data-chart-summary="fft"]');
+        expect(normalized?.caption?.textContent).toBe('Statistical summary for FFT chart (log10 magnitude, minmax normalized)');
+        const normalizedCells = normalized?.querySelectorAll('tbody td');
+        expect(normalizedCells?.[1]?.textContent).toBe('0');
+        expect(normalizedCells?.[2]?.textContent).toBe('1');
         chart.destroy();
         expect(document.querySelector('table[data-chart-summary="fft"]')).toBeNull();
     });

@@ -93,6 +93,7 @@ export interface ScatterQueryContext {
     end?: number;
     filters: Array<{ column: string; from: number; to: number }>;
     lineFilters: ReturnType<typeof buildAdaptiveLineFiltersForQueryState>;
+    timeColorMode?: 'bucket' | 'raw';
 }
 
 function isNearlyEqual(left: number, right: number): boolean {
@@ -268,7 +269,7 @@ export function buildRenderSignature(controls: ScatterControls): string {
  * Build the cache key used by the scatter page-change handler to decide
  * whether the current render can be reused.
  *
- * The typed `{ page: 'scatter' }` navigation listener compares this key
+ * The typed `{ page: 'heatmap' }` navigation listener compares this key
  * against the value stored on the last successful render so an identity
  * dispatch (same filters, same axes, same zoom range) can short-circuit
  * the work. Including `x`, `y`, and `colorColumn` is essential: the

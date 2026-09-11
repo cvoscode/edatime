@@ -271,8 +271,10 @@
 .scatter-suggestions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
-  overflow-x: auto;
+  max-height: 60px;
+  overflow: auto;
   min-height: 28px;
   min-width: min(320px, 100%);
   flex: 1 1 260px;
@@ -288,12 +290,13 @@
 
 .scatter-suggestion-fallback__chips {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   min-width: 0;
-  overflow-x: auto;
 }
 
 .scatter-suggestion-btn {
+  flex-shrink: 0;
   height: 26px;
   padding: 0 10px;
   border-radius: var(--radius-pill);
@@ -366,28 +369,28 @@
 }
 
 @media (max-width: 640px) {
-  #page-scatter {
+  #heatmap-pair-plot {
     overflow-y: auto;
   }
 
-  #page-scatter > .page-header {
+  #heatmap-pair-plot > .page-header {
     order: 1;
   }
 
-  #page-scatter > .scatter-toolbar {
+  #heatmap-pair-plot > .scatter-toolbar {
     order: 2;
     flex: 0 0 auto;
     align-items: stretch;
     padding: 4px 8px;
   }
 
-  #page-scatter > .scatter-view {
+  #heatmap-pair-plot > .scatter-view {
     order: 3;
     flex: 1 0 300px;
     min-height: 300px;
   }
 
-  #page-scatter > .scatter-stats-bar {
+  #heatmap-pair-plot > .scatter-stats-bar {
     order: 4;
     flex: 0 0 auto;
     padding: 8px;
@@ -445,7 +448,7 @@
     grid-template-columns: 1fr;
   }
 
-  #page-scatter > .scatter-toolbar > .scatter-toolbar__segment--actions {
+  #heatmap-pair-plot > .scatter-toolbar > .scatter-toolbar__segment--actions {
     flex: 0 0 auto;
     margin-left: auto;
     padding: 4px;
@@ -521,14 +524,6 @@
   color: var(--text-muted);
   text-align: right;
   flex: 1;
-}
-
-.scatter-matrix-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-  font-size: 0.75rem;
 }
 
 /* ─── Scatter matrix ──────────────────────────────────────────── */
@@ -699,35 +694,6 @@
   margin: 0;
 }
 
-/* Matrix FFT panel */
-.scatter-matrix-fft-panel {
-  margin-top: 0;
-}
-
-.scatter-matrix-fft-charts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 12px;
-}
-
-.scatter-matrix-fft-card {
-  flex: 1;
-  min-width: 180px;
-  max-width: 360px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  overflow: hidden;
-}
-
-.scatter-matrix-fft-canvas {
-  display: block;
-  width: 100%;
-  height: 120px;
-  image-rendering: crisp-edges;
-}
-
 /* ─── Correlation heatmap ─────────────────────────────── */
 .heatmap-container {
   display: flex;
@@ -739,6 +705,54 @@
 
 .heatmap-secondary-controls {
   display: contents;
+}
+
+.correlation-workspace {
+  display: grid;
+  grid-template-columns: minmax(480px, 1.15fr) minmax(420px, 0.85fr);
+  gap: 14px;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.correlation-workspace__matrix,
+.heatmap-pair-plot {
+  position: relative;
+  min-width: 0;
+  min-height: 480px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--workspace-result);
+}
+
+.heatmap-pair-plot {
+  display: flex;
+  flex-direction: column;
+}
+
+.heatmap-pair-plot[hidden] {
+  display: none;
+}
+
+.heatmap-pair-plot__header {
+  flex: 0 0 auto;
+  padding: 10px 12px;
+}
+
+.heatmap-pair-plot__header .page-header__title {
+  font-size: 0.95rem;
+}
+
+.heatmap-pair-plot__header .page-header__description {
+  max-width: 68ch;
+  font-size: 0.75rem;
+}
+
+@media (max-width: 1099px) {
+  .correlation-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 640px) {
@@ -875,6 +889,13 @@
   font-weight: 600;
   line-height: 1;
   transition: opacity 0.12s ease;
+  overflow: hidden;
+}
+
+.heatmap-cell-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .heatmap-cell:hover {
@@ -891,37 +912,26 @@
   box-shadow: 0 0 0 2px var(--accent);
 }
 
-.heatmap-scale {
+.heatmap-grid-legend {
+  position: sticky;
+  top: 10px;
+  right: 8px;
   display: grid;
-  grid-template-columns: auto 18px;
-  grid-template-rows: auto 1fr auto;
+  grid-template-columns: auto minmax(72px, 120px) auto;
   align-items: center;
-  column-gap: 8px;
-  height: 206px;
+  gap: 6px;
+  align-self: flex-start;
+  min-height: 40px;
   color: #88aef2;
   font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
 }
 
-.heatmap-scale__bar {
-  grid-column: 2;
-  grid-row: 1 / 4;
-  width: 18px;
-  height: 148px;
+.heatmap-grid-legend__bar {
+  width: 100%;
+  height: 12px;
   border-radius: 8px;
-  background: linear-gradient(180deg, #be122e 0%, #e99898 32%, #f5f5f2 50%, #89bfdf 68%, #2370b4 100%);
-}
-
-.heatmap-scale__tick {
-  grid-column: 1;
-}
-
-.heatmap-scale__tick--positive {
-  grid-row: 1;
-}
-
-.heatmap-scale__tick--negative {
-  grid-row: 3;
+  background: linear-gradient(90deg, #be122e 0%, #e99898 32%, #f5f5f2 50%, #89bfdf 68%, #2370b4 100%);
 }
 
 /* Item #10 — on small viewports the in-chart overlay stack
@@ -984,22 +994,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
+  padding: 0 4px;
   height: 18px;
   border: 1px solid var(--tb-divider);
   border-radius: 4px;
   color: #88aef2;
   font-size: 0.7rem;
-}
-
-.heatmap-corner__axis--y {
-  margin-bottom: -4px;
-}
-
-.heatmap-corner__sep {
-  font-size: 0.78rem;
-  color: var(--tb-divider);
-  line-height: 1;
 }
 
 .heatmap-corner__metric {
@@ -1056,29 +1056,6 @@
   background: rgba(136, 174, 242, 0.12);
 }
 
-/* C8 — status footer below the matrix + color scale. Anchors the
-   active metric, matrix size, and click hint to the bottom of the
-   visual so the user doesn't need to scroll back to the toolbar to
-   confirm what they are looking at. */
-.heatmap-footer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 10px;
-  padding: 8px 4px 4px;
-  margin-top: 4px;
-  border-top: 1px solid var(--tb-divider);
-  color: var(--text-dim);
-  font-size: 0.74rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.heatmap-footer__metric {
-  color: var(--text);
-  font-weight: 600;
-}
-
-.heatmap-stat-summary,
 .heatmap-order-caption {
   margin-top: 8px;
   color: var(--text-dim);
@@ -1089,18 +1066,11 @@
   color: var(--accent);
 }
 
-.heatmap-suggestions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.heatmap-suggestion-sort,
-.heatmap-suggestion-chip { padding: 5px 9px; border: 1px solid var(--border-hi); border-radius: 999px; color: var(--text); background: var(--surface-1); font: inherit; font-size: .75rem; cursor: pointer; }
-.heatmap-suggestion-sort { color: var(--accent); background: transparent; }
-.heatmap-suggestion-sort:hover,
-.heatmap-suggestion-sort:focus-visible,
-.heatmap-suggestion-chip:hover,
-.heatmap-suggestion-chip:focus-visible { border-color: var(--accent); background: var(--accent-dim); outline: none; }
-
 #heatmap-metric,
-#heatmap-metric .dropdown__trigger { width: 100%; min-width: 260px; }
+#heatmap-metric .dropdown__trigger { width: min(100%, 360px); min-width: 0; max-width: 360px; }
 #heatmap-metric .dropdown__label { max-width: none; text-overflow: clip; }
+#heatmap-color-column,
+#heatmap-color-column .dropdown__trigger { width: min(100%, 220px); min-width: 0; max-width: 220px; }
 
 /* Marked by the relationship-page overflow controller only when real toolbar
    groups wrap; no device-width guess is involved. */
@@ -1120,15 +1090,6 @@
 
 #scatter-chart.with-x-marginal ~ .scatter-outlier-count {
   top: 76px;
-}
-
-.heatmap-footer__sep {
-  color: var(--tb-divider);
-}
-
-.heatmap-footer__hint {
-  color: var(--text-dim);
-  font-style: italic;
 }
 
 /* C10 — Excel-style row/column highlight on hover/focus. When the
@@ -1154,6 +1115,13 @@
   z-index: 2;
 }
 
+.heatmap-cell.is-selected {
+  outline: 3px solid var(--accent);
+  outline-offset: -2px;
+  box-shadow: inset 0 0 0 1px var(--workspace-result), 0 0 14px color-mix(in srgb, var(--accent) 32%, transparent);
+  z-index: 3;
+}
+
 /* C4 — at narrow viewports the row label `min-height` was forcing
    every row to be ≥72px tall (504 px for 7 rows). Cap the label
    height under 480 px so the matrix fits on a phone screen, and
@@ -1173,11 +1141,6 @@
 
   .heatmap-header--cluster-start {
     border-left: 1px solid #88aef2 !important;
-  }
-
-  .heatmap-footer {
-    font-size: 0.66rem;
-    padding-top: 6px;
   }
 
   .heatmap-corner__metric {
@@ -1225,13 +1188,13 @@
 
   #page-heatmap > .scatter-toolbar > .scatter-toolbar__segment--view .scatter-toolbar__fields {
     display: grid;
-    grid-template-columns: minmax(280px, 1fr) auto auto auto auto;
+    grid-template-columns: minmax(0, 360px) minmax(0, 220px) auto auto auto auto;
     width: 100%;
   }
 
   #page-heatmap > .scatter-toolbar > .scatter-toolbar__segment--view .scatter-toolbar__field:first-child {
     width: 100%;
-    max-width: none;
+    max-width: 360px;
   }
 
   #page-heatmap .heatmap-secondary-controls {
@@ -1245,7 +1208,7 @@
 
   #page-heatmap .heatmap-secondary-controls > .analysis-secondary-disclosure__content {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     min-width: 0;
   }
@@ -1282,12 +1245,12 @@
 
   #page-heatmap > .scatter-toolbar > .scatter-toolbar__segment--view .scatter-toolbar__fields {
     display: grid;
-    grid-template-columns: minmax(280px, 1fr) auto auto auto auto;
+    grid-template-columns: minmax(0, 360px) minmax(0, 220px) auto auto auto auto;
     width: 100%;
   }
 
   #page-heatmap > .scatter-toolbar > .scatter-toolbar__segment--view .scatter-toolbar__field:first-child {
     width: 100%;
-    max-width: none;
+    max-width: 360px;
   }
 }

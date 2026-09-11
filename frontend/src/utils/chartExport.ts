@@ -7,6 +7,12 @@
 import { downloadUrl, downloadBlob } from './dom.js';
 import { toast } from './toast.js';
 
+export type ExportElementTarget = string | HTMLElement;
+
+function resolveExportElement(target: ExportElementTarget): HTMLElement | null {
+    return typeof target === 'string' ? document.getElementById(target) : target;
+}
+
 /* ── Canvas-based export (ChartGPU / generic) ─────────── */
 
 /**
@@ -59,8 +65,8 @@ export function exportContainerCanvasPNG(containerId: string, filename: string):
  * Export an HTML element as PNG by serializing to SVG foreignObject.
  * Works for heatmap grids and other styled DOM elements.
  */
-export async function exportElementPNG(elementId: string, filename: string): Promise<void> {
-    const el = document.getElementById(elementId);
+export async function exportElementPNG(target: ExportElementTarget, filename: string): Promise<void> {
+    const el = resolveExportElement(target);
     if (!el) {
         toast('Chart element unavailable. Wait for the chart to render, then retry or use CSV.', 'warning');
         return;
@@ -72,8 +78,7 @@ export async function exportElementPNG(elementId: string, filename: string): Pro
     const h = Math.round(rect.height);
 
     // Clone the element so we can inline computed styles
-    const clone = el.cloneNode(true) as HTMLElement;
-    inlineComputedStyles(el, clone);
+    const clone = cloneElementForExport(el);
 
     // Build SVG with foreignObject
     const svgNs = 'http://www.w3.org/2000/svg';
@@ -81,6 +86,7 @@ export async function exportElementPNG(elementId: string, filename: string): Pro
     svg.setAttribute('width', String(w));
     svg.setAttribute('height', String(h));
     svg.setAttribute('xmlns', svgNs);
+    svg.setAttribute('xmlns:xhtml', 'http://www.w3.org/1999/xhtml');
 
     const fo = document.createElementNS(svgNs, 'foreignObject');
     fo.setAttribute('width', '100%');
@@ -142,21 +148,45 @@ function inlineComputedStyles(original: Element, clone: Element): void {
     }
 }
 
+/** Clone DOM content while preserving the pixels painted into nested canvases. */
+function cloneElementForExport(element: HTMLElement): HTMLElement {
+    const clone = element.cloneNode(true) as HTMLElement;
+    inlineComputedStyles(element, clone);
+    const sourceCanvases = Array.from(element.querySelectorAll('canvas'));
+    const clonedCanvases = Array.from(clone.querySelectorAll('canvas'));
+    sourceCanvases.forEach((canvas, index) => {
+        const clonedCanvas = clonedCanvases[index];
+        if (!clonedCanvas) return;
+        try {
+            const image = document.createElement('img');
+            image.src = canvas.toDataURL('image/png');
+            image.alt = canvas.getAttribute('aria-label') || '';
+            image.style.cssText = (clonedCanvas as HTMLElement).style.cssText;
+            image.style.display = 'block';
+            image.style.width = `${canvas.getBoundingClientRect().width || canvas.width}px`;
+            image.style.height = `${canvas.getBoundingClientRect().height || canvas.height}px`;
+            clonedCanvas.replaceWith(image);
+        } catch {
+            // Keep the cloned canvas as a harmless fallback if serialization fails.
+        }
+    });
+    return clone;
+}
+
 /* ── ECharts export ───────────────────────────────────── */
 
 /**
  * Export an HTML element as SVG using foreignObject (preserves DOM styling).
  * Works for heatmap grids and other styled DOM elements.
  */
-export function exportElementSVG(elementId: string, filename: string): void {
-    const el = document.getElementById(elementId);
+export function exportElementSVG(target: ExportElementTarget, filename: string): void {
+    const el = resolveExportElement(target);
     if (!el) { toast('Element not found for export.', 'warning'); return; }
 
     const rect = el.getBoundingClientRect();
     const w = Math.round(rect.width);
     const h = Math.round(rect.height);
-    const clone = el.cloneNode(true) as HTMLElement;
-    inlineComputedStyles(el, clone);
+    const clone = cloneElementForExport(el);
 
     const svgNs = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(svgNs, 'svg');
@@ -307,58 +337,17 @@ export function exportEChartsHTML(chartInstance: any, filename: string): void {
 }
 
 /** Export an HTML element (e.g. heatmap grid) as a standalone HTML page. */
-export async function exportElementHTML(elementId: string, filename: string): Promise<void> {
-    const el = document.getElementById(elementId);
+export async function exportElementHTML(target: ExportElementTarget, filename: string): Promise<void> {
+    const el = resolveExportElement(target);
     if (!el) { toast('Element not found for export.', 'warning'); return; }
 
-    // Reuse PNG path: screenshot → embed
-    const rect = el.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    const w = Math.round(rect.width);
-    const h = Math.round(rect.height);
-    const clone = el.cloneNode(true) as HTMLElement;
-    inlineComputedStyles(el, clone);
-
-    const svgNs = 'http://www.w3.org/2000/svg';
-    const svg = document.createElementNS(svgNs, 'svg');
-    svg.setAttribute('width', String(w)); svg.setAttribute('height', String(h));
-    svg.setAttribute('xmlns', svgNs);
-    const fo = document.createElementNS(svgNs, 'foreignObject');
-    fo.setAttribute('width', '100%'); fo.setAttribute('height', '100%');
-    fo.appendChild(clone); svg.appendChild(fo);
-
-    const svgStr = new XMLSerializer().serializeToString(svg);
-    const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
-    const svgUrl = URL.createObjectURL(svgBlob);
-
-    try {
-        const img = new Image();
-        img.width = w; img.height = h;
-        await new Promise<void>((resolve, reject) => {
-            img.onload = () => resolve();
-            img.onerror = () => reject(new Error('SVG load failed'));
-            img.src = svgUrl;
-        });
-
-        const canvas = document.createElement('canvas');
-        canvas.width = w * dpr; canvas.height = h * dpr;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) { toast('Canvas not available.', 'error'); return; }
-        const bg = getComputedStyle(document.body).getPropertyValue('--bg').trim() || '#080a10';
-        ctx.fillStyle = bg; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.scale(dpr, dpr);
-        ctx.drawImage(img, 0, 0, w, h);
-
-        const pngUrl = canvas.toDataURL('image/png');
-        const html = buildStandaloneHtml(`<img src="${pngUrl}" style="max-width:100%;display:block;">`, filename.replace('.html', ''));
-        const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-        downloadBlob(blob, filename);
-        toast('HTML exported.', 'success');
-    } catch {
-        toast('HTML export failed.', 'error');
-    } finally {
-        URL.revokeObjectURL(svgUrl);
-    }
+    const clone = cloneElementForExport(el);
+    const interaction = `<div id="matrix-selection" role="status" aria-live="polite"></div>
+<script>document.addEventListener('click',function(event){var cell=event.target.closest('.heatmap-cell');if(!cell)return;document.querySelectorAll('.heatmap-cell.is-selected').forEach(function(item){item.classList.remove('is-selected')});cell.classList.add('is-selected');document.getElementById('matrix-selection').textContent=cell.getAttribute('aria-label')||''});document.addEventListener('keydown',function(event){if((event.key==='Enter'||event.key===' ')&&event.target.closest('.heatmap-cell')){event.preventDefault();event.target.click()}});</script>`;
+    const html = buildStandaloneHtml(`${clone.outerHTML}\n${interaction}`, filename.replace('.html', ''));
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    downloadBlob(blob, filename);
+    toast('HTML exported.', 'success');
 }
 
 /* ── Shared helpers ───────────────────────────────────── */

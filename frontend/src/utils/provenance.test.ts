@@ -39,7 +39,7 @@ describe('provenance', () => {
 
         const panel = document.getElementById('provenance-panel');
         expect(panel?.hidden).toBe(false);
-        expect(panel?.textContent).toContain('Analysis Context');
+        expect(panel?.textContent).toContain('Analysis context');
         expect(panel?.textContent).toContain('1,234');
         expect(panel?.textContent).toContain('Selected Series (1)');
         expect(panel?.textContent).toContain('group');
@@ -54,5 +54,23 @@ describe('provenance', () => {
         workspace.setFilters({ columnRanges: { value: { from: 1, to: 9 } }, adaptiveLines: [] });
 
         expect(document.getElementById('provenance-panel')?.textContent).toContain('value1.00 → 9.00');
+    });
+
+    it('supports removing series, clearing context, and closing with Escape', () => {
+        const workspace = createWorkspaceStore();
+        workspace.setSelection(['temperature', 'pressure']);
+        workspace.setViewport({ xMin: 1, xMax: 2, yMin: null, yMax: null });
+        initProvenance(workspace);
+        toggleProvenance();
+
+        document.querySelector<HTMLButtonElement>('[data-remove-series="temperature"]')?.click();
+        expect(workspace.getSnapshot().selection.columns).toEqual(['pressure']);
+
+        document.querySelector<HTMLButtonElement>('[data-clear-context]')?.click();
+        expect(workspace.getSnapshot().selection.columns).toEqual([]);
+        expect(workspace.getSnapshot().viewport).toBeNull();
+
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+        expect(document.getElementById('provenance-panel')?.hidden).toBe(true);
     });
 });

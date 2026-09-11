@@ -8,7 +8,6 @@
 const DATASET_BOOTSTRAP_PAGES = new Set([
     'timeseries',
     'prepare',
-    'scatter',
     'fft',
     'heatmap',
     'spectrogram',
@@ -18,6 +17,8 @@ const DATASET_BOOTSTRAP_PAGES = new Set([
 
 const PAGE_BACKING_ALIASES: Record<string, string> = {
     correlations: 'heatmap',
+    scatter: 'heatmap',
+    'pair-plot': 'heatmap',
     scattermatrix: 'heatmap',
 };
 
@@ -50,7 +51,7 @@ export function isLazyAnalysisPage(pageName: string | null | undefined): boolean
 
 /**
  * Core workflow pages that should always be quick to navigate to.
- * These are the primary path: Upload → Timeseries → Correlations → Scatter.
+ * These are the primary path: Upload → Timeseries → Correlations.
  */
 export const CORE_WORKFLOW_PAGES = new Set([
     'home',
@@ -58,7 +59,6 @@ export const CORE_WORKFLOW_PAGES = new Set([
     'timeseries',
     'prepare',
     'correlations',
-    'scatter',
 ]);
 
 export function isCoreWorkflowPage(pageName: string | null | undefined): boolean {

@@ -167,7 +167,7 @@
 }
 
 .theme-previews { display: flex; gap: 6px; margin-top: 8px; }
-.theme-previews span { width: 28px; height: 18px; border: 1px solid var(--border-hi); border-radius: 4px; background: #0b0f14; }
+.theme-previews span { width: 34px; height: 24px; border: 1px solid var(--border-hi); border-radius: 4px; background: #0b0f14; }
 .theme-previews [data-theme-preview="light"] { background: #f4f7fb; }
 .theme-previews [data-theme-preview="high-contrast"] { background: linear-gradient(90deg, #000 50%, #fff 50%); }
 .theme-previews [data-theme-preview="colorblind"] { background: linear-gradient(90deg, #440154, #21918c, #fde725); }

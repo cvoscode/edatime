@@ -26,3 +26,13 @@ export function consumeScatterPairIntent(): ScatterPairIntent | null {
 export function clearScatterPairIntent(): void {
     pendingIntent = null;
 }
+
+/** Notify the combined correlation view that the live Pair plot axes changed. */
+export function publishScatterPairSelection(x: string, y: string): void {
+    const nextX = String(x || '').trim();
+    const nextY = String(y || '').trim();
+    if (!nextX || !nextY || nextX === nextY || typeof document === 'undefined') return;
+    document.dispatchEvent(new CustomEvent('edatime:scatter-pair-changed', {
+        detail: { x: nextX, y: nextY },
+    }));
+}

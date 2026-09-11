@@ -8,6 +8,7 @@ import { analyticsState, setSpectralFilterPreview } from '../../store/analyticsS
 import { primaryChart } from '../../charts/primaryChart.js';
 import { renderSeriesChipList } from '../../ui/index.js';
 import { getDropdownValue, setDropdownDisabled } from '../../ui/primitives/Dropdown.js';
+import { setFlexibleNumberInputBounds } from '../../ui/primitives/FlexibleNumberInput.js';
 import { setSeriesColor } from '../../utils/seriesColors.js';
 import {
     DEFAULT_SPECTRAL_SCALE,
@@ -15,7 +16,7 @@ import {
 } from '../../utils/spectralScaling.js';
 import { createAnalysisPageRuntime } from '../../platform/analysisRuntime.js';
 import { initFftHelp } from './help.js';
-import { buildFftFilterCutoffState, buildFftScaleOptions } from './fftControls.js';
+import { buildFftFilterCutoffState, buildFftScaleOptions, validateFftFilterCutoffs } from './fftControls.js';
 import { buildFftSpectralInfo } from './fftSpectralInfo.js';
 import { buildFftFilterRequest } from './fftFilterRequest.js';
 import { buildFftTrace, resolveFftViewport } from './fftTraceModel.js';
@@ -23,6 +24,7 @@ import { fetchFftPointBudget } from './fftBudget.js';
 import type { AnalysisSampling } from '../../contracts/api/v1/analytics.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import './fft.css';
+import { markDataUpdated } from '../../ui/freshnessIndicator.js';
 
 interface FftPageDeps {
     renderTimeseries: () => void;
@@ -147,7 +149,7 @@ function syncFftEmptyState(): void {
 
 function syncFftActions(): void {
     const disabled = fftSelectedColumns.length === 0 || fftComputing;
-    for (const id of ['fft-compute-btn', 'fft-empty-compute-btn']) {
+    for (const id of ['fft-compute-btn']) {
         const button = document.getElementById(id) as HTMLButtonElement | null;
         if (!button) continue;
         button.disabled = disabled;
@@ -164,10 +166,14 @@ function syncFftSamplingBadge(): void {
     if (!sampling) {
         badge.hidden = true;
         badge.textContent = '';
+        badge.removeAttribute('title');
         return;
     }
     badge.hidden = false;
     badge.textContent = `Downsampled to ${sampling.output_points.toLocaleString()} of ${sampling.input_points.toLocaleString()} points`;
+    badge.title = sampling.method === 'block_mean'
+        ? `Anti-aliased block-mean sampling bounded this analysis to ${sampling.output_points.toLocaleString()} points; this is not zero padding.`
+        : `The analysis was bounded to ${sampling.output_points.toLocaleString()} points.`;
 }
 
 function rerenderOrClear(): void {
@@ -360,7 +366,9 @@ async function computeSelectedFft(signal?: AbortSignal): Promise<void> {
 
         fftTraces = nextTraces;
         fftSamplingByColumn = nextSampling;
+        document.dispatchEvent(new CustomEvent('fft:computed'));
         await ensureFftChartReady();
+        markDataUpdated();
         if (failures.length > 0) {
             toast(`FFT skipped ${failures.length} trace${failures.length === 1 ? '' : 's'}: ${failures.join(', ')}`, 'warning');
         }
@@ -484,7 +492,6 @@ export async function initFftPage(deps: FftPageDeps): Promise<() => void> {
 
             const runCompute = () => void computeSelectedFft(controlAbort.signal);
             document.getElementById('fft-compute-btn')?.addEventListener('click', runCompute, listenerOptions);
-            document.getElementById('fft-empty-compute-btn')?.addEventListener('click', runCompute, listenerOptions);
 
             modeSelect?.addEventListener('change', () => {
                 fftMode = getDropdownValue('fft-mode-select') || 'magnitude';
@@ -560,14 +567,7 @@ export async function initFftPage(deps: FftPageDeps): Promise<() => void> {
 
             document.getElementById('fft-filter-apply-btn')?.addEventListener('click', async () => {
                 const filterType = getDropdownValue('fft-filter-type');
-                if (!filterType || filterType === 'none') {
-                    if (analyticsState.spectralFilterPreview) {
-                        setSpectralFilterPreview(null);
-                        primaryChart.current?.requestOverlayRender?.();
-                        deps.renderTimeseries();
-                    }
-                    return;
-                }
+                if (!filterType || filterType === 'none') return;
 
                 const column = fftTraces[0]?.column
                     || fftSelectedColumns[0]
@@ -578,8 +578,17 @@ export async function initFftPage(deps: FftPageDeps): Promise<() => void> {
                 }
 
                 const statusEl = document.getElementById('fft-filter-status') as HTMLElement | null;
-                const lowHz = parseFloat((document.getElementById('fft-filter-low-hz') as HTMLInputElement)?.value) || undefined;
-                const highHz = parseFloat((document.getElementById('fft-filter-high-hz') as HTMLInputElement)?.value) || undefined;
+                const validation = validateFftFilterCutoffs(
+                    filterType,
+                    (document.getElementById('fft-filter-low-hz') as HTMLInputElement | null)?.value ?? '',
+                    (document.getElementById('fft-filter-high-hz') as HTMLInputElement | null)?.value ?? '',
+                    fftTraces.find((trace) => Number.isFinite(trace.nyquist_hz))?.nyquist_hz ?? null,
+                );
+                if (!validation.valid) {
+                    if (statusEl) statusEl.textContent = validation.message;
+                    return;
+                }
+                const { lowHz, highHz } = validation;
 
                 if (statusEl) statusEl.textContent = 'Computing…';
                 try {
@@ -625,14 +634,25 @@ export async function initFftPage(deps: FftPageDeps): Promise<() => void> {
                 const highEl = document.getElementById('fft-filter-high-hz') as HTMLInputElement | null;
                 const bandEl = document.getElementById('fft-filter-band');
                 const policy = buildFftFilterCutoffState(filterType);
+                const nyquistHz = fftTraces.find((trace) => Number.isFinite(trace.nyquist_hz))?.nyquist_hz ?? null;
+                const validation = validateFftFilterCutoffs(
+                    filterType,
+                    lowEl?.value ?? '',
+                    highEl?.value ?? '',
+                    nyquistHz,
+                );
                 if (lowEl) {
                     lowEl.disabled = policy.low.disabled;
                     lowEl.title = policy.low.hint;
+                    setFlexibleNumberInputBounds(lowEl, { min: 0, max: nyquistHz, step: 'any' });
+                    lowEl.setAttribute('aria-invalid', String(!policy.low.disabled && !validation.valid));
                     setFieldHidden(lowEl, policy.low.disabled);
                 }
                 if (highEl) {
                     highEl.disabled = policy.high.disabled;
                     highEl.title = policy.high.hint;
+                    setFlexibleNumberInputBounds(highEl, { min: 0, max: nyquistHz, step: 'any' });
+                    highEl.setAttribute('aria-invalid', String(!policy.high.disabled && !validation.valid));
                     setFieldHidden(highEl, policy.high.disabled);
                 }
                 // The wrapper is only useful when at least one cutoff is
@@ -641,8 +661,22 @@ export async function initFftPage(deps: FftPageDeps): Promise<() => void> {
                 if (bandEl) {
                     bandEl.classList.toggle('is-hidden', !policy.bandVisible);
                 }
+                const applyButton = document.getElementById('fft-filter-apply-btn') as HTMLButtonElement | null;
+                if (applyButton) applyButton.disabled = !validation.valid;
+                const status = document.getElementById('fft-filter-status');
+                if (status) status.textContent = filterType === 'none' ? '' : validation.message;
             };
-            filterTypeSelect?.addEventListener('change', syncFilterCutoffInputs, listenerOptions);
+            filterTypeSelect?.addEventListener('change', () => {
+                syncFilterCutoffInputs();
+                if (getDropdownValue('fft-filter-type') !== 'none') return;
+                setSpectralFilterPreview(null);
+                primaryChart.current?.requestOverlayRender?.();
+                deps.renderTimeseries();
+                rerenderOrClear();
+            }, listenerOptions);
+            document.getElementById('fft-filter-low-hz')?.addEventListener('input', syncFilterCutoffInputs, listenerOptions);
+            document.getElementById('fft-filter-high-hz')?.addEventListener('input', syncFilterCutoffInputs, listenerOptions);
+            document.addEventListener('fft:computed', syncFilterCutoffInputs, listenerOptions);
             syncFilterCutoffInputs();
 
             seedInitialFftSelection();

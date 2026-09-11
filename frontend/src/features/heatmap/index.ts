@@ -1,3 +1,3 @@
 /** Public Heatmap feature surface for application composition. */
 export { disposeHeatmapPage, initHeatmapPage } from './page.js';
-export { initHeatmapScatterMatrix } from './scatterMatrix.js';
+export { initHeatmapScatterLayer } from './scatterMatrix.js';

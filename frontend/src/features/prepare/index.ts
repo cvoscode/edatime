@@ -1,7 +1,6 @@
-import { buildPipelineGraph, renderPipelineGraphSvg } from '../../cleaning/pipelineGraph.js';
 import { hasAscendingTimeSortBefore, normalizeFixedDuration, parseResampleAggregations } from '../../cleaning/resample.js';
 import { cleaningPlanStore } from '../../cleaning/store.js';
-import { cancelSessionJob } from '../../cleaning/api.js';
+import { applyCleaningPlan, cancelSessionJob, previewCleaningPlan } from '../../cleaning/api.js';
 import type { CleaningPlan } from '../../cleaning/types.js';
 import type { ApiRequestOptions } from '../../services/api/http.js';
 import type { WorkspaceStore } from '../../contracts/workspace.js';
@@ -25,7 +24,7 @@ export const PREPARE_HELP: PageHelpContent = {
             bullets: [
                 'Check source identity and quality findings first.',
                 'Review the pipeline graph from left to right.',
-                'Add or reorder stages, then open the workbench for parameter previews.',
+                'Add or reorder stages, then preview exact row and schema impacts before materializing.',
                 'Materialize only after the plan matches the intended analysis dataset.',
             ],
         },
@@ -40,7 +39,7 @@ export const PREPARE_HELP: PageHelpContent = {
     ],
     tips: [
         'Sort by the time column before adding a resample stage.',
-        'Use the workbench when you need previews, import/export, or materialization.',
+        'Use the top-bar workbench for graph history, advanced editing, and reproducibility exports.',
     ],
 };
 
@@ -55,6 +54,7 @@ export interface PreparePageDeps {
     getSampleProfile?: (options?: ApiRequestOptions) => Promise<DatasetProfileResponse>;
     cancelProfile?: (jobId: string, options?: ApiRequestOptions) => Promise<unknown>;
     getCurrentData?: () => DataObject | null;
+    refreshDatasetAfterMutation?: () => void | Promise<void>;
 }
 
 function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string): HTMLElementTagNameMap[K] {
@@ -500,43 +500,39 @@ function renderPrepareWorkspace(
     helpIcon.setAttribute('aria-hidden', 'true');
     helpIcon.textContent = '?';
     const helpLabel = createElement('span', 'page-help-trigger__label');
-    helpLabel.textContent = 'Help';
+    helpLabel.textContent = 'Preparation help';
     help.append(helpIcon, helpLabel);
     titleRow.append(title, help);
     const copy = createElement('p', 'prepare-workspace__copy');
     copy.textContent = 'Review the reversible preprocessing pipeline before materializing a new dataset version.';
     heading.append(titleRow, copy);
-    const openWorkbench = createElement('button', 'btn btn-primary btn-sm');
-    openWorkbench.type = 'button';
-    openWorkbench.textContent = 'Open Pipeline Workbench';
-    openWorkbench.disabled = !plan;
-    openWorkbench.addEventListener('click', () => document.getElementById('open-cleaning-plan-btn')?.click());
-    header.append(heading, openWorkbench);
+    header.append(heading);
 
+    const workspaceFilters = deps.workspace?.getSnapshot().filters;
+    const filterCount = Object.keys(workspaceFilters?.columnRanges ?? {}).length + (workspaceFilters?.adaptiveLines.length ?? 0);
     const localNav = createElement('nav', 'prepare-workspace__local-nav');
     localNav.setAttribute('aria-label', 'Prepare sections');
-    for (const [label, targetId] of [
-        ['Applied in Signals', 'prepare-signals-filters'],
-        ['Record an insight', 'prepare-insight-record'],
+    const navTargets = [
         ['Profile findings', 'prepare-profile-findings'],
         ['Pipeline preview', 'prepare-pipeline-preview'],
         ['Pipeline stages', 'prepare-pipeline-stages'],
-    ] as const) {
+        ['Record an insight', 'prepare-insight-record'],
+        ...(filterCount > 0 ? [['Signals filters', 'prepare-signals-filters'] as const] : []),
+    ] as const;
+    for (const [label, targetId] of navTargets) {
         const link = createElement('a');
         link.href = `#${targetId}`;
         link.textContent = label;
         link.addEventListener('click', (event) => {
             event.preventDefault();
+            const params = new URLSearchParams(window.location.hash.slice(1));
+            params.set('page', 'prepare');
+            params.set('section', targetId);
+            window.history.replaceState(null, '', `#${params.toString()}`);
             document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
         localNav.append(link);
     }
-    const previewExport = createElement('button');
-    previewExport.type = 'button';
-    previewExport.textContent = 'Preview & export';
-    previewExport.disabled = !plan;
-    previewExport.addEventListener('click', () => document.getElementById('open-cleaning-plan-btn')?.click());
-    localNav.append(previewExport);
 
     const identity = createElement('section', 'prepare-workspace__identity');
     identity.setAttribute('aria-label', 'Pipeline source identity');
@@ -546,19 +542,29 @@ function renderPrepareWorkspace(
         return;
     }
     const activeStages = plan.stages.filter((stage) => stage.enabled && stage.executionClass !== 'annotation').length;
-    const identityPrefix = createElement('span');
-    identityPrefix.textContent = 'Source ' + plan.sourceVersionId + ' · ';
+    const identityFacts = createElement('dl', 'prepare-workspace__identity-facts');
+    const appendIdentityFact = (label: string, value: string | HTMLElement) => {
+        const fact = createElement('div');
+        const term = createElement('dt');
+        term.textContent = label;
+        const description = createElement('dd');
+        if (typeof value === 'string') description.textContent = value;
+        else description.append(value);
+        fact.append(term, description);
+        identityFacts.append(fact);
+    };
     const revisionLink = createElement('button', 'prepare-workspace__revision-link');
     revisionLink.type = 'button';
-    revisionLink.textContent = 'revision ' + String(plan.datasetRevision);
+    revisionLink.textContent = String(plan.datasetRevision);
     revisionLink.title = 'Open Graph history in the Pipeline Workbench';
     revisionLink.addEventListener('click', () => document.getElementById('open-cleaning-plan-btn')?.click());
-    const identitySuffix = createElement('span');
-    identitySuffix.textContent = ' · ' + String(activeStages) + ' active executable stage' + (activeStages === 1 ? '' : 's')
-        + ' · ' + (cleaningPlanStore.isDirty() ? 'Not yet applied — preview to see effect' : 'Source baseline');
-    identity.append(identityPrefix, revisionLink, identitySuffix);
+    appendIdentityFact('Source', plan.sourceName || plan.sourceVersionId);
+    appendIdentityFact('Revision', revisionLink);
+    appendIdentityFact('Active stages', String(activeStages));
+    appendIdentityFact('Plan status', cleaningPlanStore.isDirty() ? 'Draft — not materialized' : 'Source baseline');
+    identity.append(identityFacts);
 
-    const filters = deps.workspace?.getSnapshot().filters;
+    const filters = workspaceFilters;
     const rangeFilters = Object.entries(filters?.columnRanges ?? {});
     const adaptiveFilters = filters?.adaptiveLines ?? [];
     const signalsFilterSection = (() => {
@@ -579,12 +585,7 @@ function renderPrepareWorkspace(
                 item.textContent = filter.column + ': keep ' + (filter.keepAbove ? 'above' : 'below') + ' the drawn line';
                 list.append(item);
             }
-            if (rangeFilters.length === 0 && adaptiveFilters.length === 0) {
-                const item = createElement('li');
-                item.textContent = 'Empty — no Signals filters are active.';
-                item.title = 'Add a value-range or adaptive-line filter from Signals to populate this section.';
-                list.append(item);
-            }
+            section.hidden = rangeFilters.length === 0 && adaptiveFilters.length === 0;
             section.append(heading, summary, list);
             return section;
         })();
@@ -662,28 +663,68 @@ function renderPrepareWorkspace(
     const graphTitle = createElement('h2');
     graphTitle.textContent = 'Current pipeline';
     const graphCopy = createElement('p', 'prepare-workspace__copy');
-    graphCopy.textContent = 'This overview is derived directly from the active canonical plan. Use the workbench to edit stages, preview impacts, export, or materialize.';
+    graphCopy.textContent = 'A compact summary of the active canonical plan. Use the top-bar Workbench for the full graph and revision history.';
     const previewCaption = createElement('p', 'prepare-workspace__preview-caption');
     const caption = formatPipelinePreviewCaption(plan.stages);
     previewCaption.textContent = caption.text;
     previewCaption.title = caption.title;
-    const graphScroll = createElement('div', 'prepare-workspace__graph-scroll');
-    graphScroll.innerHTML = renderPipelineGraphSvg(buildPipelineGraph(plan));
-    graphSection.append(graphTitle, graphCopy, previewCaption, graphScroll);
+    graphSection.append(graphTitle, graphCopy, previewCaption);
 
     const stagesSection = createElement('section', 'prepare-workspace__stages');
     stagesSection.id = 'prepare-pipeline-stages';
     const stageTitle = createElement('h2');
     stageTitle.textContent = 'Ordered stages';
     const stageCopy = createElement('p', 'prepare-workspace__copy');
-    stageCopy.textContent = 'These controls change the active canonical plan. Open the workbench to edit stage parameters, preview impacts, export, or materialize.';
+    stageCopy.textContent = 'These controls change the active canonical plan. Preview its exact impact here, then create a prepared dataset when the result is ready.';
     const history = createElement('div', 'prepare-workspace__history');
-    const previewMaterialize = actionButton('Preview / Materialize', () => document.getElementById('open-cleaning-plan-btn')?.click(), plan.stages.length === 0);
-    previewMaterialize.title = plan.stages.length === 0 ? 'Add at least one stage to preview' : 'Open preview and materialization controls';
+    const previewStatus = createElement('p', 'prepare-workspace__policy-status');
+    previewStatus.setAttribute('role', 'status');
+    previewStatus.setAttribute('aria-live', 'polite');
+    const previewChanges = actionButton(activeStages === 0 ? 'Preview baseline' : 'Preview changes', async () => {
+        const current = cleaningPlanStore.getSnapshot();
+        if (!current) return;
+        previewChanges.disabled = true;
+        previewStatus.textContent = 'Calculating exact preview…';
+        try {
+            const result = await previewCleaningPlan(current);
+            const latest = cleaningPlanStore.getSnapshot();
+            if (!latest || latest.id !== current.id || latest.planRevision !== current.planRevision) {
+                previewStatus.textContent = 'The plan changed during the preview. Preview again for current results.';
+                return;
+            }
+            previewStatus.textContent = `${result.rowsAfter.toLocaleString()} of ${result.rowsBefore.toLocaleString()} rows · ${result.columnsAfter} of ${result.columnsBefore} columns after the plan.`;
+        } catch (error) {
+            previewStatus.textContent = error instanceof Error ? error.message : 'Could not preview this plan.';
+        } finally {
+            previewChanges.disabled = false;
+        }
+    });
+    const materialize = actionButton('Create prepared dataset', async () => {
+        const current = cleaningPlanStore.getSnapshot();
+        if (!current) return;
+        materialize.disabled = true;
+        previewStatus.textContent = 'Creating a prepared dataset…';
+        try {
+            const result = await applyCleaningPlan(current);
+            previewStatus.textContent = `Created ${result.sourceVersion.id} from ${current.sourceVersionId}.`;
+            await deps.refreshDatasetAfterMutation?.();
+            deps.onPlanChanged?.();
+        } catch (error) {
+            previewStatus.textContent = error instanceof Error ? error.message : 'Could not create a prepared dataset.';
+        } finally {
+            materialize.disabled = false;
+        }
+    }, activeStages === 0);
+    materialize.classList.remove('btn-ghost');
+    materialize.classList.add('btn-primary');
+    materialize.title = activeStages === 0
+        ? 'Add and enable at least one executable stage first'
+        : 'Materialize the current plan as a new immutable dataset version';
     history.append(
         actionButton('Undo', () => { if (cleaningPlanStore.undo()) deps.onPlanChanged?.(); }, !cleaningPlanStore.canUndo()),
         actionButton('Redo', () => { if (cleaningPlanStore.redo()) deps.onPlanChanged?.(); }, !cleaningPlanStore.canRedo()),
-        previewMaterialize,
+        previewChanges,
+        materialize,
     );
     const addPolicy = createElement('form', 'prepare-workspace__policy-form');
     const policyTitle = createElement('h3');
@@ -694,7 +735,7 @@ function renderPrepareWorkspace(
     policyColumn.required = true;
     policyColumn.setAttribute('aria-label', 'Numeric column');
     configureColumnInput(policyColumn, deps.workspace?.getSnapshot().dataset.metadata?.numeric_columns ?? []);
-    const policySubmit = actionButton('Add policy', () => {});
+    const policySubmit = actionButton('Add stage', () => {});
     policySubmit.type = 'submit';
     const policyStatus = createElement('p', 'prepare-workspace__policy-status');
     policyStatus.setAttribute('aria-live', 'polite');
@@ -744,7 +785,7 @@ function renderPrepareWorkspace(
     keepLast.value = 'last';
     keepLast.textContent = 'Keep last row';
     keep.append(keepFirst, keepLast);
-    const deduplicateSubmit = actionButton('Resolve duplicates', () => {});
+    const deduplicateSubmit = actionButton('Add stage', () => {});
     deduplicateSubmit.type = 'submit';
     const deduplicateStatus = createElement('p', 'prepare-workspace__policy-status');
     deduplicateStatus.setAttribute('aria-live', 'polite');
@@ -781,7 +822,7 @@ function renderPrepareWorkspace(
     dropColumns.value = 'drop';
     dropColumns.textContent = 'Drop these columns';
     columnSelectMode.append(keepColumns, dropColumns);
-    const columnSelectSubmit = actionButton('Add selection', () => {});
+    const columnSelectSubmit = actionButton('Add stage', () => {});
     columnSelectSubmit.type = 'submit';
     const columnSelectStatus = createElement('p', 'prepare-workspace__policy-status');
     columnSelectStatus.setAttribute('aria-live', 'polite');
@@ -811,7 +852,7 @@ function renderPrepareWorkspace(
     configureColumnInput(sortColumns, (deps.workspace?.getSnapshot().dataset.metadata?.columns ?? []).map((column) => column.name), { multiple: true });
     const sortDescending = checkbox('Sort descending', 'descending', false);
     const sortNullsLast = checkbox('Place nulls last', 'nullsLast', true);
-    const sortSubmit = actionButton('Add sort', () => {});
+    const sortSubmit = actionButton('Add stage', () => {});
     sortSubmit.type = 'submit';
     const sortStatus = createElement('p', 'prepare-workspace__policy-status');
     sortStatus.setAttribute('aria-live', 'polite');
@@ -839,7 +880,7 @@ function renderPrepareWorkspace(
     const fillStrategy = createElement('select', 'modal-select'); fillStrategy.name = 'strategy';
     for (const [value, label] of [['forward', 'Forward fill'], ['backward', 'Backward fill']] as const) { const option = createElement('option'); option.value = value; option.textContent = label; fillStrategy.appendChild(option); }
     const fillLimit = createElement('input', 'modal-input'); fillLimit.name = 'limit'; fillLimit.type = 'number'; fillLimit.min = '1'; fillLimit.placeholder = 'Maximum consecutive fills (optional)';
-    const fillSubmit = actionButton('Add null fill', () => {}); fillSubmit.type = 'submit';
+    const fillSubmit = actionButton('Add stage', () => {}); fillSubmit.type = 'submit';
     const fillStatus = createElement('p', 'prepare-workspace__policy-status'); fillStatus.setAttribute('aria-live', 'polite');
     addFill.append(fillTitle, fillColumns, fillStrategy, fillLimit, fillSubmit, fillStatus);
     addFill.addEventListener('submit', (event) => { event.preventDefault(); const columns = fillColumns.value.split(',').map((column) => column.trim()).filter(Boolean); const limit = fillLimit.value ? Number(fillLimit.value) : null; if (!hasEnabledTimeSort(plan)) { fillStatus.textContent = 'Add and enable a stable sort on the time column before ordered null fill.'; return; } if (columns.length === 0 || new Set(columns).size !== columns.length || (limit != null && (!Number.isInteger(limit) || limit <= 0))) { fillStatus.textContent = 'Choose unique columns and an optional positive integer limit.'; return; } const strategy = fillStrategy.value as 'forward' | 'backward'; cleaningPlanStore.addStage({ kind: 'fillNull', executionClass: 'polarsExpression', scope: 'row', enabled: true, sourcePage: 'manual', label: (strategy === 'forward' ? 'Forward' : 'Backward') + ' fill nulls in ' + columns.join(', '), columns, strategy, limit }); deps.onPlanChanged?.(); });
@@ -848,7 +889,7 @@ function renderPrepareWorkspace(
     const resampleEvery = createElement('input', 'modal-input'); resampleEvery.name = 'every'; resampleEvery.placeholder = 'Fixed interval, for example 15m'; resampleEvery.required = true;
     const resampleAggregations = createElement('input', 'modal-input'); resampleAggregations.name = 'aggregations'; resampleAggregations.placeholder = 'value:mean, volume:sum'; resampleAggregations.required = true;
     configureColumnInput(resampleAggregations, deps.workspace?.getSnapshot().dataset.metadata?.numeric_columns ?? [], { multiple: true, aggregation: true });
-    const resampleSubmit = actionButton('Add resampling', () => {}); resampleSubmit.type = 'submit';
+    const resampleSubmit = actionButton('Add stage', () => {}); resampleSubmit.type = 'submit';
     const resampleStatus = createElement('p', 'prepare-workspace__policy-status'); resampleStatus.setAttribute('aria-live', 'polite');
     addResample.append(resampleTitle, resampleEvery, resampleAggregations, resampleSubmit, resampleStatus);
     addResample.addEventListener('submit', (event) => {
@@ -931,9 +972,29 @@ function renderPrepareWorkspace(
         item.append(summary, controls);
         list.append(item);
     }
-    stagesSection.append(stageTitle, stageCopy, history, addPolicy, addDeduplicate, addColumnSelect, addSort, addFill, addResample, list);
+    const composer = createElement('div', 'prepare-workspace__composer');
+    const composerHeading = createElement('div', 'prepare-workspace__composer-heading');
+    const composerCopy = createElement('p', 'prepare-workspace__copy');
+    composerCopy.textContent = 'Choose one transformation, configure it, then add it to the ordered plan.';
+    const composerSelect = createElement('select', 'modal-select');
+    composerSelect.setAttribute('aria-label', 'Transformation to add');
+    const forms = [addPolicy, addDeduplicate, addColumnSelect, addSort, addFill, addResample];
+    const formLabels = ['Missing values', 'Duplicate rows', 'Column selection', 'Stable sort', 'Ordered null fill', 'Fixed-duration resampling'];
+    formLabels.forEach((label, index) => {
+        const option = createElement('option');
+        option.value = String(index);
+        option.textContent = label;
+        composerSelect.append(option);
+        forms[index]!.hidden = index !== 0;
+    });
+    composerSelect.addEventListener('change', () => {
+        forms.forEach((form, index) => { form.hidden = index !== Number(composerSelect.value); });
+    });
+    composerHeading.append(composerCopy, composerSelect);
+    composer.append(composerHeading, ...forms);
+    stagesSection.append(stageTitle, stageCopy, history, previewStatus, composer, list);
     root.append(header, localNav, identity);
-    root.append(signalsFilterSection, insightSection, qualitySection, graphSection, stagesSection);
+    root.append(qualitySection, graphSection, stagesSection, insightSection, signalsFilterSection);
 }
 
 /** Lazy page surface for orienting a data scientist before opening the editor overlay. */
@@ -948,6 +1009,7 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
     let profileJobId: string | null = null;
     let pollTimer: ReturnType<typeof setTimeout> | null = null;
     let disposeHelp = () => {};
+    let restoredSection = false;
     const render = () => {
         if (disposed) return;
         disposeHelp();
@@ -963,6 +1025,11 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
             cancelProfile,
         );
         disposeHelp = initPageHelp('prepare', PREPARE_HELP);
+        if (!restoredSection) {
+            restoredSection = true;
+            const section = new URLSearchParams(window.location.hash.slice(1)).get('section');
+            if (section?.startsWith('prepare-')) queueMicrotask(() => document.getElementById(section)?.scrollIntoView({ block: 'start' }));
+        }
     };
     const acceptProfile = (response: DatasetProfileResponse, kind: 'exact' | 'sampled', owner: AbortController) => {
         if (disposed || owner.signal.aborted || owner !== request) return false;

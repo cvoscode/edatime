@@ -130,25 +130,26 @@ header {
   outline: none;
 }
 
-/* Mobile collapse — keep only theme toggle + data freshness on the
-   top bar; the rest (Workflow / Plan / Context / shortcuts) move into
-   a hamburger overflow if needed. See usage_issue.md I1 + A4. */
-@media (max-width: 640px) {
-
-  .mobile-sidebar-toggle {
-    display: inline-flex;
-  }
+@media (max-width: 1100px) {
 
   .app-topbar .header-meta>#keyboard-help-btn,
   .app-topbar .header-meta>#settings-btn,
   .app-topbar .header-meta>#workflow-toggle-btn,
   .app-topbar .header-meta>#open-cleaning-plan-btn,
+  .app-topbar .header-meta>#theme-toggle-btn,
   .app-topbar .header-meta>#provenance-toggle-btn {
     display: none;
   }
 
   .mobile-header-menu {
     display: block;
+  }
+}
+
+@media (max-width: 640px) {
+
+  .mobile-sidebar-toggle {
+    display: inline-flex;
   }
 
   .header-brand .brand-name {
@@ -161,16 +162,16 @@ header {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
+  min-width: 32px;
   height: 32px;
-  padding: 0;
+  padding: 0 10px;
   border-radius: 8px;
   cursor: pointer;
   flex-shrink: 0;
   color: var(--text-dim);
   background: transparent;
   border: 1px solid transparent;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
 }
 
 .theme-toggle:hover {

@@ -20,6 +20,7 @@ export interface ScatterChartLifecycleOptions {
 
 function syncAccessibilitySummary(container: HTMLElement, option: unknown): void {
     container.querySelector('table[data-chart-summary="scatter"]')?.remove();
+    const correlationPills = document.querySelector<HTMLElement>('.scatter-stats-bar__correlations');
     void option;
     const controls = currentControls();
     const axes: Array<{ name: string; index: 0 | 1 }> = [
@@ -43,7 +44,10 @@ function syncAccessibilitySummary(container: HTMLElement, option: unknown): void
         const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
         return [{ name, count: values.length, min, max, mean, std: Math.sqrt(variance), median, missingCount: 0 }];
     });
-    if (summaries.length === 0) return;
+    if (summaries.length === 0) {
+        if (correlationPills) correlationPills.hidden = false;
+        return;
+    }
     const table = createAccessibilitySummaryTable('Scatter chart', summaries, { visible: true });
     const correlationRows: Array<[string, number | null | undefined]> = [
         ['Pearson r', scatterState.currentPairStats?.pearsonRaw],
@@ -65,6 +69,7 @@ function syncAccessibilitySummary(container: HTMLElement, option: unknown): void
     table.append(correlationBody);
     table.dataset.chartSummary = 'scatter';
     container.appendChild(table);
+    if (correlationPills) correlationPills.hidden = true;
 }
 
 /** Create or reuse the chart instance while preserving the render-signature contract. */

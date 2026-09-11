@@ -105,7 +105,7 @@ export const DRIFT_HELP: PageHelpContent = {
         },
     ],
     shortcuts: [
-        { keys: '⌥0', description: 'Open the Drift page (this page)' },
+        { keys: '⌥8', description: 'Open the Drift page (this page)' },
         { keys: '⌥2', description: 'Open the Signals page — pick columns there first' },
         { keys: 'Enter / D', description: 'Run the drift computation' },
         { keys: 'E', description: 'Export the drift CSV' },

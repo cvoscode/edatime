@@ -25,7 +25,8 @@ import type { DatasetMetadata } from '../../types/api.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import { onFeatureEvent } from '../../platform/featureEvents.js';
 import { onNavigationChange } from '../../platform/navigationEvents.js';
-import { getEl, normalizeScatterSuggestionThreshold } from './helpers.js';
+import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
+import { getEl, isScatterSurfaceVisible, normalizeScatterSuggestionThreshold } from './helpers.js';
 import {
     currentControls,
     buildScatterOverviewContext,
@@ -34,7 +35,7 @@ import {
     ensureOptions,
 } from './state.js';
 import { renderSuggestionsFromCache } from './correlationsPanel.js';
-import { consumeScatterPairIntent } from './pairIntent.js';
+import { consumeScatterPairIntent, publishScatterPairSelection } from './pairIntent.js';
 import { getEffectiveNumericColumns } from '../../platform/analyticsColumns.js';
 import {
     buildOption,
@@ -222,13 +223,20 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
         try { await (cb.exportScatterParquet?.() ?? exportScatterParquet()); } catch (error: any) { cb.handleErr(error); }
     });
 
-    listen(ySelect, 'change', async () => { updateCorrelationStats(); await cb.renderScatter(); });
-    listen(xSelect, 'change', async () => { await cb.refreshCorrelationsAndSuggestions(); await cb.renderScatter(); });
+    listen(ySelect, 'change', async () => {
+        updateCorrelationStats();
+        await cb.renderScatter();
+        publishScatterPairSelection(getDropdownValue('scatter-x-col'), getDropdownValue('scatter-y-col'));
+    });
+    listen(xSelect, 'change', async () => {
+        await cb.refreshCorrelationsAndSuggestions();
+        await cb.renderScatter();
+        publishScatterPairSelection(getDropdownValue('scatter-x-col'), getDropdownValue('scatter-y-col'));
+    });
     listen(window, 'resize', () => { scatterState.chart?.resize?.(); });
 
     const handleFilterEvent = async (requireLinkedBrush: boolean) => {
-        const page = getEl('page-scatter');
-        if (page?.hidden) return;
+        if (!isScatterSurfaceVisible()) return;
         try {
             cb.syncScatterFilterBadge();
             if (!requireLinkedBrush || isLinkedBrushEnabled()) cb.renderScatterDebounced();
@@ -272,7 +280,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
     let previousEffectiveSchema = getEffectiveNumericColumns(scatterState.metadata, cleaningPlanStore.getSnapshot()).join('|');
     const unsubscribePlan = cleaningPlanStore.subscribe(() => {
         const metadata = scatterState.metadata;
-        if (!metadata || document.getElementById('page-scatter')?.hidden) return;
+        if (!metadata || !isScatterSurfaceVisible()) return;
         const numeric = getEffectiveNumericColumns(metadata, cleaningPlanStore.getSnapshot());
         const nextSchema = numeric.join('|');
         if (nextSchema === previousEffectiveSchema) return;
@@ -322,7 +330,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
     let inFlight = false;
 
     const unsubscribeNavigation = onNavigationChange(async (change) => {
-        if (change.page !== 'scatter') return;
+        if (change.page !== 'heatmap' && change.page !== 'scatter') return;
         if (inFlight) return;
         inFlight = true;
         try {

@@ -830,6 +830,7 @@ describe('API client fetch helpers', () => {
                 {
                     start: 10,
                     end: 20,
+                    timeColorMode: 'raw',
                     filters: [{ column: 'HUFL', from: 1, to: 9 }],
                     lineFilters: [{ column: 'HUFL', x1: 1, y1: 2, x2: 3, y2: 4, keepAbove: true }],
                 },
@@ -850,6 +851,7 @@ describe('API client fetch helpers', () => {
                 color: 'group',
                 start: 10,
                 end: 20,
+                time_color_mode: 'raw',
                 limit: 4096,
                 cleaning_plan: { expectedSourceVersionId: 'source-baseline' },
             });

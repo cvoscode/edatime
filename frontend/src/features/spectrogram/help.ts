@@ -69,8 +69,8 @@ export const SPECTROGRAM_HELP: PageHelpContent = {
         },
     ],
     shortcuts: [
-        { keys: '⌥8', description: 'Open the Spectrogram page (this page)' },
-        { keys: '⌥6', description: 'Open the FFT / PSD page — useful for the global spectrum' },
+        { keys: '⌥6', description: 'Open the Spectrogram page (this page)' },
+        { keys: '⌥5', description: 'Open the FFT / PSD page — useful for the global spectrum' },
         { keys: '?', description: 'Show the global keyboard shortcuts modal' },
         { keys: 'P', description: 'Export the heatmap as PNG' },
         { keys: 'E', description: 'Export the spectrogram data as CSV' },

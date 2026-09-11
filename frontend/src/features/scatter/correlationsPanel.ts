@@ -79,6 +79,13 @@ export function renderSuggestions(
     if (!box) return;
     const xValue = getDropdownValue('scatter-x-col');
     const yValue = getDropdownValue('scatter-y-col');
+    const currentPairSuggested = suggestions.some((item) => (
+        (item.x === xValue && item.y === yValue) || (item.x === yValue && item.y === xValue)
+    ));
+    const suggestionsLabel = getEl('scatter-suggestions-label');
+    if (suggestionsLabel) {
+        suggestionsLabel.textContent = `${currentPairSuggested ? 'Suggested pairs' : 'Other pairs in the dataset'} (|corr| >= ${scatterState.suggestionThreshold.toFixed(2)})`;
+    }
 
     scatterState.lastSuggestions = Array.isArray(suggestions) ? suggestions.slice() : [];
     box.innerHTML = '';
@@ -170,6 +177,7 @@ function buildSuggestionButton(
 export async function refreshCorrelationsAndSuggestions(
     options: {
         preferTopPairOnFirstLoad?: boolean;
+        preferredY?: string;
         onSuggestionApply?: SuggestionApplyHandler;
         queryContext?: ScatterFetchOptions;
     } = {},
@@ -216,9 +224,9 @@ export async function refreshCorrelationsAndSuggestions(
     const preferredX = hasUserPair
         ? currentX
         : (topPairs[0]?.x ?? response.base_column ?? numeric[0]);
-    const preferredY = hasUserPair
+    const preferredY = options.preferredY || (hasUserPair
         ? currentY
-        : (topPairs[0]?.y ?? numeric.find((c: string) => c !== preferredX) ?? numeric[1] ?? numeric[0]);
+        : (topPairs[0]?.y ?? numeric.find((c: string) => c !== preferredX) ?? numeric[1] ?? numeric[0]));
 
     const axisSearchable = numeric.length > 11;
     const selectedX = ensureOptions(xSelect, numeric, preferredX, {

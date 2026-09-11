@@ -12,4 +12,15 @@ describe('FFT spectral information', () => {
         expect(info.sampleRate.text).toContain('hr');
         expect(info.peaks[0]).toMatchObject({ rank: '#1', period: '1.0 days' });
     });
+
+    it('distinguishes the record-length trend bin from periodic peaks', () => {
+        const info = buildFftSpectralInfo([{
+            column: 'OT', frequencies: [1 / 1_000_000, 2 / 1_000_000], magnitudes: [], psd: [],
+            sample_rate_hz: 1 / 900, nyquist_hz: 1 / 1800,
+            dominant_peaks: [{ frequency_hz: 1 / 1_000_000, magnitude: 1, power: 12, rank: 1 }],
+        }]);
+
+        expect(info.peaks[0]?.rank).toBe('Trend');
+        expect(info.peaks[0]?.title).toContain('do not interpret as a stable periodic cycle');
+    });
 });

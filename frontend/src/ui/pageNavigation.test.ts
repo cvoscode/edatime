@@ -35,7 +35,6 @@ function buildDom(): void {
             <button class="nav-item" data-page="upload" type="button">Upload</button>
             <button class="nav-item" data-page="timeseries" type="button">Timeseries</button>
             <button class="nav-item" data-page="correlations" type="button">Correlations</button>
-            <button class="nav-item" data-page="scatter" type="button">Scatter</button>
             <button class="nav-item" data-page="settings" type="button">Settings</button>
             <button id="sidebar-collapse-btn" type="button">Collapse</button>
         </nav>
@@ -46,7 +45,6 @@ function buildDom(): void {
           <section class="page" data-page-name="upload" hidden></section>
           <section class="page" data-page-name="timeseries" hidden></section>
           <section class="page" data-page-name="heatmap" hidden></section>
-          <section class="page" data-page-name="scatter" hidden></section>
         </main>
         </div>
     `;

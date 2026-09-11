@@ -12,3 +12,5 @@
   #page-causal .causal-params-segment[open] .causal-parameter-grid,#page-causal .causal-params-segment[open] .causal-parameter-row{flex-wrap:wrap}
   #page-causal>.scatter-toolbar>.scatter-toolbar__segment--actions .scatter-toolbar__eyebrow{display:none}
 }
+
+#page-causal .causal-params-segment[open]>summary #causal-parameters-summary{display:none}

@@ -45,14 +45,13 @@ After ingest, the app reloads and stays on the Upload page so you can verify the
 ## Useful Shortcuts
 
 - `Alt+1`: Upload
-- `Alt+2`: Timeseries
-- `Alt+3`: Scatter
-- `Alt+4`: Matrix
-- `Alt+5`: Distributions
-- `Alt+6`: FFT
-- `Alt+7`: Heatmap
-- `Alt+8`: Spectrogram
-- `Alt+9`: Causal
+- `Alt+2`: Signals
+- `Alt+3`: Preparation
+- `Alt+4`: Correlations
+- `Alt+5`: Spectrum
+- `Alt+6`: Time-frequency
+- `Alt+7`: Causality
+- `Alt+8`: Drift
 
 ## Next Steps
 

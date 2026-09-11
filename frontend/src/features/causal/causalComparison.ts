@@ -279,11 +279,12 @@ function refreshCompareUI(): void {
                 <div class="causal-run-item" style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px;border-bottom:1px solid var(--border);">
                     <span>${escHtml(r.label)}</span>
                     <span style="color:var(--text-dim,#aaa)">${r.links.length} edges · ${new Date(r.timestamp).toLocaleString()}</span>
-                    <button class="btn btn-ghost btn-xs causal-run-delete-btn" data-run-id="${escHtml(r.id)}" type="button" title="Delete">✕</button>
+                    <button class="btn btn-ghost btn-xs causal-run-delete-btn" data-run-id="${escHtml(r.id)}" type="button" title="Delete saved run" aria-label="Delete saved run ${escHtml(r.label)}">✕</button>
                 </div>`).join('');
 
             savedList.querySelectorAll<HTMLButtonElement>('.causal-run-delete-btn').forEach((btn) => {
-                btn.addEventListener('click', () => {
+                btn.addEventListener('click', (event) => {
+                    event.stopPropagation();
                     deleteRun(btn.dataset.runId!);
                     refreshCompareUI();
                 });

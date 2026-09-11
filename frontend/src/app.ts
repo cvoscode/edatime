@@ -55,6 +55,7 @@ import type { DatasetMetadata, DataObject, AnomalyResponse } from './types/api.j
 import type { ChartInstance, ViewSnapshot } from './types/chart.js';
 
 import { primaryChart } from './charts/primaryChart.js';
+import { initDataFreshnessIndicator } from './ui/freshnessIndicator.js';
 
 type DataChartCtorType = new (
     containerId: string,
@@ -77,6 +78,20 @@ export function createApp(): AppRoot {
     const runtime = createAppRuntime();
     const featureRegistry = createFeatureRegistry();
     const workspace = createWorkspaceStore();
+    // Keep the cleaning plan identity in lockstep with the dataset before any
+    // feature subscriber can issue a request. Workspace listeners run in
+    // registration order, so installing this invariant at composition time
+    // closes the brief stale-plan window created by a dataset replacement.
+    let cleaningDatasetKey = '';
+    runtime.registerCleanup(workspace.subscribe((snapshot) => {
+        const dataset = snapshot.dataset;
+        if (!dataset.metadata) return;
+        const identity = cleaningDatasetIdentityFromMetadata(dataset.metadata, dataset.revision);
+        const nextKey = JSON.stringify(identity);
+        if (nextKey === cleaningDatasetKey) return;
+        cleaningDatasetKey = nextKey;
+        cleaningPlanStore.resetForDataset(identity);
+    }));
     runtime.registerCleanup(configureSeriesColorWorkspace(workspace));
     const analyticsOverlay = createAnalyticsOverlayController();
     let timeseriesModule!: ReturnType<typeof createTimeseriesModule>;
@@ -147,6 +162,7 @@ export function createApp(): AppRoot {
 
         upgradeSelects(document);
         upgradeFlexibleNumberInputs(document);
+        runtime.registerCleanup(initDataFreshnessIndicator());
         installWindowsWebGpuRequestAdapterWorkaround();
         // Hydrate persisted chart preferences (Y-range "stack from 0", etc.)
         // BEFORE the toolbar wires up so the toggle starts in the right state.
@@ -180,9 +196,6 @@ export function createApp(): AppRoot {
             exportFilteredJson: exportFeature.exportFilteredJson,
             exportFilteredParquet: exportFeature.exportFilteredParquet,
             cleaningPlanStore,
-            onDatasetCommitted: (metadata, revision) => {
-                cleaningPlanStore.resetForDataset(cleaningDatasetIdentityFromMetadata(metadata, revision));
-            },
         });
 
         // Mount registers page lifecycle (page-change listener, etc.)

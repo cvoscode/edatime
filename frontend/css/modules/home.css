@@ -61,6 +61,98 @@
     flex: 0 0 auto;
 }
 
+.home-active-dataset {
+    margin: 18px 28px 0;
+    padding: 18px;
+    border: 1px solid color-mix(in srgb, var(--accent) 36%, var(--border));
+    border-radius: var(--radius-lg);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 8%, var(--surface)) 0%, var(--surface) 70%);
+}
+
+.home-active-dataset__heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.home-active-dataset__eyebrow,
+.home-active-dataset dt {
+    color: var(--text-muted);
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.home-active-dataset h2 {
+    margin: 3px 0 0;
+    font-size: 1rem;
+}
+
+.home-active-dataset__facts {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+    margin: 16px 0 0;
+}
+
+.home-active-dataset__facts > div {
+    min-width: 0;
+    padding: 10px;
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--shell-bg) 60%, transparent);
+}
+
+.home-active-dataset dd {
+    margin: 5px 0 0;
+    color: var(--text);
+    font-size: 0.75rem;
+    overflow-wrap: anywhere;
+}
+
+.home-samples-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 20px 28px 0;
+    padding: 10px 12px;
+    border-top: 1px solid var(--border);
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.home-samples-summary__label {
+    color: var(--text-dim);
+    font-weight: 700;
+}
+
+.home-datasets > .home-section-copy {
+    margin: 8px 28px 0;
+}
+
+.home-dataset-card.is-current {
+    border-color: var(--green);
+    cursor: default;
+    opacity: 0.72;
+}
+
+.home-dataset-card.is-current::after {
+    content: 'Already loaded';
+    align-self: flex-start;
+    margin-top: 8px;
+    padding: 3px 7px;
+    border-radius: var(--radius-pill);
+    background: color-mix(in srgb, var(--green) 14%, transparent);
+    color: var(--green);
+    font-size: 0.625rem;
+    font-weight: 700;
+}
+
 .home-section {
     padding: 20px 28px 0;
 }
@@ -187,6 +279,22 @@
 /* ─── Narrow viewports: phone ────────────────────────── */
 @media (max-width: 900px) {
 
+    .home-active-dataset {
+        margin: 14px 16px 0;
+    }
+
+    .home-active-dataset__facts {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .home-active-dataset__wide {
+        grid-column: 1 / -1;
+    }
+
+    .home-samples-summary {
+        margin-inline: 16px;
+    }
+
     .home-hero {
         flex-direction: column;
         align-items: stretch;
@@ -264,11 +372,20 @@
 
 /* Shortcuts section */
 .home-shortcuts {
-    padding: 16px 28px 28px;
+    margin: 12px 28px 28px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
 }
 
 .home-shortcuts__summary {
-    display: none;
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+    padding: 0 12px;
+    color: var(--text);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    cursor: pointer;
 }
 
 .home-section-title {
@@ -286,6 +403,7 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 8px 24px;
+    padding: 0 12px 12px;
 }
 
 .home-shortcut-group-title {
@@ -352,25 +470,10 @@
 
     .home-shortcuts {
         margin: 12px 16px 20px;
-        padding: 0;
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-    }
-
-    .home-shortcuts__summary {
-        display: flex;
-        min-height: 44px;
-        align-items: center;
-        padding: 0 12px;
-        color: var(--text);
-        font-size: 0.8125rem;
-        font-weight: 700;
-        cursor: pointer;
     }
 
     .home-shortcuts-grid {
         grid-template-columns: 1fr;
-        padding: 0 12px 12px;
     }
 }
 

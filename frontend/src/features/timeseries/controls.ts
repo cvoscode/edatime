@@ -16,6 +16,10 @@ import { emitNavigationChange } from '../../platform/navigationEvents.js';
 import type { TimeseriesWorkspace } from './selectionIntent.js';
 import type { DataObject } from '../../types/api.js';
 import type { CleaningPlanStore } from '../../cleaning/store.js';
+import { analyticsState } from '../../store/analyticsState.js';
+import { subscribe as subscribeStore } from '../../store/events.js';
+import { getAnnotationsForPage } from '../../chart/annotations.js';
+import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
 
 export interface TimeseriesFeatureDeps {
     workspace: TimeseriesWorkspace;
@@ -144,6 +148,37 @@ export function createTimeseriesControls(deps: TimeseriesFeatureDeps) {
             // the popout, it just doesn't react to resize.
             const shelf = document.querySelector<HTMLElement>('.timeseries-utility-shelf');
             if (shelf) {
+                const syncToolsSummary = () => {
+                    const snapshot = deps.workspace.getSnapshot();
+                    const range = snapshot.dataset.metadata?.time_range;
+                    const viewport = snapshot.viewport;
+                    const activeGroups: string[] = [];
+                    if (getDropdownValue('draw-tool') !== 'none') activeGroups.push('Drawing');
+                    if (Object.values(snapshot.appearance.chartText).some((value) => value.trim())) activeGroups.push('Labels');
+                    if (getAnnotationsForPage('timeseries').length > 0) activeGroups.push('Notes');
+                    if (analyticsState.rollingEnabled || analyticsState.anomalyEnabled || analyticsState.spectralFilterPreview) activeGroups.push('Analytics');
+                    if (Object.keys(snapshot.filters.columnRanges).length > 0 || snapshot.filters.adaptiveLines.length > 0) activeGroups.push('Range');
+                    if (range && viewport && (viewport.xMin !== Number(range.min) || viewport.xMax !== Number(range.max))) activeGroups.push('Zoom');
+                    const detail = shelf.querySelector<HTMLElement>('.timeseries-tools-summary-detail');
+                    const activeSummary = activeGroups.length ? ` (${activeGroups.join(', ')} active)` : '';
+                    if (detail) detail.textContent = `Drawing, labels, analytics, zoom, range, export${activeSummary}`;
+                    shelf.title = activeGroups.length
+                        ? `Active chart tools: ${activeGroups.join(', ')}`
+                        : 'No chart tools have active state';
+                };
+                syncToolsSummary();
+                if (deps.workspace.subscribe) registerCleanup(deps.workspace.subscribe(syncToolsSummary));
+                for (const eventName of ['analytics:rollingEnabled', 'analytics:anomalyEnabled', 'analytics:spectralFilterPreview'] as const) {
+                    registerCleanup(subscribeStore(eventName, syncToolsSummary));
+                }
+                shelf.addEventListener('input', syncToolsSummary);
+                shelf.addEventListener('change', syncToolsSummary);
+                window.addEventListener('edatime:annotations-changed', syncToolsSummary);
+                registerCleanup(() => {
+                    shelf.removeEventListener('input', syncToolsSummary);
+                    shelf.removeEventListener('change', syncToolsSummary);
+                    window.removeEventListener('edatime:annotations-changed', syncToolsSummary);
+                });
                 try {
                     // Late-imported to keep the initial bundle small
                     // and to avoid a static dependency cycle with

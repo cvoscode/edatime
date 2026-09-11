@@ -1,11 +1,10 @@
 import * as echarts from 'echarts';
-import {
-    type FrequencyPeak,
-    formatFrequency,
-} from '../utils/spectralPresets.js';
-import { applySpectralScale } from '../utils/spectralScaling.js';
-import { getActiveSeriesPalette } from '../utils/seriesColors.js';
+import { type FrequencyPeak } from '../utils/spectralPresets.js';
+import { DEFAULT_SPECTRAL_SCALE, type SpectralScaleOptions } from '../utils/spectralScaling.js';
 import { getChartPalette, onThemeChange } from '../utils/theme.js';
+import { buildFftDataModel } from './fftDataModel.js';
+import { buildFftChartOptions } from './fftChartOptions.js';
+import { createFftAccessibilitySummary } from './fftAccessibilitySummary.js';
 
 export interface EchartsFftTrace {
     column: string;
@@ -28,6 +27,7 @@ export class EchartsLineChart {
     private _chart: any = null;
     private _resizeObserver: ResizeObserver | null = null;
     private _themeUnsubscribe: (() => void) | null = null;
+    private _accessibilityTable: HTMLTableElement | null = null;
     private _lastUpdate: {
         traces: EchartsFftTrace[];
         mode: string;
@@ -66,107 +66,48 @@ export class EchartsLineChart {
         traces: EchartsFftTrace[],
         mode: string,
         logScale: boolean,
-        scaleOptions?: { mode: 'none' | 'minmax' | 'zscore' | 'robust'; clip: 'none' | 'percentile' | 'iqr'; clipParam: number },
+        scaleOptions?: SpectralScaleOptions,
     ): void {
         if (!this._chart) return;
         this._lastUpdate = { traces, mode, logScale, scaleOptions };
 
-        const opts = scaleOptions || { mode: 'none' as const, clip: 'none' as const, clipParam: 0.5 };
-        const palette = getActiveSeriesPalette();
+        const opts = scaleOptions || DEFAULT_SPECTRAL_SCALE;
         const chartPalette = getChartPalette();
-        const series = traces.map((trace, index) => {
-            const values = mode === 'psd' ? trace.psd : trace.magnitudes;
-            const preLog: number[] = values.map((v) => {
-                const r = Number(v);
-                return logScale ? (r > 0 ? Math.log10(r) : -10) : r;
-            });
-            const scaled = applySpectralScale(preLog, opts);
-            const display = Array.from(scaled.displayValues);
-            return {
-                type: 'line',
-                name: trace.column,
-                showSymbol: false,
-                smooth: false,
-                lineStyle: { width: 1.5 },
-                itemStyle: { color: trace.color || palette[index % palette.length]! },
-                data: trace.frequencies.map((frequency, pointIndex) => {
-                    const y = display[pointIndex];
-                    return [frequency, y];
-                }).filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y)),
-            };
+        const model = buildFftDataModel(traces, mode, logScale, opts);
+        const option = buildFftChartOptions({
+            model,
+            xMin: 0,
+            xMax: model.fullXMax,
+            mode,
+            logScale,
+            scaleOptions: opts,
         });
-
-        // Adaptive Y-axis precision: 1-2 decimals depending on range so the
-        // rotated Y-axis label never crowds the tick labels. Mirrors the
-        // WebGPU primary chart's `yTickPrec` heuristic.
-        let yMinDisplay = Number.POSITIVE_INFINITY;
-        let yMaxDisplay = Number.NEGATIVE_INFINITY;
-        for (const trace of traces) {
-            const values = mode === 'psd' ? trace.psd : trace.magnitudes;
-            for (const v of values) {
-                const r = Number(v);
-                if (!Number.isFinite(r)) continue;
-                if (r > yMaxDisplay) yMaxDisplay = r;
-                if (r < yMinDisplay) yMinDisplay = r;
-            }
-        }
-        const yRange = Number.isFinite(yMaxDisplay) && Number.isFinite(yMinDisplay)
-            ? yMaxDisplay - yMinDisplay
-            : 0;
-        const yTickPrec = yRange >= 100 ? 0 : yRange >= 10 ? 1 : 2;
-
         this._chart.setOption({
+            ...option,
             animation: false,
             backgroundColor: chartPalette.background,
-            grid: { left: 96, right: 28, top: 24, bottom: 56 },
             legend: {
                 top: 8,
                 right: 12,
                 textStyle: { color: chartPalette.text },
             },
-            tooltip: {
-                trigger: 'axis',
-                backgroundColor: chartPalette.surfaceElevated,
-                borderColor: chartPalette.borderHi,
-                textStyle: { color: chartPalette.text },
-                formatter: (params: any[]) => {
-                    const first = params?.[0];
-                    const frequency = Number(first?.value?.[0]);
-                    const heading = Number.isFinite(frequency) ? formatFrequency(frequency) : 'Frequency';
-                    const rows = (params || []).map((entry) => {
-                        const yValue = Number(entry?.value?.[1]);
-                        return `${entry.marker || ''} ${entry.seriesName}: ${Number.isFinite(yValue) ? yValue.toFixed(yTickPrec + 2) : '—'}`;
-                    });
-                    return [heading, ...rows].join('<br>');
-                },
-            },
-            xAxis: {
-                type: 'value',
-                name: 'Frequency (Hz)',
-                nameLocation: 'middle',
-                nameGap: 36,
-                axisLabel: { color: chartPalette.textDim },
-                axisLine: { lineStyle: { color: chartPalette.borderHi } },
-                splitLine: { lineStyle: { color: chartPalette.border } },
-            },
-            yAxis: {
-                type: 'value',
-                name: logScale ? `log10(${mode === 'psd' ? 'PSD' : 'Magnitude'})` : (mode === 'psd' ? 'PSD' : 'Magnitude'),
-                nameLocation: 'middle',
-                nameGap: 64,
-                axisLabel: {
-                    color: chartPalette.textDim,
-                    formatter: (value: number) => Number(value).toFixed(yTickPrec),
-                },
-                axisLine: { lineStyle: { color: chartPalette.borderHi } },
-                splitLine: { lineStyle: { color: chartPalette.border } },
-            },
-            series,
+            series: model.series.map((series) => ({
+                ...series,
+                showSymbol: false,
+                smooth: false,
+                lineStyle: { width: 1.5, color: series.color },
+                itemStyle: { color: series.color },
+            })),
         });
+        this._accessibilityTable?.remove();
+        this._accessibilityTable = createFftAccessibilitySummary(model, mode, logScale, opts);
+        if (this._accessibilityTable) this._container?.appendChild(this._accessibilityTable);
     }
 
     clear(): void {
         this._chart?.clear();
+        this._accessibilityTable?.remove();
+        this._accessibilityTable = null;
         this.onZoomChange?.(false);
     }
 
@@ -188,6 +129,8 @@ export class EchartsLineChart {
         this._themeUnsubscribe?.();
         this._themeUnsubscribe = null;
         this._lastUpdate = null;
+        this._accessibilityTable?.remove();
+        this._accessibilityTable = null;
         this._chart?.dispose?.();
         this._chart = null;
         this._container = null;

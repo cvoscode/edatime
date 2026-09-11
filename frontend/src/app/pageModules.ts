@@ -58,7 +58,13 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
         requiresMetadata: true,
         async load(deps) {
             const { initPreparePage } = await import('../features/prepare/index.js');
-            return { init: () => initPreparePage({ workspace: deps.workspace, showPage: deps.showPage, onPlanChanged: deps.onCleaningPlanChanged, getCurrentData: deps.getCurrentTimeseriesData }) };
+            return { init: () => initPreparePage({
+                workspace: deps.workspace,
+                showPage: deps.showPage,
+                onPlanChanged: deps.onCleaningPlanChanged,
+                getCurrentData: deps.getCurrentTimeseriesData,
+                refreshDatasetAfterMutation: deps.refreshDatasetAfterMutation,
+            }) };
         },
     },
     {
@@ -74,37 +80,32 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
         requiresMetadata: true,
         cssModules: ['scatter'],
         async load(deps) {
-            const { initHeatmapPage, initHeatmapScatterMatrix } = await import('../features/heatmap/index.js');
+            const { initHeatmapPage, initHeatmapScatterLayer } = await import('../features/heatmap/index.js');
+            const { initHeatmapPairPlot } = await import('../features/heatmap/pairPlot/index.js');
             return {
                 init: async () => {
+                    const metadata = deps.workspace.getSnapshot().dataset.metadata;
+                    const pairPlot = metadata
+                        ? await initHeatmapPairPlot(metadata, { workspace: deps.workspace })
+                        : undefined;
                     const disposeHeatmap = await initHeatmapPage({
                         showPage: deps.showPage,
+                        selectPair: pairPlot?.selectPair,
                         cleaningPlanStore: deps.cleaningPlanStore,
                         onPlanChanged: deps.onCleaningPlanChanged,
                     });
-                    const metadata = deps.workspace.getSnapshot().dataset.metadata;
                     const disposeMatrix = metadata
-                        ? await initHeatmapScatterMatrix(metadata, {
+                        ? await initHeatmapScatterLayer(metadata, {
                             workspace: deps.workspace,
-                            showPage: deps.showPage,
                         })
                         : undefined;
                     return () => {
                         disposeMatrix?.();
                         disposeHeatmap?.();
+                        pairPlot?.dispose();
                     };
                 },
             };
-        },
-    },
-    {
-        name: 'scatter',
-        requiresMetadata: true,
-        cssModules: ['scatter'],
-        async load(deps) {
-            const { initScatterPage } = await import('../features/scatter/index.js');
-            const metadata = deps.workspace.getSnapshot().dataset.metadata;
-            return { init: () => metadata ? initScatterPage(metadata, { workspace: deps.workspace }) : undefined };
         },
     },
     {

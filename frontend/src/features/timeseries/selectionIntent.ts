@@ -2,7 +2,9 @@ import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
 export type SelectionWorkspace = Pick<WorkspaceStore, 'getSnapshot' | 'setSelection'>;
 export type FilterWorkspace = Pick<WorkspaceStore, 'getSnapshot' | 'setFilters'>;
-export type TimeseriesWorkspace = SelectionWorkspace & FilterWorkspace & Pick<WorkspaceStore, 'setViewport'>;
+export type TimeseriesWorkspace = SelectionWorkspace & FilterWorkspace
+    & Pick<WorkspaceStore, 'setViewport'>
+    & Partial<Pick<WorkspaceStore, 'subscribe'>>;
 
 /** Updates the canonical Timeseries selection. */
 export function setTimeseriesSelection(workspace: SelectionWorkspace, columns: readonly string[]): void {

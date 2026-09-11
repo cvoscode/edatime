@@ -240,3 +240,28 @@ describe('createTimeseriesBootstrap', () => {
         });
     });
 });
+
+describe('getDefaultTimeseriesChartText', () => {
+    it('surfaces timezone without inventing source-unit metadata', async () => {
+        const { getDefaultTimeseriesChartText } = await import('./ensureReady.js');
+        const text = getDefaultTimeseriesChartText(undefined);
+        expect(text.xLabel).toContain(Intl.DateTimeFormat().resolvedOptions().timeZone);
+        expect(text.yLabel).toBe('Value');
+    });
+
+    it('uses a compact generic label for multiple unitless series', async () => {
+        const { getDefaultTimeseriesChartText } = await import('./ensureReady.js');
+        expect(getDefaultTimeseriesChartText(undefined, ['HUFL', 'HULL']).yLabel)
+            .toBe('Series values');
+        expect(getDefaultTimeseriesChartText(undefined, ['HULL']).yLabel)
+            .toBe('HULL value');
+    });
+
+    it('preserves explicit chart labels', async () => {
+        const { getDefaultTimeseriesChartText } = await import('./ensureReady.js');
+        expect(getDefaultTimeseriesChartText({
+            chartText: { title: 'Load', xLabel: 'Timestamp UTC', yLabel: 'Power (kW)' },
+            seriesColors: {},
+        })).toEqual({ title: 'Load', xLabel: 'Timestamp UTC', yLabel: 'Power (kW)' });
+    });
+});

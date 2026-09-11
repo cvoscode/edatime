@@ -1,74 +1,159 @@
 import type { DatasetMetadata } from '../../types/api.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import { scatterState } from '../../store/scatterState.js';
-import { getDropdownValue, setDropdownValue } from '../../ui/primitives/Dropdown.js';
-import { requestScatterPair } from '../scatter/pairIntent.js';
-import { createMatrixRenderSession, renderScatterMatrixView } from '../scatter/matrix.js';
+import type { MatrixCellData } from '../scatter/state.js';
+import { buildScatterQueryContext } from '../scatter/state.js';
+import {
+    buildCategoricalColorGroups,
+    buildGroupedDistributionSeries,
+    drawDistributionCanvas,
+    drawMiniScatterCanvas,
+} from '../scatter/helpers.js';
+import { buildMatrixFetchPairs, createMatrixRenderSession, fetchMatrixBatchData } from '../scatter/matrix.js';
+import { getDropdownValue, setDropdownOptions } from '../../ui/primitives/Dropdown.js';
+import { getPlotColorScale } from '../../utils/settings.js';
+import { isTemporalDtype } from '../../utils/format.js';
 
-interface HeatmapScatterMatrixDeps {
+interface HeatmapScatterLayerDeps {
     workspace: Pick<WorkspaceStore, 'getSnapshot' | 'subscribe'>;
-    showPage: (page: string) => void;
 }
 
-function analysisSignature(snapshot: ReturnType<HeatmapScatterMatrixDeps['workspace']['getSnapshot']>): string {
+function analysisSignature(snapshot: ReturnType<HeatmapScatterLayerDeps['workspace']['getSnapshot']>): string {
     return JSON.stringify({ filters: snapshot.filters, viewport: snapshot.viewport });
 }
 
-/** Mount the scatter-matrix sub-view owned by the Correlation matrix page. */
-export async function initHeatmapScatterMatrix(
+function renderedColumns(): string[] {
+    return Array.from(document.querySelectorAll<HTMLElement>('#heatmap-container .heatmap-header'))
+        .map((header) => header.dataset.dragName || '')
+        .filter(Boolean);
+}
+
+/** Draw the unified correlation background, point cloud, and badge into each cell canvas. */
+export function drawUnifiedHeatmapCanvases(datasets: Map<string, MatrixCellData>): void {
+    document.querySelectorAll<HTMLElement>('#heatmap-container .heatmap-cell').forEach((cell) => {
+        const canvas = cell.querySelector<HTMLCanvasElement>(':scope > .heatmap-cell-canvas');
+        if (!canvas) return;
+        const row = cell.dataset.rowName || '';
+        const column = cell.dataset.colName || '';
+        const background = cell.dataset.cellBackground || 'transparent';
+        const color = cell.dataset.cellColor || '#ffffff';
+        const data = datasets.get(`${column}|${row}`);
+
+        if (row === column) {
+            const values = (data?.points || [])
+                .map((point) => Number(point?.[0]))
+                .filter((value) => Number.isFinite(value));
+            const groupedSeries = buildGroupedDistributionSeries(values, data?.colorLabels);
+            drawDistributionCanvas(canvas, 'histogram', groupedSeries || [{ label: column, color, values }], {
+                background,
+                showEmptyLabel: false,
+            });
+            return;
+        }
+
+        const categoryGroups = buildCategoricalColorGroups(data?.colorLabels);
+        drawMiniScatterCanvas(canvas, data?.points || [], {
+            background,
+            badge: { text: cell.dataset.correlationLabel || '—', color },
+            color,
+            colorValues: data?.colorValues,
+            colorLabels: categoryGroups ? data?.colorLabels : null,
+            colorScale: getPlotColorScale('pairPlot'),
+            categoryColors: categoryGroups?.colorByLabel,
+            pointAlpha: 0.52,
+            pointRadius: 1.25,
+            showEmptyLabel: false,
+        });
+    });
+}
+
+/** Add scatter thumbnails and diagonal histograms to the Correlation page's single grid. */
+export async function initHeatmapScatterLayer(
     metadata: DatasetMetadata,
-    deps: HeatmapScatterMatrixDeps,
+    deps: HeatmapScatterLayerDeps,
 ): Promise<() => void> {
-    const root = document.querySelector<HTMLElement>('.heatmap-scatter-matrix');
-    if (!root) return () => {};
     const lifetime = new AbortController();
     const session = createMatrixRenderSession();
     scatterState.metadata = metadata;
-    scatterState.matrixColumnOrder = [];
+    let renderSequence = 0;
+    let inFlightKey = '';
+    let loadedKey = '';
+    let loadedDatasets = new Map<string, MatrixCellData>();
 
-    const render = async () => {
-        const loading = document.getElementById('scatter-matrix-loading');
-        if (loading) loading.hidden = false;
-        try {
-            await renderScatterMatrixView((x, y) => {
-                requestScatterPair(x, y);
-                deps.showPage('scatter');
-            }, deps.workspace.getSnapshot(), session);
-        } finally {
-            if (loading) loading.hidden = true;
+    const colorOptions = ['', ...new Set(
+        (metadata.columns || [])
+            .map((column) => String(column?.name || ''))
+            .filter(Boolean),
+    )];
+    if (colorOptions.length === 1) {
+        colorOptions.push(...metadata.numeric_columns.filter(Boolean));
+    }
+    const selectedColor = setDropdownOptions('heatmap-color-column', colorOptions.map((column) => ({
+        value: column,
+        label: column || 'None',
+    })), {
+        preferredValue: colorOptions.includes(scatterState.colorColumn) ? scatterState.colorColumn : '',
+        searchable: colorOptions.length > 11,
+        deferSearchUntilTyping: true,
+    });
+    scatterState.colorColumn = selectedColor;
+
+    const setLoading = (loading: boolean) => {
+        const overlay = document.getElementById('heatmap-loading');
+        if (overlay) overlay.hidden = !loading;
+        if (loading) {
+            const label = document.getElementById('heatmap-loading-label');
+            if (label) label.textContent = 'Loading scatter thumbnails…';
         }
     };
 
-    const matrixMode = document.getElementById('scatter-matrix-mode') as HTMLInputElement | null;
-    root.querySelectorAll<HTMLButtonElement>('[data-matrix-mode]').forEach((button) => {
-        button.addEventListener('click', () => {
-            const mode = button.dataset.matrixMode === 'density' ? 'density' : 'scatter';
-            if (matrixMode) matrixMode.value = mode;
-            root.querySelectorAll<HTMLButtonElement>('[data-matrix-mode]').forEach((candidate) => {
-                const active = candidate === button;
-                candidate.classList.toggle('active', active);
-                candidate.setAttribute('aria-pressed', String(active));
-            });
-            void render();
-        }, { signal: lifetime.signal });
-    });
+    const render = async () => {
+        const columns = renderedColumns();
+        if (columns.length === 0) return;
+        const colorColumn = getDropdownValue('heatmap-color-column');
+        const snapshot = deps.workspace.getSnapshot();
+        const renderKey = JSON.stringify({ columns, colorColumn, analysis: analysisSignature(snapshot) });
+        scatterState.colorColumn = colorColumn;
+        drawUnifiedHeatmapCanvases(new Map());
 
-    const size = document.getElementById('scatter-matrix-cell-size') as HTMLInputElement | null;
-    const sizeValue = document.getElementById('scatter-matrix-cell-size-value');
-    size?.addEventListener('input', () => {
-        if (sizeValue) sizeValue.textContent = size.value;
-        void render();
-    }, { signal: lifetime.signal });
+        // Replacing the heatmap DOM can trigger ResizeObserver more than once.
+        // Reuse an identical request instead of aborting it and then receiving
+        // the same now-aborted promise from the shared matrix cache.
+        if (renderKey === loadedKey) {
+            drawUnifiedHeatmapCanvases(loadedDatasets);
+            setLoading(false);
+            return;
+        }
+        if (renderKey === inFlightKey) {
+            setLoading(true);
+            return;
+        }
 
-    const diagonal = document.getElementById('heatmap-scatter-diagonal-mode');
-    diagonal?.addEventListener('change', () => {
-        setDropdownValue('scatter-diagonal-mode', getDropdownValue('heatmap-scatter-diagonal-mode'), { emitChange: false });
-        void render();
-    }, { signal: lifetime.signal });
+        const sequence = ++renderSequence;
+        inFlightKey = renderKey;
+        setLoading(true);
+        const signal = session.begin();
+        const pairs = buildMatrixFetchPairs(columns, { x: '', y: '' });
+        const context = buildScatterQueryContext({ colorColumn, scopeToColumns: false }, snapshot);
+        const colorMetadata = metadata.columns?.find((column) => column.name === colorColumn);
+        if (colorMetadata && isTemporalDtype(colorMetadata.dtype)) context.timeColorMode = 'raw';
+        try {
+            const datasets = await fetchMatrixBatchData(pairs, context, colorColumn, signal);
+            if (sequence !== renderSequence || signal.aborted) return;
+            loadedKey = renderKey;
+            loadedDatasets = datasets;
+            drawUnifiedHeatmapCanvases(datasets);
+        } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') return;
+            console.error('Unified correlation scatter thumbnails are unavailable.', error);
+        } finally {
+            if (inFlightKey === renderKey) inFlightKey = '';
+            if (sequence === renderSequence) setLoading(false);
+        }
+    };
 
-    document.getElementById('scatter-matrix-link-range')?.addEventListener('change', () => {
-        void render();
-    }, { signal: lifetime.signal });
+    document.addEventListener('edatime:heatmap-grid-rendered', () => { void render(); }, { signal: lifetime.signal });
+    document.getElementById('heatmap-color-column')?.addEventListener('change', () => { void render(); }, { signal: lifetime.signal });
 
     let previousSignature = analysisSignature(deps.workspace.getSnapshot());
     const unsubscribe = deps.workspace.subscribe((snapshot) => {
@@ -80,6 +165,8 @@ export async function initHeatmapScatterMatrix(
 
     await render();
     return () => {
+        renderSequence += 1;
+        setLoading(false);
         lifetime.abort();
         unsubscribe();
         session.dispose();

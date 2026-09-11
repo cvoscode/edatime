@@ -165,14 +165,42 @@ describe('cleaning plan panel', () => {
 
         document.getElementById('open-cleaning-plan-btn')!.click();
         expect(document.querySelector('.pipeline-workbench__history')?.textContent).toContain('Graph history');
-        Array.from(document.querySelectorAll<HTMLButtonElement>('.pipeline-workbench__history-inspect'))
-            .find((button) => button.textContent?.startsWith('Source baseline'))!.click();
+        const baselineButton = Array.from(document.querySelectorAll<HTMLButtonElement>('.pipeline-workbench__history-inspect'))
+            .find((button) => button.textContent?.startsWith('Source baseline'))!;
+        baselineButton.click();
         expect(document.querySelector('.pipeline-workbench__hint')?.textContent).toContain('Viewing an earlier graph revision');
-        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Restore this revision')!.click();
+        Array.from(baselineButton.closest('li')!.querySelectorAll<HTMLButtonElement>('button'))
+            .find((button) => button.textContent === 'Restore')!.click();
 
         expect(planStore.getSnapshot()!.stages).toEqual([]);
         expect(onPlanChanged).toHaveBeenCalledTimes(1);
         expect(document.querySelector('.pipeline-workbench__hint')?.textContent).toContain('Select a stage');
+    });
+
+    it('compares and deletes non-current graph revisions', async () => {
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        planStore.addStage({
+            kind: 'timeRange', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+            sourcePage: 'timeseries', label: 'Window', startMs: 10, endMs: 40, mode: 'keepInside',
+        });
+        previewMock
+            .mockResolvedValueOnce({ rowsBefore: 100, rowsAfter: 100, rowsRemoved: 0, columnsBefore: 3, columnsAfter: 3, stageImpacts: [], warnings: [] })
+            .mockResolvedValueOnce({ rowsBefore: 100, rowsAfter: 61, rowsRemoved: 39, columnsBefore: 3, columnsAfter: 3, stageImpacts: [], warnings: [] });
+        mountCleaningPlanPanel({ planStore, getViewport: () => null });
+        document.getElementById('open-cleaning-plan-btn')!.click();
+
+        const baseline = Array.from(document.querySelectorAll<HTMLButtonElement>('.pipeline-workbench__history-inspect'))
+            .find((button) => button.textContent?.startsWith('Source baseline'))!;
+        Array.from(baseline.closest('li')!.querySelectorAll<HTMLButtonElement>('button'))
+            .find((button) => button.textContent === 'Compare with current')!.click();
+        await vi.waitFor(() => expect(document.querySelector('[aria-label="Revision comparison"]')?.textContent)
+            .toContain('Earlier: 100 rows, 3 columns. Current: 61 rows, 3 columns.'));
+
+        Array.from(baseline.closest('li')!.querySelectorAll<HTMLButtonElement>('button'))
+            .find((button) => button.textContent === 'Delete')!.click();
+        expect(document.querySelector('.pipeline-workbench__history')?.textContent).not.toContain('Source baseline');
+        expect(planStore.getSnapshot()!.stages).toHaveLength(1);
     });
 
     it('removes undone revisions from the graph history and returns them on redo', () => {
@@ -269,7 +297,7 @@ describe('cleaning plan panel', () => {
         mountCleaningPlanPanel({ planStore, getViewport: () => null, onPlanApplied });
 
         document.getElementById('open-cleaning-plan-btn')!.click();
-        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Apply as new dataset')!.click();
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Create prepared dataset')!.click();
         await Promise.resolve();
 
         expect(applyMock).toHaveBeenCalledWith(planStore.getSnapshot());
@@ -291,7 +319,7 @@ describe('cleaning plan panel', () => {
         mountCleaningPlanPanel({ planStore, getViewport: () => null });
 
         document.getElementById('open-cleaning-plan-btn')!.click();
-        const useOriginal = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Use original dataset')!;
+        const useOriginal = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Restore source dataset')!;
         useOriginal.click();
         expect(confirm).toHaveBeenCalledWith('Revert to source baseline? This discards 1 active stage.');
         expect(selectVersionMock).not.toHaveBeenCalled();
@@ -312,7 +340,7 @@ describe('cleaning plan panel', () => {
 
         document.getElementById('open-cleaning-plan-btn')!.click();
         Array.from(document.querySelectorAll('button'))
-            .find((button) => button.textContent === 'Use original dataset')!
+            .find((button) => button.textContent === 'Restore source dataset')!
             .click();
 
         expect(confirm).toHaveBeenCalledWith('Revert to source baseline? This discards 0 active stages.');
@@ -587,7 +615,7 @@ describe('cleaning plan panel', () => {
 
         const trigger = document.getElementById('open-cleaning-plan-btn') as HTMLButtonElement;
         trigger.click();
-        const close = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Close')!;
+        const close = document.querySelector<HTMLButtonElement>('[data-plan-close]')!;
         const lastAction = Array.from(document.querySelectorAll('.cleaning-plan-actions button')).at(-1) as HTMLButtonElement;
         lastAction.focus();
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));

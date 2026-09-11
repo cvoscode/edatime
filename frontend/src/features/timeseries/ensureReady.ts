@@ -18,6 +18,8 @@ import { dbg, dbgGroup } from '../../debug.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import type { CleaningPlanStore } from '../../cleaning/store.js';
 import type { DataObject } from '../../types/api.js';
+import { getDefaultTimeseriesChartText } from './chartText.js';
+export { getDefaultTimeseriesChartText } from './chartText.js';
 export interface TimeseriesBootstrapCallbacks {
     onZoom: (view: ViewSnapshot, sourceKind: string) => void;
     onYRange: (min: number, max: number, sourceKind: string) => void;
@@ -131,11 +133,12 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                     if (Number.isFinite(initialStart) && Number.isFinite(initialEnd)) {
                         chart?.setXRange?.(initialStart, initialEnd);
                     }
-                    chart?.setChartText?.(
-                        deps.workspace.getSnapshot().appearance?.chartText?.title || '',
-                        deps.workspace.getSnapshot().appearance?.chartText?.xLabel || '',
-                        deps.workspace.getSnapshot().appearance?.chartText?.yLabel || '',
+                    const initialSnapshot = deps.workspace.getSnapshot();
+                    const chartText = getDefaultTimeseriesChartText(
+                        initialSnapshot.appearance,
+                        initialSnapshot.selection.columns,
                     );
+                    chart?.setChartText?.(chartText.title, chartText.xLabel, chartText.yLabel);
 
                     deps.renderCurrentData();
                     await deps.fetchAndRender();
@@ -190,10 +193,15 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                         if (Number.isFinite(fallbackStart) && Number.isFinite(fallbackEnd)) {
                             fallbackChart?.setXRange?.(fallbackStart, fallbackEnd);
                         }
+                        const fallbackSnapshot = deps.workspace.getSnapshot();
+                        const fallbackChartText = getDefaultTimeseriesChartText(
+                            fallbackSnapshot.appearance,
+                            fallbackSnapshot.selection.columns,
+                        );
                         fallbackChart?.setChartText?.(
-                            deps.workspace.getSnapshot().appearance?.chartText?.title || '',
-                            deps.workspace.getSnapshot().appearance?.chartText?.xLabel || '',
-                            deps.workspace.getSnapshot().appearance?.chartText?.yLabel || '',
+                            fallbackChartText.title,
+                            fallbackChartText.xLabel,
+                            fallbackChartText.yLabel,
                         );
                         await deps.fetchAndRender();
                         if (disposed) return;

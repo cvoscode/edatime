@@ -181,6 +181,17 @@ describe('heatmapPage with clustering', () => {
             <dialog id="heatmap-plan-columns-dialog"><p id="heatmap-plan-columns-summary"></p><button id="heatmap-plan-columns-cancel" type="button">Cancel</button><button id="heatmap-plan-columns-confirm" type="button">Add keep-columns stage</button></dialog>
             <select id="scatter-x-col"><option value=""></option><option value="a1">a1</option><option value="a2">a2</option><option value="a3">a3</option><option value="b1">b1</option><option value="b2">b2</option><option value="b3">b3</option></select>
             <select id="scatter-y-col"><option value=""></option><option value="a1">a1</option><option value="a2">a2</option><option value="a3">a3</option><option value="b1">b1</option><option value="b2">b2</option><option value="b3">b3</option></select>
+            <section id="page-heatmap">
+              <details class="toolbar-disclosure toolbar-disclosure--end">
+                <summary class="toolbar-disclosure__summary">Format</summary>
+                <div class="toolbar-disclosure__menu">
+                  <button id="heatmap-export-png-btn" type="button">PNG</button>
+                  <button id="heatmap-export-svg-btn" type="button">SVG</button>
+                  <button id="heatmap-export-html-btn" type="button">HTML</button>
+                  <button id="heatmap-export-csv-btn" type="button">CSV</button>
+                </div>
+              </details>
+            </section>
         `;
     });
 
@@ -198,18 +209,71 @@ describe('heatmapPage with clustering', () => {
         expect(cells.length).toBe(36);
     });
 
-    it('exports the rendered heatmap container rather than treating the filename as an element id', async () => {
+    it('exports the live rendered heatmap element for every visual format', async () => {
         const { initHeatmapPage } = await import('./page.js');
         const { bindExportButtons } = await import('../../utils/bindExportButtons.js');
-        const { exportElementPNG, exportElementSVG } = await import('../../utils/chartExport.js');
+        const { exportElementPNG, exportElementSVG, exportElementHTML } = await import('../../utils/chartExport.js');
         await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
 
         const config = vi.mocked(bindExportButtons).mock.calls.at(-1)?.[1];
         config?.png.fn(config.png.filename);
         config?.svg.fn(config.svg.filename);
+        config?.html.fn(config.html.filename);
 
-        expect(exportElementPNG).toHaveBeenCalledWith('heatmap-container', 'edatime_heatmap.png');
-        expect(exportElementSVG).toHaveBeenCalledWith('heatmap-container', 'edatime_heatmap.svg');
+        const container = document.getElementById('heatmap-container');
+        expect(exportElementPNG).toHaveBeenCalledWith(container, 'edatime_heatmap.png');
+        expect(exportElementSVG).toHaveBeenCalledWith(container, 'edatime_heatmap.svg');
+        expect(exportElementHTML).toHaveBeenCalledWith(container, 'edatime_heatmap.html');
+    });
+
+    it('does not export a stale matrix while the Correlations page is hidden', async () => {
+        const { initHeatmapPage } = await import('./page.js');
+        const { bindExportButtons } = await import('../../utils/bindExportButtons.js');
+        const { exportElementPNG } = await import('../../utils/chartExport.js');
+        await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+        document.getElementById('page-heatmap')!.hidden = true;
+
+        const config = vi.mocked(bindExportButtons).mock.calls.at(-1)?.[1];
+        config?.png.fn(config.png.filename);
+
+        expect(exportElementPNG).not.toHaveBeenCalled();
+    });
+
+    it('names CSV exports from the metric selected at click time', async () => {
+        const { initHeatmapPage } = await import('./page.js');
+        const { bindExportButtons } = await import('../../utils/bindExportButtons.js');
+        const { exportMatrixCSV } = await import('../../utils/chartExport.js');
+        await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+        const metricSelect = document.getElementById('heatmap-metric') as HTMLSelectElement;
+        metricSelect.value = 'kendall_diff';
+        metricSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        const config = vi.mocked(bindExportButtons).mock.calls.at(-1)?.[1];
+        config?.csv?.fn(config.csv.filename);
+
+        expect(exportMatrixCSV).toHaveBeenCalledWith(
+            DEFAULT_MATRIX_RESPONSE.columns,
+            DEFAULT_MATRIX_RESPONSE.kendall_diff,
+            'edatime_correlation_kendall_diff.csv',
+        );
+    });
+
+    it('closes the Format disclosure on Escape and restores summary focus', async () => {
+        const { initHeatmapPage } = await import('./page.js');
+        await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+        const disclosure = document.querySelector<HTMLDetailsElement>('#page-heatmap .toolbar-disclosure--end')!;
+        const summary = disclosure.querySelector<HTMLElement>('summary')!;
+        disclosure.open = true;
+
+        disclosure.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+        expect(disclosure.open).toBe(false);
+        expect(document.activeElement).toBe(summary);
     });
 
     it('surfaces the locked-order state next to the matrix controls', async () => {
@@ -266,12 +330,16 @@ describe('heatmapPage with clustering', () => {
     it('renders the compact seaborn-style heatmap frame and color scale', async () => {
         const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
+        Object.defineProperty(document.getElementById('heatmap-container'), 'clientWidth', {
+            configurable: true,
+            value: 1280,
+        });
         await activateHeatmap();
 
         const shell = document.querySelector('.heatmap-shell');
-        const scale = document.querySelector('.heatmap-scale');
-        const positiveTick = document.querySelector('.heatmap-scale__tick--positive');
-        const negativeTick = document.querySelector('.heatmap-scale__tick--negative');
+        const scale = document.querySelector('.heatmap-grid-legend');
+        const positiveTick = document.querySelector('.heatmap-grid-legend__tick--positive');
+        const negativeTick = document.querySelector('.heatmap-grid-legend__tick--negative');
         const headers = Array.from(document.querySelectorAll('.heatmap-header'));
         const strongPositiveCell = document.querySelector('.heatmap-cell.heatmap-cell--positive[data-row="0"][data-col="0"]') as HTMLElement | null;
         const negativeCell = document.querySelector('.heatmap-cell.heatmap-cell--negative') as HTMLElement | null;
@@ -288,7 +356,8 @@ describe('heatmapPage with clustering', () => {
         expect(negativeCell?.style.background).toBeTruthy();
         // C3: cells carry a sign prefix (`+` / `−` / `±`) so colour is
         // not the only signal for direction.
-        expect(strongPositiveCell?.textContent).toMatch(/^[+±−]/);
+        expect(strongPositiveCell?.dataset.correlationLabel).toMatch(/^[+±−]/);
+        expect(strongPositiveCell?.querySelectorAll(':scope > canvas')).toHaveLength(1);
     });
 
     it('fits the color axis to the strongest off-diagonal magnitude when requested', async () => {
@@ -299,8 +368,8 @@ describe('heatmapPage with clustering', () => {
         const fitColorAxisToggle = document.getElementById('heatmap-axis-fit-toggle') as HTMLButtonElement;
         fitColorAxisToggle.click();
 
-        const positiveTick = document.querySelector('.heatmap-scale__tick--positive');
-        const negativeTick = document.querySelector('.heatmap-scale__tick--negative');
+        const positiveTick = document.querySelector('.heatmap-grid-legend__tick--positive');
+        const negativeTick = document.querySelector('.heatmap-grid-legend__tick--negative');
         expect(positiveTick?.textContent).toBe('+0.95');
         expect(negativeTick?.textContent).toBe('-0.95');
     });
@@ -362,10 +431,11 @@ describe('heatmapPage with clustering', () => {
         expect(crossCell).not.toBeNull();
     });
 
-    it('opens the selected cell directly in the standalone Pair plot', async () => {
+    it('selects a cell directly in the embedded Pair plot', async () => {
         const showPage = vi.fn();
+        const selectPair = vi.fn();
         const { initHeatmapPage } = await import('./page.js');
-        await initHeatmapPage({ showPage });
+        await initHeatmapPage({ showPage, selectPair });
         await activateHeatmap();
 
         const cell = document.querySelector('.heatmap-cell[data-row="0"][data-col="3"]') as HTMLElement;
@@ -378,17 +448,17 @@ describe('heatmapPage with clustering', () => {
         expect(handler).toBeTypeOf('function');
         (handler as (ev: Partial<MouseEvent>) => void).call(container, { target: cell } as unknown as MouseEvent);
 
-        const xCol = document.getElementById('scatter-x-col') as HTMLSelectElement;
-        const yCol = document.getElementById('scatter-y-col') as HTMLSelectElement;
-        expect(xCol.value).toBe('a1');
-        expect(yCol.value).toBe('b1');
-        expect(showPage).toHaveBeenCalledWith('scatter');
+        expect(selectPair).toHaveBeenCalledWith('a1', 'b1');
+        expect(cell.classList.contains('is-selected')).toBe(true);
+        expect(cell.getAttribute('aria-selected')).toBe('true');
+        expect(showPage).not.toHaveBeenCalled();
     });
 
     it('opens the Pair plot with both Enter and Space', async () => {
         const showPage = vi.fn();
+        const selectPair = vi.fn();
         const { initHeatmapPage } = await import('./page.js');
-        await initHeatmapPage({ showPage });
+        await initHeatmapPage({ showPage, selectPair });
         await activateHeatmap();
 
         const cell = document.querySelector('.heatmap-cell[data-row="0"][data-col="3"]') as HTMLElement;
@@ -400,11 +470,10 @@ describe('heatmapPage with clustering', () => {
                 target: cell,
                 preventDefault: vi.fn(),
             } as unknown as KeyboardEvent);
-            expect((document.getElementById('scatter-x-col') as HTMLSelectElement).value).toBe('a1');
-            expect((document.getElementById('scatter-y-col') as HTMLSelectElement).value).toBe('b1');
         }
-        expect(showPage).toHaveBeenCalledTimes(2);
-        expect(showPage).toHaveBeenLastCalledWith('scatter');
+        expect(selectPair).toHaveBeenCalledTimes(2);
+        expect(selectPair).toHaveBeenLastCalledWith('a1', 'b1');
+        expect(showPage).not.toHaveBeenCalled();
     });
 
     it('opens the selected pair after axis selects have been upgraded to dropdowns', async () => {
@@ -419,29 +488,58 @@ describe('heatmapPage with clustering', () => {
             const cell = document.querySelector('.heatmap-cell[data-row="0"][data-col="3"]') as HTMLElement;
             const container = document.getElementById('heatmap-container')!;
             container.onclick!.call(container, { target: cell } as unknown as PointerEvent);
-            expect(showPage).toHaveBeenCalledWith('scatter');
             expect(getDropdownValue('scatter-x-col')).toBe('a1');
             expect(getDropdownValue('scatter-y-col')).toBe('b1');
+            expect(cell.classList.contains('is-selected')).toBe(true);
+            expect(showPage).not.toHaveBeenCalled();
         } finally {
             x.destroy();
             y.destroy();
         }
     });
 
-    it('toggles strongest-pair suggestions between absolute-correlation and source order', async () => {
+    it('reselects the matching matrix cell when Pair plot axes change', async () => {
+        const { initHeatmapPage } = await import('./page.js');
+        await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+        const x = document.getElementById('scatter-x-col') as HTMLSelectElement;
+        const y = document.getElementById('scatter-y-col') as HTMLSelectElement;
+        x.value = 'b2';
+        y.value = 'a3';
+
+        y.dispatchEvent(new Event('change', { bubbles: true }));
+
+        const selected = document.querySelector<HTMLElement>('.heatmap-cell.is-selected');
+        expect(selected?.dataset.rowName).toBe('b2');
+        expect(selected?.dataset.colName).toBe('a3');
+        expect(selected?.getAttribute('aria-selected')).toBe('true');
+    });
+
+    it('omits redundant summaries and strongest-pair suggestions', async () => {
         const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
         const container = document.getElementById('heatmap-container')!;
-        const sortedFirst = container.querySelector<HTMLElement>('.heatmap-suggestion-chip')?.dataset.heatmapPairX;
-        expect(container.querySelector('[data-heatmap-suggestion-sort]')?.textContent).toContain('|r| desc');
+        expect(container.querySelector('.heatmap-stat-summary')).toBeNull();
+        expect(container.querySelector('.heatmap-suggestions')).toBeNull();
+        expect(container.textContent).not.toContain('Top 3 |r|');
+        expect(container.textContent).not.toContain('Sort: |r| desc');
+    });
 
-        const toggle = container.querySelector<HTMLElement>('[data-heatmap-suggestion-sort]')!;
-        container.onclick!.call(container, { target: toggle } as unknown as PointerEvent);
+    it('renders one grid child and one canvas for every matrix coordinate', async () => {
+        const { initHeatmapPage } = await import('./page.js');
+        await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
 
-        expect(container.querySelector('[data-heatmap-suggestion-sort]')?.textContent).toContain('unsorted');
-        expect(container.querySelector<HTMLElement>('.heatmap-suggestion-chip')?.dataset.heatmapPairX).toBe('a1');
-        expect(sortedFirst).toBe('a1');
+        const grid = document.querySelector('.heatmap-grid');
+        const size = DEFAULT_MATRIX_RESPONSE.columns.length;
+        expect(grid?.children).toHaveLength((size + 1) ** 2);
+        expect(grid?.querySelectorAll('.heatmap-cell')).toHaveLength(size ** 2);
+        expect(grid?.querySelectorAll('.heatmap-cell-canvas')).toHaveLength(size ** 2);
+        expect(grid?.querySelectorAll('.heatmap-cell--diagonal')).toHaveLength(size);
+        expect(document.querySelector('.heatmap-scale')).toBeNull();
+        expect(document.getElementById('scatter-matrix')).toBeNull();
+        expect(document.getElementById('scatter-matrix-fft-panel')).toBeNull();
     });
 
     it('marks cluster boundaries on the first header/label of each cluster', async () => {
@@ -513,7 +611,7 @@ describe('heatmapPage with clustering', () => {
         expect(fetchCorrelationMatrix).toHaveBeenCalledTimes(2);
         // C3: every cell carries a sign prefix; `−0.33` uses the
         // Unicode minus in JS so it's accessible.
-        expect(cell?.textContent).toBe('−0.33');
+        expect(cell?.dataset.correlationLabel).toBe('−0.33');
     });
 
     it('restores the last matrix metric after navigating away and back', async () => {
@@ -604,7 +702,7 @@ describe('heatmapPage with clustering', () => {
         const grid = document.querySelector('.heatmap-grid') as HTMLElement | null;
         expect(shell).not.toBeNull();
         expect(grid).not.toBeNull();
-        const scale = document.querySelector('.heatmap-scale') as HTMLElement | null;
+        const scale = document.querySelector('.heatmap-grid-legend') as HTMLElement | null;
         // The grid must use its computed cell-template width so the scale
         // follows it directly rather than being pushed to the far edge of
         // the full-width shell.
@@ -722,7 +820,7 @@ describe('heatmapPage audit follow-ups (C1–C11)', () => {
         vi.unstubAllGlobals();
     });
 
-    // C1 — corner carries X / Y axis glyph + active metric.
+    // C1 — corner carries a single-line Y / X axis glyph + active metric.
     it('renders axis hints + active metric badge in the heatmap corner', async () => {
         const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
@@ -730,8 +828,7 @@ describe('heatmapPage audit follow-ups (C1–C11)', () => {
 
         const corner = document.querySelector('.heatmap-corner');
         expect(corner).not.toBeNull();
-        expect(corner?.querySelector('.heatmap-corner__axis--x')?.textContent).toBe('X');
-        expect(corner?.querySelector('.heatmap-corner__axis--y')?.textContent).toBe('Y');
+        expect(corner?.querySelector('.heatmap-corner__axis')?.textContent).toBe('Y / X');
         // Active metric is "Pearson (raw)" (mocked default).
         expect(corner?.querySelector('.heatmap-corner__metric')?.textContent).toMatch(/Pearson/);
     });
@@ -742,19 +839,17 @@ describe('heatmapPage audit follow-ups (C1–C11)', () => {
         await activateHeatmap();
 
         expect(document.querySelector('.heatmap-cluster-legend')).toBeNull();
-        expect(document.querySelector('.heatmap-footer')?.textContent).not.toMatch(/clusters/i);
+        expect(document.querySelector('.heatmap-footer')).toBeNull();
     });
 
-    // C1 — footer is visible after a successful render.
-    it('renders a status footer with the active metric + size + click hint', async () => {
+    it('ends the rendered container at the matrix shell or ordering caption', async () => {
         const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
 
-        const footer = document.querySelector('.heatmap-footer');
-        expect(footer).not.toBeNull();
-        expect(footer?.textContent).toMatch(/6×6 matrix/);
-        expect(footer?.textContent).toMatch(/Select an off-diagonal cell to open its Pair plot/);
+        const container = document.getElementById('heatmap-container');
+        expect(container?.querySelector('.heatmap-footer')).toBeNull();
+        expect(container?.lastElementChild?.matches('.heatmap-shell, .heatmap-order-caption')).toBe(true);
     });
 
     // C4 — row label height matches cell height under a small viewport.

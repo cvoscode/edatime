@@ -142,6 +142,22 @@ describe('cleaning plan store', () => {
         expect(store.getSnapshot()!.stages[0]).toMatchObject({ label: 'Reviewed window', endMs: 30 });
     });
 
+    it('deletes a saved revision without corrupting the live plan or undo stack', () => {
+        const store = setupPlan();
+        const baseline = store.getHistory()[0]!;
+        store.addStage({
+            kind: 'timeRange', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+            sourcePage: 'timeseries', label: 'Window', startMs: 10, endMs: 20, mode: 'keepInside',
+        });
+        const current = store.getHistory().at(-1)!;
+
+        expect(store.deleteHistoryEntry(baseline.id)).toBe(true);
+        expect(store.getHistory().map((entry) => entry.id)).toEqual([current.id]);
+        expect(store.deleteHistoryEntry(current.id)).toBe(false);
+        expect(store.undo()).toBe(true);
+        expect(store.getSnapshot()!.stages).toEqual([]);
+    });
+
     it('treats an imported plan as unmaterialized until the dataset baseline changes', () => {
         const store = setupPlan();
         const imported = { ...store.getSnapshot()!, id: 'imported-plan', planRevision: 4 };

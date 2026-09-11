@@ -29,6 +29,7 @@ export interface CleaningPlanStore {
     undo(): boolean;
     redo(): boolean;
     restoreHistoryEntry(id: string): boolean;
+    deleteHistoryEntry(id: string): boolean;
     clear(): void;
 }
 
@@ -123,6 +124,7 @@ export function createCleaningPlanStore(options: CleaningPlanStoreOptions = {}):
     let redoStack: HistoryEntry[] = [];
     let history: CleaningPlanHistoryEntry[] = [];
     let historyCursor = -1;
+    let hiddenHistoryIds = new Set<string>();
     const listeners = new Set<(plan: CleaningPlan | null) => void>();
 
     const publish = (): void => {
@@ -186,7 +188,9 @@ export function createCleaningPlanStore(options: CleaningPlanStoreOptions = {}):
 
     return {
         getSnapshot: () => plan ? clone(plan) : null,
-        getHistory: () => history.slice(0, historyCursor + 1).map((entry) => ({ ...entry, plan: clone(entry.plan) })),
+        getHistory: () => history.slice(0, historyCursor + 1)
+            .filter((entry) => !hiddenHistoryIds.has(entry.id))
+            .map((entry) => ({ ...entry, plan: clone(entry.plan) })),
         subscribe(listener) {
             listeners.add(listener);
             return () => listeners.delete(listener);
@@ -199,6 +203,7 @@ export function createCleaningPlanStore(options: CleaningPlanStoreOptions = {}):
             redoStack = [];
             history = [];
             historyCursor = -1;
+            hiddenHistoryIds = new Set();
             commit(next, false, !!restored, restored ? 'draftRestored' : 'baseline');
             return clone(next);
         },
@@ -211,6 +216,7 @@ export function createCleaningPlanStore(options: CleaningPlanStoreOptions = {}):
             redoStack = [];
             history = [];
             historyCursor = -1;
+            hiddenHistoryIds = new Set();
             // Imported plans are reproducible inputs, but their stages have
             // not yet been materialized against this active source version.
             commit(next, false, true, 'imported');
@@ -280,7 +286,8 @@ export function createCleaningPlanStore(options: CleaningPlanStoreOptions = {}):
             return true;
         },
         restoreHistoryEntry(id) {
-            const entry = history.slice(0, historyCursor + 1).find((candidate) => candidate.id === id);
+            const entry = history.slice(0, historyCursor + 1)
+                .find((candidate) => candidate.id === id && !hiddenHistoryIds.has(candidate.id));
             const current = plan;
             if (!entry || !current) return false;
             const restored = {
@@ -293,6 +300,12 @@ export function createCleaningPlanStore(options: CleaningPlanStoreOptions = {}):
             commit(restored, true, entry.dirty, 'restored');
             return true;
         },
+        deleteHistoryEntry(id) {
+            const entryIndex = history.slice(0, historyCursor + 1).findIndex((entry) => entry.id === id);
+            if (entryIndex < 0 || entryIndex === historyCursor || hiddenHistoryIds.has(id)) return false;
+            hiddenHistoryIds.add(id);
+            return true;
+        },
         clear() {
             removeDraft();
             plan = null;
@@ -302,6 +315,7 @@ export function createCleaningPlanStore(options: CleaningPlanStoreOptions = {}):
             redoStack = [];
             history = [];
             historyCursor = -1;
+            hiddenHistoryIds = new Set();
             publish();
         },
     };

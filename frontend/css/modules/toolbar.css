@@ -1842,31 +1842,30 @@
   gap: 8px;
 }
 
-.workflow-panel {
+.workflow-panel--compact-shell {
   flex-shrink: 0;
   display: grid;
-  gap: 8px;
-  padding: 8px 20px 10px;
-  border-bottom: 1px solid var(--border);
-  background:
-    linear-gradient(180deg, rgba(0, 168, 255, 0.10), rgba(0, 168, 255, 0.03)),
-    linear-gradient(90deg, rgba(108, 99, 255, 0.05), transparent 40%);
-}
-
-.workflow-panel.workflow-panel--compact-shell {
   gap: 4px;
   padding: 4px 14px 6px;
+  border-bottom: 1px solid var(--border);
   background:
     linear-gradient(180deg, rgba(0, 168, 255, 0.08), rgba(0, 168, 255, 0.02)),
     linear-gradient(90deg, rgba(108, 99, 255, 0.03), transparent 32%);
 }
 
-.workflow-panel.workflow-panel--compact-shell .workflow-panel__summary {
-  gap: 1px;
+.workflow-panel--compact-shell .workflow-panel__summary {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
 }
 
-.workflow-panel.workflow-panel--compact-shell .workflow-panel__actions {
+.workflow-panel--compact-shell .workflow-panel__actions {
+  display: flex;
+  align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
 }
 
 .workflow-panel--compact {
@@ -1881,30 +1880,11 @@
   display: none !important;
 }
 
-.workflow-panel__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.workflow-panel__summary {
-  min-width: 0;
-  display: grid;
-  gap: 3px;
-}
-
 .workflow-panel__eyebrow {
   font-size: 0.625rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-muted);
-}
-
-.workflow-panel__title {
-  font-size: 0.875rem;
-  font-weight: 700;
-  color: var(--text);
 }
 
 .workflow-panel__hint-text {
@@ -1921,94 +1901,15 @@
   line-height: 1.25;
 }
 
-.workflow-panel__actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.workflow-panel__crumbs {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-}
-
-
-.workflow-panel__copy,
-.workflow-panel__hint {
-  margin: 0;
-  font-size: 0.75rem;
-  line-height: 1.4;
-}
-
-.workflow-panel__copy--compact {
-  color: var(--text-dim);
-}
-
-.workflow-panel__hint {
-  color: var(--text-muted);
-}
-
-.workflow-step {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 26px;
-  padding: 0 9px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.03);
-  color: var(--text-dim);
-  cursor: pointer;
-  transition: border-color var(--transition), color var(--transition), background var(--transition);
-}
-
-.workflow-step:hover {
-  border-color: var(--accent);
-  color: var(--text);
-}
-
-.workflow-step__dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: 0.7;
-}
-
-.workflow-step__label {
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.workflow-step--done {
-  color: #86efac;
-  border-color: rgba(134, 239, 172, 0.35);
-  background: rgba(34, 197, 94, 0.1);
-}
-
-.workflow-step--current {
-  color: var(--text);
-  border-color: rgba(0, 168, 255, 0.5);
-  background: rgba(0, 168, 255, 0.14);
-}
-
-.workflow-step--next {
-  color: #ffd27d;
-  border-color: rgba(255, 192, 65, 0.38);
-  background: rgba(255, 192, 65, 0.12);
+.workflow-panel--compact .workflow-panel__current-step {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (max-width: 900px) {
   .workflow-panel {
     padding-inline: 14px;
-  }
-
-  .workflow-panel__header {
-    flex-direction: column;
   }
 
   .workflow-panel--compact {
@@ -2019,7 +1920,7 @@
 
 @media (max-width: 640px) {
   .workflow-panel,
-  .workflow-panel.workflow-panel--compact-shell {
+  .workflow-panel--compact-shell {
     min-height: 48px;
     padding: 6px 10px;
   }
@@ -2032,11 +1933,7 @@
   }
 
   .workflow-panel__eyebrow,
-  .workflow-panel__current-step,
-  .workflow-panel__title,
-  .workflow-panel__copy,
-  .workflow-panel__crumbs,
-  .workflow-panel__hint {
+  .workflow-panel__current-step {
     display: none;
   }
 
@@ -2291,6 +2188,10 @@
   min-width: 64px;
   max-width: 96px;
 }
+
+#spectrogram-col-select { min-width: 150px; }
+#spectrogram-win-size { min-width: 170px; }
+#spectrogram-hop-size { min-width: 170px; }
 
 /* Reuse the FFT export-icons pattern for the spectrogram page so
    format selection is one click away instead of behind a disclosure. */

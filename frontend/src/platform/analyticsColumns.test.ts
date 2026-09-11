@@ -25,16 +25,19 @@ describe('analytics page utilities', () => {
         expect(getAnalyticsChipColor('load')).not.toBe(getAnalyticsChipColor('other'));
     });
 
-    it('shows every numeric series by default, including a likely target', () => {
+    it('starts with two features and a likely target for a legible first view', () => {
         expect(getDefaultTimeseriesColumns(metadata(['HUFL', 'HULL', 'MUFL', 'OT']))).toEqual([
             'HUFL',
             'HULL',
-            'MUFL',
             'OT',
         ]);
     });
 
-    it('shows every numeric series when no likely target exists', () => {
-        expect(getDefaultTimeseriesColumns(metadata(['a', 'b', 'c', 'd']))).toEqual(['a', 'b', 'c', 'd']);
+    it('starts with the first three numeric series when no likely target exists', () => {
+        expect(getDefaultTimeseriesColumns(metadata(['a', 'b', 'c', 'd']))).toEqual(['a', 'b', 'c']);
+    });
+
+    it('keeps small datasets fully selected', () => {
+        expect(getDefaultTimeseriesColumns(metadata(['a', 'b']))).toEqual(['a', 'b']);
     });
 });

@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const cleaningApi = vi.hoisted(() => ({
+    previewCleaningPlan: vi.fn(),
+    applyCleaningPlan: vi.fn(),
+    cancelSessionJob: vi.fn(),
+}));
+
+vi.mock('../../cleaning/api.js', () => cleaningApi);
+
 import { formatPipelinePreviewCaption, initPreparePage } from './index.js';
 import { cleaningPlanStore } from '../../cleaning/store.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
@@ -10,6 +18,8 @@ describe('Prepare page', () => {
         document.body.innerHTML = '<button id="open-cleaning-plan-btn"></button><div id="prepare-workspace"></div>';
         cleaningPlanStore.clear();
         workspace = createWorkspaceStore();
+        cleaningApi.previewCleaningPlan.mockReset();
+        cleaningApi.applyCleaningPlan.mockReset();
     });
 
     afterEach(() => {
@@ -38,29 +48,63 @@ describe('Prepare page', () => {
         expect(caption.title.match(/Keep time range/g)).toHaveLength(5);
     });
 
-    it('renders the canonical graph and opens the shared workbench for editing', () => {
+    it('previews the canonical plan directly without opening the workbench', async () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
         cleaningPlanStore.addStage({
             kind: 'timeRange', executionClass: 'polarsExpression', scope: 'row', enabled: true,
             sourcePage: 'timeseries', label: 'Window', startMs: 1, endMs: 2, mode: 'keepInside',
         });
-        const opened = vi.fn();
-        document.getElementById('open-cleaning-plan-btn')!.addEventListener('click', opened);
+        cleaningApi.previewCleaningPlan.mockResolvedValue({
+            rowsBefore: 100,
+            rowsAfter: 80,
+            columnsBefore: 8,
+            columnsAfter: 8,
+        });
         const dispose = initPreparePage({ workspace });
 
-        expect(document.querySelector('.pipeline-graph')).not.toBeNull();
+        expect(document.querySelector('.pipeline-graph')).toBeNull();
+        expect(document.getElementById('prepare-pipeline-preview')?.textContent).toContain('After 1 stage');
         expect(document.getElementById('prepare-workspace')?.textContent).toContain('source-1');
-        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Open Pipeline Workbench')!.click();
-        expect(opened).toHaveBeenCalledTimes(1);
+        expect(document.getElementById('prepare-workspace')?.textContent).not.toContain('Open workbench');
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Preview changes')!.click();
+        await vi.waitFor(() => {
+            expect(cleaningApi.previewCleaningPlan).toHaveBeenCalledOnce();
+            expect(document.querySelector('[role="status"]')?.textContent).toContain('80 of 100 rows');
+        });
 
+        dispose();
+    });
+
+    it('materializes the current plan from the page and refreshes the dataset', async () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        cleaningPlanStore.addStage({
+            kind: 'timeRange', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+            sourcePage: 'timeseries', label: 'Window', startMs: 1, endMs: 2, mode: 'keepInside',
+        });
+        cleaningApi.applyCleaningPlan.mockResolvedValue({
+            jobId: 'job-1',
+            sourceVersion: { id: 'prepared-1' },
+            datasetRevision: 4,
+            planHash: 'plan-hash',
+        });
+        const refreshDatasetAfterMutation = vi.fn();
+        const onPlanChanged = vi.fn();
+        const dispose = initPreparePage({ workspace, refreshDatasetAfterMutation, onPlanChanged });
+
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Create prepared dataset')!.click();
+
+        await vi.waitFor(() => {
+            expect(cleaningApi.applyCleaningPlan).toHaveBeenCalledOnce();
+            expect(refreshDatasetAfterMutation).toHaveBeenCalledOnce();
+            expect(onPlanChanged).toHaveBeenCalledOnce();
+        });
         dispose();
     });
 
     it('stays source-first until a dataset establishes a plan', () => {
         const dispose = initPreparePage({ workspace });
-        const open = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Open Pipeline Workbench')!;
 
-        expect(open.disabled).toBe(true);
+        expect(document.getElementById('prepare-workspace')?.textContent).not.toContain('Open workbench');
         expect(document.getElementById('prepare-workspace')?.textContent).toContain('Load a dataset');
 
         dispose();
@@ -81,7 +125,7 @@ describe('Prepare page', () => {
         const dispose = initPreparePage({ workspace });
 
         expect(document.getElementById('prepare-signals-filters')?.textContent).toContain('HULL: keep above the drawn line');
-        expect(document.getElementById('prepare-pipeline-preview')?.textContent).toContain('Adaptive line');
+        expect(document.getElementById('prepare-pipeline-preview')?.textContent).toContain('Keep above line for HULL');
         dispose();
     });
 

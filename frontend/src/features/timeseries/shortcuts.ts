@@ -68,7 +68,7 @@ export function createTimeseriesShortcuts(): TimeseriesShortcutsController {
                 }
                 if (key === 'e') {
                     event.preventDefault();
-                    if (currentPageName() === 'scatter') {
+                    if (currentPageName() === 'heatmap') {
                         document.getElementById('scatter-export-csv-btn')?.click?.();
                     } else {
                         deps.exportFilteredCsv();

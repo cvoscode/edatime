@@ -17,15 +17,23 @@ export function buildFftSpectralInfo(traces: readonly FftTrace[]): FftSpectralIn
     const unit = pickFrequencyUnit(reference);
     const formatFrequency = (hz: number) => useCyclesPerDayFrequencyAxis(reference)
         ? formatCyclesPerDay(hz, 2) : formatFrequencyInUnit(hz, unit, 2);
+    const firstPositiveBin = Math.min(...trace.frequencies.filter((frequency) => Number.isFinite(frequency) && frequency > 0));
     const peaks = (trace.dominant_peaks ?? []).slice(0, 3).map((peak, index) => {
         const frequencyHz = Number(peak.frequency_hz);
         const power = Number(peak.power);
         const frequency = formatFrequency(frequencyHz);
         const period = frequencyToPeriod(frequencyHz);
         const powerText = Number.isFinite(power) ? power.toExponential(2) : '—';
+        const isDc = frequencyHz === 0;
+        const isRecordLengthTrend = !isDc && Number.isFinite(firstPositiveBin) && frequencyHz <= firstPositiveBin * 1.01;
+        const classification = isDc ? 'DC' : isRecordLengthTrend ? 'Trend' : `#${index + 1}`;
         return {
-            rank: `#${index + 1}`, frequency, period, power: powerText,
-            title: `${index + 1}. ${frequency} · ${period} · power ${powerText} (r=${peak.rank ?? index + 1})`,
+            rank: classification, frequency, period, power: powerText,
+            title: isDc
+                ? `DC (zero-frequency) component · power ${powerText}`
+                : isRecordLengthTrend
+                    ? `Record-length trend bin · ${frequency} · ${period} · power ${powerText}; do not interpret as a stable periodic cycle without detrending.`
+                    : `${index + 1}. ${frequency} · ${period} · power ${powerText} (r=${peak.rank ?? index + 1})`,
         };
     });
     return {

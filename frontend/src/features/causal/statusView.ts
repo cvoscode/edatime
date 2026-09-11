@@ -15,6 +15,7 @@ const PROGRESS_OVERLAY_ID = 'causal-loading';
 const PROGRESS_LABEL_ID = 'causal-progress-label';
 let dismissActiveStatusToast: (() => void) | null = null;
 let disposeStatusLifecycle: (() => void) | null = null;
+let progressStartedAt = 0;
 
 /** Bind the Causal status lifecycle once for the active feature instance. */
 export function initCausalStatusLifecycle(): void {
@@ -53,10 +54,13 @@ function progressLabel(): HTMLElement | null {
 export function setProgress(percent: number, label?: string): void {
     const overlay = progressOverlay();
     const text = progressLabel();
-    if (overlay) overlay.hidden = false;
+    if (overlay) {
+        if (overlay.hidden || percent <= 0) progressStartedAt = performance.now();
+        overlay.hidden = false;
+    }
     if (text) {
-        const pct = Math.round(Math.min(100, Math.max(0, percent)));
-        text.textContent = label ? `${label} (${pct}%)` : `Running… ${pct}%`;
+        const elapsed = Math.max(0, Math.floor((performance.now() - progressStartedAt) / 1000));
+        text.textContent = `${label || 'Running causal discovery'} · ${elapsed}s elapsed`;
     }
 }
 
@@ -65,6 +69,7 @@ export function hideProgress(): void {
     if (overlay) overlay.hidden = true;
     const text = progressLabel();
     if (text) text.textContent = 'Running causal discovery…';
+    progressStartedAt = 0;
 }
 
 export function setStatus(message: string, tone: 'info' | 'error' | 'success' = 'info'): void {
@@ -76,17 +81,22 @@ export function setStatus(message: string, tone: 'info' | 'error' | 'success' = 
     dismissActiveStatusToast = toast(message, kind, opts);
 }
 
-export function syncCausalEmptyState(columnsLength: number): void {
+export function syncCausalEmptyState(columnsLength: number, hasGraph = false): void {
     const empty = document.getElementById('causal-empty-state') as HTMLElement | null;
     if (!empty) return;
-    if (empty.dataset.emptyReason === 'render-failed') {
-        const title = empty.querySelector('strong');
-        const detail = empty.querySelector('span');
-        if (title) title.textContent = 'No causal graph yet';
-        if (detail) detail.textContent = 'Select at least two numeric columns above, then run discovery to build the graph.';
+    const title = empty.querySelector('strong');
+    const detail = empty.querySelector('span');
+    if (!hasGraph) {
+        if (columnsLength >= 2) {
+            if (title) title.textContent = 'Ready to discover lag relationships';
+            if (detail) detail.textContent = 'Run discovery to estimate directional links, lags, and significance between the selected numeric series.';
+        } else {
+            if (title) title.textContent = 'Choose at least two numeric series';
+            if (detail) detail.textContent = 'Select series above, then run discovery to build a directional lag graph.';
+        }
     }
-    empty.hidden = columnsLength >= 2;
-    empty.setAttribute('data-empty-reason', columnsLength >= 2 ? '' : 'no-columns-selected');
+    empty.hidden = hasGraph;
+    empty.setAttribute('data-empty-reason', hasGraph ? '' : columnsLength >= 2 ? 'ready' : 'no-columns-selected');
 }
 
 /** Replace a silent blank chart with an actionable, data-backed fallback. */
