@@ -22,7 +22,7 @@ describe('scatter page help button', () => {
         document.body.innerHTML = '';
     });
 
-    it('ships a real help button inside the embedded Pair plot', () => {
+    it('ships a real help button inside the standalone Pair plot page', () => {
         expect(indexHtml).toMatch(/<button[^>]*id="scatter-help-btn"[^>]*>/);
         const match = indexHtml.match(/<section[^>]*id="heatmap-pair-plot"[\s\S]*?<\/section>/);
         expect(match?.[0] ?? '').toContain('id="scatter-help-btn"');

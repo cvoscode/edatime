@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createCleaningPlanStore } from '../../cleaning/store.js';
+import { clearScatterPairIntent, consumeScatterPairIntent } from '../scatter/pairIntent.js';
 
 class ResizeObserverMock {
     static instances: ResizeObserverMock[] = [];
@@ -136,6 +137,7 @@ describe('heatmapPage with clustering', () => {
         vi.clearAllMocks();
         window.localStorage.clear();
         window.sessionStorage.clear();
+        clearScatterPairIntent();
         ResizeObserverMock.instances = [];
         (globalThis as any).ResizeObserver = ResizeObserverMock;
         const { fetchCorrelationMatrix } = await import('../../services/api/index.js');
@@ -431,11 +433,10 @@ describe('heatmapPage with clustering', () => {
         expect(crossCell).not.toBeNull();
     });
 
-    it('selects a cell directly in the embedded Pair plot', async () => {
+    it('opens a cell in the dedicated Pair plot page', async () => {
         const showPage = vi.fn();
-        const selectPair = vi.fn();
         const { initHeatmapPage } = await import('./page.js');
-        await initHeatmapPage({ showPage, selectPair });
+        await initHeatmapPage({ showPage });
         await activateHeatmap();
 
         const cell = document.querySelector('.heatmap-cell[data-row="0"][data-col="3"]') as HTMLElement;
@@ -448,17 +449,16 @@ describe('heatmapPage with clustering', () => {
         expect(handler).toBeTypeOf('function');
         (handler as (ev: Partial<MouseEvent>) => void).call(container, { target: cell } as unknown as MouseEvent);
 
-        expect(selectPair).toHaveBeenCalledWith('a1', 'b1');
+        expect(showPage).toHaveBeenCalledWith('scatter');
+        expect(consumeScatterPairIntent()).toEqual({ x: 'a1', y: 'b1' });
         expect(cell.classList.contains('is-selected')).toBe(true);
         expect(cell.getAttribute('aria-selected')).toBe('true');
-        expect(showPage).not.toHaveBeenCalled();
     });
 
     it('opens the Pair plot with both Enter and Space', async () => {
         const showPage = vi.fn();
-        const selectPair = vi.fn();
         const { initHeatmapPage } = await import('./page.js');
-        await initHeatmapPage({ showPage, selectPair });
+        await initHeatmapPage({ showPage });
         await activateHeatmap();
 
         const cell = document.querySelector('.heatmap-cell[data-row="0"][data-col="3"]') as HTMLElement;
@@ -471,31 +471,22 @@ describe('heatmapPage with clustering', () => {
                 preventDefault: vi.fn(),
             } as unknown as KeyboardEvent);
         }
-        expect(selectPair).toHaveBeenCalledTimes(2);
-        expect(selectPair).toHaveBeenLastCalledWith('a1', 'b1');
-        expect(showPage).not.toHaveBeenCalled();
+        expect(showPage).toHaveBeenCalledTimes(2);
+        expect(showPage).toHaveBeenLastCalledWith('scatter');
+        expect(consumeScatterPairIntent()).toEqual({ x: 'a1', y: 'b1' });
     });
 
-    it('opens the selected pair after axis selects have been upgraded to dropdowns', async () => {
+    it('opens the selected pair without requiring the Pair plot controls to be upgraded', async () => {
         const showPage = vi.fn();
         const { initHeatmapPage } = await import('./page.js');
-        const { upgradeSelectElement, getDropdownValue } = await import('../../ui/primitives/Dropdown.js');
         await initHeatmapPage({ showPage });
         await activateHeatmap();
-        const x = upgradeSelectElement(document.getElementById('scatter-x-col') as HTMLSelectElement);
-        const y = upgradeSelectElement(document.getElementById('scatter-y-col') as HTMLSelectElement);
-        try {
-            const cell = document.querySelector('.heatmap-cell[data-row="0"][data-col="3"]') as HTMLElement;
-            const container = document.getElementById('heatmap-container')!;
-            container.onclick!.call(container, { target: cell } as unknown as PointerEvent);
-            expect(getDropdownValue('scatter-x-col')).toBe('a1');
-            expect(getDropdownValue('scatter-y-col')).toBe('b1');
-            expect(cell.classList.contains('is-selected')).toBe(true);
-            expect(showPage).not.toHaveBeenCalled();
-        } finally {
-            x.destroy();
-            y.destroy();
-        }
+        const cell = document.querySelector('.heatmap-cell[data-row="0"][data-col="3"]') as HTMLElement;
+        const container = document.getElementById('heatmap-container')!;
+        container.onclick!.call(container, { target: cell } as unknown as PointerEvent);
+        expect(showPage).toHaveBeenCalledWith('scatter');
+        expect(consumeScatterPairIntent()).toEqual({ x: 'a1', y: 'b1' });
+        expect(cell.classList.contains('is-selected')).toBe(true);
     });
 
     it('reselects the matching matrix cell when Pair plot axes change', async () => {

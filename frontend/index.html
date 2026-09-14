@@ -127,6 +127,19 @@
         <span class="nav-text">Correlation matrix</span>
         <kbd class="nav-shortcut">⌥4</kbd>
       </button>
+      <button class="nav-item" type="button" data-page="scatter" title="Pair plot" aria-label="Pair plot">
+        <span class="nav-icon">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+            stroke-linejoin="round" aria-hidden="true">
+            <circle cx="3" cy="11" r="1.2" />
+            <circle cx="6.5" cy="6" r="1.2" />
+            <circle cx="10" cy="9" r="1.2" />
+            <circle cx="13" cy="3" r="1.2" />
+            <circle cx="12" cy="13" r="1.2" />
+          </svg>
+        </span>
+        <span class="nav-text">Pair plot</span>
+      </button>
       <div class="sidebar-section-label sidebar-section-label--spaced">Spectrum &amp; diagnose</div>
       <button class="nav-item" type="button" data-page="fft" title="Spectrum (Alt+5)" aria-label="Spectrum">
         <span class="nav-icon">
@@ -607,10 +620,11 @@
         <div id="prepare-workspace"></div>
       </section>
 
-      <section class="heatmap-pair-plot" id="heatmap-pair-plot" aria-labelledby="heatmap-pair-plot-title" hidden>
+      <section class="page page--analysis-scroll heatmap-pair-plot" id="heatmap-pair-plot" data-page-name="scatter"
+        data-toolbar-collapse aria-labelledby="heatmap-pair-plot-title" hidden>
         <div class="page-header heatmap-pair-plot__header">
           <div class="page-header__copy">
-            <h2 id="heatmap-pair-plot-title" class="page-header__title">Pair plot</h2>
+            <h1 id="heatmap-pair-plot-title" class="page-header__title">Pair plot</h1>
             <p class="page-header__description">Compare two signals, examine density, and understand inherited filters. Correlation does not establish causation.
             </p>
           </div>

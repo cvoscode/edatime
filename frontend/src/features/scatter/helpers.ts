@@ -25,7 +25,7 @@ export const fmt = new Intl.NumberFormat(undefined);
 
 export { escapeHtml, downloadUrl, downloadBlob, getEl };
 
-/** Whether the embedded Pair plot and its owning correlation page are visible. */
+/** Whether the dedicated Pair plot page is visible. */
 export function isScatterSurfaceVisible(): boolean {
     const surface = document.getElementById('heatmap-pair-plot');
     const page = surface?.closest<HTMLElement>('.page');

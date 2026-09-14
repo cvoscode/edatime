@@ -69,7 +69,7 @@ const viteArgs = ['build', '--config', 'frontend/vite.config.ts'];
 if (isWatch) viteArgs.push('--watch');
 if (isProd) viteArgs.push('--mode', 'production');
 
-const result = spawnSync('node', [VITE_BIN, ...viteArgs], {
+const result = spawnSync(process.execPath, [VITE_BIN, ...viteArgs], {
   stdio: 'inherit',
   cwd: ROOT,
 });
@@ -89,7 +89,7 @@ if (result.status !== 0) {
     process.exit(0);
   }
 
-  const assetGraphCheck = spawnSync('node', ['scripts/check-frontend-asset-graph.mjs'], {
+  const assetGraphCheck = spawnSync(process.execPath, ['scripts/check-frontend-asset-graph.mjs'], {
     stdio: 'inherit',
     cwd: ROOT,
   });
@@ -97,7 +97,7 @@ if (result.status !== 0) {
     process.exit(assetGraphCheck.status ?? 1);
   }
 
-  const archCheck = spawnSync('node', ['scripts/check-frontend-architecture.mjs'], {
+  const archCheck = spawnSync(process.execPath, ['scripts/check-frontend-architecture.mjs'], {
     stdio: 'inherit',
     cwd: ROOT,
   });
@@ -109,7 +109,7 @@ if (result.status !== 0) {
   }
 
   if (isProd) {
-    const budgetCheck = spawnSync('node', ['scripts/check-frontend-budgets.mjs'], {
+    const budgetCheck = spawnSync(process.execPath, ['scripts/check-frontend-budgets.mjs'], {
       stdio: 'inherit',
       cwd: ROOT,
     });

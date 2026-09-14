@@ -6,6 +6,23 @@
 	docs docs-clean clean docker docker-run frontend-prod \
 	bench bench-contract bench-http bench-cancel bench-soak
 
+# Prefer a working native Node.js executable. WSL can expose a Windows
+# installation as `npm` without exposing a runnable Linux `node`; VS Code
+# Server's bundled Linux runtime is a useful fallback in that environment.
+NODE_BIN := $(shell \
+	if command -v node >/dev/null 2>&1 && node --version >/dev/null 2>&1; then \
+		command -v node; \
+	elif command -v nodejs >/dev/null 2>&1 && nodejs --version >/dev/null 2>&1; then \
+		command -v nodejs; \
+	else \
+		for candidate in /home/*/.vscode-server/bin/*/node /root/.vscode-server/bin/*/node; do \
+			if test -x "$$candidate" && "$$candidate" --version >/dev/null 2>&1; then \
+				printf '%s\n' "$$candidate"; \
+				break; \
+			fi; \
+		done; \
+	fi)
+
 # Default target
 build: frontend-prod
 	cargo build -p edatime-bin --bin edatime
@@ -18,11 +35,14 @@ run: frontend-prod
 
 # Development: run Rust API + Vite frontend so CSS/JS update live.
 dev:
-	@if command -v node >/dev/null 2>&1; then npm run dev:full; else echo "Node.js is required for live frontend development."; exit 1; fi
+	@if command -v node >/dev/null 2>&1 && node --version >/dev/null 2>&1 && npm --version >/dev/null 2>&1; then npm run dev:full; \
+	elif [ -n "$(NODE_BIN)" ]; then echo "Using Node.js at $(NODE_BIN)"; "$(NODE_BIN)" scripts/dev.mjs; \
+	else echo "A working native Node.js runtime is required for live frontend development."; exit 1; fi
 
 # Development against the packaged dist output.
 dev-dist:
-	@if command -v node >/dev/null 2>&1; then npm run build:prod; else echo "Node.js is required to build the packaged frontend."; exit 1; fi
+	@if [ -z "$(NODE_BIN)" ]; then echo "A working native Node.js runtime is required to build the packaged frontend."; exit 1; fi
+	"$(NODE_BIN)" scripts/build-frontend.mjs --prod
 	EDATIME_FRONTEND_DIR=$(PWD)/crates/edatime-bin/frontend/dist cargo run -p edatime-bin --bin edatime
 
 # Rust quality groups. The underlying Cargo aliases live in
@@ -144,7 +164,8 @@ bench-cancel:
 
 # Build frontend for production (requires Node)
 frontend-prod:
-	VITE_BUILD_PWA=true node scripts/build-frontend.mjs --prod
+	@if [ -z "$(NODE_BIN)" ]; then echo "A working native Node.js runtime is required to build the packaged frontend."; exit 1; fi
+	VITE_BUILD_PWA=true "$(NODE_BIN)" scripts/build-frontend.mjs --prod
 
 # Docker
 docker:

@@ -113,7 +113,7 @@ const SHORTCUTS: KeyboardShortcut[] = [
     { keys: 'Alt+1', description: 'Open Data source', category: 'Move around' },
     { keys: 'Alt+2', description: 'Open Signals', category: 'Move around' },
     { keys: 'Alt+3', description: 'Open Preparation', category: 'Move around' },
-    { keys: 'Alt+4', description: 'Open Correlations', category: 'Move around' },
+    { keys: 'Alt+4', description: 'Open the Correlation matrix', category: 'Move around' },
     { keys: 'Alt+5', description: 'Open Spectrum', category: 'Move around' },
     { keys: 'Alt+6', description: 'Open Time-frequency', category: 'Move around' },
     { keys: 'Alt+7', description: 'Open Causality', category: 'Move around' },

@@ -1,15 +1,15 @@
-# Correlations (Heatmap) Page
+# Correlation matrix Page
 
 **Page ID:** `heatmap`
-**Route:** `#page=heatmap`
-**Entry:** Sidebar nav (⌥7) or home card navigation
+**Route:** `#page=correlation-matrix`
+**Entry:** Sidebar nav (⌥4) or a Pair plot return path
 **CSS Module:** `frontend/css/modules/scatter.css` (shared with Scatter page)
 
 ---
 
 ## Purpose
 
-Full correlation matrix heatmap across all numeric columns. Use to quickly identify strongly correlated pairs, then jump to Scatter for detailed inspection.
+Full correlation matrix heatmap across all numeric columns, including the existing point thumbnails in each cell. Use it to identify strongly correlated pairs, then jump to Pair plot for detailed inspection.
 
 ---
 
@@ -80,7 +80,7 @@ The heatmap itself is rendered as an HTML table or canvas inside `heatmap-contai
 - `initHeatmapPage()` — initializes correlation computation
 - Metric selector (`pearson` vs `spearman`) triggers re-computation
 - Cell size slider updates CSS custom property or re-renders
-- Cell click → navigates to scatter page with that pair pre-selected
+- Cell click → navigates to Pair plot with that pair pre-selected
 - Export handlers call chart canvas export or data export
 
 ### Backend API
@@ -154,6 +154,6 @@ Response: { "pairs": [{ "x": "colA", "y": "colB", "pearson": 0.85, "spearman": 0
 
 ## Notes
 
-- Clicking a heatmap cell navigates to Scatter page with that pair auto-selected.
+- Clicking a heatmap cell navigates to Pair plot with that pair auto-selected.
 - The guided workflow on this page says "Use the heatmap to pick a promising relationship, then inspect it in Scatter."
 - Color scale is typically a diverging scale (red = negative, white = 0, blue = positive) for correlation values in [-1, 1].

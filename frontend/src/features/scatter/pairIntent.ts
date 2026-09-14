@@ -27,7 +27,7 @@ export function clearScatterPairIntent(): void {
     pendingIntent = null;
 }
 
-/** Notify the combined correlation view that the live Pair plot axes changed. */
+/** Notify the correlation matrix that the Pair plot axes changed. */
 export function publishScatterPairSelection(x: string, y: string): void {
     const nextX = String(x || '').trim();
     const nextY = String(y || '').trim();

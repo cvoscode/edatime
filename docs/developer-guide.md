@@ -165,7 +165,7 @@ Current chart and navigation shortcuts:
 - `Alt+1` opens the upload page
 - `Alt+2` opens the Signals page
 - `Alt+3` opens the Preparation page
-- `Alt+4` opens the Correlations page
+- `Alt+4` opens the Correlation matrix page
 - `Alt+5` opens the Spectrum page
 - `Alt+6` opens the Time-frequency page
 - `Alt+7` opens the Causality page

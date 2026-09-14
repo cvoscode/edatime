@@ -24,7 +24,7 @@ import { clearScatterViewSnapshots, scatterState } from '../../store/scatterStat
 import type { DatasetMetadata } from '../../types/api.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import { onFeatureEvent } from '../../platform/featureEvents.js';
-import { onNavigationChange } from '../../platform/navigationEvents.js';
+import { onNavigationChange, type NavigationChange } from '../../platform/navigationEvents.js';
 import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
 import { getEl, isScatterSurfaceVisible, normalizeScatterSuggestionThreshold } from './helpers.js';
 import {
@@ -315,102 +315,108 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
 
     // The page-change fast path compares the freshly-computed query-context
     // key against `scatterState.lastQueryContextKey`, which `renderScatter`
-    // updates after every successful render. The `inFlight` guard drops
-    // re-entrant dispatches fired while a
-    // previous invocation is still awaiting. Scatter itself does not
-    // dispatch a navigation event from within the handler chain, so
-    // this is purely defensive: synchronous `setScatterView` calls
-    // re-enter the same page-change from `showPage` (which queues the
-    // event inside a `requestAnimationFrame`), and we don't want those
-    // queued events to fire while the first invocation is still
-    // mid-render. Unlike a one-shot `dormant` flag, `inFlight` resets
-    // when the work completes so legitimate repeat navigations
-    // (heatmap → scatter → heatmap → scatter, home-correlations → scatter,
-    // etc.) still run.
+    // updates after every successful render. Keep only the latest navigation
+    // received while rendering and drain it afterwards. This avoids concurrent
+    // chart mutations without losing a newer heatmap pair selection.
     let inFlight = false;
+    let queuedChange: NavigationChange | null = null;
 
-    const unsubscribeNavigation = onNavigationChange(async (change) => {
-        if (change.page !== 'heatmap' && change.page !== 'scatter') return;
+    const processNavigation = async (change: NavigationChange): Promise<void> => {
+        // The scatter page now treats itself as the authoritative owner of
+        // `scatterState.metadata`: initScatterPage is the single place
+        // where it gets written. If a page-change fires before init ran (for
+        // example when the user navigates to scatter on a cold dataset), we
+        // bounce via a single dedicated init call rather than reading from
+        // `cb.workspace?.getSnapshot().dataset.metadata` here. That keeps the page-change handler
+        // strictly an effect, not a side-channel metadata source.
+        if (!scatterState.metadata && cb.workspace?.getSnapshot().dataset.metadata) {
+            await cb.initScatterPage(cb.workspace?.getSnapshot().dataset.metadata as DatasetMetadata);
+        }
+
+        const pairIntent = consumeScatterPairIntent();
+        if (pairIntent) {
+            const numeric = getEffectiveNumericColumns(scatterState.metadata, cleaningPlanStore.getSnapshot());
+            const selectedX = ensureOptions(xSelect, numeric, pairIntent.x, { searchable: true });
+            ensureOptions(ySelect, numeric.filter((column) => column !== selectedX), pairIntent.y, { searchable: true });
+        }
+        // A specific pair intent always opens the Plot view. Ordinary
+        // sidebar navigation carries no view override, so the user's last
+        // Plot/Matrix choice remains active for this browser session.
+        const nextView = pairIntent
+            ? 'plot'
+            : change.analyticsView == null
+                ? scatterState.activeView
+                : normalizeAnalyticsView(change.analyticsView);
+        const ctl = currentControls();
+        // The overview context key includes X, Y, and the color-column
+        // selection (in addition to the filter payload) so a navigation
+        // that mutates only the axes — e.g. clicking a cell in the
+        // Correlations heatmap or a "Top pair" pill on the home page —
+        // still invalidates the cache and re-runs the pipeline. Without
+        // those fields the fast path swallowed the navigation and the
+        // scatter kept showing the previous X/Y's cached points against
+        // the new axis labels.
+        const { queryContextKey } = buildScatterOverviewContext({
+            x: ctl.x,
+            y: ctl.y,
+            colorColumn: ctl.selectedColorColumn || undefined,
+        }, cb.workspace?.getSnapshot());
+        if (
+            scatterState.pageInitialized
+            && scatterState.activeView === nextView
+            && scatterState.lastQueryContextKey === queryContextKey
+        ) {
+            return;
+        }
+        scatterState.lastQueryContextKey = queryContextKey;
+        scatterState.activeView = nextView;
+        await cb.setScatterView(scatterState.activeView, { render: false });
+        if (!scatterState.pageInitialized) {
+            await cb.refreshCorrelationsAndSuggestions()
+                .then(() => (nextView === 'matrix' ? cb.refreshActiveScatterView() : cb.renderScatter()))
+                .then(() => { scatterState.pageInitialized = true; })
+                .catch((err: any) => { cb.handleErr(err); });
+        } else {
+            try {
+                const activeFilters = cb.workspace?.getSnapshot().filters;
+                if (
+                    isLinkedBrushEnabled()
+                    || Object.keys(activeFilters?.columnRanges ?? {}).length > 0
+                    || (activeFilters?.adaptiveLines.length ?? 0) > 0
+                ) {
+                    // Points and correlation suggestions are two views of
+                    // the same scoped query. Refresh them together when a
+                    // carried filter or pair selection changes; otherwise
+                    // a previously-loaded Pair plot can show source-data
+                    // suggestions beside filtered scatter statistics.
+                    await cb.refreshCorrelationsAndSuggestions();
+                    await cb.renderScatter();
+                } else {
+                    await cb.rerenderScatterFromCache(true);
+                }
+            } catch (err: any) { cb.handleErr(err); }
+        }
+    };
+
+    const drainNavigation = async (): Promise<void> => {
         if (inFlight) return;
         inFlight = true;
         try {
-            // The scatter page now treats itself as the authoritative owner of
-            // `scatterState.metadata`: initScatterPage is the single place
-            // where it gets written. If a page-change fires before init ran (for
-            // example when the user navigates to scatter on a cold dataset), we
-            // bounce via a single dedicated init call rather than reading from
-            // `cb.workspace?.getSnapshot().dataset.metadata` here. That keeps the page-change handler
-            // strictly an effect, not a side-channel metadata source.
-            if (!scatterState.metadata && cb.workspace?.getSnapshot().dataset.metadata) {
-                await cb.initScatterPage(cb.workspace?.getSnapshot().dataset.metadata as DatasetMetadata);
-            }
-
-            const pairIntent = consumeScatterPairIntent();
-            if (pairIntent) {
-                const numeric = getEffectiveNumericColumns(scatterState.metadata, cleaningPlanStore.getSnapshot());
-                const selectedX = ensureOptions(xSelect, numeric, pairIntent.x, { searchable: true });
-                ensureOptions(ySelect, numeric.filter((column) => column !== selectedX), pairIntent.y, { searchable: true });
-            }
-            // A specific pair intent always opens the Plot view. Ordinary
-            // sidebar navigation carries no view override, so the user's last
-            // Plot/Matrix choice remains active for this browser session.
-            const nextView = pairIntent
-                ? 'plot'
-                : change.analyticsView == null
-                    ? scatterState.activeView
-                    : normalizeAnalyticsView(change.analyticsView);
-            const ctl = currentControls();
-            // The overview context key includes X, Y, and the color-column
-            // selection (in addition to the filter payload) so a navigation
-            // that mutates only the axes — e.g. clicking a cell in the
-            // Correlations heatmap or a "Top pair" pill on the home page —
-            // still invalidates the cache and re-runs the pipeline. Without
-            // those fields the fast path swallowed the navigation and the
-            // scatter kept showing the previous X/Y's cached points against
-            // the new axis labels.
-            const { queryContextKey } = buildScatterOverviewContext({
-                x: ctl.x,
-                y: ctl.y,
-                colorColumn: ctl.selectedColorColumn || undefined,
-            }, cb.workspace?.getSnapshot());
-            if (
-                scatterState.pageInitialized
-                && scatterState.activeView === nextView
-                && scatterState.lastQueryContextKey === queryContextKey
-            ) {
-                return;
-            }
-            scatterState.lastQueryContextKey = queryContextKey;
-            scatterState.activeView = nextView;
-            await cb.setScatterView(scatterState.activeView, { render: false });
-            if (!scatterState.pageInitialized) {
-                await cb.refreshCorrelationsAndSuggestions()
-                    .then(() => (nextView === 'matrix' ? cb.refreshActiveScatterView() : cb.renderScatter()))
-                    .then(() => { scatterState.pageInitialized = true; })
-                    .catch((err: any) => { cb.handleErr(err); });
-            } else {
-                try {
-                    const activeFilters = cb.workspace?.getSnapshot().filters;
-                    if (
-                        isLinkedBrushEnabled()
-                        || Object.keys(activeFilters?.columnRanges ?? {}).length > 0
-                        || (activeFilters?.adaptiveLines.length ?? 0) > 0
-                    ) {
-                        // Points and correlation suggestions are two views of
-                        // the same scoped query. Refresh them together when a
-                        // carried filter or pair selection changes; otherwise
-                        // a previously-loaded Pair plot can show source-data
-                        // suggestions beside filtered scatter statistics.
-                        await cb.refreshCorrelationsAndSuggestions();
-                        await cb.renderScatter();
-                    } else {
-                        await cb.rerenderScatterFromCache(true);
-                    }
-                } catch (err: any) { cb.handleErr(err); }
+            while (queuedChange) {
+                const change = queuedChange;
+                queuedChange = null;
+                await processNavigation(change);
             }
         } finally {
             inFlight = false;
+            if (queuedChange) void drainNavigation();
         }
+    };
+
+    const unsubscribeNavigation = onNavigationChange((change) => {
+        if (change.page !== 'scatter') return;
+        queuedChange = change;
+        void drainNavigation();
     });
     controller.signal.addEventListener('abort', unsubscribeNavigation, { once: true });
 

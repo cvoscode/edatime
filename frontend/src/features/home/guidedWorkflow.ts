@@ -53,7 +53,7 @@ const STORAGE_KEY = 'edatime-guided-workflow';
 const WORKFLOW_STEPS: Array<{ id: WorkflowStepId; label: string; page: string }> = [
     { id: 'upload', label: 'Upload', page: 'upload' },
     { id: 'timeseries', label: 'Signals', page: 'timeseries' },
-    { id: 'correlations', label: 'Correlations', page: 'correlations' },
+    { id: 'correlations', label: 'Correlation matrix', page: 'correlations' },
     { id: 'causal', label: 'Causality', page: 'causal' },
     { id: 'prepare', label: 'Prepare', page: 'prepare' },
 ];
@@ -185,7 +185,7 @@ export function computeWorkflowProgress(snapshot: WorkflowSnapshot): WorkflowPro
 
     if (snapshot.hasDataset) completedStepIds.push('upload');
     if (snapshot.selectedSeriesCount > 0) completedStepIds.push('timeseries');
-    if (visited.has('correlations') || visited.has('heatmap') || visited.has('scattermatrix')) {
+    if (visited.has('correlations') || visited.has('heatmap') || visited.has('scattermatrix') || visited.has('scatter')) {
         completedStepIds.push('correlations');
     }
     if (snapshot.causalLinkCount > 0) completedStepIds.push('causal');
@@ -224,10 +224,10 @@ function defaultSuggestionForStep(stepId: WorkflowStepId | null): WorkflowSugges
     if (stepId === 'correlations') {
         return {
             title: 'Screen correlations next',
-            body: 'Use Heatmap or Matrix to separate strong candidates from weak relationships before a deeper scatter drill-down.',
-            actionLabel: 'Open Correlations',
+            body: 'Use the Correlation matrix to separate strong candidates from weak relationships before a deeper Pair plot drill-down.',
+            actionLabel: 'Open Correlation matrix',
             actionPage: 'correlations',
-            hint: 'Scatter Matrix cells already open the detailed scatter view when clicked.',
+            hint: 'Matrix cells open the detailed Pair plot with that pair selected.',
         };
     }
     if (stepId === 'causal') {
@@ -304,18 +304,18 @@ export function buildWorkflowSuggestion(snapshot: WorkflowSnapshot): WorkflowSug
         };
     }
 
-    if (snapshot.currentPage === 'correlations' || snapshot.currentPage === 'heatmap' || snapshot.currentPage === 'scattermatrix') {
+    if (snapshot.currentPage === 'correlations' || snapshot.currentPage === 'heatmap' || snapshot.currentPage === 'scattermatrix' || snapshot.currentPage === 'scatter') {
         if (!snapshot.scatterX || !snapshot.scatterY) {
             return {
                 title: 'Choose the strongest pair',
-                body: 'Select a promising matrix cell to inspect its shape, outliers, and filter sensitivity in the live Pair plot.',
+                body: 'Select a promising matrix cell to open its shape, outliers, and filter sensitivity in the Pair plot page.',
                 actionLabel: null,
                 actionPage: null,
             };
         }
         return {
             title: 'Continue with evidence',
-            body: 'Use the synchronized matrix and Pair plot to validate the relationship, then review the reversible preparation pipeline.',
+            body: 'Use the matrix and Pair plot page to validate the relationship, then review the reversible preparation pipeline.',
             actionLabel: 'Open Preparation',
             actionPage: 'prepare',
         };

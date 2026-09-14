@@ -1,8 +1,8 @@
 # Scatter Page
 
 **Page ID:** `scatter`
-**Route:** `#page=scatter`
-**Entry:** Sidebar nav (⌥3) or home card navigation, or jump from Correlations/Heatmap
+**Route:** `#page=pair-plot`
+**Entry:** Sidebar nav, or jump from a Correlation matrix cell
 **CSS Module:** `frontend/css/modules/scatter.css`
 
 ---
@@ -18,7 +18,7 @@ Detailed pairwise scatter/density plot with matrix view. Inspect X/Y correlation
 ### Toolbar (lines 398–482)
 
 ```html
-<section class="page" id="page-scatter" data-page-name="scatter" hidden>
+<section class="page page--analysis-scroll heatmap-pair-plot" id="heatmap-pair-plot" data-page-name="scatter" hidden>
   <div class="toolbar scatter-toolbar">
     <!-- View toggle: Plot | Matrix -->
     <div class="toolbar-group">
@@ -303,14 +303,14 @@ Response: { "pairs": [{ "x": "colA", "y": "colB", "pearson": 0.85 }, ...] }
 
 | Key | Action |
 |---|---|
-| `Alt+4` | Navigate to Correlations; pair and matrix views are selected within that page |
+| `Alt+4` | Navigate to the Correlation matrix page |
 
 ---
 
 ## Complete HTML Copy (for recreation)
 
 ```html
-<section class="page" id="page-scatter" data-page-name="scatter" hidden>
+<section class="page page--analysis-scroll heatmap-pair-plot" id="heatmap-pair-plot" data-page-name="scatter" hidden>
   <div class="toolbar scatter-toolbar">
     <div class="toolbar-group">
       <span class="toolbar-label">View</span>

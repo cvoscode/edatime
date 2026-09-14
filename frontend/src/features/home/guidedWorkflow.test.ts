@@ -81,7 +81,7 @@ describe('buildWorkflowSuggestion', () => {
         expect(suggestion.body).toContain('2 to 4');
     });
 
-    it('describes Pair plot selection as part of the combined correlations page', () => {
+    it('describes Pair plot selection as a follow-up page from correlations', () => {
         const suggestion = buildWorkflowSuggestion(snapshot({
             currentPage: 'scattermatrix',
             hasDataset: true,

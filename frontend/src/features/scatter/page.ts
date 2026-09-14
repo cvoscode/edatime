@@ -157,7 +157,7 @@ export function disposeScatterPage(): void {
 function setSidebarAnalyticsSelection(viewName: string): void {
     for (const button of document.querySelectorAll('.sidebar .nav-item[data-page]')) {
         const page = (button as HTMLElement).dataset.page;
-        if (page === 'correlations') button.classList.toggle('active', viewName === 'plot' || viewName === 'matrix');
+        if (page === 'scatter') button.classList.toggle('active', viewName === 'plot' || viewName === 'matrix');
     }
 }
 
@@ -394,7 +394,7 @@ async function onMatrixCellClick(x: string, y: string): Promise<void> {
     }
 }
 
-/** Select and render a pair in the Pair plot embedded by the heatmap page. */
+/** Select and render a pair in the dedicated Pair plot page. */
 export async function selectScatterPair(x: string, y: string): Promise<void> {
     await selectMatrixPair(
         x,

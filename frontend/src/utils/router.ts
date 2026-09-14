@@ -6,19 +6,18 @@
  */
 
 const VALID_PAGES = new Set([
-    'home', 'upload', 'timeseries', 'prepare', 'correlations',
+    'home', 'upload', 'timeseries', 'prepare', 'correlations', 'scatter',
     'fft', 'spectrogram', 'causal', 'drift', 'settings',
 ]);
 const PUBLIC_PAGE_NAMES: Record<string, string> = {
     prepare: 'preparation',
     correlations: 'correlation-matrix',
+    scatter: 'pair-plot',
 };
 const INTERNAL_PAGE_NAMES: Record<string, string> = Object.fromEntries(
     Object.entries(PUBLIC_PAGE_NAMES).map(([internal, publicName]) => [publicName, internal]),
 );
 const LEGACY_PAGE_NAMES: Record<string, string> = {
-    scatter: 'correlations',
-    'pair-plot': 'correlations',
     scattermatrix: 'correlations',
     'scatter-matrix': 'correlations',
 };

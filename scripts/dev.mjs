@@ -1,4 +1,10 @@
+import { existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const viteBin = path.join(rootDir, 'node_modules', 'vite', 'bin', 'vite.js');
 
 const backendPort = process.env.EDATIME_PORT || '3000';
 const frontendPort = process.env.EDATIME_VITE_PORT || '5173';
@@ -11,6 +17,7 @@ let shuttingDown = false;
 function spawnProcess(label, command, args, env = {}) {
   const child = spawn(command, args, {
     stdio: 'inherit',
+    cwd: rootDir,
     env: { ...process.env, ...env },
   });
   children.add(child);
@@ -53,11 +60,24 @@ console.log(`Starting EdaTime backend API on http://127.0.0.1:${backendPort}`);
 console.log(`Starting Vite frontend on http://${frontendHost}:${frontendPort}`);
 console.log(`Vite proxies /api to ${apiOrigin}; open the Vite URL for live CSS/HMR.`);
 
+if (!existsSync(viteBin)) {
+  console.error('Vite is not installed. Run `npm ci` from the repository root, then retry.');
+  process.exit(1);
+}
+
 spawnProcess('backend', 'cargo', ['run', '-p', 'edatime-bin', '--bin', 'edatime'], {
   EDATIME_PORT: backendPort,
 });
 
-spawnProcess('vite', 'npm', ['run', 'dev', '--', '--host', frontendHost, '--port', frontendPort], {
+spawnProcess('vite', process.execPath, [
+  viteBin,
+  '--config',
+  path.join(rootDir, 'frontend', 'vite.config.ts'),
+  '--host',
+  frontendHost,
+  '--port',
+  frontendPort,
+], {
   EDATIME_API_ORIGIN: apiOrigin,
   EDATIME_PORT: backendPort,
 });

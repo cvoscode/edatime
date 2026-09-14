@@ -707,15 +707,6 @@
   display: contents;
 }
 
-.correlation-workspace {
-  display: grid;
-  grid-template-columns: minmax(480px, 1.15fr) minmax(420px, 0.85fr);
-  gap: 14px;
-  align-items: stretch;
-  min-width: 0;
-}
-
-.correlation-workspace__matrix,
 .heatmap-pair-plot {
   position: relative;
   min-width: 0;
@@ -735,6 +726,29 @@
   display: none;
 }
 
+/* Pair plot is a first-class page now. Keep the shared surface rules used by
+   the old split-pane layout, but let the page own the full analysis canvas. */
+.heatmap-pair-plot.page {
+  min-height: 0;
+  overflow: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.heatmap-pair-plot.page .heatmap-pair-plot__header {
+  padding: 16px var(--workspace-pad);
+}
+
+.heatmap-pair-plot.page .heatmap-pair-plot__header .page-header__title {
+  font-size: 1.25rem;
+}
+
+.heatmap-pair-plot.page .heatmap-pair-plot__header .page-header__description {
+  max-width: 72ch;
+  font-size: 0.8125rem;
+}
+
 .heatmap-pair-plot__header {
   flex: 0 0 auto;
   padding: 10px 12px;
@@ -747,12 +761,6 @@
 .heatmap-pair-plot__header .page-header__description {
   max-width: 68ch;
   font-size: 0.75rem;
-}
-
-@media (max-width: 1099px) {
-  .correlation-workspace {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 @media (max-width: 640px) {

@@ -51,17 +51,19 @@ describe('hash router valid pages', () => {
         expect(getHashPage()).toBe('prepare');
     });
 
-    it('redirects the legacy Pair plot route to the combined correlation page', async () => {
+    it('accepts the canonical Pair plot route separately from the matrix', async () => {
         const { getHashPage } = await import('./router.js');
         window.history.replaceState(null, '', '#page=pair-plot');
-        expect(getHashPage()).toBe('correlations');
+        expect(getHashPage()).toBe('scatter');
+        window.history.replaceState(null, '', '#page=scatter');
+        expect(getHashPage()).toBe('scatter');
         window.history.replaceState(null, '', '#page=correlation-matrix');
         expect(getHashPage()).toBe('correlations');
         window.history.replaceState(null, '', '#page=preparation');
         expect(getHashPage()).toBe('prepare');
     });
 
-    it('redirects the legacy scattermatrix route to Correlations', async () => {
+    it('redirects the legacy scattermatrix route to the Correlation matrix', async () => {
         const { getHashPage } = await import('./router.js');
         window.history.replaceState(null, '', '#page=scattermatrix');
 

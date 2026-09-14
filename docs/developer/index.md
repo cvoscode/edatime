@@ -9,8 +9,8 @@ This directory contains detailed page-by-page documentation for the EdaTime fron
 | 1 | [Home](homepage.md) | `#page=home` | `homepage.md` | Complete |
 | 2 | [Upload](upload-page.md) | `#page=upload` | `upload-page.md` | Complete |
 | 3 | [Timeseries](timeseries-page.md) | `#page=timeseries` | `timeseries-page.md` | Complete |
-| 4 | [Scatter](scatter-page.md) | `#page=scatter` | `scatter-page.md` | Complete |
-| 5 | [Correlations/Heatmap](heatmap-page.md) | `#page=heatmap` | `heatmap-page.md` | Complete |
+| 4 | [Correlation matrix](heatmap-page.md) | `#page=correlation-matrix` | `heatmap-page.md` | Complete |
+| 5 | [Pair plot](scatter-page.md) | `#page=pair-plot` | `scatter-page.md` | Complete |
 | 6 | [FFT / PSD](fft-page.md) | `#page=fft` | `fft-page.md` | Complete |
 | 7 | [Spectrogram](spectrogram-page.md) | `#page=spectrogram` | `spectrogram-page.md` | Complete |
 | 8 | [Causal Discovery](causal-page.md) | `#page=causal` | `causal-page.md` | Complete |

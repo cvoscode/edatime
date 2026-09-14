@@ -223,9 +223,9 @@ The toolbar export menu supports:
 
 ---
 
-### Pair analysis — the Correlations page
+### Pair analysis — Correlation matrix and Pair plot pages
 
-Navigate via the sidebar or press `Alt+4`, then open the Pair plot view.
+Navigate to Correlation matrix via the sidebar or press `Alt+4`, then open the Pair plot page from a matrix cell or the sidebar.
 
 - The page opens with **correlation suggestions** — pairs of columns ranked by how strongly they correlate, to help you pick a useful X/Y combination.
 - Select an **X column** and **Y column** from the dropdowns (or pick a suggested pair).
@@ -246,7 +246,7 @@ Navigate via the sidebar or press `Alt+4`, then open the Pair plot view.
 | `Alt+1` | Go to Upload page |
 | `Alt+2` | Go to Signals page |
 | `Alt+3` | Go to Preparation page |
-| `Alt+4` | Go to Correlations page |
+| `Alt+4` | Go to Correlation matrix page |
 | `Alt+5` | Go to Spectrum page |
 | `Alt+6` | Go to Time-frequency page |
 | `Alt+7` | Go to Causality page |

@@ -327,7 +327,7 @@ describe('bindScatterControls', () => {
         // was silently ignored. The fix uses an `inFlight` guard that resets
         // when the work completes, so legitimate follow-up dispatches (for
         // example heatmap → scatter → heatmap → scatter, or two rapid filter
-        // changes that both reach the combined correlation page still run.
+        // changes that both reach the standalone Pair plot page still run.
         const { bindScatterControls } = await import('./controls.js');
         const stateModule = await import('./state.js');
         const buildOverviewContextKeyMock = stateModule.buildOverviewContextKey as unknown as ReturnType<typeof vi.fn>;
@@ -363,6 +363,52 @@ describe('bindScatterControls', () => {
         }
 
         expect(callbacks.setScatterView).toHaveBeenCalledTimes(2);
+    });
+
+    it('processes the latest scatter navigation queued while a render is in flight', async () => {
+        const { bindScatterControls } = await import('./controls.js');
+        const stateModule = await import('./state.js');
+        const buildOverviewContextKeyMock = stateModule.buildOverviewContextKey as unknown as ReturnType<typeof vi.fn>;
+        let releaseFirstRender: (() => void) | undefined;
+        const firstRender = new Promise<void>((resolve) => { releaseFirstRender = resolve; });
+        const setScatterView = vi.fn()
+            .mockImplementationOnce(async () => firstRender)
+            .mockImplementationOnce(async () => { });
+        const callbacks = {
+            initScatterPage: vi.fn(async () => { }),
+            renderScatter: vi.fn(async () => { }),
+            refreshCorrelationsAndSuggestions: vi.fn(async () => { }),
+            refreshActiveScatterView: vi.fn(async () => { }),
+            setScatterView,
+            handleErr: vi.fn(),
+            rerenderScatterFromCache: vi.fn(async () => { }),
+            renderScatterDebounced: vi.fn(),
+            syncScatterFilterBadge: vi.fn(),
+        };
+        appStateMock.scatter.pageInitialized = true;
+        appStateMock.scatter.activeView = 'plot';
+        appStateMock.scatter.lastQueryContextKey = 'stale-key';
+        buildOverviewContextKeyMock
+            .mockReturnValueOnce('first-navigation')
+            .mockReturnValueOnce('latest-navigation');
+
+        bindScatterControls(callbacks);
+        callbacks.setScatterView.mockClear();
+
+        emitNavigationChange({ page: 'scatter', analyticsView: 'plot' });
+        await Promise.resolve();
+        expect(callbacks.setScatterView).toHaveBeenCalledTimes(1);
+
+        emitNavigationChange({ page: 'scatter', analyticsView: 'plot' });
+        await Promise.resolve();
+        expect(callbacks.setScatterView).toHaveBeenCalledTimes(1);
+
+        releaseFirstRender?.();
+        await firstRender;
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(callbacks.setScatterView).toHaveBeenCalledTimes(2);
+        expect(appStateMock.scatter.lastQueryContextKey).toBe('latest-navigation');
     });
 
     it('re-renders the scatter when only filters change between page-change events', async () => {

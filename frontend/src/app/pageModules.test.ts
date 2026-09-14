@@ -6,8 +6,7 @@ const mocks = vi.hoisted(() => ({
     initFftPage: vi.fn(),
     initHeatmapPage: vi.fn(),
     initHeatmapScatterLayer: vi.fn(),
-    initHeatmapPairPlot: vi.fn(),
-    selectPair: vi.fn(),
+    initScatterPage: vi.fn(),
     initSpectrogramPage: vi.fn(),
     initCausalPage: vi.fn(),
     initDriftPage: vi.fn(),
@@ -20,7 +19,7 @@ vi.mock('../features/heatmap/index.js', () => ({
     initHeatmapPage: mocks.initHeatmapPage,
     initHeatmapScatterLayer: mocks.initHeatmapScatterLayer,
 }));
-vi.mock('../features/heatmap/pairPlot/index.js', () => ({ initHeatmapPairPlot: mocks.initHeatmapPairPlot }));
+vi.mock('../features/scatter/index.js', () => ({ initScatterPage: mocks.initScatterPage }));
 vi.mock('../features/spectrogram/index.js', () => ({ initSpectrogramPage: mocks.initSpectrogramPage }));
 vi.mock('../features/causal/index.js', () => ({ initCausalPage: mocks.initCausalPage }));
 vi.mock('../features/drift/index.js', () => ({ initDriftPage: mocks.initDriftPage }));
@@ -46,15 +45,17 @@ function createDeps(): PageDescriptorInitDeps {
 }
 
 describe('page module descriptors', () => {
-    mocks.initHeatmapPairPlot.mockResolvedValue({ dispose: vi.fn(), selectPair: mocks.selectPair });
+    mocks.initHeatmapPage.mockResolvedValue(vi.fn());
+    mocks.initHeatmapScatterLayer.mockResolvedValue(vi.fn());
+    mocks.initScatterPage.mockResolvedValue(vi.fn());
 
     it('registers lightweight descriptors without importing page implementations', async () => {
         const register = vi.fn();
         await loadPageDescriptors({ register } as unknown as FeatureRegistry, createDeps());
 
-        expect(register).toHaveBeenCalledTimes(6);
+        expect(register).toHaveBeenCalledTimes(7);
         expect(register.mock.calls.map(([name]) => name)).toEqual([
-            'prepare', 'fft', 'heatmap', 'spectrogram', 'causal', 'drift',
+            'prepare', 'fft', 'heatmap', 'scatter', 'spectrogram', 'causal', 'drift',
         ]);
     });
 
@@ -77,7 +78,7 @@ describe('page module descriptors', () => {
         });
     });
 
-    it('loads the heatmap, embedded Pair plot, and unified cell layer together', async () => {
+    it('loads the heatmap and unified cell layer together', async () => {
         const metadata = { total_rows: 0, numeric_columns: [], columns: [], column_profiles: [], time_column: '', time_range: { min: 0, max: 1 } } as any;
         const deps = {
             ...createDeps(),
@@ -97,23 +98,33 @@ describe('page module descriptors', () => {
         expect(mocks.ensureStyleModule).toHaveBeenCalledWith('scatter');
         expect(mocks.initHeatmapPage).toHaveBeenCalledWith({
             showPage: deps.showPage,
-            selectPair: mocks.selectPair,
             cleaningPlanStore: deps.cleaningPlanStore,
             onPlanChanged: deps.onCleaningPlanChanged,
-        });
-        expect(mocks.initHeatmapPairPlot).toHaveBeenCalledWith(metadata, {
-            workspace: deps.workspace,
         });
         expect(mocks.initHeatmapScatterLayer).toHaveBeenCalledWith(metadata, {
             workspace: deps.workspace,
         });
     });
 
-    it('does not register a standalone Pair plot descriptor', async () => {
+    it('loads the standalone Pair plot descriptor with the active dataset', async () => {
+        const metadata = { numeric_columns: ['x', 'y'] } as any;
+        const deps = {
+            ...createDeps(),
+            workspace: {
+                getSnapshot: vi.fn(() => makeWorkspaceSnapshot({ dataset: { metadata } })),
+                setFilters: vi.fn(),
+                subscribe: vi.fn(() => vi.fn()),
+            },
+        };
         const register = vi.fn();
-        await loadPageDescriptors({ register } as unknown as FeatureRegistry, createDeps());
+        await loadPageDescriptors({ register } as unknown as FeatureRegistry, deps);
+        const scatter = register.mock.calls.find(([name]) => name === 'scatter')?.[1];
 
-        expect(register.mock.calls.some(([name]) => name === 'scatter')).toBe(false);
+        await scatter!.init();
+
+        expect(mocks.initScatterPage).toHaveBeenCalledWith(metadata, {
+            workspace: deps.workspace,
+        });
     });
 
     it('loads FFT directly from its descriptor only on initialization', async () => {

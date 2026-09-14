@@ -15,7 +15,7 @@ describe('pageStyles', () => {
         expect(pageStyleModulesFor('causal')).toEqual(['drift', 'causal']);
         expect(pageStyleModulesFor('drift')).toEqual(['drift']);
         expect(pageStyleModulesFor('heatmap')).toEqual(['scatter']);
-        expect(pageStyleModulesFor('scatter')).toEqual([]);
+        expect(pageStyleModulesFor('scatter')).toEqual(['scatter']);
         expect(pageStyleModulesFor('scattermatrix')).toEqual(['scatter']);
         expect(pageStyleModulesFor('timeseries')).toEqual([]);
     });

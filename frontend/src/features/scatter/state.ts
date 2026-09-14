@@ -269,15 +269,14 @@ export function buildRenderSignature(controls: ScatterControls): string {
  * Build the cache key used by the scatter page-change handler to decide
  * whether the current render can be reused.
  *
- * The typed `{ page: 'heatmap' }` navigation listener compares this key
+ * The typed `{ page: 'scatter' }` navigation listener compares this key
  * against the value stored on the last successful render so an identity
  * dispatch (same filters, same axes, same zoom range) can short-circuit
  * the work. Including `x`, `y`, and `colorColumn` is essential: the
- * heatmap page (`heatmapPage.ts` `container.onclick`) silently mutates the
- * X/Y dropdowns before navigating to the scatter page. If those columns
- * were absent from the key, the handler would treat the navigation as a
- * no-op and leave the chart rendering the previous X/Y's cached points
- * against the new axis labels. See issue follow-up in `usage_issue.md`.
+ * The correlation matrix click carries the requested pair into the scatter
+ * page before rendering. If those columns were absent from the key, the
+ * handler could treat the navigation as a no-op and leave the chart showing
+ * the previous X/Y's cached points against the new axis labels.
  *
  * Numeric filters and the linked time range are intentionally included —
  * they are part of the request payload that the scatter backend hashes

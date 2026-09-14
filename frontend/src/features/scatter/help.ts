@@ -1,5 +1,5 @@
 /**
- * scatterHelp — help for the Pair plot embedded in Correlations.
+ * scatterHelp — help for the dedicated Pair plot page.
  *
  * The Scatter page is the deep-dive view for a chosen pair of
  * numeric columns. It can render in two modes (Scatter / Density),
@@ -75,7 +75,7 @@ export const SCATTER_HELP: PageHelpContent = {
         },
     ],
     shortcuts: [
-        { keys: '⌥4', description: 'Open the combined Correlations page' },
+        { keys: '⌥4', description: 'Open the Correlation matrix page' },
         { keys: '?', description: 'Show the global keyboard shortcuts modal' },
         { keys: 'P', description: 'Export the chart as PNG' },
         { keys: 'E', description: 'Export the filtered points as CSV' },

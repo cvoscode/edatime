@@ -25,13 +25,13 @@ The app opens on the Home page by default. The main navigation lives in the left
 - `Alt+1`: Upload
 - `Alt+2`: Signals
 - `Alt+3`: Preparation
-- `Alt+4`: Correlations
+- `Alt+4`: Correlation matrix
 - `Alt+5`: Spectrum
 - `Alt+6`: Time-frequency
 - `Alt+7`: Causality
 - `Alt+8`: Drift
 
-The main workflow pages are `Upload`, `Preparation`, `Signals`, and `Correlations`.
+The main workflow pages are `Upload`, `Preparation`, `Signals`, and the `Correlation matrix`; the detailed `Pair plot` is available from the sidebar or a selected matrix cell.
 
 The advanced analysis group contains `Spectrum`, `Time-frequency`, `Causality`, and `Drift`.
 
@@ -421,7 +421,7 @@ The grid shows the correlation value for every pair and a color scale from `-1.0
 
 During the walkthrough, switching from Pearson to Spearman updated the full matrix immediately.
 
-Use this page for a fast global view of which columns are worth comparing in Scatter or testing in Causal.
+Use this page for a fast global view of which columns are worth comparing in Pair plot or testing in Causal. Click any off-diagonal cell to open Pair plot with that pair selected; the point thumbnails remain available in the matrix for quick visual context.
 
 ## Spectrogram Page
 

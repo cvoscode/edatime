@@ -11,12 +11,12 @@ import { join } from 'node:path';
 
 const SAMPLE_DATASET_PATH = join(process.cwd(), 'ETTm2.csv');
 const backingPage = (pageName: string): string => (
-  pageName === 'correlations' || pageName === 'scatter' ? 'heatmap' : pageName
+  pageName === 'correlations' ? 'heatmap' : pageName
 );
 
 async function openPage(page: Page, pageName: string): Promise<void> {
   await page.goto(`/#page=${pageName}`);
-  await expect(page.locator(`#page-${backingPage(pageName)}`)).toBeVisible();
+  await expect(page.locator(`.page[data-page-name="${backingPage(pageName)}"]`)).toBeVisible();
 }
 
 async function chooseDropdownOption(page: Page, id: string, value: string): Promise<void> {
@@ -187,10 +187,14 @@ test.describe('Audit Verification Tests', () => {
     await expect(page.locator('#causal-save-run-btn')).toBeEnabled();
   });
 
-  test('pair plot is embedded beside the correlation matrix', async ({ page }) => {
+  test('correlation matrix keeps point thumbnails and Pair plot is a separate page', async ({ page }) => {
     await openPage(page, 'correlations');
 
-    await expect(page.locator('.correlation-workspace__matrix')).toBeVisible();
+    await expect(page.locator('#heatmap-container')).toBeVisible();
+    await expect(page.locator('.heatmap-cell-canvas').first()).toBeVisible();
+    await expect(page.locator('#heatmap-pair-plot')).toBeHidden();
+
+    await openPage(page, 'scatter');
     await expect(page.locator('#heatmap-pair-plot')).toBeVisible();
   });
 
@@ -332,10 +336,8 @@ test.describe('Audit Verification Tests', () => {
   });
 
   test('API response times are acceptable', async ({ page }) => {
-    // Navigate to scatter page
-    await openPage(page, 'scatter');
-    
-    // Select a matrix pair to trigger the synchronized Pair-plot request.
+    // Select a matrix pair to trigger the Pair plot request on the dedicated page.
+    await openPage(page, 'correlations');
     const pairCell = page.locator('.heatmap-cell[data-row-name="HULL"][data-col-name="MULL"]').first();
     await expect(pairCell).toBeVisible({ timeout: 20_000 });
     const responsePromise = page.waitForResponse(response =>

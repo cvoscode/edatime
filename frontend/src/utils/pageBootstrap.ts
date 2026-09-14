@@ -10,6 +10,7 @@ const DATASET_BOOTSTRAP_PAGES = new Set([
     'prepare',
     'fft',
     'heatmap',
+    'scatter',
     'spectrogram',
     'causal',
     'drift',
@@ -17,8 +18,7 @@ const DATASET_BOOTSTRAP_PAGES = new Set([
 
 const PAGE_BACKING_ALIASES: Record<string, string> = {
     correlations: 'heatmap',
-    scatter: 'heatmap',
-    'pair-plot': 'heatmap',
+    'pair-plot': 'scatter',
     scattermatrix: 'heatmap',
 };
 

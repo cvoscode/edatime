@@ -1,7 +1,7 @@
 /**
- * heatmapHelp — page-level "?" help for the Correlations page (heatmap).
+ * heatmapHelp — page-level "?" help for the Correlation matrix page.
  *
- * Correlations is the entry point for finding which pairs of columns
+ * The Correlation matrix is the entry point for finding which pairs of columns
  * move together. The metric toolbar (Pearson / Spearman / Kendall on
  * raw vs first-differences), the cell-size slider, clustering, fit
  * toggles, and the export format picker all need a clear explanation
@@ -16,7 +16,7 @@ import { initPageHelp, type PageHelpContent } from '../../ui/pageHelp.js';
 export const HEATMAP_HELP: PageHelpContent = {
     pageName: 'Correlation matrix',
     intro:
-        'A correlation matrix and synchronized Pair plot showing how numeric columns move together. Pick a metric, scan the matrix, then select any pair for a live detailed view.',
+        'A correlation matrix showing how numeric columns move together. Pick a metric, scan the matrix, then select any pair to open the detailed Pair plot page.',
     sections: [
         {
             title: 'Metric toolbar',
@@ -47,7 +47,7 @@ export const HEATMAP_HELP: PageHelpContent = {
                 'The matrix is interactive, not a static image. Hover, click, and drag are all wired to actions.',
             bullets: [
                 'Hover — shows the column pair, metric value, and a tooltip',
-                'Click — updates the Pair plot beside or below the matrix with that X/Y pair selected',
+                'Click — opens the Pair plot page with that X/Y pair selected',
                 'Drag to reorder — grab a column header and drag it to a new position; the order persists with the session and survives reloads',
                 'Diagonal — the self-correlation cells (column against itself) are intentionally 1.0 and are not clickable',
                 'Interpretation — correlation can reveal association, but it does not establish causation',
@@ -70,20 +70,20 @@ export const HEATMAP_HELP: PageHelpContent = {
         },
     ],
     shortcuts: [
-        { keys: '⌥4', description: 'Open the Correlations page (this page)' },
+        { keys: '⌥4', description: 'Open the Correlation matrix (this page)' },
         { keys: '?', description: 'Show the global keyboard shortcuts modal' },
         { keys: 'Ctrl+K', description: 'Command palette — every action above is searchable here' },
     ],
     tips: [
         'Start with Pearson on raw values for a first look; switch to Spearman if the data has clear outliers, and to first-differences if the columns drift over time.',
         'Strong off-diagonal cells in the same row/column often cluster around a common driver — the cluster reorder surfaces this visually.',
-        'Select a cell in the matrix to update its Pair plot; the linked time-window and filters from Signals are carried over.',
+        'Select a cell in the matrix to open its Pair plot; the linked time-window and filters from Signals are carried over.',
         'Save the session (Ctrl+S) if you have a manual column order you want to keep — the order is persisted with the session.',
     ],
 };
 
 export function initHeatmapHelp(): () => void {
     // The DOM id is `heatmap-help-btn` because the page section is
-    // #page-heatmap, but the displayed page name is "Correlations".
+    // #page-heatmap, while the displayed page name is "Correlation matrix".
     return initPageHelp('heatmap', HEATMAP_HELP);
 }

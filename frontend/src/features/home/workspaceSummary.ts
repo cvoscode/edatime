@@ -11,6 +11,7 @@ const PAGE_LABELS: Record<string, string> = {
     timeseries: 'Signals',
     prepare: 'Preparation',
     correlations: 'Correlation matrix',
+    scatter: 'Pair plot',
     fft: 'Spectrum',
     spectrogram: 'Time-frequency',
     causal: 'Causality',

@@ -11,6 +11,7 @@ describe('pageNeedsDatasetBootstrap', () => {
         expect(pageNeedsDatasetBootstrap('timeseries')).toBe(true);
         expect(pageNeedsDatasetBootstrap('prepare')).toBe(true);
         expect(pageNeedsDatasetBootstrap('scatter')).toBe(true);
+        expect(pageNeedsDatasetBootstrap('pair-plot')).toBe(true);
         expect(pageNeedsDatasetBootstrap('scattermatrix')).toBe(true);
         expect(pageNeedsDatasetBootstrap('drift')).toBe(true);
     });

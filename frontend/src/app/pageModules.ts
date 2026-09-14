@@ -81,16 +81,11 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
         cssModules: ['scatter'],
         async load(deps) {
             const { initHeatmapPage, initHeatmapScatterLayer } = await import('../features/heatmap/index.js');
-            const { initHeatmapPairPlot } = await import('../features/heatmap/pairPlot/index.js');
             return {
                 init: async () => {
                     const metadata = deps.workspace.getSnapshot().dataset.metadata;
-                    const pairPlot = metadata
-                        ? await initHeatmapPairPlot(metadata, { workspace: deps.workspace })
-                        : undefined;
                     const disposeHeatmap = await initHeatmapPage({
                         showPage: deps.showPage,
-                        selectPair: pairPlot?.selectPair,
                         cleaningPlanStore: deps.cleaningPlanStore,
                         onPlanChanged: deps.onCleaningPlanChanged,
                     });
@@ -102,8 +97,23 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
                     return () => {
                         disposeMatrix?.();
                         disposeHeatmap?.();
-                        pairPlot?.dispose();
                     };
+                },
+            };
+        },
+    },
+    {
+        name: 'scatter',
+        requiresMetadata: true,
+        cssModules: ['scatter'],
+        async load(deps) {
+            const { initScatterPage } = await import('../features/scatter/index.js');
+            return {
+                init: () => {
+                    const metadata = deps.workspace.getSnapshot().dataset.metadata;
+                    return metadata
+                        ? initScatterPage(metadata, { workspace: deps.workspace })
+                        : undefined;
                 },
             };
         },

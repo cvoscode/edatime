@@ -30,11 +30,10 @@ import { buildHeatmapCellPresentation } from './cellPresentation.js';
 import { classifyHeatmapLoadError } from './loadErrorPolicy.js';
 import type { CleaningPlanStore } from '../../cleaning/store.js';
 import { toast } from '../../utils/toast.js';
+import { requestScatterPair } from '../scatter/pairIntent.js';
 
 interface HeatmapPageDeps {
     showPage: (pageName: string) => void;
-    /** Select a pair in the embedded Pair plot without leaving this page. */
-    selectPair?: (x: string, y: string) => void | Promise<void>;
     /** Optional so the page stays embeddable in isolated visual tests. */
     cleaningPlanStore?: Pick<CleaningPlanStore, 'getSnapshot' | 'addStage'>;
     onPlanChanged?: () => void;
@@ -171,14 +170,8 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
     };
     const openScatterPair = (x: string, y: string): void => {
         syncSelectedPair(x, y);
-        if (deps.selectPair) {
-            void deps.selectPair(x, y);
-            return;
-        }
-        // Isolated embeds and tests can still synchronize the native controls
-        // without pulling in the complete Pair plot runtime.
-        setDropdownValue('scatter-x-col', x, { emitChange: false });
-        setDropdownValue('scatter-y-col', y, { emitChange: true });
+        requestScatterPair(x, y);
+        deps.showPage('scatter');
     };
 
     async function loadMatrix(nextMetric: CorrelationMetric = metric): Promise<void> {
@@ -377,7 +370,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
             getDropdownValue('scatter-y-col'),
         );
         document.dispatchEvent(new CustomEvent('edatime:heatmap-grid-rendered'));
-        // A cell selects the live Pair plot on this page; it never navigates.
+        // A cell opens the dedicated Pair plot page with the selected axes.
         container.onclick = (event: MouseEvent) => {
             const cell = (event.target as HTMLElement).closest<HTMLElement>('.heatmap-cell');
             if (!cell) return;
