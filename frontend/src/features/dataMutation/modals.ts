@@ -3,6 +3,7 @@ import { createDataMutationFeature } from './feature.js';
 import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import type { CleaningPlanStore } from '../../cleaning/store.js';
+import { addDerivedColumn } from '../../cleaning/derivedColumn.js';
 
 const dataMutationFeature = createDataMutationFeature();
 
@@ -15,6 +16,7 @@ interface DataMutationModalDeps {
 }
 
 interface TransformModalDeps extends DataMutationModalDeps {
+    workspace?: Pick<WorkspaceStore, 'getSnapshot' | 'setSelection'>;
     planStore?: Pick<CleaningPlanStore, 'getSnapshot' | 'addStage'>;
     onPlanChanged?: () => void;
 }
@@ -65,16 +67,9 @@ export function initTransformModal(deps: TransformModalDeps): void {
             const planStore = deps.planStore;
             const plan = planStore?.getSnapshot();
             if (!planStore || !plan) throw new Error('Load a dataset before adding a derived column to the pipeline.');
-            planStore.addStage({
-                kind: 'derivedColumn',
-                executionClass: 'polarsExpression',
-                scope: 'schema',
-                enabled: true,
-                sourcePage: 'manual',
-                label: `Derive ${name}`,
-                expression: expr,
-                outputColumn: name,
-            });
+            await addDerivedColumn(planStore, expr, name, 'timeseries');
+            const selection = deps.workspace?.getSnapshot().selection;
+            if (selection) deps.workspace?.setSelection([...selection.columns, name], selection.colorColumn);
             deps.onPlanChanged?.();
             controller.close();
         } catch (error: any) {
@@ -138,6 +133,10 @@ export function initOutlierModal(deps: OutlierModalDeps): void {
                 method: methodName,
                 threshold,
             });
+            const current = planStore.getSnapshot();
+            if (!current || current.id !== plan.id || current.planRevision !== plan.planRevision) {
+                throw new Error('The pipeline changed while calculating outlier ranges. Propose them again.');
+            }
             for (const range of proposal.ranges) {
                 planStore.addStage({
                     kind: 'columnRange',

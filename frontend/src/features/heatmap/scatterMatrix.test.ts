@@ -38,6 +38,7 @@ vi.mock('../scatter/helpers.js', () => ({
 }));
 
 import { initHeatmapScatterLayer } from './scatterMatrix.js';
+import { cleaningPlanStore } from '../../cleaning/store.js';
 
 function cell(row: string, column: string, value: string): string {
     return `<div class="heatmap-cell" data-row-name="${row}" data-col-name="${column}"
@@ -65,6 +66,7 @@ function buildDom(): void {
 describe('Correlation page unified scatter layer', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        cleaningPlanStore.clear();
         buildDom();
         mocks.fetchMatrixBatchData.mockResolvedValue(new Map([
             ['x|x', { totalPoints: 2, points: [[1, 1], [2, 2]], colorValues: null, colorLabels: null }],
@@ -135,6 +137,17 @@ describe('Correlation page unified scatter layer', () => {
                 categoryColors,
             }),
         );
+        dispose();
+    });
+
+    it('offers calculated color columns and removes dropped columns', async () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-color', datasetRevision: 1, datasetFingerprint: 'color', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        cleaningPlanStore.addStage({ kind: 'derivedColumn', executionClass: 'polarsExpression', scope: 'schema', enabled: true, sourcePage: 'manual', label: 'Calculate score', expression: 'x + y', outputColumn: 'score' });
+        cleaningPlanStore.addStage({ kind: 'columnSelect', executionClass: 'polarsExpression', scope: 'schema', enabled: true, sourcePage: 'manual', label: 'Drop x', columns: ['x'], mode: 'drop' });
+        const workspace = { getSnapshot: vi.fn(() => makeWorkspaceSnapshot()), subscribe: vi.fn(() => vi.fn()) };
+        const dispose = await initHeatmapScatterLayer({ numeric_columns: ['x', 'y'], columns: [{ name: 'x', dtype: 'Float64' }, { name: 'y', dtype: 'Float64' }] } as any, { workspace });
+        const colorSelect = document.getElementById('heatmap-color-column') as HTMLSelectElement;
+        expect(Array.from(colorSelect.options).map((option) => option.value)).toEqual(['', 'y', 'score']);
         dispose();
     });
 

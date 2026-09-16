@@ -35,6 +35,7 @@ import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
 import { bindInfoPopovers } from '../../ui/infoPopovers.js';
 import { onFeatureEvent } from '../../platform/featureEvents.js';
 import { onThemeChange } from '../../utils/theme.js';
+import { resetSelectionState } from './selectionState.js';
 
 let _chartEl: HTMLDivElement | null = null;
 let _causalPageListeners: AbortController | null = null;
@@ -46,11 +47,15 @@ export function disposeCausalPage(): void {
     _chartEl = null;
     setChartEl(null);
     disposeCausalPageRuntime();
+    const selected = [..._selectedColumns];
+    resetSelectionState();
+    for (const column of selected) _selectedColumns.add(column);
 }
 
 function seedSelectedColumnsFromDataset(deps: CausalDeps): void {
-    if (_selectedColumns.size > 0) return;
     const numericSet = new Set(workspaceNumericColumns(deps));
+    for (const column of _selectedColumns) if (!numericSet.has(column)) _selectedColumns.delete(column);
+    if (_selectedColumns.size > 0) return;
     const restored = deps.workspace.getSnapshot().selection.columns.filter((col) => numericSet.has(col));
     if (restored.length === 0) return;
     for (const col of restored) {

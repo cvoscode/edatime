@@ -93,7 +93,7 @@
         <span class="nav-text">Signals</span>
         <kbd class="nav-shortcut">⌥2</kbd>
       </button>
-      <button class="nav-item" type="button" data-page="prepare" title="Preparation (Alt+3)"
+      <button class="nav-item" id="prepare-nav-btn" type="button" data-page="prepare" title="Preparation (Alt+3)"
         aria-label="Preparation">
         <span class="nav-icon">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
@@ -353,11 +353,17 @@
         <div class="page-header">
           <div class="page-header__copy">
             <h1 class="page-header__title">Signals</h1>
-            <p class="page-header__description">Inspect behavior, ranges, and anomalies over time.</p>
+            <p class="page-header__description">Inspect, filter, clean, and calculate. Pipeline changes feed every plot.</p>
           </div>
           <button id="timeseries-help-btn" class="page-help-trigger" type="button"
             aria-label="Show help for the Signals page" title="Show help for the Signals page (?)"><span
               aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
+        </div>
+        <div class="toolbar" role="group" aria-label="Data preparation tools">
+          <span class="toolbar-label">Prepare data</span>
+          <button class="btn btn-ghost btn-sm" type="button" data-action-proxy="transform-open-btn">Calculate / combine columns</button>
+          <button class="btn btn-ghost btn-sm" type="button" data-action-proxy="outlier-open-btn">Clean outliers</button>
+          <button class="btn btn-ghost btn-sm" type="button" data-action-proxy="prepare-nav-btn">Pipeline and dataset exports</button>
         </div>
         <details
           class="toolbar toolbar--series timeseries-command-bar timeseries-series-disclosure analysis-secondary-disclosure analysis-collapse-tablet"
@@ -2356,11 +2362,11 @@
             <div class="modal-grid">
               <label class="modal-field">
                 <span class="modal-label">Min</span>
-                <input id="column-filter-min" class="modal-input" type="number" step="0.01" aria-label="Minimum value">
+                <input id="column-filter-min" class="modal-input" type="number" step="0.01" data-preserve-precision aria-label="Minimum value">
               </label>
               <label class="modal-field">
                 <span class="modal-label">Max</span>
-                <input id="column-filter-max" class="modal-input" type="number" step="0.01" aria-label="Maximum value">
+                <input id="column-filter-max" class="modal-input" type="number" step="0.01" data-preserve-precision aria-label="Maximum value">
               </label>
             </div>
 
@@ -2420,7 +2426,7 @@
             </label>
             <div class="modal-hint" id="transform-hint">
               Supported: +, -, *, /, %, abs(), log(), log2(), log10(), sqrt(), exp(), sin(), cos(), tan(), ceil(),
-              floor(), round(). Adds an editable pipeline stage; preview or materialize it from the Pipeline Workbench.
+              floor(), round(). Calculations update the working dataset in every plot. Review and export the steps on Preparation.
             </div>
             <div class="modal-hint" id="transform-error" style="color:#ff4a6e;"></div>
           </div>

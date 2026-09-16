@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { previewMock, applyMock, exportPlanMock, exportCodeMock, exportManifestMock, exportBundleMock, listVersionsMock, selectVersionMock, storageUsageMock, sessionJobsMock, cancelSessionJobMock, downloadBlobMock } = vi.hoisted(() => ({
+const { previewMock, applyMock, exportDataMock, exportPlanMock, exportCodeMock, exportManifestMock, exportBundleMock, listVersionsMock, selectVersionMock, storageUsageMock, sessionJobsMock, cancelSessionJobMock, downloadBlobMock } = vi.hoisted(() => ({
     previewMock: vi.fn(),
     applyMock: vi.fn(),
+    exportDataMock: vi.fn(),
     exportPlanMock: vi.fn(),
     exportCodeMock: vi.fn(),
     exportManifestMock: vi.fn(),
@@ -18,6 +19,7 @@ const { previewMock, applyMock, exportPlanMock, exportCodeMock, exportManifestMo
 vi.mock('./api.js', () => ({
     previewCleaningPlan: previewMock,
     applyCleaningPlan: applyMock,
+    exportCleaningData: exportDataMock,
     exportCleaningPlan: exportPlanMock,
     exportCleaningCode: exportCodeMock,
     exportCleaningManifest: exportManifestMock,
@@ -47,6 +49,7 @@ describe('cleaning plan panel', () => {
         document.body.innerHTML = '<button id="open-cleaning-plan-btn"></button>';
         previewMock.mockReset();
         applyMock.mockReset();
+        exportDataMock.mockReset();
         exportPlanMock.mockReset();
         exportCodeMock.mockReset();
         exportManifestMock.mockReset();
@@ -77,6 +80,21 @@ describe('cleaning plan panel', () => {
         await Promise.resolve();
         expect(exportPlanMock).toHaveBeenCalledWith(planStore.getSnapshot());
         expect(downloadBlobMock).toHaveBeenCalledWith(expect.any(Blob), 'edatime_cleaning_plan.json');
+    });
+
+    it('downloads the full working dataset from the Export tab', async () => {
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        exportDataMock.mockResolvedValue(new Blob(['parquet']));
+        mountCleaningPlanPanel({ planStore, getViewport: () => null });
+
+        document.getElementById('open-cleaning-plan-btn')!.click();
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Export')!.click();
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Download dataset (Parquet)')!.click();
+        await Promise.resolve();
+
+        expect(exportDataMock).toHaveBeenCalledWith(planStore.getSnapshot());
+        expect(downloadBlobMock).toHaveBeenCalledWith(expect.any(Blob), 'edatime_prepared.parquet');
     });
 
     it('exports backend-canonical Python and Rust code from the current plan', async () => {
@@ -568,6 +586,24 @@ describe('cleaning plan panel', () => {
         (editor.elements.namedItem('mode') as HTMLSelectElement).value = 'drop';
         editor.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
         expect(planStore.getSnapshot()!.stages[0]).toMatchObject({ kind: 'columnSelect', mode: 'drop' });
+    });
+
+    it('can edit a step that drops a column using its input schema', () => {
+        const planStore = createCleaningPlanStore();
+        planStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        const stage = planStore.addStage({ kind: 'columnSelect', executionClass: 'polarsExpression', scope: 'schema', enabled: true, sourcePage: 'manual', label: 'Drop target', columns: ['target'], mode: 'drop' });
+        const getColumns = vi.fn((beforeStageId?: string) => beforeStageId === stage.id ? ['ts', 'target'] : ['ts']);
+        mountCleaningPlanPanel({ planStore, getViewport: () => null, getColumns });
+        const trigger = document.getElementById('open-cleaning-plan-btn')!;
+        trigger.dataset.planStageId = stage.id;
+        trigger.click();
+
+        const editor = document.querySelector<HTMLFormElement>('form.pipeline-workbench__editor')!;
+        const columns = editor.elements.namedItem('columns') as HTMLInputElement;
+        expect(columns.value).toBe('target');
+        expect(columns.checkValidity()).toBe(true);
+        expect(getColumns).toHaveBeenCalledWith(stage.id);
+        expect(Array.from(document.querySelectorAll(`#${columns.getAttribute('list')} option`)).map((option) => (option as HTMLOptionElement).value)).toContain('target');
     });
 
     it('authors and edits explicit fixed-duration resampling after a time sort', () => {

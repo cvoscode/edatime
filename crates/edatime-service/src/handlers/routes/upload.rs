@@ -14,7 +14,6 @@ use tokio::sync::OwnedSemaphorePermit;
 
 use crate::error::AppError;
 use crate::handlers::routes::metadata::build_dataset_metadata_from_path_with_time_column;
-use crate::handlers::scatter::spawn_correlation_matrix_warmup;
 use edatime_ingest::ingest::IngestParams;
 use edatime_query::validation::validate_upload_size_with_limit;
 use edatime_store::state::AppState;
@@ -143,14 +142,9 @@ pub async fn upload_data(
     };
 
     state.set_time_column_display_name(time_column_name.clone());
-    if state.artifact_store.is_none() {
-        let _warmup = spawn_correlation_matrix_warmup(state.clone());
-    } else {
-        // A scan-backed upload must not immediately trigger an unbudgeted
-        // full-column correlation warmup. Exact warmup belongs in the future
-        // admitted background-job path.
-        tracing::debug!("Skipping eager correlation warmup for scan-backed upload");
-    }
+    // Correlations are computed on demand for the requested working plan and
+    // metric. Warming all six source matrices cannot serve plan-aware plots
+    // and competes with profiling and the user's first chart request.
 
     Ok(Json(serde_json::json!({
         "status": "success",

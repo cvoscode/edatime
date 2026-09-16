@@ -25,6 +25,7 @@ import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 import type { DataObject } from '../types/api.js';
 import { ensureStyleModule, type StyleModuleName } from '../utils/pageStyles.js';
 import { initDatasetSwitcher } from '../ui/datasetSwitcher.js';
+import { getEffectiveMetadata } from '../cleaning/schema.js';
 
 export interface PageDescriptorInitDeps {
     getRenderTimeseries: () => void;
@@ -172,7 +173,19 @@ export async function loadPageDescriptors(registry: FeatureRegistry, deps: PageD
                         ensureStyleModule(moduleName);
                     }
                 }
-                const entry = await descriptor.load(deps);
+                const usesSourceColumnControls = ['fft', 'spectrogram', 'causal', 'drift'].includes(descriptor.name);
+                const entry = await descriptor.load(usesSourceColumnControls ? {
+                    ...deps,
+                    workspace: {
+                        ...deps.workspace,
+                        getSnapshot: () => {
+                            const snapshot = deps.workspace.getSnapshot();
+                            return { ...snapshot, dataset: { ...snapshot.dataset,
+                                metadata: getEffectiveMetadata(snapshot.dataset.metadata, deps.cleaningPlanStore.getSnapshot()),
+                            } };
+                        },
+                    },
+                } : deps);
                 return entry.init();
             },
         });

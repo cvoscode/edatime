@@ -89,6 +89,7 @@ let driftPageCleanup: (() => void) | null = null;
 export function disposeDriftPage(): void {
     driftPageCleanup?.();
     driftPageCleanup = null;
+    clearSelection();
 }
 
 export async function initDriftPage(

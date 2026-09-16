@@ -9,6 +9,7 @@ import {
 import { createWorkspaceStore, type WorkspaceStore } from '../../workspace/workspaceStore.js';
 import { clearFeatureEventHandlers, onFeatureEvent } from '../../platform/featureEvents.js';
 import { createTimeseriesRuntimeCache, type TimeseriesRuntimeCache } from './runtimeCache.js';
+import { cleaningPlanStore } from '../../cleaning/store.js';
 
 let defaultWorkspace: WorkspaceStore;
 function setMetadata(metadata: any) {
@@ -36,6 +37,7 @@ function createTimeseriesPageController(deps: Record<string, any>) {
 
 describe('createTimeseriesPageController', () => {
     beforeEach(() => {
+        cleaningPlanStore.clear();
         clearFeatureEventHandlers();
         defaultWorkspace = createWorkspaceStore();
         defaultWorkspace.setViewport({ xMin: 0, xMax: 100, yMin: null, yMax: null });
@@ -48,6 +50,26 @@ describe('createTimeseriesPageController', () => {
         defaultWorkspace.setFilters({ columnRanges: {}, adaptiveLines: [] });
         setWorkspaceSelection([]);
         setWorkspaceColorColumn(null);
+    });
+
+    it('refetches a buffered viewport when only the pipeline values change', async () => {
+        setMetadata({ revision: 1, columns: [{ name: 'value', dtype: 'Float64' }], numeric_columns: ['value'], time_column: 'ts', time_range: { min: 0, max: 100 }, column_profiles: [] });
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source', datasetRevision: 1, datasetFingerprint: null, schemaFingerprint: 'schema', timeColumn: 'ts' });
+        setWorkspaceSelection(['value']);
+        const data = (values: number[]) => ({ ts: new Float64Array([0, 50, 100]), values: { value: new Float64Array(values) }, _meta: { downsampled: false, downsampleKnown: true } });
+        const fetchData = vi.fn().mockResolvedValueOnce(data([1, 2, 3])).mockResolvedValueOnce(data([2, 4, 6]));
+        const controller = createTimeseriesPageController({ fetchData, buildRangeControls: vi.fn(), updateAnalysisYRange: vi.fn(), updateAnalysisZoom: vi.fn(), getCurrentView: vi.fn(), fetchAndRenderAnalytics: vi.fn() });
+        await controller.fetchAndRender();
+        await controller.fetchAndRender();
+        expect(fetchData).toHaveBeenCalledOnce();
+        cleaningPlanStore.addStage({ kind: 'derivedColumn', executionClass: 'polarsExpression', scope: 'schema', enabled: true, sourcePage: 'manual', label: 'Double', outputColumn: 'value', expression: 'value * 2' });
+        await controller.fetchAndRender();
+        expect(fetchData).toHaveBeenCalledTimes(2);
+        expect(Array.from(controller.getCurrentData()!.values.value)).toEqual([2, 4, 6]);
+        controller.invalidateData();
+        expect(controller.getCurrentData()).toBeNull();
+        expect(controller.getZoomHistory()).toEqual([]);
+        controller.dispose();
     });
 
     it('keeps each controller empty-state reset binding isolated through disposal', () => {

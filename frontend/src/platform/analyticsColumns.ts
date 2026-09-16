@@ -27,20 +27,35 @@ export function getNumericColumns(metadata: DatasetMetadata | null): string[] {
         });
 }
 
-/** Numeric schema visible before materialization when a draft adds columns. */
-export function getEffectiveNumericColumns(metadata: DatasetMetadata | null, plan?: CleaningPlan | null): string[] {
-    let columns = getNumericColumns(metadata);
-    if (!plan) return columns;
-    for (const stage of plan.stages) {
+/** Column choices follow the ordered pipeline, including unmaterialized stages. */
+function projectColumns(columns: string[], plan: CleaningPlan | null | undefined, numeric: boolean): string[] {
+    for (const stage of plan?.stages ?? []) {
         if (!stage.enabled) continue;
-        if (stage.kind === 'derivedColumn') {
-            if (!columns.includes(stage.outputColumn)) columns = [...columns, stage.outputColumn];
+        if (stage.kind === 'derivedColumn' || stage.kind === 'chronologicalSplit') {
+            if (numeric && stage.kind === 'chronologicalSplit') columns = columns.filter((column) => column !== stage.outputColumn);
+            else if (!columns.includes(stage.outputColumn)) columns.push(stage.outputColumn);
         } else if (stage.kind === 'columnSelect') {
-            const selected = new Set(stage.columns);
-            columns = stage.mode === 'keep' ? columns.filter((column) => selected.has(column)) : columns.filter((column) => !selected.has(column));
+            columns = stage.mode === 'keep'
+                ? stage.columns.filter((column) => columns.includes(column))
+                : columns.filter((column) => !stage.columns.includes(column));
+        } else if (stage.kind === 'resample') {
+            columns = [...(numeric ? [] : [plan!.timeColumn]), ...stage.aggregations.map(({ column }) => column)];
         }
     }
     return columns;
+}
+
+function matchingPlan(metadata: DatasetMetadata | null, plan?: CleaningPlan | null): CleaningPlan | null | undefined {
+    return metadata?.source_version_id && metadata.source_version_id !== plan?.sourceVersionId ? null : plan;
+}
+
+export function getEffectiveColumnNames(metadata: DatasetMetadata | null, plan?: CleaningPlan | null): string[] {
+    const columns = [...new Set([...(metadata?.columns ?? []).map(({ name }) => name), ...(metadata?.numeric_columns ?? [])])];
+    return projectColumns(columns, matchingPlan(metadata, plan), false);
+}
+
+export function getEffectiveNumericColumns(metadata: DatasetMetadata | null, plan?: CleaningPlan | null): string[] {
+    return projectColumns(getNumericColumns(metadata), matchingPlan(metadata, plan), true);
 }
 
 /**

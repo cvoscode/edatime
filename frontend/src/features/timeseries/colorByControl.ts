@@ -7,7 +7,8 @@
  */
 import { ColorBySelect } from '../../ui/composites/ColorBySelect.js';
 import type { SelectionWorkspace } from './selectionIntent.js';
-import { getEffectiveNumericColumns } from '../../platform/analyticsColumns.js';
+import { getEffectiveColumnNames, getEffectiveNumericColumns } from '../../platform/analyticsColumns.js';
+import { cleaningPlanStore } from '../../cleaning/store.js';
 
 export interface ColorByControlOptions {
     workspace: SelectionWorkspace;
@@ -27,16 +28,14 @@ export function renderColorByControl(options: ColorByControlOptions): void {
     if (!slot) return;
     slot.innerHTML = '';
 
-    const metadataCols = (options.workspace.getSnapshot().dataset.metadata?.columns ?? [])
-        .map((column) => String(column?.name ?? '').trim())
-        .filter(Boolean);
+    const metadataCols = getEffectiveColumnNames(options.workspace.getSnapshot().dataset.metadata, cleaningPlanStore.getSnapshot());
 
     const control = ColorBySelect({
         columns: metadataCols,
         value: options.workspace.getSnapshot().selection.colorColumn,
         onChange: (value) => {
             const snapshot = options.workspace.getSnapshot();
-            const numericColumns = new Set(getEffectiveNumericColumns(snapshot.dataset.metadata));
+            const numericColumns = new Set(getEffectiveNumericColumns(snapshot.dataset.metadata, cleaningPlanStore.getSnapshot()));
             const selectedColumns = value && numericColumns.has(value) && !snapshot.selection.columns.includes(value)
                 ? [...snapshot.selection.columns, value]
                 : snapshot.selection.columns;

@@ -125,6 +125,20 @@ describe('FlexibleNumberInput primitive', () => {
         expect(input.classList.contains('is-clamped')).toBe(false);
     });
 
+    it.each(['0.123456', '0.50'])('preserves exact bound text %s on blur when requested', (value) => {
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.step = '0.01';
+        input.setAttribute('data-preserve-precision', '');
+        document.body.appendChild(input);
+        setupFlexibleNumberInput(input);
+
+        input.value = value;
+        input.dispatchEvent(new Event('blur'));
+
+        expect(input.value).toBe(value);
+    });
+
     it('uses runtime soft bounds and precision without native input constraints', () => {
         const input = document.createElement('input');
         input.type = 'number';

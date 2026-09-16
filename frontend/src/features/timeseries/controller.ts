@@ -28,6 +28,7 @@ import {
 } from './zoomHistoryPolicy.js';
 import { createTimeseriesRuntimeCache, type TimeseriesRuntimeCache } from './runtimeCache.js';
 import { getDefaultTimeseriesChartText } from './chartText.js';
+import { getCleaningPlanHash } from '../../cleaning/store.js';
 
 const EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} } as any;
 
@@ -119,7 +120,8 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
     }
 
     function getRequestIntent() {
-        return resolveTimeseriesRequestIntent(deps.workspace.getSnapshot());
+        const intent = resolveTimeseriesRequestIntent(deps.workspace.getSnapshot());
+        return { ...intent, key: JSON.stringify([datasetKey(), getCleaningPlanHash(), intent.key]) };
     }
 
     function getFilterIntent(): TimeseriesFilterIntent {
@@ -394,7 +396,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             }
 
 
-            if (disposed || signal.aborted || datasetKey() !== requestDataset) return;
+            if (disposed || signal.aborted || datasetKey() !== requestDataset || currentFetchKey() !== requestIntent.key) return;
             runtimeCache.data = data;
             runtimeCache.fetchedWindow = resolveFetchedWindow({
                 data,
@@ -532,16 +534,23 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         return `${dataset.revision}|${dataset.activeSourceVersionId ?? ''}`;
     }
     let observedDataset = datasetKey();
-    const unsubscribeDataset = deps.workspace.subscribe?.(() => {
-        const next = datasetKey();
-        if (next === observedDataset) return;
-        observedDataset = next;
+    function invalidateData(): void {
         task.cancel();
-        runtimeCache.dispose();
+        runtimeCache.clearScheduledFetch();
+        runtimeCache.data = null;
+        runtimeCache.fetchedWindow = null;
         zoomRestoreHistory = [];
         consecutiveZoomOuts = 0;
         lastKnownView = null;
         lastFetchedParams = null;
+        setRollingBands(null);
+    }
+    const unsubscribeDataset = deps.workspace.subscribe?.(() => {
+        const next = datasetKey();
+        if (next === observedDataset) return;
+        observedDataset = next;
+        invalidateData();
+        runtimeCache.dispose();
     });
 
     function dispose(): void {
@@ -556,6 +565,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
     return {
         getZoomHistory: () => zoomRestoreHistory.map(entry => ({ ...entry.view })),
         dispose,
+        invalidateData,
         fetchAndRender,
         getCurrentData: () => runtimeCache.data,
         onZoomRangeChange,

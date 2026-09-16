@@ -75,6 +75,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
     };
 
     let activeBounds: { min: number; max: number } | null = null;
+    let rangeDrag: { pointerId: number; handle: 'min' | 'max' } | null = null;
     function setColumnRange(col: string, range: { from: number; to: number }): void {
         const plan = deps.cleaningPlanStore?.getSnapshot();
         if (plan && deps.cleaningPlanStore) {
@@ -245,15 +246,23 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
         maxSliderInput.value = String(to);
     }
 
+    function syncTextInput(input: HTMLInputElement, value: number) {
+        input.value = formatInputValue(value);
+        input.dataset.exactValue = String(value);
+        input.dataset.exactDisplay = input.value;
+        input.title = `Stored ${input === minTextInput ? 'lower' : 'upper'} bound: ${input.value}`;
+    }
+
+    function readExactBound(input: HTMLInputElement, fallback: number): number {
+        const value = input.value === input.dataset.exactDisplay
+            ? Number.parseFloat(input.dataset.exactValue ?? '')
+            : Number.parseFloat(input.value);
+        return Number.isFinite(value) ? value : fallback;
+    }
+
     function syncInputsFromValues(from: number, to: number) {
-        minTextInput.value = formatInputValue(from);
-        maxTextInput.value = formatInputValue(to);
-        minTextInput.dataset.exactValue = String(from);
-        maxTextInput.dataset.exactValue = String(to);
-        minTextInput.dataset.exactDisplay = minTextInput.value;
-        maxTextInput.dataset.exactDisplay = maxTextInput.value;
-        minTextInput.title = `Stored lower bound: ${minTextInput.value}`;
-        maxTextInput.title = `Stored upper bound: ${maxTextInput.value}`;
+        syncTextInput(minTextInput, from);
+        syncTextInput(maxTextInput, to);
         syncSliderValues(from, to);
         updateRangeFill(from, to);
     }
@@ -312,8 +321,14 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
     }
 
     function syncFromRangeInputs(changed: 'min' | 'max') {
-        let from = Number.parseFloat(minSliderInput.value);
-        let to = Number.parseFloat(maxSliderInput.value);
+        // Native sliders round to their step. Read the untouched endpoint from
+        // its text field so dragging one handle preserves the other exactly.
+        let from = changed === 'min'
+            ? Number.parseFloat(minSliderInput.value)
+            : readExactBound(minTextInput, activeBounds?.min ?? Number.NaN);
+        let to = changed === 'max'
+            ? Number.parseFloat(maxSliderInput.value)
+            : readExactBound(maxTextInput, activeBounds?.max ?? Number.NaN);
 
         // Each end of the dual slider owns only its corresponding bound.
         // Crossing clamps the active handle instead of pushing the other one.
@@ -325,7 +340,10 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
             to = clampToBounds(to, activeBounds);
         }
 
-        syncInputsFromValues(from, to);
+        if (changed === 'min') syncTextInput(minTextInput, from);
+        else syncTextInput(maxTextInput, to);
+        syncSliderValues(from, to);
+        updateRangeFill(from, to);
         validateTextInputs();
     }
 
@@ -348,7 +366,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
     }
 
     function moveNearestRangeHandle(event: PointerEvent) {
-        if (event.button !== 0 || minSliderInput.disabled || maxSliderInput.disabled) return;
+        if (event.button !== 0 || rangeDrag || minSliderInput.disabled || maxSliderInput.disabled) return;
         if (event.target === minSliderInput || event.target === maxSliderInput) return;
 
         const value = valueFromRangePointer(event.clientX);
@@ -367,7 +385,30 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
         input.value = String(value);
         syncFromRangeInputs(handle);
         input.focus();
+        rangeDrag = { pointerId: event.pointerId, handle };
+        rangeControlEl.setPointerCapture?.(event.pointerId);
         event.preventDefault();
+    }
+
+    function moveDraggedRangeHandle(event: PointerEvent) {
+        if (!rangeDrag || event.pointerId !== rangeDrag.pointerId) return;
+        const value = valueFromRangePointer(event.clientX);
+        if (value === null) return;
+        const input = rangeDrag.handle === 'min' ? minSliderInput : maxSliderInput;
+        input.value = String(value);
+        syncFromRangeInputs(rangeDrag.handle);
+        event.preventDefault();
+    }
+
+    function stopRangeDrag() {
+        if (!rangeDrag) return;
+        const { pointerId } = rangeDrag;
+        rangeDrag = null;
+        if (rangeControlEl.hasPointerCapture?.(pointerId)) rangeControlEl.releasePointerCapture(pointerId);
+    }
+
+    function endRangeDrag(event: PointerEvent) {
+        if (event.pointerId === rangeDrag?.pointerId) stopRangeDrag();
     }
 
     function getFullBoundsForCol(col: string): { min: number; max: number } | null {
@@ -424,6 +465,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
     }
 
     function refreshInputsForCol(col: string) {
+        stopRangeDrag();
         if (!col) {
             minTextInput.value = '';
             maxTextInput.value = '';
@@ -467,6 +509,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
     }
 
     function closeModal() {
+        stopRangeDrag();
         modalEl.hidden = true;
         setHint('');
     }
@@ -538,6 +581,10 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
     listen(minSliderInput, 'focus', () => setActiveRangeHandle('min'));
     listen(maxSliderInput, 'focus', () => setActiveRangeHandle('max'));
     listen(rangeControlEl, 'pointerdown', moveNearestRangeHandle as EventListener);
+    listen(rangeControlEl, 'pointermove', moveDraggedRangeHandle as EventListener);
+    listen(rangeControlEl, 'pointerup', endRangeDrag as EventListener);
+    listen(rangeControlEl, 'pointercancel', endRangeDrag as EventListener);
+    listen(rangeControlEl, 'lostpointercapture', endRangeDrag as EventListener);
 
     listen(clearButton, 'click', () => {
         const col = getDropdownValue('column-filter-col');
@@ -557,6 +604,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
     const dispose = () => {
         if (disposed) return;
         disposed = true;
+        stopRangeDrag();
         abortController.abort();
         modalEl.hidden = true;
         modalEl.removeAttribute('data-bound');

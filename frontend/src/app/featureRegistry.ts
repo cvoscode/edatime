@@ -16,7 +16,7 @@ export interface FeatureRegistry {
     ensureFeatureLoaded(name: string): Promise<void>;
     markMetadataReady(): void;
     isMetadataReady(): boolean;
-    clearLoadedFeatures(): void;
+    clearLoadedFeatures(except?: readonly string[]): void;
     dispose(): void;
 }
 
@@ -26,31 +26,36 @@ export function createFeatureRegistry(): FeatureRegistry {
     const pendingInitializations = new Map<string, Promise<void>>();
     const featureDisposers = new Map<string, () => void>();
     let metadataReady = false;
-    let datasetSession = 0;
+    const generations = new Map<string, number>();
     let disposed = false;
     let releaseMetadata: (() => void) | null = null;
     const metadataPromise = new Promise<void>((resolve) => { releaseMetadata = resolve; });
 
-    return {
+    const registry: FeatureRegistry = {
         register(name: string, feature: FeatureDefinition) {
             if (disposed) return;
             features.set(name, feature);
         },
-        async ensureFeatureLoaded(name: string) {
+        async ensureFeatureLoaded(name: string): Promise<void> {
             if (disposed) return;
             if (loadedFeatures.has(name)) return;
             const feature = features.get(name);
             if (!feature) return;
             const pending = pendingInitializations.get(name);
-            if (pending) return pending;
+            if (pending) {
+                await pending;
+                // A plan/dataset can change while a lazy import is in flight.
+                if (!disposed && !loadedFeatures.has(name)) await registry.ensureFeatureLoaded(name);
+                return;
+            }
 
             const initialization = (async () => {
-                const sessionAtStart = datasetSession;
+                const sessionAtStart = generations.get(name) ?? 0;
                 if (feature.requiresMetadata && !metadataReady) await metadataPromise;
-                if (sessionAtStart !== datasetSession) return;
+                if (disposed || sessionAtStart !== (generations.get(name) ?? 0)) return;
                 try {
                     const dispose = await feature.init();
-                    if (sessionAtStart !== datasetSession) {
+                    if (disposed || sessionAtStart !== (generations.get(name) ?? 0)) {
                         dispose?.();
                         return;
                     }
@@ -65,7 +70,11 @@ export function createFeatureRegistry(): FeatureRegistry {
                 pendingInitializations.delete(name);
             });
             pendingInitializations.set(name, initialization);
-            return initialization;
+            await initialization;
+            // The original navigation also owns completion when startup or a
+            // dataset reset invalidates its generation. There may be no second
+            // navigation waiting on `pending` to retry the interrupted mount.
+            if (!disposed && !loadedFeatures.has(name)) await registry.ensureFeatureLoaded(name);
         },
         markMetadataReady() {
             if (disposed) return;
@@ -75,17 +84,19 @@ export function createFeatureRegistry(): FeatureRegistry {
         isMetadataReady() {
             return metadataReady;
         },
-        clearLoadedFeatures() {
+        clearLoadedFeatures(except: readonly string[] = []) {
             if (disposed) return;
-            datasetSession += 1;
-            for (const dispose of featureDisposers.values()) dispose();
-            featureDisposers.clear();
-            loadedFeatures.clear();
+            for (const name of features.keys()) {
+                if (except.includes(name)) continue;
+                generations.set(name, (generations.get(name) ?? 0) + 1);
+                featureDisposers.get(name)?.();
+                featureDisposers.delete(name);
+                loadedFeatures.delete(name);
+            }
         },
         dispose() {
             if (disposed) return;
             disposed = true;
-            datasetSession += 1;
             for (const dispose of featureDisposers.values()) dispose();
             featureDisposers.clear();
             loadedFeatures.clear();
@@ -93,4 +104,5 @@ export function createFeatureRegistry(): FeatureRegistry {
             releaseMetadata?.();
         },
     };
+    return registry;
 }

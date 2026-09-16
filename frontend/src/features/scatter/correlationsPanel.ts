@@ -10,6 +10,7 @@
 import { fetchScatterCorrelations } from '../../services/api/index.js';
 import { getEffectiveNumericColumns } from '../../platform/analyticsColumns.js';
 import { cleaningPlanStore } from '../../cleaning/store.js';
+import { getEffectiveColumns } from '../../cleaning/schema.js';
 import { canonicalPlanSemanticValue } from '../../cleaning/planHash.js';
 import { scatterState } from '../../store/scatterState.js';
 import type { ScatterState } from '../../store/scatterState.js';
@@ -239,12 +240,10 @@ export async function refreshCorrelationsAndSuggestions(
         deferSearchUntilTyping: true,
     });
 
+    const workingColumns = getEffectiveColumns(scatterState.metadata, cleaningPlanStore.getSnapshot());
+    scatterState.columnTypes = new Map(workingColumns.map((column) => [column.name.toLowerCase(), column.dtype]));
     if (getEl('scatter-color-column')) {
-        const colorOptions = [''].concat(
-            ((scatterState.metadata as any)?.columns || [])
-                .map((col: any) => String(col?.name || ''))
-                .filter(Boolean),
-        );
+        const colorOptions = ['', ...workingColumns.map((column) => column.name).filter(Boolean)];
         const preferredColor = scatterState.colorColumn || currentColor;
         setDropdownOptions('scatter-color-column', colorOptions.map((col) => ({
             value: col,
@@ -260,25 +259,11 @@ export async function refreshCorrelationsAndSuggestions(
     const familyModes = mode.endsWith('_diff')
         ? ['pearson_diff', 'spearman_diff']
         : ['pearson_raw', 'spearman_raw'];
-    const settledResponses = await Promise.allSettled(familyModes.map(async (familyMode) => {
-        if (familyMode === mode && response.base_column === selectedBase) {
-            return [familyMode, response] as const;
-        }
-        return [familyMode, await fetchScatterCorrelations(
-            selectedBase,
-            scatterState.suggestionThreshold,
-            familyMode as typeof mode,
-            options.queryContext ?? null,
-        )] as const;
-    }));
+    const activeResponse = response.base_column === selectedBase
+        ? response
+        : await fetchScatterCorrelations(selectedBase, scatterState.suggestionThreshold, mode, options.queryContext ?? null);
     if (!isCurrent()) return;
-    const responsesByMode = new Map<string, typeof response>();
-    for (const settled of settledResponses) {
-        if (settled.status === 'fulfilled') {
-            responsesByMode.set(settled.value[0], settled.value[1]);
-        }
-    }
-    const activeResponse = responsesByMode.get(mode) ?? response;
+    const responsesByMode = new Map<string, typeof response>([[mode, activeResponse]]);
 
     if (!selectedY && yCandidates.length > 0) setDropdownValue('scatter-y-col', yCandidates[0]!);
 
@@ -286,23 +271,40 @@ export async function refreshCorrelationsAndSuggestions(
     for (const row of activeResponse.correlations || []) {
         scatterState.correlationsByColumn.set(row.column, row);
     }
-    // Store every family-mode correlation map so the chip renderer can
-    // look up the current Y directly when only Y changes (the Y handler
-    // does not trigger a network refresh — only the X handler does).
-    scatterState.correlationsByMode = new Map();
-    for (const [familyMode, familyResponse] of responsesByMode) {
-        const byColumn = new Map<string, { value?: number | null; count?: number; column?: string }>();
-        for (const row of familyResponse?.correlations || []) {
-            byColumn.set(row.column, row);
+    const updateFamilyStats = () => {
+        // A secondary metric may finish after another pair or pipeline was
+        // selected. It must never publish statistics for that older context.
+        if (!isCurrent() || getDropdownValue('scatter-x-col') !== selectedBase) return;
+        scatterState.correlationsByMode = new Map();
+        for (const [familyMode, familyResponse] of responsesByMode) {
+            scatterState.correlationsByMode.set(familyMode, new Map(
+                (familyResponse.correlations ?? []).map((row) => [row.column, row]),
+            ));
         }
-        scatterState.correlationsByMode.set(familyMode, byColumn);
-    }
-    const activeY = getDropdownValue('scatter-y-col') || selectedY || '';
-    scatterState.currentPairStats = activeY ? buildCurrentPairStats(responsesByMode, activeY) : null;
+        const activeY = getDropdownValue('scatter-y-col') || selectedY || '';
+        scatterState.currentPairStats = activeY ? buildCurrentPairStats(responsesByMode, activeY) : null;
+        updateCorrelationStats();
+    };
 
+    updateFamilyStats();
     renderSuggestionsFromCache(options.onSuggestionApply);
-    updateCorrelationStats();
     updateColorbarUI();
+
+    // The selected metric is enough to choose and draw the pair. Ranking a
+    // secondary metric should not delay suggestions or the points request.
+    void Promise.allSettled(familyModes.filter((familyMode) => familyMode !== mode).map(async (familyMode) => (
+        [familyMode, await fetchScatterCorrelations(
+            selectedBase,
+            scatterState.suggestionThreshold,
+            familyMode as typeof mode,
+            options.queryContext ?? null,
+        )] as const
+    ))).then((settledResponses) => {
+        for (const settled of settledResponses) {
+            if (settled.status === 'fulfilled') responsesByMode.set(settled.value[0], settled.value[1]);
+        }
+        updateFamilyStats();
+    });
 }
 
 /**

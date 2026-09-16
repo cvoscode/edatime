@@ -44,8 +44,8 @@ The sidebar can be collapsed when you want more chart space.
 If you are new to the app, this is the fastest path to understanding a dataset:
 
 1. Go to Upload and confirm the detected schema and time range.
-2. Open Prepare to inspect the source-to-result pipeline and add reversible transformations.
-3. Open Timeseries and enable a few important numeric series.
+2. Open Signals and enable a few important numeric series. Filter values, clean outliers, or use **Calculate / combine columns** to add an expression such as `temperature - reference`.
+3. Open **Pipeline and dataset exports** to review the steps in Preparation, handle missing values, and add further calculations.
 4. Zoom into a time window of interest.
 5. Open Scatter to compare two variables inside that same linked time range.
 6. Switch Scatter from `Plot` to `Matrix` when you want a fast pairwise scan.
@@ -53,15 +53,37 @@ If you are new to the app, this is the fastest path to understanding a dataset:
 
 ## Prepare Page And Pipeline Workbench
 
-Prepare shows the current immutable source, ordered cleaning stages, and working
-dataset as a graph derived from the canonical plan. The same Pipeline Workbench
-is available from the shared header on every page.
+Preparation shows the current source and ordered cleaning stages. Signals and
+Preparation edit the same live pipeline: enabled steps feed every plot, and
+calculated columns become available immediately. Earlier calculations can be
+used in later expressions. Disabling, reordering, editing, or undoing a step
+invalidates results from the previous pipeline. Diagnostic pages that require
+an explicit computation return to their ready state for the current data.
 
-Use Prepare for quick stage authoring, enable/disable, keyboard reorder,
-removal, undo, and redo. Use the overlay for detailed stage editing,
-server-authoritative preview, materialization, and exports. The Export tab can
-save the canonical plan, graph JSON, graph SVG, and starter Python/Rust Polars
-code. Graph interaction never mutates the source directly.
+Use **Keep Signals time window** to make the current zoom range part of the
+pipeline. Zooming alone remains a viewing choice. Use **Edit** on a stage for
+its detailed controls, or **Graph and history** for the full Pipeline Workbench.
+**Preview changes** calculates exact row and column counts. **Create prepared
+dataset** becomes available after a successful preview of the current plan and
+saves and selects a new version; the source remains available in the dataset
+selector. Any plan edit, reorder, undo, or dataset change requires a fresh preview.
+Each numbered stage shows its exact row impact after the preview. Use its
+**Position** selector to move directly to another step, or **Move up / Move down**.
+
+Start with **Quality findings**. Counts summarize the source report; expand a
+category or **All columns** to inspect details. Missing-value actions appear only
+for reported null or non-finite findings. Sampled reports remain estimates.
+The sticky status bar shows whether the working plan is active in plots and
+whether its preview is current, alongside Undo and Redo. On narrow screens,
+**Jump to section** provides access to every section.
+
+The **Export dataset and pipeline** section downloads the full working dataset
+as Parquet, the pipeline as JSON, or backend-validated Python and Rust Polars
+code. The reproducibility bundle includes the plan, code, and provenance.
+These exports include all enabled steps, including drawn line filters, and do
+not require materialization. Chart CSV/JSON exports contain the rendered sample;
+use the dataset export when you need all rows and columns. The Workbench also
+exports the pipeline graph as JSON or SVG.
 
 The first temporal regularization operation is fixed-duration resampling:
 

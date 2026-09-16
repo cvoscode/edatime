@@ -5,6 +5,7 @@ import {
     exportCleaningBundle,
     exportCleaningManifest,
     exportCleaningPlan,
+    exportCleaningData,
     getArtifactStorageUsage,
     listSessionJobs,
     listDatasetVersions,
@@ -26,7 +27,7 @@ type StageComposerKind = 'missingValue' | 'deduplicate' | 'columnSelect' | 'sort
 export interface CleaningPlanPanelDeps {
     planStore: PlanPanelStore;
     getViewport: () => { xMin: number | null; xMax: number | null } | null;
-    getColumns?: () => string[];
+    getColumns?: (beforeStageId?: string) => string[];
     onPlanChanged?: () => void;
     onPlanApplied?: () => Promise<void> | void;
 }
@@ -337,21 +338,24 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
     } | null = null;
 
     const enhanceColumnInputs = (root: HTMLElement) => {
-        const columns = [...new Set((deps.getColumns?.() ?? []).map((column) => column.trim()).filter(Boolean))];
-        if (columns.length === 0) return;
-        let list = document.getElementById('cleaning-column-options') as HTMLDataListElement | null;
-        if (!list) {
-            list = document.createElement('datalist');
-            list.id = 'cleaning-column-options';
-            document.body.appendChild(list);
-        }
-        list.replaceChildren(...columns.map((column) => {
-            const option = document.createElement('option');
-            option.value = column;
-            return option;
-        }));
         const inputs = root.querySelectorAll<HTMLInputElement>('input[name="column"], input[name="columns"], input[name$="Columns"], input[name="missingValueColumn"]');
         for (const input of inputs) {
+            const editing = !!input.closest('.pipeline-workbench__editor');
+            const columns = [...new Set((deps.getColumns?.(editing ? selectedStageId ?? undefined : undefined) ?? [])
+                .map((column) => column.trim()).filter(Boolean))];
+            if (columns.length === 0) continue;
+            const listId = editing ? 'cleaning-editor-column-options' : 'cleaning-column-options';
+            let list = document.getElementById(listId) as HTMLDataListElement | null;
+            if (!list) {
+                list = document.createElement('datalist');
+                list.id = listId;
+                document.body.appendChild(list);
+            }
+            list.replaceChildren(...columns.map((column) => {
+                const option = document.createElement('option');
+                option.value = column;
+                return option;
+            }));
             input.setAttribute('list', list.id);
             if (!input.placeholder || /comma-separated|numeric column/i.test(input.placeholder)) {
                 input.placeholder = columns.slice(0, input.name === 'column' || input.name === 'missingValueColumn' ? 1 : 2).join(', ');
@@ -1109,6 +1113,16 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         copy.textContent = 'Export the backend-validated plan for reproducibility, backend-generated Python or Rust application code for supported v1 stages, or this visual projection for review.';
         const controls = document.createElement('div');
         controls.className = 'pipeline-workbench__export-actions';
+        const dataExport = button('Download dataset (Parquet)');
+        dataExport.addEventListener('click', async () => {
+            const current = deps.planStore.getSnapshot();
+            if (!current) return;
+            dataExport.disabled = true;
+            try { downloadBlob(await exportCleaningData(current), 'edatime_prepared.parquet'); }
+            catch (error) { preview.textContent = error instanceof Error ? error.message : 'Could not export the dataset.'; }
+            finally { dataExport.disabled = false; }
+        });
+        controls.append(dataExport);
         const planExport = button('Export plan JSON');
         planExport.addEventListener('click', async () => {
             planExport.disabled = true;
@@ -1431,9 +1445,10 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         trigger.focus();
     };
     const open = () => {
-        selectedStageId = null;
+        selectedStageId = trigger.dataset.planStageId ?? null;
+        delete trigger.dataset.planStageId;
         selectedHistoryEntryId = null;
-        activeTab = 'pipeline';
+        activeTab = selectedStageId ? 'stages' : 'pipeline';
         render();
         backdrop.hidden = false;
         pipelineTab.focus();
@@ -1473,6 +1488,8 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
         document.removeEventListener('keydown', trapFocus);
         unsubscribe();
         backdrop.remove();
+        document.getElementById('cleaning-column-options')?.remove();
+        document.getElementById('cleaning-editor-column-options')?.remove();
     };
 }
 

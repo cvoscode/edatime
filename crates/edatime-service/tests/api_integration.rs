@@ -1045,6 +1045,57 @@ async fn export_parquet_returns_data() {
     assert!(ct.contains("parquet") || ct.contains("octet-stream"));
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn prepared_parquet_download_finishes_when_browser_accepts_gzip() {
+    let frame = test_dataframe();
+    let app = test_app_with_dataframe(frame.clone());
+    let mut payload = plan_envelope(&frame, "ts");
+    payload["format"] = serde_json::json!("parquet");
+    payload["plan"]["stages"] = serde_json::json!([{
+        "id": "combined", "kind": "derivedColumn", "executionClass": "polarsExpression",
+        "scope": "schema", "enabled": true, "sourcePage": "manual", "label": "Combine columns",
+        "expression": "col_a + col_b", "outputColumn": "combined",
+        "createdAt": "2024-01-01T00:00:00Z", "updatedAt": "2024-01-01T00:00:00Z"
+    }]);
+    let request = Request::builder()
+        .method(Method::POST)
+        .uri("/api/v1/cleaning/export/data")
+        .header("content-type", "application/json")
+        .header("accept-encoding", "gzip, deflate, br")
+        .body(Body::from(serde_json::to_vec(&payload).unwrap()))
+        .unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(!response.headers().contains_key("content-encoding"));
+    let expected_bytes: usize = response.headers()["content-length"]
+        .to_str()
+        .unwrap()
+        .parse()
+        .unwrap();
+    let body = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        response.into_body().collect(),
+    )
+    .await
+    .expect("Parquet stream should reach EOF")
+    .unwrap()
+    .to_bytes();
+    assert_eq!(body.len(), expected_bytes);
+    let exported = ParquetReader::new(std::io::Cursor::new(body))
+        .finish()
+        .unwrap();
+    assert_eq!(exported.height(), frame.height());
+    let combined = exported.column("combined").unwrap().f64().unwrap();
+    let a = frame.column("col_a").unwrap().f64().unwrap();
+    let b = frame.column("col_b").unwrap().f64().unwrap();
+    for index in 0..frame.height() {
+        assert_eq!(
+            combined.get(index),
+            Some(a.get(index).unwrap() + b.get(index).unwrap())
+        );
+    }
+}
+
 // ─── Cache behaviour ──────────────────────────────────────────────────────────
 
 #[tokio::test(flavor = "multi_thread")]

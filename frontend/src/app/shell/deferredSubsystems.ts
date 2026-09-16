@@ -145,6 +145,7 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
         const { initOutlierModal, initTransformModal } = await import('../../features/dataMutation/index.js');
         initTransformModal({
             refreshDataset: deps.refreshDatasetAfterMutation,
+            workspace: deps.workspace,
             planStore: deps.cleaningPlanStore,
             onPlanChanged: deps.onCleaningPlanChanged,
         });

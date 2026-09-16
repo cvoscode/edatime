@@ -20,6 +20,7 @@ const {
     createTimeseriesModuleMock: vi.fn(),
     createAnalyticsOverlayControllerMock: vi.fn(() => ({
         fetchAndRender: vi.fn().mockResolvedValue(undefined),
+        cancel: vi.fn(),
         setRenderCallback: vi.fn(),
         dispose: vi.fn(),
     })),
@@ -176,6 +177,7 @@ describe('app -> timeseries bootstrap wiring', () => {
             ensureReady: ensureDatasetReadyMock,
             fetchAndRender: vi.fn().mockResolvedValue(undefined),
             renderCurrentData: vi.fn(),
+            invalidateData: vi.fn(),
             buildColumnToggles: vi.fn(),
             buildRangeControls: vi.fn(),
             onZoomRangeChange: vi.fn(),
@@ -250,10 +252,49 @@ describe('app -> timeseries bootstrap wiring', () => {
         expect(ensureDatasetReadyMock).toHaveBeenCalledTimes(1);
     });
 
+    it('invalidates old plot data and refreshes the active analysis when a pipeline changes', async () => {
+        const { startApp } = await import('../app.js');
+        await startApp();
+        const { cleaningPlanStore } = await import('../cleaning/store.js');
+        const { getHashPage } = await import('../utils/router.js');
+        const { showPage } = await import('../app/navigation/showPage.js');
+        vi.mocked(getHashPage).mockReturnValue('fft');
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 1, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        await Promise.resolve();
+        const timeseries = createTimeseriesModuleMock.mock.results[0].value;
+        const overlay = createAnalyticsOverlayControllerMock.mock.results[0].value;
+        timeseries.invalidateData.mockClear();
+        timeseries.fetchAndRender.mockClear();
+        clearLoadedPageModulesMock.mockClear();
+        vi.mocked(showPage).mockClear();
+
+        cleaningPlanStore.addStage({ kind: 'timeRange', executionClass: 'polarsExpression', scope: 'row', enabled: true, sourcePage: 'timeseries', label: 'Keep window', startMs: 10, endMs: 20, mode: 'keepInside' });
+
+        expect(timeseries.invalidateData).toHaveBeenCalledTimes(1);
+        expect(overlay.cancel).toHaveBeenCalled();
+        expect(clearLoadedPageModulesMock).toHaveBeenCalledWith(['prepare']);
+        await Promise.resolve();
+        expect(timeseries.fetchAndRender).toHaveBeenCalledTimes(1);
+        expect(showPage).toHaveBeenCalledWith('fft');
+        vi.mocked(getHashPage).mockReturnValue('upload');
+    });
+
     it('does not publish a separate ensureReady window alias during bootstrap', async () => {
         await import('../app.js');
         expect((window as any).__edatime?.ensureReady).toBeUndefined();
         expect((window as any).__edatime?.ensureDatasetReady).toBeUndefined();
+    });
+
+    it('completes the initial route after its deferred page descriptors are registered', async () => {
+        const { getHashPage } = await import('../utils/router.js');
+        vi.mocked(getHashPage).mockReturnValue('prepare');
+        const { startApp } = await import('../app.js');
+        await startApp();
+        const { loadPageDescriptors } = await import('./pageModules.js');
+        const registry = vi.mocked(loadPageDescriptors).mock.calls[0]![0];
+        expect(registry.ensureFeatureLoaded).toHaveBeenCalledWith('prepare');
+        expect(vi.mocked(registry.ensureFeatureLoaded).mock.invocationCallOrder[0]).toBeGreaterThan(vi.mocked(loadPageDescriptors).mock.invocationCallOrder[0]!);
+        vi.mocked(getHashPage).mockReturnValue('upload');
     });
 
     it('deduplicates explicit startup behind the entrypoint lifecycle', async () => {

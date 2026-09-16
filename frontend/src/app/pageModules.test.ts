@@ -138,7 +138,7 @@ describe('page module descriptors', () => {
 
         expect(mocks.initFftPage).toHaveBeenCalledWith({
             renderTimeseries: deps.getRenderTimeseries,
-            workspace: deps.workspace,
+            workspace: expect.objectContaining({ getSnapshot: expect.any(Function) }),
         });
     });
 
@@ -153,7 +153,7 @@ describe('page module descriptors', () => {
 
         expect(mocks.initSpectrogramPage).toHaveBeenCalledWith({
             setLoading: deps.setLoading,
-            workspace: deps.workspace,
+            workspace: expect.objectContaining({ getSnapshot: expect.any(Function) }),
         });
     });
 
@@ -181,7 +181,7 @@ describe('page module descriptors', () => {
         await causal!.init();
 
         expect(mocks.initCausalPage).toHaveBeenCalledWith({
-            workspace: deps.workspace,
+            workspace: expect.objectContaining({ getSnapshot: expect.any(Function) }),
             chipColor: deps.chipColor,
             setLoading: deps.setLoading,
         });

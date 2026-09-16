@@ -149,7 +149,11 @@ export function setupFlexibleNumberInput(
         }
         const { min, max, step } = readNumericBounds(input);
         const { value: clampedValue, clamped } = clampValue(parsed, min, max);
-        const formatted = formatValue(clampedValue, step);
+        // Exact filter bounds may be finer than the arrow-key step. Preserve
+        // their text on blur, including the display of canonical endpoints.
+        const formatted = input.hasAttribute('data-preserve-precision')
+            ? (clamped ? String(clampedValue) : raw)
+            : formatValue(clampedValue, step);
         if (formatted !== input.value) {
             input.value = formatted;
         }

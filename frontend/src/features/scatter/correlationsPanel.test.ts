@@ -146,7 +146,7 @@ describe('correlations with an active working plan', () => {
         expect(cleaningPlanStore.getSnapshot()).toEqual(first);
         vi.mocked(fetchScatterCorrelations).mockResolvedValue(response);
         await refreshCorrelationsAndSuggestions();
-        expect(scatterState.currentPairStats).toMatchObject({ pearsonRaw: 0.95, spearmanRaw: 0.95, count: 100 });
+        await vi.waitFor(() => expect(scatterState.currentPairStats).toMatchObject({ pearsonRaw: 0.95, spearmanRaw: 0.95, count: 100 }));
         expect(document.getElementById('scatter-suggestions')?.textContent).toContain('0.95');
     });
 
@@ -163,6 +163,39 @@ describe('correlations with an active working plan', () => {
         await pending;
         expect(scatterState.currentPairStats).toBeNull();
         expect(scatterState.lastSuggestions).toEqual([]);
+    });
+
+    it('publishes the selected metric while a secondary metric is still pending', async () => {
+        let resolveSecondary!: (value: typeof response) => void;
+        vi.mocked(fetchScatterCorrelations)
+            .mockResolvedValueOnce(response)
+            .mockImplementationOnce(() => new Promise((resolve) => { resolveSecondary = resolve; }));
+        await refreshCorrelationsAndSuggestions();
+        expect(scatterState.currentPairStats).toMatchObject({ pearsonRaw: 0.95, spearmanRaw: null });
+        expect(document.getElementById('scatter-suggestions')?.textContent).toContain('0.95');
+        resolveSecondary({ ...response, correlations: [{ column: 'HULL', value: 0.85, count: 100 }] });
+        await vi.waitFor(() => expect(scatterState.currentPairStats).toMatchObject({ pearsonRaw: 0.95, spearmanRaw: 0.85 }));
+    });
+
+    it('discards secondary statistics from an older working plan', async () => {
+        let resolveSecondary!: (value: typeof response) => void;
+        vi.mocked(fetchScatterCorrelations)
+            .mockResolvedValueOnce(response)
+            .mockImplementationOnce(() => new Promise((resolve) => { resolveSecondary = resolve; }));
+        await refreshCorrelationsAndSuggestions();
+        cleaningPlanStore.addStage({
+            kind: 'columnRange', executionClass: 'polarsExpression', scope: 'row',
+            enabled: true, sourcePage: 'timeseries', label: 'Range',
+            column: 'HUFL', from: 0, to: 10, mode: 'keepInside',
+        });
+        vi.mocked(fetchScatterCorrelations).mockResolvedValue({
+            ...response, correlations: [{ column: 'HULL', value: 0.4, count: 10 }],
+        });
+        await refreshCorrelationsAndSuggestions();
+        await vi.waitFor(() => expect(scatterState.currentPairStats).toMatchObject({ pearsonRaw: 0.4, spearmanRaw: 0.4 }));
+        resolveSecondary(response);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(scatterState.currentPairStats).toMatchObject({ pearsonRaw: 0.4, spearmanRaw: 0.4, count: 10 });
     });
 });
 

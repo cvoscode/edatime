@@ -18,7 +18,7 @@
 import { DEBUG, dbg, dbgGroup } from './debug.js';
 import { showBootstrapError } from './ui/errorUI.js';
 import { installWindowsWebGpuRequestAdapterWorkaround } from './utils/platform.js';
-import { getAnalyticsChipColor } from './platform/analyticsColumns.js';
+import { getAnalyticsChipColor, getEffectiveColumnNames } from './platform/analyticsColumns.js';
 import {
     createTimeseriesModule,
     createAnalyticsOverlayController,
@@ -50,12 +50,16 @@ import {
     refreshZoomControlsState, getCurrentView,
     setComputeLoading,
 } from './ui/toolbar.js';
-import { createExportFeature } from './features/export/index.js';
+import type { ExportFeature } from './features/export/index.js';
 import type { DatasetMetadata, DataObject, AnomalyResponse } from './types/api.js';
 import type { ChartInstance, ViewSnapshot } from './types/chart.js';
 
 import { primaryChart } from './charts/primaryChart.js';
 import { initDataFreshnessIndicator } from './ui/freshnessIndicator.js';
+import { getCleaningPlanHash } from './cleaning/store.js';
+import { invalidateDatasetRequestScope } from './services/api/datasetRequestScope.js';
+import { clearScatterViewSnapshots } from './store/scatterState.js';
+import { setSpectralFilterPreview, setAnomalyRegions, setAnomalySummaryStats } from './store/analyticsState.js';
 
 type DataChartCtorType = new (
     containerId: string,
@@ -95,11 +99,37 @@ export function createApp(): AppRoot {
     runtime.registerCleanup(configureSeriesColorWorkspace(workspace));
     const analyticsOverlay = createAnalyticsOverlayController();
     let timeseriesModule!: ReturnType<typeof createTimeseriesModule>;
-    const exportFeature = createExportFeature({
-        workspace,
-        cleaningPlanStore,
-        getData: () => timeseriesModule?.getCurrentData() ?? null,
-    });
+    let exportFeatureLoad: Promise<ExportFeature> | null = null;
+    const runExport = async (action: keyof ExportFeature) => {
+        try {
+            exportFeatureLoad ??= import('./features/export/index.js').then(({ createExportFeature }) =>
+                createExportFeature({
+                    workspace,
+                    cleaningPlanStore,
+                    getData: () => timeseriesModule?.getCurrentData() ?? null,
+                }));
+            const feature = await exportFeatureLoad;
+            if (appDisposed) return;
+            const result = await feature[action]();
+            if (!result.ok) throw new Error(
+                result.reason === 'no_data' ? 'No plotted data is available yet.' :
+                result.reason === 'no_plan' ? 'Load a dataset before exporting.' :
+                result.reason === 'row_limit_exceeded' ? (action === 'exportFilteredParquet'
+                    ? 'The export exceeds the configured row limit.'
+                    : 'Use the Parquet dataset export for this amount of data.') :
+                'Could not export the data. Try again.');
+        } catch (error) {
+            exportFeatureLoad = null;
+            if (appDisposed) return;
+            const { toast } = await import('./utils/toast.js');
+            if (!appDisposed) toast(error instanceof Error ? error.message : 'Could not export the data.', 'error');
+        }
+    };
+    const exportFeature = {
+        exportFilteredCsv: () => { void runExport('exportFilteredCsv'); },
+        exportFilteredJson: () => { void runExport('exportFilteredJson'); },
+        exportFilteredParquet: () => { void runExport('exportFilteredParquet'); },
+    };
     runtime.registerCleanup(() => workspace.dispose());
     runtime.registerCleanup(() => primaryChart.dispose());
     runtime.registerCleanup(featureRegistry.dispose);
@@ -136,6 +166,11 @@ export function createApp(): AppRoot {
         sessionPersistenceStarted = true;
     }
 
+    async function refreshDatasetAfterMutation(options?: { selectedColumn?: string }): Promise<void> {
+        await timeseriesModule.refreshAfterMutation(options);
+        if (!appDisposed) showPage(getHashPage() ?? 'timeseries');
+    }
+
     async function ensureCleaningPanelMounted(refreshCleaningPlanConsumers: () => void): Promise<void> {
         if (disposeCleaningPanel || appDisposed) return;
         if (!cleaningPanelLoad) {
@@ -144,9 +179,14 @@ export function createApp(): AppRoot {
                 disposeCleaningPanel = mountCleaningPlanPanel({
                     planStore: cleaningPlanStore,
                     getViewport: () => workspace.getSnapshot().viewport,
-                    getColumns: () => (workspace.getSnapshot().dataset.metadata?.columns ?? []).map((column) => column.name),
+                    getColumns: (beforeStageId) => {
+                        const plan = cleaningPlanStore.getSnapshot();
+                        const index = plan?.stages.findIndex((stage) => stage.id === beforeStageId) ?? -1;
+                        return getEffectiveColumnNames(workspace.getSnapshot().dataset.metadata,
+                            plan && index >= 0 ? { ...plan, stages: plan.stages.slice(0, index) } : plan);
+                    },
                     onPlanChanged: refreshCleaningPlanConsumers,
-                    onPlanApplied: () => timeseriesModule.refreshAfterMutation(),
+                    onPlanApplied: () => refreshDatasetAfterMutation(),
                 });
                 runtime.registerCleanup(() => {
                     disposeCleaningPanel?.();
@@ -206,15 +246,41 @@ export function createApp(): AppRoot {
         // later plan changes.
         syncTimeseriesPlanFilters(cleaningPlanStore.getSnapshot());
         let planRefreshQueued = false;
+        let analysisRefreshNeeded = false;
+        let renderedPlanHash = getCleaningPlanHash();
         const refreshCleaningPlanConsumers = () => {
+            if (appDisposed) return;
+            const planHash = getCleaningPlanHash();
+            const datasetChanged = planHash !== renderedPlanHash;
+            if (datasetChanged) {
+                analysisRefreshNeeded = true;
+                renderedPlanHash = planHash;
+                invalidateDatasetRequestScope();
+                timeseriesModule.invalidateData();
+                analyticsOverlay.cancel();
+                setAnomalyRegions(null);
+                setAnomalySummaryStats(null);
+                setSpectralFilterPreview(null);
+                clearScatterViewSnapshots();
+                // Preparation owns the editor. Retire cached analyses so later
+                // visits cannot present results from an earlier working dataset.
+                featureRegistry.clearLoadedFeatures(['prepare']);
+            }
             if (planRefreshQueued) return;
             planRefreshQueued = true;
             queueMicrotask(() => {
                 planRefreshQueued = false;
+                if (appDisposed) return;
                 syncTimeseriesPlanFilters(cleaningPlanStore.getSnapshot());
+                sanitizeSelectedColumns(workspace);
+                timeseriesModule.buildColumnToggles();
                 timeseriesModule.buildRangeControls();
                 timeseriesModule.renderCurrentData();
                 void timeseriesModule.fetchAndRender();
+                const activePage = getHashPage() ?? 'timeseries';
+                const refreshAnalysis = analysisRefreshNeeded;
+                analysisRefreshNeeded = false;
+                if (refreshAnalysis && !['home', 'upload', 'timeseries', 'prepare'].includes(activePage)) showPage(activePage);
             });
         };
         // A plan is the plot request contract. Subscribe once at the owner so
@@ -238,7 +304,7 @@ export function createApp(): AppRoot {
             buildTimeseriesRanges: () => timeseriesModule.buildRangeControls(),
             zoomOut: () => timeseriesModule.zoomOut(),
             resetZoom: () => timeseriesModule.resetZoom(),
-            refreshDatasetAfterMutation: (opts) => timeseriesModule.refreshAfterMutation(opts),
+            refreshDatasetAfterMutation,
             registerCleanup: runtime.registerCleanup,
             workspace,
             cleaningPlanStore,
@@ -265,7 +331,7 @@ export function createApp(): AppRoot {
         await loadPageDescriptors(featureRegistry, {
             getRenderTimeseries: () => timeseriesModule.renderCurrentData(),
             getCurrentTimeseriesData: () => timeseriesModule.getCurrentData(),
-            refreshDatasetAfterMutation: () => timeseriesModule.refreshAfterMutation(),
+            refreshDatasetAfterMutation,
             registerCleanup: runtime.registerCleanup,
             showPage,
             chipColor: (col) => getAnalyticsChipColor(col),
@@ -284,6 +350,10 @@ export function createApp(): AppRoot {
             if (pageNeedsDatasetBootstrap(initialPage)) {
                 await timeseriesModule.ensureDatasetReady();
             }
+            // The shell can request the initial route before its deferred
+            // descriptor is registered. Complete that navigation now, using
+            // the latest route in case the user moved during bootstrap.
+            if (!appDisposed) await featureRegistry.ensureFeatureLoaded(getHashPage() ?? 'home');
         } catch (e: unknown) {
             const message = e instanceof Error ? e.message : String(e);
             console.error('Initial bootstrap failed:', e);

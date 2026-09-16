@@ -266,6 +266,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         },
         ensureDatasetReady: () => bootstrap.ensureDatasetReady(),
         ensureReady,
+        invalidateData: () => pageController.invalidateData(),
         fetchAndRender: () => pageController.fetchAndRender(),
         getCurrentData: () => pageController.getCurrentData(),
         renderCurrentData: () => pageController.renderCurrentData(),

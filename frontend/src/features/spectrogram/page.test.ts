@@ -396,7 +396,7 @@ describe('spectrogramPage colorbar filter', () => {
             96,
             48,
             32768,
-            undefined,
+            expect.objectContaining({ signal: expect.any(AbortSignal) }),
             expect.objectContaining({ normalize: 'zscore' }),
         );
         expect(toastMock).toHaveBeenCalledWith(

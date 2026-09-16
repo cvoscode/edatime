@@ -111,15 +111,25 @@ export async function fetchMatrixBatchData(
     const cached = scatterState.matrixBatchCache.get(cacheKey);
     if (cached) return cached;
 
-    const request = fetchScatterMatrix(
-        pairs.map(([x, y]) => ({ x, y })),
-        colorColumn || null,
-        context,
-        MATRIX_POINT_LIMIT,
-        { signal },
-    )
-        .then((response) => response.cells)
-        .catch((error: any) => {
+    const request = (async () => {
+        const cells = new Map<string, MatrixCellData>();
+        // A grid can grow beyond eight columns after calculations are added.
+        // Keep each request within the server's 64-pair work budget.
+        const pairsPerRequest = 64;
+        for (let offset = 0; offset < pairs.length; offset += pairsPerRequest) {
+            signal.throwIfAborted();
+            const response = await fetchScatterMatrix(
+                pairs.slice(offset, offset + pairsPerRequest).map(([x, y]) => ({ x, y })),
+                colorColumn || null,
+                context,
+                MATRIX_POINT_LIMIT,
+                { signal },
+            );
+            signal.throwIfAborted();
+            response.cells.forEach((data, key) => cells.set(key, data));
+        }
+        return cells;
+    })().catch((error: any) => {
             scatterState.matrixBatchCache.delete(cacheKey);
             throw error;
         });

@@ -4,11 +4,15 @@ const {
     proposeOutliersMock,
     openMock,
     closeMock,
+    validateMock,
 } = vi.hoisted(() => ({
     proposeOutliersMock: vi.fn(),
     openMock: vi.fn(),
     closeMock: vi.fn(),
+    validateMock: vi.fn().mockResolvedValue({}),
 }));
+
+vi.mock('../../cleaning/api.js', () => ({ validateCleaningPlan: validateMock }));
 
 vi.mock('./feature.js', () => ({
     createDataMutationFeature: () => ({
@@ -97,6 +101,7 @@ describe('dataMutationModals', () => {
         expect(openMock).toHaveBeenCalledOnce();
 
         (document.getElementById('transform-apply-btn') as HTMLButtonElement).click();
+        await vi.waitFor(() => expect(onPlanChanged).toHaveBeenCalledOnce());
 
         expect(planStore.getSnapshot()?.stages).toMatchObject([{
             kind: 'derivedColumn', expression: 'sqrt(value) + 1', outputColumn: 'score', scope: 'schema',

@@ -267,6 +267,7 @@ describe('createTimeseriesModule', () => {
             'ensureReady',
             'fetchAndRender',
             'getCurrentData',
+            'invalidateData',
             'renderCurrentData',
             'buildColumnToggles',
             'buildRangeControls',

@@ -10,7 +10,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use chrono::{DateTime, Utc};
-use polars::prelude::DataType;
+use polars::prelude::{DataType, TimeUnit};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use zip::{CompressionMethod, ZipWriter, write::FileOptions};
@@ -157,7 +157,8 @@ fn code_number(value: f64) -> String {
     if value == 0.0 {
         "0.0".to_string()
     } else {
-        value.to_string()
+        // Keep Rust literals floating point even for integral thresholds.
+        format!("{value:?}")
     }
 }
 
@@ -182,17 +183,23 @@ fn split_native_boundaries(
     ])
 }
 
-fn validate_codegen_support(plan: &CleaningPlanDto) -> Result<(), AppError> {
-    if plan
-        .stages
-        .iter()
-        .any(|stage| stage.enabled() && matches!(stage, CleaningStageDto::AdaptiveLine { .. }))
-    {
-        return Err(AppError::bad_request(
-            "Backend code export does not yet support adaptive-line stages; export the canonical plan JSON or remove that stage before requesting code",
-        ));
+fn time_ms_code(column: &str, dtype: &DataType, python: bool) -> String {
+    let value = if python {
+        format!("pl.col({}).cast(pl.Float64)", code_quote(column))
+    } else {
+        format!("col({}).cast(DataType::Float64)", code_quote(column))
+    };
+    let scale = match dtype {
+        DataType::Datetime(TimeUnit::Nanoseconds, _) => Some(("/", "1000000.0")),
+        DataType::Datetime(TimeUnit::Microseconds, _) => Some(("/", "1000.0")),
+        DataType::Date => Some(("*", "86400000.0")),
+        _ => None,
+    };
+    match scale {
+        Some((operator, factor)) if python => format!("({value} {operator} {factor})"),
+        Some((operator, factor)) => format!("({value} {operator} lit({factor}))"),
+        None => value,
     }
-    Ok(())
 }
 
 fn python_predicate(column: &str, from: f64, to: f64) -> String {
@@ -238,7 +245,20 @@ fn generate_python_polars(
                 mode,
                 ..
             } => {
-                let predicate = python_predicate(&plan.time_column, *start_ms, *end_ms);
+                let lower = edatime_core::temporal::epoch_ms_to_native(
+                    start_ms.min(*end_ms),
+                    time_dtype,
+                    false,
+                )?;
+                let upper = edatime_core::temporal::epoch_ms_to_native(
+                    start_ms.max(*end_ms),
+                    time_dtype,
+                    true,
+                )?;
+                let time = code_quote(&plan.time_column);
+                let predicate = format!(
+                    "(pl.col({time}).cast(pl.Int64) >= {lower}) & (pl.col({time}).cast(pl.Int64) <= {upper})"
+                );
                 let expression = if *mode == TimeRangeMode::KeepInside {
                     predicate
                 } else {
@@ -418,8 +438,38 @@ fn generate_python_polars(
                     code_quote(output_column)
                 ));
             }
-            CleaningStageDto::AdaptiveLine { .. } => {
-                unreachable!("validated codegen support")
+            CleaningStageDto::AdaptiveLine {
+                column,
+                x1_ms,
+                y1,
+                x2_ms,
+                y2,
+                keep_above,
+                apply_within_segment_only,
+                ..
+            } => {
+                let time = time_ms_code(&plan.time_column, time_dtype, true);
+                let line = format!(
+                    "({} + (({time} - {}) * {}))",
+                    code_number(*y1),
+                    code_number(*x1_ms),
+                    code_number((y2 - y1) / (x2_ms - x1_ms))
+                );
+                let comparison = format!(
+                    "(pl.col({}).cast(pl.Float64) {} {line})",
+                    code_quote(column),
+                    if *keep_above { ">=" } else { "<=" }
+                );
+                let predicate = if *apply_within_segment_only {
+                    format!(
+                        "(~(({time} >= {}) & ({time} <= {}))) | {comparison}",
+                        code_number(x1_ms.min(*x2_ms)),
+                        code_number(x1_ms.max(*x2_ms))
+                    )
+                } else {
+                    comparison
+                };
+                lines.push(format!("    lf = lf.with_columns(pl.when({predicate}).then(pl.col({})).otherwise(None).alias({}))", code_quote(column), code_quote(column)));
             }
             CleaningStageDto::Annotation { .. } => {}
         }
@@ -460,12 +510,20 @@ fn generate_rust_polars(
                 mode,
                 ..
             } => {
+                let lower = edatime_core::temporal::epoch_ms_to_native(
+                    start_ms.min(*end_ms),
+                    time_dtype,
+                    false,
+                )?;
+                let upper = edatime_core::temporal::epoch_ms_to_native(
+                    start_ms.max(*end_ms),
+                    time_dtype,
+                    true,
+                )?;
                 let predicate = format!(
-                    "col({}).cast(DataType::Float64).gt_eq(lit({})).and(col({}).cast(DataType::Float64).lt_eq(lit({})))",
+                    "col({}).cast(DataType::Int64).gt_eq(lit({lower}_i64)).and(col({}).cast(DataType::Int64).lt_eq(lit({upper}_i64)))",
                     code_quote(&plan.time_column),
-                    code_number(start_ms.min(*end_ms)),
                     code_quote(&plan.time_column),
-                    code_number(start_ms.max(*end_ms))
                 );
                 let expression = if *mode == TimeRangeMode::KeepInside {
                     predicate
@@ -641,8 +699,38 @@ fn generate_rust_polars(
                     code_quote(output_column)
                 ));
             }
-            CleaningStageDto::AdaptiveLine { .. } => {
-                unreachable!("validated codegen support")
+            CleaningStageDto::AdaptiveLine {
+                column,
+                x1_ms,
+                y1,
+                x2_ms,
+                y2,
+                keep_above,
+                apply_within_segment_only,
+                ..
+            } => {
+                let time = time_ms_code(&plan.time_column, time_dtype, false);
+                let line = format!(
+                    "(lit({}) + (({time} - lit({})) * lit({})))",
+                    code_number(*y1),
+                    code_number(*x1_ms),
+                    code_number((y2 - y1) / (x2_ms - x1_ms))
+                );
+                let comparison = format!(
+                    "col({}).cast(DataType::Float64).{}({line})",
+                    code_quote(column),
+                    if *keep_above { "gt_eq" } else { "lt_eq" }
+                );
+                let predicate = if *apply_within_segment_only {
+                    format!(
+                        "{time}.gt_eq(lit({})).and({time}.lt_eq(lit({}))).not().or({comparison})",
+                        code_number(x1_ms.min(*x2_ms)),
+                        code_number(x1_ms.max(*x2_ms))
+                    )
+                } else {
+                    comparison
+                };
+                lines.push(format!("    lf = lf.with_columns([when({predicate}).then(col({})).otherwise(lit(NULL)).alias({})]);", code_quote(column), code_quote(column)));
             }
             CleaningStageDto::Annotation { .. } => {}
         }
@@ -1296,7 +1384,6 @@ pub async fn export_bundle(
     Json(envelope): Json<PlanRequestEnvelope>,
 ) -> Result<Response, AppError> {
     let (version, plan_hash, manifest) = build_handoff_manifest(&state, &envelope).await?;
-    validate_codegen_support(&envelope.plan)?;
     let source_schema = state
         .dataset_snapshot_for_version(&version.id)?
         .collect_schema()
@@ -1358,7 +1445,6 @@ pub async fn export_code(
     Json(request): Json<CleaningCodeExportRequest>,
 ) -> Result<Response, AppError> {
     let (version, plan_hash, _frame) = compile_request_frame(&state, &request.context)?;
-    validate_codegen_support(&request.context.plan)?;
     let source_schema = state
         .dataset_snapshot_for_version(&version.id)?
         .collect_schema()
@@ -1866,6 +1952,78 @@ mod tests {
         let code = String::from_utf8(body.to_vec()).expect("utf8");
         assert!(code.contains("pl.col(\"value\")"));
         assert!(code.contains("alias(\"score\")"));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn drawn_line_filters_export_as_code_and_in_reproducibility_bundles() {
+        let state = state();
+        let mut context = envelope(&state);
+        context.plan.stages.push(CleaningStageDto::AdaptiveLine {
+            base: base("line"),
+            column: "value".to_string(),
+            x1_ms: 3.0,
+            y1: 2.0,
+            x2_ms: 1.0,
+            y2: 0.0,
+            keep_above: true,
+            apply_within_segment_only: true,
+        });
+        for language in [CleaningCodeLanguage::Python, CleaningCodeLanguage::Rust] {
+            let response = export_code(
+                State(state.clone()),
+                Json(CleaningCodeExportRequest {
+                    context: context.clone(),
+                    language,
+                }),
+            )
+            .await
+            .expect("drawn filter code export");
+            let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+                .await
+                .expect("code body");
+            let code = String::from_utf8(body.to_vec()).expect("code text");
+            assert!(code.contains("with_columns"));
+            assert!(code.contains("otherwise"));
+            assert!(code.contains("alias(\"value\")"));
+        }
+        let response = export_bundle(State(state), Json(context))
+            .await
+            .expect("drawn filter bundle");
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+    }
+
+    #[test]
+    fn exported_time_windows_use_the_source_time_units() {
+        let state = state();
+        let mut context = envelope(&state);
+        context.plan.stages = vec![CleaningStageDto::TimeRange {
+            base: base("window"),
+            start_ms: 86_400_000.0,
+            end_ms: 172_800_000.0,
+            mode: TimeRangeMode::KeepInside,
+        }];
+        let version = state.current_dataset_version().expect("version");
+        for (dtype, lower, upper) in [
+            (DataType::Date, 1_i64, 2_i64),
+            (
+                DataType::Datetime(TimeUnit::Microseconds, None),
+                86_400_000_000,
+                172_800_000_000,
+            ),
+            (
+                DataType::Datetime(TimeUnit::Nanoseconds, None),
+                86_400_000_000_000,
+                172_800_000_000_000,
+            ),
+        ] {
+            let python =
+                generate_python_polars(&context.plan, &version, "hash", &dtype).expect("python");
+            let rust = generate_rust_polars(&context.plan, &version, "hash", &dtype).expect("rust");
+            assert!(python.contains(&format!("cast(pl.Int64) >= {lower}")));
+            assert!(python.contains(&format!("cast(pl.Int64) <= {upper}")));
+            assert!(rust.contains(&format!("gt_eq(lit({lower}_i64))")));
+            assert!(rust.contains(&format!("lt_eq(lit({upper}_i64))")));
+        }
     }
 
     #[test]

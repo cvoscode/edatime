@@ -4,6 +4,11 @@ const cleaningApi = vi.hoisted(() => ({
     previewCleaningPlan: vi.fn(),
     applyCleaningPlan: vi.fn(),
     cancelSessionJob: vi.fn(),
+    exportCleaningData: vi.fn(),
+    exportCleaningPlan: vi.fn(),
+    exportCleaningCode: vi.fn(),
+    exportCleaningBundle: vi.fn(),
+    validateCleaningPlan: vi.fn(),
 }));
 
 vi.mock('../../cleaning/api.js', () => cleaningApi);
@@ -18,8 +23,13 @@ describe('Prepare page', () => {
         document.body.innerHTML = '<button id="open-cleaning-plan-btn"></button><div id="prepare-workspace"></div>';
         cleaningPlanStore.clear();
         workspace = createWorkspaceStore();
-        cleaningApi.previewCleaningPlan.mockReset();
+        cleaningApi.previewCleaningPlan.mockReset().mockImplementation(async (plan) => ({
+            sourceVersion: { id: plan.sourceVersionId }, datasetRevision: plan.datasetRevision,
+            rowsBefore: 100, rowsAfter: 80, columnsBefore: 8, columnsAfter: 8,
+            warnings: [], stageImpacts: plan.stages.map((stage: { id: string }) => ({ stageId: stage.id, executed: true, rowsBefore: 100, rowsAfter: 80, rowsRemoved: 20 })),
+        }));
         cleaningApi.applyCleaningPlan.mockReset();
+        cleaningApi.validateCleaningPlan.mockReset().mockResolvedValue({});
     });
 
     afterEach(() => {
@@ -54,12 +64,6 @@ describe('Prepare page', () => {
             kind: 'timeRange', executionClass: 'polarsExpression', scope: 'row', enabled: true,
             sourcePage: 'timeseries', label: 'Window', startMs: 1, endMs: 2, mode: 'keepInside',
         });
-        cleaningApi.previewCleaningPlan.mockResolvedValue({
-            rowsBefore: 100,
-            rowsAfter: 80,
-            columnsBefore: 8,
-            columnsAfter: 8,
-        });
         const dispose = initPreparePage({ workspace });
 
         expect(document.querySelector('.pipeline-graph')).toBeNull();
@@ -69,7 +73,7 @@ describe('Prepare page', () => {
         Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Preview changes')!.click();
         await vi.waitFor(() => {
             expect(cleaningApi.previewCleaningPlan).toHaveBeenCalledOnce();
-            expect(document.querySelector('[role="status"]')?.textContent).toContain('80 of 100 rows');
+            expect(document.getElementById('prepare-preview-status')?.textContent).toContain('80 of 100 rows');
         });
 
         dispose();
@@ -91,7 +95,13 @@ describe('Prepare page', () => {
         const onPlanChanged = vi.fn();
         const dispose = initPreparePage({ workspace, refreshDatasetAfterMutation, onPlanChanged });
 
-        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Create prepared dataset')!.click();
+        const materialize = () => document.getElementById('prepare-materialize-button') as HTMLButtonElement;
+        expect(materialize().disabled).toBe(true);
+        materialize().click();
+        expect(cleaningApi.applyCleaningPlan).not.toHaveBeenCalled();
+        document.getElementById('prepare-preview-button')!.click();
+        await vi.waitFor(() => expect(materialize().disabled).toBe(false));
+        materialize().click();
 
         await vi.waitFor(() => {
             expect(cleaningApi.applyCleaningPlan).toHaveBeenCalledOnce();
@@ -154,7 +164,7 @@ describe('Prepare page', () => {
         const onPlanChanged = vi.fn();
         const dispose = initPreparePage({ workspace, onPlanChanged });
 
-        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Down')!.click();
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Move down')!.click();
         expect(cleaningPlanStore.getSnapshot()!.stages.map((stage) => stage.id)).toEqual([second.id, first.id]);
         Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Disable')!.click();
         expect(cleaningPlanStore.getSnapshot()!.stages[0].enabled).toBe(false);
@@ -196,16 +206,16 @@ describe('Prepare page', () => {
 
         const findButton = (label: string) => Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
             .find((candidate) => candidate.textContent === label)!;
-        expect(findButton('Up').title).toBe('Cannot move the only remaining stage');
-        expect(findButton('Down').title).toBe('Cannot move the only remaining stage');
-        expect(findButton('Remove').title).toBe('Permanently delete this stage from the plan');
+        expect(findButton('Move up').title).toBe('Cannot move the only remaining stage');
+        expect(findButton('Move down').title).toBe('Cannot move the only remaining stage');
+        expect(findButton('Remove').title).toBe('Remove this stage; Undo restores it');
 
         findButton('Disable').click();
         expect(document.querySelector('.prepare-workspace__stage')?.classList.contains('is-disabled')).toBe(true);
         expect(findButton('Enable')).toBeTruthy();
 
         findButton('Remove').click();
-        expect(confirm).toHaveBeenCalledWith("Remove 'Drop missing values from HUFL'? This cannot be undone.");
+        expect(confirm).toHaveBeenCalledWith("Remove 'Drop missing values from HUFL'? You can restore it with Undo.");
         expect(cleaningPlanStore.getSnapshot()?.stages).toHaveLength(1);
         findButton('Remove').click();
         expect(cleaningPlanStore.getSnapshot()?.stages).toHaveLength(0);
@@ -268,7 +278,7 @@ describe('Prepare page', () => {
         expect(finding.textContent).toContain('3 unique timestamps');
         expect(finding.textContent).toContain('1 duplicate timestamp');
         expect(finding.textContent).toContain('1 out-of-order transition');
-        expect(finding.textContent).toContain('median observed gap 2000 ms');
+        expect(finding.textContent).toContain('median observed gap 2 s');
         expect(finding.querySelector('button')).toBeNull();
         dispose();
     });
@@ -350,7 +360,7 @@ describe('Prepare page', () => {
         await Promise.resolve();
 
         expect(startSampleProfile).toHaveBeenCalledTimes(1);
-        expect(document.getElementById('prepare-workspace')?.textContent).toContain('Sampled quality findings are estimates from 10000 rows');
+        expect(document.getElementById('prepare-workspace')?.textContent).toContain('Sampled quality findings are estimates from 10,000 rows');
         expect(document.querySelector('[data-quality-column="temperature"]')?.textContent).toContain('7 null values');
         expect(Array.from(document.querySelectorAll('button')).some((button) => button.textContent === 'Build exact quality report')).toBe(true);
         dispose();
@@ -448,6 +458,142 @@ describe('Prepare page', () => {
 
         expect(cleaningPlanStore.getSnapshot()!.stages).toHaveLength(0);
         expect(form.textContent).toContain('ascending stable sort');
+        dispose();
+    });
+
+    it('invalidates preview approval after edits and undo while retaining it across workspace refreshes', async () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        const stage = cleaningPlanStore.addStage({ kind: 'sort', executionClass: 'polarsExpression', scope: 'order', enabled: true, sourcePage: 'manual', label: 'Sort', columns: ['ts'], descending: false, nullsLast: true });
+        const dispose = initPreparePage({ workspace });
+        const materialize = () => document.getElementById('prepare-materialize-button') as HTMLButtonElement;
+        document.getElementById('prepare-preview-button')!.click();
+        await vi.waitFor(() => expect(materialize().disabled).toBe(false));
+        expect(document.querySelector('.prepare-workspace__stage-impact')?.textContent).toContain('80 rows after this stage · 20 removed');
+        workspace.setViewport({ xMin: 1, xMax: 2, yMin: null, yMax: null });
+        expect(materialize().disabled).toBe(false);
+
+        cleaningPlanStore.updateStage(stage.id, { descending: true });
+        expect(materialize().disabled).toBe(true);
+        expect(document.getElementById('prepare-preview-status')?.textContent).toContain('The plan changed');
+        expect(document.querySelector('.prepare-workspace__stage-impact')?.textContent).not.toContain('80 rows');
+        cleaningPlanStore.undo();
+        expect(materialize().disabled).toBe(true);
+        document.getElementById('prepare-preview-button')!.click();
+        await vi.waitFor(() => expect(materialize().disabled).toBe(false));
+        dispose();
+    });
+
+    it('ignores a late preview after switching datasets and never approves a failed preview', async () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        const addSort = () => cleaningPlanStore.addStage({ kind: 'sort', executionClass: 'polarsExpression', scope: 'order', enabled: true, sourcePage: 'manual', label: 'Sort', columns: ['ts'], descending: false, nullsLast: true });
+        addSort();
+        let finish!: (response: unknown) => void;
+        cleaningApi.previewCleaningPlan.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+        const dispose = initPreparePage({ workspace });
+        document.getElementById('prepare-preview-button')!.click();
+        const signal = cleaningApi.previewCleaningPlan.mock.calls[0]![1].signal as AbortSignal;
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-2', datasetRevision: 4, datasetFingerprint: 'new', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        addSort();
+        expect(signal.aborted).toBe(true);
+        finish({ sourceVersion: { id: 'source-1' }, datasetRevision: 3, rowsAfter: 80, rowsBefore: 100, columnsAfter: 8, columnsBefore: 8, warnings: [], stageImpacts: [] });
+        await Promise.resolve();
+        expect((document.getElementById('prepare-materialize-button') as HTMLButtonElement).disabled).toBe(true);
+        expect(document.getElementById('prepare-preview-status')?.textContent).not.toContain('80 of 100');
+        cleaningApi.previewCleaningPlan.mockRejectedValueOnce(new Error('Preview failed'));
+        document.getElementById('prepare-preview-button')!.click();
+        await vi.waitFor(() => expect(document.getElementById('prepare-preview-status')?.textContent).toBe('Preview failed'));
+        expect((document.getElementById('prepare-materialize-button') as HTMLButtonElement).disabled).toBe(true);
+        expect((document.getElementById('prepare-preview-button') as HTMLButtonElement).disabled).toBe(false);
+        dispose();
+    });
+
+    it('preserves the selected composer, typed values, text selection, and disclosures through refreshes', () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        workspace.commitDataset(workspace.beginDatasetSession(), { profile_status: 'exact', column_profiles: [{ name: 'value', dtype: 'Float64', null_count: 0 }] } as any, 0);
+        const dispose = initPreparePage({ workspace });
+        const selector = document.getElementById('prepare-transformation') as HTMLSelectElement;
+        selector.value = '4';
+        selector.dispatchEvent(new Event('change'));
+        const form = document.querySelectorAll<HTMLFormElement>('form')[4]!;
+        const input = form.elements.namedItem('columns') as HTMLInputElement;
+        input.value = 'value';
+        input.focus();
+        input.setSelectionRange(1, 3);
+        (document.getElementById('prepare-quality-columns') as HTMLDetailsElement).open = true;
+
+        workspace.setViewport({ xMin: 1, xMax: 2, yMin: null, yMax: null });
+
+        expect((document.getElementById('prepare-transformation') as HTMLSelectElement).value).toBe('4');
+        const updated = document.querySelectorAll<HTMLFormElement>('form')[4]!;
+        const updatedInput = updated.elements.namedItem('columns') as HTMLInputElement;
+        expect(updated.hidden).toBe(false);
+        expect(updatedInput.value).toBe('value');
+        expect(document.activeElement).toBe(updatedInput);
+        expect([updatedInput.selectionStart, updatedInput.selectionEnd]).toEqual([1, 3]);
+        expect((document.getElementById('prepare-quality-columns') as HTMLDetailsElement).open).toBe(true);
+        dispose();
+    });
+
+    it('focuses a newly added stage and keeps focus on its toggle after rerendering', () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        const dispose = initPreparePage({ workspace });
+        const form = document.querySelector<HTMLFormElement>('form')!;
+        const input = form.elements.namedItem('column') as HTMLInputElement;
+        input.value = 'value';
+        input.focus();
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        expect(document.activeElement?.classList.contains('prepare-workspace__stage')).toBe(true);
+        const toggle = document.querySelector<HTMLButtonElement>('[data-prepare-key$="-toggle"]')!;
+        toggle.focus();
+        toggle.click();
+        expect(document.activeElement?.textContent).toBe('Enable');
+        expect(document.activeElement).toBe(document.querySelector('[data-prepare-key$="-toggle"]'));
+        dispose();
+    });
+
+    it('supports direct positioning and explains invalid ordering beside the stages', () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        const sort = cleaningPlanStore.addStage({ kind: 'sort', executionClass: 'polarsExpression', scope: 'order', enabled: true, sourcePage: 'manual', label: 'Sort', columns: ['ts'], descending: false, nullsLast: true });
+        const sample = cleaningPlanStore.addStage({ kind: 'resample', executionClass: 'polarsExpression', scope: 'row', enabled: true, sourcePage: 'manual', label: 'Resample', every: '15m', aggregations: [{ column: 'value', method: 'mean' }] });
+        const note = cleaningPlanStore.addStage({ kind: 'annotation', executionClass: 'annotation', scope: 'annotation', enabled: true, sourcePage: 'manual', label: 'Note' });
+        const dispose = initPreparePage({ workspace });
+        const invalid = document.querySelector<HTMLSelectElement>(`[data-prepare-key="stage-${sort.id}-position"]`)!;
+        invalid.value = '2';
+        invalid.dispatchEvent(new Event('change'));
+        expect(cleaningPlanStore.getSnapshot()!.stages.map((stage) => stage.id)).toEqual([sort.id, sample.id, note.id]);
+        expect(invalid.value).toBe('0');
+        expect(document.getElementById('prepare-stage-status')?.textContent).toContain('Resampling requires');
+        const position = document.querySelector<HTMLSelectElement>(`[data-prepare-key="stage-${note.id}-position"]`)!;
+        position.focus();
+        position.value = '0';
+        position.dispatchEvent(new Event('change'));
+        expect(cleaningPlanStore.getSnapshot()!.stages.map((stage) => stage.id)).toEqual([note.id, sort.id, sample.id]);
+        expect(document.activeElement?.getAttribute('aria-label')).toBe('Position of Note');
+        expect(Array.from(document.querySelectorAll('.prepare-workspace__stage-number')).map((number) => number.textContent)).toEqual(['1', '2', '3']);
+        dispose();
+    });
+
+    it('keeps detailed quality collapsed, omits clean-column actions, and uses the sample denominator', async () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        const startSampleProfile = vi.fn(async () => ({
+            algorithmVersion: 'sample-v1', sourceVersion: { id: 'source-1', revision: 3 }, status: 'ready' as const, job: null,
+            metadata: { profile_status: 'sampled', profile_sample_rows: 100, total_rows: 10000, column_profiles: [
+                { name: 'clean', dtype: 'Float64', null_count: 0, non_finite_count: 0, q25: 39.11999893188477, median: 40, q75: 42, interquartile_range: 2.88000106811523 },
+                { name: 'missing', dtype: 'Float64', null_count: 5, non_finite_count: 0 },
+            ] } as any,
+        }));
+        const dispose = initPreparePage({ startSampleProfile: startSampleProfile as any });
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Build sampled quality report')!.click();
+        await vi.waitFor(() => expect(document.getElementById('prepare-quality-columns')).not.toBeNull());
+        const quality = document.getElementById('prepare-profile-findings')!;
+        expect(quality.querySelectorAll('button[aria-label*="policy for clean"]')).toHaveLength(0);
+        expect(quality.querySelectorAll('button[aria-label*="policy for missing"]')).toHaveLength(1);
+        expect(quality.querySelector('table')?.textContent).toContain('5.00%');
+        expect((document.getElementById('prepare-quality-distribution') as HTMLDetailsElement).open).toBe(false);
+        expect((document.getElementById('prepare-quality-columns') as HTMLDetailsElement).open).toBe(false);
+        expect(document.querySelector('[data-quality-kind="distribution"]')?.textContent).toContain('Q1 39.12');
+        const sections = Array.from(document.querySelectorAll('#prepare-workspace > section')).map((section) => section.id);
+        expect(sections.indexOf('prepare-profile-findings')).toBeLessThan(sections.indexOf('prepare-pipeline-preview'));
         dispose();
     });
 });

@@ -13,6 +13,8 @@ import { buildMatrixFetchPairs, createMatrixRenderSession, fetchMatrixBatchData 
 import { getDropdownValue, setDropdownOptions } from '../../ui/primitives/Dropdown.js';
 import { getPlotColorScale } from '../../utils/settings.js';
 import { isTemporalDtype } from '../../utils/format.js';
+import { getEffectiveColumns } from '../../cleaning/schema.js';
+import { cleaningPlanStore } from '../../cleaning/store.js';
 
 interface HeatmapScatterLayerDeps {
     workspace: Pick<WorkspaceStore, 'getSnapshot' | 'subscribe'>;
@@ -80,14 +82,8 @@ export async function initHeatmapScatterLayer(
     let loadedKey = '';
     let loadedDatasets = new Map<string, MatrixCellData>();
 
-    const colorOptions = ['', ...new Set(
-        (metadata.columns || [])
-            .map((column) => String(column?.name || ''))
-            .filter(Boolean),
-    )];
-    if (colorOptions.length === 1) {
-        colorOptions.push(...metadata.numeric_columns.filter(Boolean));
-    }
+    const workingColumns = getEffectiveColumns(metadata, cleaningPlanStore.getSnapshot());
+    const colorOptions = ['', ...new Set(workingColumns.map((column) => column.name).filter(Boolean))];
     const selectedColor = setDropdownOptions('heatmap-color-column', colorOptions.map((column) => ({
         value: column,
         label: column || 'None',
@@ -135,7 +131,7 @@ export async function initHeatmapScatterLayer(
         const signal = session.begin();
         const pairs = buildMatrixFetchPairs(columns, { x: '', y: '' });
         const context = buildScatterQueryContext({ colorColumn, scopeToColumns: false }, snapshot);
-        const colorMetadata = metadata.columns?.find((column) => column.name === colorColumn);
+        const colorMetadata = workingColumns.find((column) => column.name === colorColumn);
         if (colorMetadata && isTemporalDtype(colorMetadata.dtype)) context.timeColorMode = 'raw';
         try {
             const datasets = await fetchMatrixBatchData(pairs, context, colorColumn, signal);

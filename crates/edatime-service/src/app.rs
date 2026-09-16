@@ -12,7 +12,10 @@ use axum::{
     response::Response,
 };
 use tower_http::{
-    compression::CompressionLayer,
+    compression::{
+        CompressionLayer,
+        predicate::{DefaultPredicate, NotForContentType, Predicate},
+    },
     cors::{AllowOrigin, CorsLayer},
     services::ServeDir,
     trace::TraceLayer,
@@ -75,7 +78,11 @@ pub fn build_app(state: AppState, frontend_dir: PathBuf) -> Router {
         .fallback_service(ServeDir::new(frontend_dir))
         .layer(from_fn(frontend_cache_control_middleware))
         .layer(DefaultBodyLimit::max(max_upload_bytes))
-        .layer(CompressionLayer::new().gzip(true))
+        // Parquet is already compressed. Recompressing its file stream also
+        // prevents the browser from completing these chunked downloads.
+        .layer(CompressionLayer::new().gzip(true).compress_when(
+            DefaultPredicate::new().and(NotForContentType::new("application/x-parquet")),
+        ))
         .layer(TraceLayer::new_for_http())
         .layer(cors)
         .layer(csp_layer)

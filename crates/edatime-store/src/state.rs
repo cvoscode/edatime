@@ -10,7 +10,7 @@ use serde_json::Value;
 use tokio::sync::{RwLock, Semaphore};
 
 use crate::artifacts::{ArtifactStorageUsage, DatasetArtifactProvenance, DatasetArtifactStore};
-use crate::cache::{CorrelationMatrixCacheEntry, ResponseCache};
+use crate::cache::{CorrelationMatrixCacheEntry, ResponseCache, WorkingCorrelationCache};
 use crate::db::DbPool;
 use crate::jobs::{JobHandle, JobRegistry};
 use crate::repository::{DataRepository, DatasetMeta, InMemoryDataRepository};
@@ -40,9 +40,6 @@ pub struct ProfileCacheEntry {
     pub job_id: String,
     pub result: Option<Value>,
 }
-
-type WorkingCorrelationCache =
-    Arc<tokio::sync::Mutex<Option<((String, String), CorrelationMatrixCacheEntry)>>>;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -79,8 +76,8 @@ pub struct AppState {
         Arc<tokio::sync::Mutex<BTreeMap<u64, std::sync::Weak<tokio::sync::Mutex<()>>>>>,
     /// Bounded compiled working plans, keyed by immutable source and semantic hash.
     pub working_plan_cache: Arc<Mutex<BTreeMap<(String, String), LazyFrame>>>,
-    /// Latest working matrix; the async lock also coalesces simultaneous requests.
-    pub working_correlation_cache: WorkingCorrelationCache,
+    /// Working matrices by source, plan and metric, with per-entry single flight.
+    pub working_correlation_cache: Arc<tokio::sync::Mutex<WorkingCorrelationCache>>,
     pub profile_cache: Arc<Mutex<BTreeMap<String, ProfileCacheEntry>>>,
     immediate_metadata_cache: Arc<Mutex<BTreeMap<String, Value>>>,
     pub query_log: Arc<Mutex<VecDeque<QueryEntry>>>,
@@ -220,7 +217,9 @@ impl AppState {
             correlation_matrix_cache: Arc::new(Mutex::new(None)),
             correlation_single_flight: Arc::new(tokio::sync::Mutex::new(BTreeMap::new())),
             working_plan_cache: Arc::new(Mutex::new(BTreeMap::new())),
-            working_correlation_cache: Arc::new(tokio::sync::Mutex::new(None)),
+            working_correlation_cache: Arc::new(tokio::sync::Mutex::new(
+                WorkingCorrelationCache::default(),
+            )),
             profile_cache: Arc::new(Mutex::new(BTreeMap::new())),
             immediate_metadata_cache: Arc::new(Mutex::new(BTreeMap::new())),
             query_log: Arc::new(Mutex::new(VecDeque::with_capacity(max_stored))),

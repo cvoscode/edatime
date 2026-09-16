@@ -479,6 +479,30 @@ describe('initFilterModalController', () => {
             expect(maxRangeInput.classList.contains('is-active')).toBe(true);
         });
 
+        it.each(['min', 'max'] as const)('preserves exact typed values when the %s handle moves', (changed) => {
+            const renderCurrentData = vi.fn();
+            initFilterModalController({ renderCurrentData, updateAnalysisYRange: vi.fn() });
+            openFilterForColumn('HUFL');
+
+            const opposite = changed === 'min' ? 'max' : 'min';
+            const oppositeInput = document.getElementById(`column-filter-${opposite}`) as HTMLInputElement;
+            const typed = opposite === 'min' ? '0.234567' : '0.876543';
+            oppositeInput.value = typed;
+            oppositeInput.dispatchEvent(new Event('input'));
+            // Browsers snap native range values to the slider's step.
+            const oppositeSlider = document.getElementById(`column-filter-${opposite}-range`) as HTMLInputElement;
+            oppositeSlider.value = opposite === 'min' ? '0.23' : '0.88';
+            const slider = document.getElementById(`column-filter-${changed}-range`) as HTMLInputElement;
+            slider.value = '0.5';
+            slider.dispatchEvent(new Event('input'));
+
+            expect(oppositeInput.value).toBe(typed);
+            document.getElementById('column-filter-apply-btn')!.click();
+            expect(workspace.getSnapshot().filters.columnRanges.HUFL).toEqual(changed === 'min'
+                ? { from: 0.5, to: Number(typed) }
+                : { from: Number(typed), to: 0.5 });
+        });
+
         it('clamps a crossing handle without moving the opposite side', () => {
             setWorkspaceRanges({ HUFL: { from: 0.2, to: 0.8 } });
             initFilterModalController({ renderCurrentData: vi.fn(), updateAnalysisYRange: vi.fn() });
@@ -508,6 +532,30 @@ describe('initFilterModalController', () => {
 
             expect((document.getElementById('column-filter-min') as HTMLInputElement).value).toBe('0.25');
             expect((document.getElementById('column-filter-max') as HTMLInputElement).value).toBe('0.80');
+        });
+
+        it.each(['pointerup', 'pointercancel', 'lostpointercapture'])('drags from the rail until %s, preserving the opposite bound', (endEvent) => {
+            setWorkspaceRanges({ HUFL: { from: 0.2, to: 0.8 } });
+            initFilterModalController({ renderCurrentData: vi.fn(), updateAnalysisYRange: vi.fn() });
+            openFilterForColumn('HUFL');
+
+            const rangeControl = document.getElementById('column-filter-range-control') as HTMLElement;
+            vi.spyOn(rangeControl, 'getBoundingClientRect').mockReturnValue({
+                x: 0, y: 0, left: 0, top: 0, right: 216, bottom: 32, width: 216, height: 32,
+                toJSON: () => ({}),
+            });
+            const pointer = (type: string, x: number, pointerId = 1) => {
+                rangeControl.dispatchEvent(new PointerEvent(type, { bubbles: true, button: 0, clientX: x, pointerId }));
+            };
+            pointer('pointerdown', 58);
+            pointer('pointermove', 108);
+            expect((document.getElementById('column-filter-min') as HTMLInputElement).value).toBe('0.50');
+            expect((document.getElementById('column-filter-max') as HTMLInputElement).value).toBe('0.80');
+            pointer('pointermove', 148, 2);
+            expect((document.getElementById('column-filter-min') as HTMLInputElement).value).toBe('0.50');
+            pointer(endEvent, 108);
+            pointer('pointermove', 148);
+            expect((document.getElementById('column-filter-min') as HTMLInputElement).value).toBe('0.50');
         });
 
         it('can separate overlapping handles from either side', () => {

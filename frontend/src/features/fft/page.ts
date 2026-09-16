@@ -43,6 +43,7 @@ let fftLogScale = true;
 let fftScaleOptions: SpectralScaleOptions = { ...DEFAULT_SPECTRAL_SCALE };
 let fftChart: FftChart | EchartsLineChart | null = null;
 let fftChartReady: Promise<void> | null = null;
+let fftNeedsRefresh = false;
 const fftTraceColors: Record<string, string> = {};
 let fftRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
 let fftPageCleanup: (() => void) | null = null;
@@ -57,6 +58,7 @@ function setFieldHidden(fieldOrControl: HTMLElement | null, hidden: boolean): vo
 }
 
 function resetFftPageState(): void {
+    fftNeedsRefresh ||= fftTraces.length > 0 || fftComputing;
     fftPageCleanup?.();
     fftPageCleanup = null;
     fftControlAbort?.abort();
@@ -69,7 +71,9 @@ function resetFftPageState(): void {
     fftMode = 'magnitude';
     fftLogScale = true;
     fftScaleOptions = { ...DEFAULT_SPECTRAL_SCALE };
+    fftChart?.destroy?.();
     fftChart = null;
+    document.getElementById('fft-chart')?.replaceChildren();
     fftChartReady = null;
     fftRuntime = null;
     fftInitialSelectionSeeded = false;
@@ -264,11 +268,15 @@ async function ensureFftChartReady(): Promise<void> {
             fftChart = primaryChart;
             try {
                 await primaryChart.init();
+                if (fftChart !== primaryChart) return;
                 primaryChart.onZoomChange = (isZoomed: boolean) => updateZoomButton(isZoomed);
             } catch (error) {
+                if (fftChart !== primaryChart) return;
                 console.warn('FFT WebGPU renderer unavailable, switching to ECharts fallback:', error);
                 const fallbackChart = new EchartsLineChart('fft-chart');
+                fftChart = fallbackChart;
                 await fallbackChart.init();
+                if (fftChart !== fallbackChart) { fallbackChart.destroy(); return; }
                 fallbackChart.onZoomChange = (isZoomed: boolean) => updateZoomButton(isZoomed);
                 fftChart = fallbackChart;
             }
@@ -341,6 +349,7 @@ async function computeSelectedFft(signal?: AbortSignal): Promise<void> {
         const settled = await Promise.allSettled(
             requestedColumns.map((column) => fetchFftTrace(column, maxPoints, signal)),
         );
+        if (signal?.aborted) return;
         const nextTraces: FftTrace[] = [];
         const nextSampling: Record<string, AnalysisSampling> = {};
         const failures: string[] = [];
@@ -368,6 +377,7 @@ async function computeSelectedFft(signal?: AbortSignal): Promise<void> {
         fftSamplingByColumn = nextSampling;
         document.dispatchEvent(new CustomEvent('fft:computed'));
         await ensureFftChartReady();
+        if (signal?.aborted) return;
         markDataUpdated();
         if (failures.length > 0) {
             toast(`FFT skipped ${failures.length} trace${failures.length === 1 ? '' : 's'}: ${failures.join(', ')}`, 'warning');
@@ -378,6 +388,8 @@ async function computeSelectedFft(signal?: AbortSignal): Promise<void> {
         fftComputeError = detail;
         toast(`FFT failed: ${detail}`, 'error');
     } finally {
+        // A disposed page can have been replaced by a new compute owner.
+        if (signal?.aborted) return;
         fftComputing = false;
         if (loadingEl) loadingEl.hidden = true;
         document.querySelectorAll<HTMLElement>('#fft-traces-bar .fft-trace-chip.loading').forEach((chip) => {
@@ -697,6 +709,10 @@ export async function initFftPage(deps: FftPageDeps): Promise<() => void> {
                 seedInitialFftSelection();
                 renderChips();
                 rerenderOrClear();
+                if (fftNeedsRefresh && document.getElementById('page-fft')?.hidden === false) {
+                    fftNeedsRefresh = false;
+                    void computeSelectedFft(fftControlAbort?.signal);
+                }
             }
         },
     });

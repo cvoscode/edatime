@@ -5,7 +5,8 @@ use std::time::{Duration, Instant};
 
 use bytes::Bytes;
 
-/// Revision-scoped cache payload for full raw and first-difference correlation matrices.
+/// Correlation matrices and aligned sample counts. Unrequested metrics are
+/// empty in a mode-specific working cache entry.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CorrelationMatrixCacheEntry {
     pub columns: Vec<String>,
@@ -16,6 +17,44 @@ pub struct CorrelationMatrixCacheEntry {
     pub spearman_diff: Vec<Vec<Option<f64>>>,
     pub kendall_diff: Vec<Vec<Option<f64>>>,
     pub counts: Vec<Vec<usize>>,
+}
+
+type WorkingCorrelationKey = (String, String, &'static str);
+type WorkingCorrelationSlot = Arc<tokio::sync::OnceCell<CorrelationMatrixCacheEntry>>;
+
+/// Bounded results for immutable source/plan/mode combinations. Each slot
+/// coalesces its own computation without blocking requests for other plans.
+#[derive(Default)]
+pub struct WorkingCorrelationCache {
+    entries: VecDeque<(WorkingCorrelationKey, WorkingCorrelationSlot)>,
+}
+
+impl WorkingCorrelationCache {
+    const MAX_ENTRIES: usize = 24;
+
+    pub fn entry(
+        &mut self,
+        source_version: String,
+        plan_hash: String,
+        mode: &'static str,
+    ) -> WorkingCorrelationSlot {
+        let key = (source_version, plan_hash, mode);
+        if let Some(index) = self
+            .entries
+            .iter()
+            .position(|(cached_key, _)| cached_key == &key)
+            && let Some((key, slot)) = self.entries.remove(index)
+        {
+            self.entries.push_back((key, Arc::clone(&slot)));
+            return slot;
+        }
+        if self.entries.len() >= Self::MAX_ENTRIES {
+            self.entries.pop_front();
+        }
+        let slot = Arc::new(tokio::sync::OnceCell::new());
+        self.entries.push_back((key, Arc::clone(&slot)));
+        slot
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -336,9 +375,41 @@ impl ResponseCache {
 
 #[cfg(test)]
 mod tests {
-    use super::{CacheConfig, CacheReservation, CachedResponse, ResponseCache};
+    use super::{
+        CacheConfig, CacheReservation, CachedResponse, ResponseCache, WorkingCorrelationCache,
+    };
     use std::sync::Arc;
     use std::time::Duration;
+
+    #[test]
+    fn working_correlation_cache_bounds_results_and_keeps_recent_modes() {
+        let mut cache = WorkingCorrelationCache::default();
+        let first = cache.entry("source".into(), "plan-0".into(), "pearson_raw");
+        let oldest = cache.entry("source".into(), "plan-1".into(), "pearson_raw");
+        for index in 2..WorkingCorrelationCache::MAX_ENTRIES {
+            cache.entry("source".into(), format!("plan-{index}"), "pearson_raw");
+        }
+        assert!(Arc::ptr_eq(
+            &first,
+            &cache.entry("source".into(), "plan-0".into(), "pearson_raw")
+        ));
+        let spearman = cache.entry("source".into(), "plan-0".into(), "spearman_raw");
+        assert!(!Arc::ptr_eq(&first, &spearman));
+        assert_eq!(cache.entries.len(), WorkingCorrelationCache::MAX_ENTRIES);
+        assert!(Arc::ptr_eq(
+            &first,
+            &cache.entry("source".into(), "plan-0".into(), "pearson_raw")
+        ));
+        assert!(!Arc::ptr_eq(
+            &oldest,
+            &cache.entry("source".into(), "plan-1".into(), "pearson_raw")
+        ));
+        assert!(!Arc::ptr_eq(
+            &first,
+            &cache.entry("another-source".into(), "plan-0".into(), "pearson_raw")
+        ));
+        assert_eq!(cache.entries.len(), WorkingCorrelationCache::MAX_ENTRIES);
+    }
 
     fn test_cache() -> Arc<ResponseCache> {
         Arc::new(ResponseCache::new(CacheConfig {

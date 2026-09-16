@@ -8,6 +8,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { tableFromIPC } from 'apache-arrow';
 
 const SAMPLE_DATASET_PATH = join(process.cwd(), 'ETTm2.csv');
 const backingPage = (pageName: string): string => (
@@ -69,6 +70,25 @@ test.describe('Audit Verification Tests', () => {
     await expect(page.locator('#scatter-marginal-x')).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('#scatter-marginal-y')).toBeVisible();
     await expect(page.locator('#scatter-empty-state')).toBeHidden();
+  });
+
+  test('pair plot renders before secondary correlation statistics finish', async ({ page }) => {
+    let release!: () => void;
+    const hold = new Promise<void>((resolve) => { release = resolve; });
+    await page.route('**/api/v1/scatter/correlations', async (route) => {
+      if (route.request().postDataJSON().mode === 'spearman_raw') await hold;
+      await route.continue();
+    });
+    try {
+      await openPage(page, 'scatter');
+      await expect(page.locator('#scatter-marginal-x')).toBeVisible({ timeout: 20_000 });
+      await expect(page.locator('#scatter-suggestions')).not.toBeEmpty();
+      await expect(page.locator('#scatter-empty-state')).toBeHidden();
+      await expect(page.locator('#scatter-pearson')).toContainText(/0\.\d+/);
+    } finally {
+      release();
+    }
+    await expect(page.locator('#scatter-spearman')).toContainText(/0\.\d+/, { timeout: 20_000 });
   });
   
   test.beforeEach(async ({ page }) => {
@@ -210,6 +230,95 @@ test.describe('Audit Verification Tests', () => {
     await expect(page.getByRole('button', { name: 'Export graph SVG' })).toBeVisible();
   });
 
+  test('column filter slider shows its selection and supports dragging, keyboard edits, and exact bounds', async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await openPage(page, 'timeseries');
+    await expect(page.locator('#main-chart')).toHaveAttribute('aria-label', /Y axis Series values/);
+    await page.getByRole('button', { name: 'Filter range for HULL', exact: true }).click();
+
+    const minSlider = page.locator('#column-filter-min-range');
+    const maxSlider = page.locator('#column-filter-max-range');
+    const minInput = page.locator('#column-filter-min');
+    const maxInput = page.locator('#column-filter-max');
+    for (const slider of [minSlider, maxSlider]) {
+      // Opaque, 4px native inputs used to cover the selected rail and shrink
+      // the handles because the generic range-input CSS won the cascade.
+      await expect(slider).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+      await expect(slider).toHaveCSS('height', '32px');
+    }
+    const bounds = await minSlider.evaluate((input: HTMLInputElement) => ({ min: Number(input.min), max: Number(input.max) }));
+    const control = await page.locator('#column-filter-range-control').boundingBox();
+    const x = (fraction: number) => control!.x + 8 + fraction * (control!.width - 16);
+    const y = control!.y + control!.height / 2;
+    const fraction = (value: string) => (Number(value) - bounds.min) / (bounds.max - bounds.min);
+    const drag = async (from: number, to: number, endY = y) => {
+      await page.mouse.move(x(from), y);
+      await page.mouse.down();
+      await page.mouse.move(x(to), endY, { steps: 10 });
+      await page.mouse.up();
+    };
+    const initialFill = await page.locator('#column-filter-range-fill').boundingBox();
+    expect(initialFill!.width).toBeCloseTo(control!.width - 16, 0);
+
+    await drag(0, 0.2);
+    expect(fraction(await minInput.inputValue())).toBeCloseTo(0.2, 2);
+    await drag(1, 0.8);
+    expect(fraction(await maxInput.inputValue())).toBeCloseTo(0.8, 2);
+    const upper = await maxInput.inputValue();
+    // Start on the track and keep dragging after leaving its vertical bounds.
+    await drag(0.3, 0.4, y + 45);
+    expect(fraction(await minInput.inputValue())).toBeCloseTo(0.4, 2);
+    await expect(maxInput).toHaveValue(upper);
+    const lower = await minInput.inputValue();
+    await page.mouse.move(x(0.6), y);
+    await expect(minInput).toHaveValue(lower);
+
+    await maxSlider.focus();
+    await page.keyboard.press('ArrowLeft');
+    expect(Number(await maxInput.inputValue())).toBeLessThan(Number(upper));
+    await expect(minInput).toHaveValue(lower);
+    await minInput.fill('5.1234567');
+    await maxSlider.focus();
+    await page.keyboard.press('ArrowLeft');
+    await expect(minInput).toHaveValue('5.1234567');
+    await page.locator('#column-filter-modal .modal').screenshot({ path: testInfo.outputPath('column-filter-slider.png') });
+
+    await page.locator('#column-filter-apply-btn').click();
+    await expect(page.locator('#column-filter-modal')).toBeHidden();
+    await page.getByRole('button', { name: 'Filter range for HULL', exact: true }).click();
+    await expect(minInput).toHaveAttribute('data-exact-value', '5.1234567');
+    await expect(page.locator('#column-filter-apply-btn')).toBeEnabled();
+  });
+
+  test('column filter slider supports touch drags on a narrow screen', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openPage(page, 'timeseries');
+    await expect(page.locator('#main-chart')).toHaveAttribute('aria-label', /Y axis Series values/);
+    await page.locator('.timeseries-series-disclosure > summary').click();
+    await page.getByRole('button', { name: 'Filter range for HULL', exact: true }).click();
+    const control = await page.locator('#column-filter-range-control').boundingBox();
+    expect(control!.x).toBeGreaterThanOrEqual(0);
+    expect(control!.x + control!.width).toBeLessThanOrEqual(390);
+    const bounds = await page.locator('#column-filter-min-range').evaluate((input: HTMLInputElement) => ({ min: Number(input.min), max: Number(input.max) }));
+    const fraction = (value: string) => (Number(value) - bounds.min) / (bounds.max - bounds.min);
+    const session = await page.context().newCDPSession(page);
+    const drag = async (from: number, to: number) => {
+      const point = (position: number) => ({ x: control!.x + 8 + position * (control!.width - 16), y: control!.y + control!.height / 2, id: 1 });
+      await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point(from)] });
+      await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [point(to)] });
+      await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    };
+    try {
+      await drag(0.15, 0.35);
+      expect(fraction(await page.locator('#column-filter-min').inputValue())).toBeCloseTo(0.35, 2);
+      await drag(1, 0.75);
+      expect(fraction(await page.locator('#column-filter-max').inputValue())).toBeCloseTo(0.75, 2);
+      await expect(page.locator('#column-filter-apply-btn')).toBeEnabled();
+    } finally {
+      await session.detach();
+    }
+  });
+
   test('saved Signals filters remain editable and Pair plot describes their data scope', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     // Warm the Pair plot first so the return trip exercises the initialized
@@ -278,6 +387,92 @@ test.describe('Audit Verification Tests', () => {
     const suggestionValue = Number(suggestionText?.match(/(-?\d+\.\d+)\s*$/)?.[1]);
     const pearsonValue = Math.abs(Number(pearsonText?.match(/-?\d+\.\d+/)?.[0]));
     expect(suggestionValue).toBe(Number(pearsonValue.toFixed(2)));
+  });
+
+  test('Signals and Preparation calculations refresh visited plots and export the current pipeline', async ({ page }) => {
+    test.setTimeout(90_000);
+    const apiErrors: string[] = [];
+    page.on('response', (response) => {
+      if (response.url().includes('/api/v1/') && response.status() >= 400) apiErrors.push(`${response.status()} ${response.url()}`);
+    });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openPage(page, 'scatter');
+    await expect(page.locator('#scatter-marginal-x')).toBeVisible({ timeout: 20_000 });
+
+    await openPage(page, 'timeseries');
+    await page.locator('[data-action-proxy="transform-open-btn"]').click();
+    await page.locator('#transform-expression').fill('HUFL + HULL');
+    await page.locator('#transform-output-name').fill('combined_signal');
+    await page.locator('#transform-apply-btn').click();
+    await expect(page.locator('#transform-modal')).toBeHidden();
+    await expect(page.locator('.series-chip[data-col="combined_signal"]')).toBeVisible();
+
+    await openPage(page, 'prepare');
+    await expect(page.locator('.prepare-workspace__stage-list')).toContainText('combined_signal');
+    await page.getByLabel('Transformation to add').selectOption('6');
+    const calculation = page.locator('form[data-stage-composer-kind="derivedColumn"]');
+    await calculation.locator('input[name="expression"]').fill('combined_signal * 2');
+    await calculation.locator('input[name="outputColumn"]').fill('doubled_signal');
+    await calculation.getByRole('button', { name: 'Add calculation' }).click();
+    await expect(page.locator('.prepare-workspace__stage-list')).toContainText('doubled_signal');
+
+    const thumbnails = page.waitForResponse((response) => response.url().endsWith('/api/v1/scatter/matrix'));
+    await openPage(page, 'correlations');
+    const pair = page.locator('.heatmap-cell[data-row-name="combined_signal"][data-col-name="doubled_signal"]').first();
+    await expect(pair).toBeVisible({ timeout: 20_000 });
+    expect((await thumbnails).ok()).toBe(true);
+    await expect(page.locator('#heatmap-loading')).toBeHidden({ timeout: 20_000 });
+    const pointsResponse = page.waitForResponse((response) => {
+      if (!response.url().endsWith('/api/v1/scatter/points') || !response.ok()) return false;
+      const { x, y } = response.request().postDataJSON();
+      return [x, y].includes('combined_signal') && [x, y].includes('doubled_signal');
+    });
+    await pair.click();
+    await expect(page.locator('#heatmap-pair-plot')).toBeVisible();
+    const response = await pointsResponse;
+    const payload = response.request().postDataJSON();
+    expect(payload.cleaning_plan.plan.stages.filter((stage: { kind: string }) => stage.kind === 'derivedColumn')).toHaveLength(2);
+    const table = tableFromIPC(await response.body());
+    expect(table.numRows).toBeGreaterThan(100);
+    const combined = table.getChild(payload.x === 'combined_signal' ? 'x' : 'y')!;
+    const doubled = table.getChild(payload.x === 'doubled_signal' ? 'x' : 'y')!;
+    for (let index = 0; index < 100; index += 1) {
+      expect(doubled.get(index)).toBeCloseTo(Number(combined.get(index)) * 2, 8);
+    }
+    await expect(page.locator('#scatter-empty-state')).toBeHidden();
+
+    await openPage(page, 'prepare');
+    const exports = page.locator('#prepare-export');
+    for (const [label, filename] of [
+      ['Download dataset (Parquet)', 'edatime_prepared.parquet'],
+      ['Export plan JSON', 'edatime_cleaning_plan.json'],
+      ['Export Python', 'apply_edatime_plan.py'],
+      ['Export Rust', 'apply_edatime_plan.rs'],
+      ['Export reproducibility bundle', 'edatime_handoff_bundle.zip'],
+    ]) {
+      const downloadEvent = page.waitForEvent('download', { timeout: 20_000 });
+      await exports.getByRole('button', { name: label, exact: true }).click();
+      const download = await downloadEvent;
+      expect(download.suggestedFilename()).toBe(filename);
+      expect(await download.failure()).toBeNull();
+      const body = await readFile((await download.path())!);
+      if (filename.endsWith('.parquet')) {
+        expect(body.subarray(0, 4).toString()).toBe('PAR1');
+        expect(body.subarray(-4).toString()).toBe('PAR1');
+        expect(body.includes(Buffer.from('doubled_signal'))).toBe(true);
+      } else if (filename.endsWith('.json')) {
+        expect(JSON.parse(body.toString()).plan.stages.map((stage: { outputColumn: string }) => stage.outputColumn))
+          .toEqual(['combined_signal', 'doubled_signal']);
+      } else if (filename.endsWith('.zip')) {
+        expect(body.subarray(0, 2).toString()).toBe('PK');
+        expect(body.includes(Buffer.from('canonical-plan.json'))).toBe(true);
+      } else {
+        expect(body.toString()).toContain('combined_signal');
+        expect(body.toString()).toContain('doubled_signal');
+        expect(body.toString()).toContain('polars');
+      }
+    }
+    expect(apiErrors).toEqual([]);
   });
 
   test('spectrum summary and filter state stay synchronized with the displayed transform', async ({ page }) => {
@@ -394,6 +589,118 @@ test.describe('Audit Verification Tests', () => {
     await expect(page.locator('a[href="#main"]')).toBeVisible();
   });
 
+});
+
+test.describe('Preparation review improvements', () => {
+  test('requires a fresh preview and preserves keyboard context through plan and profile updates', async ({ page }, testInfo) => {
+    test.setTimeout(60_000);
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    page.on('response', (response) => {
+      if (response.url().includes('/api/v1/') && response.status() >= 400) errors.push(`${response.status()} ${response.url()}`);
+    });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await openPage(page, 'prepare');
+    await expect(page.locator('#prepare-transformation')).toBeVisible();
+    await expect(page.locator('#prepare-materialize-button')).toBeDisabled();
+    await page.getByLabel('Transformation to add').selectOption('3');
+    await page.getByLabel('Columns to sort by').fill('date');
+    await page.getByLabel('Columns to sort by').press('Enter');
+    await expect(page.locator('.prepare-workspace__stage')).toHaveCount(1);
+    await expect(page.locator('.prepare-workspace__stage')).toBeFocused();
+    await expect(page.locator('#prepare-plan-status')).toContainText('Preview required');
+    await expect(page.locator('#prepare-materialize-button')).toBeDisabled();
+    await page.locator('#prepare-preview-button').click();
+    await expect(page.locator('#prepare-materialize-button')).toBeEnabled();
+    await expect(page.locator('.prepare-workspace__stage-impact')).toContainText('69,680 rows after this stage');
+
+    let release!: () => void;
+    const hold = new Promise<void>((resolve) => { release = resolve; });
+    await page.route('**/api/v1/profile/sample', async (route) => {
+      await hold;
+      await route.continue();
+    });
+    await page.getByRole('button', { name: 'Build sampled quality report', exact: true }).click();
+    await page.getByLabel('Transformation to add').selectOption('4');
+    await page.getByLabel('Columns to fill', { exact: true }).fill('HULL');
+    release();
+    await expect(page.getByRole('button', { name: 'Sampled quality report ready', exact: true })).toBeVisible();
+    await expect(page.getByLabel('Columns to fill', { exact: true })).toHaveValue('HULL');
+    await expect(page.getByLabel('Columns to fill', { exact: true })).toBeFocused();
+    await expect(page.locator('#prepare-materialize-button')).toBeEnabled();
+    await expect(page.locator('#prepare-quality-columns')).not.toHaveAttribute('open', '');
+    await expect(page.locator('#prepare-profile-findings button[aria-label*="policy"]')).toHaveCount(0);
+    await page.locator('#page-prepare').evaluate((element) => { element.scrollTop = 0; });
+    await page.screenshot({ path: testInfo.outputPath('preparation-desktop.png') });
+
+    await page.getByLabel('Transformation to add').selectOption('0');
+    await page.getByLabel('Numeric column', { exact: true }).fill('HULL');
+    await page.getByLabel('Numeric column', { exact: true }).press('Enter');
+    await expect(page.locator('.prepare-workspace__stage')).toHaveCount(2);
+    await expect(page.locator('#prepare-materialize-button')).toBeDisabled();
+    await page.locator('.prepare-workspace__stage-position select').last().focus();
+    await page.locator('.prepare-workspace__stage-position select').last().selectOption('0');
+    await expect(page.locator('.prepare-workspace__stage').first()).toContainText('HULL');
+    await expect(page.locator('.prepare-workspace__stage-position select').first()).toBeFocused();
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();
+    await expect(page.locator('.prepare-workspace__stage').first()).toContainText('Stable ascending sort');
+    await expect(page.locator('#prepare-materialize-button')).toBeDisabled();
+    await page.locator('#prepare-preview-button').click();
+    await expect(page.locator('#prepare-materialize-button')).toBeEnabled();
+    await page.locator('[data-prepare-section="prepare-pipeline-stages"]').click();
+    await expect(page.locator('#prepare-pipeline-stages')).toBeInViewport();
+    await page.screenshot({ path: testInfo.outputPath('preparation-stages.png') });
+    expect(errors).toEqual([]);
+  });
+
+  test('keeps every section reachable on mobile and labels the composer controls', async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openPage(page, 'prepare');
+    const sections = page.getByLabel('Jump to section', { exact: true });
+    await expect(sections).toBeVisible();
+    await expect(sections.locator('option')).toHaveCount(5);
+    await sections.selectOption('prepare-pipeline-stages');
+    await expect(page.locator('#prepare-pipeline-stages')).toBeInViewport();
+    await page.getByLabel('Transformation to add').selectOption('5');
+    await expect(page.getByLabel('Resampling interval', { exact: true })).toBeVisible();
+    await expect(page.getByLabel('Column aggregations', { exact: true })).toBeVisible();
+    const unlabeled = await page.locator('#prepare-workspace').evaluate((root) => Array.from(root.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('input, select, textarea')).filter((field) => !field.labels?.length && !field.getAttribute('aria-label')).map((field) => field.name));
+    expect(unlabeled).toEqual([]);
+    await expect(page.locator('.prepare-workspace__toolbar')).toBeInViewport();
+    await page.screenshot({ path: testInfo.outputPath('preparation-mobile.png') });
+    const widths = await page.locator('#page-prepare').evaluate((element) => ({ available: element.clientWidth, content: element.scrollWidth }));
+    expect(widths.content).toBeLessThanOrEqual(widths.available + 1);
+    await sections.selectOption('prepare-insight-record');
+    await expect(page.getByLabel('Evidence and rationale')).toBeVisible();
+    await expect(page.locator('.prepare-workspace__toolbar')).toBeInViewport();
+    await sections.selectOption('prepare-profile-findings');
+    await expect(page.getByRole('button', { name: 'Build exact quality report', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Build exact quality report', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Exact quality report ready', exact: true })).toBeVisible({ timeout: 20_000 });
+    await page.locator('#prepare-quality-time > summary').click();
+    await expect(page.locator('#prepare-quality-time')).toContainText('median observed gap 15 min');
+    await page.screenshot({ path: testInfo.outputPath('preparation-mobile-quality.png') });
+  });
+
+  test('creates a prepared version only after preview and resets approval for the new dataset', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await openPage(page, 'prepare');
+    await page.getByLabel('Transformation to add').selectOption('3');
+    await page.getByLabel('Columns to sort by').fill('date');
+    await page.getByLabel('Columns to sort by').press('Enter');
+    await expect(page.locator('#prepare-materialize-button')).toBeDisabled();
+    await page.locator('#prepare-preview-button').click();
+    await expect(page.locator('#prepare-materialize-button')).toBeEnabled();
+    const applied = page.waitForResponse('**/api/v1/cleaning/apply');
+    await page.locator('#prepare-materialize-button').click();
+    const response = await applied;
+    expect(response.ok()).toBe(true);
+    const result = await response.json();
+    await expect(page.locator('.prepare-workspace__revision-link')).toHaveText(String(result.datasetRevision));
+    await expect(page.locator('#prepare-plan-status')).toContainText('Source baseline');
+    await expect(page.locator('.prepare-workspace__stage')).toHaveCount(0);
+    await expect(page.locator('#prepare-materialize-button')).toBeDisabled();
+  });
 });
 
 test.describe('Page Load Performance', () => {

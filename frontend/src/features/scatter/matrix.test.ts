@@ -7,10 +7,12 @@ import { setScatterViewSnapshot } from '../../store/scatterState.js';
 import {
     buildMatrixFetchPairs,
     createMatrixRenderSession,
+    fetchMatrixBatchData,
     renderScatterOverview,
     selectMatrixPair,
 } from './matrix.js';
 import { renderMatrixGrid } from './matrixGrid.js';
+import { buildScatterQueryContext } from './state.js';
 
 class MockCanvasContext2D {
     setTransform() { }
@@ -202,6 +204,38 @@ describe('buildMatrixFetchPairs', () => {
 
         expect(activeSignal!.aborted).toBe(true);
         expect(session.currentSignal()).toBe(idleSignal);
+    });
+
+    it('loads a grid larger than eight columns in bounded batches without losing cells', async () => {
+        const columns = Array.from({ length: 9 }, (_, index) => `column_${index}`);
+        const pairs = buildMatrixFetchPairs(columns, { x: columns[0]!, y: columns[1]! });
+        const fetch = vi.spyOn(api, 'fetchScatterMatrix').mockImplementation(async (batch) => ({
+            cells: new Map(batch.map(({ x, y }) => [`${x}|${y}`, {
+                totalPoints: 1, points: [[1, 2]], colorValues: null, colorLabels: null,
+            }])),
+        }));
+        const context = buildScatterQueryContext({ scopeToColumns: false });
+        const signal = new AbortController().signal;
+        const cells = await fetchMatrixBatchData(pairs, context, '', signal);
+        expect(fetch.mock.calls.map(([batch]) => batch.length)).toEqual([64, 17]);
+        expect(cells.size).toBe(81);
+        expect(cells.has('column_8|column_8')).toBe(true);
+        expect(await fetchMatrixBatchData(pairs, context, '', signal)).toBe(cells);
+        expect(fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('stops remaining batches when a matrix request is superseded', async () => {
+        const controller = new AbortController();
+        const columns = Array.from({ length: 9 }, (_, index) => `column_${index}`);
+        const pairs = buildMatrixFetchPairs(columns, { x: '', y: '' });
+        const fetch = vi.spyOn(api, 'fetchScatterMatrix').mockImplementation(async () => {
+            controller.abort();
+            return { cells: new Map() };
+        });
+        await expect(fetchMatrixBatchData(pairs, buildScatterQueryContext({ scopeToColumns: false }), '', controller.signal))
+            .rejects.toMatchObject({ name: 'AbortError' });
+        expect(fetch).toHaveBeenCalledOnce();
+        expect(scatterState.matrixBatchCache.size).toBe(0);
     });
 
     it('builds per-cell query contexts so column filters match each matrix pair', async () => {

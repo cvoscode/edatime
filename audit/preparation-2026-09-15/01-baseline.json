@@ -1,0 +1,497 @@
+{
+  "url": "http://127.0.0.1:5173/#page=preparation",
+  "title": "EdaTime",
+  "bodyText": "Preparation\n?\nPreparation help\nFilter and calculate in Signals, refine the steps here, and use the current working dataset in every plot.\nInspect in Signals\nGraph and history\nFocus view\nProfile findings\nPipeline preview\nPipeline stages\nExport\nRecord an insight\nSOURCE\nsource-5\nREVISION\n5\nACTIVE STAGES\n0\nPLAN STATUS\nSource baseline\nCurrent pipeline\nEnabled steps run in order for all plots and dataset exports. Changes are reversible with Undo and Redo.\nSource baseline — add a stage to produce a post-pipeline preview.\nKeep Signals time window\nOrdered stages\nThese controls change the active canonical plan. Preview its exact impact here, then create a prepared dataset when the result is ready.\nUndo\nRedo\nPreview baseline\nCreate prepared dataset\nChoose one transformation, configure it, then add it to the ordered plan.\nMissing values\nDuplicate rows\nColumn selection\nStable sort\nOrdered null fill\nFixed-duration resampling\nCalculate / combine columns\nAdd missing-value policy\nDrop null rows\nDrop non-finite rows\nAdd stage\nNo transformations have been added yet. Create one from Signals or open the workbench.\nExport dataset and pipeline\nDownload all rows and columns after the enabled steps as Parquet. Export the same pipeline as JSON or Python / Rust code, or download a bundle with the plan, code, and provenance. Exporting does not require creating a prepared dataset.\nDownload dataset (Parquet)\nExport plan JSON\nExport Python\nExport Rust\nExport reproducibility bundle\nQuality findings\nImmediate source-profile findings can be turned into reversible stages. Build a bounded sample or exact quality report for a cached, versioned follow-up.\nBuild sampled quality reportBuild exact quality report\nColumn quality findings are pending the exact profile.",
+  "sections": [
+    {
+      "tag": "div",
+      "id": "",
+      "classes": "page-header prepare-workspace__header",
+      "heading": "Preparation",
+      "text": "Preparation?Preparation helpFilter and calculate in Signals, refine the steps here, and use the current working dataset in every plot.Inspect in SignalsGraph and historyFocus view"
+    },
+    {
+      "tag": "nav",
+      "id": "",
+      "classes": "prepare-workspace__local-nav",
+      "heading": "",
+      "text": "Profile findingsPipeline previewPipeline stagesExportRecord an insight"
+    },
+    {
+      "tag": "section",
+      "id": "",
+      "classes": "prepare-workspace__identity",
+      "heading": "",
+      "text": "Sourcesource-5Revision5Active stages0Plan statusSource baseline"
+    },
+    {
+      "tag": "section",
+      "id": "prepare-pipeline-preview",
+      "classes": "prepare-workspace__graph",
+      "heading": "Current pipeline",
+      "text": "Current pipelineEnabled steps run in order for all plots and dataset exports. Changes are reversible with Undo and Redo.Source baseline — add a stage to produce a post-pipeline preview.Keep Signals time window"
+    },
+    {
+      "tag": "section",
+      "id": "prepare-pipeline-stages",
+      "classes": "prepare-workspace__stages",
+      "heading": "Ordered stages",
+      "text": "Ordered stagesThese controls change the active canonical plan. Preview its exact impact here, then create a prepared dataset when the result is ready.UndoRedoPreview baselineCreate prepared datasetChoose one transformation, configure it, then add it to the ordered plan.Missing valuesDuplicate rowsColumn selectionStable sortOrdered null fillFixed-duration res"
+    },
+    {
+      "tag": "section",
+      "id": "prepare-export",
+      "classes": "prepare-workspace__stages",
+      "heading": "Export dataset and pipeline",
+      "text": "Export dataset and pipelineDownload all rows and columns after the enabled steps as Parquet. Export the same pipeline as JSON or Python / Rust code, or download a bundle with the plan, code, and provenance. Exporting does not require creating a prepared dataset.Download dataset (Parquet)Export plan JSONExport PythonExport RustExport reproducibility bundle"
+    },
+    {
+      "tag": "section",
+      "id": "prepare-profile-findings",
+      "classes": "prepare-workspace__quality",
+      "heading": "Quality findings",
+      "text": "Quality findingsImmediate source-profile findings can be turned into reversible stages. Build a bounded sample or exact quality report for a cached, versioned follow-up.Build sampled quality reportBuild exact quality reportColumndtype% missingstatusActionColumn quality findings are pending the exact profile."
+    },
+    {
+      "tag": "section",
+      "id": "prepare-insight-record",
+      "classes": "prepare-workspace__insight",
+      "heading": "",
+      "text": ""
+    },
+    {
+      "tag": "section",
+      "id": "prepare-signals-filters",
+      "classes": "prepare-workspace__signals-filters",
+      "heading": "Applied in Signals",
+      "text": "Applied in SignalsSignals filters are saved in the pipeline and applied to correlations, density/scatter plots, and diagnostics."
+    }
+  ],
+  "controls": [
+    {
+      "tag": "button",
+      "id": "prepare-help-btn",
+      "text": "?Preparation help",
+      "aria": "Show help for the Preparation page",
+      "name": null,
+      "type": "button",
+      "disabled": false
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "text": "Inspect in Signals",
+      "aria": null,
+      "name": null,
+      "type": "button",
+      "disabled": false
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "text": "Graph and history",
+      "aria": null,
+      "name": null,
+      "type": "button",
+      "disabled": false
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "text": "Focus view",
+      "aria": "Focus view",
+      "name": null,
+      "type": "button",
+      "disabled": false
+    },
+    {
+      "tag": "a",
+      "id": "",
+      "text": "Profile findings",
+      "aria": null,
+      "name": null,
+      "type": null,
+      "disabled": false
+    },
+    {
+      "tag": "a",
+      "id": "",
+      "text": "Pipeline preview",
+      "aria": null,
+      "name": null,
+      "type": null,
+      "disabled": false
+    },
+    {
+      "tag": "a",
+      "id": "",
+      "text": "Pipeline stages",
+      "aria": null,
+      "name": null,
+      "type": null,
+      "disabled": false
+    },
+    {
+      "tag": "a",
+      "id": "",
+      "text": "Export",
+      "aria": null,
+      "name": null,
+      "type": null,
+      "disabled": false
+    },
+    {
+      "tag": "a",
+      "id": "",
+      "text": "Record an insight",
+      "aria": null,
+      "name": null,
+      "type": null,
+      "disabled": false
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "text": "5",
+      "aria": null,
+      "name": null,
+      "type": "button",
+      "disabled": false
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "text": "Keep Signals time window",
+      "aria": null,
+      "name": null,
+      "type": "button",
+      "disabled": false
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "text": "Undo",
+      "aria": null,
+      "name": null,
+      "type": "button",
+      "disabled": true
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "text": "Redo",
+      "aria": null,
+      "name": null,
+      "type": "button",
+      "disabled": true
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "text": "Preview baseline",
+      "aria": null,
+      "name": null,
+      "type": "button",
+      "disabled": false
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "text": "Create prepared dataset",
+      "aria": null,
+      "name": null,
+      "type": "button",
+      "disabled": true
+    },
+    {
+      "tag": "select",
+      "id": "",
+      "text": "Missing valuesDuplicate rowsColumn selectionStable sortOrdered null fillFixed-duration resamplingCalculate / combine columns",
+      "aria": "Transformation to add",
+      "name": null,
+      "type": null,
+      "disabled": false
+    },
+    {
+      "tag": "input",
+      "id": "",
+      "text": "",
+      "aria": "Numeric column",
+      "name": "column",
+      "type": null,
+      "disabled": false
+    },
+    {
+      "tag": "input",
+      "id": "",
+      "text": "",
+      "aria": null,
+      "name": "dropNulls",
+      "type": "checkbox",
+      "disabled": false
+    },
+    {
+      "tag": "input",
+      "id": "",
+      "text": "",
+      "aria": null,
+      "name": "dropNonFinite",
+      "type": "checkbox",
+      "disabled": false
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "text": "Add stage",
+      "aria": null,
+      "name": null,
+      "type": "submit",
+      "disabled": false
+    },
+    {
+      "tag": "input",
+      "id": "",
+      "text": "",
+      "aria": "Duplicate-resolution key columns",
+      "name": "columns",
+      "type": null,
+      "disabled": false
+    },
+    {
+      "tag": "select",
+      "id": "",
+      "text": "Keep first rowKeep last row",
+      "aria": null,
+      "name": "keep",
+      "type": null,
+      "disabled": false
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "text": "Add stage",
+      "aria": null,
+      "name": null,
+      "type": "submit",
+      "disabled": false
+    },
+    {
+      "tag": "input",
+      "id": "",
+      "text": "",
+      "aria": "Columns to keep or drop",
+      "name": "columns",
+      "type": null,
+      "disabled": false
+    },
+    {
+      "tag": "select",
+      "id": "",
+      "text": "Keep only these columnsDrop these columns",
+      "aria": null,
+      "name": "mode",
+      "type": null,
+      "disabled": false
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "text": "Add stage",
+      "aria": null,
+      "name": null,
+      "type": "submit",
+      "disabled": false
+    },
+    {
+      "tag": "input",
+      "id": "",
+      "text": "",
+      "aria": "Columns to sort by",
+      "name": "columns",
+      "type": null,
+      "disabled": false
+    },
+    {
+      "tag": "input",
+      "id": "",
+      "text": "",
+      "aria": null,
+      "name": "descending",
+      "type": "checkbox",
+      "disabled": false
+    },
+    {
+      "tag": "input",
+      "id": "",
+      "text": "",
+      "aria": null,
+      "name": "nullsLast",
+      "type": "checkbox",
+      "disabled": false
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "text": "Add stage",
+      "aria": null,
+      "name": null,
+      "type": "submit",
+      "disabled": false
+    },
+    {
+      "tag": "input",
+      "id": "",
+      "text": "",
+      "aria": null,
+      "name": "columns",
+      "type": null,
+      "disabled": false
+    },
+    {
+      "tag": "select",
+      "id": "",
+      "text": "Forward fillBackward fill",
+      "aria": null,
+      "name": "strategy",
+      "type": null,
+      "disabled": false
+    },
+    {
+      "tag": "input",
+      "id": "",
+      "text": "",
+      "aria": null,
+      "name": "limit",
+      "type": "number",
+      "disabled": false
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "text": "Add stage",
+      "aria": null,
+      "name": null,
+      "type": "submit",
+      "disabled": false
+    },
+    {
+      "tag": "input",
+      "id": "",
+      "text": "",
+      "aria": null,
+      "name": "every",
+      "type": null,
+      "disabled": false
+    },
+    {
+      "tag": "input",
+      "id": "",
+      "text": "",
+      "aria": null,
+      "name": "aggregations",
+      "type": null,
+      "disabled": false
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "text": "Add stage",
+      "aria": null,
+      "name": null,
+      "type": "submit",
+      "disabled": false
+    },
+    {
+      "tag": "input",
+      "id": "",
+      "text": "",
+      "aria": null,
+      "name": "expression",
+      "type": null,
+      "disabled": false
+    },
+    {
+      "tag": "input",
+      "id": "",
+      "text": "",
+      "aria": null,
+      "name": "outputColumn",
+      "type": null,
+      "disabled": false
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "text": "Add calculation",
+      "aria": null,
+      "name": null,
+      "type": "submit",
+      "disabled": false
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "text": "Download dataset (Parquet)",
+      "aria": null,
+      "name": null,
+      "type": "button",
+      "disabled": false
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "text": "Export plan JSON",
+      "aria": null,
+      "name": null,
+      "type": "button",
+      "disabled": false
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "text": "Export Python",
+      "aria": null,
+      "name": null,
+      "type": "button",
+      "disabled": false
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "text": "Export Rust",
+      "aria": null,
+      "name": null,
+      "type": "button",
+      "disabled": false
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "text": "Export reproducibility bundle",
+      "aria": null,
+      "name": null,
+      "type": "button",
+      "disabled": false
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "text": "Build sampled quality report",
+      "aria": null,
+      "name": null,
+      "type": "button",
+      "disabled": false
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "text": "Build exact quality report",
+      "aria": null,
+      "name": null,
+      "type": "button",
+      "disabled": false
+    }
+  ],
+  "consoleMessages": [],
+  "requestFailures": []
+}

@@ -258,8 +258,10 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             const syncSpectrogramSummary = () => renderSpectrogramSummary(summaryEl, spectrogramResult);
 
             const renderSpectrogramChart = async () => {
-                if (!spectrogramResult) return;
+                if (!spectrogramResult || listenerAbort.signal.aborted) return;
+                const result = spectrogramResult;
                 const chart = await chartController.ensure();
+                if (listenerAbort.signal.aborted || result !== spectrogramResult) return;
                 syncClipEnabled();
                 syncClipParamLabel();
                 const timeAxis = spectrogramResult.times_ms;
@@ -317,7 +319,10 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 if (spectrogramResult) void renderSpectrogramChart();
             }, listenerOptions);
 
+            let computeSequence = 0;
             const computeSpectrogram = async () => {
+                const sequence = ++computeSequence;
+                const isCurrent = () => !listenerAbort.signal.aborted && sequence === computeSequence;
                 const column = getDropdownValue('spectrogram-col-select');
                 if (!column) {
                     syncSpectrogramEmptyState('Pick a numeric column and update the spectrogram.');
@@ -359,23 +364,25 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                         request.windowSize,
                         request.hopSize,
                         request.maxPoints,
-                        undefined,
+                        { signal: listenerAbort.signal },
                         {
                             normalize: request.normalize,
                             clip: request.clip,
                             clipParam: request.clipParam,
                         },
                     );
-
+                    if (!isCurrent()) return;
                     spectrogramAppliedScaleMode = request.normalize;
                     spectrogramAppliedClipMode = request.clip;
                     spectrogramAppliedClipParam = request.clipParam;
                     spectrogramResult = response.result;
                     await renderSpectrogramChart();
+                    if (!isCurrent()) return;
                     spectrogramRenderError = null;
                     syncSpectrogramEmptyState();
                     markDataUpdated();
                 } catch (error: unknown) {
+                    if (!isCurrent() || (error instanceof Error && error.name === 'AbortError')) return;
                     console.error('[edatime:spectrogram] generation failed', error);
                     spectrogramResult = null;
                     spectrogramRenderError = describeSpectrogramFailure(error);
@@ -383,7 +390,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     syncSpectrogramEmptyState();
                     toast(spectrogramRenderError, 'error');
                 } finally {
-                    deps.setLoading('spectrogram-compute-btn', 'spectrogram-loading', false, 'Update spectrogram');
+                    if (isCurrent()) deps.setLoading('spectrogram-compute-btn', 'spectrogram-loading', false, 'Update spectrogram');
                 }
             };
 
