@@ -9,7 +9,8 @@
  */
 
 import { setFilterText, timeseriesInteraction } from './interaction.js';
-import { type ProfileFilterCategory, uploadUi, setProfileFilterCategory, setProfileFilterText } from '../upload/index.js';
+import { uploadUi, setProfileFilterCategory, setProfileFilterText } from '../upload/index.js';
+import { bindProfileFilterCategoryControls } from '../../ui/profileFilters.js';
 import { primaryChart } from '../../charts/primaryChart.js';
 import { clearScatterViewSnapshots } from '../../store/scatterState.js';
 import { debounce } from '../../utils/function.js';
@@ -111,26 +112,17 @@ export function initDatasetSearchInputs(
     }
 
     // Profile filter category pills: All / Numeric / Datetime.
-    const categoryButtons = Array.from(
-        document.querySelectorAll<HTMLButtonElement>('.profile-filter-category-btn'),
-    );
-    if (categoryButtons.length > 0) {
-        const setActiveCategoryButton = (category: ProfileFilterCategory) => {
-            for (const button of categoryButtons) {
-                button.classList.toggle('is-active', button.dataset.category === category);
-                button.setAttribute('aria-pressed', button.dataset.category === category ? 'true' : 'false');
-            }
-        };
-        // Initial state mirrors the store default so the UI never lies.
-        setActiveCategoryButton(uploadUi.profileFilterCategory);
-        for (const button of categoryButtons) {
-            button.addEventListener('click', () => {
-                const category = (button.dataset.category || 'all') as ProfileFilterCategory;
+    const uploadPage = document.getElementById('page-upload');
+    if (uploadPage) {
+        bindProfileFilterCategoryControls({
+            root: uploadPage,
+            getFilterCategory: () => uploadUi.profileFilterCategory,
+            onFilterCategoryChange: (category) => {
                 setProfileFilterCategory(category);
-                setActiveCategoryButton(category);
                 deps.renderColumnProfilesGrid(true);
-            }, { signal: lifetime.signal });
-        }
+            },
+            signal: lifetime.signal,
+        });
     }
     return () => lifetime.abort();
 }

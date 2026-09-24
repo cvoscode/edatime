@@ -1,5 +1,5 @@
 /** Public Timeseries feature surface for application composition. */
-import '../../../css/modules/timeseries-review.css';
+import '../../../css/modules/signals-toolbar.css';
 export { createTimeseriesModule } from './module.js';
 export { sanitizeSelectedColumns } from './columnSelection.js';
 export { initChartPageFilterGesture } from './filterGesture.js';

@@ -42,6 +42,34 @@ test.beforeAll(async ({ request }) => {
 
 test.describe('Audit Verification Tests', () => {
 
+  test('Preparation reuses the loaded source quality report across navigation and reload', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await openPage(page, 'timeseries');
+    await page.locator('.sidebar [data-page="upload"]').click();
+    const sourceRows = page.locator('#profile-grid-rows');
+    await expect(sourceRows).toContainText('HUFL');
+    await expect(sourceRows).not.toContainText('Pending', { timeout: 30_000 });
+    const sourceValues = await sourceRows.locator('.profile-grid-row').filter({ hasText: 'HUFL' }).locator('.profile-cell').allTextContents();
+
+    const profileStarts: string[] = [];
+    page.on('request', (request) => {
+      if (request.url().endsWith('/api/v1/profile') && request.method() === 'POST') profileStarts.push(request.url());
+    });
+    await page.locator('.sidebar [data-page="prepare"]').click();
+    const qualityRows = page.locator('#prepare-profile-grid-rows');
+    await expect(qualityRows).not.toContainText('Pending');
+    await expect(qualityRows.locator('.profile-grid-row').filter({ hasText: 'HUFL' }).locator('.profile-cell')).toHaveText(sourceValues.slice(1));
+    await expect(page.getByRole('button', { name: 'Exact quality report ready', exact: true })).toBeDisabled();
+    expect(profileStarts).toEqual([]);
+
+    await openPage(page, 'prepare');
+    await expect(qualityRows).toContainText('HUFL');
+    await expect(qualityRows).not.toContainText('Pending');
+    await expect(page.getByRole('button', { name: 'Exact quality report ready', exact: true })).toBeDisabled();
+    expect(errors).toEqual([]);
+  });
+
   test('sample dataset profile replaces pending statistics', async ({ page }) => {
     await page.locator('[data-sample-dataset="ettm2"]').click();
     await expect(page.locator('#page-timeseries')).toBeVisible({ timeout: 60_000 });
@@ -346,12 +374,8 @@ test.describe('Audit Verification Tests', () => {
     await page.locator('#column-filter-apply-btn').click();
     await expect(page.locator('#column-filter-modal')).toBeHidden();
 
-    const chartTools = page.locator('.timeseries-utility-shelf');
-    await expect(chartTools.locator('.timeseries-tools-summary-detail')).toContainText('(Range active)');
-    await expect(chartTools).toHaveAttribute('title', /Range/);
-    if (!(await chartTools.evaluate((details: HTMLDetailsElement) => details.open))) {
-      await chartTools.locator(':scope > summary').click();
-    }
+    await expect(page.locator('#timeseries-filter-status')).toHaveText('1 active filter');
+    await expect(page.locator('#timeseries-filter-status')).toHaveAttribute('title', /HULL/);
     await page.locator('#quick-range-24h:visible').click();
 
     await openPage(page, 'correlations');
@@ -628,8 +652,9 @@ test.describe('Preparation review improvements', () => {
     await expect(page.getByLabel('Columns to fill', { exact: true })).toHaveValue('HULL');
     await expect(page.getByLabel('Columns to fill', { exact: true })).toBeFocused();
     await expect(page.locator('#prepare-materialize-button')).toBeEnabled();
-    await expect(page.locator('#prepare-quality-columns')).not.toHaveAttribute('open', '');
-    await expect(page.locator('#prepare-profile-findings button[aria-label*="policy"]')).toHaveCount(0);
+    await expect(page.locator('#prepare-profile-grid')).toBeVisible();
+    await expect(page.locator('#prepare-profile-grid-rows')).toContainText('HULL');
+    await expect(page.locator('#prepare-profile-findings .prepare-workspace__quality-table')).toHaveCount(0);
     await page.locator('#page-prepare').evaluate((element) => { element.scrollTop = 0; });
     await page.screenshot({ path: testInfo.outputPath('preparation-desktop.png') });
 
@@ -674,11 +699,10 @@ test.describe('Preparation review improvements', () => {
     await expect(page.getByLabel('Evidence and rationale')).toBeVisible();
     await expect(page.locator('.prepare-workspace__toolbar')).toBeInViewport();
     await sections.selectOption('prepare-profile-findings');
-    await expect(page.getByRole('button', { name: 'Build exact quality report', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Build exact quality report', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Exact quality report ready', exact: true })).toBeVisible({ timeout: 20_000 });
-    await page.locator('#prepare-quality-time > summary').click();
-    await expect(page.locator('#prepare-quality-time')).toContainText('median observed gap 15 min');
+    await expect(page.locator('#prepare-profile-grid')).toBeVisible();
+    await expect(page.locator('#prepare-profile-grid .profile-grid-header .profile-col')).toHaveCount(7);
+    await expect(page.locator('#prepare-profile-findings .prepare-workspace__quality-table')).toHaveCount(0);
     await page.screenshot({ path: testInfo.outputPath('preparation-mobile-quality.png') });
   });
 

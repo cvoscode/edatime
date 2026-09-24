@@ -14,14 +14,20 @@ function toolbarHeaderFor(page: HTMLElement): HTMLElement | null {
  */
 export function initToolbarCollapse(): () => void {
     const controller = new AbortController();
-    const buttons: HTMLButtonElement[] = [];
+    const buttons = new Map<HTMLElement, HTMLButtonElement>();
     const pages = Array.from(document.querySelectorAll<HTMLElement>(TOGGLE_SELECTOR));
     ensureStyleModule('toolbarCollapse');
 
     const attach = (page: HTMLElement) => {
-        if (page.dataset.toolbarCollapseReady === 'true') return;
         const header = toolbarHeaderFor(page);
         if (!header) return;
+        const actions = header.querySelector<HTMLElement>(':scope > .prepare-workspace__header-actions') ?? header;
+        const existing = buttons.get(page);
+        if (existing) {
+            // Preparation replaces its header after profile and plan updates.
+            if (!header.contains(existing)) actions.append(existing);
+            return;
+        }
         page.dataset.toolbarCollapseReady = 'true';
 
         const button = document.createElement('button');
@@ -48,10 +54,10 @@ export function initToolbarCollapse(): () => void {
             sync();
         }, { signal: controller.signal });
 
-        const help = header.querySelector<HTMLElement>(':scope > .page-help-trigger');
-        const primaryAction = header.querySelector<HTMLElement>(':scope > .btn-primary');
-        header.insertBefore(button, help ?? primaryAction ?? null);
-        buttons.push(button);
+        const help = actions.querySelector<HTMLElement>(':scope > .page-help-trigger');
+        const primaryAction = actions.querySelector<HTMLElement>(':scope > .btn-primary');
+        actions.insertBefore(button, help ?? primaryAction ?? null);
+        buttons.set(page, button);
         sync();
     };
 

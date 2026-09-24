@@ -1,4 +1,4 @@
-import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
+import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 type TimeseriesAppearance = ReturnType<WorkspaceStore['getSnapshot']>['appearance'];
 
@@ -11,6 +11,7 @@ type TimeseriesAppearance = ReturnType<WorkspaceStore['getSnapshot']>['appearanc
 export function getDefaultTimeseriesChartText(
     appearance: TimeseriesAppearance | undefined,
     selectedColumns: readonly string[] = [],
+    normalized = false,
 ): { title: string; xLabel: string; yLabel: string } {
     const configured = appearance?.chartText;
     const seriesLabel = selectedColumns.length === 1
@@ -19,6 +20,6 @@ export function getDefaultTimeseriesChartText(
     return {
         title: configured?.title || '',
         xLabel: configured?.xLabel || `Time (${Intl.DateTimeFormat().resolvedOptions().timeZone})`,
-        yLabel: configured?.yLabel || seriesLabel,
+        yLabel: normalized ? 'Normalized value (0–1)' : configured?.yLabel || seriesLabel,
     };
 }

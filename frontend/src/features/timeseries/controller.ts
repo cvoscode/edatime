@@ -27,7 +27,7 @@ import {
     type ZoomRestoreState,
 } from './zoomHistoryPolicy.js';
 import { createTimeseriesRuntimeCache, type TimeseriesRuntimeCache } from './runtimeCache.js';
-import { getDefaultTimeseriesChartText } from './chartText.js';
+import { getDefaultTimeseriesChartText } from '../../chart/chartText.js';
 import { getCleaningPlanHash } from '../../cleaning/store.js';
 
 const EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} } as any;
@@ -205,7 +205,8 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         const emptyState = getEmptyStateController();
         const workspace = deps.workspace.getSnapshot();
         const selectedColumns = [...workspace.selection.columns];
-        const chartText = getDefaultTimeseriesChartText(workspace.appearance, selectedColumns);
+        const chartText = getDefaultTimeseriesChartText(workspace.appearance, selectedColumns,
+            !!(document.getElementById('timeseries-normalize-series') as HTMLInputElement | null)?.checked);
         primaryChart.current?.setChartText?.(chartText.title, chartText.xLabel, chartText.yLabel);
         const workspaceViewport = workspace.viewport;
         const viewportStart = Number(workspaceViewport?.xMin);

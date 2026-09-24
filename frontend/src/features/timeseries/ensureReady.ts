@@ -18,8 +18,8 @@ import { dbg, dbgGroup } from '../../debug.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import type { CleaningPlanStore } from '../../cleaning/store.js';
 import type { DataObject } from '../../types/api.js';
-import { getDefaultTimeseriesChartText } from './chartText.js';
-export { getDefaultTimeseriesChartText } from './chartText.js';
+import { getDefaultTimeseriesChartText } from '../../chart/chartText.js';
+export { getDefaultTimeseriesChartText } from '../../chart/chartText.js';
 export interface TimeseriesBootstrapCallbacks {
     onZoom: (view: ViewSnapshot, sourceKind: string) => void;
     onYRange: (min: number, max: number, sourceKind: string) => void;
@@ -137,6 +137,7 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                     const chartText = getDefaultTimeseriesChartText(
                         initialSnapshot.appearance,
                         initialSnapshot.selection.columns,
+                        !!(document.getElementById('timeseries-normalize-series') as HTMLInputElement | null)?.checked,
                     );
                     chart?.setChartText?.(chartText.title, chartText.xLabel, chartText.yLabel);
 
@@ -197,6 +198,7 @@ export function createTimeseriesBootstrap(deps: TimeseriesBootstrapDeps) {
                         const fallbackChartText = getDefaultTimeseriesChartText(
                             fallbackSnapshot.appearance,
                             fallbackSnapshot.selection.columns,
+                            !!(document.getElementById('timeseries-normalize-series') as HTMLInputElement | null)?.checked,
                         );
                         fallbackChart?.setChartText?.(
                             fallbackChartText.title,

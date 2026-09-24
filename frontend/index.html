@@ -359,7 +359,7 @@
             aria-label="Show help for the Signals page" title="Show help for the Signals page (?)"><span
               aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
         </div>
-        <div class="toolbar" role="group" aria-label="Data preparation tools">
+        <div class="toolbar signals-preparation-toolbar" role="group" aria-label="Data preparation tools">
           <span class="toolbar-label">Prepare data</span>
           <button class="btn btn-ghost btn-sm" type="button" data-action-proxy="transform-open-btn">Calculate / combine columns</button>
           <button class="btn btn-ghost btn-sm" type="button" data-action-proxy="outlier-open-btn">Clean outliers</button>
@@ -386,181 +386,102 @@
           </div>
         </details>
 
-        <details class="timeseries-range-menu analysis-compact-disclosure" data-responsive-collapse="900">
-          <summary>Range</summary>
-          <div class="analysis-compact-disclosure__content" role="group" aria-label="Quick range">
-            <button class="btn btn-ghost btn-sm" type="button" data-action-proxy="quick-range-24h">24h</button>
-            <button class="btn btn-ghost btn-sm" type="button" data-action-proxy="quick-range-7d">7d</button>
-            <button class="btn btn-ghost btn-sm" type="button" data-action-proxy="quick-range-30d">30d</button>
-            <button class="btn btn-ghost btn-sm" type="button" data-action-proxy="quick-range-all">All</button>
+        <div id="timeseries-chart-toolbar" class="toolbar signals-toolbar" role="group" aria-label="Signals chart controls">
+          <div class="signals-toolbar__row">
+            <div class="signals-toolbar__range" role="group" aria-label="Time range">
+              <span class="signals-toolbar__label">Time range</span>
+              <div class="signals-toolbar__presets" role="group" aria-label="Preset time ranges">
+                <button class="btn btn-ghost btn-sm" id="quick-range-24h" type="button" title="Last 24 hours" disabled>24h</button>
+                <button class="btn btn-ghost btn-sm" id="quick-range-7d" type="button" title="Last 7 days" disabled>7d</button>
+                <button class="btn btn-ghost btn-sm" id="quick-range-30d" type="button" title="Last 30 days" disabled>30d</button>
+                <button class="btn btn-ghost btn-sm" id="quick-range-all" type="button" title="Full dataset range" disabled>All</button>
+              </div>
+              <details id="quick-range-custom" class="signals-toolbar__popover signals-toolbar__custom" data-signals-popover>
+                <summary class="signals-toolbar__trigger" aria-controls="timeseries-custom-range-panel">Custom range</summary>
+                <div id="timeseries-custom-range-panel" class="signals-toolbar__panel" role="group" aria-label="Custom date range">
+                  <p class="signals-toolbar__hint">Dates use your local time zone.</p>
+                  <label class="signals-toolbar__field">Start <input id="quick-range-custom-start" type="datetime-local"></label>
+                  <label class="signals-toolbar__field">End <input id="quick-range-custom-end" type="datetime-local"></label>
+                  <p id="quick-range-custom-error" class="field-error" aria-live="polite"></p>
+                  <button id="quick-range-custom-apply" class="btn btn-primary btn-sm" type="button">Apply range</button>
+                </div>
+              </details>
+            </div>
+            <span id="timeseries-filter-status" class="signals-toolbar__status" role="status" hidden></span>
+            <div class="signals-toolbar__zoom" role="group" aria-label="Zoom controls">
+              <span class="signals-toolbar__hint" id="zoom-range-badge">Viewing 100%</span>
+              <button class="btn btn-ghost btn-sm" id="zoom-out-btn" type="button" title="Zoom out" aria-label="Zoom out">−</button>
+              <button class="btn btn-ghost btn-sm" id="zoom-reset-btn" type="button" title="Reset zoom to initial view">Reset zoom</button>
+            </div>
           </div>
-        </details>
-
-        <details
-          class="toolbar toolbar--tools scatter-toolbar timeseries-utility-shelf analysis-secondary-disclosure analysis-collapse-tablet">
-          <summary class="analysis-secondary-disclosure__summary">
-            <span>Chart tools</span><span class="timeseries-tools-summary-detail">Drawing, labels, analytics, zoom, range, export</span>
-          </summary>
-          <div class="analysis-secondary-disclosure__content">
-            <div class="timeseries-utility-shelf__primary">
-              <div class="scatter-toolbar__segment scatter-toolbar__segment--view draw-toolbar" role="group"
-                aria-label="Drawing tools">
-                <span class="scatter-toolbar__eyebrow">Draw</span>
-                <span id="draw-help-btn" class="toolbar-info-icon draw-toolbar__help" tabindex="0" role="button"
-                  aria-label="Show drawing and adaptive filter help">?</span>
-                <div class="scatter-toolbar__fields">
-                  <label class="toolbar-field scatter-toolbar__field" for="draw-tool">
-                    <span class="toolbar-field__label">Tool</span>
-                    <select id="draw-tool" name="draw-tool" class="draw-select" aria-label="Draw tool">
+          <div class="signals-toolbar__row">
+            <div class="signals-toolbar__tools" role="group" aria-label="Chart tools">
+              <details id="timeseries-draw-tools" class="signals-toolbar__popover" data-signals-popover>
+                <summary class="signals-toolbar__trigger" aria-controls="timeseries-draw-panel">
+                  Drawing <span id="timeseries-draw-mode" class="signals-toolbar__state" hidden></span>
+                </summary>
+                <div id="timeseries-draw-panel" class="signals-toolbar__panel" role="group" aria-label="Drawing tools">
+                  <div class="signals-toolbar__panel-heading">
+                    <strong>Drawing tools</strong>
+                    <button id="draw-help-btn" class="btn btn-ghost btn-sm" type="button" aria-label="Show drawing and adaptive filter help">Help</button>
+                  </div>
+                  <p id="timeseries-drawing-unavailable" class="signals-toolbar__hint" hidden>Drawing is unavailable with the Canvas renderer. You can still use notes, zoom, and exports.</p>
+                  <label class="signals-toolbar__field" for="draw-tool">
+                    <span>Tool</span>
+                    <select id="draw-tool" name="draw-tool" aria-label="Draw tool">
                       <option value="none">Zoom / inspect</option>
                       <option value="arrow">Arrow</option>
                       <option value="box">Box</option>
                     </select>
                   </label>
-                  <label class="toolbar-field scatter-toolbar__field" for="draw-color" title="Color"
-                    aria-label="Draw color">
-                    <span class="toolbar-field__label">Color</span>
-                    <input type="color" id="draw-color" name="draw-color" value="#ff0055" class="draw-color-swatch">
-                  </label>
-                  <label class="toolbar-field scatter-toolbar__field" for="draw-width" title="Thickness"
-                    aria-label="Draw thickness">
-                    <span class="toolbar-field__label">Width</span>
-                    <input type="number" id="draw-width" name="draw-width" value="2" min="1" max="10"
-                      class="draw-width-input">
-                  </label>
-                  <div class="scatter-toolbar__actions">
-                    <button class="btn btn-ghost btn-sm" id="draw-clear-btn" type="button" title="Clear drawings"
-                      aria-label="Clear drawings">Clear drawings</button>
-                    <button class="btn btn-ghost btn-sm" id="adaptive-clear-btn" type="button"
-                      title="No adaptive line filters to clear" disabled
-                      aria-label="Clear adaptive line filters">No adaptive filters — Ctrl+click a series to start</button>
+                  <div class="signals-toolbar__drawing-style">
+                    <label class="signals-toolbar__field" for="draw-color">Color
+                      <input type="color" id="draw-color" name="draw-color" value="#ff0055">
+                    </label>
+                    <label class="signals-toolbar__field" for="draw-width">Width
+                      <input type="number" id="draw-width" name="draw-width" value="2" min="1" max="10">
+                    </label>
+                    <button class="btn btn-ghost btn-sm" id="draw-clear-btn" type="button" aria-label="Clear drawings">Clear drawings</button>
                   </div>
-                  <details class="scatter-toolbar__overflow" hidden>
-                    <summary class="scatter-toolbar__overflow-btn" aria-label="More options">
-                      <span class="scatter-toolbar__overflow-icon" aria-hidden="true">⋯</span>
-                      <span class="scatter-toolbar__overflow-count" hidden>0</span>
-                    </summary>
-                    <div class="scatter-toolbar__overflow-menu" role="menu"></div>
-                  </details>
+                  <div class="signals-toolbar__adaptive">
+                    <strong>Adaptive filters</strong>
+                    <p id="timeseries-adaptive-hint" class="signals-toolbar__hint">Ctrl+click a selected series to start an adaptive line filter.</p>
+                    <button class="btn btn-ghost btn-sm" id="adaptive-clear-btn" type="button" disabled
+                      aria-label="Clear adaptive line filters" aria-describedby="timeseries-adaptive-hint">Clear adaptive filters</button>
+                  </div>
                 </div>
-              </div>
-
-              <div class="scatter-toolbar__segment scatter-toolbar__segment--display labels-toolbar" role="group"
-                aria-label="Chart label controls">
-                <span class="scatter-toolbar__eyebrow">Labels</span>
-                <div class="scatter-toolbar__controls">
-                  <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-labels-panel-btn" type="button"
-                    title="Edit chart title and axis labels">
-                    <span class="toolbar-label">Chart title &amp; axes</span>
-                    <span class="toolbar-disclosure__value">Title + axes</span>
-                  </button>
-                  <label class="toolbar-field__control scatter-link-toggle" title="Rescale every series to its own minimum and maximum so relative movement is comparable.">
-                    <input id="timeseries-normalize-series" type="checkbox">
-                    <span>Normalize each series</span>
-                  </label>
-                </div>
-              </div>
-
-              <div class="scatter-toolbar__segment scatter-toolbar__segment--display annotations-toolbar" role="group"
-                aria-label="Note and annotation tools">
-                <span class="scatter-toolbar__eyebrow">Notes</span>
-                <div class="scatter-toolbar__controls">
-                  <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-notes-panel-btn" type="button"
-                    title="Open annotation tools">
-                    <span class="toolbar-label">Notes &amp; annotations</span>
-                    <span class="toolbar-disclosure__value">Annotations</span>
-                  </button>
-                </div>
-              </div>
+              </details>
+              <button class="btn btn-ghost btn-sm" id="open-labels-panel-btn" type="button" title="Edit chart title and axis labels" aria-haspopup="dialog">
+                Title &amp; axes <span data-signals-state="labels" class="signals-toolbar__state" hidden>Edited</span>
+              </button>
+              <button class="btn btn-ghost btn-sm" id="open-notes-panel-btn" type="button" title="Open notes and annotations" aria-haspopup="dialog">
+                Notes <span data-signals-state="notes" class="signals-toolbar__state" hidden></span>
+              </button>
+              <button class="btn btn-ghost btn-sm" id="open-analytics-panel-btn" type="button" title="Open bands and anomalies" aria-haspopup="dialog">
+                Analytics <span data-signals-state="analytics" class="signals-toolbar__state" hidden>On</span>
+              </button>
             </div>
-
-            <div class="timeseries-utility-shelf__secondary">
-              <div class="scatter-toolbar__segment scatter-toolbar__segment--display export-toolbar" role="group"
-                aria-label="Export chart and data options">
-                <span class="scatter-toolbar__eyebrow">Export</span>
-                <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
-                  <button class="btn btn-ghost btn-sm" id="export-png-btn" type="button" title="Export chart as PNG (P)"
-                    aria-label="Export chart as PNG">Export PNG</button>
-                  <button class="btn btn-ghost btn-sm" id="export-csv-btn" type="button"
-                    title="Export filtered data as CSV (E)" aria-label="Export filtered data as CSV">Export CSV</button>
-                  <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-export-options-btn" type="button"
-                    title="More export options">
-                    <span class="toolbar-label">More export formats</span>
-                    <span class="toolbar-disclosure__value">SVG, JSON, Parquet</span>
-                  </button>
-                  <details class="scatter-toolbar__overflow" hidden>
-                    <summary class="scatter-toolbar__overflow-btn" aria-label="More export options">
-                      <span class="scatter-toolbar__overflow-icon" aria-hidden="true">⋯</span>
-                      <span class="scatter-toolbar__overflow-count" hidden>0</span>
-                    </summary>
-                    <div class="scatter-toolbar__overflow-menu" role="menu"></div>
-                  </details>
-                </div>
+            <label class="signals-toolbar__normalize" title="Rescale each trace to 0–1 using samples remaining after its filters in the current time range. Excluded samples stay hidden.">
+              <input id="timeseries-normalize-series" type="checkbox">
+              <span>Normalize each series</span>
+            </label>
+            <details class="signals-toolbar__popover signals-toolbar__export" data-signals-popover>
+              <summary class="signals-toolbar__trigger" aria-controls="timeseries-export-panel">Export</summary>
+              <div id="timeseries-export-panel" class="signals-toolbar__panel" role="group" aria-label="Export chart and data">
+                <button class="btn btn-ghost btn-sm" id="export-png-btn" type="button" title="Export chart as PNG (P)" aria-label="Export chart as PNG">Export PNG</button>
+                <button class="btn btn-ghost btn-sm" id="export-csv-btn" type="button" title="Export filtered data as CSV (E)" aria-label="Export filtered data as CSV">Export CSV</button>
+                <button class="btn btn-ghost btn-sm" id="open-export-options-btn" type="button" aria-haspopup="dialog">More export formats</button>
+                <p class="signals-toolbar__hint">SVG, JSON, Parquet and more</p>
               </div>
-
-              <div class="scatter-toolbar__segment scatter-toolbar__segment--display analytics-toolbar" role="group"
-                aria-label="Analytics controls">
-                <span class="scatter-toolbar__eyebrow">Analytics</span>
-                <div class="scatter-toolbar__controls">
-                  <button class="btn btn-ghost btn-sm toolbar-panel-open" id="open-analytics-panel-btn" type="button"
-                    title="Open analytics controls">
-                    <span class="toolbar-label">Bands &amp; anomalies</span>
-                    <span class="toolbar-disclosure__value">Bands, anomalies, cleanup</span>
-                  </button>
-                </div>
-              </div>
-
-              <div class="scatter-toolbar__segment scatter-toolbar__segment--zoom zoom-toolbar timeseries-zoom-cluster"
-                role="group" aria-label="Zoom controls">
-                <span class="scatter-toolbar__eyebrow">Zoom</span>
-                <div class="scatter-toolbar__controls">
-                  <button class="btn btn-ghost btn-sm" id="zoom-out-btn" type="button" title="Zoom out"
-                    aria-label="Zoom out">−</button>
-                  <span class="zoom-range-badge" id="zoom-range-badge">Viewing 100%</span>
-                  <button class="btn btn-ghost btn-sm" id="zoom-reset-btn" type="button"
-                    title="Reset zoom to initial view">Reset zoom</button>
-                </div>
-              </div>
-
-              <div class="scatter-toolbar__segment scatter-toolbar__segment--range quick-range-toolbar" role="group"
-                aria-label="Quick range">
-                <span class="scatter-toolbar__eyebrow">Time range</span>
-                <div class="scatter-toolbar__controls">
-                  <button class="btn btn-ghost btn-sm" id="quick-range-24h" type="button" title="Last 24 hours (UTC)"
-                    disabled>24h</button>
-                  <button class="btn btn-ghost btn-sm" id="quick-range-7d" type="button" title="Last 7 days (UTC)"
-                    disabled>7d</button>
-                  <button class="btn btn-ghost btn-sm" id="quick-range-30d" type="button" title="Last 30 days (UTC)"
-                    disabled>30d</button>
-                  <button class="btn btn-ghost btn-sm" id="quick-range-all" type="button" title="Full dataset range"
-                    disabled>All</button>
-                  <details id="quick-range-custom" class="quick-range-custom">
-                    <summary class="btn btn-ghost btn-sm">Custom…</summary>
-                    <div class="quick-range-custom__popover" role="group" aria-label="Custom date range">
-                      <label>Start <input id="quick-range-custom-start" type="datetime-local"></label>
-                      <label>End <input id="quick-range-custom-end" type="datetime-local"></label>
-                      <p id="quick-range-custom-error" class="field-error" aria-live="polite"></p>
-                      <button id="quick-range-custom-apply" class="btn btn-primary btn-sm" type="button">Apply range</button>
-                    </div>
-                  </details>
-                  <details class="scatter-toolbar__overflow" hidden>
-                    <summary class="scatter-toolbar__overflow-btn" aria-label="More range options">
-                      <span class="scatter-toolbar__overflow-icon" aria-hidden="true">⋯</span>
-                      <span class="scatter-toolbar__overflow-count" hidden>0</span>
-                    </summary>
-                    <div class="scatter-toolbar__overflow-menu" role="menu"></div>
-                  </details>
-                </div>
-              </div>
-            </div>
+            </details>
           </div>
-        </details>
+        </div>
 
         <main class="main main--analysis-chart" id="main">
           <div class="timeseries-result-toolbar" aria-label="Chart actions">
             <button class="btn btn-ghost btn-sm" type="button" data-action-proxy="export-png-btn">Export PNG</button>
             <button class="btn btn-ghost btn-sm" type="button" data-action-proxy="export-csv-btn">Export CSV</button>
-                  <button class="btn btn-ghost btn-sm" type="button" data-action-proxy="zoom-reset-btn">Reset zoom</button>
+            <button class="btn btn-ghost btn-sm" type="button" data-action-proxy="zoom-reset-btn">Reset zoom</button>
           </div>
           <div id="main-chart" role="img" tabindex="0"
             aria-label="Time-series chart. Use the series controls above to change visible columns and the zoom controls to change the time range."></div>
@@ -626,7 +547,7 @@
         <div id="prepare-workspace"></div>
       </section>
 
-      <section class="page page--analysis-scroll heatmap-pair-plot" id="heatmap-pair-plot" data-page-name="scatter"
+      <section class="page page--analysis-scroll relationship-page heatmap-pair-plot" id="heatmap-pair-plot" data-page-name="scatter"
         data-toolbar-collapse aria-labelledby="heatmap-pair-plot-title" hidden>
         <div class="page-header heatmap-pair-plot__header">
           <div class="page-header__copy">
@@ -638,125 +559,83 @@
             aria-label="Show help for the Pair plot" title="Show help for the Pair plot (?)"><span
               aria-hidden="true">?</span><span class="page-help-trigger__label">Help</span></button>
         </div>
-        <div class="toolbar scatter-toolbar">
-          <div id="scatter-analytics-group" class="scatter-toolbar__cluster">
-            <div class="scatter-toolbar__segment scatter-toolbar__segment--view" data-toolbar-priority="high">
-              <span class="scatter-toolbar__eyebrow">View</span>
-              <div class="scatter-toolbar__fields">
-                <label class="toolbar-field scatter-toolbar__field" for="scatter-x-col">
-                  <span class="toolbar-field__label">X axis</span>
-                  <select id="scatter-x-col" class="modal-select" aria-label="Scatter X column"></select>
-                </label>
-                <label class="toolbar-field scatter-toolbar__field" for="scatter-y-col">
-                  <span class="toolbar-field__label">Y axis</span>
-                  <select id="scatter-y-col" class="modal-select" aria-label="Scatter Y column"></select>
-                </label>
-                <details class="scatter-toolbar__overflow" hidden>
-                  <summary class="scatter-toolbar__overflow-btn" aria-label="More options">
-                    <span class="scatter-toolbar__overflow-icon" aria-hidden="true">⋯</span>
-                  </summary>
-                  <div class="scatter-toolbar__overflow-menu"></div>
-                </details>
-              </div>
-            </div>
-
-            <div class="scatter-toolbar__segment scatter-toolbar__segment--display" data-toolbar-priority="medium">
-              <span class="scatter-toolbar__eyebrow">Render</span>
-              <div class="scatter-toolbar__fields">
-                <label id="scatter-mode-label" class="toolbar-field scatter-toolbar__field" for="scatter-render-mode">
-                  <span class="toolbar-field__label">Render</span>
-                  <select id="scatter-render-mode" class="modal-select" aria-label="Scatter render mode"
-                    title="Color column is applied in Scatter mode; Density mode visualizes point concentration.">
-                    <option value="density" selected>Density</option>
-                    <option value="scatter">Scatter</option>
-                  </select>
-                  <span id="scatter-density-fallback-note" class="scatter-density-fallback-note" role="status" hidden></span>
-                </label>
-                <label class="toolbar-field scatter-toolbar__field" for="scatter-diagonal-mode">
-                  <span class="toolbar-field__label">Marginal</span>
-                  <select id="scatter-diagonal-mode" class="modal-select" aria-label="Marginal distribution mode"
-                    title="Choose how each axis distribution is summarized around the pair plot.">
-                    <option value="histogram" selected>Histogram</option>
-                    <option value="kde">KDE</option>
-                    <option value="boxplot">Box Plot</option>
+        <div id="scatter-toolbar" class="toolbar scatter-toolbar relationship-toolbar" aria-label="Pair plot controls">
+          <div id="scatter-analytics-group">
+            <div class="relationship-toolbar__row relationship-toolbar__primary">
+              <div class="relationship-toolbar__axes scatter-toolbar__segment--view">
+                <label class="relationship-toolbar__field" for="scatter-x-col">
+                  <span class="relationship-toolbar__label">X axis</span>
+                  <select id="scatter-x-col" class="modal-select" aria-label="Scatter X column">
                   </select>
                 </label>
-                <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field scatter-toolbar__field--toggle"
-                  for="scatter-link-brush">
-                  <span class="toolbar-field__label">Range linkage</span>
-                  <span class="toolbar-field__control scatter-link-toggle"
-                    title="When on, the visible X/Y range is locked to the displayed data; when off, brush a subset and only the in-brush points are recomputed.">
-                    <input id="scatter-link-brush" type="checkbox" checked>
-                    <span aria-hidden="true" class="scatter-link-icon">🔗</span><span>Use full visible range</span>
-                  </span>
+                <label class="relationship-toolbar__field" for="scatter-y-col">
+                  <span class="relationship-toolbar__label">Y axis</span>
+                  <select id="scatter-y-col" class="modal-select" aria-label="Scatter Y column">
+                  </select>
                 </label>
               </div>
+              <label id="scatter-mode-label" class="relationship-toolbar__field relationship-toolbar__mode" for="scatter-render-mode">
+                <span class="relationship-toolbar__label">Render</span>
+                <select id="scatter-render-mode" class="modal-select" aria-label="Scatter render mode" title="Color column is applied in Scatter mode; Density mode visualizes point concentration.">
+                  <option value="density" selected>Density</option>
+                  <option value="scatter">Scatter</option>
+                </select>
+                <span id="scatter-density-fallback-note" class="scatter-density-fallback-note" role="status" hidden>
+                </span>
+              </label>
             </div>
-
-            <details class="scatter-secondary-controls analysis-secondary-disclosure analysis-collapse-tablet"
-              data-collapse-on-overflow data-toolbar-priority="low" open>
-              <summary class="analysis-secondary-disclosure__summary">
-                <span>⋯ More</span><span>Color, outliers</span>
-              </summary>
-              <div class="analysis-secondary-disclosure__content">
-                <div class="scatter-toolbar__segment scatter-toolbar__segment--refine" data-toolbar-priority="low">
-                  <span class="scatter-toolbar__eyebrow">Refine</span>
-                  <div class="scatter-toolbar__fields">
-                    <label id="scatter-color-column-field" class="toolbar-field scatter-toolbar__field"
-                      for="scatter-color-column">
-                      <span class="toolbar-field__label">Color column</span>
-                      <select id="scatter-color-column" class="modal-select" aria-label="Scatter color-by column">
-                        <option value="">None</option>
-                      </select>
-                    </label>
-                    <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field" for="scatter-clip-outliers">
-                      <span class="toolbar-field__label">Outliers</span>
-                      <span class="toolbar-field__control scatter-link-toggle"
-                        title="Hide X or Y values beyond 1.5 × IQR.">
-                        <input id="scatter-clip-outliers" type="checkbox">
-                        <span>Clip 1.5× IQR</span>
+            <div class="relationship-toolbar__row relationship-toolbar__tools">
+              <details id="scatter-display-options" class="relationship-toolbar__popover" data-toolbar-popover>
+                <summary class="relationship-toolbar__trigger">Display</summary>
+                <div class="relationship-toolbar__panel">
+                  <label class="relationship-toolbar__field" for="scatter-diagonal-mode">
+                    <span class="relationship-toolbar__label">Marginal</span>
+                    <select id="scatter-diagonal-mode" class="modal-select" aria-label="Marginal distribution mode" title="Choose how each axis distribution is summarized around the pair plot.">
+                      <option value="histogram" selected>Histogram</option>
+                      <option value="kde">KDE</option>
+                      <option value="boxplot">Box Plot</option>
+                    </select>
+                  </label>
+                  <div id="scatter-density-controls" class="relationship-toolbar__density" hidden>
+                    <label class="relationship-toolbar__field" for="scatter-bin-size">
+                      <span class="relationship-toolbar__label">Bins</span>
+                      <span class="relationship-toolbar__control">
+                        <input id="scatter-bin-size" type="range" min="2" max="64" step="1" value="10" aria-label="Scatter bin size">
+                        <span id="scatter-bin-size-value" class="range-value">10</span>
                       </span>
                     </label>
-                    <div id="scatter-density-controls" class="scatter-toolbar-group-inline scatter-toolbar__density"
-                      hidden>
-                      <label class="toolbar-field scatter-toolbar__field scatter-toolbar__field--range"
-                        for="scatter-bin-size">
-                        <span class="toolbar-field__label">Bins</span>
-                        <span class="toolbar-field__control">
-                          <input id="scatter-bin-size" type="range" min="2" max="64" step="1" value="10"
-                            aria-label="Scatter bin size">
-                          <span id="scatter-bin-size-value" class="range-value">10</span>
-                        </span>
-                      </label>
-                      <label class="toolbar-field scatter-toolbar__field" for="scatter-normalization">
-                        <span class="toolbar-field__label">Scale</span>
-                        <select id="scatter-normalization" class="modal-select" aria-label="Density normalization">
-                          <option value="linear">Linear</option>
-                          <option value="log">Log</option>
-                        </select>
-                      </label>
-                    </div>
-                    <details class="scatter-toolbar__overflow" hidden>
-                      <summary class="scatter-toolbar__overflow-btn" aria-label="More options">
-                        <span class="scatter-toolbar__overflow-icon" aria-hidden="true">⋯</span>
-                      </summary>
-                      <div class="scatter-toolbar__overflow-menu"></div>
-                    </details>
+                    <label class="relationship-toolbar__field" for="scatter-normalization">
+                      <span class="relationship-toolbar__label">Scale</span>
+                      <select id="scatter-normalization" class="modal-select" aria-label="Density normalization">
+                        <option value="linear">Linear</option>
+                        <option value="log">Log</option>
+                      </select>
+                    </label>
                   </div>
                 </div>
-              </div>
-            </details>
-          </div>
-
-          <div class="scatter-toolbar__segment scatter-toolbar__segment--actions toolbar-group--push" data-toolbar-priority="high">
-            <span class="scatter-toolbar__eyebrow">Result</span>
-            <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
-              <details class="toolbar-disclosure toolbar-disclosure--end scatter-export-group">
-                <summary class="toolbar-disclosure__summary">
-                  <span class="toolbar-label">Export result</span>
-                  <span class="toolbar-disclosure__value">PNG, SVG, HTML, CSV, JSON, Parquet</span>
-                </summary>
-                <div class="toolbar-disclosure__menu">
+              </details>
+              <details id="scatter-refine-options" class="relationship-toolbar__popover relationship-toolbar__refine" data-toolbar-popover>
+                <summary class="relationship-toolbar__trigger">Color &amp; outliers</summary>
+                <div class="relationship-toolbar__panel">
+                  <label id="scatter-color-column-field" class="relationship-toolbar__field" for="scatter-color-column">
+                    <span class="relationship-toolbar__label">Color column</span>
+                    <select id="scatter-color-column" class="modal-select" aria-label="Scatter color-by column">
+                      <option value="">None</option>
+                    </select>
+                  </label>
+                  <label class="relationship-toolbar__toggle" for="scatter-clip-outliers" title="Hide X or Y values beyond 1.5 × IQR.">
+                    <input id="scatter-clip-outliers" type="checkbox">
+                    <span>Clip 1.5× IQR</span>
+                  </label>
+                </div>
+              </details>
+              <label class="relationship-toolbar__toggle" for="scatter-link-brush" title="When on, the visible X/Y range is locked to the displayed data; when off, brush a subset and only the in-brush points are recomputed.">
+                <input id="scatter-link-brush" type="checkbox" checked>
+                <span>Use full visible range</span>
+              </label>
+              <details id="scatter-export-menu" class="relationship-toolbar__popover relationship-toolbar__export scatter-export-group" data-toolbar-popover data-toolbar-export>
+                <summary class="relationship-toolbar__trigger">Export</summary>
+                <div class="relationship-toolbar__panel">
                   <button class="btn btn-ghost btn-sm" id="scatter-export-png-btn" type="button">PNG</button>
                   <button class="btn btn-ghost btn-sm" id="scatter-export-svg-btn" type="button">SVG</button>
                   <button class="btn btn-ghost btn-sm" id="scatter-export-html-btn" type="button">HTML</button>
@@ -999,7 +878,7 @@
         </main>
       </section>
 
-      <section class="page page--analysis-scroll" id="page-heatmap" data-page-name="heatmap" data-toolbar-collapse hidden>
+      <section class="page page--analysis-scroll relationship-page" id="page-heatmap" data-page-name="heatmap" data-toolbar-collapse hidden>
         <div class="page-header">
           <div class="page-header__copy">
             <h1 class="page-header__title">Correlation matrix</h1>
@@ -1010,120 +889,89 @@
             title="Show help for the Correlation matrix page (?)"><span aria-hidden="true">?</span><span
               class="page-help-trigger__label">Help</span></button>
         </div>
-        <div class="toolbar scatter-toolbar">
-          <div class="scatter-toolbar__segment scatter-toolbar__segment--view" data-toolbar-priority="high">
-            <span class="scatter-toolbar__eyebrow">Metric</span>
-            <div class="scatter-toolbar__fields">
-              <label class="toolbar-field scatter-toolbar__field" for="heatmap-metric">
-                <span class="toolbar-field__label">Type</span>
-                <span id="heatmap-metric-info" class="toolbar-info-icon" tabindex="0"
-                  aria-label="Explain correlation metric choices" data-info-tip="">?</span>
-                <select id="heatmap-metric" class="modal-select" aria-label="Correlation metric">
-                  <option value="pearson_raw" selected>Pearson · Levels</option>
-                  <option value="spearman_raw">Spearman · Levels</option>
-                  <option value="kendall_raw">Kendall tau · Levels</option>
-                  <option value="pearson_diff">Pearson · Changes</option>
-                  <option value="spearman_diff">Spearman · Changes</option>
-                  <option value="kendall_diff">Kendall tau · Changes</option>
-                </select>
+        <div id="heatmap-toolbar" class="toolbar scatter-toolbar relationship-toolbar" aria-label="Correlation matrix controls">
+          <div class="relationship-toolbar__row relationship-toolbar__primary">
+            <label class="relationship-toolbar__field" for="heatmap-metric">
+              <span class="relationship-toolbar__label">Metric</span>
+              <span id="heatmap-metric-info" class="toolbar-info-icon" tabindex="0" aria-label="Explain correlation metric choices" data-info-tip="">?</span>
+              <select id="heatmap-metric" class="modal-select" aria-label="Correlation metric">
+                <option value="pearson_raw" selected>Pearson · Levels</option>
+                <option value="spearman_raw">Spearman · Levels</option>
+                <option value="kendall_raw">Kendall tau · Levels</option>
+                <option value="pearson_diff">Pearson · Changes</option>
+                <option value="spearman_diff">Spearman · Changes</option>
+                <option value="kendall_diff">Kendall tau · Changes</option>
+              </select>
+            </label>
+            <label class="relationship-toolbar__field" for="heatmap-color-column">
+              <span class="relationship-toolbar__label">Pair-point color</span>
+              <select id="heatmap-color-column" class="modal-select" aria-label="Color matrix points by feature" aria-describedby="heatmap-color-mode-help">
+                <option value="" selected>None</option>
+              </select>
+              <span id="heatmap-color-mode-help" class="sr-only">Pair-point color is used in Scatter mode. Density mode pools observations.</span>
+            </label>
+            <div class="relationship-toolbar__toggles">
+              <label class="relationship-toolbar__toggle" for="heatmap-cluster-toggle">
+                <input id="heatmap-cluster-toggle" type="checkbox" checked aria-label="Enable clustering">
+                <span>Clustered</span>
               </label>
-              <label class="toolbar-field scatter-toolbar__field" for="heatmap-color-column">
-                <span class="toolbar-field__label">Pair-point color</span>
-                <select id="heatmap-color-column" class="modal-select" aria-label="Color matrix points by feature">
-                  <option value="" selected>None</option>
-                </select>
-              </label>
-              <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field" for="heatmap-cluster-toggle">
-                <span class="toolbar-field__label">Matrix</span>
-                <span class="toolbar-field__control scatter-link-toggle">
-                  <input id="heatmap-cluster-toggle" type="checkbox" checked aria-label="Enable clustering">
-                  <span>Clustered</span>
-                </span>
-              </label>
-              <label class="toolbar-field toolbar-field--toggle scatter-toolbar__field" for="heatmap-lock-order">
-                <span class="toolbar-field__label">Order</span>
-                <span class="toolbar-field__control scatter-link-toggle">
-                  <input id="heatmap-lock-order" type="checkbox" aria-label="Lock matrix order">
-                  <span>Lock order</span>
-                </span>
+              <label class="relationship-toolbar__toggle" for="heatmap-lock-order">
+                <input id="heatmap-lock-order" type="checkbox" aria-label="Lock matrix order">
+                <span>Lock order</span>
               </label>
               <span id="heatmap-order-locked-status" class="scatter-stat-chip" role="status" hidden>Order locked</span>
-              <details class="toolbar-disclosure toolbar-disclosure--end">
-                <summary class="toolbar-disclosure__summary">
-                  <span class="toolbar-label">Format</span>
-                  <span class="toolbar-disclosure__value">PNG, SVG, HTML, CSV</span>
-                </summary>
-                <div class="toolbar-disclosure__menu">
-                  <button id="heatmap-export-png-btn" class="btn btn-ghost btn-sm" type="button">PNG</button>
-                  <button id="heatmap-export-svg-btn" class="btn btn-ghost btn-sm" type="button">SVG</button>
-                  <button id="heatmap-export-html-btn" class="btn btn-ghost btn-sm" type="button">HTML</button>
-                  <button id="heatmap-export-csv-btn" class="btn btn-ghost btn-sm" type="button">CSV</button>
-                </div>
-              </details>
             </div>
           </div>
-
-          <details class="heatmap-secondary-controls analysis-secondary-disclosure" data-collapse-on-overflow
-            data-toolbar-priority="low" open>
-            <summary class="analysis-secondary-disclosure__summary">
-              <span>⋯ More</span><span>Cell size, fit, pipeline, export</span>
-            </summary>
-            <div class="analysis-secondary-disclosure__content">
-              <div class="scatter-toolbar__segment scatter-toolbar__segment--display" data-toolbar-priority="medium">
-                <span class="scatter-toolbar__eyebrow">Display</span>
-                <div class="scatter-toolbar__fields">
-                  <label class="toolbar-field scatter-toolbar__field scatter-toolbar__field--range"
-                    for="heatmap-cell-size">
-                    <span class="toolbar-field__label">Cell size</span>
-                    <span class="toolbar-field__control">
-                      <input id="heatmap-cell-size" type="range" min="24" max="72" step="4" value="36"
-                        aria-label="Heatmap cell size in pixels" aria-describedby="heatmap-cell-size-help"
-                        title="Cell size: 24–72 pixels">
-                      <span id="heatmap-cell-size-value" class="range-value" aria-hidden="true">36 px</span>
-                      <span id="heatmap-cell-size-help" class="sr-only">Range: 24 to 72 pixels.</span>
-                    </span>
-                  </label>
-                  <div class="toolbar-field scatter-toolbar__field scatter-toolbar__field--fit" role="group"
-                    aria-label="Heatmap fit to screen">
-                    <span class="toolbar-field__label">Fit</span>
-                    <span class="toolbar-field__control">
-                      <button id="heatmap-fit-toggle" type="button" class="btn btn-ghost btn-sm toolbar-toggle-btn"
-                        aria-pressed="false" title="Snap to panel — automatically resize cells to fit the panel width">
-                        Snap to panel
-                      </button>
-                      <button id="heatmap-axis-fit-toggle" type="button" class="btn btn-ghost btn-sm toolbar-toggle-btn"
-                        aria-pressed="false" title="Fit color axis — set color scale to actual data range">
-                        Fit color axis
-                      </button>
-                    </span>
-                  </div>
-                  <!-- C7 — overflow popout for the Display segment. When the
-                   row is too narrow to fit "Cluster" + "Fit" + the two fit
-                   buttons, "Fit color axis" retreats into this details menu
-                   and a "⋯" pill takes its place. Without this popout the
-                   segment's content wraps onto a second row, lifting the
-                   matrix below the fold on tablet widths. -->
-                  <details class="scatter-toolbar__overflow" data-overflow="false">
-                    <summary class="scatter-toolbar__overflow-btn" aria-label="More display options">
-                      <span aria-hidden="true">⋯</span>
-                    </summary>
-                    <div class="scatter-toolbar__overflow-menu"></div>
-                  </details>
+          <div class="relationship-toolbar__row relationship-toolbar__tools">
+            <details id="heatmap-display-options" class="relationship-toolbar__popover" data-toolbar-popover>
+              <summary class="relationship-toolbar__trigger">Display</summary>
+              <div class="relationship-toolbar__panel">
+                <label class="relationship-toolbar__field" for="heatmap-cell-size">
+                  <span class="relationship-toolbar__label">Cell size</span>
+                  <span class="relationship-toolbar__control">
+                    <input id="heatmap-cell-size" type="range" min="24" max="72" step="4" value="36" aria-label="Heatmap cell size in pixels" aria-describedby="heatmap-cell-size-help" title="Cell size: 24–72 pixels">
+                    <span id="heatmap-cell-size-value" class="range-value" aria-hidden="true">36 px</span>
+                    <span id="heatmap-cell-size-help" class="sr-only">Range: 24 to 72 pixels.</span>
+                  </span>
+                </label>
+                <label class="relationship-toolbar__field" for="heatmap-diagonal-mode">
+                  <span class="relationship-toolbar__label">Diagonal</span>
+                  <select id="heatmap-diagonal-mode" class="modal-select" aria-label="Diagonal distribution display">
+                    <option value="kde" selected>Density curve</option>
+                    <option value="histogram">Histogram</option>
+                  </select>
+                </label>
+                <label class="relationship-toolbar__field" for="heatmap-pair-mode">
+                  <span class="relationship-toolbar__label">Pair cells</span>
+                  <select id="heatmap-pair-mode" class="modal-select" aria-label="Pair cell display">
+                    <option value="density" selected>Density</option>
+                    <option value="scatter">Scatter</option>
+                  </select>
+                </label>
+                <div class="relationship-toolbar__control" role="group" aria-label="Heatmap fit to screen">
+                  <button id="heatmap-fit-toggle" type="button" class="btn btn-ghost btn-sm toolbar-toggle-btn" aria-pressed="false" title="Snap to panel — automatically resize cells to fit the panel width">Snap to panel</button>
+                  <button id="heatmap-axis-fit-toggle" type="button" class="btn btn-ghost btn-sm toolbar-toggle-btn" aria-pressed="false" title="Fit color axis — set color scale to actual data range">Fit color axis</button>
                 </div>
               </div>
-
-              <div class="scatter-toolbar__segment scatter-toolbar__segment--actions" data-toolbar-priority="low">
-                <span class="scatter-toolbar__eyebrow">Pipeline</span>
-                <div class="scatter-toolbar__fields">
-                  <button id="heatmap-add-columns-to-plan" class="btn btn-ghost btn-sm" type="button"
-                    title="Propose a canonical keep-columns stage from this matrix">Keep matrix columns…</button>
-                </div>
+            </details>
+            <button id="heatmap-add-columns-to-plan" class="btn btn-ghost btn-sm" type="button" title="Propose a canonical keep-columns stage from this matrix">Keep matrix columns…</button>
+            <details id="heatmap-export-menu" class="relationship-toolbar__popover relationship-toolbar__export" data-toolbar-popover data-toolbar-export>
+              <summary class="relationship-toolbar__trigger">Export</summary>
+              <div class="relationship-toolbar__panel">
+                <button id="heatmap-export-png-btn" class="btn btn-ghost btn-sm" type="button">PNG</button>
+                <button id="heatmap-export-svg-btn" class="btn btn-ghost btn-sm" type="button">SVG</button>
+                <button id="heatmap-export-html-btn" class="btn btn-ghost btn-sm" type="button">HTML</button>
+                <button id="heatmap-export-csv-btn" class="btn btn-ghost btn-sm" type="button">CSV</button>
               </div>
-            </div>
-          </details>
+            </details>
+          </div>
         </div>
         <main class="main main--padded">
           <div id="heatmap-container" class="heatmap-container"></div>
+          <div id="heatmap-preview-error" class="heatmap-preview-error" role="status" aria-live="polite" hidden>
+            <span id="heatmap-preview-error-message">Pair previews are unavailable.</span>
+            <button id="heatmap-preview-retry" class="btn btn-ghost btn-sm" type="button">Retry previews</button>
+          </div>
           <!-- C6 — brand-illustrated empty state. The previous version was
                a single line of plain text ("Correlation heatmap will appear
                here…"). The analysis pages (timeseries, FFT) ship a

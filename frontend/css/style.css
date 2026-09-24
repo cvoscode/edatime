@@ -92,7 +92,7 @@
 /* 8. Toolbars — .toolbar, .toolbar-group, .analysis-toolbar, etc. */
 @import "modules/toolbar.css";
 
-/* 12. Upload panel & virtualized profile grid */
+/* 12. Upload panel & shared virtualized profile grid */
 @import "modules/upload.css";
 
 /* 15. Responsive breakpoints & sidebar-collapsed state */

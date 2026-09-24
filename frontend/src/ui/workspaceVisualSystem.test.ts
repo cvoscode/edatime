@@ -10,7 +10,6 @@ describe('shared workspace visual system', () => {
     const style = readFrontend('css/style.css');
     const tokens = readFrontend('css/modules/tokens.css');
     const workspace = readFrontend('css/modules/workspace.css');
-    const scatter = readFrontend('css/modules/scatter.css');
 
     it('loads the shared hierarchy after page and responsive modules', () => {
         expect(style.trim().endsWith('@import "modules/workspace.css";')).toBe(true);
@@ -45,18 +44,7 @@ describe('shared workspace visual system', () => {
     it('keeps analysis controls on one shared sizing contract', () => {
         expect(workspace).toContain('--analysis-control-h: var(--ctrl-h)');
         expect(workspace).toContain('height: var(--analysis-control-h)');
-        expect(workspace).toContain('.timeseries-utility-shelf__secondary');
+        expect(workspace).not.toContain('.timeseries-utility-shelf');
     });
 
-    it('lets Preparation context scroll with the workbench', () => {
-        expect(workspace).toMatch(/#page-prepare \.prepare-workspace__local-nav,[\s\S]*?position: static;/);
-        expect(workspace).toContain('#page-prepare .prepare-workspace__history');
-    });
-
-    it('gives Correlation controls full-width rows without loading page CSS globally', () => {
-        expect(scatter).toContain('grid-template-columns: minmax(0, 360px) minmax(0, 220px) auto auto auto auto');
-        expect(scatter).toContain('grid-template-columns: minmax(0, 1fr) auto');
-        expect(scatter).toContain('@media (min-width: 641px) and (max-width: 1279px)');
-        expect(workspace).not.toContain('Desktop Correlation toolbar');
-    });
 });

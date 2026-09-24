@@ -9,7 +9,7 @@ const baseURL = process.env.EDATIME_E2E_BASE_URL ?? `http://127.0.0.1:${managedP
 
 export default defineConfig({
     testDir: './tests',
-    testMatch: '**/e2e_audit_tests.ts',
+    testMatch: '**/e2e_*_tests.ts',
     timeout: 30_000,
     fullyParallel: false,
     use: {

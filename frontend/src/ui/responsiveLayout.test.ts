@@ -26,10 +26,9 @@ describe('responsive all-page layout contract', () => {
         expect(indexHtml).toContain('class="timeseries-result-toolbar"');
         expect(indexHtml).toContain('class="causal-result-toolbar"');
         expect(indexHtml).toContain('drift-secondary-controls analysis-secondary-disclosure');
-        expect(indexHtml).toContain('heatmap-secondary-controls analysis-secondary-disclosure');
-        expect(indexHtml).toContain('data-collapse-on-overflow');
-        expect(indexHtml).toContain('data-toolbar-priority="high"');
-        expect(indexHtml).toContain('data-toolbar-priority="low"');
+        expect(indexHtml).toContain('id="heatmap-display-options"');
+        expect(indexHtml).toContain('id="scatter-display-options"');
+        expect(indexHtml).toContain('data-toolbar-popover');
         expect(toolbarCss).toContain('.analysis-secondary-disclosure__summary');
     });
 

@@ -58,4 +58,29 @@ describe('toolbar collapse', () => {
 
         expect(prepare.querySelector('.toolbar-collapse-toggle')?.textContent).toBe('Focus view');
     });
+
+    it('keeps Preparation focus mode reversible when a profile update replaces the header', async () => {
+        const prepare = document.createElement('section');
+        prepare.className = 'page';
+        prepare.dataset.pageName = 'prepare';
+        prepare.dataset.toolbarCollapse = '';
+        const markup = `<div id="prepare-workspace"><div class="prepare-workspace__header">
+            <div>Preparation</div><div class="prepare-workspace__header-actions"></div>
+        </div></div>`;
+        prepare.innerHTML = markup;
+        document.body.append(prepare);
+        dispose = initToolbarCollapse();
+        const button = prepare.querySelector<HTMLButtonElement>('.toolbar-collapse-toggle')!;
+        expect(button.parentElement?.className).toBe('prepare-workspace__header-actions');
+        button.click();
+
+        prepare.innerHTML = markup;
+        await Promise.resolve();
+
+        expect(prepare.querySelectorAll('.toolbar-collapse-toggle')).toHaveLength(1);
+        expect(prepare.querySelector('.toolbar-collapse-toggle')).toBe(button);
+        expect(button.textContent).toBe('Show controls');
+        button.click();
+        expect(prepare.classList.contains('workspace-controls-collapsed')).toBe(false);
+    });
 });

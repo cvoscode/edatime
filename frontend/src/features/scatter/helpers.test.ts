@@ -20,7 +20,10 @@ import {
     buildCategoricalColorGroups,
     normalizeScatterSuggestionThreshold,
     buildHistogramForDomain,
+    buildKdeCurve,
     drawMiniDensityCanvas,
+    drawMiniScatterCanvas,
+    drawDistributionCanvas,
 } from './helpers';
 import { getSeriesPalette, setActiveSeriesPalette } from '../../utils/seriesColors.js';
 
@@ -47,6 +50,8 @@ class DensityMockContext2D {
     closePath() { this.ops.push('closePath'); }
     stroke() { this.ops.push('stroke'); }
     fill() { this.ops.push('fill'); }
+    save() { this.ops.push('save'); }
+    restore() { this.ops.push('restore'); }
 }
 
 describe('scatter constants', () => {
@@ -203,6 +208,52 @@ describe('buildHistogramForDomain', () => {
     });
 });
 
+describe('shared KDE curve', () => {
+    it('keeps KDE shape stable when measurement units are rescaled', () => {
+        const values = [0, 1, 2, 5, 9];
+        const curve = buildKdeCurve(values, 0, 10, 16);
+        const scaled = buildKdeCurve(values.map((value) => value * 1_000_000), 0, 10_000_000, 16);
+
+        expect(curve).toHaveLength(16);
+        scaled.forEach((point, index) => {
+            expect(point.x).toBeCloseTo(curve[index]!.x * 1_000_000, 6);
+            expect(point.y).toBeCloseTo(curve[index]!.y, 12);
+        });
+        expect(buildKdeCurve([4, 4, 4], 4, 4)).toEqual([]);
+
+        const offset = 1e16;
+        const narrowCurve = buildKdeCurve([offset, offset + 2, offset + 4], offset, offset + 4, 17);
+        expect(new Set(narrowCurve.map((point) => point.y.toFixed(4))).size).toBeGreaterThan(5);
+    });
+
+
+});
+
+describe('drawDistributionCanvas', () => {
+    it('keeps a constant histogram centered instead of expanding it across the plot', () => {
+        const ctx = new DensityMockContext2D();
+        Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
+            configurable: true,
+            value: () => ctx,
+        });
+        document.body.innerHTML = '<canvas id="constant-distribution"></canvas>';
+        const canvas = document.getElementById('constant-distribution') as HTMLCanvasElement;
+        Object.defineProperty(canvas, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => ({
+                x: 0, y: 0, top: 0, left: 0, right: 180, bottom: 92, width: 180, height: 92,
+                toJSON: () => ({}),
+            }),
+        });
+
+        drawDistributionCanvas(canvas, 'histogram', [{ label: 'constant', color: '#f00', values: [4, 4, 4] }]);
+
+        expect(ctx.ops).toContain('moveTo');
+        expect(ctx.ops).toContain('lineTo');
+        expect(ctx.ops.filter((op) => op.startsWith('fillRect:'))).toHaveLength(0);
+    });
+});
+
 describe('drawMiniDensityCanvas', () => {
     const densityContexts = new WeakMap<HTMLCanvasElement, DensityMockContext2D>();
 
@@ -240,7 +291,7 @@ describe('drawMiniDensityCanvas', () => {
 
         const ctx = densityContexts.get(canvas)!;
         const text = ctx.ops.filter((op) => op.startsWith('fillText:'));
-        expect(text).toContain('fillText:No points');
+        expect(text).toContain('fillText:No observations');
         // No rectangle fills for an empty cell.
         expect(ctx.ops.filter((op) => op.startsWith('fillRect:')).length).toBe(0);
     });
@@ -292,7 +343,50 @@ describe('drawMiniDensityCanvas', () => {
         // Only the three finite points (2,4), (3,5), (4,6) should populate bins.
         expect(fills.length).toBeGreaterThan(0);
         // "No points" placeholder must not be drawn when there is finite data.
-        expect(ctx.ops.filter((op) => op === 'fillText:No points')).toHaveLength(0);
+        expect(ctx.ops.filter((op) => op === 'fillText:No observations')).toHaveLength(0);
+    });
+
+    it('keeps the correlation badge legible above the density shading', () => {
+        document.body.innerHTML = '<canvas id="density-badge"></canvas>';
+        const canvas = document.getElementById('density-badge') as HTMLCanvasElement;
+        bindRect(canvas, 180, 92);
+
+        drawMiniDensityCanvas(canvas, [[1, 1], [2, 2], [3, 3]], {
+            badge: { text: '+0.91', color: '#15202B' },
+            showDensityLabel: false,
+        });
+
+        const ctx = densityContexts.get(canvas)!;
+        expect(ctx.ops).toContain('fillText:+0.91');
+        expect(ctx.ops.indexOf('fillText:+0.91')).toBeGreaterThan(ctx.ops.findIndex((op) => op.startsWith('fillRect:')));
+        expect(ctx.ops).toContain('restore');
+    });
+
+    it('shades a single observation at its actual bounded location', () => {
+        document.body.innerHTML = '<canvas id="density-single"></canvas>';
+        const canvas = document.getElementById('density-single') as HTMLCanvasElement;
+        bindRect(canvas, 180, 92);
+
+        drawMiniDensityCanvas(canvas, [[0, 0]], {
+            xBounds: { min: 0, max: 10 },
+            yBounds: { min: 0, max: 10 },
+            showDensityLabel: false,
+        });
+
+        const fills = densityContexts.get(canvas)!.ops.filter((op) => op.startsWith('fillRect:'));
+        expect(fills.length).toBeGreaterThan(0);
+        expect(fills.every((op) => {
+            const [x, y] = op.slice('fillRect:'.length).split(',').map(Number);
+            return x < 20 && y > 80;
+        })).toBe(true);
+    });
+
+    it('uses the same badge painter for scatter and density thumbnails', () => {
+        document.body.innerHTML = '<canvas id="scatter-badge"></canvas>';
+        const canvas = document.getElementById('scatter-badge') as HTMLCanvasElement;
+        bindRect(canvas, 180, 92);
+        drawMiniScatterCanvas(canvas, [[1, 1], [2, 2]], { badge: { text: '+0.80', color: '#15202B' } });
+        expect(densityContexts.get(canvas)!.ops).toContain('fillText:+0.80');
     });
 
     it('writes a density label on the canvas regardless of fill colour', () => {

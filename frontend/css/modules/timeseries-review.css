@@ -1,7 +1,0 @@
-.quick-range-custom { position: relative; }
-.quick-range-custom > summary { list-style: none; }
-.quick-range-custom > summary::-webkit-details-marker { display: none; }
-.quick-range-custom__popover { position: absolute; z-index: 30; inset-inline-end: 0; top: calc(100% + 8px); display: grid; gap: 10px; min-width: 300px; padding: 12px; border: 1px solid var(--border-hi); border-radius: var(--radius-lg); background: var(--surface-2); box-shadow: var(--shadow-lg); }
-.quick-range-custom__popover label { display: grid; gap: 4px; font-size: .75rem; color: var(--text-dim); }
-.quick-range-custom__popover input { width: 100%; }
-.quick-range-custom__popover .field-error { min-height: 1em; margin: 0; color: var(--danger, #ff6b7a); font-size: .72rem; }

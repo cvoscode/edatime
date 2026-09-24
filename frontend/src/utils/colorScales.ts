@@ -1,5 +1,6 @@
 /** Shared continuous color scales used consistently by charts and analytics. */
 export type ColorScaleName = 'viridis' | 'plasma' | 'magma' | 'coolwarm' | 'inferno';
+export const DEFAULT_DENSITY_COLOR_SCALE: ColorScaleName = 'viridis';
 
 export const COLOR_SCALES: Record<ColorScaleName, readonly string[]> = {
     viridis: ['#440154','#482878','#3e4a89','#31688e','#26838f','#1f9d89','#35b779','#6ece58','#b5de2b','#fde725'],

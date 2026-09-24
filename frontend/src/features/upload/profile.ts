@@ -1,22 +1,12 @@
-/**
- * Column profile grid (virtualised table on the Upload page).
- *
- * Faithfully mirrors the original JS implementation:
- *  - reads from metadata.column_profiles (not metadata.columns)
- *  - uses the existing HTML grid structure (profile-grid-viewport / spacer / rows)
- *  - builds rows via DOM createElement, not innerHTML
- *  - uses uploadUi.profileGridSort { key, dir } for sort state
- */
+/** Upload's adapter around the shared column-profile grid. */
 
-import { PROFILE_ROW_HEIGHT, PROFILE_OVERSCAN, PROFILE_COLUMNS, getDefaultProfileColumnWidths } from '../../services/profile/profile.js';
 import {
-    formatCount,
-    formatProfileValue,
-    formatProfileValueTitle,
-    isTemporalDtype,
-    normalizeDtypeLabel,
-    toFiniteNumberOrNull,
-} from '../../utils/format.js';
+    createProfileGridController,
+    renderProfileGrid,
+    profileRowsFromMetadata,
+    type ProfileGridController,
+    type ProfileGridOptions,
+} from '../../ui/profileGrid.js';
 import { uploadProfile, setColumnProfiles } from './profileState.js';
 import {
     setPreviewSelectedColumns,
@@ -29,154 +19,14 @@ import {
 import type { ProfileRow } from '../../types/store.js';
 import type { DatasetMetadata } from '../../types/api.js';
 
-function createProfileRow(raw: any): ProfileRow | null {
-    const name = String(raw?.name || '').trim();
-    if (!name) return null;
-
-    const counts: number[] = Array.isArray(raw?.histogram?.counts)
-        ? raw.histogram.counts.map((count: unknown) => Math.max(0, Number(count) || 0))
-        : [];
-
-    return {
-        name,
-        dtype: String(raw?.dtype || ''),
-        nonNullCount: Math.max(0, Number(raw?.non_null_count) || 0),
-        nullCount: Math.max(0, Number(raw?.null_count) || 0),
-        min: toFiniteNumberOrNull(raw?.min),
-        max: toFiniteNumberOrNull(raw?.max),
-        histCounts: counts,
-        profilePending: false,
-    };
-}
-
-function createProfileStub(column: { name?: string | null; dtype?: string | null }): ProfileRow | null {
-    const name = String(column?.name || '').trim();
-    if (!name) return null;
-
-    return {
-        name,
-        dtype: String(column?.dtype || ''),
-        nonNullCount: 0,
-        nullCount: 0,
-        min: null,
-        max: null,
-        histCounts: [],
-        profilePending: true,
-    };
-}
-
-function compareProfileValues(left: unknown, right: unknown, direction: 1 | -1): number {
-    const leftValue = String(left || '').toLowerCase();
-    const rightValue = String(right || '').toLowerCase();
-    if (leftValue < rightValue) return -1 * direction;
-    if (leftValue > rightValue) return 1 * direction;
-    return 0;
-}
-
-export function sortProfileRows(
-    profiles: ProfileRow[],
-    sortKey: string | null | undefined,
-    sortDir: 'asc' | 'desc' | null | undefined,
-): ProfileRow[] {
-    const sortable = new Set(PROFILE_COLUMNS.filter((column) => column.sortable).map((column) => column.key));
-    if (!sortKey || !sortable.has(sortKey)) return profiles;
-
-    const direction: 1 | -1 = sortDir === 'desc' ? -1 : 1;
-    return profiles.sort((leftRow, rightRow) => {
-        const leftValue: unknown = leftRow[sortKey];
-        const rightValue: unknown = rightRow[sortKey];
-
-        if (sortKey === 'name' || sortKey === 'dtype') {
-            return compareProfileValues(leftValue, rightValue, direction);
-        }
-
-        const leftNumber = Number(leftValue);
-        const rightNumber = Number(rightValue);
-        const leftFinite = Number.isFinite(leftNumber);
-        const rightFinite = Number.isFinite(rightNumber);
-        if (!leftFinite && !rightFinite) return 0;
-        if (!leftFinite) return 1;
-        if (!rightFinite) return -1;
-        return (leftNumber - rightNumber) * direction;
-    });
-}
-
-// ─── Hydrate column profiles from metadata ──────────────────────────────────
+export { sortProfileRows } from '../../ui/profileGrid.js';
 
 export function hydrateColumnProfiles(metadata: DatasetMetadata): void {
-    const incoming = Array.isArray((metadata as any)?.column_profiles) ? (metadata as any).column_profiles : [];
-    const cols = Array.isArray(metadata?.columns) ? metadata.columns : [];
-    const profileByName = new Map<string, ProfileRow>();
-
-    for (const raw of incoming) {
-        const profile = createProfileRow(raw);
-        if (!profile) continue;
-        profileByName.set(profile.name, profile);
-    }
-
-    for (const col of cols) {
-        const profile = createProfileStub(col);
-        if (!profile || profileByName.has(profile.name)) continue;
-        profileByName.set(profile.name, profile);
-    }
-
-    setColumnProfiles(Array.from(profileByName.values()));
+    setColumnProfiles(profileRowsFromMetadata(metadata));
     invalidateProfileGridViewModel();
 }
 
-// ─── Filtering + sorting ────────────────────────────────────────────────────
-
-// Memoized view-model for the profile grid. Re-rendering the grid on
-// every scroll event would otherwise refilter + resort the column list
-// on each frame even though the underlying data and sort/filter have
-// not changed. Cache the result by the inputs that actually drive it
-// and skip the work on cache hits.
-let cachedFilteredProfiles: ProfileRow[] | null = null;
-let cachedFilteredProfilesKey: string | null = null;
-let cachedProfilesSource: ProfileRow[] | null = null;
-function getFilteredColumnProfiles(): ProfileRow[] {
-    const profiles: ProfileRow[] = uploadProfile.columnProfiles;
-    const q = uploadUi.profileFilterText.trim().toLowerCase();
-    const category = uploadUi.profileFilterCategory || 'all';
-    const sort = uploadUi.profileGridSort || {};
-    const cacheKey = `${profiles.length}|${q}|${category}|${sort.key ?? ''}|${sort.dir ?? ''}`;
-    if (cachedFilteredProfiles && cachedProfilesSource === profiles && cachedFilteredProfilesKey === cacheKey) {
-        return cachedFilteredProfiles;
-    }
-    const filtered = profiles.filter((p) => {
-        if (q && !p.name.toLowerCase().includes(q) && !p.dtype.toLowerCase().includes(q)) return false;
-        if (category === 'numeric') return !isTemporalDtype(p.dtype);
-        if (category === 'datetime') return isTemporalDtype(p.dtype);
-        return true;
-    });
-    const sorted = sortProfileRows(filtered, sort.key, sort.dir);
-    cachedFilteredProfiles = sorted;
-    cachedFilteredProfilesKey = cacheKey;
-    cachedProfilesSource = profiles;
-    return sorted;
-}
-
-/** Reset the memoized profile view-model. Called when the underlying
- *  profiles change (e.g. after `hydrateColumnProfiles`). */
-export function invalidateProfileGridViewModel(): void {
-    cachedFilteredProfiles = null;
-    cachedFilteredProfilesKey = null;
-    cachedProfilesSource = null;
-}
-
-// ─── Grid rendering helpers ─────────────────────────────────────────────────
-
-function applyProfileGridColumnsTemplate(): void {
-    const grid = document.getElementById('profile-grid');
-    if (!grid) return;
-    const widths = uploadUi.profileGridColWidths || getDefaultProfileColumnWidths();
-    const template = widths
-        .map((w: number, idx: number) => `${Math.max(PROFILE_COLUMNS[idx]?.minWidth ?? 40, Math.round((Number(w) || PROFILE_COLUMNS[idx]?.defaultWidth) ?? 100))}px`)
-        .join(' ');
-    grid.style.setProperty('--profile-grid-cols', template);
-}
-
-function getSelectablePreviewColumns(profiles: ProfileRow[] = uploadProfile.columnProfiles): string[] {
+function getSelectablePreviewColumns(profiles: readonly ProfileRow[] = uploadProfile.columnProfiles): string[] {
     return profiles
         .map((profile) => profile.name)
         .filter((name) => name && name !== uploadUi.previewTimeColumn);
@@ -204,7 +54,7 @@ export function formatUploadSelectionStatus(
     return `${chosenCount} of ${analysisCount} analysis columns selected.`;
 }
 
-function syncUploadSelectionUI(profiles: ProfileRow[] = uploadProfile.columnProfiles): void {
+function syncUploadSelectionUI(profiles: readonly ProfileRow[] = uploadProfile.columnProfiles): void {
     const allCheckbox = document.getElementById('profile-select-all-checkbox') as HTMLInputElement | null;
     const selectable = getSelectablePreviewColumns(profiles);
     const selected = new Set(uploadUi.previewSelectedColumns);
@@ -216,290 +66,63 @@ function syncUploadSelectionUI(profiles: ProfileRow[] = uploadProfile.columnProf
     }
 }
 
-function updateProfileGridHeaderState(): void {
-    const header = document.querySelector('.profile-grid-header');
-    if (!header) return;
-
-    const sortKey = uploadUi.profileGridSort?.key;
-    const sortDir = uploadUi.profileGridSort?.dir;
-    const cells = Array.from(header.children) as HTMLElement[];
-    for (const cell of cells) {
-        const key = cell.dataset.sortKey;
-        const sortable = cell.dataset.sortable === '1';
-        cell.classList.toggle('sortable', sortable);
-        cell.classList.remove('sorted-asc', 'sorted-desc');
-        cell.removeAttribute('aria-sort');
-        if (!sortable || !key) continue;
-
-        if (key === sortKey) {
-            const cls = sortDir === 'desc' ? 'sorted-desc' : 'sorted-asc';
-            const aria = sortDir === 'desc' ? 'descending' : 'ascending';
-            cell.classList.add(cls);
-            cell.setAttribute('aria-sort', aria);
-        } else {
-            cell.setAttribute('aria-sort', 'none');
-        }
-    }
+function uploadGridOptions(): ProfileGridOptions | null {
+    const root = document.getElementById('profile-grid');
+    if (!root) return null;
+    return {
+        root,
+        getProfiles: () => uploadProfile.columnProfiles,
+        selectable: true,
+        getFilterText: () => uploadUi.profileFilterText,
+        getFilterCategory: () => uploadUi.profileFilterCategory,
+        getSort: () => uploadUi.profileGridSort,
+        setSort: setProfileGridSort,
+        getColumnWidths: () => uploadUi.profileGridColWidths,
+        setColumnWidths: setProfileGridColWidths,
+        getSelectedColumns: () => uploadUi.previewSelectedColumns,
+        getTimeColumn: () => uploadUi.previewTimeColumn,
+        onSelectionChange: (columns) => {
+            setPreviewSelectedColumns(columns);
+            syncUploadSelectionUI();
+        },
+        ariaLabel: 'Column profile table',
+        caption: 'Column profile preview with selectable columns for upload ingestion.',
+    };
 }
 
-function initProfileGridHeaderControls(signal: AbortSignal): void {
-    if (uploadUi.profileGridHeaderBound) return;
+let profileGridController: ProfileGridController | null = null;
+let disposeProfileGrid: (() => void) | null = null;
 
-    const header = document.querySelector('.profile-grid-header');
-    if (!header) return;
-
-    const cells = Array.from(header.children) as HTMLElement[];
-    cells.forEach((cell, idx) => {
-        const def = PROFILE_COLUMNS[idx];
-        if (!def) return;
-
-        cell.dataset.sortKey = def.key;
-        cell.dataset.sortable = def.sortable ? '1' : '0';
-
-        if (def.sortable) {
-            cell.tabIndex = 0;
-            cell.addEventListener('click', () => {
-                const current = uploadUi.profileGridSort || { key: def.key, dir: 'asc' as const };
-                if (current.key === def.key) {
-                    setProfileGridSort({ key: def.key, dir: current.dir === 'asc' ? 'desc' : 'asc' });
-                } else {
-                    setProfileGridSort({ key: def.key, dir: 'asc' });
-                }
-                updateProfileGridHeaderState();
-                renderColumnProfilesGrid(true);
-            }, { signal });
-            cell.addEventListener('keydown', (e: KeyboardEvent) => {
-                if (e.key !== 'Enter' && e.key !== ' ') return;
-                e.preventDefault();
-                cell.click();
-            }, { signal });
-        }
-
-        if (idx < cells.length - 1) {
-            const resizer = document.createElement('span');
-            resizer.className = 'profile-col-resizer';
-            resizer.setAttribute('role', 'separator');
-            resizer.setAttribute('aria-orientation', 'vertical');
-            resizer.addEventListener('pointerdown', (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                const startX = event.clientX;
-                const startW = Number(uploadUi.profileGridColWidths[idx]) || def.defaultWidth;
-                const onMove = (moveEvent: PointerEvent) => {
-                    const dx = moveEvent.clientX - startX;
-                    const next = Math.max(def.minWidth, startW + dx);
-                    const widths = [...uploadUi.profileGridColWidths];
-                    widths[idx] = next;
-                    setProfileGridColWidths(widths);
-                    applyProfileGridColumnsTemplate();
-                };
-                const onUp = () => {
-                    window.removeEventListener('pointermove', onMove);
-                    window.removeEventListener('pointerup', onUp);
-                };
-                window.addEventListener('pointermove', onMove, { signal });
-                window.addEventListener('pointerup', onUp, { signal });
-            }, { signal });
-            cell.appendChild(resizer);
-            signal.addEventListener('abort', () => resizer.remove(), { once: true });
-        }
-    });
-
-    updateProfileGridHeaderState();
-    setProfileGridHeaderBound(true);
+export function invalidateProfileGridViewModel(): void {
+    profileGridController?.invalidate();
 }
-
-// ─── Cell creators ──────────────────────────────────────────────────────────
-
-function createProfileCell(text: string, extraClass = ''): HTMLDivElement {
-    const cell = document.createElement('div');
-    cell.className = `profile-cell ${extraClass}`.trim();
-    cell.textContent = text;
-    return cell;
-}
-
-function createSelectionCell(profile: ProfileRow): HTMLDivElement {
-    const cell = document.createElement('div');
-    cell.className = 'profile-cell profile-cell-check';
-
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.checked = uploadUi.previewSelectedColumns.includes(profile.name);
-    checkbox.setAttribute('aria-label', `Select ${profile.name} for upload`);
-
-    if (profile.name === uploadUi.previewTimeColumn) {
-        checkbox.disabled = true;
-        checkbox.checked = true;
-        checkbox.title = 'Time column is required';
-    }
-
-    checkbox.addEventListener('change', () => {
-        const selected = new Set(uploadUi.previewSelectedColumns);
-        if (checkbox.checked) selected.add(profile.name);
-        else selected.delete(profile.name);
-        if (uploadUi.previewTimeColumn) selected.add(uploadUi.previewTimeColumn);
-        setPreviewSelectedColumns(Array.from(selected));
-        syncUploadSelectionUI();
-    });
-
-    cell.appendChild(checkbox);
-    return cell;
-}
-
-function createHistogramCell(profile: ProfileRow): HTMLDivElement {
-    const cell = document.createElement('div');
-    cell.className = 'profile-cell';
-
-    if (profile.profilePending) {
-        const pending = document.createElement('span');
-        pending.className = 'profile-hist-empty';
-        pending.textContent = 'Pending';
-        cell.appendChild(pending);
-        return cell;
-    }
-
-    const counts = Array.isArray(profile.histCounts) ? profile.histCounts : [];
-    if (counts.length === 0) {
-        const empty = document.createElement('span');
-        empty.className = 'profile-hist-empty';
-        empty.textContent = '\u2014';
-        cell.appendChild(empty);
-        return cell;
-    }
-
-    const maxCount = Math.max(...counts);
-    if (!Number.isFinite(maxCount) || maxCount <= 0) {
-        const empty = document.createElement('span');
-        empty.className = 'profile-hist-empty';
-        empty.textContent = '\u2014';
-        cell.appendChild(empty);
-        return cell;
-    }
-
-    const hist = document.createElement('div');
-    hist.className = 'profile-hist';
-    for (const count of counts) {
-        const bar = document.createElement('span');
-        bar.className = 'profile-hist-bar';
-        const height = Math.max(1, Math.round((count / maxCount) * 22));
-        bar.style.height = `${height}px`;
-        bar.title = formatCount(count);
-        hist.appendChild(bar);
-    }
-    cell.appendChild(hist);
-    return cell;
-}
-
-// ─── Grid rendering ─────────────────────────────────────────────────────────
 
 export function renderColumnProfilesGrid(resetScroll = false): void {
-    const viewport = document.getElementById('profile-grid-viewport');
-    const spacer = document.getElementById('profile-grid-spacer');
-    const rows = document.getElementById('profile-grid-rows');
-    if (!viewport || !spacer || !rows) return;
-
-    if (resetScroll) viewport.scrollTop = 0;
-
-    const profiles = getFilteredColumnProfiles();
-    const total = profiles.length;
-    const viewportHeight = Math.max(1, viewport.clientHeight || 1);
-
-    spacer.style.height = `${Math.max(total * PROFILE_ROW_HEIGHT, viewportHeight)}px`;
-
-    if (total === 0) {
-        rows.style.transform = 'translateY(0px)';
-        rows.innerHTML = '';
-        const row = document.createElement('div');
-        row.className = 'profile-grid-row';
-        for (let i = 0; i < PROFILE_COLUMNS.length; i++) {
-            row.appendChild(createProfileCell(i === 1 ? 'No columns match this filter' : '', 'muted'));
-        }
-        rows.appendChild(row);
-        syncUploadSelectionUI(profiles);
-        return;
-    }
-
-    const scrollTop = Math.max(0, viewport.scrollTop);
-    const visibleRows = Math.ceil(viewportHeight / PROFILE_ROW_HEIGHT);
-    const start = Math.max(0, Math.floor(scrollTop / PROFILE_ROW_HEIGHT) - PROFILE_OVERSCAN);
-    const end = Math.min(total, start + visibleRows + PROFILE_OVERSCAN * 2);
-
-    rows.style.transform = `translateY(${start * PROFILE_ROW_HEIGHT}px)`;
-    rows.innerHTML = '';
-
-    for (let idx = start; idx < end; idx++) {
-        const profile = profiles[idx];
-        const pending = profile.profilePending === true;
-        const totalCount = profile.nonNullCount + profile.nullCount;
-        const nonNullPct = totalCount > 0 ? (profile.nonNullCount / totalCount) * 100 : 0;
-
-        const row = document.createElement('div');
-        row.className = 'profile-grid-row';
-        row.setAttribute('role', 'row');
-
-        row.appendChild(createSelectionCell(profile));
-        row.appendChild(createProfileCell(profile.name));
-        row.appendChild(createProfileCell(normalizeDtypeLabel(profile.dtype), 'muted'));
-        row.appendChild(createProfileCell(pending ? 'Pending' : `${formatCount(profile.nonNullCount)} (${nonNullPct.toFixed(1)}%)`, pending ? 'muted' : 'num'));
-        row.appendChild(createProfileCell(pending ? 'Pending' : formatCount(profile.nullCount), pending ? 'muted' : 'num'));
-        const minCell = createProfileCell(pending ? 'Pending' : formatProfileValue(profile.min, profile.dtype), pending ? 'muted' : 'num');
-        const minTitle = formatProfileValueTitle(profile.min, profile.dtype);
-        if (minTitle) minCell.title = minTitle;
-        row.appendChild(minCell);
-        const maxCell = createProfileCell(pending ? 'Pending' : formatProfileValue(profile.max, profile.dtype), pending ? 'muted' : 'num');
-        const maxTitle = formatProfileValueTitle(profile.max, profile.dtype);
-        if (maxTitle) maxCell.title = maxTitle;
-        row.appendChild(maxCell);
-        row.appendChild(createHistogramCell(profile));
-
-        rows.appendChild(row);
-    }
-
-    syncUploadSelectionUI(profiles);
+    const options = uploadGridOptions();
+    if (!options) return;
+    if (profileGridController) profileGridController.render(resetScroll);
+    else renderProfileGrid(options, resetScroll);
+    syncUploadSelectionUI();
 }
-
-// ─── Init grid container ────────────────────────────────────────────────────
-
-let disposeProfileGrid: (() => void) | null = null;
 
 export function initColumnProfilesGrid(): () => void {
     if (disposeProfileGrid) return disposeProfileGrid;
-    const viewport = document.getElementById('profile-grid-viewport');
-    const header = document.querySelector('.profile-grid-header') as HTMLElement | null;
-    if (!viewport) return () => {};
-    const lifetime = new AbortController();
+    const options = uploadGridOptions();
+    if (!options || !options.root.querySelector('.profile-grid-viewport')) return () => {};
 
-    // Throttle scroll-driven rerenders to one render per animation frame
-    // so rapid scroll events coalesce into a single DOM update.
-    let scrollRafId: number | null = null;
-    viewport.addEventListener('scroll', () => {
-        if (scrollRafId !== null) return;
-        scrollRafId = requestAnimationFrame(() => {
-            scrollRafId = null;
-            renderColumnProfilesGrid(false);
-            if (header) {
-                header.style.transform = `translateX(${-viewport.scrollLeft}px)`;
-            }
-        });
-    }, { signal: lifetime.signal });
-
-    const resizeObserver = new ResizeObserver(() => renderColumnProfilesGrid(false));
-    resizeObserver.observe(viewport);
-
-    initProfileGridHeaderControls(lifetime.signal);
-    applyProfileGridColumnsTemplate();
-
+    profileGridController = createProfileGridController(options);
     setProfileGridBound(true);
+    setProfileGridHeaderBound(true);
+    profileGridController.render(false);
+    syncUploadSelectionUI();
+
     const dispose = () => {
-        lifetime.abort();
-        resizeObserver.disconnect();
-        if (scrollRafId !== null) cancelAnimationFrame(scrollRafId);
-        if (disposeProfileGrid === dispose) {
-            disposeProfileGrid = null;
-            setProfileGridBound(false);
-            setProfileGridHeaderBound(false);
-            invalidateProfileGridViewModel();
-        }
+        profileGridController?.dispose();
+        profileGridController = null;
+        if (disposeProfileGrid === dispose) disposeProfileGrid = null;
+        setProfileGridBound(false);
+        setProfileGridHeaderBound(false);
+        invalidateProfileGridViewModel();
     };
     disposeProfileGrid = dispose;
     return dispose;

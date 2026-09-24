@@ -3,6 +3,30 @@ import { describe, expect, it, vi } from 'vitest';
 import { ChartOverlays } from './chartOverlays.js';
 
 describe('ChartOverlays adaptive filter presentation', () => {
+    it('projects source-unit range and adaptive filters into the normalized trace scale', () => {
+        const container = document.createElement('div');
+        container.getBoundingClientRect = () => ({ width: 240, height: 140 }) as DOMRect;
+        const ctx = {
+            save: vi.fn(), restore: vi.fn(), setLineDash: vi.fn(), beginPath: vi.fn(), rect: vi.fn(), clip: vi.fn(),
+            moveTo: vi.fn(), lineTo: vi.fn(), stroke: vi.fn(), fillRect: vi.fn(), fillText: vi.fn(),
+            strokeRect: vi.fn(), strokeText: vi.fn(), measureText: () => ({ width: 80 }),
+        } as unknown as CanvasRenderingContext2D;
+        const overlays = new ChartOverlays({
+            getXMin: () => 0, getXMax: () => 100, getContainer: () => container, getOverlayCanvas: () => null,
+            getGrid: () => ({ left: 44, right: 16, top: 10, bottom: 30 }), getYRange: () => ({ min: 0, max: 1 }),
+            toDisplayY: (column, y) => column === 'HULL' ? (y - 20) / 20 : y,
+            getColumnRangeFilters: () => ({ HULL: { from: 20, to: 40 } }),
+            getAdaptiveLineFilters: () => [{ id: 'filter', column: 'HULL', x1: 0, x2: 100, y1: 30, y2: 40, keepAbove: false }],
+            getPendingAdaptivePoint: () => null,
+        });
+        overlays.setSelectedColumns(['HULL']);
+        overlays.renderAll(ctx, { x: 1, y: 1 });
+        expect(ctx.strokeRect).toHaveBeenCalledWith(54, 10, 170, 100);
+        expect(ctx.strokeText).toHaveBeenCalledWith('HULL [20.00, 40.00]', 60, expect.any(Number));
+        expect(ctx.moveTo).toHaveBeenCalledWith(44, 60);
+        expect(ctx.lineTo).toHaveBeenCalledWith(224, 10);
+    });
+
     it('clips a column-range band to the plot and gives it a contrasted range label', () => {
         const container = document.createElement('div');
         Object.defineProperty(container, 'getBoundingClientRect', {

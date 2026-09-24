@@ -174,7 +174,11 @@ export function initAdaptiveFilterGesture(
     };
 
     const showDirectionPicker = (column: string, p1: { x: number; y: number }, p2: { x: number; y: number }) => {
-        const recommendation = buildAdaptiveFilterFromPoints(deps.getCurrentData(), column, p1, p2, deps.workspace.getSnapshot());
+        // Pointer coordinates use the displayed scale. Persist filter intent
+        // in source units so toggling normalization cannot change its meaning.
+        const sourceP1 = { x: p1.x, y: primaryChart.current?.seriesYToSource?.(column, p1.y) ?? p1.y };
+        const sourceP2 = { x: p2.x, y: primaryChart.current?.seriesYToSource?.(column, p2.y) ?? p2.y };
+        const recommendation = buildAdaptiveFilterFromPoints(deps.getCurrentData(), column, sourceP1, sourceP2, deps.workspace.getSnapshot());
         if (!recommendation) return;
         const picker = document.createElement('div');
         picker.className = 'adaptive-trace-picker adaptive-trace-picker--direction';
@@ -194,7 +198,7 @@ export function initAdaptiveFilterGesture(
             button.addEventListener('click', (event) => {
                 event.stopPropagation();
                 dismissPicker();
-                applyFilterForColumn(column, p1, p2, option.keepAbove);
+                applyFilterForColumn(column, sourceP1, sourceP2, option.keepAbove);
             });
             picker.appendChild(button);
         }

@@ -8,6 +8,7 @@ const chartCss = readFileSync(join(process.cwd(), 'frontend/css/modules/chart.cs
 const chipsCss = readFileSync(join(process.cwd(), 'frontend/css/modules/chips.css'), 'utf8');
 const modalsCss = readFileSync(join(process.cwd(), 'frontend/css/modules/modals.css'), 'utf8');
 const toolbarCss = readFileSync(join(process.cwd(), 'frontend/css/modules/toolbar.css'), 'utf8');
+const signalsToolbarCss = readFileSync(join(process.cwd(), 'frontend/css/modules/signals-toolbar.css'), 'utf8');
 const responsiveCss = readFileSync(join(process.cwd(), 'frontend/css/modules/responsive.css'), 'utf8');
 
 describe('timeseries layout shell', () => {
@@ -56,20 +57,20 @@ describe('timeseries layout shell', () => {
         expect(indexHtml).toContain('data-page-name="heatmap"');
     });
 
-    it('uses dedicated command bar and utility shelf wrappers', () => {
+    it('keeps range controls visible and secondary tools in dedicated panels', () => {
         expect(indexHtml).toContain('timeseries-command-bar');
         expect(indexHtml).toContain('timeseries-chip-rail');
-        expect(indexHtml).toContain('timeseries-utility-shelf');
+        expect(indexHtml).toContain('id="timeseries-chart-toolbar"');
         expect(indexHtml).toMatch(/timeseries-series-disclosure[^>]*data-responsive-collapse="1024"/s);
-        expect(indexHtml).toMatch(/timeseries-utility-shelf[^>]*>\s*<summary/s);
-        expect(indexHtml).not.toMatch(/timeseries-utility-shelf[^>]*data-responsive-collapse/s);
-        expect(toolbarCss).toContain('#page-timeseries > .timeseries-utility-shelf.analysis-collapse-tablet');
+        expect(indexHtml).toContain('aria-controls="timeseries-draw-panel"');
+        expect(indexHtml).not.toContain('timeseries-utility-shelf');
+        expect(indexHtml).not.toContain('timeseries-range-menu');
     });
 
     it('uses action-first export labels and one modal close vocabulary', () => {
         expect(indexHtml).toContain('aria-label="Export chart as PNG">Export PNG</button>');
         expect(indexHtml).toContain('aria-label="Export filtered data as CSV">Export CSV</button>');
-        expect(indexHtml).toContain('>More export formats</span>');
+        expect(indexHtml).toContain('>More export formats</button>');
         expect(indexHtml).not.toMatch(/id="(?:column-filter|transform|outlier|settings)-close-btn"[^>]*>Close</);
         expect(indexHtml.match(/class="modal-close"[^>]*aria-label="Close"[^>]*>&times;<\/button>/g)?.length)
             .toBeGreaterThanOrEqual(7);
@@ -88,7 +89,8 @@ describe('timeseries layout shell', () => {
 
     it('defines scoped toolbar layout rules for the refreshed timeseries header', () => {
         expect(toolbarCss).toContain('.timeseries-command-bar');
-        expect(toolbarCss).toContain('.timeseries-utility-shelf');
+        expect(signalsToolbarCss).toContain('.signals-toolbar.toolbar');
+        expect(signalsToolbarCss).not.toContain('.scatter-toolbar');
         expect(toolbarCss).toContain('.timeseries-command-bar__center');
         expect(toolbarCss).toMatch(/\.timeseries-series-disclosure\s*>\s*\.timeseries-series-disclosure__content\s*\{[^}]*display:\s*flex/s);
     });

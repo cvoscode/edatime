@@ -9,11 +9,19 @@ const scatterCss = readFileSync(join(process.cwd(), 'frontend/css/modules/scatte
 const responsiveCss = readFileSync(join(process.cwd(), 'frontend/css/modules/responsive.css'), 'utf8');
 
 describe('scatter toolbar layout shell', () => {
-    it('splits the scatter toolbar into explicit layout segments', () => {
-        expect(indexHtml).toContain('scatter-toolbar__segment scatter-toolbar__segment--view');
-        expect(indexHtml).toContain('scatter-toolbar__segment scatter-toolbar__segment--display');
-        expect(indexHtml).toContain('scatter-toolbar__segment scatter-toolbar__segment--refine');
-        expect(indexHtml).toContain('scatter-toolbar__segment scatter-toolbar__segment--actions');
+    it('keeps primary selectors visible and groups secondary controls into named panels', () => {
+        const document = new DOMParser().parseFromString(
+            indexHtml.slice(indexHtml.indexOf('<div id="scatter-toolbar"'), indexHtml.indexOf('<div class="analysis-toolbar scatter-stats-bar"')),
+            'text/html',
+        );
+        const toolbar = document.querySelector('#scatter-toolbar')!;
+        for (const id of ['scatter-x-col', 'scatter-y-col', 'scatter-render-mode']) {
+            expect(toolbar.querySelector(`#${id}`)?.closest('details')).toBeNull();
+            expect(toolbar.querySelector(`#${id}`)).not.toBeNull();
+        }
+        expect(Array.from(toolbar.querySelectorAll('summary'), element => element.textContent)).toEqual([
+            'Display', 'Color & outliers', 'Export',
+        ]);
     });
 
     it('groups correlation stats and suggestions into dedicated regions', () => {
@@ -79,29 +87,22 @@ describe('scatter toolbar layout shell', () => {
         expect(normalized).toMatch(/@media\s*\(max-width:\s*940px\)[^}]*\.scatter-toolbar__eyebrow\s*\{[^}]*display:\s*none/);
     });
 
-    it('keeps color-by inline while moving the plot scale into Settings', () => {
-        // The previous design wrapped color-by-column in a <details>
-        // popout labelled "Color" with a hidden "By column" value.
-        // The numeric color column remains local because it changes
-        // analytical scope; the presentation-only scale is centralized.
+    it('keeps a local color column and a shared plot scale setting', () => {
         expect(indexHtml).not.toContain('id="scatter-color-controls"');
         expect(indexHtml).toContain('id="scatter-color-column"');
         expect(indexHtml).not.toContain('id="scatter-color-scale"');
         expect(indexHtml).toContain('data-plot-color-scale="pairPlot"');
     });
 
-    it('keeps the density sub-group inside the Refine segment', () => {
-        // Bins / Scale Linear-Log live inside the Refine segment so
-        // they are colocated with the color-by-column controls. They
-        // are only shown in density mode (toggled by syncModeUI).
-        const densityIdx = indexHtml.indexOf('id="scatter-density-controls"');
-        const refineStart = indexHtml.indexOf('scatter-toolbar__segment--refine');
-        const refineEnd = indexHtml.indexOf('scatter-toolbar__segment--actions');
-        expect(densityIdx).toBeGreaterThan(-1);
-        expect(refineStart).toBeGreaterThan(-1);
-        expect(refineEnd).toBeGreaterThan(refineStart);
-        expect(densityIdx).toBeGreaterThan(refineStart);
-        expect(densityIdx).toBeLessThan(refineEnd);
+    it('keeps the density and marginal controls together in the Display panel', () => {
+        const document = new DOMParser().parseFromString(
+            indexHtml.slice(indexHtml.indexOf('<div id="scatter-toolbar"'), indexHtml.indexOf('<div class="analysis-toolbar scatter-stats-bar"')),
+            'text/html',
+        );
+        const panel = document.querySelector('#scatter-display-options')!;
+        for (const id of ['scatter-diagonal-mode', 'scatter-bin-size', 'scatter-normalization']) {
+            expect(panel.querySelector(`#${id}`)).not.toBeNull();
+        }
     });
 
     it('drops the per-page colormap dropdown (colormap lives in settings only)', () => {

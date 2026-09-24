@@ -2,6 +2,7 @@ import type { AnnotationConfig, SeriesConfig } from 'chartgpu';
 import type { FilteredDataObject } from '../types/chart.js';
 import { getColumnSeriesColor } from '../utils/seriesColors.js';
 import { analyzeColorValues, buildColorizedSeries, type ColorScaleInfo } from './colorScale.js';
+import { getSeriesDisplayData, type SeriesNormalization } from './seriesNormalization.js';
 
 export interface TimeSeriesDataModel {
     series: SeriesConfig[];
@@ -13,6 +14,7 @@ export interface TimeSeriesDataModel {
     xDomainMax: number | null;
     colorScaleInfo: ColorScaleInfo | null;
     hasColorCandidates: boolean;
+    normalizationByColumn: ReadonlyMap<string, SeriesNormalization>;
 }
 
 export interface TimeSeriesDataModelInput {
@@ -38,6 +40,7 @@ export function buildTimeSeriesDataModel(input: TimeSeriesDataModelInput): TimeS
     const annotations: AnnotationConfig[] = [];
     const baseSeries: SeriesConfig[] = [];
     const colorCandidates: ColorCandidate[] = [];
+    const normalizationByColumn = new Map<string, SeriesNormalization>();
     let dataYMin = Number.POSITIVE_INFINITY;
     let dataYMax = Number.NEGATIVE_INFINITY;
     let xDomainMin = Number.POSITIVE_INFINITY;
@@ -49,26 +52,15 @@ export function buildTimeSeriesDataModel(input: TimeSeriesDataModelInput): TimeS
         if (normalized === 'ts' || normalized === 'timestamp' || normalized === 'time') continue;
         if (!data.values?.[column] && !data.series?.[column]) continue;
 
-        const seriesData = data.series?.[column];
-        const yValues = seriesData?.y ?? data.values?.[column];
-        const xValues = seriesData?.x ?? data.ts;
+        const seriesData = getSeriesDisplayData(data, column, normalizeEachSeries);
+        if (!seriesData) continue;
+        const { x: xValues, y: yValues, normalization } = seriesData;
+        if (normalization) normalizationByColumn.set(column, normalization);
         const points: [number, number][] = [];
-        let seriesMin = Number.POSITIVE_INFINITY;
-        let seriesMax = Number.NEGATIVE_INFINITY;
-        for (const raw of yValues ?? []) {
-            const value = Number(raw);
-            if (!Number.isFinite(value)) continue;
-            seriesMin = Math.min(seriesMin, value);
-            seriesMax = Math.max(seriesMax, value);
-        }
-        const seriesSpan = seriesMax - seriesMin;
         const count = Math.min(xValues?.length ?? 0, yValues?.length ?? 0);
         for (let pointIndex = 0; pointIndex < count; pointIndex++) {
             const x = Number(xValues![pointIndex]);
-            const rawY = Number(yValues![pointIndex]);
-            const y = normalizeEachSeries && Number.isFinite(rawY)
-                ? (seriesSpan > 0 ? (rawY - seriesMin) / seriesSpan : 0.5)
-                : rawY;
+            const y = Number(yValues![pointIndex]);
             if (!Number.isFinite(x)) continue;
             // Preserve a filtered sample as NaN so line renderers break at
             // that timestamp instead of joining the points on either side.
@@ -129,5 +121,6 @@ export function buildTimeSeriesDataModel(input: TimeSeriesDataModelInput): TimeS
         xDomainMax: Number.isFinite(xDomainMax) ? xDomainMax : null,
         colorScaleInfo,
         hasColorCandidates: colorCandidates.length > 0,
+        normalizationByColumn,
     };
 }

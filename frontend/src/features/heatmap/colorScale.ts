@@ -11,7 +11,7 @@ export function correlationScaleGradient(
     scale: ColorScaleName = getPlotColorScale('correlationMatrix'),
     direction = '180deg',
 ): string {
-    return `linear-gradient(${direction}, ${[...paletteForColorScale(scale)].reverse().join(',')})`;
+    return `linear-gradient(${direction}, ${paletteForColorScale(scale).join(', ')})`;
 }
 
 export function getColorDomainMax(data: (number | null)[][], fitAxis: boolean): number {

@@ -65,11 +65,18 @@ describe('toolbar', () => {
         };
         setPrimaryChartInstance({ supportsZoomControls: () => true } as any);
 
-        initAnalysisControls(vi.fn(), zoomOutAction, resetZoomAction, workspace);
+        const dispose = initAnalysisControls(vi.fn(), zoomOutAction, resetZoomAction, workspace);
         (document.getElementById('zoom-out-btn') as HTMLButtonElement).click();
         (document.getElementById('zoom-reset-btn') as HTMLButtonElement).click();
 
         expect(zoomOutAction).toHaveBeenCalledTimes(1);
         expect(resetZoomAction).toHaveBeenCalledTimes(1);
+        dispose();
+        const nextZoom = vi.fn();
+        const disposeNext = initAnalysisControls(vi.fn(), nextZoom, vi.fn(), workspace);
+        (document.getElementById('zoom-out-btn') as HTMLButtonElement).click();
+        expect(zoomOutAction).toHaveBeenCalledTimes(1);
+        expect(nextZoom).toHaveBeenCalledTimes(1);
+        disposeNext();
     });
 });

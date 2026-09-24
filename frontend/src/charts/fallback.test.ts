@@ -175,6 +175,29 @@ describe('FallbackChart', () => {
             expect(mockCtx.strokeText).toHaveBeenCalledWith('HULL [5.00, 12.00]', 110, expect.any(Number));
         });
 
+        it('uses filtered samples for normalization and keeps range bands in the displayed scale', () => {
+            document.body.insertAdjacentHTML('beforeend', '<input id="timeseries-normalize-series" type="checkbox" checked>');
+            const canvas = document.querySelector('canvas')!;
+            canvas.width = 400;
+            canvas.height = 300;
+            const data = {
+                ts: Float64Array.from([0, 1, 2, 3]),
+                values: { HULL: Float64Array.from([20, 1000, 30, 40]) },
+                series: { HULL: { x: Float64Array.from([0, 1, 2, 3]), y: Float64Array.from([20, NaN, 30, 40]) } },
+                colorByColumn: {},
+            };
+            chart.updateDataMulti(data, ['HULL'], null, [], { HULL: { from: 20, to: 40 } });
+            expect(chart.getYRange()).toEqual({ min: 0, max: 1 });
+            expect(chart.seriesYToSource('HULL', 0.5)).toBe(30);
+            expect(mockCtx.strokeRect).toHaveBeenLastCalledWith(104, 28, 268, 216);
+            expect(mockCtx.strokeText).toHaveBeenCalledWith('HULL [20.00, 40.00]', 110, expect.any(Number));
+            (document.getElementById('timeseries-normalize-series') as HTMLInputElement).checked = false;
+            chart.updateDataMulti(data, ['HULL']);
+            expect(chart.getYRange()).toEqual({ min: 20, max: 40 });
+            expect(chart.seriesYToSource('HULL', 30)).toBe(30);
+            chart.destroy();
+        });
+
         it('renders and announces the configured axis labels', () => {
             chart.setChartText('', 'Time (Europe/Berlin)', 'HULL (source units not provided)');
             chart.updateDataMulti({

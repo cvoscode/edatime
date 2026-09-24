@@ -42,6 +42,19 @@ export const HEATMAP_HELP: PageHelpContent = {
             ],
         },
         {
+            title: 'Density and distribution previews',
+            body:
+                'By default, diagonal cells show a kernel density curve and off-diagonal cells show a smoothed two-dimensional density. These previews describe the current working-data levels; selecting Changes affects the correlation coefficient only. Linked filters and the active time window apply to both.',
+            bullets: [
+                'Diagonal — choose Density curve or Histogram from Display. A constant column is shown as a single-value marker.',
+                'Pair cells — choose Density or Scatter. Density pools the sampled observations and uses a sequential palette; it is normalized separately inside each pair, so color intensity is not comparable between pairs.',
+                'Correlation — the cell frame and signed badge continue to show the selected Pearson, Spearman, or Kendall metric. The density palette is a separate encoding.',
+                'Sampling — each pair preview uses up to 8,000 sampled observations. Focus or hover a cell for its returned sample count and accessible axis description.',
+                'Pair-point color — available in Scatter mode; Density mode pools observations without coloring by a third feature.',
+                'Empty previews — cells with no finite observations say so, while the correlation value remains available when preview loading fails.',
+            ],
+        },
+        {
             title: 'Matrix interactions',
             body:
                 'The matrix is interactive, not a static image. Hover, click, and drag are all wired to actions.',

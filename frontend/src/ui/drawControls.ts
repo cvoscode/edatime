@@ -5,7 +5,7 @@
 
 import { primaryChart } from '../charts/primaryChart.js';
 import { emitFeatureEvent } from '../platform/featureEvents.js';
-import { getDropdownValue } from './primitives/Dropdown.js';
+import { getDropdownValue, setDropdownDisabled } from './primitives/Dropdown.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
 
 /**
@@ -19,11 +19,8 @@ function syncAdaptiveClearButton(workspace: Pick<WorkspaceStore, 'getSnapshot'>)
     const hasFilters = workspace.getSnapshot().filters.adaptiveLines.length > 0;
     btn.hidden = false;
     btn.disabled = !hasFilters;
-    const label = hasFilters
-        ? 'Clear adaptive filters'
-        : 'No adaptive filters — Ctrl+click a series to start';
-    btn.textContent = label;
-    btn.title = hasFilters ? 'Clear adaptive line filters (Shift+C)' : label;
+    btn.textContent = 'Clear adaptive filters';
+    btn.title = hasFilters ? 'Clear adaptive line filters (Shift+C)' : 'No adaptive line filters to clear';
 }
 
 export function initDrawControls(
@@ -42,13 +39,17 @@ export function initDrawControls(
 
     const syncChartCapabilities = () => {
         const drawingAvailable = primaryChart.current?.capabilities?.drawing !== false;
-        const controls = [drawTool, drawColor, drawWidth, drawClearBtn].filter(
+        setDropdownDisabled('draw-tool', !drawingAvailable);
+        const controls = [drawColor, drawWidth, drawClearBtn].filter(
             (control): control is HTMLSelectElement | HTMLInputElement | HTMLButtonElement => control instanceof HTMLElement,
         );
         for (const control of controls) control.toggleAttribute('disabled', !drawingAvailable);
-        if (!drawingAvailable) {
-            const message = 'Drawing is unavailable in the Canvas fallback; PNG, SVG, and HTML export remain available.';
-            for (const control of controls) control.setAttribute('title', message);
+        const unavailable = document.getElementById('timeseries-drawing-unavailable');
+        if (unavailable) unavailable.hidden = drawingAvailable;
+        for (const control of [drawTool, ...controls]) {
+            if (!control) continue;
+            if (drawingAvailable) control.removeAttribute('title');
+            else control.title = 'Drawing is unavailable in the Canvas fallback; PNG, SVG, and HTML export remain available.';
         }
     };
 

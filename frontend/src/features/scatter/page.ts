@@ -54,7 +54,7 @@ import {
     type MatrixRenderSession,
 } from './matrix.js';
 import { createRequestTask } from '../../platform/requestTask.js';
-import { createToolbarOverflow, type ToolbarOverflowController } from '../../ui/toolbarOverflow.js';
+import { initToolbarPopovers } from '../../ui/toolbarPopovers.js';
 import {
     initScatterPageRuntime,
     disposeScatterPageRuntime,
@@ -82,7 +82,7 @@ import { cleaningPlanStore } from '../../cleaning/store.js';
 
 let workspace: Pick<WorkspaceStore, 'getSnapshot' | 'setFilters' | 'subscribe'> | null = null;
 let disposeBoundControls: (() => void) | null = null;
-let toolbarOverflow: ToolbarOverflowController | null = null;
+let toolbarPopovers: ReturnType<typeof initToolbarPopovers> | null = null;
 let matrixRenderSession: MatrixRenderSession = createMatrixRenderSession();
 const SCATTER_VIEW_STORAGE_KEY = 'edatime_pair_plot_view';
 
@@ -130,8 +130,8 @@ export function disposeScatterPage(): void {
     disposeBoundControls?.();
     disposeBoundControls = null;
     disposeScatterControls();
-    toolbarOverflow?.dispose();
-    toolbarOverflow = null;
+    toolbarPopovers?.dispose();
+    toolbarPopovers = null;
     matrixRenderSession.dispose();
     matrixRenderSession = createMatrixRenderSession();
     if (_scatterDebounceTimer) {
@@ -203,7 +203,7 @@ async function setScatterView(viewName: string, options: { render?: boolean } = 
     writeScatterViewPreference(nextView);
     setSidebarAnalyticsSelection(nextView);
     syncScatterViewButtons(nextView);
-    syncModeUI(() => toolbarOverflow?.refresh());
+    syncModeUI();
 
     for (const panel of document.querySelectorAll<HTMLElement>('[data-scatter-view-panel]')) {
         panel.hidden = panel.dataset.scatterViewPanel !== nextView;
@@ -423,7 +423,6 @@ function bindControls(): Promise<void> {
             rerenderScatterFromCache,
             renderScatterDebounced,
             syncScatterFilterBadge,
-            refreshToolbarOverflow: () => toolbarOverflow?.refresh(),
             workspace: workspace ?? undefined,
             exportScatterParquet: () => exportScatterParquet(workspace?.getSnapshot()),
         });
@@ -491,17 +490,9 @@ export async function initScatterPage(
 
     if (!scatterState.initialized) {
         await bindControls();
-        // Wire the per-segment overflow popout now that the toolbar
-        // segments exist in their final shape. The overflow logic
-        // is purely presentational, so a failure here must not
-        // prevent the scatter page from rendering.
         const toolbar = getEl('heatmap-pair-plot')?.querySelector<HTMLElement>('.scatter-toolbar');
-        if (toolbar) {
-            try {
-                toolbarOverflow?.dispose();
-                toolbarOverflow = createToolbarOverflow(toolbar);
-            } catch { /* noop */ }
-        }
+        toolbarPopovers?.dispose();
+        toolbarPopovers = toolbar ? initToolbarPopovers(toolbar) : null;
         // Page-level "?" help button. The helper is idempotent so
         // calling it on every first init is safe.
         disposeScatterHelp = initScatterHelp();

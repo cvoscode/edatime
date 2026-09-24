@@ -58,6 +58,7 @@ import { DrawingController } from './drawingController.js';
 import { TextOverlayController } from './textOverlayController.js';
 import { renderColorScaleLegend } from './colorScaleLegend.js';
 import { buildTimeSeriesDataModel } from './timeSeriesDataModel.js';
+import { toDisplaySeriesValue, toSourceSeriesValue, type SeriesNormalization } from './seriesNormalization.js';
 import { buildTimeSeriesChartOptions } from './timeSeriesChartOptions.js';
 import { getChartExportDomains, getChartExportViewport, type ChartExportDomains, type ChartExportViewport } from './chartExportLayout.js';
 import { renderChartExportCanvas } from './chartExportCanvasRenderer.js';
@@ -114,6 +115,7 @@ export class DataChart {
     _activeColumns: readonly string[] = [];
     _columnRangeFilters: Readonly<Record<string, ColumnRange>> = {};
     _adaptiveLineFilters: readonly AdaptiveLineFilter[] = [];
+    private _normalizationByColumn: ReadonlyMap<string, SeriesNormalization> = new Map();
     _lastSeriesList: SeriesConfig[] | null = null;
     _lastXDomainMin: number | null = null;
     _lastXDomainMax: number | null = null;
@@ -218,6 +220,7 @@ export class DataChart {
         this._robustDisplayRange = null;
         this._lastDisplayYValues = [];
         this._lastSeriesList = null;
+        this._normalizationByColumn = new Map();
         this._lastXDomainMin = null;
         this._lastXDomainMax = null;
         this._lastChartOptions = null;
@@ -538,6 +541,10 @@ export class DataChart {
         });
     }
 
+    seriesYToSource(column: string, y: number): number {
+        return toSourceSeriesValue(y, this._normalizationByColumn.get(column));
+    }
+
     zoomY(_factor: number, _anchorNormalized = 0.5): void { /* intentionally blank */ }
 
     fitYToData(): void {
@@ -589,6 +596,7 @@ export class DataChart {
             normalizeEachSeries: !!(document.getElementById('timeseries-normalize-series') as HTMLInputElement | null)?.checked,
         });
         this._lastSeriesList = model.series;
+        this._normalizationByColumn = model.normalizationByColumn;
         this._lastDisplayYValues = model.displayYValues;
         this._lastXDomainMin = model.xDomainMin;
         this._lastXDomainMax = model.xDomainMax;
@@ -918,6 +926,7 @@ export class DataChart {
             getOverlayCanvas: () => this._overlayCanvas,
             getGrid: () => this._currentGrid,
             getYRange: () => this.getYRange(),
+            toDisplayY: (column, y) => toDisplaySeriesValue(y, this._normalizationByColumn.get(column)),
             getColumnRangeFilters: () => this._columnRangeFilters,
             getAdaptiveLineFilters: () => this._adaptiveLineFilters,
             getPendingAdaptivePoint: () => this._getPendingAdaptivePoint(),

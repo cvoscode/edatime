@@ -515,6 +515,26 @@ describe('updateDataMulti', () => {
         }));
     });
 
+    it('renders normalized filtered samples and converts drawn values back to source units', () => {
+        document.body.innerHTML = '<input id="timeseries-normalize-series" type="checkbox" checked>';
+        const chart = makeChart();
+        const setOption = vi.fn();
+        chart.chartInstance = { options: { series: [] }, setOption, setZoomRange: vi.fn() } as any;
+        const data = {
+            values: { temperature: Float64Array.from([20, 1000, 30, 40]) },
+            series: { temperature: { x: Float64Array.from([0, 1, 2, 3]), y: Float64Array.from([20, NaN, 30, 40]) } },
+            colorByColumn: {},
+        };
+        chart.updateDataMulti(data, ['temperature']);
+        expect(setOption.mock.calls.at(-1)![0].series[0].data).toEqual([[0, 0], [1, NaN], [2, 0.5], [3, 1]]);
+        expect(chart.seriesYToSource('temperature', 0.5)).toBe(30);
+        (document.getElementById('timeseries-normalize-series') as HTMLInputElement).checked = false;
+        chart.updateDataMulti(data, ['temperature']);
+        expect(setOption.mock.calls.at(-1)![0].series[0].data).toEqual([[0, 20], [1, NaN], [2, 30], [3, 40]]);
+        expect(chart.seriesYToSource('temperature', 30)).toBe(30);
+        chart.destroy();
+    });
+
     it('mounts and replaces a screen-reader summary for rendered series data', () => {
         const chart = makeChart();
         const container = document.createElement('div');

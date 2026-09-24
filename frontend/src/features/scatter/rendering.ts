@@ -538,7 +538,7 @@ export function updateCorrelationStats(): void {
 
 /* ── Sync mode UI ─────────────────────────────────────── */
 
-export function syncModeUI(onToolbarLayoutChange?: () => void): void {
+export function syncModeUI(): void {
     const ctl = currentControls();
     const view = scatterState.activeView || 'plot';
     const isPlot = view === 'plot';
@@ -569,9 +569,8 @@ export function syncModeUI(onToolbarLayoutChange?: () => void): void {
             ? 'Canvas fallback: ordinary scatter points; density legend unavailable.'
             : '';
     }
-    // The Refine segment hosts the density sub-group (Bins + Scale
-    // Linear/Log) inline. Show it only in density mode and hide it
-    // for scatter/matrix views to avoid leaving orphan labels.
+    // Density controls share the Display panel with the marginal selector.
+    // Keep their visibility tied to the existing rendering mode.
     toggle(getEl('scatter-density-controls'), isDensity);
     // The color-by-column dropdown + scale only apply in scatter
     // render mode (density mode uses the colormap for the heatmap,
@@ -584,11 +583,6 @@ export function syncModeUI(onToolbarLayoutChange?: () => void): void {
     toggle(document.querySelector('.scatter-suggestions-bar'), !isMatrix);
     toggle(document.querySelector('.scatter-stats-bar__correlations'), !isMatrix);
     updateColorbarUI();
-    // Sync mode flips the density sub-group and color-scale field
-    // visibility, which changes which fields wrap inside the Refine
-    // segment. Ask the overflow logic to rebalance so the popout
-    // stays in sync with the new field set.
-    onToolbarLayoutChange?.();
 }
 
 export {

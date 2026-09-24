@@ -70,9 +70,12 @@ selector. Any plan edit, reorder, undo, or dataset change requires a fresh previ
 Each numbered stage shows its exact row impact after the preview. Use its
 **Position** selector to move directly to another step, or **Move up / Move down**.
 
-Start with **Quality findings**. Counts summarize the source report; expand a
-category or **All columns** to inspect details. Missing-value actions appear only
-for reported null or non-finite findings. Sampled reports remain estimates.
+Start with **Data quality report**. Preparation uses the same profile grid as
+Upload, including the shared column filter, type filters, sortable headers,
+counts, ranges, and distribution preview. Sampled reports remain estimates;
+build the exact report before materializing when authoritative values matter.
+Reports already loaded for the active source appear automatically in Preparation,
+including reports that finish while the page is open.
 The sticky status bar shows whether the working plan is active in plots and
 whether its preview is current, alongside Undo and Redo. On narrow screens,
 **Jump to section** provides access to every section.

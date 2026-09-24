@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DataObject } from '../../types/api.js';
 import { buildTimeseriesRenderModel } from './timeseriesRenderModel.js';
+import { getSeriesDisplayData } from '../../chart/seriesNormalization.js';
 
 function data(values = new Float64Array([1, 2, 3])): DataObject {
     return {
@@ -57,5 +58,21 @@ describe('timeseries render model', () => {
         expect(model.displayColumns).toEqual(['value', 'value [filtered]']);
         expect(model.data.series.value).toEqual({ x: new Float64Array([0, 10, 20]), y: new Float64Array([1, 2, 3]) });
         expect(model.data.series['value [filtered]']).toEqual({ x: new Float64Array([0, 10]), y: new Float64Array([2, 4]) });
+    });
+
+    it('excludes viewport padding and local-filter gaps from the normalization scale', () => {
+        const model = buildTimeseriesRenderModel({
+            data: { ...data(), ts: Float64Array.from([0, 10, 20, 30, 40]),
+                values: { value: Float64Array.from([-1000, 20, 1000, 30, 5000]) } },
+            selectedColumns: ['value'], viewport: { start: 10, end: 30 },
+            columnRanges: { value: { from: 15, to: 35 } }, adaptiveLineFilters: [],
+            datasetRange: { min: 0, max: 40 }, spectralPreview: null,
+        });
+        expect(model.kind).toBe('data');
+        if (model.kind !== 'data') return;
+        const normalized = getSeriesDisplayData(model.data, 'value', true)!;
+        expect([...normalized.x]).toEqual([10, 20, 30]);
+        expect([...normalized.y]).toEqual([0, NaN, 1]);
+        expect(normalized.normalization).toEqual({ min: 20, max: 30 });
     });
 });

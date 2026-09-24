@@ -15,6 +15,7 @@ import type {
 import type { AdaptiveLineFilter, ColumnRange } from '../types/store.js';
 import { formatTimestamp } from '../formatUtils.js';
 import { downloadBlob, downloadUrl } from '../utils/dom.js';
+import { getSeriesDisplayData, toDisplaySeriesValue, toSourceSeriesValue, type SeriesNormalization } from '../chart/seriesNormalization.js';
 
 const FALLBACK_GRID = { left: 96, right: 28, top: 28, bottom: 56 };
 
@@ -57,6 +58,7 @@ export class FallbackChart implements ChartInstance {
     private lastColumns: string[] = [];
     private lastColorColumn: string | null = null;
     private columnRanges: Readonly<Record<string, ColumnRange>> = {};
+    private normalizationByColumn = new Map<string, SeriesNormalization>();
     private crosshairCallback: ((data: CrosshairData) => void) | null = null;
     private clickCallback: ((data: ClickData) => void) | null = null;
     private chartText = { title: '', xLabel: 'Time', yLabel: 'Value' };
@@ -357,6 +359,10 @@ export class FallbackChart implements ChartInstance {
         return { x, y };
     }
 
+    seriesYToSource(column: string, y: number): number {
+        return toSourceSeriesValue(y, this.normalizationByColumn.get(column));
+    }
+
     private updateInspector(x: number, values: Record<string, number>): void {
         if (!this.inspector) return;
         const span = Math.max(1, (this.dataXMax ?? x) - (this.dataXMin ?? x));
@@ -404,20 +410,12 @@ export class FallbackChart implements ChartInstance {
 
         const seriesToDraw: DrawEntry[] = [];
         const normalizeEachSeries = !!(document.getElementById('timeseries-normalize-series') as HTMLInputElement | null)?.checked;
+        this.normalizationByColumn.clear();
         for (const col of columns) {
-            const seriesData = dataObj.series?.[col];
-            const xs = seriesData?.x || dataObj.ts;
-            const ys = seriesData?.y || dataObj.values?.[col];
-            if (!xs || !ys || ys.length === 0) continue;
-
-            let drawYs: ArrayLike<number> = ys;
-            if (normalizeEachSeries) {
-                const finite = Array.from(ys, Number).filter(Number.isFinite);
-                const min = Math.min(...finite);
-                const max = Math.max(...finite);
-                const span = max - min;
-                drawYs = Array.from(ys, (value) => Number.isFinite(Number(value)) ? (span > 0 ? (Number(value) - min) / span : 0.5) : Number.NaN);
-            }
+            const seriesData = getSeriesDisplayData(dataObj, col, normalizeEachSeries);
+            if (!seriesData) continue;
+            const { x: xs, y: drawYs, normalization } = seriesData;
+            if (normalization) this.normalizationByColumn.set(col, normalization);
             seriesToDraw.push({ col, xs, ys: drawYs });
 
             for (let i = 0; i < xs.length; i++) {
@@ -553,15 +551,16 @@ export class FallbackChart implements ChartInstance {
 
         for (const [column, range] of Object.entries(this.columnRanges)) {
             if (!this.lastColumns.includes(column)) continue;
-            const from = Math.min(Number(range.from), Number(range.to));
-            const to = Math.max(Number(range.from), Number(range.to));
+            const scale = this.normalizationByColumn.get(column);
+            const from = toDisplaySeriesValue(Math.min(Number(range.from), Number(range.to)), scale);
+            const to = toDisplaySeriesValue(Math.max(Number(range.from), Number(range.to)), scale);
             if (!Number.isFinite(from) || !Number.isFinite(to) || to < yMin || from > yMax) continue;
             const toY = (value: number) => plotBottom - ((value - yMin) / (yMax - yMin)) * plotHeight;
             const bandTop = Math.max(plotTop, toY(Math.min(to, yMax)));
             const bandBottom = Math.min(plotBottom, toY(Math.max(from, yMin)));
             const bandHeight = Math.max(1, bandBottom - bandTop);
             const color = getColumnSeriesColor(column);
-            const label = `${column} [${from.toFixed(2)}, ${to.toFixed(2)}]`;
+            const label = `${column} [${Math.min(range.from, range.to).toFixed(2)}, ${Math.max(range.from, range.to).toFixed(2)}]`;
             const labelX = bandLeft + 6;
             const labelY = Math.max(plotTop + 11, Math.min(plotBottom - 11, bandTop + 12));
             const labelWidth = Math.min(ctx.measureText(label).width, Math.max(1, Math.min(220, bandWidth - 12)));
@@ -604,5 +603,6 @@ export class FallbackChart implements ChartInstance {
         this.ctx = null;
         this.canvas = null;
         this.inspector = null;
+        this.normalizationByColumn.clear();
     }
 }

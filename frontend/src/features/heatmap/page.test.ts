@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createCleaningPlanStore } from '../../cleaning/store.js';
 import { clearScatterPairIntent, consumeScatterPairIntent } from '../scatter/pairIntent.js';
+import { paletteForColorScale } from '../../utils/colorScales.js';
+import { getPlotColorScale } from '../../utils/settings.js';
 
 class ResizeObserverMock {
     static instances: ResizeObserverMock[] = [];
@@ -172,6 +174,9 @@ describe('heatmapPage with clustering', () => {
                 <option value="spearman_diff">Spearman (Δ)</option>
                 <option value="kendall_diff">Kendall tau (Δ)</option>
             </select>
+            <select id="heatmap-diagonal-mode"><option value="kde">Density curve</option><option value="histogram">Histogram</option></select>
+            <select id="heatmap-pair-mode"><option value="density">Density</option><option value="scatter">Scatter</option></select>
+            <select id="heatmap-color-column"><option value="">None</option></select>
             <input id="heatmap-cell-size" type="range" min="24" max="72" step="4" value="36">
             <span id="heatmap-cell-size-value" class="range-value">36</span>
             <input id="heatmap-cluster-toggle" type="checkbox" checked>
@@ -184,8 +189,9 @@ describe('heatmapPage with clustering', () => {
             <select id="scatter-x-col"><option value=""></option><option value="a1">a1</option><option value="a2">a2</option><option value="a3">a3</option><option value="b1">b1</option><option value="b2">b2</option><option value="b3">b3</option></select>
             <select id="scatter-y-col"><option value=""></option><option value="a1">a1</option><option value="a2">a2</option><option value="a3">a3</option><option value="b1">b1</option><option value="b2">b2</option><option value="b3">b3</option></select>
             <section id="page-heatmap">
-              <details class="toolbar-disclosure toolbar-disclosure--end">
-                <summary class="toolbar-disclosure__summary">Format</summary>
+              <div class="toolbar scatter-toolbar">
+              <details class="toolbar-disclosure toolbar-disclosure--end" data-toolbar-popover data-toolbar-export>
+                <summary class="toolbar-disclosure__summary">Export</summary>
                 <div class="toolbar-disclosure__menu">
                   <button id="heatmap-export-png-btn" type="button">PNG</button>
                   <button id="heatmap-export-svg-btn" type="button">SVG</button>
@@ -193,6 +199,7 @@ describe('heatmapPage with clustering', () => {
                   <button id="heatmap-export-csv-btn" type="button">CSV</button>
                 </div>
               </details>
+              </div>
             </section>
         `;
     });
@@ -201,6 +208,53 @@ describe('heatmapPage with clustering', () => {
         heatmapPageChange = null;
         delete (globalThis as any).ResizeObserver;
         vi.restoreAllMocks();
+    });
+
+    it('defaults to density previews and persists display choices without changing the metric', async () => {
+        const { initHeatmapPage } = await import('./page.js');
+        await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+
+        const metric = document.getElementById('heatmap-metric') as HTMLSelectElement;
+        const diagonal = document.getElementById('heatmap-diagonal-mode') as HTMLSelectElement;
+        const pairs = document.getElementById('heatmap-pair-mode') as HTMLSelectElement;
+        const color = document.getElementById('heatmap-color-column') as HTMLSelectElement;
+        expect(diagonal.value).toBe('kde');
+        expect(pairs.value).toBe('density');
+        expect(color.disabled).toBe(true);
+        expect(document.querySelectorAll('.heatmap-grid-legend__bar')).toHaveLength(1);
+        expect(document.querySelector('.heatmap-density-legend')).toBeNull();
+        expect(document.querySelector('.heatmap-grid-legend')?.getAttribute('aria-label'))
+            .toContain('lower relative pair density');
+        expect(document.querySelector('.heatmap-grid-legend__bar')?.getAttribute('style'))
+            .toContain(paletteForColorScale(getPlotColorScale('correlationMatrix')).join(', '));
+        expect(document.querySelector('.heatmap-preview-context')).toBeNull();
+        expect(document.querySelector('.heatmap-legend-stack')?.textContent).not.toContain('Frames and signed badges show');
+
+        diagonal.value = 'histogram';
+        diagonal.dispatchEvent(new Event('change', { bubbles: true }));
+        pairs.value = 'scatter';
+        pairs.dispatchEvent(new Event('change', { bubbles: true }));
+
+        expect(window.localStorage.getItem('edatime_heatmap_diagonal_mode')).toBe('histogram');
+        expect(window.localStorage.getItem('edatime_heatmap_pair_mode')).toBe('scatter');
+        expect(color.disabled).toBe(false);
+        expect(document.querySelector('.heatmap-density-legend')).toBeNull();
+        expect(Array.from(document.querySelectorAll('.heatmap-grid-legend__tick')).map((tick) => tick.textContent))
+            .toEqual(['-1.0', '+1.0']);
+        expect(metric.value).toBe('pearson_raw');
+    });
+
+    it('uses the configured global scale for the shared legend', async () => {
+        window.localStorage.setItem('edatime-settings', JSON.stringify({
+            plotColorScales: { correlationMatrix: 'magma' },
+        }));
+        const { initHeatmapPage } = await import('./page.js');
+        await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+
+        expect(document.querySelector('.heatmap-grid-legend__bar')?.getAttribute('style'))
+            .toContain(paletteForColorScale('magma').join(', '));
     });
 
     it('initializes and renders a 6x6 grid', async () => {
@@ -264,7 +318,7 @@ describe('heatmapPage with clustering', () => {
         );
     });
 
-    it('closes the Format disclosure on Escape and restores summary focus', async () => {
+    it('closes the Export disclosure on Escape and restores summary focus', async () => {
         const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
@@ -348,8 +402,10 @@ describe('heatmapPage with clustering', () => {
 
         expect(shell).not.toBeNull();
         expect(scale).not.toBeNull();
-        expect(positiveTick?.textContent).toBe('+1.0');
-        expect(negativeTick?.textContent).toBe('-1.0');
+        expect(positiveTick?.textContent).toBe('+1.0 / Higher');
+        expect(negativeTick?.textContent).toBe('-1.0 / Lower');
+        expect(Array.from(document.querySelectorAll('.heatmap-grid-legend__tick')).map((tick) => tick.textContent))
+            .toEqual(['-1.0 / Lower', '+1.0 / Higher']);
         expect(headers.every((header) => header.classList.contains('heatmap-header--vertical'))).toBe(false);
         // Cells now carry `background` directly (inline) instead of
         // `--heatmap-cell-bg`. The audit dropped the dead CSS variable,
@@ -372,8 +428,10 @@ describe('heatmapPage with clustering', () => {
 
         const positiveTick = document.querySelector('.heatmap-grid-legend__tick--positive');
         const negativeTick = document.querySelector('.heatmap-grid-legend__tick--negative');
-        expect(positiveTick?.textContent).toBe('+0.95');
-        expect(negativeTick?.textContent).toBe('-0.95');
+        expect(positiveTick?.textContent).toBe('+0.95 / Higher');
+        expect(negativeTick?.textContent).toBe('-0.95 / Lower');
+        expect(Array.from(document.querySelectorAll('.heatmap-grid-legend__tick')).map((tick) => tick.textContent))
+            .toEqual(['-0.95 / Lower', '+0.95 / Higher']);
     });
 
     it('switches narrow heatmap headers into a vertical label mode', async () => {
@@ -700,7 +758,8 @@ describe('heatmapPage with clustering', () => {
         expect(grid!.style.display).toBe('grid');
         expect(grid!.style.width).toBe('');
         expect(scale).not.toBeNull();
-        expect(grid!.nextElementSibling).toBe(scale);
+        expect(grid!.nextElementSibling).toBe(document.querySelector('.heatmap-legend-stack'));
+        expect(document.querySelector('.heatmap-legend-stack')?.contains(scale!)).toBe(true);
         // The shell must also allow horizontal scrolling for very wide
         // matrices rather than clipping cells.
         expect(getComputedStyle(shell!).overflowX).not.toBe('visible');
@@ -878,8 +937,7 @@ describe('heatmapPage audit follow-ups (C1–C11)', () => {
         expect(clusterRow!.style.borderTop).toBeTruthy();
     });
 
-    // C7 — Display segment is wired into the shared toolbar-overflow controller.
-    it('does not crash when the heatmap page loads without an overflow popout', async () => {
+    it('does not crash when the heatmap page loads without a toolbar', async () => {
         // Strip the toolbar so the shared controller has nothing to register;
         // the page should still render cleanly.
         document.querySelector('.toolbar.scatter-toolbar')?.remove();

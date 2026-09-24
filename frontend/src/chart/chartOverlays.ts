@@ -18,6 +18,7 @@ interface ChartOverlayOptions {
     getOverlayCanvas: () => HTMLCanvasElement | null;
     getGrid: () => { left: number; right: number; top: number; bottom: number };
     getYRange: () => { min: number; max: number } | null;
+    toDisplayY?: (column: string, y: number) => number;
     getColumnRangeFilters?: () => Readonly<Record<string, ColumnRange>>;
     getAdaptiveLineFilters: () => readonly AdaptiveLineFilter[];
     getPendingAdaptivePoint: () => { column: string; x: number; y: number; x2?: number; y2?: number } | null;
@@ -121,9 +122,11 @@ export class ChartOverlays {
         ctx.textBaseline = 'middle';
 
         for (const [column, range] of visibleRanges) {
-            const from = Math.min(Number(range.from), Number(range.to));
-            const to = Math.max(Number(range.from), Number(range.to));
-            if (to < yRange.min || from > yRange.max) continue;
+            const sourceFrom = Math.min(Number(range.from), Number(range.to));
+            const sourceTo = Math.max(Number(range.from), Number(range.to));
+            const from = this._opts.toDisplayY?.(column, sourceFrom) ?? sourceFrom;
+            const to = this._opts.toDisplayY?.(column, sourceTo) ?? sourceTo;
+            if (!Number.isFinite(from) || !Number.isFinite(to) || to < yRange.min || from > yRange.max) continue;
 
             const bandTop = Math.max(plotTop, toY(Math.min(to, yRange.max)));
             const bandBottom = Math.min(plotBottom, toY(Math.max(from, yRange.min)));
@@ -138,7 +141,7 @@ export class ChartOverlays {
             ctx.strokeRect(bandLeft, bandTop, bandWidth, bandHeight);
             ctx.setLineDash([]);
 
-            const label = `${column} [${from.toFixed(2)}, ${to.toFixed(2)}]`;
+            const label = `${column} [${sourceFrom.toFixed(2)}, ${sourceTo.toFixed(2)}]`;
             const labelWidth = ctx.measureText(label).width;
             const labelHeight = 17 * strokeScale;
             const labelY = Math.max(
@@ -203,13 +206,16 @@ export class ChartOverlays {
         const ySpan = Math.max(1e-9, yRange.max - yRange.min);
 
         const toX = (ms: number) => plotLeft + ((ms - xMin) / (xMax - xMin)) * plotWidth;
-        const toY = (v: number) => plotBottom - ((v - yRange.min) / ySpan) * plotHeight;
 
         ctx.save();
         const rollingPalette = getChartPalette();
         const selectedColumns = new Set(this._selectedColumns);
         for (const band of bands) {
             if (!selectedColumns.has(band.column)) continue;
+            const toY = (v: number) => {
+                const display = this._opts.toDisplayY?.(band.column, v) ?? v;
+                return plotBottom - ((display - yRange.min) / ySpan) * plotHeight;
+            };
             const n = band.ts.length;
             if (n < 2) continue;
             const bandColor = getColumnSeriesColor(band.column);
@@ -349,9 +355,12 @@ export class ChartOverlays {
             const segStart = Math.max(xMin, Math.min(Number(filter.x1), Number(filter.x2)));
             const segEnd = Math.min(xMax, Math.max(Number(filter.x1), Number(filter.x2)));
             if (!Number.isFinite(segStart) || !Number.isFinite(segEnd) || !(segEnd > segStart)) continue;
-            const y1 = buildAdaptiveLineY(filter, segStart);
-            const y2 = buildAdaptiveLineY(filter, segEnd);
-            if (!Number.isFinite(y1!) || !Number.isFinite(y2!)) continue;
+            const sourceY1 = buildAdaptiveLineY(filter, segStart);
+            const sourceY2 = buildAdaptiveLineY(filter, segEnd);
+            if (sourceY1 === null || sourceY2 === null) continue;
+            const y1 = this._opts.toDisplayY?.(filter.column, sourceY1) ?? sourceY1;
+            const y2 = this._opts.toDisplayY?.(filter.column, sourceY2) ?? sourceY2;
+            if (!Number.isFinite(y1) || !Number.isFinite(y2)) continue;
             const sx = plotLeft + ((segStart - xMin) / (xMax - xMin)) * plotWidth;
             const ex = plotLeft + ((segEnd - xMin) / (xMax - xMin)) * plotWidth;
             const sy = plotBottom - ((y1! - yRange.min) / Math.max(1e-9, yRange.max - yRange.min)) * plotHeight;

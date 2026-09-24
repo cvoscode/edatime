@@ -5,7 +5,7 @@ import { getDropdownValue, setDropdownDisabled, setDropdownValue } from '../../u
 import { bindInfoPopovers } from '../../ui/infoPopovers.js';
 import { initHeatmapHelp } from './help.js';
 import { createAnalysisPageRuntime } from '../../platform/analysisRuntime.js';
-import { createToolbarOverflow, type ToolbarOverflowController } from '../../ui/toolbarOverflow.js';
+import { initToolbarPopovers } from '../../ui/toolbarPopovers.js';
 import {
     getCorrelationModeGuide,
     getCorrelationModeLabel,
@@ -31,6 +31,12 @@ import { classifyHeatmapLoadError } from './loadErrorPolicy.js';
 import type { CleaningPlanStore } from '../../cleaning/store.js';
 import { toast } from '../../utils/toast.js';
 import { requestScatterPair } from '../scatter/pairIntent.js';
+import { MATRIX_POINT_LIMIT } from '../scatter/helpers.js';
+import {
+    readHeatmapDisplayModes,
+    writeHeatmapDiagonalMode,
+    writeHeatmapPairMode,
+} from './displayModes.js';
 
 interface HeatmapPageDeps {
     showPage: (pageName: string) => void;
@@ -63,7 +69,7 @@ let heatmapRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
 let heatmapResizeObserver: ResizeObserver | null = null;
 let heatmapPageCleanup: (() => void) | null = null;
 let heatmapControlAbort: AbortController | null = null;
-let heatmapToolbarOverflow: ToolbarOverflowController | null = null;
+let toolbarPopovers: ReturnType<typeof initToolbarPopovers> | null = null;
 /** User's manual column/row order from drag-reorder. Persists across
  *  metric switches so users don't lose their custom sequence. Reset
  *  whenever clustering is toggled or a new dataset loads. */
@@ -222,6 +228,8 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
             return;
         }
 
+        const displayModes = readHeatmapDisplayModes();
+
         const columns = matrixData.columns;
         const data = getSelectedCorrelationMatrix(matrixData, metric);
         const size = columns.length;
@@ -344,8 +352,22 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
                     columnName: colName,
                     interactive: rowOriginal !== colOriginal && value !== null && Number.isFinite(value),
                 });
+                const isDiagonal = rowOriginal === colOriginal;
+                const densityCell = isDiagonal
+                    ? displayModes.diagonal === 'kde'
+                    : displayModes.pairs === 'density';
+                const cellClass = [
+                    'heatmap-cell',
+                    presentation.toneClass,
+                    isDiagonal ? 'heatmap-cell--diagonal' : '',
+                    densityCell ? 'heatmap-cell--density' : '',
+                ].filter(Boolean).join(' ');
+                const cellStyle = densityCell
+                    ? `background:var(--surface-2);color:var(--text);border:2px solid ${presentation.background};`
+                    : `background:${presentation.background};color:${presentation.textColor};`;
+                const previewScope = `${metricLabel} correlation; pair previews use sampled working-data levels with current linked filters and time window (up to ${MATRIX_POINT_LIMIT} observations per pair).`;
                 cells.push(
-                    `<div role="gridcell" aria-rowindex="${r + 2}" aria-colindex="${c + 2}" class="heatmap-cell ${presentation.toneClass}${rowOriginal === colOriginal ? ' heatmap-cell--diagonal' : ''}" data-row="${rowOriginal}" data-col="${colOriginal}" data-row-name="${escapeAttr(rowName)}" data-col-name="${escapeAttr(colName)}" data-correlation-value="${Number.isFinite(value) ? value : ''}" data-correlation-label="${escapeAttr(presentation.signedValue)}" data-cell-background="${escapeAttr(presentation.background)}" data-cell-color="${escapeAttr(presentation.textColor)}" style="grid-column:${colGridFor(c)};grid-row:${rowGridFor(r)};background:${presentation.background};color:${presentation.textColor};cursor:${presentation.interactive ? 'pointer' : 'default'};" aria-label="${escapeAttr(presentation.tooltip)}" title="${escapeAttr(presentation.tooltip)}" tabindex="${presentation.interactive ? '0' : '-1'}"><canvas class="heatmap-cell-canvas" data-css-height="${responsiveCell}" aria-hidden="true"></canvas></div>`,
+                    `<div role="gridcell" aria-rowindex="${r + 2}" aria-colindex="${c + 2}" class="${cellClass}" data-row="${rowOriginal}" data-col="${colOriginal}" data-row-name="${escapeAttr(rowName)}" data-col-name="${escapeAttr(colName)}" data-correlation-value="${Number.isFinite(value) ? value : ''}" data-correlation-label="${escapeAttr(presentation.signedValue)}" data-cell-background="${escapeAttr(presentation.background)}" data-cell-color="${escapeAttr(presentation.textColor)}" data-correlation-tooltip="${escapeAttr(presentation.tooltip)}" style="grid-column:${colGridFor(c)};grid-row:${rowGridFor(r)};${cellStyle}cursor:${presentation.interactive ? 'pointer' : 'default'};" aria-label="${escapeAttr(`${presentation.tooltip} ${previewScope}`)}" title="${escapeAttr(`${presentation.tooltip} ${previewScope}`)}" tabindex="${presentation.interactive ? '0' : '-1'}"><canvas class="heatmap-cell-canvas" data-css-height="${responsiveCell}" aria-hidden="true"></canvas></div>`,
                 );
             }
         }
@@ -354,10 +376,16 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
         html += `<div role="grid" aria-rowcount="${size + 1}" aria-colcount="${size + 1}" aria-label="${escapeAttr(metricLabel)} correlation matrix. Select an off-diagonal cell to inspect that pair." class="heatmap-grid" style="display:grid;grid-template-columns:${colTemplate};grid-template-rows:${rowTemplate};">`;
         html += cells.join('');
         html += '</div>';
-        html += '<div class="heatmap-grid-legend" aria-label="Correlation color scale">';
-        html += `<span class="heatmap-grid-legend__tick heatmap-grid-legend__tick--positive">+${formatScaleTick(colorDomainMax)}</span>`;
+        html += '<div class="heatmap-legend-stack">';
+        const densityScaleActive = displayModes.pairs === 'density';
+        const legendDescription = densityScaleActive
+            ? 'Shared color scale. Negative correlations and lower relative pair density are at the low end; positive correlations and higher relative pair density are at the high end.'
+            : 'Correlation scale, shown by each cell frame and signed coefficient.';
+        html += `<div class="heatmap-grid-legend" role="group" aria-label="${legendDescription}">`;
+        html += `<span class="heatmap-grid-legend__tick heatmap-grid-legend__tick--negative">-${formatScaleTick(colorDomainMax)}${densityScaleActive ? ' / Lower' : ''}</span>`;
         html += `<div class="heatmap-grid-legend__bar" aria-hidden="true" style="background:${correlationScaleGradient(undefined, '90deg')}"></div>`;
-        html += `<span class="heatmap-grid-legend__tick heatmap-grid-legend__tick--negative">-${formatScaleTick(colorDomainMax)}</span>`;
+        html += `<span class="heatmap-grid-legend__tick heatmap-grid-legend__tick--positive">+${formatScaleTick(colorDomainMax)}${densityScaleActive ? ' / Higher' : ''}</span>`;
+        html += '</div>';
         html += '</div>';
         html += '</div>';
         if (heatmapClusterEnabled && orderChanged && !heatmapOrderLocked) {
@@ -578,6 +606,8 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
             const listenerOptions = { signal: controlAbort.signal };
             const container = document.getElementById('heatmap-container');
             const metricSelect = document.getElementById('heatmap-metric') as HTMLElement | null;
+            const diagonalModeSelect = document.getElementById('heatmap-diagonal-mode');
+            const pairModeSelect = document.getElementById('heatmap-pair-mode');
             const sizeInput = document.getElementById('heatmap-cell-size') as HTMLInputElement | null;
             const sizeValue = document.getElementById('heatmap-cell-size-value') as HTMLElement | null;
             const clusterToggle = document.getElementById('heatmap-cluster-toggle') as HTMLInputElement | null;
@@ -590,21 +620,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
             const planSummary = document.getElementById('heatmap-plan-columns-summary');
             const planConfirm = document.getElementById('heatmap-plan-columns-confirm') as HTMLButtonElement | null;
             const planCancel = document.getElementById('heatmap-plan-columns-cancel') as HTMLButtonElement | null;
-            const exportDisclosure = document.querySelector<HTMLDetailsElement>('#page-heatmap .toolbar-disclosure--end');
-            const exportSummary = exportDisclosure?.querySelector<HTMLElement>(':scope > summary');
             if (!container) return;
-            exportDisclosure?.addEventListener('keydown', (event) => {
-                if (event.key !== 'Escape' || !exportDisclosure.open) return;
-                event.preventDefault();
-                exportDisclosure.open = false;
-                exportSummary?.focus();
-            }, listenerOptions);
-            exportDisclosure?.querySelectorAll<HTMLButtonElement>('.toolbar-disclosure__menu button').forEach((button) => {
-                button.addEventListener('click', () => {
-                    exportDisclosure.open = false;
-                    exportSummary?.focus();
-                }, listenerOptions);
-            });
             const selectedPlanColumns = (): string[] | null => {
                 const plan = deps.cleaningPlanStore?.getSnapshot();
                 if (!plan || !matrixData || matrixData.columns.length === 0) return null;
@@ -653,6 +669,10 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
 
             metric = readHeatmapMetricPref();
             setDropdownValue('heatmap-metric', metric);
+            const displayModes = readHeatmapDisplayModes();
+            if (diagonalModeSelect) setDropdownValue('heatmap-diagonal-mode', displayModes.diagonal);
+            if (pairModeSelect) setDropdownValue('heatmap-pair-mode', displayModes.pairs);
+            setDropdownDisabled('heatmap-color-column', displayModes.pairs === 'density');
             syncMetricGuide();
             bindInfoPopovers();
             // Release page-level help with the controls that own it.
@@ -684,6 +704,19 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
                 writeHeatmapMetricPref(metric);
                 syncMetricGuide();
                 void loadMatrix(metric);
+            }, listenerOptions);
+            diagonalModeSelect?.addEventListener('change', () => {
+                const nextMode = getDropdownValue('heatmap-diagonal-mode');
+                if (nextMode !== 'kde' && nextMode !== 'histogram') return;
+                writeHeatmapDiagonalMode(nextMode);
+                renderHeatmap();
+            }, listenerOptions);
+            pairModeSelect?.addEventListener('change', () => {
+                const nextMode = getDropdownValue('heatmap-pair-mode');
+                if (nextMode !== 'density' && nextMode !== 'scatter') return;
+                writeHeatmapPairMode(nextMode);
+                setDropdownDisabled('heatmap-color-column', nextMode === 'density');
+                renderHeatmap();
             }, listenerOptions);
             sizeInput?.addEventListener('input', () => {
                 heatmapCellSize = Math.max(24, Math.min(72, Number(sizeInput.value || 36)));
@@ -739,13 +772,9 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
                 });
                 heatmapResizeObserver.observe(container);
             }
-            // C7 — wire the heatmap toolbar into the shared overflow
-            // plumbing. The `Display` segment carries the only overflow
-            // candidate (`Fit color axis`), so the `… 1 hidden option`
-            // pill appears between 1024–1280px on this page.
             const heatmapToolbar = document.querySelector<HTMLElement>('#page-heatmap .toolbar.scatter-toolbar');
-            heatmapToolbarOverflow?.dispose();
-            heatmapToolbarOverflow = heatmapToolbar ? createToolbarOverflow(heatmapToolbar) : null;
+            toolbarPopovers?.dispose();
+            toolbarPopovers = heatmapToolbar ? initToolbarPopovers(heatmapToolbar) : null;
         },
         onVisible() {
             void loadMatrix(metric);
@@ -758,8 +787,8 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
         heatmapControlAbort = null;
         heatmapResizeObserver?.disconnect();
         heatmapResizeObserver = null;
-        heatmapToolbarOverflow?.dispose();
-        heatmapToolbarOverflow = null;
+        toolbarPopovers?.dispose();
+        toolbarPopovers = null;
         disposeRuntime();
         heatmapRuntime = null;
     };

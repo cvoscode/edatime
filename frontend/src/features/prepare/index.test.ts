@@ -112,10 +112,13 @@ describe('Prepare page', () => {
     });
 
     it('stays source-first until a dataset establishes a plan', () => {
-        const dispose = initPreparePage({ workspace });
+        const showPage = vi.fn();
+        const dispose = initPreparePage({ workspace, showPage });
 
         expect(document.getElementById('prepare-workspace')?.textContent).not.toContain('Open workbench');
         expect(document.getElementById('prepare-workspace')?.textContent).toContain('Load a dataset');
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Load a dataset')!.click();
+        expect(showPage).toHaveBeenCalledWith('upload');
 
         dispose();
     });
@@ -222,110 +225,84 @@ describe('Prepare page', () => {
         dispose();
     });
 
-    it('turns an exact null-value finding into one reversible policy stage', () => {
-        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
-        workspace.commitDataset(workspace.beginDatasetSession(), {
-            column_profiles: [
-                { name: 'temperature', dtype: 'Float64', null_count: 12 },
-                { name: 'category', dtype: 'String', null_count: 2 },
-            ],
-        } as any, 0);
-        const onPlanChanged = vi.fn();
-        const dispose = initPreparePage({ workspace, onPlanChanged });
-
-        const temperatureFinding = document.querySelector<HTMLElement>('[data-quality-column="temperature"]')!;
-        expect(temperatureFinding.textContent).toContain('12 null values');
-        Array.from(temperatureFinding.querySelectorAll('button')).find((button) => button.textContent === 'Add null policy')!.click();
-
-        expect(cleaningPlanStore.getSnapshot()!.stages).toMatchObject([{
-            kind: 'missingValue', column: 'temperature', dropNulls: true, dropNonFinite: true,
-        }]);
-        expect(onPlanChanged).toHaveBeenCalledTimes(1);
-        expect(temperatureFinding.querySelector('button')?.textContent).toBe('Add null policy');
-        expect(document.querySelector<HTMLElement>('[data-quality-column="temperature"] button')?.textContent).toBe('Policy already added');
-        dispose();
-    });
-
-    it('does not present deferred schema metadata as a clean quality profile', () => {
-        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
-        workspace.commitDataset(workspace.beginDatasetSession(), { profile_status: 'immediate', column_profiles: [] } as any, 0);
-        const dispose = initPreparePage({ workspace });
-
-        expect(document.getElementById('prepare-workspace')?.textContent).toContain('Column quality findings are pending the exact profile');
-        dispose();
-    });
-
-    it('surfaces completed time-order and duplicate facts without inventing a repair', () => {
+    it('uses the shared Upload profile grid for the active quality report', () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
         workspace.commitDataset(workspace.beginDatasetSession(), {
             profile_status: 'exact',
-            column_profiles: [],
-            time_quality: {
-                non_null_count: 4,
-                null_count: 1,
-                unique_timestamp_count: 3,
-                duplicate_timestamp_count: 1,
-                is_monotonic_non_decreasing: false,
-                out_of_order_count: 1,
-                min_gap_ms: 2_000,
-                median_gap_ms: 2_000,
-                max_gap_ms: 2_000,
-            },
-        } as any, 0);
-        const dispose = initPreparePage({ workspace });
-
-        const finding = document.querySelector<HTMLElement>('[data-quality-kind="time"]')!;
-        expect(finding.textContent).toContain('3 unique timestamps');
-        expect(finding.textContent).toContain('1 duplicate timestamp');
-        expect(finding.textContent).toContain('1 out-of-order transition');
-        expect(finding.textContent).toContain('median observed gap 2 s');
-        expect(finding.querySelector('button')).toBeNull();
-        dispose();
-    });
-
-    it('surfaces constant numeric columns as completed-profile findings', () => {
-        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
-        workspace.commitDataset(workspace.beginDatasetSession(), {
-            profile_status: 'exact',
+            columns: [{ name: 'temperature', dtype: 'Float64' }],
             column_profiles: [{
-                name: 'flatline', dtype: 'Float64', null_count: 0,
-                is_constant: true, finite_count: 12, zero_count: 12,
+                name: 'temperature', dtype: 'Float64', non_null_count: 88, null_count: 12,
+                min: -2.5, max: 42.1, histogram: { counts: [2, 5, 8] },
             }],
         } as any, 0);
         const dispose = initPreparePage({ workspace });
 
-        const finding = document.querySelector<HTMLElement>('[data-quality-column="flatline"][data-quality-kind="constant"]')!;
-        expect(finding.textContent).toContain('constant numeric values');
-        expect(finding.textContent).toContain('12 finite values');
-        expect(finding.textContent).toContain('12 zeros');
-        expect(finding.querySelector('button')).toBeNull();
+        const report = document.getElementById('prepare-profile-findings')!;
+        const row = document.querySelector<HTMLElement>('#prepare-profile-grid .profile-grid-row')!;
+        expect(report.querySelector('.profile-grid')).toBeTruthy();
+        expect(report.querySelector('.upload-preview-type-group')?.textContent).toContain('Show');
+        expect(report.querySelector('.upload-preview-type-group')?.textContent).toContain('Datetime');
+        expect(report.querySelector('.upload-preview-filter input')?.getAttribute('aria-label')).toBe('Filter profile columns');
+        expect(report.querySelector('.prepare-workspace__quality-table')).toBeNull();
+        expect(row.textContent).toContain('temperature');
+        expect(row.textContent).toContain('88 (88.0%)');
+        expect(row.textContent).toContain('12');
+        expect(row.textContent).toContain('-2.5');
+        expect(report.querySelectorAll('.profile-cell-check input')).toHaveLength(0);
         dispose();
     });
 
-    it('turns an exact non-finite finding into a reversible non-finite policy', () => {
+    it('keeps the immediate schema state visible until a completed profile is available', () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
-        workspace.commitDataset(workspace.beginDatasetSession(), { column_profiles: [{ name: 'temperature', dtype: 'Float64', null_count: 0, non_finite_count: 3 }] } as any, 0);
+        workspace.commitDataset(workspace.beginDatasetSession(), {
+            profile_status: 'immediate',
+            columns: [{ name: 'value', dtype: 'Float64' }],
+            column_profiles: [],
+        } as any, 0);
         const dispose = initPreparePage({ workspace });
 
-        const finding = document.querySelector<HTMLElement>('[data-quality-column="temperature"][data-quality-kind="nonFinite"]')!;
-        expect(finding.textContent).toContain('3 non-finite values');
-        Array.from(finding.querySelectorAll('button')).find((button) => button.textContent === 'Add non-finite policy')!.click();
-
-        expect(cleaningPlanStore.getSnapshot()!.stages).toMatchObject([{
-            kind: 'missingValue', column: 'temperature', dropNulls: false, dropNonFinite: true,
-        }]);
+        expect(document.getElementById('prepare-workspace')?.textContent).toContain('Showing the active dataset schema; detailed profile values are pending');
+        expect(document.querySelector('#prepare-profile-grid .profile-grid-row')?.textContent).toContain('Pending');
         dispose();
     });
 
-    it('replaces immediate findings with the requested exact quality report', async () => {
+    it('does not render a second Prepare-only quality table for time or extended profile facts', () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
-        workspace.commitDataset(workspace.beginDatasetSession(), { column_profiles: [{ name: 'preview_only', dtype: 'Float64', null_count: 1 }] } as any, 0);
+        workspace.commitDataset(workspace.beginDatasetSession(), {
+            profile_status: 'exact',
+            columns: [
+                { name: 'timestamp', dtype: 'datetime64[ms]' },
+                { name: 'flatline', dtype: 'Float64' },
+                { name: 'temperature', dtype: 'Float64' },
+            ],
+            column_profiles: [
+                { name: 'timestamp', dtype: 'datetime64[ms]', non_null_count: 4, null_count: 1 },
+                { name: 'flatline', dtype: 'Float64', non_null_count: 12, null_count: 0, is_constant: true, finite_count: 12, zero_count: 12 },
+                { name: 'temperature', dtype: 'Float64', non_null_count: 9, null_count: 0, non_finite_count: 3 },
+            ],
+            time_quality: {
+                non_null_count: 4, null_count: 1, unique_timestamp_count: 3,
+                duplicate_timestamp_count: 1, is_monotonic_non_decreasing: false,
+                out_of_order_count: 1, median_gap_ms: 2_000,
+            },
+        } as any, 0);
+        const dispose = initPreparePage({ workspace });
+
+        expect(document.querySelectorAll('#prepare-profile-findings [data-quality-kind]')).toHaveLength(0);
+        expect(document.querySelector('#prepare-profile-findings .prepare-workspace__quality-table')).toBeNull();
+        expect(document.querySelectorAll('#prepare-profile-grid .profile-grid-row')).toHaveLength(3);
+        dispose();
+    });
+
+    it('replaces immediate profile rows with the requested exact quality report', async () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        workspace.commitDataset(workspace.beginDatasetSession(), { columns: [{ name: 'preview_only', dtype: 'Float64' }], column_profiles: [{ name: 'preview_only', dtype: 'Float64', null_count: 1 }] } as any, 0);
         const startProfile = vi.fn(async () => ({
             algorithmVersion: 'exact-v1',
             sourceVersion: { id: 'source-1', revision: 3, datasetFingerprint: 'data' },
             status: 'ready' as const,
             job: null,
-            metadata: { column_profiles: [{ name: 'exact_nulls', dtype: 'Float64', null_count: 4 }] } as any,
+            metadata: { profile_status: 'exact', columns: [{ name: 'exact_nulls', dtype: 'Float64' }], column_profiles: [{ name: 'exact_nulls', dtype: 'Float64', non_null_count: 96, null_count: 4 }] } as any,
         }));
         const dispose = initPreparePage({ startProfile });
 
@@ -334,15 +311,16 @@ describe('Prepare page', () => {
         await Promise.resolve();
 
         expect(startProfile).toHaveBeenCalledTimes(1);
-        expect(document.querySelector('[data-quality-column="exact_nulls"]')?.textContent).toContain('4 null values');
-        expect(document.querySelector('[data-quality-column="preview_only"]')).toBeNull();
+        expect(document.querySelector('#prepare-profile-grid .profile-grid-row')?.textContent).toContain('exact_nulls');
+        expect(document.querySelector('#prepare-profile-grid .profile-grid-row')?.textContent).toContain('4');
+        expect(document.querySelector('#prepare-profile-grid .profile-grid-row')?.textContent).not.toContain('preview_only');
         expect(document.getElementById('prepare-workspace')?.textContent).toContain('Exact background-profile findings');
         dispose();
     });
 
-    it('labels sampled quality findings as estimates and retains the exact-report action', async () => {
+    it('labels sampled profile rows as estimates and retains the exact-report action', async () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
-        workspace.commitDataset(workspace.beginDatasetSession(), { profile_status: 'immediate', column_profiles: [] } as any, 0);
+        workspace.commitDataset(workspace.beginDatasetSession(), { profile_status: 'immediate', columns: [], column_profiles: [] } as any, 0);
         const startSampleProfile = vi.fn(async () => ({
             algorithmVersion: 'sample-v1',
             sourceVersion: { id: 'source-1', revision: 3, datasetFingerprint: 'data' },
@@ -350,7 +328,7 @@ describe('Prepare page', () => {
             job: null,
             metadata: {
                 profile_status: 'sampled', profile_sample_rows: 10_000,
-                column_profiles: [{ name: 'temperature', dtype: 'Float64', null_count: 7 }],
+                column_profiles: [{ name: 'temperature', dtype: 'Float64', non_null_count: 9_993, null_count: 7 }],
             } as any,
         }));
         const dispose = initPreparePage({ startSampleProfile });
@@ -361,7 +339,8 @@ describe('Prepare page', () => {
 
         expect(startSampleProfile).toHaveBeenCalledTimes(1);
         expect(document.getElementById('prepare-workspace')?.textContent).toContain('Sampled quality findings are estimates from 10,000 rows');
-        expect(document.querySelector('[data-quality-column="temperature"]')?.textContent).toContain('7 null values');
+        expect(document.querySelector('#prepare-profile-grid .profile-grid-row')?.textContent).toContain('temperature');
+        expect(document.querySelector('#prepare-profile-grid .profile-grid-row')?.textContent).toContain('7');
         expect(Array.from(document.querySelectorAll('button')).some((button) => button.textContent === 'Build exact quality report')).toBe(true);
         dispose();
     });
@@ -507,7 +486,7 @@ describe('Prepare page', () => {
         dispose();
     });
 
-    it('preserves the selected composer, typed values, text selection, and disclosures through refreshes', () => {
+    it('preserves the selected composer, typed values, text selection, and profile filters through refreshes', () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
         workspace.commitDataset(workspace.beginDatasetSession(), { profile_status: 'exact', column_profiles: [{ name: 'value', dtype: 'Float64', null_count: 0 }] } as any, 0);
         const dispose = initPreparePage({ workspace });
@@ -519,7 +498,9 @@ describe('Prepare page', () => {
         input.value = 'value';
         input.focus();
         input.setSelectionRange(1, 3);
-        (document.getElementById('prepare-quality-columns') as HTMLDetailsElement).open = true;
+        const profileFilter = document.getElementById('prepare-profile-filter-input') as HTMLInputElement;
+        profileFilter.value = 'not-a-column';
+        profileFilter.dispatchEvent(new Event('input'));
 
         workspace.setViewport({ xMin: 1, xMax: 2, yMin: null, yMax: null });
 
@@ -530,7 +511,8 @@ describe('Prepare page', () => {
         expect(updatedInput.value).toBe('value');
         expect(document.activeElement).toBe(updatedInput);
         expect([updatedInput.selectionStart, updatedInput.selectionEnd]).toEqual([1, 3]);
-        expect((document.getElementById('prepare-quality-columns') as HTMLDetailsElement).open).toBe(true);
+        expect((document.getElementById('prepare-profile-filter-input') as HTMLInputElement).value).toBe('not-a-column');
+        expect(document.querySelector('#prepare-profile-grid .profile-grid-row')?.textContent).toContain('No columns match this filter');
         dispose();
     });
 
@@ -573,25 +555,23 @@ describe('Prepare page', () => {
         dispose();
     });
 
-    it('keeps detailed quality collapsed, omits clean-column actions, and uses the sample denominator', async () => {
+    it('keeps the sampled report in the shared Upload grid shape', async () => {
         cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
         const startSampleProfile = vi.fn(async () => ({
-            algorithmVersion: 'sample-v1', sourceVersion: { id: 'source-1', revision: 3 }, status: 'ready' as const, job: null,
+            algorithmVersion: 'sample-v1', sourceVersion: { id: 'source-1', revision: 3, datasetFingerprint: 'data' }, status: 'ready' as const, job: null,
             metadata: { profile_status: 'sampled', profile_sample_rows: 100, total_rows: 10000, column_profiles: [
-                { name: 'clean', dtype: 'Float64', null_count: 0, non_finite_count: 0, q25: 39.11999893188477, median: 40, q75: 42, interquartile_range: 2.88000106811523 },
-                { name: 'missing', dtype: 'Float64', null_count: 5, non_finite_count: 0 },
+                { name: 'clean', dtype: 'Float64', non_null_count: 100, null_count: 0, min: 39.11999893188477, max: 42 },
+                { name: 'missing', dtype: 'Float64', non_null_count: 95, null_count: 5 },
             ] } as any,
         }));
         const dispose = initPreparePage({ startSampleProfile: startSampleProfile as any });
         Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Build sampled quality report')!.click();
-        await vi.waitFor(() => expect(document.getElementById('prepare-quality-columns')).not.toBeNull());
+        await vi.waitFor(() => expect(document.querySelector('#prepare-profile-grid .profile-grid-row'))?.not.toBeNull());
         const quality = document.getElementById('prepare-profile-findings')!;
-        expect(quality.querySelectorAll('button[aria-label*="policy for clean"]')).toHaveLength(0);
-        expect(quality.querySelectorAll('button[aria-label*="policy for missing"]')).toHaveLength(1);
-        expect(quality.querySelector('table')?.textContent).toContain('5.00%');
-        expect((document.getElementById('prepare-quality-distribution') as HTMLDetailsElement).open).toBe(false);
-        expect((document.getElementById('prepare-quality-columns') as HTMLDetailsElement).open).toBe(false);
-        expect(document.querySelector('[data-quality-kind="distribution"]')?.textContent).toContain('Q1 39.12');
+        expect(quality.querySelector('.prepare-workspace__quality-table')).toBeNull();
+        expect(quality.querySelectorAll('.profile-grid-header .profile-col')).toHaveLength(7);
+        expect(quality.querySelectorAll('.profile-grid-row')).toHaveLength(2);
+        expect(quality.textContent).toContain('5');
         const sections = Array.from(document.querySelectorAll('#prepare-workspace > section')).map((section) => section.id);
         expect(sections.indexOf('prepare-profile-findings')).toBeLessThan(sections.indexOf('prepare-pipeline-preview'));
         dispose();

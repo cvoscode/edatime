@@ -77,6 +77,8 @@ export interface ChartInstance {
     setVisibleColumns?(columns: readonly string[]): boolean;
     setColumnColor?(column: string, color: string): boolean;
     cssPointToData?(clientX: number, clientY: number): { x: number; y: number } | null;
+    /** Convert a displayed Y coordinate to this trace's original units for filter intent. */
+    seriesYToSource?(column: string, y: number): number;
     destroy?(): void;
 }
 

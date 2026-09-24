@@ -85,6 +85,29 @@ describe('adaptive filter gesture', () => {
         unsubscribe();
     });
 
+    it('converts a line drawn on a normalized trace back to filtered source units', () => {
+        const workspace = createWorkspaceStore();
+        workspace.setSelection(['value']);
+        currentData = { ts: Float64Array.from([0, 5, 10]), values: { value: Float64Array.from([20, 30, 40]) } };
+        setPrimaryChartInstance({
+            cssPointToData: vi.fn().mockReturnValueOnce({ x: 0, y: 0.5 }).mockReturnValueOnce({ x: 10, y: 0.5 }),
+            seriesYToSource: (column: string, y: number) => column === 'value' ? 20 + y * 20 : y,
+            requestOverlayRender: vi.fn(), fitYToData: vi.fn(), getYRange: () => null,
+        } as any);
+        const dispose = initAdaptiveFilterGesture({
+            workspace, buildColumnToggles: vi.fn(), buildRangeControls: vi.fn(), renderCurrentData: vi.fn(),
+            getCurrentData: () => currentData, updateAnalysisYRange: vi.fn(),
+        });
+        const chart = document.getElementById('main-chart')!;
+        chart.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true, button: 0 }));
+        chart.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true, button: 0 }));
+        window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Control' }));
+        chooseFilterSide('Keep below');
+        expect(workspace.getSnapshot().filters.adaptiveLines[0]).toMatchObject({ column: 'value', y1: 30, y2: 30 });
+        expect([...applyFilterIntentToData(currentData, workspace.getSnapshot()).series.value.y]).toEqual([20, 30, NaN]);
+        dispose();
+    });
+
     it('builds the adaptive line from workspace filter intent', () => {
         const workspace = createWorkspaceStore();
         workspace.setSelection(['value']);

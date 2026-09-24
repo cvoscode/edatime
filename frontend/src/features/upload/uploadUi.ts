@@ -1,6 +1,7 @@
 import type { ProfileGridSort } from '../../types/store.js';
+import type { ProfileFilterCategory } from '../../ui/profileFilters.js';
 
-export type ProfileFilterCategory = 'all' | 'numeric' | 'datetime';
+export type { ProfileFilterCategory } from '../../ui/profileFilters.js';
 
 /** UI state owned by the upload profile grid. */
 interface UploadUiState {

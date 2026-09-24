@@ -10,24 +10,34 @@ import {
     startDatasetProfile,
     startSampledDatasetProfile,
 } from '../../services/api/profile.js';
+import { getDefaultProfileColumnWidths } from '../../services/profile/profile.js';
+import { datasetProfiles, datasetProfileKind, matchesProfileSource } from '../../services/profile/datasetProfiles.js';
 import type { DatasetMetadata, DatasetProfileResponse } from '../../contracts/api/v1/dataset.js';
 import type { DataObject } from '../../types/api.js';
 import { getEffectiveColumnNames, getEffectiveNumericColumns } from '../../platform/analyticsColumns.js';
 import { createPipelineExportControls } from '../../cleaning/exportControls.js';
 import { addDerivedColumn } from '../../cleaning/derivedColumn.js';
 import { initPageHelp, type PageHelpContent } from '../../ui/pageHelp.js';
+import {
+    createProfileGridController,
+    createProfileFilterControls,
+    profileRowsFromMetadata,
+    type ProfileFilterCategory,
+    type ProfileGridController,
+} from '../../ui/profileGrid.js';
+import type { ProfileGridSort } from '../../types/store.js';
 import { createPreparationPreview, type PreparationPreview } from './preview.js';
 import { capturePreparationView, initPreparationNavigation, keyPreparationControls, restorePreparationView } from './viewState.js';
 import '../../../css/modules/prepare.css';
 
 export const PREPARE_HELP: PageHelpContent = {
     pageName: 'Preparation',
-    intro: 'Prepare data in Signals, then review, refine, and export the pipeline here. Every plot uses the current enabled stages. Create a prepared dataset to save the result as a new version.',
+    intro: 'Review data quality, build your pipeline, then preview and save a prepared dataset. Every plot uses the current enabled stages. Your original source remains unchanged.',
     sections: [
         {
             title: 'Recommended order',
             bullets: [
-                'Check source identity and quality findings first.',
+                'Check source identity and the data quality report first.',
                 'Review the current pipeline and its numbered stages in order.',
                 'Add or reorder stages, then preview exact row and schema impacts before materializing.',
                 'Create a prepared dataset after a successful preview of the current plan. Editing or undoing a stage requires a new preview.',
@@ -38,7 +48,7 @@ export const PREPARE_HELP: PageHelpContent = {
             body: 'Stage controls edit the canonical plan immediately, but source data remains unchanged. Undo and Redo operate on plan history; disabled stages stay in the plan and can be re-enabled later.',
         },
         {
-            title: 'Quality profiles',
+            title: 'Data quality report',
             body: 'Immediate findings are fast source checks. Sampled profiles estimate quality on part of a large dataset; exact profiles run in the background and provide authoritative counts.',
         },
     ],
@@ -111,6 +121,20 @@ function actionButton(label: string, onClick: () => void, disabled = false): HTM
     return button;
 }
 
+function sectionHeading(title: HTMLHeadingElement, copy: HTMLElement, step?: string): HTMLElement {
+    const heading = createElement('div', 'prepare-workspace__section-heading');
+    const text = createElement('div', 'prepare-workspace__section-copy');
+    if (step) {
+        const number = createElement('span', 'prepare-workspace__step');
+        number.textContent = step;
+        number.setAttribute('aria-hidden', 'true');
+        heading.append(number);
+    }
+    text.append(title, copy);
+    heading.append(text);
+    return heading;
+}
+
 function checkbox(label: string, name: string, checked: boolean): HTMLLabelElement {
     const field = createElement('label', 'prepare-workspace__policy-checkbox');
     const input = createElement('input');
@@ -151,27 +175,6 @@ function labeledControl(label: string, control: HTMLInputElement | HTMLSelectEle
         field.append(description);
     }
     return field;
-}
-
-function formatQualityNumber(value: number): string {
-    return value.toLocaleString(undefined, { maximumSignificantDigits: 6 });
-}
-
-function formatGap(milliseconds: number): string {
-    for (const [unit, size] of [['days', 86_400_000], ['h', 3_600_000], ['min', 60_000], ['s', 1_000]] as const) {
-        if (Math.abs(milliseconds) >= size) return `${formatQualityNumber(milliseconds / size)} ${unit}`;
-    }
-    return `${formatQualityNumber(milliseconds)} ms`;
-}
-
-function qualityDisclosure(id: string, label: string, content: HTMLElement, open = false): HTMLDetailsElement {
-    const details = createElement('details', 'prepare-workspace__quality-group');
-    details.id = `prepare-quality-${id}`;
-    details.open = open;
-    const summary = createElement('summary');
-    summary.textContent = label;
-    details.append(summary, content);
-    return details;
 }
 
 function selectInput(label: string, value: string, name: string, options: Array<[string, string]>): HTMLLabelElement {
@@ -238,96 +241,58 @@ function resampleOrderingError(plan: CleaningPlan): string | null {
     return invalid < 0 ? null : 'Resampling requires the latest earlier enabled sort to be ascending with the time column first.';
 }
 
-function numericDtype(dtype: string): boolean {
-    return /^(u?int|float|decimal|[iuf]\d)/i.test(dtype.trim());
+interface PrepareProfileGridState {
+    filterText: string;
+    filterCategory: ProfileFilterCategory;
+    sort: ProfileGridSort;
+    columnWidths: number[];
 }
 
-function hasMissingValuePolicy(plan: CleaningPlan, column: string, kind: 'null' | 'nonFinite'): boolean {
-    return plan.stages.some((stage) => stage.kind === 'missingValue' && stage.column === column
-        && (kind === 'null' ? stage.dropNulls : stage.dropNonFinite));
+interface QualityReportView {
+    section: HTMLElement;
+    grid: ProfileGridController;
 }
 
-/**
- * Surface immediate metadata findings first. More expensive cadence, duplicate,
- * and distribution findings belong to the progressive profile job rather than
- * being guessed in this Prepare surface.
- */
-function renderQualityFindings(
-    plan: CleaningPlan,
-    deps: PreparePageDeps,
-    profileMetadata: DatasetMetadata | null,
+function profileReportKind(
+    metadata: DatasetMetadata | null,
+): 'immediate' | 'sampled' | 'exact' {
+    if (metadata?.profile_status === 'exact') return 'exact';
+    if (metadata?.profile_status === 'sampled') return 'sampled';
+    return 'immediate';
+}
+
+function renderQualityReport(
+    sourceMetadata: DatasetMetadata | null,
     profileStatus: DatasetProfileResponse['status'],
     profileKind: 'exact' | 'sampled',
     requestExactProfile: () => void,
     requestSampleProfile: () => void,
     cancelProfile: () => void,
-): HTMLElement {
+    gridState: PrepareProfileGridState,
+): QualityReportView {
     const section = createElement('section', 'prepare-workspace__quality');
     section.id = 'prepare-profile-findings';
     const title = createElement('h2');
-    title.textContent = 'Quality findings';
+    title.textContent = 'Data quality report';
+    const reportKind = profileReportKind(sourceMetadata);
+    const reportLabel = reportKind === 'exact' ? 'Exact' : reportKind === 'sampled' ? 'Sampled' : 'Immediate';
+    const profileRunning = profileStatus === 'queued' || profileStatus === 'running' || profileStatus === 'cancelling';
     const copy = createElement('p', 'prepare-workspace__copy');
-    copy.textContent = profileStatus === 'ready'
-        ? profileKind === 'exact'
-            ? 'Exact background-profile findings can be turned into reversible stages. Review the proposed action before previewing or materializing.'
-            : 'Sampled quality findings are estimates from ' + (profileMetadata?.profile_sample_rows ?? 0).toLocaleString() + ' rows. Confirm them with the exact report before materializing.'
-        : profileStatus === 'queued' || profileStatus === 'running' || profileStatus === 'cancelling'
-            ? 'Immediate source findings are shown while the ' + (profileKind === 'exact' ? 'exact' : 'sampled') + ' background quality report runs.'
-            : 'Immediate source-profile findings can be turned into reversible stages. Build a bounded sample or exact quality report for a cached, versioned follow-up.';
-    const sourceMetadata = profileMetadata;
-    const reportReady = profileStatus === 'ready' || sourceMetadata?.profile_status === 'exact' || sourceMetadata?.profile_status === 'sampled';
-    const reportKind = sourceMetadata?.profile_status === 'sampled' ? 'sampled'
-        : sourceMetadata?.profile_status === 'exact' ? 'exact' : profileKind;
-    const timeQuality = sourceMetadata?.time_quality;
-    const findings = (sourceMetadata?.column_profiles ?? [])
-        .flatMap((profile) => {
-            const nullCount = Number(profile?.null_count) || 0;
-            const nonFiniteCount = numericDtype(String(profile?.dtype ?? '')) ? Number(profile?.non_finite_count) || 0 : 0;
-            return [
-                ...(nullCount > 0 ? [{ profile, kind: 'null' as const, count: nullCount }] : []),
-                ...(nonFiniteCount > 0 ? [{ profile, kind: 'nonFinite' as const, count: nonFiniteCount }] : []),
-            ];
-        })
-        .sort((left, right) => right.count - left.count
-            || String(left.profile.name).localeCompare(String(right.profile.name))
-            || left.kind.localeCompare(right.kind));
-    const constantColumns = (sourceMetadata?.column_profiles ?? [])
-        .filter((profile) => profile.is_constant === true)
-        .sort((left, right) => String(left.name).localeCompare(String(right.name)));
-    const zeroFrequencyColumns = (sourceMetadata?.column_profiles ?? [])
-        .filter((profile) => !profile.is_constant && typeof profile.zero_count === 'number' && profile.zero_count > 0)
-        .sort((left, right) => (Number(right.zero_count) || 0) - (Number(left.zero_count) || 0));
-    const distributionColumns = (sourceMetadata?.column_profiles ?? [])
-        .filter((profile) => numericDtype(String(profile.dtype ?? ''))
-            && [profile.q25, profile.median, profile.q75, profile.interquartile_range]
-                .every((value) => typeof value === 'number' && Number.isFinite(value)))
-        .sort((left, right) => String(left.name).localeCompare(String(right.name)));
-    const list = createElement('ul', 'prepare-workspace__quality-list');
-    const timeList = createElement('ul', 'prepare-workspace__quality-list');
-    const constantList = createElement('ul', 'prepare-workspace__quality-list');
-    const zeroList = createElement('ul', 'prepare-workspace__quality-list');
-    const distributionList = createElement('ul', 'prepare-workspace__quality-list');
-
-    const inspectZeroRun = (profile: typeof zeroFrequencyColumns[number]) => {
-        const start = Number(profile.longest_zero_run_start_ms);
-        const end = Number(profile.longest_zero_run_end_ms);
-        if (deps.workspace?.setSelection) {
-            const current = deps.workspace.getSnapshot().selection;
-            deps.workspace.setSelection(
-                current.columns.includes(profile.name) ? current.columns : [...current.columns, profile.name],
-                current.colorColumn,
-            );
-        }
-        if (deps.workspace?.setViewport && Number.isFinite(start) && Number.isFinite(end) && end > start) {
-            deps.workspace.setViewport({ xMin: start, xMax: end, yMin: null, yMax: null });
-        }
-        deps.showPage?.('timeseries');
-    };
+    copy.textContent = profileRunning
+        ? reportLabel + ' source findings are shown while the ' + profileKind + ' background quality report runs.'
+        : reportKind === 'exact'
+            ? 'Exact background-profile findings are ready. Review counts, ranges, and distributions before refining the pipeline.'
+            : reportKind === 'sampled'
+                ? 'Sampled quality findings are estimates from ' + (sourceMetadata?.profile_sample_rows ?? 0).toLocaleString() + ' rows. Confirm them with the exact report before materializing.'
+                : 'Review the active dataset profile before refining the pipeline. Build a sampled or exact profile when you need completed statistics.';
 
     const profileActions = createElement('div', 'prepare-workspace__quality-actions');
-    const profileRunning = profileStatus === 'queued' || profileStatus === 'running' || profileStatus === 'cancelling';
     if (profileRunning) {
-        const cancel = actionButton('Cancel ' + (profileKind === 'exact' ? 'exact' : 'sampled') + ' quality report', cancelProfile, profileStatus === 'cancelling');
+        const cancel = actionButton(
+            'Cancel ' + (profileKind === 'exact' ? 'exact' : 'sampled') + ' quality report',
+            cancelProfile,
+            profileStatus === 'cancelling',
+        );
         cancel.classList.add('prepare-workspace__quality-action');
         const progress = createElement('span', 'prepare-workspace__quality-progress');
         progress.setAttribute('role', 'status');
@@ -338,204 +303,84 @@ function renderQualityFindings(
         profileActions.append(progress, cancel);
     } else {
         const sample = actionButton(
-            profileKind === 'sampled' && profileStatus === 'ready' ? 'Sampled quality report ready' : 'Build sampled quality report',
+            reportKind === 'sampled' ? 'Sampled quality report ready' : 'Build sampled quality report',
             requestSampleProfile,
-            profileKind === 'sampled' && profileStatus === 'ready',
+            reportKind === 'sampled',
         );
         const exact = actionButton(
-            profileKind === 'exact' && profileStatus === 'ready' ? 'Exact quality report ready' : 'Build exact quality report',
+            reportKind === 'exact' ? 'Exact quality report ready' : 'Build exact quality report',
             requestExactProfile,
-            profileKind === 'exact' && profileStatus === 'ready',
+            reportKind === 'exact',
         );
         sample.classList.add('prepare-workspace__quality-action');
         exact.classList.add('prepare-workspace__quality-action');
+        if (reportKind !== 'exact') exact.classList.replace('btn-ghost', 'btn-primary');
         sample.title = 'Computes an estimated quality report from a bounded sample.';
         exact.title = 'Computes null counts, type checks, and distribution stats for the full dataset. May take several seconds for large data.';
         profileActions.append(sample, exact);
     }
 
-    const profileTable = createElement('table', 'prepare-workspace__quality-table');
-    profileTable.setAttribute('aria-label', `${reportKind === 'exact' ? 'Exact' : 'Sampled'} column quality report`);
-    const profileHead = createElement('thead');
-    const profileHeaderRow = createElement('tr');
-    for (const heading of ['Column', 'Type', 'Missing', 'Status']) {
-        const cell = createElement('th');
-        cell.scope = 'col';
-        cell.textContent = heading;
-        profileHeaderRow.append(cell);
-    }
-    profileHead.append(profileHeaderRow);
-    const profileBody = createElement('tbody');
-    if (reportReady) {
-        for (const profile of sourceMetadata?.column_profiles ?? []) {
-            const row = createElement('tr');
-            const nullCount = Math.max(0, Number(profile.null_count) || 0);
-            const denominator = Math.max(0, Number(reportKind === 'sampled' ? sourceMetadata?.profile_sample_rows : sourceMetadata?.total_rows) || 0);
-            const missingPercent = denominator > 0 ? (nullCount / denominator) * 100 : 0;
-            const status = nullCount > 0 || (Number(profile.non_finite_count) || 0) > 0 ? 'Needs review' : 'OK';
-            for (const value of [profile.name, profile.dtype, denominator > 0 ? `${missingPercent.toFixed(2)}%` : `${nullCount.toLocaleString()} values`, status]) {
-                const cell = createElement('td');
-                cell.textContent = value;
-                row.append(cell);
-            }
-            profileBody.append(row);
-        }
-    }
-    profileTable.append(profileHead, profileBody);
-    profileTable.hidden = profileBody.children.length === 0;
+    const status = createElement('span', 'upload-preview-status');
+    status.setAttribute('role', 'status');
+    status.setAttribute('aria-live', 'polite');
+    const modeBadge = createElement('span', 'profile-mode-badge');
+    modeBadge.dataset.mode = reportKind === 'sampled' ? 'preview' : 'dataset';
+    modeBadge.textContent = `${reportLabel} profile`;
+    const sourceRows = reportKind === 'sampled'
+        ? sourceMetadata?.profile_sample_rows ?? sourceMetadata?.total_rows
+        : sourceMetadata?.total_rows;
+    status.textContent = reportKind === 'immediate'
+        ? 'Showing the active dataset schema; detailed profile values are pending.'
+        : `${reportLabel} profile report · ${sourceRows?.toLocaleString() ?? '—'} source rows`;
 
-    if (timeQuality) {
-        const item = createElement('li', 'prepare-workspace__quality-finding');
-        item.dataset.qualityKind = 'time';
-        const summary = createElement('div');
-        const label = createElement('strong');
-        label.textContent = 'Time axis';
-        const detail = createElement('span');
-        const duplicateSuffix = timeQuality.duplicate_timestamp_count === 1 ? '' : 's';
-        const orderSuffix = timeQuality.out_of_order_count === 1 ? '' : 's';
-        const gap = typeof timeQuality.median_gap_ms === 'number'
-            ? ' · median observed gap ' + formatGap(timeQuality.median_gap_ms)
-            : '';
-        detail.textContent = timeQuality.unique_timestamp_count.toLocaleString() + ' unique timestamps · '
-            + timeQuality.duplicate_timestamp_count.toLocaleString() + ' duplicate timestamp' + duplicateSuffix + ' · '
-            + timeQuality.out_of_order_count.toLocaleString() + ' out-of-order transition' + orderSuffix + gap;
-        summary.append(label, detail);
-        item.append(summary);
-        timeList.append(item);
+    const gridRoot = createElement('div', 'profile-grid');
+    gridRoot.id = 'prepare-profile-grid';
+    const profiles = profileRowsFromMetadata(sourceMetadata);
+    let grid!: ProfileGridController;
+    const filterControls = createProfileFilterControls({
+        inputId: 'prepare-profile-filter-input',
+        filterText: gridState.filterText,
+        filterCategory: gridState.filterCategory,
+        onFilterTextChange: (value) => {
+            gridState.filterText = value;
+            grid.render(true);
+        },
+        onFilterCategoryChange: (category) => {
+            gridState.filterCategory = category;
+            grid.render(true);
+        },
+    });
+    filterControls.classList.add('prepare-workspace__profile-controls');
+    grid = createProfileGridController({
+        root: gridRoot,
+        getProfiles: () => profiles,
+        selectable: false,
+        getFilterText: () => gridState.filterText,
+        getFilterCategory: () => gridState.filterCategory,
+        getSort: () => gridState.sort,
+        setSort: (sort) => { gridState.sort = { ...sort }; },
+        getColumnWidths: () => gridState.columnWidths,
+        setColumnWidths: (widths) => { gridState.columnWidths = [...widths]; },
+        ariaLabel: `${reportLabel} column profile table`,
+        caption: 'Column profile report shared with the Upload page.',
+        emptyMessage: profiles.length > 0
+            ? 'No columns match this filter'
+            : 'Column profiles will appear here after dataset analysis.',
+    });
+    const viewport = gridRoot.querySelector<HTMLElement>('.profile-grid-viewport');
+    if (viewport) {
+        viewport.tabIndex = 0;
+        viewport.setAttribute('aria-label', 'Column statistics. Scroll horizontally to see all values.');
     }
-
-    for (const profile of constantColumns) {
-        const item = createElement('li', 'prepare-workspace__quality-finding');
-        item.dataset.qualityColumn = profile.name;
-        item.dataset.qualityKind = 'constant';
-        const summary = createElement('div');
-        const label = createElement('strong');
-        label.textContent = profile.name;
-        const detail = createElement('span');
-        const finiteCount = typeof profile.finite_count === 'number' ? profile.finite_count : 0;
-        const zeroCount = typeof profile.zero_count === 'number' ? profile.zero_count : 0;
-        detail.textContent = 'constant numeric values · ' + finiteCount.toLocaleString() + ' finite values · '
-            + zeroCount.toLocaleString() + ' zero' + (zeroCount === 1 ? '' : 's');
-        summary.append(label, detail);
-        item.append(summary);
-        constantList.append(item);
-    }
-
-    for (const profile of zeroFrequencyColumns) {
-        const item = createElement('li', 'prepare-workspace__quality-finding');
-        item.dataset.qualityColumn = profile.name;
-        item.dataset.qualityKind = 'zero-frequency';
-        const summary = createElement('div');
-        const label = createElement('strong');
-        label.textContent = profile.name;
-        const detail = createElement('span');
-        const zeroCount = Number(profile.zero_count) || 0;
-        const finiteCount = Number(profile.finite_count) || 0;
-        const rate = finiteCount > 0 ? ` (${((zeroCount / finiteCount) * 100).toFixed(1)}%)` : '';
-        const longestRun = Number(profile.longest_zero_run) || 0;
-        const certainty = reportKind === 'sampled' ? 'sampled ' : 'exact ';
-        const runLabel = reportKind === 'sampled' ? 'estimated longest consecutive run' : 'longest consecutive run';
-        detail.textContent = `${zeroCount.toLocaleString()} ${certainty}zero value${zeroCount === 1 ? '' : 's'}${rate} · `
-            + `candidate for zero-frequency/run inspection${longestRun > 1 ? ` · ${runLabel} ${longestRun.toLocaleString()}` : ''}`;
-        summary.append(label, detail);
-        const inspect = actionButton('Inspect in Signals', () => inspectZeroRun(profile));
-        inspect.setAttribute('aria-label', `Inspect ${profile.name} zero values in Signals`);
-        inspect.title = Number.isFinite(Number(profile.longest_zero_run_start_ms))
-            ? 'Open the longest reported zero run in Signals.'
-            : 'Open this series in Signals; no timestamp interval was supplied by the profile.';
-        item.append(summary, inspect);
-        zeroList.append(item);
-    }
-
-    for (const profile of distributionColumns) {
-        const item = createElement('li', 'prepare-workspace__quality-finding');
-        item.dataset.qualityColumn = profile.name;
-        item.dataset.qualityKind = 'distribution';
-        const summary = createElement('div');
-        const label = createElement('strong');
-        label.textContent = profile.name;
-        const detail = createElement('span');
-        const q25 = Number(profile.q25);
-        const median = Number(profile.median);
-        const q75 = Number(profile.q75);
-        const iqr = Number(profile.interquartile_range);
-        const low = q25 - 1.5 * iqr;
-        const high = q75 + 1.5 * iqr;
-        const certainty = reportKind === 'sampled' ? 'estimated ' : '';
-        detail.textContent = `${certainty}distribution Q1 ${formatQualityNumber(q25)} · median ${formatQualityNumber(median)} · Q3 ${formatQualityNumber(q75)} · IQR ${formatQualityNumber(iqr)}`
-            + ` · candidate IQR range ${formatQualityNumber(low)} → ${formatQualityNumber(high)} (investigate; not an automatic exclusion)`;
-        detail.title = `Q1 ${q25}; median ${median}; Q3 ${q75}; IQR ${iqr}; range ${low} to ${high}`;
-        summary.append(label, detail);
-        item.append(summary);
-        distributionList.append(item);
-    }
-
-    if (findings.length === 0) {
-        const empty = createElement('li', 'prepare-workspace__quality-empty');
-        const exact = (profileKind === 'exact' && profileStatus === 'ready') || sourceMetadata?.profile_status === 'exact';
-        const sampled = profileKind === 'sampled' && profileStatus === 'ready';
-        empty.textContent = exact
-            ? 'No null or non-finite findings are present in the exact profile.'
-            : sampled
-                ? 'No null or non-finite findings are present in this sampled estimate.'
-            : sourceMetadata
-                ? 'Column quality findings are pending the exact profile.'
-                : 'Load dataset metadata to inspect source-profile findings.';
-        list.append(empty);
-    }
-
-    for (const finding of findings) {
-        const { profile, kind, count } = finding;
-        const item = createElement('li', 'prepare-workspace__quality-finding');
-        item.dataset.qualityColumn = profile.name;
-        item.dataset.qualityKind = kind;
-        const summary = createElement('div');
-        const label = createElement('strong');
-        label.textContent = profile.name;
-        const detail = createElement('span');
-        detail.textContent = count.toLocaleString() + (kind === 'null' ? ' null value' : ' non-finite value') + (count === 1 ? '' : 's')
-            + ' · ' + profile.dtype;
-        summary.append(label, detail);
-        const policyExists = hasMissingValuePolicy(plan, profile.name, kind);
-        const add = actionButton(
-            policyExists ? 'Policy already added' : kind === 'null' ? 'Add null policy' : 'Add non-finite policy',
-            () => {
-                cleaningPlanStore.addStage({
-                    kind: 'missingValue', executionClass: 'polarsExpression', scope: 'row', enabled: true,
-                    sourcePage: 'manual', label: 'Drop ' + (kind === 'null' ? 'missing values from ' : 'non-finite values from ') + profile.name,
-                    column: profile.name,
-                    dropNulls: kind === 'null',
-                    dropNonFinite: kind === 'nonFinite' || (kind === 'null' && numericDtype(profile.dtype)),
-                });
-                deps.onPlanChanged?.();
-            },
-            policyExists,
-        );
-        add.dataset.prepareKey = `quality-${profile.name}-${kind}`;
-        add.setAttribute('aria-label', `${add.textContent} for ${profile.name}`);
-        item.append(summary, add);
-        list.append(item);
-    }
-    section.append(title, copy, profileActions);
-    if (reportReady || findings.length > 0) {
-        const overview = createElement('p', 'prepare-workspace__quality-overview');
-        overview.textContent = `${findings.length} missing-value findings · ${constantColumns.length} constant columns · ${zeroFrequencyColumns.length} zero-run candidates · ${distributionColumns.length} distribution summaries`;
-        section.append(overview, qualityDisclosure('missing', `Missing values · ${findings.length} findings`, list, findings.length > 0));
-    } else section.append(list);
-    if (timeQuality) section.append(qualityDisclosure('time', 'Time axis', timeList,
-        timeQuality.duplicate_timestamp_count > 0 || timeQuality.out_of_order_count > 0));
-    if (constantColumns.length) section.append(qualityDisclosure('constant', `Constant columns · ${constantColumns.length}`, constantList));
-    if (zeroFrequencyColumns.length) section.append(qualityDisclosure('zeros', `Zero-run candidates · ${zeroFrequencyColumns.length}`, zeroList));
-    if (distributionColumns.length) section.append(qualityDisclosure('distribution', `Distribution summaries · ${distributionColumns.length}`, distributionList));
-    if (profileBody.children.length) {
-        const scroll = createElement('div', 'prepare-workspace__table-scroll');
-        scroll.tabIndex = 0;
-        scroll.setAttribute('role', 'region');
-        scroll.setAttribute('aria-label', 'Column quality table');
-        scroll.append(profileTable);
-        section.append(qualityDisclosure('columns', `All columns · ${profileBody.children.length}`, scroll));
-    }
-    return section;
+    const heading = sectionHeading(title, copy, '01');
+    const reportHeader = createElement('div', 'prepare-workspace__report-header');
+    reportHeader.append(heading, profileActions);
+    const reportFooter = createElement('div', 'prepare-workspace__report-footer');
+    const scrollHint = createElement('span', 'prepare-workspace__scroll-hint');
+    scrollHint.textContent = 'Scroll table to see all statistics →';
+    reportFooter.append(modeBadge, status, scrollHint);
+    section.append(reportHeader, filterControls, gridRoot, reportFooter);
+    return { section, grid };
 }
 
 function renderPrepareWorkspace(
@@ -549,10 +394,11 @@ function renderPrepareWorkspace(
     requestSampleProfile: () => void,
     cancelProfile: () => void,
     preview: PreparationPreview,
-): void {
+    profileGridState: PrepareProfileGridState,
+): ProfileGridController | null {
     root.replaceChildren();
-    const header = createElement('div', 'page-header prepare-workspace__header');
-    const heading = createElement('div');
+    const header = createElement('div', 'prepare-workspace__header');
+    const heading = createElement('div', 'prepare-workspace__heading');
     const titleRow = createElement('div', 'prepare-workspace__title-row');
     const title = createElement('h1', 'page-header__title');
     title.textContent = 'Preparation';
@@ -570,7 +416,7 @@ function renderPrepareWorkspace(
     copy.textContent = 'Review source quality, refine your pipeline, then preview and save a prepared dataset.';
     heading.append(titleRow, copy);
     header.append(heading);
-    const navigation = createElement('div', 'prepare-workspace__history');
+    const navigation = createElement('div', 'prepare-workspace__header-actions');
     navigation.append(
         actionButton('Inspect in Signals', () => deps.showPage?.('timeseries')),
         actionButton('Graph and history', () => document.getElementById('open-cleaning-plan-btn')?.click()),
@@ -582,9 +428,9 @@ function renderPrepareWorkspace(
     const localNav = createElement('nav', 'prepare-workspace__local-nav');
     localNav.setAttribute('aria-label', 'Prepare sections');
     const navTargets = [
-        ['Quality findings', 'prepare-profile-findings'],
-        ['Pipeline preview', 'prepare-pipeline-preview'],
+        ['Data quality report', 'prepare-profile-findings'],
         ['Pipeline stages', 'prepare-pipeline-stages'],
+        ['Pipeline preview', 'prepare-pipeline-preview'],
         ['Export', 'prepare-export'],
         ['Record an insight', 'prepare-insight-record'],
         ...(filterCount > 0 ? [['Signals filters', 'prepare-signals-filters'] as const] : []),
@@ -623,10 +469,18 @@ function renderPrepareWorkspace(
 
     const identity = createElement('section', 'prepare-workspace__identity');
     identity.setAttribute('aria-label', 'Pipeline source identity');
-    if (!plan) {
-        identity.textContent = 'Load a dataset to create and inspect a preprocessing plan.';
+    const metadata = deps.workspace?.getSnapshot().dataset.metadata ?? null;
+    if (!plan || metadata?.columns?.length === 0) {
+        identity.classList.add('prepare-workspace__start');
+        const emptyTitle = createElement('h2');
+        emptyTitle.textContent = 'Start with a dataset';
+        const emptyCopy = createElement('p', 'prepare-workspace__copy');
+        emptyCopy.textContent = 'Load a dataset to review its quality and build a preparation pipeline.';
+        const load = actionButton('Load a dataset', () => deps.showPage?.('upload'));
+        load.classList.replace('btn-ghost', 'btn-primary');
+        identity.append(emptyTitle, emptyCopy, load);
         root.append(header, identity);
-        return;
+        return null;
     }
     const activeStages = plan.stages.filter((stage) => stage.enabled && stage.executionClass !== 'annotation').length;
     const previewState = preview.getState();
@@ -636,7 +490,9 @@ function renderPrepareWorkspace(
     liveStatus.id = 'prepare-plan-status';
     liveStatus.setAttribute('role', 'status');
     liveStatus.setAttribute('aria-live', 'polite');
-    liveStatus.textContent = activeStages > 0 ? 'Working plan active in plots · source unchanged' : 'Source baseline · source unchanged';
+    const statusText = createElement('span');
+    statusText.textContent = activeStages > 0 ? 'Working plan active in plots · source unchanged' : 'Source baseline · source unchanged';
+    liveStatus.append(statusText);
     const freshness = createElement('span', 'prepare-workspace__preview-state');
     freshness.dataset.state = previewState.result ? 'ready' : 'pending';
     freshness.textContent = previewState.applying ? 'Creating dataset…' : previewState.running ? 'Preview running…'
@@ -648,8 +504,7 @@ function renderPrepareWorkspace(
         actionButton('Redo', () => { if (cleaningPlanStore.redo()) deps.onPlanChanged?.(); }, !cleaningPlanStore.canRedo() || previewState.applying),
     );
     stateRow.append(liveStatus, history);
-    toolbar.append(stateRow, localNav, mobileNav);
-    const metadata = deps.workspace?.getSnapshot().dataset.metadata ?? null;
+    toolbar.append(localNav, mobileNav, stateRow);
     const workingColumns = getEffectiveColumnNames(metadata, plan);
     const numericColumns = getEffectiveNumericColumns(metadata, plan);
     const identityFacts = createElement('dl', 'prepare-workspace__identity-facts');
@@ -669,9 +524,12 @@ function renderPrepareWorkspace(
     revisionLink.title = 'Open Graph history in the Pipeline Workbench';
     revisionLink.addEventListener('click', () => document.getElementById('open-cleaning-plan-btn')?.click());
     appendIdentityFact('Source', plan.sourceName || plan.sourceVersionId);
+    const rows = metadata?.total_rows;
+    const columnCount = metadata?.columns?.length;
+    appendIdentityFact('Dataset size', rows != null && columnCount != null
+        ? `${rows.toLocaleString()} rows · ${columnCount.toLocaleString()} columns` : 'Awaiting dataset details');
     appendIdentityFact('Revision', revisionLink);
     appendIdentityFact('Active stages', String(activeStages));
-    appendIdentityFact('Plan status', activeStages > 0 ? 'Live in every plot' : 'Source baseline');
     identity.append(identityFacts);
 
     const filters = workspaceFilters;
@@ -700,9 +558,10 @@ function renderPrepareWorkspace(
             return section;
         })();
 
-    const qualitySection = renderQualityFindings(
-        plan, deps, profileMetadata, profileStatus, profileKind,
+    const qualityReport = renderQualityReport(
+        profileMetadata, profileStatus, profileKind,
         requestExactProfile, requestSampleProfile, cancelProfile,
+        profileGridState,
     );
 
     const insightSection = createElement('section', 'prepare-workspace__insight');
@@ -744,7 +603,7 @@ function renderPrepareWorkspace(
     insightSubmit.type = 'submit';
     insightForm.append(insightDecision.closest('label')!, insightColumns, insightMetric.closest('label')!, insightNote, insightSubmit, insightStatus);
     insightSection.classList.add('prepare-workspace__stages');
-    insightSection.append(insightTitle, insightCopy, insightForm);
+    insightSection.append(sectionHeading(insightTitle, insightCopy, '05'), insightForm);
     insightForm.addEventListener('submit', (event) => {
         event.preventDefault();
         const note = insightNoteInput.value.trim();
@@ -780,11 +639,11 @@ function renderPrepareWorkspace(
     const caption = formatPipelinePreviewCaption(plan.stages);
     previewCaption.textContent = caption.text;
     previewCaption.title = caption.title;
-    graphSection.append(graphTitle, graphCopy, previewCaption);
+    graphSection.append(sectionHeading(graphTitle, graphCopy, '03'), previewCaption);
     const viewport = deps.workspace?.getSnapshot().viewport;
     const hasViewport = viewport?.xMin != null && viewport.xMax != null
         && Number.isFinite(viewport.xMin) && Number.isFinite(viewport.xMax) && viewport.xMin < viewport.xMax;
-    graphSection.append(actionButton('Keep Signals time window', () => {
+    const keepWindow = actionButton('Keep Signals time window', () => {
         if (!hasViewport) return;
         cleaningPlanStore.addStage({
             kind: 'timeRange', executionClass: 'polarsExpression', scope: 'row', enabled: true,
@@ -792,7 +651,9 @@ function renderPrepareWorkspace(
             startMs: viewport!.xMin!, endMs: viewport!.xMax!, mode: 'keepInside',
         });
         deps.onPlanChanged?.();
-    }, !hasViewport));
+    }, !hasViewport);
+    keepWindow.classList.add('prepare-workspace__keep-window');
+    graphSection.append(keepWindow);
 
     const stagesSection = createElement('section', 'prepare-workspace__stages');
     stagesSection.id = 'prepare-pipeline-stages';
@@ -812,6 +673,10 @@ function renderPrepareWorkspace(
     previewChanges.classList.replace('btn-ghost', 'btn-primary');
     const materialize = actionButton('Create prepared dataset', () => { void preview.materialize(); }, !previewState.canApply);
     materialize.id = 'prepare-materialize-button';
+    if (previewState.canApply) {
+        previewChanges.classList.replace('btn-primary', 'btn-ghost');
+        materialize.classList.replace('btn-ghost', 'btn-primary');
+    }
     materialize.setAttribute('aria-describedby', previewStatus.id);
     materialize.title = activeStages === 0
         ? 'Add and enable at least one executable stage first'
@@ -1062,7 +927,11 @@ function renderPrepareWorkspace(
     list.setAttribute('aria-label', 'Pipeline stages in execution order');
     if (plan.stages.length === 0) {
         const empty = createElement('li', 'prepare-workspace__empty');
-        empty.textContent = 'No transformations have been added yet. Create one from Signals or open the workbench.';
+        const emptyTitle = createElement('strong');
+        emptyTitle.textContent = 'Your source is unchanged';
+        const emptyCopy = createElement('p');
+        emptyCopy.textContent = 'Choose a transformation to add your first stage. You can reorder, disable, or undo each step.';
+        empty.append(emptyTitle, emptyCopy);
         list.append(empty);
     }
     for (const [index, stage] of plan.stages.entries()) {
@@ -1167,6 +1036,10 @@ function renderPrepareWorkspace(
     const composerHeading = createElement('div', 'prepare-workspace__composer-heading');
     const composerCopy = createElement('p', 'prepare-workspace__copy');
     composerCopy.textContent = 'Choose one transformation, configure it, then add it to the ordered plan.';
+    const composerTitle = createElement('h3');
+    composerTitle.textContent = 'Add a transformation';
+    const composerIntro = createElement('div');
+    composerIntro.append(composerTitle, composerCopy);
     const composerSelect = createElement('select', 'modal-select');
     composerSelect.id = 'prepare-transformation';
     composerSelect.setAttribute('aria-label', 'Transformation to add');
@@ -1178,21 +1051,25 @@ function renderPrepareWorkspace(
         option.textContent = label;
         composerSelect.append(option);
         forms[index]!.hidden = index !== 0;
+        forms[index]!.querySelector('button[type="submit"]')?.classList.replace('btn-ghost', 'btn-primary');
     });
     composerSelect.addEventListener('change', () => {
         forms.forEach((form, index) => { form.hidden = index !== Number(composerSelect.value); });
     });
-    composerHeading.append(composerCopy, labeledControl('Transformation to add', composerSelect));
+    composerHeading.append(composerIntro, labeledControl('Transformation to add', composerSelect));
     composer.append(composerHeading, ...forms);
-    stagesSection.append(stageTitle, stageCopy, stageStatus, list, composer);
-    const exportSection = createElement('section', 'prepare-workspace__stages');
+    const stageEditor = createElement('div', 'prepare-workspace__stage-editor');
+    stageEditor.append(list, composer);
+    stagesSection.append(sectionHeading(stageTitle, stageCopy, '02'), stageStatus, stageEditor);
+    const exportSection = createElement('section', 'prepare-workspace__exports');
     exportSection.id = 'prepare-export';
     const exportTitle = createElement('h2');
     exportTitle.textContent = 'Export dataset and pipeline';
     const exportCopy = createElement('p', 'prepare-workspace__copy');
     exportCopy.textContent = 'Download all rows and columns after the enabled steps as Parquet. Export the same pipeline as JSON or Python / Rust code, or download a bundle with the plan, code, and provenance. Exporting does not require creating a prepared dataset.';
-    exportSection.append(exportTitle, exportCopy, createPipelineExportControls(() => cleaningPlanStore.getSnapshot()));
-    root.append(header, toolbar, identity, qualitySection, graphSection, stagesSection, exportSection, insightSection, signalsFilterSection);
+    exportSection.append(sectionHeading(exportTitle, exportCopy, '04'), createPipelineExportControls(() => cleaningPlanStore.getSnapshot()));
+    root.append(header, identity, toolbar, qualityReport.section, stagesSection, graphSection, exportSection, insightSection, signalsFilterSection);
+    return qualityReport.grid;
 }
 
 /** Lazy page surface for orienting a data scientist before opening the editor overlay. */
@@ -1206,12 +1083,25 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
     let profileStatus: DatasetProfileResponse['status'] = 'not_started';
     let profileKind: 'exact' | 'sampled' = 'exact';
     let profileJobId: string | null = null;
+    let requestedProfileKind: 'exact' | 'sampled' | null = null;
+    let lastProfileResponse: DatasetProfileResponse | null = null;
     let pollTimer: ReturnType<typeof setTimeout> | null = null;
     let disposeHelp = () => {};
     let disposeNavigation = () => {};
+    let disposeProfileGrid = () => {};
     let renderedPlan: CleaningPlan | null = null;
     let restoredSection = false;
+    const profileGridState: PrepareProfileGridState = {
+        filterText: '',
+        filterCategory: 'all',
+        sort: { key: 'name', dir: 'asc' },
+        columnWidths: getDefaultProfileColumnWidths().slice(1),
+    };
     const datasetKey = (plan: CleaningPlan | null) => JSON.stringify(plan && [plan.sourceVersionId, plan.datasetRevision, plan.datasetFingerprint, plan.schemaFingerprint]);
+    const profileSource = () => {
+        const plan = cleaningPlanStore.getSnapshot();
+        return plan ? { id: plan.sourceVersionId, revision: plan.datasetRevision, datasetFingerprint: plan.datasetFingerprint } : null;
+    };
     const preview = createPreparationPreview({
         getPlan: () => cleaningPlanStore.getSnapshot(),
         onChange: () => render(),
@@ -1230,7 +1120,8 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
         preview.getState();
         disposeNavigation();
         disposeHelp();
-        renderPrepareWorkspace(
+        disposeProfileGrid();
+        const nextProfileGrid = renderPrepareWorkspace(
             root,
             plan,
             deps,
@@ -1241,7 +1132,10 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
             requestSampleProfile,
             cancelProfile,
             preview,
+            profileGridState,
         );
+        disposeProfileGrid = nextProfileGrid ? () => nextProfileGrid.dispose() : () => {};
+        nextProfileGrid?.render(false);
         keyPreparationControls(root);
         if (sameDataset) restorePreparationView(root, savedView, addedStage?.id);
         disposeNavigation = initPreparationNavigation(root);
@@ -1254,20 +1148,25 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
     };
     const acceptProfile = (response: DatasetProfileResponse, kind: 'exact' | 'sampled', owner: AbortController) => {
         if (disposed || owner.signal.aborted || owner !== request) return false;
-        const plan = cleaningPlanStore.getSnapshot();
-        if (!plan || response.sourceVersion?.id !== plan.sourceVersionId || response.sourceVersion.revision !== plan.datasetRevision) return false;
-        if (kind === 'exact' && response.algorithmVersion !== 'exact-v1') return false;
-        if (kind === 'sampled' && response.algorithmVersion !== 'sample-v1') return false;
+        const source = profileSource();
+        if (!source || !matchesProfileSource(source, response) || datasetProfileKind(response) !== kind) return false;
+        const completed = datasetProfiles.get(source, kind);
+        if (completed?.status === 'ready') response = completed;
+        const running = response.status === 'queued' || response.status === 'running' || response.status === 'cancelling';
+        if (lastProfileResponse === response) return running;
+        lastProfileResponse = response;
+        if (!running) requestedProfileKind = null;
         profileKind = kind;
         profileStatus = response.status;
         profileJobId = response.job?.id ?? null;
         if (response.metadata) profileMetadata = response.metadata;
         render();
-        return response.status === 'queued' || response.status === 'running' || response.status === 'cancelling';
+        return running;
     };
     const pollProfile = (kind: 'exact' | 'sampled', owner = request) => {
         if (pollTimer != null) clearTimeout(pollTimer);
         pollTimer = setTimeout(async () => {
+            pollTimer = null;
             if (disposed || owner.signal.aborted || owner !== request) return;
             try {
                 const get = kind === 'exact'
@@ -1276,15 +1175,56 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
                 if (acceptProfile(await get({ signal: owner.signal }), kind, owner)) pollProfile(kind, owner);
             } catch {
                 if (disposed || owner.signal.aborted || owner !== request) return;
+                if (profileStatus === 'ready') return;
                 profileStatus = 'failed';
                 render();
             }
         }, 500);
     };
+    const followProfile = (response: DatasetProfileResponse) => {
+        const source = profileSource();
+        const kind = datasetProfileKind(response);
+        if (!source || !kind || !matchesProfileSource(source, response)) return;
+        if (requestedProfileKind && requestedProfileKind !== kind) return;
+        if (!requestedProfileKind && kind === 'sampled' && datasetProfiles.get(source, 'exact')?.status === 'ready') return;
+        if (pollTimer != null) clearTimeout(pollTimer);
+        pollTimer = null;
+        if (acceptProfile(response, kind, request)) pollProfile(kind);
+    };
+    const restoreSourceProfile = () => {
+        const source = profileSource();
+        if (!source) return;
+        // Reuse reports loaded on another page before consulting the server cache.
+        for (const kind of ['exact', 'sampled'] as const) {
+            const cached = datasetProfiles.get(source, kind);
+            if (cached && ['ready', 'queued', 'running', 'cancelling'].includes(cached.status)) {
+                followProfile(cached);
+                return;
+            }
+        }
+        const owner = request;
+        void (async () => {
+            try {
+                for (const kind of ['exact', 'sampled'] as const) {
+                    const get = kind === 'exact' ? deps.getProfile ?? fetchDatasetProfile : deps.getSampleProfile ?? fetchSampledDatasetProfile;
+                    const response = await get({ signal: owner.signal });
+                    if (disposed || owner.signal.aborted || owner !== request || requestedProfileKind) return;
+                    if (!matchesProfileSource(source, response)) return;
+                    if (['ready', 'queued', 'running', 'cancelling'].includes(response.status)) {
+                        followProfile(response);
+                        return;
+                    }
+                }
+            } catch {
+                // Keep source metadata visible; explicit report actions can retry.
+            }
+        })();
+    };
     function requestProfile(kind: 'exact' | 'sampled'): void {
         request.abort();
         const owner = new AbortController();
         request = owner;
+        requestedProfileKind = kind;
         if (pollTimer != null) clearTimeout(pollTimer);
         void (async () => {
             profileKind = kind;
@@ -1295,6 +1235,7 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
                 if (acceptProfile(await start({ signal: owner.signal }), kind, owner)) pollProfile(kind, owner);
             } catch {
                 if (disposed || owner.signal.aborted || owner !== request) return;
+                requestedProfileKind = null;
                 profileStatus = 'failed';
                 render();
             }
@@ -1309,6 +1250,7 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
             try {
                 await (deps.cancelProfile ?? cancelSessionJob)(profileJobId!, { signal: owner.signal });
                 if (disposed || owner.signal.aborted || owner !== request) return;
+                if (profileStatus === 'ready') return;
                 profileStatus = 'cancelling';
                 render();
                 pollProfile(profileKind);
@@ -1318,6 +1260,8 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
         })();
     }
     render();
+    const unsubscribeProfiles = datasetProfiles.subscribe(followProfile);
+    restoreSourceProfile();
     let sourceId = datasetKey(cleaningPlanStore.getSnapshot());
     const unsubscribe = cleaningPlanStore.subscribe(() => {
         const nextSource = datasetKey(cleaningPlanStore.getSnapshot());
@@ -1329,6 +1273,13 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
             profileMetadata = null;
             profileStatus = 'not_started';
             profileJobId = null;
+            requestedProfileKind = null;
+            lastProfileResponse = null;
+            profileGridState.filterText = '';
+            profileGridState.filterCategory = 'all';
+            profileGridState.sort = { key: 'name', dir: 'asc' };
+            profileGridState.columnWidths = getDefaultProfileColumnWidths().slice(1);
+            restoreSourceProfile();
         }
         render();
     });
@@ -1337,8 +1288,10 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
         disposed = true;
         preview.dispose();
         request.abort();
+        unsubscribeProfiles();
         unsubscribeWorkspace?.();
         if (pollTimer != null) clearTimeout(pollTimer);
+        disposeProfileGrid();
         disposeHelp();
         disposeNavigation();
         unsubscribe();

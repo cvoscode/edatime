@@ -1,5 +1,6 @@
 /** Chart title and axis labels are shared, persisted workspace appearance. */
 import { primaryChart } from '../charts/primaryChart.js';
+import { getDefaultTimeseriesChartText } from '../chart/chartText.js';
 import type { WorkspaceStore } from '../contracts/workspace.js';
 
 export function initChartTextControls(
@@ -12,6 +13,12 @@ export function initChartTextControls(
         yLabel: document.getElementById('y-axis-label-input') as HTMLInputElement | null,
     };
     const initial = workspace.getSnapshot().appearance.chartText;
+    const renderText = (chartText: typeof initial) => {
+        const snapshot = workspace.getSnapshot();
+        const text = getDefaultTimeseriesChartText({ ...snapshot.appearance, chartText }, snapshot.selection.columns,
+            !!(document.getElementById('timeseries-normalize-series') as HTMLInputElement | null)?.checked);
+        primaryChart.current?.setChartText?.(text.title, text.xLabel, text.yLabel);
+    };
     const apply = () => {
         const previous = workspace.getSnapshot().appearance.chartText;
         const chartText = {
@@ -20,7 +27,7 @@ export function initChartTextControls(
             yLabel: inputs.yLabel?.value ?? previous.yLabel,
         };
         workspace.setAppearance?.({ chartText });
-        primaryChart.current?.setChartText?.(chartText.title, chartText.xLabel, chartText.yLabel);
+        renderText(chartText);
     };
     for (const key of ['title', 'xLabel', 'yLabel'] as const) {
         const input = inputs[key];
@@ -33,7 +40,7 @@ export function initChartTextControls(
         for (const key of ['title', 'xLabel', 'yLabel'] as const) {
             if (inputs[key] && inputs[key]!.value !== text[key]) inputs[key]!.value = text[key];
         }
-        primaryChart.current?.setChartText?.(text.title, text.xLabel, text.yLabel);
+        renderText(text);
     };
     const unsubscribe = workspace.subscribe?.(sync);
     const unsubscribeChart = primaryChart.subscribe(sync);

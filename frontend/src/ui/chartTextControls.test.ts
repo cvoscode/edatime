@@ -43,4 +43,34 @@ describe('chartTextControls', () => {
         });
         expect(setChartTextOnChart).toHaveBeenLastCalledWith('Updated title', 'Existing X', 'Existing Y');
     });
+
+    it('uses the same default axis labels while editing and after a workspace update', () => {
+        workspace.setSelection(['HUFL', 'HULL']);
+        const render = vi.fn();
+        setChartInstance({ setChartText: render } as any);
+        const dispose = initChartTextControls(workspace);
+        const title = document.getElementById('chart-title-input') as HTMLInputElement;
+        title.value = 'Comparison';
+        title.dispatchEvent(new Event('input'));
+        const expected = ['Comparison', `Time (${Intl.DateTimeFormat().resolvedOptions().timeZone})`, 'Series values'];
+        expect(render).toHaveBeenLastCalledWith(...expected);
+        workspace.setViewport({ xMin: 0, xMax: 1000, yMin: null, yMax: null });
+        expect(render).toHaveBeenLastCalledWith(...expected);
+        expect(workspace.getSnapshot().appearance.chartText).toEqual({ title: 'Comparison', xLabel: '', yLabel: '' });
+        dispose();
+    });
+
+    it('labels normalized values without replacing saved source-unit labels', () => {
+        document.body.insertAdjacentHTML('beforeend', '<input id="timeseries-normalize-series" type="checkbox" checked>');
+        setChartText({ title: '', xLabel: '', yLabel: 'Temperature (°C)' });
+        const render = vi.fn();
+        setChartInstance({ setChartText: render } as any);
+        const dispose = initChartTextControls(workspace);
+        expect(render).toHaveBeenLastCalledWith('', expect.any(String), 'Normalized value (0–1)');
+        expect(workspace.getSnapshot().appearance.chartText.yLabel).toBe('Temperature (°C)');
+        (document.getElementById('timeseries-normalize-series') as HTMLInputElement).checked = false;
+        workspace.setViewport({ xMin: 0, xMax: 1000, yMin: null, yMax: null });
+        expect(render).toHaveBeenLastCalledWith('', expect.any(String), 'Temperature (°C)');
+        dispose();
+    });
 });

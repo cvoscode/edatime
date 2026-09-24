@@ -103,7 +103,7 @@ export function initAnalysisControls(
     const runZoomOut = zoomOutAction ?? (() => resetZoom(fetchAndRender, workspace));
     const runResetZoom = resetZoomAction ?? (() => resetZoom(fetchAndRender, workspace));
     bindInfoPopovers();
-    initToolbarModals({ onZoomOut: runZoomOut, onResetZoom: runResetZoom });
+    const disposeModals = initToolbarModals({ onZoomOut: runZoomOut, onResetZoom: runResetZoom });
     const disposeDraw = initDrawControls(fetchAndRender, workspace);
     const disposeChartText = initChartTextControls(workspace);
     initAnalyticsControls();
@@ -111,5 +111,5 @@ export function initAnalysisControls(
     const disposeQuickRange = initQuickRangeControls(fetchAndRender, workspace);
 
     const disposeZoomBadge = initZoomRangeBadge(workspace);
-    return () => { disposeDraw(); disposeQuickRange(); disposeChartText(); disposeZoomBadge(); };
+    return () => { disposeModals(); disposeDraw(); disposeQuickRange(); disposeChartText(); disposeZoomBadge(); };
 }

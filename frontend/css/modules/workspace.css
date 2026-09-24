@@ -321,8 +321,7 @@ header.app-topbar {
   height: var(--analysis-control-h);
 }
 
-.scatter-toolbar .scatter-view-toggle .btn,
-.timeseries-zoom-cluster .btn {
+.scatter-toolbar .scatter-view-toggle .btn {
   height: calc(var(--analysis-control-h) - 4px);
   min-height: calc(var(--analysis-control-h) - 4px);
 }
@@ -387,11 +386,7 @@ header.app-topbar {
 }
 
 .scatter-toolbar .toolbar-disclosure__summary,
-.scatter-link-toggle,
-.timeseries-utility-shelf .btn,
-.timeseries-utility-shelf .dropdown__trigger,
-.timeseries-utility-shelf .toolbar-panel-open,
-.timeseries-utility-shelf .zoom-range-badge {
+.scatter-link-toggle {
   background: var(--surface-1);
   border-color: var(--border);
   box-shadow: none;
@@ -430,73 +425,6 @@ header.app-topbar {
 .timeseries-filter-shell {
   border-radius: 6px;
   background: var(--surface-1);
-}
-
-.timeseries-utility-shelf {
-  padding: 7px var(--workspace-pad);
-  border-bottom: var(--workspace-rule);
-  background: var(--surface-0);
-}
-
-.timeseries-utility-shelf > .analysis-secondary-disclosure__content {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 6px;
-  width: 100%;
-}
-
-.timeseries-utility-shelf__primary,
-.timeseries-utility-shelf__secondary {
-  width: 100%;
-  gap: 0;
-}
-
-.timeseries-utility-shelf .scatter-toolbar__segment {
-  padding-inline: 10px;
-  min-height: calc(var(--analysis-control-h) + 10px);
-}
-
-.timeseries-utility-shelf .scatter-toolbar__segment:first-child {
-  padding-left: 0;
-}
-
-.timeseries-utility-shelf .scatter-toolbar__segment:last-child {
-  padding-right: 0;
-}
-
-.timeseries-utility-shelf .btn.btn-sm,
-.timeseries-utility-shelf .toolbar-panel-open,
-.timeseries-utility-shelf .dropdown__trigger,
-.timeseries-utility-shelf #draw-color,
-.timeseries-utility-shelf #draw-width,
-.timeseries-utility-shelf .zoom-range-badge {
-  height: var(--analysis-control-h);
-  min-height: var(--analysis-control-h);
-}
-
-@media (max-width: 1599px) and (min-width: 1025px) {
-  .timeseries-utility-shelf .toolbar-disclosure__value {
-    display: none !important;
-  }
-}
-
-@media (min-width: 1280px) {
-  .timeseries-utility-shelf__secondary {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(260px, 0.95fr) minmax(305px, 1.05fr);
-  }
-
-  .timeseries-utility-shelf__secondary > .scatter-toolbar__segment {
-    width: 100%;
-    min-width: 0;
-  }
-}
-
-/* The responsive overflow manager temporarily clones the four range
-   controls before retiring the static fallback set. Keep a single visible
-   canonical set while both are present during live layout reconciliation. */
-.quick-range-toolbar .scatter-toolbar__controls > button:nth-of-type(n + 5) {
-  display: none;
 }
 
 .analysis-secondary-disclosure__summary {
@@ -605,100 +533,24 @@ header.app-topbar {
   box-shadow: none;
 }
 
-/* Preparation */
-#page-prepare .prepare-workspace {
-  gap: 12px;
-}
-
-#page-prepare .prepare-workspace__identity,
-#page-prepare .prepare-workspace__quality,
-#page-prepare .prepare-workspace__graph,
-#page-prepare .prepare-workspace__stages {
-  border-color: var(--border);
-  border-radius: 8px;
-  background: var(--surface-0);
-}
-
-#page-prepare .prepare-workspace__local-nav,
-#page-prepare .prepare-workspace__history {
-  position: static;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-  background: var(--surface-0);
-}
-
-#page-prepare .prepare-workspace__header > div {
-  min-width: 0;
-}
-
-/* Relationship pages */
-#heatmap-pair-plot .scatter-stats-bar {
-  padding: 6px var(--workspace-pad);
-  background: var(--surface-0);
-}
-
-/* Density mode has no color/refine controls. Do not reserve an empty
-   toolbar row when the feature owner has hidden all three fields. */
-#heatmap-pair-plot .scatter-toolbar__segment--refine:has(#scatter-color-column-field[style*="display: none"]):has(#scatter-density-controls[hidden]) {
-  display: none;
-}
-
-#heatmap-pair-plot .scatter-stats-bar__suggestions,
-#heatmap-pair-plot .scatter-stats-bar__correlations {
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-.scatter-density-fallback-note {
-  color: var(--text-muted);
-  font-size: 0.72rem;
-  line-height: 1.2;
-  max-width: 220px;
-}
-
-#heatmap-pair-plot .scatter-stats-bar__correlations {
-  border-left: 1px solid var(--border-subtle);
-}
-
-#page-heatmap .main--padded {
-  flex: 0 0 auto;
-  min-height: 480px;
-  padding: 12px var(--workspace-pad);
-}
-
-#page-heatmap .heatmap-header,
-#page-heatmap .heatmap-row-label,
-#page-heatmap .heatmap-corner__axis,
-#page-heatmap .heatmap-grid-legend {
-  color: var(--accent);
-}
-
-/* The same wrapper pattern is used by Pair plot and Drift. Give it a real
-   horizontal layout on desktop so child segments sit beside one another
-   instead of inheriting the wrapper's full stretched height. */
+/* Keep Drift secondary controls in one horizontal desktop row. */
 @media (min-width: 1025px) {
-  #heatmap-pair-plot .scatter-secondary-controls,
   #page-drift .drift-secondary-controls {
     display: flex;
     align-items: center;
     min-width: 0;
   }
 
-  #heatmap-pair-plot .scatter-secondary-controls > .analysis-secondary-disclosure__summary,
   #page-drift .drift-secondary-controls > .analysis-secondary-disclosure__summary {
     display: none;
   }
 
-  #heatmap-pair-plot .scatter-secondary-controls > .analysis-secondary-disclosure__content,
   #page-drift .drift-secondary-controls > .analysis-secondary-disclosure__content {
     display: flex;
     align-items: center;
     min-width: 0;
   }
 
-  #heatmap-pair-plot > .scatter-toolbar > .scatter-toolbar__segment--actions,
   #page-drift > .drift-toolbar > .scatter-toolbar__segment--actions {
     align-self: center;
   }
@@ -901,8 +753,7 @@ header.app-topbar {
 :root[data-theme="light"] #page-home .home-hero,
 :root[data-theme="light"] .toolbar,
 :root[data-theme="light"] .scatter-toolbar,
-:root[data-theme="light"] .timeseries-command-bar,
-:root[data-theme="light"] .timeseries-utility-shelf {
+:root[data-theme="light"] .timeseries-command-bar {
   background: #FFFFFF;
 }
 
@@ -964,14 +815,6 @@ header.app-topbar {
     line-height: 1.2;
     text-overflow: clip;
     white-space: normal;
-  }
-
-  #page-prepare .prepare-workspace__header {
-    flex-wrap: wrap;
-  }
-
-  #page-prepare .prepare-workspace__header > div {
-    flex: 1 1 340px;
   }
 
   #page-drift .drift-toolbar > .scatter-toolbar__segment--display .scatter-toolbar__fields {

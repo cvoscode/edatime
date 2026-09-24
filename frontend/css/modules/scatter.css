@@ -364,128 +364,6 @@
   display: none;
 }
 
-.scatter-secondary-controls {
-  display: contents;
-}
-
-@media (max-width: 640px) {
-  #heatmap-pair-plot {
-    overflow-y: auto;
-  }
-
-  #heatmap-pair-plot > .page-header {
-    order: 1;
-  }
-
-  #heatmap-pair-plot > .scatter-toolbar {
-    order: 2;
-    flex: 0 0 auto;
-    align-items: stretch;
-    padding: 4px 8px;
-  }
-
-  #heatmap-pair-plot > .scatter-view {
-    order: 3;
-    flex: 1 0 300px;
-    min-height: 300px;
-  }
-
-  #heatmap-pair-plot > .scatter-stats-bar {
-    order: 4;
-    flex: 0 0 auto;
-    padding: 8px;
-  }
-
-  #scatter-analytics-group {
-    display: flex;
-    flex: 1 1 100%;
-    flex-wrap: wrap;
-    gap: 6px;
-    min-width: 0;
-  }
-
-  #scatter-analytics-group > .scatter-toolbar__segment--view {
-    width: 100%;
-    padding: 4px;
-  }
-
-  #scatter-analytics-group > .scatter-toolbar__segment--view .scatter-toolbar__fields {
-    display: grid;
-    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr) minmax(0, 1fr);
-    gap: 6px;
-    width: 100%;
-  }
-
-  #scatter-analytics-group > .scatter-toolbar__segment--view .scatter-toolbar__field {
-    width: auto;
-    min-width: 0;
-    padding: 0;
-  }
-
-  #scatter-analytics-group > .scatter-toolbar__segment--view .modal-select {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .scatter-view-toggle {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .scatter-view-toggle .btn {
-    min-width: 0;
-    padding-inline: 7px;
-  }
-
-  .scatter-secondary-controls {
-    display: block;
-    flex: 1 1 100%;
-    width: 100%;
-  }
-
-  .scatter-secondary-controls[open] .analysis-secondary-disclosure__content {
-    display: grid;
-    grid-template-columns: 1fr;
-  }
-
-  #heatmap-pair-plot > .scatter-toolbar > .scatter-toolbar__segment--actions {
-    flex: 0 0 auto;
-    margin-left: auto;
-    padding: 4px;
-  }
-
-  .scatter-filter-banner {
-    min-height: 40px;
-    margin: 0;
-    padding: 6px 8px;
-  }
-
-  .scatter-filter-banner__text {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .scatter-stats-bar__suggestions,
-  .scatter-stats-bar__correlations {
-    width: 100%;
-  }
-
-  #scatter-marginal-x,
-  .scatter-marginal-y-right {
-    display: none !important;
-  }
-
-  #scatter-chart.with-x-marginal {
-    top: 0;
-    height: 100%;
-  }
-
-  #scatter-chart.with-x-marginal ~ #scatter-right-panel {
-    top: 0;
-  }
-}
-
 /* Scatter panel card */
 .scatter-panel {
   position: relative;
@@ -703,10 +581,6 @@
   width: 100%;
 }
 
-.heatmap-secondary-controls {
-  display: contents;
-}
-
 .heatmap-pair-plot {
   position: relative;
   min-width: 0;
@@ -724,82 +598,6 @@
 
 .heatmap-pair-plot[hidden] {
   display: none;
-}
-
-/* Pair plot is a first-class page now. Keep the shared surface rules used by
-   the old split-pane layout, but let the page own the full analysis canvas. */
-.heatmap-pair-plot.page {
-  min-height: 0;
-  overflow: auto;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
-
-.heatmap-pair-plot.page .heatmap-pair-plot__header {
-  padding: 16px var(--workspace-pad);
-}
-
-.heatmap-pair-plot.page .heatmap-pair-plot__header .page-header__title {
-  font-size: 1.25rem;
-}
-
-.heatmap-pair-plot.page .heatmap-pair-plot__header .page-header__description {
-  max-width: 72ch;
-  font-size: 0.8125rem;
-}
-
-.heatmap-pair-plot__header {
-  flex: 0 0 auto;
-  padding: 10px 12px;
-}
-
-.heatmap-pair-plot__header .page-header__title {
-  font-size: 0.95rem;
-}
-
-.heatmap-pair-plot__header .page-header__description {
-  max-width: 68ch;
-  font-size: 0.75rem;
-}
-
-@media (max-width: 640px) {
-  #page-heatmap {
-    overflow-y: auto;
-  }
-
-  #page-heatmap > .scatter-toolbar {
-    flex: 0 0 auto;
-    align-items: stretch;
-    padding: 4px 8px;
-  }
-
-  #page-heatmap > .scatter-toolbar > .scatter-toolbar__segment--view {
-    width: 100%;
-    padding: 4px;
-  }
-
-  #page-heatmap > .scatter-toolbar > .scatter-toolbar__segment--view .scatter-toolbar__fields {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 6px;
-    width: 100%;
-  }
-
-  #page-heatmap .heatmap-secondary-controls {
-    display: block;
-    width: 100%;
-  }
-
-  #page-heatmap .heatmap-secondary-controls[open] .analysis-secondary-disclosure__content {
-    display: grid;
-    gap: 6px;
-  }
-
-  #page-heatmap > .main--padded {
-    min-height: 300px;
-    overscroll-behavior-inline: contain;
-  }
 }
 
 .heatmap-shell {
@@ -921,6 +719,7 @@
 }
 
 .heatmap-grid-legend {
+  white-space: nowrap;
   position: sticky;
   top: 10px;
   right: 8px;
@@ -1022,19 +821,6 @@
   white-space: nowrap;
 }
 
-/* C2 — Give the heatmap toolbar segments card-style treatment so they
-   read as discrete units even though they are flush against each
-   other. The base toolbar rule already gives segments rounded
-   borders; this rule adds a subtle accent on hover and a clear border
-   on the export segment to mark the right edge. */
-#page-heatmap .scatter-toolbar {
-  gap: 8px;
-}
-
-#page-heatmap .scatter-toolbar__segment--actions {
-  margin-left: auto;
-}
-
 /* C5 — cluster separator borders. The previous colour-only cue was
    barely visible in dark mode (10% lighter blue is hard to spot); a
    2px border on the first column header / row label of each cluster
@@ -1073,19 +859,6 @@
 .heatmap-order-caption {
   color: var(--accent);
 }
-
-#heatmap-metric,
-#heatmap-metric .dropdown__trigger { width: min(100%, 360px); min-width: 0; max-width: 360px; }
-#heatmap-metric .dropdown__label { max-width: none; text-overflow: clip; }
-#heatmap-color-column,
-#heatmap-color-column .dropdown__trigger { width: min(100%, 220px); min-width: 0; max-width: 220px; }
-
-/* Marked by the relationship-page overflow controller only when real toolbar
-   groups wrap; no device-width guess is involved. */
-.analysis-secondary-disclosure[data-collapse-on-overflow][data-toolbar-overflowed="true"] { display: block; min-width: 152px; }
-.analysis-secondary-disclosure[data-collapse-on-overflow][data-toolbar-overflowed="true"] > .analysis-secondary-disclosure__summary { display: flex; min-height: var(--analysis-control-h, 32px); align-items: center; justify-content: space-between; gap: 10px; padding: 0 10px; color: var(--text); cursor: pointer; }
-.analysis-secondary-disclosure[data-collapse-on-overflow][data-toolbar-overflowed="true"]:not([open]) > .analysis-secondary-disclosure__content { display: none !important; }
-.analysis-secondary-disclosure[data-collapse-on-overflow][data-toolbar-overflowed="true"][open] > .analysis-secondary-disclosure__content { display: flex !important; flex-wrap: wrap; gap: 8px; padding: 8px; }
 
 .scatter-outlier-count {
   position: absolute;
@@ -1169,96 +942,204 @@
   }
 }
 
+/* Relationship pages own their layout; the shared toolbar keeps its behavior. */
+.relationship-page {
+  --relationship-pad: clamp(12px, 1.6vw, 24px);
+  container: relationships / inline-size;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  border: 0;
+  border-radius: 0;
+  background: var(--bg);
+}
+.relationship-page > .page-header {
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 12px;
+  padding: 16px var(--relationship-pad);
+}
+.relationship-page .page-header__copy { flex: 1; min-width: 0; gap: 5px; }
+.relationship-page .page-header__title { font-size: 1.25rem; line-height: 1.3; }
+.relationship-page .page-header__description { max-width: 85ch; font-size: .8125rem; line-height: 1.5; white-space: normal; }
+/* Compact two-row controls share the visual language of the Signals toolbar. */
+.relationship-toolbar.toolbar {
+  --analysis-control-h: 34px;
+  position: relative;
+  z-index: 30;
+  display: block;
+  flex: 0 0 auto;
+  height: auto;
+  min-width: 0;
+  padding: 0 var(--relationship-pad);
+  overflow: visible;
+  background: var(--surface-0);
+}
+.relationship-toolbar__row,
+.relationship-toolbar__toggles,
+.relationship-toolbar__control {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  min-width: 0;
+}
+.relationship-toolbar__row { padding-block: 8px; }
+.relationship-toolbar__row + .relationship-toolbar__row { border-top: 1px solid var(--border); }
+.relationship-toolbar__axes { display: contents; }
+.relationship-toolbar__field {
+  display: flex;
+  align-items: center;
+  flex: 0 1 300px;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text-dim);
+  font-size: .75rem;
+}
+.relationship-toolbar__label { flex: 0 0 auto; font-weight: 500; }
+.relationship-toolbar__mode { flex-basis: 220px; flex-wrap: wrap; }
+.relationship-toolbar__field :is(.dropdown, .modal-select) { flex: 1; width: 160px; min-width: 0; max-width: none; }
+.relationship-toolbar .dropdown__trigger { width: 100%; min-width: 0; max-width: none; font-size: .75rem; }
+.relationship-toolbar .btn,
+.relationship-toolbar__trigger {
+  min-height: 32px;
+  height: auto;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--surface-1);
+  color: var(--text);
+  font-size: .75rem;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: normal;
+  box-shadow: none;
+  cursor: pointer;
+}
+.relationship-toolbar .btn:hover:not(:disabled),
+.relationship-toolbar__trigger:hover { background: var(--shell-hover); border-color: var(--border-hi); transform: none; }
+.relationship-toolbar :is(button, summary, input, select, .dropdown__trigger):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.relationship-toolbar [hidden] { display: none !important; }
+.relationship-toolbar button:disabled { cursor: default; opacity: .5; }
+.relationship-toolbar .btn[aria-pressed="true"],
+.relationship-toolbar__popover[open] > summary { border-color: var(--accent); background: var(--accent-dim); color: var(--text-strong); }
+.relationship-toolbar__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding-inline: 4px;
+  color: var(--text-dim);
+  font-size: .75rem;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.relationship-toolbar__toggle input { flex: 0 0 auto; margin: 0; border-color: var(--text-muted); }
+.relationship-toolbar__toggle input:checked { background: var(--accent); border-color: var(--accent); box-shadow: none; }
+.relationship-toolbar__toggle:has(input:checked) { color: var(--text-strong); }
+.relationship-toolbar .relationship-toolbar__popover { position: relative; flex: 0 0 auto; min-width: 0; }
+.relationship-toolbar__popover[open] { z-index: 2; }
+.relationship-toolbar__trigger { display: list-item; list-style-position: inside; }
+.relationship-toolbar__trigger::marker { color: var(--text-dim); font-size: .65em; }
+.relationship-toolbar__panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 10;
+  display: grid;
+  gap: 12px;
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  padding: 16px;
+  border: 1px solid var(--border-hi);
+  border-radius: var(--radius);
+  background: var(--shell-surface-elevated);
+  box-shadow: var(--shadow-lg);
+  color: var(--text);
+  font-size: .8125rem;
+}
+.relationship-toolbar__panel .relationship-toolbar__field { display: grid; gap: 6px; }
+.relationship-toolbar__panel .relationship-toolbar__field :is(.dropdown, .modal-select) { width: 100%; }
+.relationship-toolbar__panel .relationship-toolbar__control { flex-wrap: nowrap; }
+.relationship-toolbar__panel .relationship-toolbar__control .btn { flex: 1; align-self: stretch; }
+.relationship-toolbar__panel input[type="range"] { flex: 1; min-width: 0; width: 100%; }
+.relationship-toolbar__density { display: grid; gap: 12px; }
+.relationship-toolbar__export { margin-left: auto; padding: 0; }
+.relationship-toolbar__export .relationship-toolbar__panel { left: auto; right: 0; width: 200px; gap: 6px; }
+.relationship-toolbar__export .btn { justify-content: flex-start; text-align: left; }
+.relationship-toolbar__refine:has(#scatter-color-column-field[style*="display: none"]) { display: none; }
+#heatmap-metric-info { order: 1; flex: 0 0 auto; }
+#scatter-analytics-group { min-width: 0; }
 
-/* On screens wider than 1024px the dead-band between the Display and
-   Export segments collapses because the segments now occupy natural
-   widths and `margin-left: auto` pushes Export to the right edge. */
-@media (min-width: 1024px) {
-  #page-heatmap .scatter-toolbar__segment--actions {
-    margin-left: auto;
-  }
+@container relationships (max-width: 700px) {
+  .relationship-toolbar__primary > .relationship-toolbar__field,
+  .relationship-toolbar__axes > .relationship-toolbar__field { flex: 1 1 calc(50% - 6px); flex-direction: column; align-items: stretch; gap: 6px; }
+  .relationship-toolbar__field :is(.dropdown, .modal-select) { width: 100%; }
+  .relationship-toolbar__primary .relationship-toolbar__mode { flex-direction: row; flex-basis: 100%; align-items: center; }
+  .relationship-toolbar__mode .dropdown { flex: 0 1 200px; }
+  .relationship-toolbar .relationship-toolbar__popover { position: static; }
+  .relationship-toolbar__panel,
+  .relationship-toolbar__export .relationship-toolbar__panel { left: 0; right: 0; top: calc(100% + 1px); width: auto; max-width: none; }
+  #heatmap-metric-info { position: absolute; top: 0; right: 0; }
+  .relationship-toolbar__field:has(#heatmap-metric-info) { position: relative; }
+}
+@media (pointer: coarse), (max-width: 640px) {
+  .relationship-toolbar.toolbar { --analysis-control-h: 40px; }
+  .relationship-toolbar :is(.btn, .relationship-toolbar__trigger, .relationship-toolbar__toggle) { min-height: 40px; }
 }
 
-/* Give the Correlation controls the full toolbar width. Keeping this rule in
-   the page-owned stylesheet also avoids charging it to every workspace page. */
-@media (min-width: 1280px) {
-  #page-heatmap > .scatter-toolbar {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    align-items: center;
-    gap: 6px;
-  }
+#page-heatmap .main--padded { flex: 0 0 auto; min-width: 0; min-height: 360px; padding: 16px var(--relationship-pad); }
+#page-heatmap .heatmap-shell { align-items: flex-start; min-width: 0; padding: 0 0 10px; overscroll-behavior-inline: contain; }
+#page-heatmap :is(.heatmap-header, .heatmap-row-label, .heatmap-corner__axis, .heatmap-grid-legend) { color: var(--accent); }
+#page-heatmap .heatmap-grid-legend { margin-top: 10px; }
+.heatmap-cell--density { box-sizing: border-box; border-radius: 4px; }
+.heatmap-legend-stack { position: sticky; top: 10px; z-index: 1; display: grid; flex: 0 0 230px; gap: 10px; align-self: flex-start; max-width: 28vw; color: var(--text); }
+.heatmap-legend-stack .heatmap-grid-legend { position: static; right: auto; grid-template-columns: auto minmax(60px, 1fr) auto; min-height: 24px; margin: 0; font-size: .72rem; }
+.heatmap-preview-error { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 0; color: var(--text-dim); font-size: .8rem; }
+.heatmap-preview-error[hidden] { display: none; }
 
-  #page-heatmap > .scatter-toolbar > .scatter-toolbar__segment--view {
-    width: 100%;
-    height: auto;
-  }
+.scatter-density-fallback-note { max-width: 30ch; color: var(--text-dim); font-size: .6875rem; line-height: 1.4; white-space: normal; }
+#heatmap-pair-plot .scatter-stats-bar { flex: 0 0 auto; align-items: stretch; gap: 12px; padding: 10px var(--relationship-pad); background: var(--surface-0); }
+#heatmap-pair-plot .scatter-stats-bar__suggestions,
+#heatmap-pair-plot .scatter-stats-bar__correlations { min-width: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+#heatmap-pair-plot .scatter-stats-bar__suggestions { flex: 1 1 440px; gap: 8px 16px; }
+#heatmap-pair-plot .scatter-stats-bar__correlations { flex-wrap: wrap; gap: 8px; padding-left: 12px; border-left: 1px solid var(--border); }
+#heatmap-pair-plot .scatter-stats-bar__chips { gap: 6px; }
+#heatmap-pair-plot .scatter-stats-bar__eyebrow { height: auto; padding: 0; border: 0; }
+#heatmap-pair-plot .scatter-suggestions { flex: 1 1 260px; min-width: 0; max-height: 88px; gap: 6px; }
+#heatmap-pair-plot .scatter-suggestion-btn { min-height: 30px; height: auto; padding: 5px 10px; white-space: normal; text-align: left; }
+#heatmap-pair-plot .scatter-filter-banner { flex: 1 1 100%; margin: 0; padding: 8px 10px; border-radius: var(--radius); box-shadow: none; }
+#heatmap-pair-plot .scatter-filter-banner__text { min-width: 0; font-size: .75rem; line-height: 1.5; overflow-wrap: anywhere; }
+#heatmap-pair-plot > .scatter-view { flex: 1 0 380px; min-height: 380px; }
+#heatmap-pair-plot .scatter-view > .main { min-width: 0; min-height: 0; }
 
-  #page-heatmap > .scatter-toolbar > .scatter-toolbar__segment--view .scatter-toolbar__fields {
-    display: grid;
-    grid-template-columns: minmax(0, 360px) minmax(0, 220px) auto auto auto auto;
-    width: 100%;
-  }
-
-  #page-heatmap > .scatter-toolbar > .scatter-toolbar__segment--view .scatter-toolbar__field:first-child {
-    width: 100%;
-    max-width: 360px;
-  }
-
-  #page-heatmap .heatmap-secondary-controls {
-    display: block;
-    min-width: 0;
-  }
-
-  #page-heatmap .heatmap-secondary-controls > .analysis-secondary-disclosure__summary {
-    display: none;
-  }
-
-  #page-heatmap .heatmap-secondary-controls > .analysis-secondary-disclosure__content {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    min-width: 0;
-  }
-
-  #page-heatmap .heatmap-secondary-controls .scatter-toolbar__segment {
-    width: auto;
-    height: auto;
-  }
-
-  #page-heatmap .heatmap-secondary-controls .scatter-toolbar__segment--display {
-    width: 100%;
-    min-width: 0;
-  }
-
-  #page-heatmap .scatter-toolbar__field--range {
-    flex: 0 0 230px;
-    min-width: 230px;
-  }
-
-  #page-heatmap .scatter-toolbar__field--fit > .toolbar-field__label {
-    display: none;
-  }
-
-  #page-heatmap .heatmap-secondary-controls .toolbar-group--push {
-    margin-left: 0;
-  }
+@container relationships (max-width: 960px) {
+  #heatmap-pair-plot .scatter-stats-bar__correlations { flex-basis: 100%; padding: 8px 0 0; border-left: 0; border-top: 1px solid var(--border); }
 }
-
-@media (min-width: 641px) and (max-width: 1279px) {
-  #page-heatmap > .scatter-toolbar > .scatter-toolbar__segment--view {
-    flex: 1 1 100%;
-    width: 100%;
-  }
-
-  #page-heatmap > .scatter-toolbar > .scatter-toolbar__segment--view .scatter-toolbar__fields {
-    display: grid;
-    grid-template-columns: minmax(0, 360px) minmax(0, 220px) auto auto auto auto;
-    width: 100%;
-  }
-
-  #page-heatmap > .scatter-toolbar > .scatter-toolbar__segment--view .scatter-toolbar__field:first-child {
-    width: 100%;
-    max-width: 360px;
-  }
+@container relationships (max-width: 520px) {
+  .relationship-page > .page-header { padding-block: 12px; }
+  #page-heatmap .heatmap-shell { flex-direction: column; gap: 12px; }
+  #page-heatmap .heatmap-legend-stack { order: -1; position: static; flex: 0 1 auto; align-self: flex-end; width: 100%; max-width: min(100%, 320px); }
+  #page-heatmap .heatmap-grid-legend { order: 0; position: static; align-self: stretch; margin: 0; }
+  #heatmap-pair-plot .scatter-stats-bar__correlations { align-items: flex-start; }
+  #heatmap-pair-plot .scatter-stat-chip { width: auto; max-width: 100%; height: auto; min-height: 28px; }
+  #heatmap-pair-plot .scatter-correlation-overlay { left: 16px; max-width: calc(100% - 32px); }
+}
+@media (pointer: coarse), (max-width: 640px) {
+  #heatmap-pair-plot .scatter-suggestion-btn { min-height: 44px; }
+}
+@media (max-width: 640px) {
+  #heatmap-pair-plot { overflow-y: auto; }
+  #heatmap-pair-plot > .page-header { order: 1; }
+  #heatmap-pair-plot > .scatter-toolbar { order: 2; }
+  #heatmap-pair-plot > .scatter-view { order: 3; flex: 1 0 340px; min-height: 300px; }
+  #heatmap-pair-plot > .scatter-stats-bar { order: 4; }
+  #scatter-marginal-x, .scatter-marginal-y-right { display: none !important; }
+  #scatter-chart.with-x-marginal { top: 0; height: 100%; }
+  #scatter-chart.with-x-marginal ~ #scatter-right-panel { top: 0; }
+  /* Mobile already hides marginals; reserve only a visible color legend. */
+  #heatmap-pair-plot #scatter-chart { width: calc(100% - 56px); }
+  #heatmap-pair-plot .scatter-right-panel { width: 56px; }
+  #heatmap-pair-plot .main:has(#scatter-colorbar-wrap[hidden]) #scatter-chart { width: 100%; }
+  #heatmap-pair-plot .main:has(#scatter-colorbar-wrap[hidden]) .scatter-right-panel { width: 0; }
 }

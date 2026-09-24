@@ -6,7 +6,11 @@ import { getActiveSeriesPalette } from '../../utils/seriesColors.js';
 import { isTemporalDtype } from '../../utils/format.js';
 import { formatTwoDecimals, formatTimestamp } from '../../formatUtils.js';
 import { escapeHtml, downloadUrl, downloadBlob, getEl } from '../../utils/dom.js';
-import { paletteForColorScale } from '../../utils/colorScales.js';
+import { DEFAULT_DENSITY_COLOR_SCALE, paletteForColorScale } from '../../utils/colorScales.js';
+import { domainRatio, prepareMiniDensityGrid, type MiniDensityBounds, type MiniDensityGrid } from './miniDensity.js';
+
+export { MINI_DENSITY_BINS, prepareMiniDensityGrid, transposeMiniDensityGrid } from './miniDensity.js';
+export type { MiniDensityBounds, MiniDensityGrid } from './miniDensity.js';
 
 export const MATRIX_POINT_LIMIT = 8_000;
 export const MATRIX_MAX_COLUMNS = 8;
@@ -323,16 +327,19 @@ export function estimateBandwidth(values: number[]): number {
 
 export function buildKdeCurve(values: number[], min: number, max: number, sampleCount = KDE_SAMPLES): { x: number; y: number }[] {
     const finite = toFiniteNumbers(values);
-    if (finite.length === 0) return [];
-    if (!(max > min)) return [{ x: min, y: 1 }, { x: max, y: 1 }];
-    const bandwidth = estimateBandwidth(finite);
+    if (finite.length === 0 || !Number.isFinite(min) || !Number.isFinite(max) || max <= min) return [];
+    // Estimate bandwidth in domain coordinates so changing units does not
+    // alter the curve, including when the values have a large common offset.
+    const normalizedValues = finite.map((value) => domainRatio(value, min, max));
+    const bandwidth = estimateBandwidth(normalizedValues);
     const scale = 1 / (finite.length * bandwidth * Math.sqrt(2 * Math.PI));
     const points: { x: number; y: number }[] = [];
-    for (let i = 0; i < sampleCount; i++) {
-        const x = min + ((max - min) * i) / Math.max(1, sampleCount - 1);
+    const samples = Math.max(2, Math.floor(sampleCount));
+    for (let i = 0; i < samples; i++) {
+        const t = i / (samples - 1);
         let sum = 0;
-        for (const v of finite) { const z = (x - v) / bandwidth; sum += Math.exp(-0.5 * z * z); }
-        points.push({ x, y: sum * scale });
+        for (const value of normalizedValues) { const z = (t - value) / bandwidth; sum += Math.exp(-0.5 * z * z); }
+        points.push({ x: min * (1 - t) + max * t, y: sum * scale });
     }
     return points;
 }
@@ -446,7 +453,7 @@ export function drawDistributionCanvas(
     canvas: HTMLCanvasElement,
     mode: string,
     seriesList: DistributionSeries[],
-    options: { background?: string; showEmptyLabel?: boolean } = {},
+    options: { background?: string; showEmptyLabel?: boolean; badge?: MiniCorrelationBadge } = {},
 ): void {
     const frame = getCanvasFrame(canvas, 320, 120);
     if (!frame) return;
@@ -463,6 +470,7 @@ export function drawDistributionCanvas(
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.fillText('No distribution', width / 2, height / 2);
         }
+        drawMiniCorrelationBadge(ctx, width, options.badge);
         return;
     }
     ctx.strokeStyle = 'rgba(54, 63, 98, 0.7)'; ctx.lineWidth = 1;
@@ -471,8 +479,9 @@ export function drawDistributionCanvas(
     const bounds = computeValueBounds(usableSeries);
     if (!bounds) return;
     const { min, max } = bounds;
-    const span = Math.max(1e-9, max - min);
-    const projectX = (v: number) => padX + ((v - min) / span) * (width - padX * 2);
+    const projectX = (v: number) => min === max
+        ? width / 2
+        : padX + domainRatio(v, min, max) * (width - padX * 2);
 
     if (mode === 'boxplot') {
         const rowHeight = (height - padY * 2) / usableSeries.length;
@@ -487,10 +496,24 @@ export function drawDistributionCanvas(
             ctx.strokeRect(projectX(stats.q1!), centerY - boxH / 2, Math.max(2, projectX(stats.q3!) - projectX(stats.q1!)), boxH);
             ctx.beginPath(); ctx.moveTo(projectX(stats.median!), centerY - boxH / 2); ctx.lineTo(projectX(stats.median!), centerY + boxH / 2); ctx.stroke();
         });
+        drawMiniCorrelationBadge(ctx, width, options.badge);
         return;
     }
 
     if (mode === 'kde') {
+        if (max === min) {
+            const x = projectX(min);
+            for (const series of usableSeries) {
+                ctx.beginPath();
+                ctx.moveTo(x, height - padY);
+                ctx.lineTo(x, padY + (height - padY * 2) * 0.2);
+                ctx.strokeStyle = series.color;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+            drawMiniCorrelationBadge(ctx, width, options.badge);
+            return;
+        }
         const curves = usableSeries.map((s) => ({ ...s, curve: buildKdeCurve(s.values, min, max) }));
         const maxDensity = curves.reduce((best, s) => Math.max(best, s.curve.reduce((b, p) => Math.max(b, p.y), 0)), 0);
         const projectY = (v: number) => height - padY - ((v / Math.max(1e-9, maxDensity)) * (height - padY * 2));
@@ -504,6 +527,26 @@ export function drawDistributionCanvas(
             s.curve.forEach((p, i) => { const x = projectX(p.x); const y = projectY(p.y); if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
             ctx.strokeStyle = s.color; ctx.lineWidth = 2; ctx.stroke();
         }
+        drawMiniCorrelationBadge(ctx, width, options.badge);
+        return;
+    }
+
+    // A zero-width histogram domain has no bins to distribute across the
+    // plot. Show a centered single-value mark instead of stretching one bin
+    // over the entire cell.
+    if (max === min) {
+        const markerX = projectX(min);
+        const rowHeight = (height - padY * 2) / usableSeries.length;
+        usableSeries.forEach((series, index) => {
+            const centerY = padY + rowHeight * index + rowHeight / 2;
+            ctx.strokeStyle = series.color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(markerX, centerY - Math.min(8, rowHeight / 3));
+            ctx.lineTo(markerX, centerY + Math.min(8, rowHeight / 3));
+            ctx.stroke();
+        });
+        drawMiniCorrelationBadge(ctx, width, options.badge);
         return;
     }
 
@@ -523,51 +566,40 @@ export function drawDistributionCanvas(
         });
     });
     ctx.globalAlpha = 1;
+    drawMiniCorrelationBadge(ctx, width, options.badge);
 }
 
-export function drawMiniScatterCanvas(canvas: HTMLCanvasElement, points: [number, number][], options: any = {}): void {
+export interface MiniScatterOptions {
+    color?: string;
+    colorValues?: number[] | null;
+    colorLabels?: unknown[] | null;
+    colorScale?: string;
+    categoryColors?: Map<string, string> | null;
+    background?: string;
+    badge?: MiniCorrelationBadge;
+    pointAlpha?: number;
+    pointRadius?: number;
+    showEmptyLabel?: boolean;
+}
+
+export function drawMiniScatterCanvas(
+    canvas: HTMLCanvasElement,
+    points: [number, number][],
+    options: MiniScatterOptions | string = {},
+): void {
     const frame = getCanvasFrame(canvas, 180, 92);
     if (!frame) return;
     const { ctx, width, height } = frame;
-    const config = typeof options === 'string' ? { color: options } : (options || {});
+    const config: MiniScatterOptions = typeof options === 'string' ? { color: options } : options;
     const baseColor = config.color || '#4a9eff';
     const colorValues = Array.isArray(config.colorValues) ? config.colorValues : null;
     const colorLabels = Array.isArray(config.colorLabels) ? config.colorLabels : null;
-    const colorScale = config.colorScale || 'viridis';
+    const colorScale = config.colorScale || DEFAULT_DENSITY_COLOR_SCALE;
     const categoryColors = config.categoryColors instanceof Map ? config.categoryColors : null;
     if (config.background) {
         ctx.fillStyle = config.background;
         ctx.fillRect(0, 0, width, height);
     }
-
-    const drawBadge = () => {
-        const badge = config.badge;
-        if (!badge?.text) return;
-        const text = String(badge.text);
-        const fontSize = Math.max(11, Math.min(14, Math.round(width * 0.11)));
-        const padX = 4;
-        const padY = 2;
-        const badgeWidth = Math.ceil(text.length * fontSize * 0.62) + padX * 2;
-        const badgeHeight = fontSize + padY * 2;
-        const badgeX = Math.max(2, width - badgeWidth - 3);
-        const badgeY = 3;
-        ctx.save();
-        ctx.fillStyle = badge.background || (badge.color === '#15202B'
-            ? 'rgba(255,255,255,0.86)'
-            : 'rgba(8,12,20,0.78)');
-        ctx.fillRect(badgeX, badgeY, badgeWidth, badgeHeight);
-        ctx.strokeStyle = badge.border || (badge.color === '#15202B'
-            ? 'rgba(21,32,43,0.28)'
-            : 'rgba(255,255,255,0.34)');
-        ctx.lineWidth = 1;
-        ctx.strokeRect(badgeX + 0.5, badgeY + 0.5, badgeWidth - 1, badgeHeight - 1);
-        ctx.font = `700 ${fontSize}px Inter, system-ui, sans-serif`;
-        ctx.textAlign = 'right';
-        ctx.textBaseline = 'top';
-        ctx.fillStyle = badge.color || '#ffffff';
-        ctx.fillText(text, width - 3 - padX, badgeY + padY);
-        ctx.restore();
-    };
 
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (const p of points) {
@@ -581,7 +613,7 @@ export function drawMiniScatterCanvas(canvas: HTMLCanvasElement, points: [number
             ctx.fillStyle = 'rgba(122, 134, 164, 0.7)'; ctx.font = '12px Inter, system-ui, sans-serif';
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('No points', width / 2, height / 2);
         }
-        drawBadge();
+        drawMiniCorrelationBadge(ctx, width, config.badge);
         return;
     }
     const pad = 8;
@@ -591,7 +623,7 @@ export function drawMiniScatterCanvas(canvas: HTMLCanvasElement, points: [number
     ctx.strokeStyle = 'rgba(54, 63, 98, 0.7)'; ctx.lineWidth = 1; ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
     const palette = paletteForScale(colorScale);
     const colorExtent = computeColorExtent(colorValues);
-    ctx.globalAlpha = Number.isFinite(config.pointAlpha) ? config.pointAlpha : 0.45;
+    ctx.globalAlpha = config.pointAlpha != null && Number.isFinite(config.pointAlpha) ? config.pointAlpha : 0.45;
     for (let i = 0; i < points.length; i += stride) {
         const x = Number(points[i]?.[0]); const y = Number(points[i]?.[1]);
         if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
@@ -607,121 +639,99 @@ export function drawMiniScatterCanvas(canvas: HTMLCanvasElement, points: [number
         ctx.fillStyle = fill; ctx.beginPath(); ctx.arc(px, py, config.pointRadius || 1.5, 0, Math.PI * 2); ctx.fill();
     }
     ctx.globalAlpha = 1;
-    drawBadge();
+    drawMiniCorrelationBadge(ctx, width, config.badge);
 }
 
-/**
- * 2D density heat-map for mini matrix cells.
- *
- * Uses a 32×32 bin grid (raised from the previous 20×20) so low-density
- * cells stop looking like sparse scatter dots, and applies a 3×3 box blur
- * over the binned grid so the rendered cells shade smoothly instead of
- * appearing as hard, isolated pixels. The "Density" label is drawn in the
- * bottom-right corner so the cell is unambiguous next to scatter cells.
- */
+export interface MiniCorrelationBadge {
+    text: string;
+    color?: string;
+    background?: string;
+    border?: string;
+}
+
+export function drawMiniCorrelationBadge(
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    badge?: MiniCorrelationBadge,
+): void {
+    if (!badge?.text || width < 34) return;
+    const text = String(badge.text);
+    const fontSize = Math.max(8, Math.min(14, Math.round(width * 0.11)));
+    const padX = 3;
+    const padY = 2;
+    const badgeWidth = Math.min(width - 4, Math.ceil(text.length * fontSize * 0.62) + padX * 2);
+    const badgeHeight = fontSize + padY * 2;
+    const badgeX = Math.max(2, width - badgeWidth - 2);
+    ctx.save();
+    ctx.fillStyle = badge.background || (badge.color === '#15202B' ? 'rgba(255,255,255,0.9)' : 'rgba(8,12,20,0.82)');
+    ctx.fillRect(badgeX, 2, badgeWidth, badgeHeight);
+    ctx.strokeStyle = badge.border || (badge.color === '#15202B' ? 'rgba(21,32,43,0.3)' : 'rgba(255,255,255,0.42)');
+    ctx.lineWidth = 1;
+    ctx.strokeRect(badgeX + 0.5, 2.5, badgeWidth - 1, badgeHeight - 1);
+    ctx.font = `700 ${fontSize}px Inter, system-ui, sans-serif`;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = badge.color || '#ffffff';
+    ctx.fillText(text, width - 4, 2 + padY);
+    ctx.restore();
+}
+
+/** Draw a density thumbnail from a prepared grid or raw pair points. */
 export function drawMiniDensityCanvas(
     canvas: HTMLCanvasElement,
     points: [number, number][],
-    options: { colorScale?: string } = {},
+    options: {
+        colorScale?: string;
+        background?: string;
+        badge?: MiniCorrelationBadge;
+        showDensityLabel?: boolean;
+        grid?: MiniDensityGrid;
+        xBounds?: MiniDensityBounds;
+        yBounds?: MiniDensityBounds;
+    } = {},
 ): void {
     const frame = getCanvasFrame(canvas, 180, 92);
     if (!frame) return;
     const { ctx, width, height } = frame;
+    if (options.background) {
+        ctx.fillStyle = options.background;
+        ctx.fillRect(0, 0, width, height);
+    }
 
-    const writeNoPoints = () => {
-        ctx.fillStyle = 'rgba(122, 134, 164, 0.7)';
-        ctx.font = '12px Inter, system-ui, sans-serif';
+    const grid = options.grid ?? prepareMiniDensityGrid(points, options.xBounds, options.yBounds);
+    if (grid.finiteCount === 0) {
+        ctx.fillStyle = 'rgba(122, 134, 164, 0.78)';
+        ctx.font = '10px Inter, system-ui, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('No points', width / 2, height / 2);
-    };
-
-    if (!points.length) {
-        writeNoPoints();
+        ctx.fillText('No observations', width / 2, height / 2);
+        drawMiniCorrelationBadge(ctx, width, options.badge);
         return;
     }
 
-    const BINS = 32;
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    let finiteCount = 0;
-    for (const p of points) {
-        const x = Number(p?.[0]); const y = Number(p?.[1]);
-        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-        if (x < minX) minX = x; if (x > maxX) maxX = x;
-        if (y < minY) minY = y; if (y > maxY) maxY = y;
-        finiteCount += 1;
-    }
-    if (!Number.isFinite(minX) || finiteCount === 0) {
-        writeNoPoints();
-        return;
-    }
-
-    const xSpan = Math.max(1e-9, maxX - minX);
-    const ySpan = Math.max(1e-9, maxY - minY);
-    const grid = new Float32Array(BINS * BINS);
-
-    for (const p of points) {
-        const x = Number(p?.[0]); const y = Number(p?.[1]);
-        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-        const bx = Math.min(BINS - 1, Math.floor(((x - minX) / xSpan) * BINS));
-        const by = Math.min(BINS - 1, Math.floor(((y - minY) / ySpan) * BINS));
-        const idx = (BINS - 1 - by) * BINS + bx;
-        grid[idx] += 1;
-    }
-
-    // Box-blur the grid (with edge clamping) so cells shade smoothly.
-    // Without this pass the high-contrast grid + sqrt scaling produces
-    // blocky shapes that read as scattered dots instead of density.
-    const smoothed = new Float32Array(BINS * BINS);
-    for (let row = 0; row < BINS; row++) {
-        for (let col = 0; col < BINS; col++) {
-            let sum = 0;
-            let hits = 0;
-            for (let dy = -1; dy <= 1; dy++) {
-                const ny = row + dy;
-                if (ny < 0 || ny >= BINS) continue;
-                for (let dx = -1; dx <= 1; dx++) {
-                    const nx = col + dx;
-                    if (nx < 0 || nx >= BINS) continue;
-                    sum += grid[ny * BINS + nx];
-                    hits += 1;
-                }
-            }
-            smoothed[row * BINS + col] = hits > 0 ? sum / hits : 0;
-        }
-    }
-
-    let maxCount = 0;
-    for (let i = 0; i < smoothed.length; i++) {
-        if (smoothed[i] > maxCount) maxCount = smoothed[i];
-    }
-    if (maxCount === 0) return;
-
-    const palette = paletteForScale(options.colorScale || 'viridis');
-    const pad = 0;
-    const cellW = (width - pad * 2) / BINS;
-    const cellH = (height - pad * 2) / BINS;
-
-    for (let row = 0; row < BINS; row++) {
-        for (let col = 0; col < BINS; col++) {
-            const count = smoothed[row * BINS + col];
-            if (count === 0) continue;
-            const t = Math.sqrt(count / maxCount); // sqrt for perceptual scaling
-            ctx.fillStyle = sampleGradient(palette, t);
-            ctx.fillRect(pad + col * cellW, pad + row * cellH, Math.ceil(cellW), Math.ceil(cellH));
+    const palette = paletteForScale(options.colorScale || DEFAULT_DENSITY_COLOR_SCALE);
+    const cellW = width / grid.bins;
+    const cellH = height / grid.bins;
+    for (let row = 0; row < grid.bins; row++) {
+        for (let col = 0; col < grid.bins; col++) {
+            const count = grid.counts[row * grid.bins + col]!;
+            if (count <= 0) continue;
+            ctx.fillStyle = sampleGradient(palette, Math.sqrt(count / grid.maxCount));
+            ctx.fillRect(col * cellW, row * cellH, Math.ceil(cellW), Math.ceil(cellH));
         }
     }
     ctx.strokeStyle = 'rgba(54, 63, 98, 0.7)';
     ctx.lineWidth = 1;
     ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
 
-    // Density badge in the bottom-right so the cell reads unambiguously as
-    // "density" instead of being mistaken for a faint scatter cell.
-    ctx.font = '9px Inter, system-ui, sans-serif';
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'bottom';
-    ctx.fillStyle = 'rgba(238, 244, 255, 0.55)';
-    ctx.fillText('Density', width - 4, height - 3);
+    if (options.showDensityLabel !== false) {
+        ctx.font = '9px Inter, system-ui, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'bottom';
+        ctx.fillStyle = 'rgba(238, 244, 255, 0.82)';
+        ctx.fillText('Density', width - 4, height - 3);
+    }
+    drawMiniCorrelationBadge(ctx, width, options.badge);
 }
 
 export function buildGroupedDistributionSeries(values: number[], labels?: unknown[] | null): DistributionSeries[] | null {

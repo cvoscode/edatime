@@ -44,6 +44,7 @@ export const TIMESERIES_HELP: PageHelpContent = {
                 'Analytics — opens rolling bands, anomalies, and cleanup controls; results are rendered as overlays on the chart',
                 'Zoom — the −/↺ buttons zoom out one step and reset to the initial view; the badge shows the current zoom percentage',
                 'Quick range — 24h / 7d / 30d / All snap the time window to common ranges (UTC); the buttons enable once the dataset has a valid time column',
+                'Normalize each series — scales each trace to 0–1 using the samples remaining after its range and adaptive filters in the current time window. Gaps stay hidden; constant traces sit at 0.5. Filter bounds remain in source units.',
             ],
         },
         {
