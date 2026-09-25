@@ -114,10 +114,9 @@ pub async fn post_connect(
             edatime_core::error::AppError::database_timeout("Database snapshot timed out")
         })??;
         let n = df.height();
-        state.replace_dataset(df).await?;
-        if let Some(ref tc) = body.time_column {
-            state.set_time_column_display_name(Some(tc.clone()));
-        }
+        state
+            .replace_dataset_with_time_column(df, body.time_column.clone())
+            .await?;
         rows_loaded = Some(n);
         tracing::info!(rows = n, table = %table, "TimescaleDB snapshot loaded");
     }
@@ -325,10 +324,9 @@ pub async fn post_load(
         })
         .collect();
     let time_col_clone = body.time_column.clone();
-    let rev = state.replace_dataset(df).await?;
-    if let Some(ref tc) = body.time_column {
-        state.set_time_column_display_name(Some(tc.clone()));
-    }
+    let rev = state
+        .replace_dataset_with_time_column(df, body.time_column.clone())
+        .await?;
 
     // Update connection metadata.
     let mut info = state.db_info.write().await;

@@ -17,43 +17,149 @@ pub struct CorrelationMatrixCacheEntry {
     pub spearman_diff: Vec<Vec<Option<f64>>>,
     pub kendall_diff: Vec<Vec<Option<f64>>>,
     pub counts: Vec<Vec<usize>>,
+    pub diff_counts: Vec<Vec<usize>>,
 }
 
 type WorkingCorrelationKey = (String, String, &'static str);
 type WorkingCorrelationSlot = Arc<tokio::sync::OnceCell<CorrelationMatrixCacheEntry>>;
 
+struct WorkingCorrelationEntry {
+    key: WorkingCorrelationKey,
+    slot: WorkingCorrelationSlot,
+    estimated_bytes: usize,
+}
+
 /// Bounded results for immutable source/plan/mode combinations. Each slot
 /// coalesces its own computation without blocking requests for other plans.
-#[derive(Default)]
 pub struct WorkingCorrelationCache {
-    entries: VecDeque<(WorkingCorrelationKey, WorkingCorrelationSlot)>,
+    entries: VecDeque<WorkingCorrelationEntry>,
+    max_bytes: usize,
+    total_bytes: usize,
+}
+
+impl Default for WorkingCorrelationCache {
+    fn default() -> Self {
+        Self::new(32 * 1024 * 1024)
+    }
 }
 
 impl WorkingCorrelationCache {
     const MAX_ENTRIES: usize = 24;
+
+    pub fn new(max_bytes: usize) -> Self {
+        Self {
+            entries: VecDeque::new(),
+            max_bytes,
+            total_bytes: 0,
+        }
+    }
+
+    /// Reconcile a producer's reservation before its result is published.
+    /// Retention uses the result's actual owned capacities; an evicted
+    /// producer must never resize a newer slot with the same logical key.
+    pub fn record_result_size(&mut self, slot: &WorkingCorrelationSlot, actual_bytes: usize) {
+        let Some(index) = self
+            .entries
+            .iter()
+            .position(|entry| Arc::ptr_eq(&entry.slot, slot))
+        else {
+            return;
+        };
+        let Some(mut entry) = self.entries.remove(index) else {
+            return;
+        };
+        self.total_bytes = self.total_bytes.saturating_sub(entry.estimated_bytes);
+        if actual_bytes > self.max_bytes {
+            return;
+        }
+        while self.total_bytes.saturating_add(actual_bytes) > self.max_bytes {
+            let Some(oldest) = self.entries.pop_front() else {
+                break;
+            };
+            self.total_bytes = self.total_bytes.saturating_sub(oldest.estimated_bytes);
+        }
+        entry.estimated_bytes = actual_bytes;
+        self.total_bytes = self.total_bytes.saturating_add(actual_bytes);
+        self.entries.push_back(entry);
+    }
 
     pub fn entry(
         &mut self,
         source_version: String,
         plan_hash: String,
         mode: &'static str,
+        estimated_bytes: usize,
     ) -> WorkingCorrelationSlot {
         let key = (source_version, plan_hash, mode);
-        if let Some(index) = self
-            .entries
-            .iter()
-            .position(|(cached_key, _)| cached_key == &key)
-            && let Some((key, slot)) = self.entries.remove(index)
+        if let Some(index) = self.entries.iter().position(|entry| entry.key == key)
+            && let Some(entry) = self.entries.remove(index)
         {
-            self.entries.push_back((key, Arc::clone(&slot)));
+            self.entries.push_back(WorkingCorrelationEntry {
+                key: entry.key,
+                slot: Arc::clone(&entry.slot),
+                estimated_bytes: entry.estimated_bytes,
+            });
+            return entry.slot;
+        }
+
+        let slot = Arc::new(tokio::sync::OnceCell::new());
+        if estimated_bytes > self.max_bytes {
             return slot;
         }
-        if self.entries.len() >= Self::MAX_ENTRIES {
-            self.entries.pop_front();
+        while self.entries.len() >= Self::MAX_ENTRIES
+            || self.total_bytes.saturating_add(estimated_bytes) > self.max_bytes
+        {
+            let Some(oldest) = self.entries.pop_front() else {
+                break;
+            };
+            self.total_bytes = self.total_bytes.saturating_sub(oldest.estimated_bytes);
         }
-        let slot = Arc::new(tokio::sync::OnceCell::new());
-        self.entries.push_back((key, Arc::clone(&slot)));
+        self.total_bytes = self.total_bytes.saturating_add(estimated_bytes);
+        self.entries.push_back(WorkingCorrelationEntry {
+            key,
+            slot: Arc::clone(&slot),
+            estimated_bytes,
+        });
         slot
+    }
+}
+
+impl CorrelationMatrixCacheEntry {
+    /// Conservative heap estimate for cache admission. Counts Vec headers,
+    /// row capacities, and owned column names as well as their elements.
+    pub fn estimated_bytes(&self) -> usize {
+        fn matrix_bytes<T>(matrix: &[Vec<T>]) -> usize {
+            matrix
+                .len()
+                .saturating_mul(std::mem::size_of::<Vec<T>>())
+                .saturating_add(
+                    matrix
+                        .iter()
+                        .map(|row| row.capacity().saturating_mul(std::mem::size_of::<T>()))
+                        .fold(0usize, usize::saturating_add),
+                )
+        }
+
+        std::mem::size_of::<Self>()
+            .saturating_add(
+                self.columns
+                    .capacity()
+                    .saturating_mul(std::mem::size_of::<String>())
+                    .saturating_add(
+                        self.columns
+                            .iter()
+                            .map(|column| column.capacity())
+                            .fold(0usize, usize::saturating_add),
+                    ),
+            )
+            .saturating_add(matrix_bytes(&self.pearson_raw))
+            .saturating_add(matrix_bytes(&self.spearman_raw))
+            .saturating_add(matrix_bytes(&self.kendall_raw))
+            .saturating_add(matrix_bytes(&self.pearson_diff))
+            .saturating_add(matrix_bytes(&self.spearman_diff))
+            .saturating_add(matrix_bytes(&self.kendall_diff))
+            .saturating_add(matrix_bytes(&self.counts))
+            .saturating_add(matrix_bytes(&self.diff_counts))
     }
 }
 
@@ -383,32 +489,84 @@ mod tests {
 
     #[test]
     fn working_correlation_cache_bounds_results_and_keeps_recent_modes() {
-        let mut cache = WorkingCorrelationCache::default();
-        let first = cache.entry("source".into(), "plan-0".into(), "pearson_raw");
-        let oldest = cache.entry("source".into(), "plan-1".into(), "pearson_raw");
+        let mut cache = WorkingCorrelationCache::new(1024);
+        let first = cache.entry("source".into(), "plan-0".into(), "pearson_raw", 1);
+        let oldest = cache.entry("source".into(), "plan-1".into(), "pearson_raw", 1);
         for index in 2..WorkingCorrelationCache::MAX_ENTRIES {
-            cache.entry("source".into(), format!("plan-{index}"), "pearson_raw");
+            cache.entry("source".into(), format!("plan-{index}"), "pearson_raw", 1);
         }
         assert!(Arc::ptr_eq(
             &first,
-            &cache.entry("source".into(), "plan-0".into(), "pearson_raw")
+            &cache.entry("source".into(), "plan-0".into(), "pearson_raw", 1)
         ));
-        let spearman = cache.entry("source".into(), "plan-0".into(), "spearman_raw");
+        let spearman = cache.entry("source".into(), "plan-0".into(), "spearman_raw", 1);
         assert!(!Arc::ptr_eq(&first, &spearman));
         assert_eq!(cache.entries.len(), WorkingCorrelationCache::MAX_ENTRIES);
         assert!(Arc::ptr_eq(
             &first,
-            &cache.entry("source".into(), "plan-0".into(), "pearson_raw")
+            &cache.entry("source".into(), "plan-0".into(), "pearson_raw", 1)
         ));
         assert!(!Arc::ptr_eq(
             &oldest,
-            &cache.entry("source".into(), "plan-1".into(), "pearson_raw")
+            &cache.entry("source".into(), "plan-1".into(), "pearson_raw", 1)
         ));
         assert!(!Arc::ptr_eq(
             &first,
-            &cache.entry("another-source".into(), "plan-0".into(), "pearson_raw")
+            &cache.entry("another-source".into(), "plan-0".into(), "pearson_raw", 1)
         ));
         assert_eq!(cache.entries.len(), WorkingCorrelationCache::MAX_ENTRIES);
+    }
+
+    #[test]
+    fn working_correlation_cache_evicts_by_reserved_bytes_and_skips_oversized_entries() {
+        let mut cache = WorkingCorrelationCache::new(10);
+        let first = cache.entry("source".into(), "plan-1".into(), "pearson_raw", 6);
+        let _second = cache.entry("source".into(), "plan-2".into(), "pearson_raw", 6);
+
+        assert_eq!(cache.total_bytes, 6);
+        assert_eq!(cache.entries.len(), 1);
+        let reinserted = cache.entry("source".into(), "plan-1".into(), "pearson_raw", 6);
+        assert!(!Arc::ptr_eq(&first, &reinserted));
+        assert_eq!(cache.total_bytes, 6);
+        assert_eq!(cache.entries.len(), 1);
+
+        let entry_count = cache.entries.len();
+        let oversized = cache.entry("source".into(), "plan-3".into(), "pearson_raw", 11);
+        assert_eq!(cache.entries.len(), entry_count);
+        assert_eq!(cache.total_bytes, 6);
+        assert!(Arc::ptr_eq(
+            &reinserted,
+            &cache.entry("source".into(), "plan-1".into(), "pearson_raw", 6)
+        ));
+        assert!(!Arc::ptr_eq(&reinserted, &oversized));
+    }
+
+    #[test]
+    fn working_correlation_cache_reconciles_actual_result_bytes() {
+        let mut cache = WorkingCorrelationCache::new(10);
+        let first = cache.entry("source".into(), "plan-1".into(), "pearson_raw", 2);
+        let second = cache.entry("source".into(), "plan-2".into(), "pearson_raw", 2);
+        cache.record_result_size(&second, 9);
+        assert_eq!(cache.total_bytes, 9);
+        assert_eq!(cache.entries.len(), 1);
+        assert!(Arc::ptr_eq(&cache.entries[0].slot, &second));
+        // Completion of an evicted producer cannot evict/resize its successor.
+        cache.record_result_size(&first, 10);
+        assert_eq!(cache.total_bytes, 9);
+        cache.record_result_size(&second, 11);
+        assert_eq!(cache.total_bytes, 0);
+        assert!(cache.entries.is_empty());
+    }
+
+    #[test]
+    fn working_correlation_cache_ignores_result_from_replaced_slot() {
+        let mut cache = WorkingCorrelationCache::new(10);
+        let previous = cache.entry("source".into(), "plan".into(), "pearson_raw", 6);
+        cache.entry("source".into(), "another".into(), "pearson_raw", 6);
+        let current = cache.entry("source".into(), "plan".into(), "pearson_raw", 6);
+        cache.record_result_size(&previous, 1);
+        assert_eq!(cache.total_bytes, 6);
+        assert!(Arc::ptr_eq(&cache.entries[0].slot, &current));
     }
 
     fn test_cache() -> Arc<ResponseCache> {

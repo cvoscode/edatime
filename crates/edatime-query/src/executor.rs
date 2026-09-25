@@ -656,6 +656,112 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn cancelled_request_keeps_interactive_permit_until_worker_exits() {
+        let executor = Arc::new(
+            QueryExecutor::new(ExecutionContext::Parallel).with_admission(
+                1,
+                1,
+                1,
+                1,
+                Duration::from_millis(10),
+            ),
+        );
+        let (started_tx, started_rx) = std::sync::mpsc::sync_channel(1);
+        let (cancelled_tx, cancelled_rx) = std::sync::mpsc::sync_channel(1);
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let (finished_tx, finished_rx) = std::sync::mpsc::sync_channel(1);
+        let worker = Arc::clone(&executor);
+        let request = tokio::spawn(async move {
+            worker
+                .run_interactive_cancellable(CpuStage::Scatter, move |probe| {
+                    started_tx.send(()).expect("signal worker start");
+                    while !probe.is_cancelled() {
+                        std::thread::sleep(Duration::from_millis(1));
+                    }
+                    cancelled_tx.send(()).expect("signal cancellation");
+                    release_rx.recv().expect("wait for worker release");
+                    finished_tx.send(()).expect("signal worker finish");
+                })
+                .await
+        });
+
+        started_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("worker started");
+        request.abort();
+        let _ = request.await;
+        cancelled_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("worker observed caller cancellation");
+        assert!(matches!(
+            executor.run_interactive(CpuStage::Scatter, || ()).await,
+            Err(AppError::Overloaded(_))
+        ));
+
+        release_tx.send(()).expect("release worker");
+        finished_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("worker finished");
+        executor
+            .run_interactive(CpuStage::Scatter, || ())
+            .await
+            .expect("worker released its admission permit");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn concurrent_interactive_work_keeps_tokio_tasks_responsive() {
+        let executor = Arc::new(
+            QueryExecutor::new(ExecutionContext::Parallel).with_admission(
+                2,
+                1,
+                1,
+                1,
+                Duration::from_secs(1),
+            ),
+        );
+        let heartbeat_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let heartbeat_counter = Arc::clone(&heartbeat_count);
+        let heartbeat = tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_millis(2));
+            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            loop {
+                interval.tick().await;
+                heartbeat_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            }
+        });
+        let first_executor = Arc::clone(&executor);
+        let second_executor = Arc::clone(&executor);
+        let first_counter = Arc::clone(&heartbeat_count);
+        let second_counter = Arc::clone(&heartbeat_count);
+        let work = async move {
+            tokio::join!(
+                first_executor.run_interactive(CpuStage::Scatter, move || {
+                    wait_for_heartbeat(first_counter)
+                }),
+                second_executor.run_interactive(CpuStage::Scatter, move || {
+                    wait_for_heartbeat(second_counter)
+                }),
+            )
+        };
+        let results = tokio::time::timeout(Duration::from_secs(2), work)
+            .await
+            .expect("interactive workers should finish");
+        heartbeat.abort();
+        assert!(results.0.expect("first worker") >= 3);
+        assert!(results.1.expect("second worker") >= 3);
+    }
+
+    fn wait_for_heartbeat(counter: Arc<std::sync::atomic::AtomicUsize>) -> usize {
+        let deadline = std::time::Instant::now() + Duration::from_secs(1);
+        while counter.load(std::sync::atomic::Ordering::Relaxed) < 3
+            && std::time::Instant::now() < deadline
+        {
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        counter.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn dropping_cancellable_work_signals_its_worker_and_records_cancellation() {
         let metrics = Arc::new(AppMetrics::new());
         let executor = Arc::new(

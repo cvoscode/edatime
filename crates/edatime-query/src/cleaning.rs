@@ -499,222 +499,248 @@ pub fn validate_cleaning_plan(plan: &CleaningPlanDto) -> Result<(), AppError> {
     Ok(())
 }
 
-/// Compile all enabled v1 portable stages in their saved order.
-pub fn compile_cleaning_plan(
-    mut lf: LazyFrame,
-    plan: &CleaningPlanDto,
-) -> Result<LazyFrame, AppError> {
-    validate_cleaning_plan(plan)?;
-    for stage in &plan.stages {
-        if !stage.enabled() {
-            continue;
-        }
-        lf = match stage {
-            CleaningStageDto::TimeRange {
-                start_ms,
-                end_ms,
-                mode,
-                ..
-            } => apply_time_range_stage(
-                lf,
-                &plan.time_column,
-                *start_ms,
-                *end_ms,
-                *mode == TimeRangeMode::KeepInside,
-            )?,
-            CleaningStageDto::ColumnRange {
-                column,
-                from,
-                to,
-                mode,
-                retain_nulls,
-                ..
-            } => {
-                let filter = RangeFilter {
-                    column: column.clone(),
-                    from: *from,
-                    to: *to,
-                };
-                apply_range_stage(lf, &filter, *mode == RangeMode::KeepInside, *retain_nulls)?
-            }
-            CleaningStageDto::AdaptiveLine {
-                column,
-                x1_ms,
-                y1,
-                x2_ms,
-                y2,
-                keep_above,
-                apply_within_segment_only,
-                ..
-            } => {
-                let filter = LineFilter {
-                    id: None,
-                    column: column.clone(),
-                    x1: *x1_ms,
-                    y1: *y1,
-                    x2: *x2_ms,
-                    y2: *y2,
-                    keep_above: *keep_above,
-                };
-                apply_line_stage(lf, &plan.time_column, &filter, *apply_within_segment_only)?
-            }
-            CleaningStageDto::MissingValue {
-                column,
-                drop_nulls,
-                drop_non_finite,
-                ..
-            } => {
-                let value = polars::prelude::col(column);
-                let predicate = match (*drop_nulls, *drop_non_finite) {
-                    (true, true) => value.clone().is_not_null().and(value.is_finite()),
-                    (true, false) => value.is_not_null(),
-                    (false, true) => value.clone().is_null().or(value.is_finite()),
-                    (false, false) => unreachable!("validated missing-value policy"),
-                };
-                lf.filter(predicate)
-            }
-            CleaningStageDto::Deduplicate { columns, keep, .. } => {
-                let strategy = match keep {
-                    DuplicateKeep::First => polars::prelude::UniqueKeepStrategy::First,
-                    DuplicateKeep::Last => polars::prelude::UniqueKeepStrategy::Last,
-                };
-                lf.unique_stable_generic(
-                    Some(columns.iter().map(polars::prelude::col).collect()),
-                    strategy,
-                )
-            }
-            CleaningStageDto::ColumnSelect { columns, mode, .. } => match mode {
-                ColumnSelectMode::Keep => {
-                    lf.select(columns.iter().map(polars::prelude::col).collect::<Vec<_>>())
-                }
-                ColumnSelectMode::Drop => lf.drop(polars::prelude::by_name(columns, true, false)),
-            },
-            CleaningStageDto::Sort {
-                columns,
-                descending,
-                nulls_last,
-                ..
-            } => lf.sort(
-                columns.iter().map(String::as_str).collect::<Vec<_>>(),
-                polars::prelude::SortMultipleOptions::default()
-                    .with_order_descending(*descending)
-                    .with_nulls_last(*nulls_last)
-                    .with_maintain_order(true),
-            ),
-            CleaningStageDto::FillNull {
-                columns,
-                strategy,
-                limit,
-                ..
-            } => {
-                let strategy = match strategy {
-                    FillNullDirection::Forward => {
-                        polars::prelude::FillNullStrategy::Forward(*limit)
-                    }
-                    FillNullDirection::Backward => {
-                        polars::prelude::FillNullStrategy::Backward(*limit)
-                    }
-                };
-                lf.with_columns(
-                    columns
-                        .iter()
-                        .map(|column| {
-                            polars::prelude::col(column).fill_null_with_strategy(strategy)
-                        })
-                        .collect::<Vec<_>>(),
-                )
-            }
-            CleaningStageDto::Resample {
-                every,
-                aggregations,
-                ..
-            } => {
-                let every = parse_fixed_duration(stage.id(), every)?;
-                let expressions = aggregations
-                    .iter()
-                    .map(|aggregation| {
-                        let value = polars::prelude::col(&aggregation.column);
-                        match aggregation.method {
-                            ResampleAggregationMethod::Mean => value.mean(),
-                            ResampleAggregationMethod::Sum => value.sum(),
-                            ResampleAggregationMethod::Min => value.min(),
-                            ResampleAggregationMethod::Max => value.max(),
-                            ResampleAggregationMethod::Last => value.last(),
-                        }
-                        .alias(&aggregation.column)
-                    })
-                    .collect::<Vec<_>>();
-                lf.group_by_dynamic(
-                    polars::prelude::col(&plan.time_column),
-                    [],
-                    polars::prelude::DynamicGroupOptions {
-                        every,
-                        period: every,
-                        offset: polars::prelude::Duration::try_parse("0ns")
-                            .expect("zero fixed duration is valid"),
-                        label: polars::prelude::Label::Left,
-                        include_boundaries: false,
-                        closed_window: polars::prelude::ClosedWindow::Left,
-                        start_by: polars::prelude::StartBy::WindowBound,
-                        ..Default::default()
-                    },
-                )
-                .agg(expressions)
-            }
-            CleaningStageDto::ChronologicalSplit {
-                train_end_ms,
-                validation_end_ms,
-                embargo_ms,
-                output_column,
-                ..
-            } => {
-                let schema = lf.clone().collect_schema().map_err(|error| {
-                    AppError::bad_request(format!("Failed to inspect split time column: {error}"))
-                })?;
-                let dtype = schema.get(&plan.time_column).ok_or_else(|| {
-                    AppError::bad_request(format!(
-                        "Missing time column '{}' for chronological split",
-                        plan.time_column
-                    ))
-                })?;
-                let train_end = temporal::epoch_ms_to_native(*train_end_ms, dtype, true)?;
-                let validation_end = temporal::epoch_ms_to_native(*validation_end_ms, dtype, true)?;
-                let train_embargo_end =
-                    temporal::epoch_ms_to_native(*train_end_ms + *embargo_ms, dtype, true)?;
-                let validation_embargo_end =
-                    temporal::epoch_ms_to_native(*validation_end_ms + *embargo_ms, dtype, true)?;
-                let time =
-                    polars::prelude::col(&plan.time_column).cast(polars::prelude::DataType::Int64);
-                lf.with_columns([polars::prelude::when(time.clone().is_null())
-                    .then(polars::prelude::lit("unassigned"))
-                    .when(time.clone().lt_eq(polars::prelude::lit(train_end)))
-                    .then(polars::prelude::lit("train"))
-                    .when(time.clone().lt_eq(polars::prelude::lit(train_embargo_end)))
-                    .then(polars::prelude::lit("embargo"))
-                    .when(time.clone().lt_eq(polars::prelude::lit(validation_end)))
-                    .then(polars::prelude::lit("validation"))
-                    .when(time.lt_eq(polars::prelude::lit(validation_embargo_end)))
-                    .then(polars::prelude::lit("embargo"))
-                    .otherwise(polars::prelude::lit("test"))
-                    .alias(output_column)])
-            }
-            CleaningStageDto::DerivedColumn {
-                expression,
-                output_column,
-                ..
-            } => {
-                let schema = lf.clone().collect_schema().map_err(|error| {
-                    AppError::bad_request(format!(
-                        "Failed to inspect derived expression columns: {error}"
-                    ))
-                })?;
-                let expression = parse_derived_expression(expression)?;
-                validate_derived_expression_columns(&expression, &schema)?;
-                lf.with_column(expression.to_polars_expr().alias(output_column))
-            }
-            CleaningStageDto::Annotation { .. } => lf,
-        };
+/// A cleaning plan whose cross-stage prerequisites have been checked.
+///
+/// Preview code can apply a saved stage prefix without revalidating each stage
+/// as a standalone plan, which would discard earlier ordering context.
+pub struct ValidatedCleaningPlan<'a> {
+    plan: &'a CleaningPlanDto,
+}
+
+impl<'a> ValidatedCleaningPlan<'a> {
+    pub fn new(plan: &'a CleaningPlanDto) -> Result<Self, AppError> {
+        validate_cleaning_plan(plan)?;
+        Ok(Self { plan })
     }
+
+    pub fn compile(&self, mut lf: LazyFrame) -> Result<LazyFrame, AppError> {
+        for index in 0..self.plan.stages.len() {
+            lf = self.compile_stage(lf, index)?;
+        }
+        Ok(lf)
+    }
+
+    /// Apply the stage at `index`; prerequisite validation belongs to `new`.
+    pub fn compile_stage(&self, lf: LazyFrame, index: usize) -> Result<LazyFrame, AppError> {
+        let stage = self.plan.stages.get(index).ok_or_else(|| {
+            AppError::bad_request(format!("Cleaning stage index {index} is out of range"))
+        })?;
+        compile_validated_stage(lf, self.plan, stage)
+    }
+}
+
+/// Compile all enabled v1 portable stages in their saved order.
+pub fn compile_cleaning_plan(lf: LazyFrame, plan: &CleaningPlanDto) -> Result<LazyFrame, AppError> {
+    ValidatedCleaningPlan::new(plan)?.compile(lf)
+}
+
+fn compile_validated_stage(
+    lf: LazyFrame,
+    plan: &CleaningPlanDto,
+    stage: &CleaningStageDto,
+) -> Result<LazyFrame, AppError> {
+    if !stage.enabled() {
+        return Ok(lf);
+    }
+    let lf = match stage {
+        CleaningStageDto::TimeRange {
+            start_ms,
+            end_ms,
+            mode,
+            ..
+        } => apply_time_range_stage(
+            lf,
+            &plan.time_column,
+            *start_ms,
+            *end_ms,
+            *mode == TimeRangeMode::KeepInside,
+        )?,
+        CleaningStageDto::ColumnRange {
+            column,
+            from,
+            to,
+            mode,
+            retain_nulls,
+            ..
+        } => {
+            let filter = RangeFilter {
+                column: column.clone(),
+                from: *from,
+                to: *to,
+            };
+            apply_range_stage(lf, &filter, *mode == RangeMode::KeepInside, *retain_nulls)?
+        }
+        CleaningStageDto::AdaptiveLine {
+            column,
+            x1_ms,
+            y1,
+            x2_ms,
+            y2,
+            keep_above,
+            apply_within_segment_only,
+            ..
+        } => {
+            let filter = LineFilter {
+                id: None,
+                column: column.clone(),
+                x1: *x1_ms,
+                y1: *y1,
+                x2: *x2_ms,
+                y2: *y2,
+                keep_above: *keep_above,
+            };
+            apply_line_stage(lf, &plan.time_column, &filter, *apply_within_segment_only)?
+        }
+        CleaningStageDto::MissingValue {
+            column,
+            drop_nulls,
+            drop_non_finite,
+            ..
+        } => {
+            let value = polars::prelude::col(column);
+            let predicate = match (*drop_nulls, *drop_non_finite) {
+                (true, true) => value.clone().is_not_null().and(value.is_finite()),
+                (true, false) => value.is_not_null(),
+                (false, true) => value.clone().is_null().or(value.is_finite()),
+                (false, false) => unreachable!("validated missing-value policy"),
+            };
+            lf.filter(predicate)
+        }
+        CleaningStageDto::Deduplicate { columns, keep, .. } => {
+            let strategy = match keep {
+                DuplicateKeep::First => polars::prelude::UniqueKeepStrategy::First,
+                DuplicateKeep::Last => polars::prelude::UniqueKeepStrategy::Last,
+            };
+            lf.unique_stable_generic(
+                Some(columns.iter().map(polars::prelude::col).collect()),
+                strategy,
+            )
+        }
+        CleaningStageDto::ColumnSelect { columns, mode, .. } => match mode {
+            ColumnSelectMode::Keep => {
+                lf.select(columns.iter().map(polars::prelude::col).collect::<Vec<_>>())
+            }
+            ColumnSelectMode::Drop => lf.drop(polars::prelude::by_name(columns, true, false)),
+        },
+        CleaningStageDto::Sort {
+            columns,
+            descending,
+            nulls_last,
+            ..
+        } => lf.sort(
+            columns.iter().map(String::as_str).collect::<Vec<_>>(),
+            polars::prelude::SortMultipleOptions::default()
+                .with_order_descending(*descending)
+                .with_nulls_last(*nulls_last)
+                .with_maintain_order(true),
+        ),
+        CleaningStageDto::FillNull {
+            columns,
+            strategy,
+            limit,
+            ..
+        } => {
+            let strategy = match strategy {
+                FillNullDirection::Forward => polars::prelude::FillNullStrategy::Forward(*limit),
+                FillNullDirection::Backward => polars::prelude::FillNullStrategy::Backward(*limit),
+            };
+            lf.with_columns(
+                columns
+                    .iter()
+                    .map(|column| polars::prelude::col(column).fill_null_with_strategy(strategy))
+                    .collect::<Vec<_>>(),
+            )
+        }
+        CleaningStageDto::Resample {
+            every,
+            aggregations,
+            ..
+        } => {
+            let every = parse_fixed_duration(stage.id(), every)?;
+            let expressions = aggregations
+                .iter()
+                .map(|aggregation| {
+                    let value = polars::prelude::col(&aggregation.column);
+                    match aggregation.method {
+                        ResampleAggregationMethod::Mean => value.mean(),
+                        ResampleAggregationMethod::Sum => value.sum(),
+                        ResampleAggregationMethod::Min => value.min(),
+                        ResampleAggregationMethod::Max => value.max(),
+                        ResampleAggregationMethod::Last => value.last(),
+                    }
+                    .alias(&aggregation.column)
+                })
+                .collect::<Vec<_>>();
+            lf.group_by_dynamic(
+                polars::prelude::col(&plan.time_column),
+                [],
+                polars::prelude::DynamicGroupOptions {
+                    every,
+                    period: every,
+                    offset: polars::prelude::Duration::try_parse("0ns")
+                        .expect("zero fixed duration is valid"),
+                    label: polars::prelude::Label::Left,
+                    include_boundaries: false,
+                    closed_window: polars::prelude::ClosedWindow::Left,
+                    start_by: polars::prelude::StartBy::WindowBound,
+                    ..Default::default()
+                },
+            )
+            .agg(expressions)
+        }
+        CleaningStageDto::ChronologicalSplit {
+            train_end_ms,
+            validation_end_ms,
+            embargo_ms,
+            output_column,
+            ..
+        } => {
+            let schema = lf.clone().collect_schema().map_err(|error| {
+                AppError::bad_request(format!("Failed to inspect split time column: {error}"))
+            })?;
+            let dtype = schema.get(&plan.time_column).ok_or_else(|| {
+                AppError::bad_request(format!(
+                    "Missing time column '{}' for chronological split",
+                    plan.time_column
+                ))
+            })?;
+            let train_end = temporal::epoch_ms_to_native(*train_end_ms, dtype, true)?;
+            let validation_end = temporal::epoch_ms_to_native(*validation_end_ms, dtype, true)?;
+            let train_embargo_end =
+                temporal::epoch_ms_to_native(*train_end_ms + *embargo_ms, dtype, true)?;
+            let validation_embargo_end =
+                temporal::epoch_ms_to_native(*validation_end_ms + *embargo_ms, dtype, true)?;
+            let time =
+                polars::prelude::col(&plan.time_column).cast(polars::prelude::DataType::Int64);
+            lf.with_columns([polars::prelude::when(time.clone().is_null())
+                .then(polars::prelude::lit("unassigned"))
+                .when(time.clone().lt_eq(polars::prelude::lit(train_end)))
+                .then(polars::prelude::lit("train"))
+                .when(time.clone().lt_eq(polars::prelude::lit(train_embargo_end)))
+                .then(polars::prelude::lit("embargo"))
+                .when(time.clone().lt_eq(polars::prelude::lit(validation_end)))
+                .then(polars::prelude::lit("validation"))
+                .when(time.lt_eq(polars::prelude::lit(validation_embargo_end)))
+                .then(polars::prelude::lit("embargo"))
+                .otherwise(polars::prelude::lit("test"))
+                .alias(output_column)])
+        }
+        CleaningStageDto::DerivedColumn {
+            expression,
+            output_column,
+            ..
+        } => {
+            let schema = lf.clone().collect_schema().map_err(|error| {
+                AppError::bad_request(format!(
+                    "Failed to inspect derived expression columns: {error}"
+                ))
+            })?;
+            let expression = parse_derived_expression(expression)?;
+            validate_derived_expression_columns(&expression, &schema)?;
+            lf.with_column(expression.to_polars_expr().alias(output_column))
+        }
+        CleaningStageDto::Annotation { .. } => lf,
+    };
     Ok(lf)
 }
 

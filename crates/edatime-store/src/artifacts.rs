@@ -33,6 +33,8 @@ pub struct DatasetArtifactProvenance {
     pub revision: u64,
     pub schema_fingerprint: String,
     pub source_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub time_column: Option<String>,
     pub materialized_from_plan_hash: Option<String>,
     pub row_count: usize,
     pub column_names: Vec<String>,
@@ -203,7 +205,8 @@ impl DatasetArtifactStore {
     }
 
     /// Atomically promote a complete lazy-sink output to an immutable managed
-    /// artifact after quota and bounded file-fingerprint checks succeed.
+    /// artifact after quota and bounded-memory file-fingerprint checks succeed.
+    /// This reads the entire file; async callers must use an admitted I/O worker.
     pub fn finalize_lazy_parquet(
         &self,
         version_id: String,

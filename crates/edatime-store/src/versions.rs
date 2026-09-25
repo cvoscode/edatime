@@ -26,8 +26,16 @@ pub struct DatasetVersionRecord {
     pub dataset_fingerprint: String,
     pub schema_fingerprint: String,
     pub source_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub time_column: Option<String>,
     pub materialized_from_plan_hash: Option<String>,
     pub created_at: DateTime<Utc>,
+}
+
+pub(crate) struct ResidentVersionIdentity {
+    pub(crate) resident_bytes: u64,
+    pub(crate) dataset_fingerprint: String,
+    pub(crate) schema_fingerprint: String,
 }
 
 #[derive(Clone)]
@@ -187,6 +195,7 @@ impl DatasetVersionRegistry {
             dataset_fingerprint,
             schema_fingerprint,
             source_name,
+            time_column: None,
             materialized_from_plan_hash: None,
             created_at: Utc::now(),
         };
@@ -422,18 +431,41 @@ impl DatasetVersionRegistry {
         frame: DataFrame,
         revision: u64,
         source_name: Option<String>,
+        time_column: Option<String>,
     ) -> Result<DatasetVersionRecord, AppError> {
-        let id = self.allocate_version_id();
         let resident_bytes = frame.estimated_size() as u64;
         let (dataset_fingerprint, schema_fingerprint) = fingerprints_for_frame(&frame);
+        self.register_root_with_identity(
+            frame,
+            revision,
+            source_name,
+            time_column,
+            ResidentVersionIdentity {
+                resident_bytes,
+                dataset_fingerprint,
+                schema_fingerprint,
+            },
+        )
+    }
+
+    pub(crate) fn register_root_with_identity(
+        &self,
+        frame: DataFrame,
+        revision: u64,
+        source_name: Option<String>,
+        time_column: Option<String>,
+        identity: ResidentVersionIdentity,
+    ) -> Result<DatasetVersionRecord, AppError> {
+        let id = self.allocate_version_id();
         let record = DatasetVersionRecord {
             id: id.clone(),
             root_id: id.clone(),
             parent_id: None,
             revision,
-            dataset_fingerprint,
-            schema_fingerprint,
+            dataset_fingerprint: identity.dataset_fingerprint,
+            schema_fingerprint: identity.schema_fingerprint,
             source_name,
+            time_column,
             materialized_from_plan_hash: None,
             created_at: Utc::now(),
         };
@@ -446,7 +478,7 @@ impl DatasetVersionRegistry {
                     record: record.clone(),
                     source: DatasetVersionSource::Resident {
                         frame: frame.lazy(),
-                        bytes: resident_bytes,
+                        bytes: identity.resident_bytes,
                     },
                 },
             );
@@ -464,18 +496,42 @@ impl DatasetVersionRegistry {
         revision: u64,
         plan_hash: String,
     ) -> Result<DatasetVersionRecord, AppError> {
-        let parent = self.record(parent_id)?;
         let resident_bytes = frame.estimated_size() as u64;
-        let id = self.allocate_version_id();
         let (dataset_fingerprint, schema_fingerprint) = fingerprints_for_frame(&frame);
+        self.register_child_with_identity(
+            parent_id,
+            frame,
+            revision,
+            plan_hash,
+            None,
+            ResidentVersionIdentity {
+                resident_bytes,
+                dataset_fingerprint,
+                schema_fingerprint,
+            },
+        )
+    }
+
+    pub(crate) fn register_child_with_identity(
+        &self,
+        parent_id: &str,
+        frame: DataFrame,
+        revision: u64,
+        plan_hash: String,
+        time_column: Option<String>,
+        identity: ResidentVersionIdentity,
+    ) -> Result<DatasetVersionRecord, AppError> {
+        let parent = self.record(parent_id)?;
+        let id = self.allocate_version_id();
         let record = DatasetVersionRecord {
             id: id.clone(),
             root_id: parent.root_id,
             parent_id: Some(parent.id),
             revision,
-            dataset_fingerprint,
-            schema_fingerprint,
+            dataset_fingerprint: identity.dataset_fingerprint,
+            schema_fingerprint: identity.schema_fingerprint,
             source_name: parent.source_name,
+            time_column: time_column.or(parent.time_column),
             materialized_from_plan_hash: Some(plan_hash),
             created_at: Utc::now(),
         };
@@ -488,7 +544,7 @@ impl DatasetVersionRegistry {
                     record: record.clone(),
                     source: DatasetVersionSource::Resident {
                         frame: frame.lazy(),
-                        bytes: resident_bytes,
+                        bytes: identity.resident_bytes,
                     },
                 },
             );
@@ -526,6 +582,7 @@ impl DatasetVersionRegistry {
         artifact: DatasetArtifactDescriptor,
         revision: u64,
         source_name: Option<String>,
+        time_column: Option<String>,
     ) -> Result<DatasetVersionRecord, AppError> {
         if artifact.format != "parquet" {
             return Err(AppError::bad_request(format!(
@@ -543,6 +600,7 @@ impl DatasetVersionRegistry {
             dataset_fingerprint: artifact.content_fingerprint,
             schema_fingerprint,
             source_name,
+            time_column,
             materialized_from_plan_hash: None,
             created_at: artifact.created_at,
         };
@@ -581,6 +639,7 @@ impl DatasetVersionRegistry {
         artifact: DatasetArtifactDescriptor,
         revision: u64,
         plan_hash: String,
+        time_column: Option<String>,
     ) -> Result<DatasetVersionRecord, AppError> {
         if artifact.format != "parquet" {
             return Err(AppError::bad_request(format!(
@@ -599,6 +658,7 @@ impl DatasetVersionRegistry {
             dataset_fingerprint: artifact.content_fingerprint,
             schema_fingerprint,
             source_name: parent.source_name,
+            time_column: time_column.or(parent.time_column),
             materialized_from_plan_hash: Some(plan_hash),
             created_at: artifact.created_at,
         };
@@ -747,6 +807,7 @@ fn record_from_artifact(
         dataset_fingerprint: artifact.content_fingerprint.clone(),
         schema_fingerprint: provenance.schema_fingerprint,
         source_name: provenance.source_name,
+        time_column: provenance.time_column,
         materialized_from_plan_hash: provenance.materialized_from_plan_hash,
         created_at: artifact.created_at,
     })
@@ -824,7 +885,7 @@ mod tests {
         let registry = DatasetVersionRegistry::new(frame(vec![1, 2]), 0, None);
         let first = registry.current().expect("first source");
         let second = registry
-            .register_root(frame(vec![1, 3]), 1, None)
+            .register_root(frame(vec![1, 3]), 1, None, None)
             .expect("second source");
 
         assert_eq!(first.schema_fingerprint, second.schema_fingerprint);
@@ -837,7 +898,7 @@ mod tests {
         let registry = DatasetVersionRegistry::new(frame(vec![1]), 0, None);
         let first = registry.current().expect("first root");
         let second = registry
-            .register_root(frame(vec![2]), 1, None)
+            .register_root(frame(vec![2]), 1, None, None)
             .expect("second root");
         let child = registry
             .register_child(&second.id, frame(vec![3]), 2, "plan".into())
@@ -902,6 +963,7 @@ mod tests {
                 },
                 7,
                 Some("retained.parquet".to_string()),
+                None,
             )
             .expect("register retained artifact");
 
@@ -960,6 +1022,7 @@ mod tests {
                         revision: 2,
                         schema_fingerprint: schema_fingerprint.clone(),
                         source_name: Some("input.csv".to_string()),
+                        time_column: None,
                         materialized_from_plan_hash: Some("plan-1".to_string()),
                         row_count: 1,
                         column_names: vec!["value".to_string()],
@@ -978,6 +1041,7 @@ mod tests {
                         revision: 1,
                         schema_fingerprint,
                         source_name: Some("input.csv".to_string()),
+                        time_column: None,
                         materialized_from_plan_hash: None,
                         row_count: 2,
                         column_names: vec!["value".to_string()],

@@ -65,3 +65,7 @@ harness = false
 [[bench]]
 name = "scatter_matrix"
 harness = false
+
+[[bench]]
+name = "profile"
+harness = false

@@ -1,6 +1,10 @@
 pub mod aggregate;
 pub mod analytics;
 pub mod cleaning;
+mod cleaning_codegen;
+pub(crate) mod cleaning_context;
+mod cleaning_handoff;
+mod cleaning_preview;
 pub mod config;
 pub mod data;
 pub mod database;
@@ -149,6 +153,7 @@ pub async fn capabilities(State(state): State<AppState>) -> impl IntoResponse {
         "budgets": {
             "scatter_matrix_pairs": budgets.max_scatter_matrix_pairs,
             "scatter_matrix_points": budgets.max_scatter_matrix_points,
+            "correlation_work_units": budgets.max_correlation_work_units,
             "rolling_cells": budgets.max_rolling_cells,
             "spectrogram_cells": budgets.max_spectrogram_cells,
             "analytics_points": budgets.max_analytics_points,

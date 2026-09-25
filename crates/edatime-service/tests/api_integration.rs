@@ -888,6 +888,43 @@ async fn analytics_spectrogram_invalid_clip_returns_400() {
 
 // ─── Upload endpoints ─────────────────────────────────────────────────────────
 
+type MultipartPart<'a> = (&'a str, Option<&'a str>, &'a str);
+type MultipartCase<'a> = (&'a str, Vec<MultipartPart<'a>>);
+
+fn multipart_body(boundary: &str, parts: &[MultipartPart<'_>]) -> Vec<u8> {
+    use std::io::Write;
+
+    let mut form = Vec::new();
+    for (name, filename, content) in parts {
+        write!(&mut form, "--{boundary}\r\n").unwrap();
+        write!(&mut form, "Content-Disposition: form-data; name=\"{name}\"").unwrap();
+        if let Some(filename) = filename {
+            write!(&mut form, "; filename=\"{filename}\"").unwrap();
+        }
+        write!(
+            &mut form,
+            "\r\nContent-Type: application/octet-stream\r\n\r\n"
+        )
+        .unwrap();
+        form.extend_from_slice(content.as_bytes());
+        write!(&mut form, "\r\n").unwrap();
+    }
+    write!(&mut form, "--{boundary}--\r\n").unwrap();
+    form
+}
+
+fn multipart_request(uri: &str, boundary: &str, parts: &[MultipartPart<'_>]) -> Request<Body> {
+    Request::builder()
+        .method(Method::POST)
+        .uri(uri)
+        .header(
+            "content-type",
+            format!("multipart/form-data; boundary={boundary}"),
+        )
+        .body(Body::from(multipart_body(boundary, parts)))
+        .unwrap()
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn upload_requires_multipart() {
     let app = test_app();
@@ -1007,6 +1044,107 @@ async fn upload_preview_returns_metadata() {
         json["metadata"]["columns"].is_array(),
         "Metadata should have columns"
     );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_rejects_malformed_duplicate_and_unknown_parts_without_ingesting() {
+    let csv = "time,value\n2024-01-01T00:00:00Z,10.5\n";
+    let file = ("file", Some("test.csv"), csv);
+    let cases: Vec<MultipartCase<'_>> = vec![
+        ("malformed n_rows", vec![file, ("n_rows", None, "many")]),
+        ("zero n_rows", vec![file, ("n_rows", None, "0")]),
+        ("malformed skip_rows", vec![file, ("skip_rows", None, "-1")]),
+        (
+            "malformed time_start",
+            vec![file, ("time_start", None, "yesterday-ish")],
+        ),
+        (
+            "malformed columns",
+            vec![file, ("columns", None, "not-json")],
+        ),
+        (
+            "empty column selection",
+            vec![file, ("columns", None, "[]")],
+        ),
+        (
+            "duplicate n_rows",
+            vec![file, ("n_rows", None, "2"), ("n_rows", None, "3")],
+        ),
+        (
+            "unknown file-like part",
+            vec![file, ("other", Some("other.csv"), csv)],
+        ),
+        ("multiple files", vec![file, file]),
+        (
+            "reversed time bounds",
+            vec![
+                file,
+                ("time_start", None, "2024-01-02T00:00:00Z"),
+                ("time_end", None, "2024-01-01T00:00:00Z"),
+            ],
+        ),
+    ];
+
+    for (label, parts) in cases {
+        let app = test_app();
+        let response = app
+            .clone()
+            .oneshot(multipart_request(
+                "/api/v1/upload",
+                "strict-boundary",
+                &parts,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{label}");
+
+        let metadata = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/metadata")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let body = metadata.into_body().collect().await.unwrap().to_bytes();
+        let metadata: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(metadata["total_rows"], 720, "{label} must not ingest");
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_preview_rejects_unknown_duplicate_and_multiple_file_parts() {
+    let csv = "time,value\n2024-01-01T00:00:00Z,10.5\n";
+    let file = ("file", Some("test.csv"), csv);
+    let cases: Vec<MultipartCase<'_>> = vec![
+        ("unknown constraint", vec![file, ("n_rows", None, "10")]),
+        (
+            "duplicate time column",
+            vec![
+                file,
+                ("time_column", None, "time"),
+                ("time_column", None, "date"),
+            ],
+        ),
+        ("multiple files", vec![file, file]),
+        (
+            "file-like unknown part",
+            vec![file, ("other", Some("other.csv"), csv)],
+        ),
+    ];
+
+    for (label, parts) in cases {
+        let response = test_app()
+            .oneshot(multipart_request(
+                "/api/v1/upload/preview",
+                "strict-preview-boundary",
+                &parts,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{label}");
+    }
 }
 
 // ─── Aggregate endpoint ───────────────────────────────────────────────────────

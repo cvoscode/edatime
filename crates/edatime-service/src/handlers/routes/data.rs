@@ -4,8 +4,9 @@ use axum::{Json, extract::State, response::Response};
 use serde::Deserialize;
 use std::time::Instant;
 
-use edatime_core::metrics::DataStage;
+use edatime_core::metrics::{CpuStage, DataStage};
 use edatime_core::pipeline::{Pipeline, ProjectStage, TimeFilterStage};
+use polars::prelude::SortMultipleOptions;
 
 use crate::error::AppError;
 use edatime_query::pipeline::{self, Reduction};
@@ -17,7 +18,7 @@ use edatime_store::cache::{CacheReservation, CachedResponse};
 use edatime_store::state::AppState;
 
 use super::{
-    cleaning::{PlanRequestEnvelope, compile_request_frame},
+    cleaning_context::{PlanRequestEnvelope, resolve_cleaning_context},
     shared::{ExecutionIdentity, cached_response},
 };
 
@@ -48,8 +49,9 @@ async fn data_response(
     let limits = &state.config.validation;
     validate_width(params.width, limits)?;
 
-    let (version, plan_hash, lf) = compile_request_frame(&state, cleaning_plan)?;
-    let identity = ExecutionIdentity::from_version(version, Some(plan_hash));
+    let context = resolve_cleaning_context(&state, cleaning_plan)?;
+    let identity = ExecutionIdentity::from_version(context.version, Some(context.plan_hash));
+    let lf = context.frame;
     let resolved_time_column = cleaning_plan.plan.time_column.clone();
     let value_cols = validate_numeric_columns_lazy(
         &lf,
@@ -84,17 +86,18 @@ async fn data_response(
 
     let ctx = edatime_core::temporal::ts_context(&lf, &resolved_time_column)?;
     let lookaround_ms = params.lookaround_ms.unwrap_or(0).max(0);
-    let lookaround_ts = lookaround_ms.saturating_mul(ctx.multiplier.abs());
-    let start_ts = params
+    // Transport/window bounds and envelope widths are epoch milliseconds;
+    // only the filter bounds cross into the source column's native unit.
+    let start_ms = params
         .start
         .timestamp_millis()
-        .saturating_mul(ctx.multiplier)
-        .saturating_sub(lookaround_ts);
-    let end_ts = params
-        .end
-        .timestamp_millis()
-        .saturating_mul(ctx.multiplier)
-        .saturating_add(lookaround_ts);
+        .saturating_sub(lookaround_ms);
+    let end_ms = params.end.timestamp_millis().saturating_add(lookaround_ms);
+    // Inclusive comparisons require the first native tick at/after the
+    // lower bound and the last tick at/before the upper bound. This matters
+    // for Date columns when the requested window starts or ends midday.
+    let start_ts = edatime_core::temporal::epoch_ms_to_native(start_ms as f64, &ctx.dtype, true)?;
+    let end_ts = edatime_core::temporal::epoch_ms_to_native(end_ms as f64, &ctx.dtype, false)?;
     let dtype = ctx.dtype;
     let ts_col = ctx.ts_col;
     let format = query::output_format(params.format.as_deref());
@@ -147,7 +150,13 @@ async fn data_response(
     };
 
     let pipeline = Pipeline::new().then(time_filter).then(project);
-    let filtered_plan = pipeline.apply(lf);
+    // Canonical cleaning stages can leave rows in any saved order. Signals
+    // always presents time chronologically, and dynamic envelope grouping
+    // requires that order as well.
+    let filtered_plan = pipeline.apply(lf).sort(
+        [ts_col.as_str()],
+        SortMultipleOptions::default().with_maintain_order(true),
+    );
 
     let target_points = params.width * 2;
     let candidate_cap = target_points.saturating_mul(4).max(target_points);
@@ -165,9 +174,9 @@ async fn data_response(
         .cloned()
         .collect::<Vec<String>>();
     let use_envelope = bounded_probe.height() > candidate_cap;
-    let (candidates, filtered_rows, envelope_used) = if use_envelope {
+    let (candidate_frame, filtered_rows, envelope_used) = if use_envelope {
         let bucket_count = (candidate_cap / 4).max(1) as i64;
-        let span = end_ts.saturating_sub(start_ts).saturating_add(1);
+        let span = end_ms.saturating_sub(start_ms).saturating_add(1);
         let bucket_width = (span / bucket_count).max(1);
         let envelope = pipeline::lazy_multi_time_envelope(
             filtered_plan,
@@ -177,9 +186,7 @@ async fn data_response(
             bucket_width,
         )?;
         let collected = state.query_executor.execute_async(envelope).await?;
-        let (expanded, filtered_rows) =
-            pipeline::expand_multi_time_envelope(&collected, &ts_col, &value_cols, &extra_cols)?;
-        (expanded, filtered_rows, true)
+        (collected, 0, true)
     } else {
         let filtered_rows = bounded_probe.height();
         (bounded_probe, filtered_rows, false)
@@ -188,54 +195,87 @@ async fn data_response(
         DataStage::Collect,
         collect_started.elapsed().as_nanos() as u64,
     );
-    let candidate_rows = candidates.height();
-    let reduce_started = Instant::now();
-    let (reduced, was_downsampled) = pipeline::apply_reduction(
-        &candidates,
-        &value_cols,
-        &extra_cols,
-        &Reduction::Lttb { target_points },
-        &ts_col,
-    )?;
-    let returned_rows = reduced.height();
-    state.metrics.record_data_stage(
-        DataStage::Reduce,
-        reduce_started.elapsed().as_nanos() as u64,
-    );
 
-    let serialize_started = Instant::now();
-    let cached = match format {
-        query::OutputFormat::Arrow => CachedResponse::arrow(
-            pipeline::serialize_arrow(reduced, &ts_col)?,
-            was_downsampled,
-            returned_rows,
-            target_points,
-            Some(ts_col.to_string()),
-        ),
-        query::OutputFormat::Json => {
-            let json_bytes = serde_json::to_vec(&pipeline::serialize_json(
-                &reduced,
+    let (
+        cached,
+        filtered_rows,
+        candidate_rows,
+        returned_rows,
+        envelope_used,
+        reduce_elapsed_ns,
+        serialize_elapsed_ns,
+    ) = state
+        .query_executor
+        .run_interactive(CpuStage::Scatter, move || {
+            let reduce_started = Instant::now();
+            let (candidates, filtered_rows) = if envelope_used {
+                pipeline::expand_multi_time_envelope(
+                    &candidate_frame,
+                    &ts_col,
+                    &value_cols,
+                    &extra_cols,
+                )
+            } else {
+                Ok((candidate_frame, filtered_rows))
+            }?;
+            let candidate_rows = candidates.height();
+            let (reduced, was_downsampled) = pipeline::apply_reduction(
+                &candidates,
                 &value_cols,
-                color_column.as_ref(),
-                &dtype,
+                &extra_cols,
+                &Reduction::Lttb { target_points },
                 &ts_col,
-            )?)
-            .map_err(|error| {
-                AppError::internal(format!("Failed to encode JSON response: {error}"))
-            })?;
-            CachedResponse::json(
-                json_bytes,
-                was_downsampled,
+            )?;
+            let returned_rows = reduced.height();
+            let is_downsampled = envelope_used || was_downsampled;
+            let reduce_elapsed_ns = reduce_started.elapsed().as_nanos() as u64;
+
+            let serialize_started = Instant::now();
+            let cached = match format {
+                query::OutputFormat::Arrow => CachedResponse::arrow(
+                    pipeline::serialize_arrow(reduced, &ts_col)?,
+                    is_downsampled,
+                    returned_rows,
+                    target_points,
+                    Some(ts_col.to_string()),
+                ),
+                query::OutputFormat::Json => {
+                    let json_bytes = serde_json::to_vec(&pipeline::serialize_json(
+                        &reduced,
+                        &value_cols,
+                        color_column.as_ref(),
+                        &dtype,
+                        &ts_col,
+                    )?)
+                    .map_err(|error| {
+                        AppError::internal(format!("Failed to encode JSON response: {error}"))
+                    })?;
+                    CachedResponse::json(
+                        json_bytes,
+                        is_downsampled,
+                        returned_rows,
+                        target_points,
+                        Some(ts_col.to_string()),
+                    )
+                }
+            };
+            Ok::<_, AppError>((
+                cached,
+                filtered_rows,
+                candidate_rows,
                 returned_rows,
-                target_points,
-                Some(ts_col.to_string()),
-            )
-        }
-    };
-    state.metrics.record_data_stage(
-        DataStage::Serialize,
-        serialize_started.elapsed().as_nanos() as u64,
-    );
+                envelope_used,
+                reduce_elapsed_ns,
+                serialize_started.elapsed().as_nanos() as u64,
+            ))
+        })
+        .await??;
+    state
+        .metrics
+        .record_data_stage(DataStage::Reduce, reduce_elapsed_ns);
+    state
+        .metrics
+        .record_data_stage(DataStage::Serialize, serialize_elapsed_ns);
     state.metrics.record_data_rows(
         filtered_rows as u64,
         candidate_rows as u64,
@@ -326,6 +366,24 @@ mod tests {
         )
         .expect("test dataframe should build");
         AppState::new(df, AppConfig::default())
+    }
+
+    fn build_duplicate_timestamp_state() -> AppState {
+        let rows = 1_000usize;
+        let timestamps = vec![1_514_764_800_000_i64; rows];
+        let values = (0..rows).map(|index| index as f64).collect::<Vec<_>>();
+        let ts = Series::new("ts".into(), timestamps)
+            .cast(&polars::prelude::DataType::Datetime(
+                polars::prelude::TimeUnit::Milliseconds,
+                None,
+            ))
+            .expect("duplicate timestamp cast");
+        let frame = DataFrame::new(
+            rows,
+            vec![ts.into(), Series::new("HUFL".into(), values).into()],
+        )
+        .expect("duplicate timestamp frame");
+        AppState::new(frame, AppConfig::default())
     }
 
     fn build_large_nan_state() -> AppState {
@@ -436,6 +494,14 @@ mod tests {
             Some("0"),
             "non-empty window must set x-edatime-empty: 0"
         );
+        assert_eq!(
+            response
+                .headers()
+                .get("x-edatime-downsampled")
+                .and_then(|value| value.to_str().ok()),
+            Some("0"),
+            "an untouched exact window must not be marked downsampled"
+        );
     }
 
     /// Regression test for audit issue 1.4: the response must expose
@@ -502,6 +568,13 @@ mod tests {
                 .and_then(|value| value.to_str().ok()),
             Some("envelope-lttb-v1")
         );
+        assert_eq!(
+            response
+                .headers()
+                .get("x-edatime-downsampled")
+                .and_then(|value| value.to_str().ok()),
+            Some("1")
+        );
         assert!(
             response
                 .headers()
@@ -510,6 +583,309 @@ mod tests {
                 .and_then(|value| value.parse::<usize>().ok())
                 .is_some_and(|candidates| candidates <= 400),
             "bounded envelope must cap the collected candidates"
+        );
+    }
+
+    fn request_with_sort(
+        state: &AppState,
+        start: &str,
+        end: &str,
+        width: usize,
+        column: &str,
+        descending: bool,
+    ) -> PlanAwareDataQuery {
+        let mut request = baseline_data_request(state, start, end, width);
+        request.query.format = Some("json".to_string());
+        request.cleaning_plan.plan.stages = vec![
+            serde_json::from_value(serde_json::json!({
+                "kind": "sort",
+                "id": "sort-for-test",
+                "enabled": true,
+                "executionClass": "polarsExpression",
+                "scope": "row",
+                "sourcePage": "timeseries",
+                "label": "test ordering",
+                "note": null,
+                "createdAt": "2026-07-15T00:00:00Z",
+                "updatedAt": "2026-07-15T00:00:00Z",
+                "columns": [column],
+                "descending": descending,
+                "nullsLast": true
+            }))
+            .expect("sort stage"),
+        ];
+        request
+    }
+
+    async fn json_timestamps(response: Response, time_column: &str) -> Vec<f64> {
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("JSON body");
+        let payload: serde_json::Value = serde_json::from_slice(&bytes).expect("JSON payload");
+        payload[time_column]
+            .as_array()
+            .expect("timestamp array")
+            .iter()
+            .map(|value| value.as_f64().expect("numeric timestamp"))
+            .collect()
+    }
+
+    fn build_high_resolution_state(unit: polars::prelude::TimeUnit) -> AppState {
+        let rows = 1_000usize;
+        let multiplier = match unit {
+            polars::prelude::TimeUnit::Milliseconds => 1_i64,
+            polars::prelude::TimeUnit::Microseconds => 1_000_i64,
+            polars::prelude::TimeUnit::Nanoseconds => 1_000_000_i64,
+        };
+        let origin_ms = 1_704_067_200_000_i64;
+        let timestamps = (0..rows)
+            .map(|index| origin_ms * multiplier + index as i64 * 1_000 * multiplier)
+            .collect::<Vec<_>>();
+        let ts = Series::new("ts".into(), timestamps)
+            .cast(&polars::prelude::DataType::Datetime(unit, None))
+            .expect("timestamp cast");
+        let values = (0..rows)
+            .map(|index| (index as f64).sin())
+            .collect::<Vec<_>>();
+        let frame = DataFrame::new(
+            rows,
+            vec![ts.into(), Series::new("HUFL".into(), values).into()],
+        )
+        .expect("high-resolution frame");
+        AppState::new(frame, AppConfig::default())
+    }
+
+    fn build_daily_date_state() -> AppState {
+        let rows = 1_000usize;
+        let first_day_since_epoch = 18_262_i32; // 2020-01-01
+        let timestamps = (0..rows)
+            .map(|index| first_day_since_epoch + index as i32)
+            .collect::<Vec<_>>();
+        let ts = Series::new("ts".into(), timestamps)
+            .cast(&polars::prelude::DataType::Date)
+            .expect("daily Date cast");
+        let values = (0..rows)
+            .map(|index| (index as f64).sin())
+            .collect::<Vec<_>>();
+        let frame = DataFrame::new(
+            rows,
+            vec![ts.into(), Series::new("HUFL".into(), values).into()],
+        )
+        .expect("daily Date frame");
+        AppState::new(frame, AppConfig::default())
+    }
+
+    fn build_date_state() -> AppState {
+        let days_since_epoch = vec![19_723_i32, 19_724, 19_725];
+        let ts = Series::new("ts".into(), days_since_epoch)
+            .cast(&polars::prelude::DataType::Date)
+            .expect("date cast");
+        let frame = DataFrame::new(
+            3,
+            vec![
+                ts.into(),
+                Series::new("HUFL".into(), vec![1.0_f64, 2.0, 3.0]).into(),
+            ],
+        )
+        .expect("date frame");
+        AppState::new(frame, AppConfig::default())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn post_data_restores_chronological_order_after_cleaning_sorts() {
+        let state = build_test_state();
+        for sort_column in ["ts", "HUFL"] {
+            let request = request_with_sort(
+                &state,
+                "2018-01-01T00:00:00Z",
+                "2018-03-01T00:00:00Z",
+                400,
+                sort_column,
+                true,
+            );
+            let response = post_data(State(state.clone()), Json(request))
+                .await
+                .expect("sorted Signals response");
+            let timestamps = json_timestamps(response, "ts").await;
+            assert!(
+                timestamps.windows(2).all(|pair| pair[0] <= pair[1]),
+                "Signals timestamps should be ascending after a {sort_column} sort"
+            );
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn post_data_uses_epoch_ms_envelope_width_for_ms_us_and_ns() {
+        let mut candidate_counts = Vec::new();
+        for unit in [
+            polars::prelude::TimeUnit::Milliseconds,
+            polars::prelude::TimeUnit::Microseconds,
+            polars::prelude::TimeUnit::Nanoseconds,
+        ] {
+            let state = build_high_resolution_state(unit);
+            let mut unit_candidate_counts = Vec::new();
+            for sort_column in ["ts", "HUFL"] {
+                let request = request_with_sort(
+                    &state,
+                    "2024-01-01T00:00:00Z",
+                    "2024-01-01T00:16:40Z",
+                    50,
+                    sort_column,
+                    true,
+                );
+                let response = post_data(State(state.clone()), Json(request))
+                    .await
+                    .expect("high-resolution Signals response");
+                assert_eq!(
+                    response
+                        .headers()
+                        .get("x-edatime-filtered-rows")
+                        .and_then(|value| value.to_str().ok()),
+                    Some("1000"),
+                    "all source units should filter the same requested rows"
+                );
+                let candidate_count = response
+                    .headers()
+                    .get("x-edatime-candidate-rows")
+                    .and_then(|value| value.to_str().ok())
+                    .and_then(|value| value.parse::<usize>().ok())
+                    .expect("candidate row count");
+                assert!(
+                    candidate_count > 4 && candidate_count <= 400,
+                    "{unit:?} {sort_column} candidate count was {candidate_count}"
+                );
+                unit_candidate_counts.push(candidate_count);
+                let timestamps = json_timestamps(response, "ts").await;
+                assert!(timestamps.windows(2).all(|pair| pair[0] <= pair[1]));
+            }
+            assert_eq!(unit_candidate_counts[0], unit_candidate_counts[1]);
+            candidate_counts.push(unit_candidate_counts[0]);
+        }
+        assert!(
+            candidate_counts
+                .iter()
+                .all(|count| *count == candidate_counts[0]),
+            "equivalent ms/us/ns sources should produce comparable envelope sizes: {candidate_counts:?}"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn post_data_date_window_excludes_midnights_outside_requested_bounds() {
+        let state = build_date_state();
+        for (start, end, expected) in [
+            (
+                "2024-01-01T12:00:00Z",
+                "2024-01-02T12:00:00Z",
+                vec![1_704_153_600_000.0],
+            ),
+            ("2024-01-01T12:00:00Z", "2024-01-01T18:00:00Z", vec![]),
+            (
+                "2024-01-01T00:00:00Z",
+                "2024-01-02T00:00:00Z",
+                vec![1_704_067_200_000.0, 1_704_153_600_000.0],
+            ),
+        ] {
+            let mut request = baseline_data_request(&state, start, end, 400);
+            request.query.format = Some("json".to_string());
+            let response = post_data(State(state.clone()), Json(request))
+                .await
+                .expect("Date viewport response");
+            assert_eq!(
+                json_timestamps(response, "ts").await,
+                expected,
+                "{start} to {end}"
+            );
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn post_data_converts_epoch_ms_bounds_for_date_columns() {
+        let state = build_date_state();
+        let request =
+            baseline_data_request(&state, "2024-01-01T00:00:00Z", "2024-01-04T00:00:00Z", 400);
+        let response = post_data(State(state), Json(request))
+            .await
+            .expect("Date column Signals response");
+        assert_eq!(
+            response
+                .headers()
+                .get("x-edatime-filtered-rows")
+                .and_then(|value| value.to_str().ok()),
+            Some("3")
+        );
+
+        let state = build_daily_date_state();
+        let request = request_with_sort(
+            &state,
+            "2020-01-01T00:00:00Z",
+            "2022-09-27T00:00:00Z",
+            50,
+            "HUFL",
+            true,
+        );
+        let response = post_data(State(state), Json(request))
+            .await
+            .expect("downsampled Date column Signals response");
+        assert_eq!(
+            response
+                .headers()
+                .get("x-edatime-filtered-rows")
+                .and_then(|value| value.to_str().ok()),
+            Some("1000")
+        );
+        let candidates = response
+            .headers()
+            .get("x-edatime-candidate-rows")
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse::<usize>().ok())
+            .expect("Date candidate count");
+        assert!(candidates > 4 && candidates <= 408);
+        let timestamps = json_timestamps(response, "ts").await;
+        assert!(timestamps.windows(2).all(|pair| pair[0] <= pair[1]));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn envelope_only_reduction_is_reported_as_downsampled() {
+        let state = build_duplicate_timestamp_state();
+        let request =
+            baseline_data_request(&state, "2018-01-01T00:00:00Z", "2018-01-01T00:01:00Z", 50);
+        let response = post_data(State(state), Json(request))
+            .await
+            .expect("duplicate timestamp response");
+        assert_eq!(
+            response
+                .headers()
+                .get("x-edatime-filtered-rows")
+                .and_then(|value| value.to_str().ok()),
+            Some("1000")
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("x-edatime-candidate-rows")
+                .and_then(|value| value.to_str().ok()),
+            Some("4")
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("x-edatime-returned-rows")
+                .and_then(|value| value.to_str().ok()),
+            Some("4")
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("x-edatime-approximate")
+                .and_then(|value| value.to_str().ok()),
+            Some("1")
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("x-edatime-downsampled")
+                .and_then(|value| value.to_str().ok()),
+            Some("1")
         );
     }
 

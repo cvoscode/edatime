@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
@@ -10,6 +10,7 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use tempfile::{Builder, TempPath};
+use tokio::io::AsyncWriteExt;
 use tokio::sync::OwnedSemaphorePermit;
 
 use crate::error::AppError;
@@ -130,7 +131,7 @@ pub async fn upload_data(
             })?;
         let row_count = loaded.df.height();
         state
-            .replace_dataset(loaded.df)
+            .replace_dataset_with_time_column(loaded.df, loaded.time_column_name.clone())
             .await
             .map_err(|error| AppError::internal(format!("Failed to store dataset: {error}")))?;
         (
@@ -285,59 +286,39 @@ async fn extract_upload_parts(
     mut multipart: Multipart,
 ) -> Result<(TempPath, IngestParams, String), AppError> {
     let mut temp_file = None;
+    let mut temp_writer = None;
     let mut has_file = false;
     let mut params = IngestParams::default();
     let mut total_bytes = 0usize;
     let mut file_name = String::new();
+    let mut seen_fields = BTreeSet::new();
 
     while let Some(field) = multipart
         .next_field()
         .await
         .map_err(|error| AppError::bad_request(error.to_string()))?
     {
-        let field_name = field.name().unwrap_or("").to_string();
+        let field_name = field
+            .name()
+            .map(str::to_owned)
+            .ok_or_else(|| AppError::bad_request("Every multipart part must have a field name"))?;
+        if !seen_fields.insert(field_name.clone()) {
+            return Err(AppError::bad_request(format!(
+                "Multipart field '{field_name}' may appear only once"
+            )));
+        }
 
         match field_name.as_str() {
-            "n_rows" => {
-                let text = field.text().await.unwrap_or_default();
-                params.n_rows = text.trim().parse::<usize>().ok().filter(|count| *count > 0);
-            }
-            "skip_rows" => {
-                let text = field.text().await.unwrap_or_default();
-                params.skip_rows = text.trim().parse::<usize>().unwrap_or(0);
-            }
-            "time_start" => {
-                let text = field.text().await.unwrap_or_default();
-                params.time_start_ms = parse_time_ms(&text);
-            }
-            "time_end" => {
-                let text = field.text().await.unwrap_or_default();
-                params.time_end_ms = parse_time_ms(&text);
-            }
-            "columns" => {
-                let text = field.text().await.unwrap_or_default();
-                params.selected_columns = serde_json::from_str::<Vec<String>>(&text)
-                    .ok()
-                    .map(|columns| {
-                        columns
-                            .into_iter()
-                            .map(|column| column.trim().to_string())
-                            .filter(|column| !column.is_empty())
-                            .collect::<Vec<_>>()
-                    })
-                    .filter(|columns| !columns.is_empty());
-            }
-            "time_column" => {
-                let text = field.text().await.unwrap_or_default();
-                params.time_column = Some(text.trim().to_string()).filter(|v| !v.is_empty());
-            }
-            _ => {
-                if temp_file.is_none() {
-                    let name = field.file_name().unwrap_or("").to_string();
-                    file_name = name.clone();
-                    temp_file = Some(create_temp_upload_file(Some(&name), "edatime-upload-")?);
-                }
-
+            "file" => {
+                let name = field.file_name().unwrap_or("").to_string();
+                file_name = name.clone();
+                temp_file = Some(create_temp_upload_file(Some(&name), "edatime-upload-")?);
+                let std_file = temp_file
+                    .as_ref()
+                    .ok_or_else(|| AppError::internal("Upload temp file unexpectedly absent"))?
+                    .reopen()
+                    .map_err(|error| AppError::io(error.to_string()))?;
+                temp_writer = Some(tokio::fs::File::from_std(std_file));
                 let mut field = field;
                 while let Some(chunk) = field
                     .chunk()
@@ -349,27 +330,127 @@ async fn extract_upload_parts(
                         total_bytes,
                         state.config.upload.max_upload_bytes,
                     )?;
-                    temp_file
+                    temp_writer
                         .as_mut()
-                        .ok_or_else(|| AppError::internal("Upload temp file unexpectedly absent"))?
+                        .ok_or_else(|| {
+                            AppError::internal("Upload temp writer unexpectedly absent")
+                        })?
                         .write_all(&chunk)
+                        .await
                         .map_err(|error| AppError::io(error.to_string()))?;
                 }
                 has_file = true;
+            }
+            "n_rows" => {
+                let text = field
+                    .text()
+                    .await
+                    .map_err(|error| AppError::bad_request(format!("Invalid n_rows: {error}")))?;
+                let count = text.trim().parse::<usize>().map_err(|_| {
+                    AppError::bad_request("Invalid n_rows: expected a positive integer")
+                })?;
+                if count == 0 {
+                    return Err(AppError::bad_request(
+                        "Invalid n_rows: value must be greater than zero",
+                    ));
+                }
+                params.n_rows = Some(count);
+            }
+            "skip_rows" => {
+                let text = field.text().await.map_err(|error| {
+                    AppError::bad_request(format!("Invalid skip_rows: {error}"))
+                })?;
+                params.skip_rows = text
+                    .trim()
+                    .parse::<usize>()
+                    .map_err(|_| AppError::bad_request("Invalid skip_rows: expected an integer"))?;
+            }
+            "time_start" => {
+                let text = field.text().await.map_err(|error| {
+                    AppError::bad_request(format!("Invalid time_start: {error}"))
+                })?;
+                params.time_start_ms = Some(parse_time_ms("time_start", &text)?);
+            }
+            "time_end" => {
+                let text = field
+                    .text()
+                    .await
+                    .map_err(|error| AppError::bad_request(format!("Invalid time_end: {error}")))?;
+                params.time_end_ms = Some(parse_time_ms("time_end", &text)?);
+            }
+            "columns" => {
+                let text = field
+                    .text()
+                    .await
+                    .map_err(|error| AppError::bad_request(format!("Invalid columns: {error}")))?;
+                let columns = serde_json::from_str::<Vec<String>>(&text).map_err(|_| {
+                    AppError::bad_request("Invalid columns: expected a JSON string array")
+                })?;
+                if columns.is_empty() {
+                    return Err(AppError::bad_request(
+                        "Invalid columns: select at least one column",
+                    ));
+                }
+                let mut unique_columns = BTreeSet::new();
+                let mut selected_columns = Vec::with_capacity(columns.len());
+                for column in columns {
+                    let column = column.trim();
+                    if column.is_empty() {
+                        return Err(AppError::bad_request(
+                            "Invalid columns: column names must not be empty",
+                        ));
+                    }
+                    if !unique_columns.insert(column.to_string()) {
+                        return Err(AppError::bad_request(format!(
+                            "Invalid columns: duplicate column '{column}'"
+                        )));
+                    }
+                    selected_columns.push(column.to_string());
+                }
+                params.selected_columns = Some(selected_columns);
+            }
+            "time_column" => {
+                let text = field.text().await.map_err(|error| {
+                    AppError::bad_request(format!("Invalid time_column: {error}"))
+                })?;
+                let column = text.trim();
+                if column.is_empty() {
+                    return Err(AppError::bad_request(
+                        "Invalid time_column: value must not be empty",
+                    ));
+                }
+                params.time_column = Some(column.to_string());
+            }
+            _ => {
+                return Err(AppError::bad_request(format!(
+                    "Unknown upload field '{field_name}'"
+                )));
             }
         }
     }
 
     if !has_file {
         return Err(AppError::bad_request(
-            "No file part found in multipart upload",
+            "No file part found in multipart upload; expected one 'file' field",
+        ));
+    }
+    if let (Some(start), Some(end)) = (params.time_start_ms, params.time_end_ms)
+        && start > end
+    {
+        return Err(AppError::bad_request(
+            "Invalid time range: time_start must not be after time_end",
         ));
     }
 
+    if let Some(mut writer) = temp_writer.take() {
+        writer
+            .flush()
+            .await
+            .map_err(|error| AppError::io(error.to_string()))?;
+    }
     let temp_path = temp_file
         .ok_or_else(|| AppError::bad_request("No file part found in multipart upload"))?
         .into_temp_path();
-
     Ok((temp_path, params, file_name))
 }
 
@@ -378,31 +459,39 @@ async fn extract_preview_file(
     mut multipart: Multipart,
 ) -> Result<(TempPath, Option<String>), AppError> {
     let mut temp_file = None;
+    let mut temp_writer = None;
     let mut has_file = false;
     let mut total_bytes = 0usize;
     let mut time_column: Option<String> = None;
+    let mut seen_fields = BTreeSet::new();
 
     while let Some(field) = multipart
         .next_field()
         .await
         .map_err(|error| AppError::bad_request(error.to_string()))?
     {
-        let field_name = field.name().unwrap_or("").to_string();
+        let field_name = field
+            .name()
+            .map(str::to_owned)
+            .ok_or_else(|| AppError::bad_request("Every multipart part must have a field name"))?;
+        if !seen_fields.insert(field_name.clone()) {
+            return Err(AppError::bad_request(format!(
+                "Multipart field '{field_name}' may appear only once"
+            )));
+        }
 
         match field_name.as_str() {
-            "time_column" => {
-                let text = field.text().await.unwrap_or_default();
-                time_column = Some(text.trim().to_string()).filter(|v| !v.is_empty());
-            }
-
-            _ => {
-                if temp_file.is_none() {
-                    temp_file = Some(create_temp_upload_file(
-                        field.file_name(),
-                        "edatime-preview-",
-                    )?);
-                }
-
+            "file" => {
+                temp_file = Some(create_temp_upload_file(
+                    field.file_name(),
+                    "edatime-preview-",
+                )?);
+                let std_file = temp_file
+                    .as_ref()
+                    .ok_or_else(|| AppError::internal("Preview temp file unexpectedly absent"))?
+                    .reopen()
+                    .map_err(|error| AppError::io(error.to_string()))?;
+                temp_writer = Some(tokio::fs::File::from_std(std_file));
                 let mut field = field;
                 while let Some(chunk) = field
                     .chunk()
@@ -414,19 +503,48 @@ async fn extract_preview_file(
                         total_bytes,
                         state.config.upload.max_upload_bytes,
                     )?;
-                    temp_file
+                    temp_writer
                         .as_mut()
-                        .ok_or_else(|| AppError::internal("Preview temp file unexpectedly absent"))?
+                        .ok_or_else(|| {
+                            AppError::internal("Preview temp writer unexpectedly absent")
+                        })?
                         .write_all(&chunk)
+                        .await
                         .map_err(|error| AppError::io(error.to_string()))?;
                 }
                 has_file = true;
+            }
+            "time_column" => {
+                let text = field.text().await.map_err(|error| {
+                    AppError::bad_request(format!("Invalid time_column: {error}"))
+                })?;
+                let column = text.trim();
+                if column.is_empty() {
+                    return Err(AppError::bad_request(
+                        "Invalid time_column: value must not be empty",
+                    ));
+                }
+                time_column = Some(column.to_string());
+            }
+            _ => {
+                return Err(AppError::bad_request(format!(
+                    "Unknown upload preview field '{field_name}'"
+                )));
             }
         }
     }
 
     if !has_file {
-        return Err(AppError::bad_request("No file selected for preview"));
+        return Err(AppError::bad_request(
+            "No file selected for preview; expected one 'file' field",
+        ));
+    }
+
+    if let Some(mut writer) = temp_writer.take() {
+        writer
+            .flush()
+            .await
+            .map_err(|error| AppError::io(error.to_string()))?;
     }
 
     Ok((
@@ -437,15 +555,16 @@ async fn extract_preview_file(
     ))
 }
 
-fn parse_time_ms(text: &str) -> Option<i64> {
+fn parse_time_ms(field_name: &str, text: &str) -> Result<i64, AppError> {
     let value = text.trim();
-    if value.is_empty() {
-        return None;
+    if let Ok(datetime) = DateTime::parse_from_rfc3339(value) {
+        return Ok(datetime.with_timezone(&Utc).timestamp_millis());
     }
-    if let Ok(dt) = DateTime::parse_from_rfc3339(value) {
-        return Some(dt.with_timezone(&Utc).timestamp_millis());
-    }
-    value.parse::<i64>().ok()
+    value.parse::<i64>().map_err(|_| {
+        AppError::bad_request(format!(
+            "Invalid {field_name}: expected an RFC 3339 timestamp or epoch milliseconds"
+        ))
+    })
 }
 
 fn create_temp_upload_file(

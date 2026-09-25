@@ -146,6 +146,8 @@ pub struct QuerySettings {
 pub struct WorkBudgetSettings {
     pub max_scatter_matrix_pairs: usize,
     pub max_scatter_matrix_points: usize,
+    /// Approximate row-by-pair operations allowed per correlation request.
+    pub max_correlation_work_units: u64,
     pub max_rolling_cells: usize,
     pub max_spectrogram_cells: usize,
     pub max_analytics_points: usize,
@@ -162,6 +164,7 @@ impl Default for WorkBudgetSettings {
         Self {
             max_scatter_matrix_pairs: 64,
             max_scatter_matrix_points: 1_000_000,
+            max_correlation_work_units: 25_000_000,
             max_rolling_cells: 2_000_000,
             max_spectrogram_cells: 2_000_000,
             max_analytics_points: 65_536,
@@ -517,6 +520,12 @@ impl AppConfig {
             && max_points > 0
         {
             self.budgets.max_analytics_points = max_points;
+        }
+        if let Ok(max_work) = env::var("EDATIME_MAX_CORRELATION_WORK_UNITS")
+            && let Ok(max_work) = max_work.parse::<u64>()
+            && max_work > 0
+        {
+            self.budgets.max_correlation_work_units = max_work;
         }
         if let Ok(max_rows) = env::var("EDATIME_MAX_DATABASE_ROWS")
             && let Ok(max_rows) = max_rows.parse::<usize>()

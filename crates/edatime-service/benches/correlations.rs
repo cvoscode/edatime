@@ -56,23 +56,23 @@ fn synth_wide_frame(columns: usize, rows: usize) -> DataFrame {
 
 fn bench_correlations(c: &mut Criterion) {
     let mut group = c.benchmark_group("correlations_matrix");
-    // Numeric column counts sweep the upper-triangle pair count from
-    // 6 pairs (4 columns) to 120 pairs (16 columns). Row count stays
-    // moderate so the bench finishes in a reasonable time.
-    for &cols in &[4usize, 8, 16] {
-        let df = synth_wide_frame(cols, 5_000);
+    // Sweep narrow and wide pair counts at 5k rows and include the current
+    // large time-series shape used to calibrate the configured row-pair budget.
+    for &(cols, rows) in &[(4usize, 5_000usize), (8, 5_000), (8, 69_680), (16, 5_000)] {
+        let df = synth_wide_frame(cols, rows);
         let metrics = Arc::new(AppMetrics::new());
         let lazy = df.lazy();
-        group.bench_with_input(
-            BenchmarkId::from_parameter(format!("{cols}c_5k_rows")),
-            &cols,
-            |b, _| {
-                b.iter(|| {
-                    compute_correlation_matrix(lazy.clone(), Arc::clone(&metrics))
-                        .expect("correlation matrix");
-                });
-            },
-        );
+        let benchmark_id = if rows == 5_000 {
+            format!("{cols}c_5k_rows")
+        } else {
+            format!("{cols}c_{rows}_rows")
+        };
+        group.bench_with_input(BenchmarkId::from_parameter(benchmark_id), &cols, |b, _| {
+            b.iter(|| {
+                compute_correlation_matrix(lazy.clone(), Arc::clone(&metrics))
+                    .expect("correlation matrix");
+            });
+        });
     }
     group.finish();
 }

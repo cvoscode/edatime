@@ -1,9 +1,9 @@
-use std::{collections::HashSet, path::Path};
+use std::{collections::HashSet, fmt::Display, hash::Hash, path::Path};
 
 use axum::{Json, extract::State};
 use polars::prelude::{
-    DataFrame, DataType, Expr, LazyCsvReader, LazyFileListReader, LazyFrame, ScanArgsParquet,
-    SchemaExt, col, len,
+    DataFrame, DataType, LazyCsvReader, LazyFileListReader, LazyFrame, ScanArgsParquet, SchemaExt,
+    col, len,
 };
 use serde::{Deserialize, Serialize};
 
@@ -119,6 +119,12 @@ pub struct ColumnProfile {
     pub min: Option<f64>,
     pub max: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    /// Native integer minimum as a decimal string; `min` can round beyond f64 precision.
+    pub min_exact: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Native integer maximum as a decimal string; `max` can round beyond f64 precision.
+    pub max_exact: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub q25: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub median: Option<f64>,
@@ -129,17 +135,7 @@ pub struct ColumnProfile {
     pub histogram: Option<stats::Histogram>,
 }
 
-fn detect_time_column(
-    schema: &polars::prelude::Schema,
-    override_column: Option<&str>,
-) -> Option<(String, DataType)> {
-    // If user explicitly specified a column, use it regardless of type
-    if let Some(column_name) = override_column
-        && let Some(dtype) = schema.get(column_name)
-    {
-        return Some((column_name.to_string(), dtype.clone()));
-    }
-
+fn detect_time_column(schema: &polars::prelude::Schema) -> Option<(String, DataType)> {
     if let Some(dtype) = schema.get("ts")
         && matches!(
             dtype,
@@ -150,10 +146,10 @@ fn detect_time_column(
     }
 
     // Prefer explicit temporal columns first.
-    if let Some(field) = schema.iter_fields().find(|field| {
-        let dtype = field.dtype();
-        matches!(dtype, DataType::Datetime(_, _) | DataType::Date)
-    }) {
+    if let Some(field) = schema
+        .iter_fields()
+        .find(|field| matches!(field.dtype(), DataType::Datetime(_, _) | DataType::Date))
+    {
         return Some((field.name().to_string(), field.dtype().clone()));
     }
 
@@ -171,6 +167,27 @@ fn detect_time_column(
             None
         }
     })
+}
+
+fn resolve_time_column(
+    schema: &polars::prelude::Schema,
+    override_column: Option<&str>,
+) -> Result<Option<(String, DataType)>, AppError> {
+    let Some(name) = override_column else {
+        return Ok(detect_time_column(schema));
+    };
+    let dtype = schema.get(name).ok_or_else(|| {
+        AppError::bad_request(format!("Time column '{name}' was not found in the file"))
+    })?;
+    if !matches!(
+        dtype,
+        DataType::Datetime(_, _) | DataType::Date | DataType::Int64 | DataType::Int32
+    ) {
+        return Err(AppError::bad_request(format!(
+            "Time column '{name}' must be a date, datetime, or integer timestamp"
+        )));
+    }
+    Ok(Some((name.to_string(), dtype.clone())))
 }
 
 fn cast_u64_to_usize(value: u64) -> usize {
@@ -203,56 +220,6 @@ fn read_i64_agg(agg: &DataFrame, col_name: &str) -> Option<i64> {
         .and_then(|v| v.get(0))
 }
 
-/// Build a `ColumnProfile` from pre-computed aggregate columns.
-fn profile_from_aggregate(
-    agg: &DataFrame,
-    index: usize,
-    name: &str,
-    dtype: &DataType,
-) -> ColumnProfile {
-    let non_null_count = read_u64_agg(agg, &format!("__{index}_non_null"));
-    let null_count = read_u64_agg(agg, &format!("__{index}_null"));
-    let non_finite_count = read_u64_agg(agg, &format!("__{index}_non_finite"));
-
-    let (min, max) = if dtype.is_numeric() {
-        (
-            read_f64_agg(agg, &format!("__{index}_min")),
-            read_f64_agg(agg, &format!("__{index}_max")),
-        )
-    } else if matches!(dtype, DataType::Datetime(_, _) | DataType::Date) {
-        (
-            read_i64_agg(agg, &format!("__{index}_tmin"))
-                .map(|v| temporal::native_to_epoch_ms(v, dtype)),
-            read_i64_agg(agg, &format!("__{index}_tmax"))
-                .map(|v| temporal::native_to_epoch_ms(v, dtype)),
-        )
-    } else {
-        (None, None)
-    };
-
-    ColumnProfile {
-        name: name.to_string(),
-        dtype: dtype.to_string(),
-        non_null_count,
-        null_count,
-        non_finite_count,
-        finite_count: None,
-        zero_count: None,
-        longest_zero_run: None,
-        longest_zero_run_start_ms: None,
-        longest_zero_run_end_ms: None,
-        distinct_count: None,
-        is_constant: None,
-        min,
-        max,
-        q25: None,
-        median: None,
-        q75: None,
-        interquartile_range: None,
-        histogram: None,
-    }
-}
-
 fn percentile(sorted: &[f64], quantile: f64) -> Option<f64> {
     let last_index = sorted.len().checked_sub(1)?;
     let position = quantile.clamp(0.0, 1.0) * last_index as f64;
@@ -262,34 +229,69 @@ fn percentile(sorted: &[f64], quantile: f64) -> Option<f64> {
     Some(sorted[lower] + (sorted[upper] - sorted[lower]) * fraction)
 }
 
-/// Resolve a `TimeRange` from aggregate columns for a detected time column.
-fn time_range_from_aggregate(agg: &DataFrame, index: usize, dtype: &DataType) -> Option<TimeRange> {
-    if dtype.is_numeric() {
-        // Numeric time columns: read as f64, round to i64,
-        // then apply the integer heuristic in `native_to_epoch_ms`.
-        let min_raw = read_f64_agg(agg, &format!("__{index}_min"))?;
-        let max_raw = read_f64_agg(agg, &format!("__{index}_max"))?;
-        Some(TimeRange {
-            min: temporal::native_to_epoch_ms(min_raw.round() as i64, &DataType::Int64).round()
-                as i64,
-            max: temporal::native_to_epoch_ms(max_raw.round() as i64, &DataType::Int64).round()
-                as i64,
-        })
-    } else if matches!(dtype, DataType::Datetime(_, _) | DataType::Date) {
-        let min_raw = read_i64_agg(agg, &format!("__{index}_tmin"))?;
-        let max_raw = read_i64_agg(agg, &format!("__{index}_tmax"))?;
-        Some(TimeRange {
-            min: temporal::native_to_epoch_ms(min_raw, dtype).round() as i64,
-            max: temporal::native_to_epoch_ms(max_raw, dtype).round() as i64,
-        })
-    } else {
-        None
+#[derive(Debug)]
+struct ExactIntegerSummary {
+    distinct_count: usize,
+    min_exact: Option<String>,
+    max_exact: Option<String>,
+}
+
+fn summarize_integer_values<T>(
+    values: impl Iterator<Item = Option<T>>,
+    capacity: usize,
+) -> ExactIntegerSummary
+where
+    T: Copy + Display + Eq + Hash + Ord,
+{
+    let mut distinct = HashSet::with_capacity(capacity);
+    let mut minimum: Option<T> = None;
+    let mut maximum: Option<T> = None;
+    for value in values.flatten() {
+        distinct.insert(value);
+        minimum = Some(minimum.map_or(value, |current| current.min(value)));
+        maximum = Some(maximum.map_or(value, |current| current.max(value)));
+    }
+    ExactIntegerSummary {
+        distinct_count: distinct.len(),
+        min_exact: minimum.map(|value| value.to_string()),
+        max_exact: maximum.map(|value| value.to_string()),
     }
 }
 
-fn time_quality_from_frame(df: &DataFrame) -> Option<TimeQuality> {
+fn exact_integer_summary(
+    series: &polars::prelude::Series,
+    dtype: &DataType,
+    capacity: usize,
+) -> Result<Option<ExactIntegerSummary>, AppError> {
+    macro_rules! summarize {
+        ($accessor:ident, $type:ty) => {{
+            let values = series.$accessor()?;
+            Ok(Some(summarize_integer_values::<$type>(
+                values.into_iter(),
+                capacity,
+            )))
+        }};
+    }
+
+    match dtype {
+        DataType::Int8 => summarize!(i8, i8),
+        DataType::Int16 => summarize!(i16, i16),
+        DataType::Int32 => summarize!(i32, i32),
+        DataType::Int64 => summarize!(i64, i64),
+        DataType::UInt8 => summarize!(u8, u8),
+        DataType::UInt16 => summarize!(u16, u16),
+        DataType::UInt32 => summarize!(u32, u32),
+        DataType::UInt64 => summarize!(u64, u64),
+        _ => Ok(None),
+    }
+}
+
+fn time_quality_from_frame(
+    df: &DataFrame,
+    time_column_override: Option<&str>,
+) -> Option<TimeQuality> {
     let schema = df.schema();
-    let (name, dtype) = detect_time_column(schema.as_ref(), None)?;
+    let (name, dtype) = resolve_time_column(schema.as_ref(), time_column_override).ok()??;
     let series = df.column(&name).ok()?.as_materialized_series().clone();
     let mut timestamps = Vec::with_capacity(series.len());
     let null_count = series.null_count();
@@ -358,160 +360,19 @@ fn build_dataset_metadata_from_lazyframe(
     lf: LazyFrame,
     time_column_override: Option<&str>,
 ) -> Result<DatasetMetadata, AppError> {
-    // File previews are explicitly a profiling surface, not the lightweight
-    // metadata bootstrap. When no override is needed, collect once and use
-    // the canonical frame profiler so counts, extrema, quantiles, zero rates,
-    // and histograms are all populated together. The override path retains
-    // the lazy aggregate implementation because it must preserve a caller's
-    // selected time column semantics.
-    if time_column_override.is_none() {
-        let frame = lf
-            .collect()
-            .map_err(|e| AppError::bad_request(format!("Failed to profile uploaded file: {e}")))?;
-        return build_dataset_metadata(&frame, true, None);
-    }
-    let schema_ref = lf
-        .clone()
-        .collect_schema()
-        .map_err(|e| AppError::bad_request(format!("Failed to infer schema: {e}")))?;
-    let schema = schema_ref.as_ref();
-
-    let time_col = detect_time_column(schema, time_column_override);
-    let time_col_name = time_col.as_ref().map(|(name, _)| name.clone());
-
-    if time_col.is_none() && time_column_override.is_some() {
-        return Err(AppError::bad_request(
-            "Specified time column not found in the file",
-        ));
-    }
-
-    let mut columns = Vec::with_capacity(schema.len());
-    let mut numeric_columns = Vec::new();
-    let mut exprs: Vec<Expr> = Vec::with_capacity(schema.len() * 4 + 1);
-    exprs.push(len().cast(DataType::UInt64).alias("__total_rows"));
-
-    for (index, field) in schema.iter_fields().enumerate() {
-        let name = field.name().to_string();
-        let dtype = field.dtype().clone();
-
-        columns.push(ColumnMetadata {
-            name: name.clone(),
-            dtype: dtype.to_string(),
-        });
-
-        if dtype.is_numeric() && Some(name.as_str()) != time_col_name.as_deref() {
-            numeric_columns.push(name.clone());
-        }
-
-        exprs.push(
-            col(&name)
-                .count()
-                .cast(DataType::UInt64)
-                .alias(format!("__{index}_non_null")),
-        );
-        exprs.push(
-            col(&name)
-                .null_count()
-                .cast(DataType::UInt64)
-                .alias(format!("__{index}_null")),
-        );
-
-        if dtype.is_numeric() {
-            exprs.push(
-                col(&name)
-                    .cast(DataType::Float64)
-                    .is_finite()
-                    .not()
-                    .sum()
-                    .cast(DataType::UInt64)
-                    .alias(format!("__{index}_non_finite")),
-            );
-            exprs.push(
-                col(&name)
-                    .cast(DataType::Float64)
-                    .min()
-                    .alias(format!("__{index}_min")),
-            );
-            exprs.push(
-                col(&name)
-                    .cast(DataType::Float64)
-                    .max()
-                    .alias(format!("__{index}_max")),
-            );
-        } else if matches!(dtype, DataType::Datetime(_, _) | DataType::Date) {
-            exprs.push(
-                col(&name)
-                    .cast(DataType::Int64)
-                    .min()
-                    .alias(format!("__{index}_tmin")),
-            );
-            exprs.push(
-                col(&name)
-                    .cast(DataType::Int64)
-                    .max()
-                    .alias(format!("__{index}_tmax")),
-            );
-        }
-    }
-
-    if numeric_columns.is_empty() {
+    // File previews are exact profiling surfaces. Resolve the selected
+    // time column, collect once, then share the same profiler and statistics
+    // regardless of whether that selection was explicit or automatic.
+    let frame = lf.collect().map_err(|error| {
+        AppError::bad_request(format!("Failed to profile uploaded file: {error}"))
+    })?;
+    let metadata = build_dataset_metadata(&frame, true, time_column_override)?;
+    if metadata.numeric_columns.is_empty() {
         return Err(AppError::bad_request(
             "File must contain at least one numeric column",
         ));
     }
-
-    let aggregate = lf
-        .select(exprs)
-        .collect()
-        .map_err(|e| AppError::bad_request(format!("Failed to profile uploaded file: {e}")))?;
-
-    if aggregate.height() == 0 {
-        return Err(AppError::bad_request(
-            "Failed to profile uploaded file (empty result)",
-        ));
-    }
-
-    let total_rows = read_u64_agg(&aggregate, "__total_rows");
-
-    let mut column_profiles = Vec::with_capacity(schema.len());
-    for (index, field) in schema.iter_fields().enumerate() {
-        column_profiles.push(profile_from_aggregate(
-            &aggregate,
-            index,
-            &field.name().to_string(),
-            field.dtype(),
-        ));
-    }
-
-    let time_range = time_col_name
-        .as_ref()
-        .and_then(|time_col_name| {
-            schema
-                .iter_fields()
-                .enumerate()
-                .find(|(_, field)| field.name().as_str() == time_col_name)
-        })
-        .and_then(|(index, field)| time_range_from_aggregate(&aggregate, index, field.dtype()));
-
-    Ok(DatasetMetadata {
-        revision: 0,
-        source_version_id: None,
-        source_version_revision: None,
-        root_source_version_id: None,
-        parent_source_version_id: None,
-        dataset_fingerprint: None,
-        schema_fingerprint: None,
-        source_name: None,
-        profile_status: "exact".to_string(),
-        profile_sample_rows: None,
-        total_rows,
-        columns,
-        numeric_columns,
-        time_column: time_col_name,
-        time_range,
-        time_quality: None,
-        column_profiles,
-    })
+    Ok(metadata)
 }
 
 /// Produce the metadata required to start exploring a source without building
@@ -527,7 +388,7 @@ fn build_immediate_dataset_metadata_from_lazyframe(
         .collect_schema()
         .map_err(|e| AppError::bad_request(format!("Failed to infer schema: {e}")))?;
     let schema = schema_ref.as_ref();
-    let time_col = detect_time_column(schema, time_column_override);
+    let time_col = resolve_time_column(schema, time_column_override)?;
     let time_col_name = time_col.as_ref().map(|(name, _)| name.clone());
 
     if time_col.is_none() && time_column_override.is_some() {
@@ -614,11 +475,11 @@ fn build_immediate_dataset_metadata_from_lazyframe(
 pub fn build_dataset_metadata(
     df: &DataFrame,
     include_histograms: bool,
-    time_column_display_name: Option<&str>,
+    time_column_override: Option<&str>,
 ) -> Result<DatasetMetadata, AppError> {
     let total_rows = df.height();
     let schema = df.schema();
-    let time_col = detect_time_column(schema.as_ref(), None);
+    let time_col = resolve_time_column(schema.as_ref(), time_column_override)?;
     let time_col_name = time_col
         .as_ref()
         .map(|(name, _)| name.as_str())
@@ -643,13 +504,8 @@ pub fn build_dataset_metadata(
         let name = series.name().as_str().to_string();
         let dtype = series.dtype().clone();
 
-        let display_name = time_column_display_name
-            .filter(|_| name == "ts")
-            .map(String::from)
-            .unwrap_or_else(|| name.clone());
-
         columns.push(ColumnMetadata {
-            name: display_name.clone(),
+            name: name.clone(),
             dtype: dtype.to_string(),
         });
 
@@ -660,7 +516,7 @@ pub fn build_dataset_metadata(
         let null_count = series.null_count();
         let non_null_count = series.len().saturating_sub(null_count);
         let mut profile = ColumnProfile {
-            name: display_name.clone(),
+            name: name.clone(),
             dtype: dtype.to_string(),
             non_null_count,
             null_count,
@@ -674,6 +530,8 @@ pub fn build_dataset_metadata(
             is_constant: None,
             min: None,
             max: None,
+            min_exact: None,
+            max_exact: None,
             q25: None,
             median: None,
             q75: None,
@@ -686,8 +544,8 @@ pub fn build_dataset_metadata(
             let values = casted.f64()?;
             let mut min = f64::INFINITY;
             let mut max = f64::NEG_INFINITY;
+            let integer_summary = exact_integer_summary(series, &dtype, non_null_count)?;
             let mut finite_values = Vec::with_capacity(non_null_count);
-            let mut distinct_values = HashSet::with_capacity(non_null_count);
             let mut zero_count = 0usize;
             let mut current_zero_run = 0usize;
             let mut longest_zero_run = 0usize;
@@ -723,13 +581,21 @@ pub fn build_dataset_metadata(
                 } else {
                     current_zero_run = 0;
                 }
-                distinct_values.insert(if value == 0.0 { 0 } else { value.to_bits() });
             }
 
+            finite_values.sort_by(f64::total_cmp);
+            let float_distinct_count = if integer_summary.is_none() {
+                finite_values
+                    .windows(2)
+                    .filter(|pair| pair[0] != pair[1])
+                    .count()
+                    .saturating_add(usize::from(!finite_values.is_empty()))
+            } else {
+                0
+            };
             if min.is_finite() && max.is_finite() {
                 profile.min = Some(min);
                 profile.max = Some(max);
-                finite_values.sort_by(f64::total_cmp);
                 profile.q25 = percentile(&finite_values, 0.25);
                 profile.median = percentile(&finite_values, 0.5);
                 profile.q75 = percentile(&finite_values, 0.75);
@@ -758,8 +624,15 @@ pub fn build_dataset_metadata(
                 profile.longest_zero_run_start_ms = times.get(start).copied().flatten();
                 profile.longest_zero_run_end_ms = times.get(end).copied().flatten();
             }
-            profile.distinct_count = Some(distinct_values.len());
-            profile.is_constant = Some(!finite_values.is_empty() && min == max);
+            if let Some(summary) = integer_summary {
+                profile.distinct_count = Some(summary.distinct_count);
+                profile.is_constant = Some(summary.distinct_count == 1);
+                profile.min_exact = summary.min_exact;
+                profile.max_exact = summary.max_exact;
+            } else {
+                profile.distinct_count = Some(float_distinct_count);
+                profile.is_constant = Some(float_distinct_count == 1);
+            }
         } else if matches!(dtype, DataType::Datetime(_, _) | DataType::Date) {
             let casted = series.cast(&DataType::Int64)?;
             let ints = casted.i64()?;
@@ -811,11 +684,8 @@ pub fn build_dataset_metadata(
         })
     });
 
-    let time_column_for_response = time_column_display_name
-        .filter(|_| time_col_name == "ts")
-        .map(String::from)
-        .or_else(|| time_col.as_ref().map(|(name, _)| name.clone()));
-    let time_quality = time_quality_from_frame(df);
+    let time_column_for_response = time_col.as_ref().map(|(name, _)| name.clone());
+    let time_quality = time_quality_from_frame(df, time_column_override);
 
     Ok(DatasetMetadata {
         revision: 0,
@@ -868,21 +738,6 @@ pub fn build_dataset_metadata_from_path_with_time_column(
     build_dataset_metadata_from_lazyframe(lf, time_column_override)
 }
 
-fn apply_time_column_display_name(metadata: &mut DatasetMetadata, display_name: Option<&str>) {
-    let Some(display_name) = display_name.filter(|name| !name.trim().is_empty()) else {
-        return;
-    };
-    if metadata.time_column.as_deref() != Some("ts") {
-        return;
-    }
-    for column in &mut metadata.columns {
-        if column.name == "ts" {
-            column.name = display_name.to_string();
-        }
-    }
-    metadata.time_column = Some(display_name.to_string());
-}
-
 pub fn build_immediate_dataset_metadata_from_path_with_time_column(
     path: &Path,
     time_column_override: Option<&str>,
@@ -919,8 +774,7 @@ pub async fn get_metadata(
     State(state): State<AppState>,
 ) -> Result<Json<DatasetMetadata>, AppError> {
     let version = state.current_dataset_version()?;
-    let display_name = state.time_column_display_name_sync();
-    let metadata_key = immediate_metadata_cache_key(&version, display_name.as_deref());
+    let metadata_key = immediate_metadata_cache_key(&version);
     if let Some(cached) = state.cached_immediate_metadata(&metadata_key) {
         let metadata = serde_json::from_value(cached)
             .map_err(|error| AppError::internal(format!("Decode cached metadata: {error}")))?;
@@ -930,14 +784,12 @@ pub async fn get_metadata(
     // The active repository may be replaced by another upload while metadata
     // is being computed, but this response must remain internally consistent.
     let source = state.dataset_snapshot_for_version(&version.id)?;
-    let worker_display_name = display_name.clone();
+    let worker_time_column = version.time_column.clone();
 
     let metadata = state
         .query_executor
         .run_interactive(edatime_core::metrics::CpuStage::Query, move || {
-            let mut metadata = build_immediate_dataset_metadata_from_lazyframe(source, None)?;
-            apply_time_column_display_name(&mut metadata, worker_display_name.as_deref());
-            Ok::<_, AppError>(metadata)
+            build_immediate_dataset_metadata_from_lazyframe(source, worker_time_column.as_deref())
         })
         .await
         .map_err(AppError::from)??;
@@ -955,15 +807,12 @@ pub async fn get_metadata(
     Ok(Json(metadata))
 }
 
-fn immediate_metadata_cache_key(
-    version: &DatasetVersionRecord,
-    display_name: Option<&str>,
-) -> String {
+fn immediate_metadata_cache_key(version: &DatasetVersionRecord) -> String {
     format!(
         "{}:{}:{}",
         version.id,
         version.revision,
-        display_name.unwrap_or("")
+        version.time_column.as_deref().unwrap_or("")
     )
 }
 
@@ -1139,11 +988,11 @@ async fn start_profile_mode(
                 "building exact quality report".to_string()
             }),
         );
-        let display_name = worker_state.time_column_display_name_sync();
+        let time_column = worker_version.time_column.clone();
         let report = match worker_state
             .query_executor
             .run_queued_background(edatime_core::metrics::CpuStage::Analytics, move || {
-                build_dataset_metadata(&frame, true, display_name.as_deref())
+                build_dataset_metadata(&frame, true, time_column.as_deref())
             })
             .await
         {
@@ -1204,6 +1053,24 @@ mod tests {
     use edatime_core::config::AppConfig;
     use polars::prelude::{IntoLazy, NamedFrom, TimeUnit};
     use std::fs;
+
+    fn frame_with_two_time_columns(ts_values: [i64; 3], event_values: [i64; 3]) -> DataFrame {
+        let ts = polars::prelude::Series::new("ts".into(), ts_values.to_vec())
+            .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))
+            .expect("ts datetime");
+        let event_time = polars::prelude::Series::new("event_time".into(), event_values.to_vec())
+            .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))
+            .expect("event time datetime");
+        DataFrame::new(
+            3,
+            vec![
+                ts.into(),
+                event_time.into(),
+                polars::prelude::Series::new("value".into(), vec![1.0_f64, 2.0, 3.0]).into(),
+            ],
+        )
+        .expect("two-time-column dataframe")
+    }
 
     #[test]
     fn builds_metadata_for_in_memory_frame() {
@@ -1283,6 +1150,138 @@ mod tests {
         assert_eq!(metadata.profile_status, "immediate");
         assert_eq!(metadata.time_quality, None);
         assert!(metadata.column_profiles.is_empty());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn metadata_uses_the_selected_time_column_and_restores_it_with_its_version() {
+        let state = AppState::new(DataFrame::default(), AppConfig::default());
+        let first_frame =
+            frame_with_two_time_columns([0, 1_000, 2_000], [100_000, 101_000, 102_000]);
+        state
+            .replace_dataset_with_time_column(first_frame, Some("event_time".to_string()))
+            .await
+            .expect("selected source upload");
+        let first_version = state.current_dataset_version().expect("first version");
+
+        let first = get_metadata(State(state.clone()))
+            .await
+            .expect("first metadata")
+            .0;
+        assert_eq!(first.time_column.as_deref(), Some("event_time"));
+        assert_eq!(
+            first.time_range,
+            Some(TimeRange {
+                min: 100_000,
+                max: 102_000
+            })
+        );
+        assert_eq!(
+            first
+                .columns
+                .iter()
+                .filter(|column| column.name == "ts")
+                .count(),
+            1
+        );
+        assert_eq!(
+            first
+                .columns
+                .iter()
+                .filter(|column| column.name == "event_time")
+                .count(),
+            1
+        );
+
+        state
+            .replace_dataset_with_time_column(
+                frame_with_two_time_columns(
+                    [700_000, 701_000, 702_000],
+                    [800_000, 801_000, 802_000],
+                ),
+                Some("ts".to_string()),
+            )
+            .await
+            .expect("second source upload");
+        state
+            .select_dataset_version(&first_version.id)
+            .await
+            .expect("restore first version");
+        let restored = get_metadata(State(state.clone()))
+            .await
+            .expect("restored metadata")
+            .0;
+        assert_eq!(
+            restored.source_version_id.as_deref(),
+            Some(first_version.id.as_str())
+        );
+        assert_eq!(restored.time_column.as_deref(), Some("event_time"));
+        assert_eq!(
+            restored.time_range,
+            Some(TimeRange {
+                min: 100_000,
+                max: 102_000
+            })
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn exact_profile_keeps_its_version_time_column_across_source_changes() {
+        let state = AppState::new(DataFrame::default(), AppConfig::default());
+        state
+            .replace_dataset_with_time_column(
+                frame_with_two_time_columns([0, 1_000, 2_000], [100_000, 101_000, 102_000]),
+                Some("event_time".to_string()),
+            )
+            .await
+            .expect("first source upload");
+        let first = start_profile(State(state.clone()))
+            .await
+            .expect("start first exact profile")
+            .0;
+
+        state
+            .replace_dataset_with_time_column(
+                frame_with_two_time_columns(
+                    [700_000, 701_000, 702_000],
+                    [800_000, 801_000, 802_000],
+                ),
+                Some("ts".to_string()),
+            )
+            .await
+            .expect("replace active source");
+        state
+            .select_dataset_version(&first.source_version.id)
+            .await
+            .expect("restore profiled version");
+
+        for _ in 0..200 {
+            let response = get_profile(State(state.clone()))
+                .await
+                .expect("get exact profile")
+                .0;
+            if response.status == "ready" {
+                let report: DatasetMetadata =
+                    serde_json::from_value(response.metadata.expect("profile metadata"))
+                        .expect("profile report");
+                assert_eq!(report.time_column.as_deref(), Some("event_time"));
+                assert_eq!(
+                    report.time_range,
+                    Some(TimeRange {
+                        min: 100_000,
+                        max: 102_000
+                    })
+                );
+                assert!(
+                    report
+                        .column_profiles
+                        .iter()
+                        .any(|profile| profile.name == "event_time")
+                );
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
+        panic!("version-bound exact profile did not finish");
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -1374,33 +1373,230 @@ mod tests {
     }
 
     #[test]
-    fn immediate_metadata_relabels_canonical_time_only_after_resolution() {
+    fn immediate_metadata_uses_the_selected_real_time_column() {
+        let ts = polars::prelude::Series::new("ts".into(), vec![0_i64, 1_000, 2_000])
+            .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))
+            .expect("ts datetime");
+        let event_time =
+            polars::prelude::Series::new("event_time".into(), vec![100_000_i64, 101_000, 102_000])
+                .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))
+                .expect("event time datetime");
         let df = DataFrame::new(
-            2,
+            3,
             vec![
-                polars::prelude::Series::new("ts".into(), vec![1_i64, 2]).into(),
-                polars::prelude::Series::new("value".into(), vec![1.0_f64, 2.0]).into(),
+                ts.into(),
+                event_time.into(),
+                polars::prelude::Series::new("value".into(), vec![1.0_f64, 2.0, 3.0]).into(),
             ],
         )
         .expect("dataframe");
-        let mut metadata = build_immediate_dataset_metadata_from_lazyframe(df.lazy(), None)
-            .expect("immediate metadata");
 
-        apply_time_column_display_name(&mut metadata, Some("recorded_at"));
-
-        assert_eq!(metadata.time_column.as_deref(), Some("recorded_at"));
-        assert!(
+        let metadata =
+            build_immediate_dataset_metadata_from_lazyframe(df.clone().lazy(), Some("event_time"))
+                .expect("immediate metadata");
+        assert_eq!(metadata.time_column.as_deref(), Some("event_time"));
+        assert_eq!(
             metadata
                 .columns
                 .iter()
-                .any(|column| column.name == "recorded_at")
+                .filter(|column| column.name == "ts")
+                .count(),
+            1
+        );
+        assert_eq!(
+            metadata
+                .columns
+                .iter()
+                .filter(|column| column.name == "event_time")
+                .count(),
+            1
         );
         assert_eq!(
             metadata.time_range,
             Some(TimeRange {
-                min: 1_000,
-                max: 2_000
+                min: 100_000,
+                max: 102_000
             })
+        );
+
+        let exact =
+            build_dataset_metadata(&df, true, Some("event_time")).expect("selected exact profile");
+        assert_eq!(exact.time_column.as_deref(), Some("event_time"));
+        assert_eq!(exact.time_range, metadata.time_range);
+        assert_eq!(
+            exact
+                .column_profiles
+                .iter()
+                .filter(|profile| profile.name == "event_time")
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn exact_preview_statistics_match_with_automatic_and_explicit_time_selection() {
+        let event_time = polars::prelude::Series::new(
+            "event_time".into(),
+            vec![
+                1_700_000_000_000_i64,
+                1_700_000_001_000,
+                1_700_000_002_000,
+                1_700_000_003_000,
+            ],
+        )
+        .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))
+        .expect("event time datetime");
+        let df = DataFrame::new(
+            4,
+            vec![
+                event_time.into(),
+                polars::prelude::Series::new("value".into(), vec![0.0_f64, 2.0, 0.0, 4.0]).into(),
+            ],
+        )
+        .expect("dataframe");
+
+        let automatic = build_dataset_metadata_from_lazyframe(df.clone().lazy(), None)
+            .expect("automatic exact preview");
+        let explicit = build_dataset_metadata_from_lazyframe(df.lazy(), Some("event_time"))
+            .expect("explicit exact preview");
+        let automatic_value = automatic
+            .column_profiles
+            .iter()
+            .find(|profile| profile.name == "value")
+            .expect("automatic value profile");
+        let explicit_value = explicit
+            .column_profiles
+            .iter()
+            .find(|profile| profile.name == "value")
+            .expect("explicit value profile");
+
+        assert_eq!(automatic.profile_status, "exact");
+        assert_eq!(explicit.profile_status, "exact");
+        assert_eq!(automatic.numeric_columns, explicit.numeric_columns);
+        assert_eq!(automatic.time_range, explicit.time_range);
+        assert_eq!(automatic.time_quality, explicit.time_quality);
+        assert_eq!(automatic_value.distinct_count, Some(3));
+        assert_eq!(
+            automatic_value.distinct_count,
+            explicit_value.distinct_count
+        );
+        assert_eq!(automatic_value.zero_count, Some(2));
+        assert_eq!(automatic_value.zero_count, explicit_value.zero_count);
+        assert_eq!(automatic_value.median, explicit_value.median);
+        assert_eq!(automatic_value.q25, explicit_value.q25);
+        assert_eq!(automatic_value.q75, explicit_value.q75);
+        assert_eq!(
+            automatic_value
+                .histogram
+                .as_ref()
+                .map(|histogram| &histogram.counts),
+            explicit_value
+                .histogram
+                .as_ref()
+                .map(|histogram| &histogram.counts)
+        );
+        assert!(explicit_value.histogram.is_some());
+    }
+
+    #[test]
+    fn integer_profiles_preserve_exact_identity_and_extrema() {
+        let i64_values = vec![9_007_199_254_740_992_i64, 9_007_199_254_740_993_i64];
+        let signed = DataFrame::new(
+            2,
+            vec![polars::prelude::Series::new("value".into(), i64_values).into()],
+        )
+        .expect("signed integer frame");
+        let signed_profile = build_dataset_metadata(&signed, false, None)
+            .expect("signed profile")
+            .column_profiles
+            .into_iter()
+            .find(|profile| profile.name == "value")
+            .expect("signed value profile");
+        assert_eq!(signed_profile.distinct_count, Some(2));
+        assert_eq!(signed_profile.is_constant, Some(false));
+        assert_eq!(
+            signed_profile.min_exact.as_deref(),
+            Some("9007199254740992")
+        );
+        assert_eq!(
+            signed_profile.max_exact.as_deref(),
+            Some("9007199254740993")
+        );
+
+        let unsigned = DataFrame::new(
+            2,
+            vec![polars::prelude::Series::new("value".into(), vec![u64::MAX - 1, u64::MAX]).into()],
+        )
+        .expect("unsigned integer frame");
+        let unsigned_profile = build_dataset_metadata(&unsigned, false, None)
+            .expect("unsigned profile")
+            .column_profiles
+            .into_iter()
+            .find(|profile| profile.name == "value")
+            .expect("unsigned value profile");
+        assert_eq!(unsigned_profile.distinct_count, Some(2));
+        assert_eq!(unsigned_profile.is_constant, Some(false));
+        assert_eq!(
+            unsigned_profile.min_exact.as_deref(),
+            Some("18446744073709551614")
+        );
+        assert_eq!(
+            unsigned_profile.max_exact.as_deref(),
+            Some("18446744073709551615")
+        );
+
+        let signed_boundary = DataFrame::new(
+            2,
+            vec![polars::prelude::Series::new("value".into(), vec![i64::MIN, i64::MAX]).into()],
+        )
+        .expect("signed boundary frame");
+        let boundary_profile = build_dataset_metadata(&signed_boundary, false, None)
+            .expect("signed boundary profile")
+            .column_profiles
+            .into_iter()
+            .find(|profile| profile.name == "value")
+            .expect("boundary value profile");
+        assert_eq!(boundary_profile.distinct_count, Some(2));
+        assert_eq!(
+            boundary_profile.min_exact.as_deref(),
+            Some("-9223372036854775808")
+        );
+        assert_eq!(
+            boundary_profile.max_exact.as_deref(),
+            Some("9223372036854775807")
+        );
+    }
+
+    #[test]
+    fn explicit_time_column_errors_name_missing_and_unsupported_fields() {
+        let date = polars::prelude::Series::new(
+            "date".into(),
+            vec![1_700_000_000_000_i64, 1_700_000_001_000],
+        )
+        .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))
+        .expect("date datetime");
+        let df = DataFrame::new(
+            2,
+            vec![
+                date.into(),
+                polars::prelude::Series::new("value".into(), vec![1.0_f64, 2.0]).into(),
+            ],
+        )
+        .expect("dataframe");
+
+        let missing =
+            build_dataset_metadata_from_lazyframe(df.clone().lazy(), Some("missing_time"))
+                .expect_err("missing override must fail");
+        assert!(missing.to_string().contains("missing_time"));
+        assert!(missing.to_string().contains("not found"));
+
+        let wrong_type = build_dataset_metadata_from_lazyframe(df.lazy(), Some("value"))
+            .expect_err("numeric signal must not be accepted as a time override");
+        assert!(wrong_type.to_string().contains("value"));
+        assert!(
+            wrong_type
+                .to_string()
+                .contains("date, datetime, or integer timestamp")
         );
     }
 
@@ -1505,6 +1701,46 @@ mod tests {
         assert_eq!(constant.distinct_count, Some(1));
         assert_eq!(constant.is_constant, Some(true));
         assert_eq!(constant.interquartile_range, Some(0.0));
+    }
+
+    #[test]
+    fn float_distinct_counts_preserve_signed_zero_and_skip_non_finite_values() {
+        let df = DataFrame::new(
+            4,
+            vec![
+                polars::prelude::Series::new(
+                    "signed_zero".into(),
+                    vec![-0.0_f64, 0.0, f64::NAN, f64::INFINITY],
+                )
+                .into(),
+                polars::prelude::Series::new(
+                    "varied".into(),
+                    vec![1.0_f64, 1.0, 2.0, f64::NEG_INFINITY],
+                )
+                .into(),
+            ],
+        )
+        .expect("float profile frame");
+        let metadata = build_dataset_metadata(&df, false, None).expect("exact profile");
+        let signed_zero = metadata
+            .column_profiles
+            .iter()
+            .find(|profile| profile.name == "signed_zero")
+            .expect("signed-zero profile");
+        assert_eq!(signed_zero.finite_count, Some(2));
+        assert_eq!(signed_zero.non_finite_count, 2);
+        assert_eq!(signed_zero.distinct_count, Some(1));
+        assert_eq!(signed_zero.is_constant, Some(true));
+
+        let varied = metadata
+            .column_profiles
+            .iter()
+            .find(|profile| profile.name == "varied")
+            .expect("varied profile");
+        assert_eq!(varied.finite_count, Some(3));
+        assert_eq!(varied.non_finite_count, 1);
+        assert_eq!(varied.distinct_count, Some(2));
+        assert_eq!(varied.is_constant, Some(false));
     }
 
     #[test]
