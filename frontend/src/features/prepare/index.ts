@@ -3,7 +3,7 @@ import { cleaningPlanStore } from '../../cleaning/store.js';
 import { cancelSessionJob } from '../../cleaning/api.js';
 import type { CleaningPlan } from '../../cleaning/types.js';
 import type { ApiRequestOptions } from '../../services/api/http.js';
-import type { WorkspaceStore } from '../../contracts/workspace.js';
+import type { WorkspaceSnapshot, WorkspaceStore } from '../../contracts/workspace.js';
 import {
     fetchDatasetProfile,
     fetchSampledDatasetProfile,
@@ -27,6 +27,7 @@ import {
 } from '../../ui/profileGrid.js';
 import type { ProfileGridSort } from '../../types/store.js';
 import { createPreparationPreview, type PreparationPreview } from './preview.js';
+import { renderPreviewEvidence } from '../../cleaning/previewEvidence.js';
 import { capturePreparationView, initPreparationNavigation, keyPreparationControls, restorePreparationView } from './viewState.js';
 import '../../../css/modules/prepare.css';
 
@@ -59,8 +60,8 @@ export const PREPARE_HELP: PageHelpContent = {
 };
 
 export interface PreparePageDeps {
-    workspace?: Pick<WorkspaceStore, 'getSnapshot' | 'subscribe'>
-        & Partial<Pick<WorkspaceStore, 'setSelection' | 'setViewport'>>;
+    workspace?: Pick<WorkspaceStore, 'getSnapshot'>
+        & Partial<Pick<WorkspaceStore, 'setSelection' | 'setViewport' | 'subscribeSelector'>>;
     showPage?: (pageName: string) => void;
     onPlanChanged?: () => void;
     startProfile?: (options?: ApiRequestOptions) => Promise<DatasetProfileResponse>;
@@ -77,6 +78,101 @@ function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, className?
     if (element instanceof HTMLInputElement) element.type = 'text';
     if (className) element.className = className;
     return element;
+}
+
+function hasPrepareTimeViewport(viewport: WorkspaceSnapshot['viewport']): viewport is NonNullable<WorkspaceSnapshot['viewport']> & { xMin: number; xMax: number } {
+    return viewport?.xMin != null && viewport.xMax != null
+        && Number.isFinite(viewport.xMin) && Number.isFinite(viewport.xMax) && viewport.xMin < viewport.xMax;
+}
+
+function navigatePrepareToSection(targetId: string): void {
+    const params = new URLSearchParams(window.location.hash.slice(1));
+    params.set('page', 'prepare');
+    params.set('section', targetId);
+    window.history.replaceState(null, '', '#' + params.toString());
+    const section = document.getElementById(targetId);
+    if (!section) return;
+    section.tabIndex = -1;
+    section.focus({ preventScroll: true });
+    section.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+}
+
+function createPrepareSectionLink(label: string, targetId: string): HTMLAnchorElement {
+    const link = document.createElement('a');
+    link.href = '#' + targetId;
+    link.textContent = label;
+    link.dataset.prepareSection = targetId;
+    link.addEventListener('click', (event) => {
+        event.preventDefault();
+        navigatePrepareToSection(targetId);
+    });
+    return link;
+}
+
+function prepareFilterCount(filters: WorkspaceSnapshot['filters'] | undefined): number {
+    return Object.keys(filters?.columnRanges ?? {}).length + (filters?.adaptiveLines.length ?? 0);
+}
+
+function renderPrepareSignalsFilterSection(filters: WorkspaceSnapshot['filters'] | undefined): HTMLElement {
+    const rangeFilters = Object.entries(filters?.columnRanges ?? {});
+    const adaptiveFilters = filters?.adaptiveLines ?? [];
+    const section = createElement('section', 'prepare-workspace__signals-filters');
+    section.id = 'prepare-signals-filters';
+    const heading = createElement('h2');
+    heading.textContent = 'Applied in Signals';
+    const summary = createElement('p', 'prepare-workspace__copy');
+    summary.textContent = 'Signals filters are saved in the pipeline and applied to correlations, density/scatter plots, and diagnostics.';
+    const list = createElement('ul', 'prepare-workspace__signals-filter-list');
+    for (const [column, range] of rangeFilters) {
+        const item = createElement('li');
+        item.textContent = 'Keep ' + column + ' between ' + String(range.from) + ' and ' + String(range.to);
+        list.append(item);
+    }
+    for (const filter of adaptiveFilters) {
+        const item = createElement('li');
+        item.textContent = filter.column + ': keep ' + (filter.keepAbove ? 'above' : 'below') + ' the drawn line';
+        list.append(item);
+    }
+    section.hidden = rangeFilters.length === 0 && adaptiveFilters.length === 0;
+    section.append(heading, summary, list);
+    return section;
+}
+
+function refreshPrepareSignalsFilters(root: HTMLElement, filters: WorkspaceSnapshot['filters']): void {
+    const section = root.querySelector<HTMLElement>('#prepare-signals-filters');
+    if (!section) return;
+    const updated = renderPrepareSignalsFilterSection(filters);
+    section.hidden = updated.hidden;
+    section.replaceChildren(...Array.from(updated.childNodes));
+    const showFilters = prepareFilterCount(filters) > 0;
+    const link = root.querySelector<HTMLAnchorElement>('[data-prepare-section="prepare-signals-filters"]');
+    if (showFilters && !link) {
+        root.querySelector<HTMLElement>('.prepare-workspace__local-nav')?.append(
+            createPrepareSectionLink('Signals filters', 'prepare-signals-filters'),
+        );
+    } else if (!showFilters) {
+        link?.remove();
+    }
+    const select = root.querySelector<HTMLSelectElement>('#prepare-section');
+    const option = select?.querySelector<HTMLOptionElement>('option[value="prepare-signals-filters"]');
+    if (showFilters && select && !option) {
+        const next = document.createElement('option');
+        next.value = 'prepare-signals-filters';
+        next.textContent = 'Signals filters';
+        select.append(next);
+    } else if (!showFilters) {
+        option?.remove();
+    }
+}
+
+function refreshPrepareSelection(root: HTMLElement, columns: readonly string[]): void {
+    const input = root.querySelector<HTMLInputElement>('#prepare-insight-columns');
+    if (input && document.activeElement !== input) input.value = columns.join(', ');
+}
+
+function refreshPrepareViewport(root: HTMLElement, viewport: WorkspaceSnapshot['viewport']): void {
+    const button = root.querySelector<HTMLButtonElement>('#prepare-keep-window');
+    if (button) button.disabled = !hasPrepareTimeViewport(viewport);
 }
 
 function stageSummary(stage: CleaningPlan['stages'][number]): string {
@@ -110,6 +206,15 @@ export function formatPipelinePreviewCaption(stages: CleaningPlan['stages']): { 
         text: prefix + summaries.slice(0, 3).join(' → ') + (remaining > 0 ? ` → +${remaining} more…` : ''),
         title,
     };
+}
+
+function profileErrorText(cause: unknown, fallback: string): string {
+    if (cause instanceof Error && cause.message.trim()) return cause.message.trim();
+    if (typeof cause === 'string' && cause.trim()) return cause.trim();
+    if (cause && typeof cause === 'object' && 'message' in cause && typeof cause.message === 'string' && cause.message.trim()) {
+        return cause.message.trim();
+    }
+    return fallback;
 }
 
 function actionButton(label: string, onClick: () => void, disabled = false): HTMLButtonElement {
@@ -230,8 +335,8 @@ function configureColumnInput(
     validate();
 }
 
-function hasEnabledTimeSort(plan: CleaningPlan): boolean {
-    return plan.stages.some((stage) => stage.enabled && stage.kind === 'sort'
+function hasEnabledTimeSort(plan: CleaningPlan, beforeIndex = plan.stages.length): boolean {
+    return plan.stages.slice(0, beforeIndex).some((stage) => stage.enabled && stage.kind === 'sort'
         && stage.columns.some((column) => column.trim() === plan.timeColumn.trim()));
 }
 
@@ -239,6 +344,28 @@ function resampleOrderingError(plan: CleaningPlan): string | null {
     const invalid = plan.stages.findIndex((stage, index) => stage.enabled && stage.kind === 'resample'
         && !hasAscendingTimeSortBefore(plan, index));
     return invalid < 0 ? null : 'Resampling requires the latest earlier enabled sort to be ascending with the time column first.';
+}
+
+function stageDependencyError(plan: CleaningPlan, metadata: DatasetMetadata | null): string | null {
+    const resampleError = resampleOrderingError(plan);
+    if (resampleError) return resampleError;
+
+    const canCheckColumns = !!metadata
+        && ((metadata.columns?.length ?? 0) > 0 || (metadata.numeric_columns?.length ?? 0) > 0);
+    for (const [index, stage] of plan.stages.entries()) {
+        if (!stage.enabled || stage.kind !== 'fillNull') continue;
+        if (!hasEnabledTimeSort(plan, index)) {
+            return 'Ordered null fill requires an earlier enabled stable sort on the time column. Keep that prerequisite or move the fill after it.';
+        }
+        if (!canCheckColumns) continue;
+        const beforeStage: CleaningPlan = { ...plan, stages: plan.stages.slice(0, index) };
+        const availableColumns = new Set(getEffectiveColumnNames(metadata, beforeStage));
+        const missingColumns = stage.columns.filter((column) => !availableColumns.has(column));
+        if (missingColumns.length > 0) {
+            return `Ordered null fill uses column${missingColumns.length === 1 ? '' : 's'} that are no longer available before this stage: ${missingColumns.join(', ')}.`;
+        }
+    }
+    return null;
 }
 
 interface PrepareProfileGridState {
@@ -264,6 +391,9 @@ function profileReportKind(
 function renderQualityReport(
     sourceMetadata: DatasetMetadata | null,
     profileStatus: DatasetProfileResponse['status'],
+    profileStartPending: boolean,
+    profilePollFailed: boolean,
+    profileError: string | null,
     profileKind: 'exact' | 'sampled',
     requestExactProfile: () => void,
     requestSampleProfile: () => void,
@@ -276,7 +406,7 @@ function renderQualityReport(
     title.textContent = 'Data quality report';
     const reportKind = profileReportKind(sourceMetadata);
     const reportLabel = reportKind === 'exact' ? 'Exact' : reportKind === 'sampled' ? 'Sampled' : 'Immediate';
-    const profileRunning = profileStatus === 'queued' || profileStatus === 'running' || profileStatus === 'cancelling';
+    const profileRunning = profileStartPending || profileStatus === 'queued' || profileStatus === 'running' || profileStatus === 'cancelling';
     const copy = createElement('p', 'prepare-workspace__copy');
     copy.textContent = profileRunning
         ? reportLabel + ' source findings are shown while the ' + profileKind + ' background quality report runs.'
@@ -287,7 +417,15 @@ function renderQualityReport(
                 : 'Review the active dataset profile before refining the pipeline. Build a sampled or exact profile when you need completed statistics.';
 
     const profileActions = createElement('div', 'prepare-workspace__quality-actions');
-    if (profileRunning) {
+    if (profileStartPending) {
+        const progress = createElement('span', 'prepare-workspace__quality-progress');
+        progress.setAttribute('role', 'status');
+        progress.setAttribute('aria-live', 'polite');
+        progress.textContent = `Starting ${profileKind === 'exact' ? 'exact' : 'sampled'} quality report…`;
+        const pending = actionButton(`Starting ${profileKind === 'exact' ? 'exact' : 'sampled'} report…`, () => {}, true);
+        pending.classList.add('prepare-workspace__quality-action');
+        profileActions.append(progress, pending);
+    } else if (profileRunning) {
         const cancel = actionButton(
             'Cancel ' + (profileKind === 'exact' ? 'exact' : 'sampled') + ' quality report',
             cancelProfile,
@@ -301,16 +439,22 @@ function renderQualityReport(
             ? 'Cancelling report…'
             : `⏳ ${profileKind === 'exact' ? 'Exact' : 'Sampled'} report in progress…`;
         profileActions.append(progress, cancel);
+    } else if (profilePollFailed) {
+        const retry = actionButton(`Retry ${profileKind === 'exact' ? 'exact' : 'sampled'} quality report status`, profileKind === 'exact' ? requestExactProfile : requestSampleProfile);
+        retry.classList.add('prepare-workspace__quality-action', 'btn-primary');
+        const cancel = actionButton(`Cancel ${profileKind === 'exact' ? 'exact' : 'sampled'} quality report`, cancelProfile);
+        cancel.classList.add('prepare-workspace__quality-action');
+        profileActions.append(retry, cancel);
     } else {
         const sample = actionButton(
-            reportKind === 'sampled' ? 'Sampled quality report ready' : 'Build sampled quality report',
+            profileError && profileKind === 'sampled' ? 'Retry sampled quality report' : reportKind === 'sampled' ? 'Sampled quality report ready' : 'Build sampled quality report',
             requestSampleProfile,
-            reportKind === 'sampled',
+            reportKind === 'sampled' && !(profileError && profileKind === 'sampled'),
         );
         const exact = actionButton(
-            reportKind === 'exact' ? 'Exact quality report ready' : 'Build exact quality report',
+            profileError && profileKind === 'exact' ? 'Retry exact quality report' : reportKind === 'exact' ? 'Exact quality report ready' : 'Build exact quality report',
             requestExactProfile,
-            reportKind === 'exact',
+            reportKind === 'exact' && !(profileError && profileKind === 'exact'),
         );
         sample.classList.add('prepare-workspace__quality-action');
         exact.classList.add('prepare-workspace__quality-action');
@@ -375,11 +519,19 @@ function renderQualityReport(
     const heading = sectionHeading(title, copy, '01');
     const reportHeader = createElement('div', 'prepare-workspace__report-header');
     reportHeader.append(heading, profileActions);
+    const errorNotice = profileError ? createElement('p', 'prepare-workspace__quality-error') : null;
+    if (errorNotice) {
+        errorNotice.setAttribute('role', 'alert');
+        errorNotice.setAttribute('aria-live', 'assertive');
+        errorNotice.textContent = profileError + ' Use the report action to retry.';
+    }
     const reportFooter = createElement('div', 'prepare-workspace__report-footer');
     const scrollHint = createElement('span', 'prepare-workspace__scroll-hint');
     scrollHint.textContent = 'Scroll table to see all statistics →';
     reportFooter.append(modeBadge, status, scrollHint);
-    section.append(reportHeader, filterControls, gridRoot, reportFooter);
+    section.append(reportHeader);
+    if (errorNotice) section.append(errorNotice);
+    section.append(filterControls, gridRoot, reportFooter);
     return { section, grid };
 }
 
@@ -389,6 +541,9 @@ function renderPrepareWorkspace(
     deps: PreparePageDeps,
     profileMetadata: DatasetMetadata | null,
     profileStatus: DatasetProfileResponse['status'],
+    profileStartPending: boolean,
+    profilePollFailed: boolean,
+    profileError: string | null,
     profileKind: 'exact' | 'sampled',
     requestExactProfile: () => void,
     requestSampleProfile: () => void,
@@ -397,7 +552,7 @@ function renderPrepareWorkspace(
     profileGridState: PrepareProfileGridState,
 ): ProfileGridController | null {
     root.replaceChildren();
-    const header = createElement('div', 'prepare-workspace__header');
+    const header = createElement('div', 'page-header prepare-workspace__header');
     const heading = createElement('div', 'prepare-workspace__heading');
     const titleRow = createElement('div', 'prepare-workspace__title-row');
     const title = createElement('h1', 'page-header__title');
@@ -424,7 +579,7 @@ function renderPrepareWorkspace(
     header.append(navigation);
 
     const workspaceFilters = deps.workspace?.getSnapshot().filters;
-    const filterCount = Object.keys(workspaceFilters?.columnRanges ?? {}).length + (workspaceFilters?.adaptiveLines.length ?? 0);
+    const filterCount = prepareFilterCount(workspaceFilters);
     const localNav = createElement('nav', 'prepare-workspace__local-nav');
     localNav.setAttribute('aria-label', 'Prepare sections');
     const navTargets = [
@@ -532,34 +687,10 @@ function renderPrepareWorkspace(
     appendIdentityFact('Active stages', String(activeStages));
     identity.append(identityFacts);
 
-    const filters = workspaceFilters;
-    const rangeFilters = Object.entries(filters?.columnRanges ?? {});
-    const adaptiveFilters = filters?.adaptiveLines ?? [];
-    const signalsFilterSection = (() => {
-            const section = createElement('section', 'prepare-workspace__signals-filters');
-            section.id = 'prepare-signals-filters';
-            const heading = createElement('h2');
-            heading.textContent = 'Applied in Signals';
-            const summary = createElement('p', 'prepare-workspace__copy');
-            summary.textContent = 'Signals filters are saved in the pipeline and applied to correlations, density/scatter plots, and diagnostics.';
-            const list = createElement('ul', 'prepare-workspace__signals-filter-list');
-            for (const [column, range] of rangeFilters) {
-                const item = createElement('li');
-                item.textContent = 'Keep ' + column + ' between ' + String(range.from) + ' and ' + String(range.to);
-                list.append(item);
-            }
-            for (const filter of adaptiveFilters) {
-                const item = createElement('li');
-                item.textContent = filter.column + ': keep ' + (filter.keepAbove ? 'above' : 'below') + ' the drawn line';
-                list.append(item);
-            }
-            section.hidden = rangeFilters.length === 0 && adaptiveFilters.length === 0;
-            section.append(heading, summary, list);
-            return section;
-        })();
+    const signalsFilterSection = renderPrepareSignalsFilterSection(workspaceFilters);
 
     const qualityReport = renderQualityReport(
-        profileMetadata, profileStatus, profileKind,
+        profileMetadata, profileStatus, profileStartPending, profilePollFailed, profileError, profileKind,
         requestExactProfile, requestSampleProfile, cancelProfile,
         profileGridState,
     );
@@ -578,6 +709,7 @@ function renderPrepareWorkspace(
         ['transform', 'Transform with a rule'],
     ]).querySelector('select') as HTMLSelectElement;
     const insightColumns = textInput('Columns', (deps.workspace?.getSnapshot().selection.columns ?? []).join(', '), 'columns');
+    insightColumns.querySelector<HTMLInputElement>('input')!.id = 'prepare-insight-columns';
     const insightMetric = selectInput('Metric context', 'raw_pearson', 'metric', [
         ['raw_pearson', 'Raw Pearson'],
         ['raw_spearman', 'Raw Spearman'],
@@ -640,18 +772,18 @@ function renderPrepareWorkspace(
     previewCaption.textContent = caption.text;
     previewCaption.title = caption.title;
     graphSection.append(sectionHeading(graphTitle, graphCopy, '03'), previewCaption);
-    const viewport = deps.workspace?.getSnapshot().viewport;
-    const hasViewport = viewport?.xMin != null && viewport.xMax != null
-        && Number.isFinite(viewport.xMin) && Number.isFinite(viewport.xMax) && viewport.xMin < viewport.xMax;
+    const viewport = deps.workspace?.getSnapshot().viewport ?? null;
     const keepWindow = actionButton('Keep Signals time window', () => {
-        if (!hasViewport) return;
+        const currentViewport = deps.workspace?.getSnapshot().viewport ?? null;
+        if (!hasPrepareTimeViewport(currentViewport)) return;
         cleaningPlanStore.addStage({
             kind: 'timeRange', executionClass: 'polarsExpression', scope: 'row', enabled: true,
             sourcePage: 'timeseries', label: 'Keep Signals time window',
-            startMs: viewport!.xMin!, endMs: viewport!.xMax!, mode: 'keepInside',
+            startMs: currentViewport.xMin, endMs: currentViewport.xMax, mode: 'keepInside',
         });
         deps.onPlanChanged?.();
-    }, !hasViewport);
+    }, !hasPrepareTimeViewport(viewport));
+    keepWindow.id = 'prepare-keep-window';
     keepWindow.classList.add('prepare-workspace__keep-window');
     graphSection.append(keepWindow);
 
@@ -694,6 +826,13 @@ function renderPrepareWorkspace(
             warnings.append(item);
         }
         graphSection.append(warnings);
+    }
+    if (previewState.result) {
+        const evidence = renderPreviewEvidence(previewState.result);
+        if (evidence) {
+            evidence.classList.add('prepare-workspace__preview-evidence');
+            graphSection.append(evidence);
+        }
     }
     const addPolicy = createElement('form', 'prepare-workspace__policy-form');
     const policyTitle = createElement('h3');
@@ -980,7 +1119,7 @@ function renderPrepareWorkspace(
                 const stages = plan.stages.map((candidate) => candidate.id === stage.id
                     ? { ...candidate, enabled: !stage.enabled } as CleaningPlan['stages'][number]
                     : candidate);
-                const error = resampleOrderingError({ ...plan, stages });
+                const error = stageDependencyError({ ...plan, stages }, metadata);
                 if (error) { stageStatus.textContent = error; return; }
                 cleaningPlanStore.setStageEnabled(stage.id, !stage.enabled);
                 deps.onPlanChanged?.();
@@ -988,7 +1127,7 @@ function renderPrepareWorkspace(
         const moveTo = (target: number): boolean => {
                 const stages = [...plan.stages];
                 stages.splice(target, 0, stages.splice(index, 1)[0]);
-                const error = resampleOrderingError({ ...plan, stages });
+                const error = stageDependencyError({ ...plan, stages }, metadata);
                 if (error) { stageStatus.textContent = error; return false; }
                 cleaningPlanStore.reorderStage(stage.id, target);
                 deps.onPlanChanged?.();
@@ -1015,7 +1154,7 @@ function renderPrepareWorkspace(
                 if (typeof window.confirm === 'function'
                     && !window.confirm(`Remove '${stage.label || stageSummary(stage)}'? You can restore it with Undo.`)) return;
                 const stages = plan.stages.filter((candidate) => candidate.id !== stage.id);
-                const error = resampleOrderingError({ ...plan, stages });
+                const error = stageDependencyError({ ...plan, stages }, metadata);
                 if (error) { stageStatus.textContent = error; return; }
                 cleaningPlanStore.removeStage(stage.id);
                 deps.onPlanChanged?.();
@@ -1081,6 +1220,9 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
     let request = new AbortController();
     let profileMetadata: DatasetMetadata | null = null;
     let profileStatus: DatasetProfileResponse['status'] = 'not_started';
+    let profileStartPending = false;
+    let profilePollFailed = false;
+    let profileError: string | null = null;
     let profileKind: 'exact' | 'sampled' = 'exact';
     let profileJobId: string | null = null;
     let requestedProfileKind: 'exact' | 'sampled' | null = null;
@@ -1127,6 +1269,9 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
             deps,
             profileMetadata ?? deps.workspace?.getSnapshot().dataset.metadata ?? null,
             profileStatus,
+            profileStartPending,
+            profilePollFailed,
+            profileError,
             profileKind,
             requestExactProfile,
             requestSampleProfile,
@@ -1146,6 +1291,7 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
             if (section?.startsWith('prepare-')) queueMicrotask(() => document.getElementById(section)?.scrollIntoView({ block: 'start' }));
         }
     };
+    let renderProfileReport: () => void = render;
     const acceptProfile = (response: DatasetProfileResponse, kind: 'exact' | 'sampled', owner: AbortController) => {
         if (disposed || owner.signal.aborted || owner !== request) return false;
         const source = profileSource();
@@ -1155,12 +1301,16 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
         const running = response.status === 'queued' || response.status === 'running' || response.status === 'cancelling';
         if (lastProfileResponse === response) return running;
         lastProfileResponse = response;
+        profilePollFailed = false;
         if (!running) requestedProfileKind = null;
+        profileError = response.status === 'failed'
+            ? profileErrorText(response.job?.message, `${kind === 'exact' ? 'Exact' : 'Sampled'} quality report failed.`)
+            : null;
         profileKind = kind;
         profileStatus = response.status;
         profileJobId = response.job?.id ?? null;
         if (response.metadata) profileMetadata = response.metadata;
-        render();
+        renderProfileReport();
         return running;
     };
     const pollProfile = (kind: 'exact' | 'sampled', owner = request) => {
@@ -1173,11 +1323,13 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
                     ? (deps.getProfile ?? fetchDatasetProfile)
                     : (deps.getSampleProfile ?? fetchSampledDatasetProfile);
                 if (acceptProfile(await get({ signal: owner.signal }), kind, owner)) pollProfile(kind, owner);
-            } catch {
+            } catch (error) {
                 if (disposed || owner.signal.aborted || owner !== request) return;
-                if (profileStatus === 'ready') return;
+                if (lastProfileResponse?.status === 'ready') return;
                 profileStatus = 'failed';
-                render();
+                profilePollFailed = true;
+                profileError = profileErrorText(error, `${kind === 'exact' ? 'Exact' : 'Sampled'} quality report could not be refreshed.`);
+                renderProfileReport();
             }
         }, 500);
     };
@@ -1189,6 +1341,7 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
         if (!requestedProfileKind && kind === 'sampled' && datasetProfiles.get(source, 'exact')?.status === 'ready') return;
         if (pollTimer != null) clearTimeout(pollTimer);
         pollTimer = null;
+        profileStartPending = false;
         if (acceptProfile(response, kind, request)) pollProfile(kind);
     };
     const restoreSourceProfile = () => {
@@ -1221,41 +1374,123 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
         })();
     };
     function requestProfile(kind: 'exact' | 'sampled'): void {
+        if (disposed) return;
+        if (profilePollFailed && profileJobId && profileKind === kind) {
+            profilePollFailed = false;
+            profileError = null;
+            profileStatus = 'running';
+            renderProfileReport();
+            pollProfile(kind);
+            return;
+        }
+        if (profileStartPending || requestedProfileKind !== null) return;
         request.abort();
         const owner = new AbortController();
         request = owner;
         requestedProfileKind = kind;
+        profileKind = kind;
+        profileStatus = 'queued';
+        profileStartPending = true;
+        profilePollFailed = false;
+        profileJobId = null;
+        profileError = null;
+        lastProfileResponse = null;
         if (pollTimer != null) clearTimeout(pollTimer);
+        renderProfileReport();
         void (async () => {
-            profileKind = kind;
             try {
                 const start = kind === 'exact'
                     ? (deps.startProfile ?? startDatasetProfile)
                     : (deps.startSampleProfile ?? startSampledDatasetProfile);
-                if (acceptProfile(await start({ signal: owner.signal }), kind, owner)) pollProfile(kind, owner);
-            } catch {
+                const response = await start({ signal: owner.signal });
                 if (disposed || owner.signal.aborted || owner !== request) return;
+                profileStartPending = false;
+                const source = profileSource();
+                if (!source || !matchesProfileSource(source, response) || datasetProfileKind(response) !== kind) {
+                    requestedProfileKind = null;
+                    profileStatus = 'failed';
+                    profileError = 'The report response did not match the active dataset. Retry after checking the selected source.';
+                    renderProfileReport();
+                    return;
+                }
+                if (acceptProfile(response, kind, owner)) pollProfile(kind, owner);
+            } catch (error) {
+                if (disposed || owner.signal.aborted || owner !== request) return;
+                profileStartPending = false;
                 requestedProfileKind = null;
                 profileStatus = 'failed';
-                render();
+                profileError = profileErrorText(error, `${kind === 'exact' ? 'Exact' : 'Sampled'} quality report could not be started.`);
+                renderProfileReport();
             }
         })();
     }
     function requestExactProfile(): void { requestProfile('exact'); }
     function requestSampleProfile(): void { requestProfile('sampled'); }
+    renderProfileReport = () => {
+        if (disposed) return;
+        const current = root.querySelector<HTMLElement>('#prepare-profile-findings');
+        if (!current) {
+            render();
+            return;
+        }
+        const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        const restoreFocus = !!active && current.contains(active);
+        const focusKey = restoreFocus ? active?.dataset.prepareKey : undefined;
+        const currentViewport = current.querySelector<HTMLElement>('.profile-grid-viewport');
+        const scrollTop = currentViewport?.scrollTop ?? 0;
+        const scrollLeft = currentViewport?.scrollLeft ?? 0;
+        disposeProfileGrid();
+        const report = renderQualityReport(
+            profileMetadata ?? deps.workspace?.getSnapshot().dataset.metadata ?? null,
+            profileStatus,
+            profileStartPending,
+            profilePollFailed,
+            profileError,
+            profileKind,
+            requestExactProfile,
+            requestSampleProfile,
+            cancelProfile,
+            profileGridState,
+        );
+        current.replaceWith(report.section);
+        disposeProfileGrid = () => report.grid.dispose();
+        report.grid.render(false);
+        keyPreparationControls(root);
+        const nextViewport = report.section.querySelector<HTMLElement>('.profile-grid-viewport');
+        if (nextViewport) {
+            nextViewport.scrollTop = scrollTop;
+            nextViewport.scrollLeft = scrollLeft;
+        }
+        if (restoreFocus) {
+            const controls = Array.from(report.section.querySelectorAll<HTMLElement>('[data-prepare-key]'));
+            const target = controls.find((control) => control.dataset.prepareKey === focusKey)
+                ?? report.section.querySelector<HTMLElement>('[role="status"]')
+                ?? report.section;
+            if (!target.matches('button, input, select, textarea, a[href], summary, [tabindex]')) {
+                target.tabIndex = -1;
+            }
+            target.focus({ preventScroll: true });
+        }
+    };
     function cancelProfile(): void {
-        if (!profileJobId) return;
+        if (!profileJobId || profileStatus === 'cancelling') return;
         const owner = request;
+        const previousStatus = profileStatus;
+        profileStatus = 'cancelling';
+        profileError = null;
+        renderProfileReport();
         void (async () => {
             try {
                 await (deps.cancelProfile ?? cancelSessionJob)(profileJobId!, { signal: owner.signal });
                 if (disposed || owner.signal.aborted || owner !== request) return;
-                if (profileStatus === 'ready') return;
-                profileStatus = 'cancelling';
-                render();
-                pollProfile(profileKind);
-            } catch {
-                // Keep the last known status; polling or a retry remains safe.
+                if (lastProfileResponse?.status !== 'ready') pollProfile(profileKind);
+            } catch (error) {
+                if (disposed || owner.signal.aborted || owner !== request) return;
+                if (lastProfileResponse?.status === 'ready') return;
+                profileStatus = previousStatus === 'queued' ? 'running' : previousStatus;
+                profileError = profileErrorText(error, 'The report could not be cancelled.');
+                renderProfileReport();
+                if (previousStatus === 'running' || previousStatus === 'queued') pollProfile(profileKind);
             }
         })();
     }
@@ -1272,6 +1507,9 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
             if (pollTimer != null) clearTimeout(pollTimer);
             profileMetadata = null;
             profileStatus = 'not_started';
+            profileStartPending = false;
+            profilePollFailed = false;
+            profileError = null;
             profileJobId = null;
             requestedProfileKind = null;
             lastProfileResponse = null;
@@ -1283,13 +1521,21 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
         }
         render();
     });
-    const unsubscribeWorkspace = deps.workspace?.subscribe(render);
+    const unsubscribeWorkspace: Array<() => void> = [];
+    if (deps.workspace?.subscribeSelector) {
+        unsubscribeWorkspace.push(
+            deps.workspace.subscribeSelector((snapshot) => snapshot.dataset, () => render()),
+            deps.workspace.subscribeSelector((snapshot) => snapshot.selection, (selection) => refreshPrepareSelection(root, selection.columns)),
+            deps.workspace.subscribeSelector((snapshot) => snapshot.filters, (filters) => refreshPrepareSignalsFilters(root, filters)),
+            deps.workspace.subscribeSelector((snapshot) => snapshot.viewport, (viewport) => refreshPrepareViewport(root, viewport)),
+        );
+    }
     return () => {
         disposed = true;
         preview.dispose();
         request.abort();
         unsubscribeProfiles();
-        unsubscribeWorkspace?.();
+        for (const unsubscribe of unsubscribeWorkspace) unsubscribe();
         if (pollTimer != null) clearTimeout(pollTimer);
         disposeProfileGrid();
         disposeHelp();

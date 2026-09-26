@@ -80,7 +80,8 @@ afterEach(() => {
 describe('source profile synchronization', () => {
     it('shows the profile already loaded by Upload without starting or fetching another report', async () => {
         vi.mocked(postJson).mockResolvedValue(profile());
-        await loadCurrentDatasetProfile(new AbortController().signal, () => true, uploadUi);
+        await startDatasetProfile();
+        await loadCurrentDatasetProfile(new AbortController().signal, () => true, metadata(), uploadUi);
         expect(document.querySelector('#profile-grid .profile-grid-rows')?.textContent).toContain('88 (88.0%)');
 
         dispose = initPreparePage({ workspace });
@@ -102,7 +103,7 @@ describe('source profile synchronization', () => {
     it('receives background completion while Upload is showing an incoming file preview', async () => {
         let finish!: (result: DatasetProfileResponse) => void;
         vi.mocked(postJson).mockReturnValue(new Promise((resolve) => { finish = resolve; }));
-        const loading = loadCurrentDatasetProfile(new AbortController().signal, () => true, uploadUi);
+        const loading = startDatasetProfile();
         dispose = initPreparePage({ workspace });
         document.getElementById('profile-mode-badge')!.setAttribute('data-mode', 'preview');
         hydrateColumnProfiles({ ...metadata(), columns: [{ name: 'incoming_file', dtype: 'Float64' }] });
@@ -167,6 +168,24 @@ describe('source profile synchronization', () => {
         await startDatasetProfile();
 
         expect(document.querySelector('#prepare-profile-grid .profile-grid-rows')?.textContent).toContain('Pending');
+    });
+
+    it('keeps a completed report ready if its cancellation request later fails', async () => {
+        vi.mocked(postJson).mockResolvedValue({ ...profile('running'), job: {
+            id: 'profile-job', status: 'running', progressPercent: 50, message: null,
+        } });
+        await startDatasetProfile();
+        let fail!: (error: Error) => void;
+        const cancelProfile = vi.fn(() => new Promise<void>((_, reject) => { fail = reject; }));
+        dispose = initPreparePage({ workspace, cancelProfile });
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Cancel exact quality report')!.click();
+        vi.mocked(postJson).mockResolvedValue(profile());
+        await startDatasetProfile();
+        fail(new Error('Cancellation arrived too late'));
+        await Promise.resolve();
+        expectReady();
+        expect(document.querySelector('.prepare-workspace__quality-error')).toBeNull();
+        expect(document.querySelector('.prepare-workspace__quality-progress')).toBeNull();
     });
 
     it('keeps a report ready when completion arrives during a cancellation request', async () => {

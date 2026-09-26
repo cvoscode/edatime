@@ -617,6 +617,8 @@
   overflow-y: hidden;
 }
 
+.heatmap-grid-row { display: contents; }
+
 .heatmap-grid {
   flex: 0 0 auto;
   width: max-content;

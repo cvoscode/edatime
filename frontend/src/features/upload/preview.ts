@@ -26,12 +26,18 @@ export function setUploadPreviewStatus(text: string, kind = ''): void {
 
 // ── Profile mode badge ──────────────────────────────────────────────────────
 
-export function setProfileMode(mode: 'dataset' | 'preview'): void {
+export type UploadProfileMode = 'dataset' | 'preview' | 'exact' | 'sampled' | 'unavailable';
+
+export function setProfileMode(mode: UploadProfileMode): void {
     const badge = document.getElementById('profile-mode-badge');
     const heading = document.getElementById('upload-preview-heading');
     if (badge) {
         badge.setAttribute('data-mode', mode);
-        badge.textContent = mode === 'preview' ? 'Not loaded yet' : 'Active dataset';
+        const labels: Record<UploadProfileMode, string> = {
+            dataset: 'Active dataset', preview: 'Not loaded yet', exact: 'Exact statistics',
+            sampled: 'Sampled estimate', unavailable: 'Statistics unavailable',
+        };
+        badge.textContent = labels[mode];
     }
     if (heading) heading.textContent = mode === 'preview' ? 'Incoming file preview' : 'Current dataset profile';
 }
@@ -41,12 +47,15 @@ export function setProfileMode(mode: 'dataset' | 'preview'): void {
 export interface PreviewCallbacks {
     hydrateColumnProfiles: (metadata: DatasetMetadata) => void;
     renderColumnProfilesGrid: (resetScroll: boolean) => void;
-    onTimeColumnChanged: (file: File) => void;
+    onTimeColumnChanged: () => void;
     signal?: AbortSignal;
 }
 
+export type UploadPreviewResult = 'ready' | 'failed' | 'ignored';
+
 export interface UploadPreviewController {
-    run(file: File, callbacks: PreviewCallbacks): Promise<void>;
+    run(file: File, callbacks: PreviewCallbacks): Promise<UploadPreviewResult>;
+    cancel(): void;
     dispose(): void;
 }
 
@@ -55,66 +64,73 @@ export function createUploadPreviewController(): UploadPreviewController {
     let request: AbortController | null = null;
     let disposed = false;
 
+    const cancel = () => {
+        request?.abort();
+        request = null;
+    };
+
     return {
-        async run(file: File, callbacks: PreviewCallbacks): Promise<void> {
-    if (disposed || callbacks.signal?.aborted) return;
-    if (!file) {
-        setUploadPreviewStatus('Select a file to preview columns');
-        return;
-    }
-    request?.abort();
-    const controller = new AbortController();
-    request = controller;
-    const abort = () => controller.abort();
-    callbacks.signal?.addEventListener('abort', abort, { once: true });
-    setUploadPreviewStatus('Profiling file…', 'loading');
+        async run(file: File, callbacks: PreviewCallbacks): Promise<UploadPreviewResult> {
+            if (disposed || callbacks.signal?.aborted) return 'ignored';
+            if (!file) {
+                setUploadPreviewStatus('Select a file to preview columns');
+                return 'failed';
+            }
+            request?.abort();
+            const controller = new AbortController();
+            request = controller;
+            const abort = () => controller.abort();
+            callbacks.signal?.addEventListener('abort', abort, { once: true });
+            setUploadPreviewStatus('Profiling file…', 'loading');
 
-    try {
-        const formData = new FormData();
-        formData.append('file', file);
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
 
-        const timeColumn = String(uploadUi.previewTimeColumn || '').trim();
-        if (timeColumn) formData.append('time_column', timeColumn);
+                const timeColumn = String(uploadUi.previewTimeColumn || '').trim();
+                if (timeColumn) formData.append('time_column', timeColumn);
 
-        const res = await previewUpload(formData, { signal: controller.signal });
-        if (disposed || controller.signal.aborted || request !== controller) return;
-        const result = await res.json();
-        if (disposed || controller.signal.aborted || request !== controller) return;
-        const previewMetadata = result?.metadata as DatasetMetadata;
-        if (!previewMetadata || !Array.isArray(previewMetadata.columns)) {
-            throw new Error('Preview response missing metadata');
-        }
+                const res = await previewUpload(formData, { signal: controller.signal });
+                if (disposed || controller.signal.aborted || request !== controller) return 'ignored';
+                const result = await res.json();
+                if (disposed || controller.signal.aborted || request !== controller) return 'ignored';
+                const previewMetadata = result?.metadata as DatasetMetadata;
+                if (!previewMetadata || !Array.isArray(previewMetadata.columns)) {
+                    throw new Error('Preview response missing metadata');
+                }
 
-        uploadProfile.metadata = previewMetadata;
-        callbacks.hydrateColumnProfiles(previewMetadata);
-        applyPreviewColumnSelection(previewMetadata, callbacks);
-        callbacks.renderColumnProfilesGrid(true);
-        applyTimeRangeFromMetadata(previewMetadata, true);
+                uploadProfile.metadata = previewMetadata;
+                callbacks.hydrateColumnProfiles(previewMetadata);
+                applyPreviewColumnSelection(previewMetadata, callbacks);
+                callbacks.renderColumnProfilesGrid(true);
+                applyTimeRangeFromMetadata(previewMetadata, true);
 
-        const previewRows = Number(previewMetadata.total_rows || (result as any)?.preview_rows || 0);
-        if (!uploadUi.previewTimeColumn && !previewMetadata.time_range) {
-            setUploadPreviewStatus('No time column detected in preview. Please select one from the dropdown before upload.', 'warning');
-        } else {
-            setUploadPreviewStatus(`Preview ready (${formatCount(previewRows)} rows)`, 'success');
-        }
-        setProfileMode('preview');
-    } catch (e: unknown) {
-        if (disposed || controller.signal.aborted || request !== controller || (e as Error)?.name === 'AbortError') return;
-        if (String((e as Error)?.message || '').includes('Specified time column not found')) {
-            setPreviewTimeColumn(null);
-        }
-        setUploadPreviewStatus(`Preview failed: ${e instanceof Error ? e.message : String(e)}`, 'error');
-        toast(`Upload preview failed: ${e instanceof Error ? e.message : String(e)}`, 'error', {});
-        applyTimeRangeFromMetadata(null, false);
-    } finally {
-        callbacks.signal?.removeEventListener('abort', abort);
-        if (request === controller) request = null;
-    }
+                const previewRows = Number(previewMetadata.total_rows || (result as any)?.preview_rows || 0);
+                if (!uploadUi.previewTimeColumn && !previewMetadata.time_range) {
+                    setUploadPreviewStatus('No time column detected in preview. Please select one from the dropdown before upload.', 'warning');
+                } else {
+                    setUploadPreviewStatus(`Preview ready (${formatCount(previewRows)} rows)`, 'success');
+                }
+                setProfileMode('preview');
+                return 'ready';
+            } catch (e: unknown) {
+                if (disposed || controller.signal.aborted || request !== controller || (e as Error)?.name === 'AbortError') return 'ignored';
+                if (String((e as Error)?.message || '').includes('Specified time column not found')) {
+                    setPreviewTimeColumn(null);
+                }
+                setUploadPreviewStatus(`Preview failed: ${e instanceof Error ? e.message : String(e)}`, 'error');
+                toast(`Upload preview failed: ${e instanceof Error ? e.message : String(e)}`, 'error', {});
+                applyTimeRangeFromMetadata(null, false);
+                return 'failed';
+            } finally {
+                callbacks.signal?.removeEventListener('abort', abort);
+                if (request === controller) request = null;
+            }
         },
+        cancel,
         dispose(): void {
             disposed = true;
-            request?.abort();
-            request = null;
+            cancel();
         },
     };
 }
@@ -164,9 +180,7 @@ export function applyPreviewColumnSelection(
         const signal = callbacks.signal ? AbortSignal.any([callbacks.signal, binding.signal]) : binding.signal;
         timeColumnControl.addEventListener('change', () => {
             setPreviewTimeColumn(getDropdownValue('time-column-select') || null);
-            const fileInput = document.getElementById('file-upload') as HTMLInputElement | null;
-            const file = fileInput?.files?.[0] || null;
-            if (file) callbacks.onTimeColumnChanged(file);
+            callbacks.onTimeColumnChanged();
         }, { signal });
     }
 }

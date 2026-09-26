@@ -29,6 +29,7 @@ interface RefreshDatasetOptions {
 export interface AppShellDeps {
     ensurePageModuleLoaded: (page: string) => Promise<void>;
     ensureDatasetReady: () => Promise<void>;
+    ensureDatasetMetadata: () => Promise<'ready' | 'empty'>;
     showPage: (pageName: string) => void;
     fetchAndRender: () => void;
     fetchAndRenderAnalytics: () => Promise<void>;
@@ -62,6 +63,7 @@ export function initAppShell(deps: AppShellDeps): AppShell {
     const deferred: DeferredShellDeps = {
         showPage: deps.showPage,
         ensurePageModuleLoaded: deps.ensurePageModuleLoaded,
+        ensureDatasetMetadata: deps.ensureDatasetMetadata,
         fetchAndRender: deps.fetchAndRender,
         fetchAndRenderAnalytics: deps.fetchAndRenderAnalytics,
         getCurrentTimeseriesData: deps.getCurrentTimeseriesData,

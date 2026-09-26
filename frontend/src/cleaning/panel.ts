@@ -12,7 +12,8 @@ import {
     previewCleaningPlan,
     selectDatasetVersion,
 } from './api.js';
-import type { CleaningPreviewResponse, CleaningPreviewRow, CleaningStageImpact } from './api.js';
+import type { CleaningPreviewResponse, CleaningStageImpact } from './api.js';
+import { renderPreviewEvidence } from './previewEvidence.js';
 import { buildPipelineGraph, renderPipelineGraphSvg, serializePipelineGraph } from './pipelineGraph.js';
 import { formatResampleAggregations, hasAscendingTimeSortBefore, normalizeFixedDuration, parseResampleAggregations } from './resample.js';
 import type { CleaningPlan, CleaningStage } from './types.js';
@@ -80,58 +81,6 @@ function previewSummary(result: CleaningPreviewResponse): string {
         : ' Columns: ' + String(result.columnsBefore) + ' → ' + String(result.columnsAfter) + '.';
     const warnings = result.warnings.length === 0 ? '' : ' Warnings: ' + result.warnings.join(' ');
     return rows + columns + warnings;
-}
-
-function renderPreviewEvidence(result: CleaningPreviewResponse): HTMLElement | null {
-    if (!result.examples && !result.sourceColumns && !result.resultColumns) return null;
-    const evidence = document.createElement('section');
-    evidence.className = 'cleaning-plan-preview-evidence';
-    const heading = document.createElement('h3');
-    heading.textContent = 'Raw source versus working view';
-    const schema = document.createElement('p');
-    schema.className = 'pipeline-workbench__hint';
-    schema.textContent = `Source columns: ${(result.sourceColumns ?? []).join(', ') || 'unknown'} · Working columns: ${(result.resultColumns ?? []).join(', ') || 'unknown'}`;
-    evidence.append(heading, schema);
-
-    const renderRows = (title: string, rows: CleaningPreviewRow[] | undefined) => {
-        const section = document.createElement('details');
-        section.open = true;
-        const summary = document.createElement('summary');
-        summary.textContent = `${title} examples (${rows?.length ?? 0})`;
-        section.appendChild(summary);
-        if (!rows?.length) {
-            const empty = document.createElement('p');
-            empty.className = 'pipeline-workbench__hint';
-            empty.textContent = 'No example rows were returned.';
-            section.appendChild(empty);
-            return section;
-        }
-        const table = document.createElement('table');
-        table.className = 'cleaning-plan-preview-table';
-        const head = document.createElement('tr');
-        for (const label of ['Row', 'Timestamp', 'Values']) {
-            const cell = document.createElement('th');
-            cell.scope = 'col';
-            cell.textContent = label;
-            head.appendChild(cell);
-        }
-        const thead = document.createElement('thead'); thead.appendChild(head); table.appendChild(thead);
-        const tbody = document.createElement('tbody');
-        for (const row of rows) {
-            const tr = document.createElement('tr');
-            for (const value of [String(row.rowNumber), row.timestamp, Object.entries(row.values).map(([key, item]) => `${key}=${item}`).join(' · ')]) {
-                const cell = document.createElement('td');
-                cell.textContent = value;
-                tr.appendChild(cell);
-            }
-            tbody.appendChild(tr);
-        }
-        table.appendChild(tbody);
-        section.appendChild(table);
-        return section;
-    };
-    evidence.append(renderRows('Raw', result.examples?.raw), renderRows('Working', result.examples?.working));
-    return evidence;
 }
 
 function stageImpactSummary(stage: CleaningStage, impact: CleaningStageImpact | undefined): string {

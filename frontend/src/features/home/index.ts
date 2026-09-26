@@ -9,3 +9,4 @@ export {
     goToNextGuidedStep,
     initGuidedWorkflow,
 } from './guidedWorkflow.js';
+export { createHomeMetadataBootstrap } from './metadataBootstrap.js';

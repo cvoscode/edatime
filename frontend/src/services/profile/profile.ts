@@ -1,6 +1,6 @@
 import type { ProfileColumnDef } from '../../types/store.js';
 
-export const PROFILE_ROW_HEIGHT = 38;
+export const PROFILE_ROW_HEIGHT = 44;
 export const PROFILE_OVERSCAN = 8;
 export const PROFILE_COLUMNS: ProfileColumnDef[] = [
     { key: 'selected', label: '', minWidth: 56, defaultWidth: 56, sortable: false },

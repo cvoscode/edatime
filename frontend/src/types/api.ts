@@ -23,6 +23,8 @@ export interface DataFetchMeta {
     samplingAlgorithm?: string;
     /** True when the server used a bounded approximation before final reduction. */
     approximate?: boolean;
+    /** Whether the response included an explicit approximation flag. */
+    approximationKnown?: boolean;
     /** Rows after predicates, before bounded candidate selection. */
     filteredRows?: number;
     /** Rows considered by the final response reducer. */

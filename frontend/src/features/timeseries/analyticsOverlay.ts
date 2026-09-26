@@ -26,6 +26,7 @@ import type { RollingBandData } from '../../types/analytics.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import { getColumnSeriesColor } from '../../utils/seriesColors.js';
 import { onFeatureEvent } from '../../platform/featureEvents.js';
+import { cleaningPlanStore } from '../../cleaning/store.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -212,7 +213,7 @@ export function computeAndSetRollingBands(
         setRollingBands(null);
         return;
     }
-    const filtered = applyFilterIntentToData(data, intent);
+    const filtered = applyFilterIntentToData(data, intent, cleaningPlanStore.getSnapshot());
     setRollingBands(computeFrontendRollingBands(filtered, [...intent.selection.columns], windowSize));
 }
 
@@ -236,7 +237,7 @@ export function initAnalyticsListeners(
         if (data) {
             if (analyticsState.rollingEnabled) {
                 const intent = getFilterIntent(workspace);
-                const filtered = applyFilterIntentToData(data, intent);
+                const filtered = applyFilterIntentToData(data, intent, cleaningPlanStore.getSnapshot());
                 setRollingBands(computeFrontendRollingBands(
                     filtered,
                     [...intent.selection.columns],

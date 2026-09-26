@@ -386,3 +386,47 @@
     right: 96px;
   }
 }
+
+.timeseries-request-state {
+  position: absolute;
+  top: 52px;
+  right: 16px;
+  z-index: 11;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(42rem, calc(100% - 32px));
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-1);
+  color: var(--text);
+  font-size: 0.8125rem;
+}
+
+.timeseries-request-state [data-request-message] {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.timeseries-request-state button {
+  flex: 0 0 auto;
+}
+
+.timeseries-request-state[data-state="failed"] {
+  border-color: var(--red);
+}
+
+.timeseries-request-state[hidden] {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .timeseries-request-state {
+    top: 8px;
+    right: 8px;
+    left: 8px;
+    max-width: none;
+    justify-content: space-between;
+  }
+}

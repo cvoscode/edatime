@@ -7,8 +7,50 @@ import type { DatasetMetadata } from '../../types/api.js';
 import type { FilteredDataObject } from '../../types/chart.js';
 import type { ScatterLineFilterSpec } from '../../types/scatter.js';
 import type { WorkspaceSnapshot, WorkspaceStore } from '../../contracts/workspace.js';
+import type { CleaningPlan } from '../../cleaning/types.js';
+import { hashCleaningPlan } from '../../cleaning/planHash.js';
 
 export type TimeseriesFilterIntent = Pick<WorkspaceSnapshot, 'selection' | 'filters'>;
+
+function rangeFilterKey(column: string, from: number, to: number): string {
+    return JSON.stringify([column.trim(), Math.min(from, to), Math.max(from, to)]);
+}
+
+function lineFilterKey(filter: Pick<AdaptiveLineFilter, 'column' | 'x1' | 'y1' | 'x2' | 'y2' | 'keepAbove'>): string {
+    return JSON.stringify([filter.column.trim(), filter.x1, filter.y1, filter.x2, filter.y2, filter.keepAbove]);
+}
+
+/**
+ * Remove workspace filters that the response's executed cleaning plan has
+ * already applied. Other workspace filters remain local previews.
+ */
+export function resolveTimeseriesFilterIntentForResponse(
+    data: Pick<DataObject, '_meta'>,
+    intent: TimeseriesFilterIntent,
+    plan: CleaningPlan | null | undefined,
+): TimeseriesFilterIntent {
+    const responsePlanHash = data?._meta?.executionIdentity?.planHash;
+    if (!plan || !responsePlanHash || responsePlanHash !== hashCleaningPlan(plan)) return intent;
+
+    const planRangeKeys = new Set(plan.stages.flatMap((stage) => (
+        stage.enabled && stage.kind === 'columnRange' && stage.mode === 'keepInside'
+            ? [rangeFilterKey(stage.column, stage.from, stage.to)]
+            : []
+    )));
+    const planLineKeys = new Set(plan.stages.flatMap((stage) => (
+        stage.enabled && stage.kind === 'adaptiveLine' && stage.applyWithinSegmentOnly
+            ? [lineFilterKey({ column: stage.column, x1: stage.x1Ms, y1: stage.y1,
+                x2: stage.x2Ms, y2: stage.y2, keepAbove: stage.keepAbove })]
+            : []
+    )));
+
+    const columnRanges = Object.fromEntries(Object.entries(intent.filters.columnRanges)
+        .filter(([column, range]) => !planRangeKeys.has(rangeFilterKey(column, range.from, range.to))));
+    const adaptiveLines = intent.filters.adaptiveLines
+        .filter((filter) => !planLineKeys.has(lineFilterKey(filter)));
+
+    return { ...intent, filters: { ...intent.filters, columnRanges, adaptiveLines } };
+}
 
 /**
  * Populate neutral range-control bounds without creating an effective filter.
@@ -184,11 +226,13 @@ export function applyColumnRangesToData(
 export function applyFilterIntentToData(
     dataObj: DataObject,
     intent: TimeseriesFilterIntent,
+    plan?: CleaningPlan | null,
 ): FilteredDataObject {
+    const resolvedIntent = resolveTimeseriesFilterIntentForResponse(dataObj, intent, plan);
     return applyColumnRangesToData(
         dataObj,
-        [...intent.selection.columns],
-        { ...intent.filters.columnRanges },
-        [...intent.filters.adaptiveLines],
+        [...resolvedIntent.selection.columns],
+        { ...resolvedIntent.filters.columnRanges },
+        [...resolvedIntent.filters.adaptiveLines],
     );
 }

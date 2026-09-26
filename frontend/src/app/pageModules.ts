@@ -89,6 +89,7 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
                         showPage: deps.showPage,
                         cleaningPlanStore: deps.cleaningPlanStore,
                         onPlanChanged: deps.onCleaningPlanChanged,
+                        workspace: deps.workspace,
                     });
                     const disposeMatrix = metadata
                         ? await initHeatmapScatterLayer(metadata, {

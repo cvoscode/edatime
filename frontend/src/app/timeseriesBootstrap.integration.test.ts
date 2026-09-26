@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { AppShellDeps } from './shell.js';
 
 const {
     createTimeseriesModuleMock,
@@ -134,7 +135,8 @@ vi.mock('../utils/router.js', () => ({
     getHashPage: vi.fn(() => 'upload'),
 }));
 
-vi.mock('../utils/pageBootstrap.js', () => ({
+vi.mock('../utils/pageBootstrap.js', async (importOriginal) => ({
+    ...await importOriginal<typeof import('../utils/pageBootstrap.js')>(),
     pageNeedsDatasetBootstrap: vi.fn(() => false),
 }));
 
@@ -285,16 +287,46 @@ describe('app -> timeseries bootstrap wiring', () => {
         expect((window as any).__edatime?.ensureDatasetReady).toBeUndefined();
     });
 
-    it('completes the initial route after its deferred page descriptors are registered', async () => {
-        const { getHashPage } = await import('../utils/router.js');
-        vi.mocked(getHashPage).mockReturnValue('prepare');
-        const { startApp } = await import('../app.js');
-        await startApp();
+    it('waits for deferred page registration before allowing navigation to load its feature', async () => {
         const { loadPageDescriptors } = await import('./pageModules.js');
+        let finishRegistration!: () => void;
+        vi.mocked(loadPageDescriptors).mockImplementationOnce(() => new Promise<void>((resolve) => {
+            finishRegistration = resolve;
+        }));
+        const { startApp } = await import('../app.js');
+        await vi.waitFor(() => expect(loadPageDescriptors).toHaveBeenCalledTimes(1));
         const registry = vi.mocked(loadPageDescriptors).mock.calls[0]![0];
-        expect(registry.ensureFeatureLoaded).toHaveBeenCalledWith('prepare');
-        expect(vi.mocked(registry.ensureFeatureLoaded).mock.invocationCallOrder[0]).toBeGreaterThan(vi.mocked(loadPageDescriptors).mock.invocationCallOrder[0]!);
-        vi.mocked(getHashPage).mockReturnValue('upload');
+        const shellCalls = initAppShellMock.mock.calls as unknown as Array<[AppShellDeps]>;
+        let navigationReady = false;
+        const navigation = shellCalls[0]![0].ensurePageModuleLoaded('heatmap').then(() => {
+            navigationReady = true;
+        });
+
+        await Promise.resolve();
+        expect(navigationReady).toBe(false);
+        expect(registry.ensureFeatureLoaded).not.toHaveBeenCalled();
+
+        finishRegistration();
+        await Promise.all([navigation, startApp()]);
+        expect(navigationReady).toBe(true);
+        expect(registry.ensureFeatureLoaded).toHaveBeenCalledWith('heatmap');
+    });
+
+    it.each([
+        ['prepare', 'prepare'],
+        ['correlations', 'heatmap'],
+    ])('loads initial route %s through its registered backing feature %s', async (route, feature) => {
+        const { getHashPage } = await import('../utils/router.js');
+        vi.mocked(getHashPage).mockReturnValue(route);
+        try {
+            const { startApp } = await import('../app.js');
+            await startApp();
+            const { loadPageDescriptors } = await import('./pageModules.js');
+            const registry = vi.mocked(loadPageDescriptors).mock.calls[0]![0];
+            expect(registry.ensureFeatureLoaded).toHaveBeenCalledWith(feature);
+        } finally {
+            vi.mocked(getHashPage).mockReturnValue('upload');
+        }
     });
 
     it('deduplicates explicit startup behind the entrypoint lifecycle', async () => {

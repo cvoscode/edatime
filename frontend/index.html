@@ -514,6 +514,10 @@
             <div class="chart-loading-spinner"></div>
             <span class="chart-loading-label">Loading data…</span>
           </div>
+          <div id="timeseries-request-state" class="timeseries-request-state" hidden role="status" aria-live="polite">
+            <span data-request-message></span>
+            <button class="btn btn-ghost btn-sm" id="timeseries-request-retry-btn" type="button" hidden>Retry</button>
+          </div>
           <div id="timeseries-sampling-indicator" class="timeseries-sampling-indicator" hidden role="status"
             aria-live="polite" aria-label="Chart sampling indicator">
             <span class="timeseries-sampling-indicator__label" data-sampling-label></span>
@@ -1685,6 +1689,8 @@
             Load a dataset
           </button>
         </div>
+        <p id="home-dataset-status" class="home-dataset-status" role="status" aria-live="polite" hidden></p>
+        <button id="home-dataset-retry" class="btn btn-ghost btn-sm" type="button" hidden>Retry dataset check</button>
 
         <section id="home-active-dataset" class="home-active-dataset" aria-labelledby="home-dataset-name" hidden>
           <div class="home-active-dataset__heading">
@@ -1751,8 +1757,8 @@
                 analysis features.</p>
               <div class="home-dataset-tags">
                 <span class="home-dataset-tag">FFT</span>
-                <span class="home-dataset-tag home-dataset-tag--rows">10K rows</span>
-                <span class="home-dataset-tag home-dataset-tag--size">4 columns</span>
+                <span class="home-dataset-tag home-dataset-tag--rows" data-sample-row-count>672 rows</span>
+                <span class="home-dataset-tag home-dataset-tag--size" data-sample-column-count>4 columns</span>
               </div>
             </button>
             <button class="home-dataset-card" type="button" data-sample-dataset="weather"
@@ -1778,8 +1784,8 @@
                 readings.</p>
               <div class="home-dataset-tags">
                 <span class="home-dataset-tag">Correlation matrix</span>
-                <span class="home-dataset-tag home-dataset-tag--rows">50K rows</span>
-                <span class="home-dataset-tag home-dataset-tag--size">6 columns</span>
+                <span class="home-dataset-tag home-dataset-tag--rows" data-sample-row-count>1,008 rows</span>
+                <span class="home-dataset-tag home-dataset-tag--size" data-sample-column-count>5 columns</span>
               </div>
             </button>
           </div>
@@ -2165,6 +2171,8 @@
               </div>
               <span class="upload-preview-status" id="upload-preview-status" role="status" aria-live="polite">No
                 active dataset. Select a file to preview its columns.</span>
+              <button class="btn btn-ghost btn-sm" id="upload-profile-build-btn" type="button" hidden>Build exact profile</button>
+              <button class="btn btn-ghost btn-sm" id="upload-preview-retry-btn" type="button" hidden>Retry preview</button>
             </div>
 
             <span id="profile-grid-caption" class="sr-only">Column profile preview with selectable columns for upload

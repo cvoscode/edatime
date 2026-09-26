@@ -166,7 +166,11 @@ describe('contract: every endpoint targets /api/v1', () => {
                 mode: 'keepInside',
             });
 
-            await fetchCorrelationMatrix('spearman_diff');
+            await fetchCorrelationMatrix('spearman_diff', {
+                start: 100, end: 200,
+                filters: [{ column: 'speed', from: 2, to: 4 }],
+                lineFilters: [],
+            });
 
             expect(spy.calls[0]?.url).toBe('/api/v1/scatter/correlations/matrix');
             const body = JSON.parse(String(spy.calls[0]?.init?.body));
@@ -174,7 +178,11 @@ describe('contract: every endpoint targets /api/v1', () => {
             expect(body.cleaning_plan).toMatchObject({
                 expectedSourceVersionId: 'source-matrix',
                 expectedDatasetRevision: 5,
-                plan: { stages: [{ kind: 'columnRange' }] },
+                plan: { stages: [
+                    { kind: 'columnRange', column: 'value', from: 0, to: 10 },
+                    { kind: 'timeRange', startMs: 100, endMs: 200 },
+                    { kind: 'columnRange', column: 'speed', from: 2, to: 4 },
+                ] },
             });
             cleaningPlanStore.clear();
         } finally {

@@ -92,11 +92,12 @@
 .cleaning-plan-status, .cleaning-plan-preview { margin: 0; color: var(--text-dim); font-size: 0.8125rem; }
 .cleaning-plan-preview { display: grid; gap: 8px; }
 .cleaning-plan-preview > p { margin: 0; }
-.cleaning-plan-preview-evidence { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--shell-hover); }
+.cleaning-plan-preview-evidence { display: grid; min-width: 0; gap: 8px; padding-block: 12px; border-block-start: 1px solid var(--border); }
 .cleaning-plan-preview-evidence h3 { margin: 0; font-size: 0.8125rem; color: var(--text); }
-.cleaning-plan-preview-evidence details { overflow: auto; }
+.cleaning-plan-preview-evidence details { min-width: 0; overflow: auto; }
+.cleaning-plan-preview-evidence__hint { margin: 0; color: var(--text-dim); font-size: 0.8125rem; line-height: 1.5; overflow-wrap: anywhere; }
 .cleaning-plan-preview-evidence summary { cursor: pointer; color: var(--text); font-size: 0.75rem; }
-.cleaning-plan-preview-table { width: 100%; border-collapse: collapse; font-size: 0.7rem; }
+.cleaning-plan-preview-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .cleaning-plan-preview-table th, .cleaning-plan-preview-table td { padding: 4px 6px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
 .cleaning-plan-preview-table th { color: var(--text); }
 .cleaning-plan-stages { display: grid; gap: 8px; max-height: min(32vh, 300px); overflow: auto; }

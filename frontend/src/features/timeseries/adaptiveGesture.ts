@@ -1,4 +1,5 @@
 import type { CleaningPlanStore } from '../../cleaning/store.js';
+import type { CleaningPlan } from '../../cleaning/types.js';
 import { onFeatureEvent } from '../../platform/featureEvents.js';
 /**
  * Adaptive filter gesture — Ctrl+click line drawing on the main chart.
@@ -47,10 +48,11 @@ export function buildAdaptiveFilterFromPoints(
     secondPoint: { x: number; y: number },
     intent: Pick<WorkspaceSnapshot, 'selection' | 'filters'>,
     keepAboveOverride?: boolean,
+    plan?: CleaningPlan | null,
 ): AdaptiveLineFilter | null {
     if (!column || !firstPoint || !secondPoint) return null;
     if (!data) return null;
-    const filtered = applyFilterIntentToData(data, intent);
+    const filtered = applyFilterIntentToData(data, intent, plan);
     const columnData = filtered.series?.[column] || filtered.values?.[column];
     const xs = columnData?.x;
     const ys = columnData?.y;
@@ -157,7 +159,9 @@ export function initAdaptiveFilterGesture(
     const applyFilterForColumn = (column: string, p1: { x: number; y: number }, p2: { x: number; y: number }, keepAbove: boolean) => {
         setAdaptiveFilterColumn(column);
         const snapshot = deps.workspace.getSnapshot();
-        const filter = buildAdaptiveFilterFromPoints(deps.getCurrentData(), column, p1, p2, snapshot, keepAbove);
+        const filter = buildAdaptiveFilterFromPoints(
+            deps.getCurrentData(), column, p1, p2, snapshot, keepAbove, deps.cleaningPlanStore?.getSnapshot(),
+        );
         if (!filter) return;
         const filters = snapshot.filters;
         if (deps.cleaningPlanStore?.getSnapshot()) {
@@ -178,7 +182,10 @@ export function initAdaptiveFilterGesture(
         // in source units so toggling normalization cannot change its meaning.
         const sourceP1 = { x: p1.x, y: primaryChart.current?.seriesYToSource?.(column, p1.y) ?? p1.y };
         const sourceP2 = { x: p2.x, y: primaryChart.current?.seriesYToSource?.(column, p2.y) ?? p2.y };
-        const recommendation = buildAdaptiveFilterFromPoints(deps.getCurrentData(), column, sourceP1, sourceP2, deps.workspace.getSnapshot());
+        const recommendation = buildAdaptiveFilterFromPoints(
+            deps.getCurrentData(), column, sourceP1, sourceP2, deps.workspace.getSnapshot(), undefined,
+            deps.cleaningPlanStore?.getSnapshot(),
+        );
         if (!recommendation) return;
         const picker = document.createElement('div');
         picker.className = 'adaptive-trace-picker adaptive-trace-picker--direction';

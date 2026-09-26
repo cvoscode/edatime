@@ -21,6 +21,7 @@ import { getSetting } from '../../utils/settings.js';
 import { getEl } from './helpers.js';
 import { ensureOptions } from './state.js';
 import { updateCorrelationStats, updateColorbarUI } from './rendering.js';
+import { refreshScatterAccessibilitySummaryCorrelations } from './accessibilitySummary.js';
 import type { ScatterFetchOptions } from '../../types/scatter.js';
 
 /**
@@ -284,6 +285,7 @@ export async function refreshCorrelationsAndSuggestions(
         const activeY = getDropdownValue('scatter-y-col') || selectedY || '';
         scatterState.currentPairStats = activeY ? buildCurrentPairStats(responsesByMode, activeY) : null;
         updateCorrelationStats();
+        refreshScatterAccessibilitySummaryCorrelations();
     };
 
     updateFamilyStats();

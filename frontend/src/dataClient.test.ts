@@ -441,6 +441,7 @@ describe('API client fetch helpers', () => {
             expect(result._meta).toMatchObject({
                 samplingAlgorithm: 'envelope-lttb-v1',
                 approximate: true,
+                approximationKnown: true,
                 filteredRows: 1_000_000,
                 candidateRows: 4_096,
                 droppedRows: 999_488,

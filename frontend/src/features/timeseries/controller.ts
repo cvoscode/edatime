@@ -28,7 +28,7 @@ import {
 } from './zoomHistoryPolicy.js';
 import { createTimeseriesRuntimeCache, type TimeseriesRuntimeCache } from './runtimeCache.js';
 import { getDefaultTimeseriesChartText } from '../../chart/chartText.js';
-import { getCleaningPlanHash } from '../../cleaning/store.js';
+import { cleaningPlanStore, getCleaningPlanHash } from '../../cleaning/store.js';
 
 const EMPTY_TIMESERIES_DATA = { ts: [], values: {}, series: {}, colorByColumn: {} } as any;
 
@@ -61,7 +61,7 @@ function isColumnMismatchError(error: unknown): boolean {
 
 function computeRenderedYDebugSnapshot(data: unknown, intent: TimeseriesFilterIntent) {
     if (!data) return null;
-    const filtered = applyFilterIntentToData(data as any, intent);
+    const filtered = applyFilterIntentToData(data as any, intent, cleaningPlanStore.getSnapshot());
     let globalMin = Number.POSITIVE_INFINITY;
     let globalMax = Number.NEGATIVE_INFINITY;
     const perSeries: Array<{ name: string; points: number; yMin: number | null; yMax: number | null }> = [];
@@ -105,6 +105,27 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
     // Controller-local so buffered zoom reuse cannot leak across page/controller
     // lifetimes after dataset reloads or test harness remounts.
     let lastFetchedParams: string | null = null;
+    let activeRequestIdentity: string | null = null;
+    let failedRequestIdentity: string | null = null;
+
+    const requestStatusRoot = document.getElementById('timeseries-request-state');
+    const requestStatusMessage = requestStatusRoot?.querySelector<HTMLElement>('[data-request-message]') ?? null;
+    const requestRetryButton = document.getElementById('timeseries-request-retry-btn') as HTMLButtonElement | null;
+
+    function setRequestStatus(state: 'loading' | 'refreshing' | 'failed' | null, message = ''): void {
+        if (!requestStatusRoot) return;
+        requestStatusRoot.hidden = state === null;
+        requestStatusRoot.dataset.state = state ?? '';
+        requestStatusRoot.setAttribute('role', state === 'failed' ? 'alert' : 'status');
+        requestStatusRoot.setAttribute('aria-live', state === 'failed' ? 'assertive' : 'polite');
+        if (requestStatusMessage) requestStatusMessage.textContent = message;
+        if (requestRetryButton) requestRetryButton.hidden = state !== 'failed';
+    }
+
+    function clearRequestStatus(): void {
+        failedRequestIdentity = null;
+        setRequestStatus(null);
+    }
 
     function getEmptyStateController() {
         if (!emptyStateController) {
@@ -163,6 +184,13 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         return getRequestIntent().key;
     }
 
+    function requestIdentity(intent: { key: string; start: number; end: number }): string {
+        return JSON.stringify([intent.key, intent.start, intent.end]);
+    }
+
+    function currentRequestIdentity(): string {
+        return requestIdentity(getRequestIntent());
+    }
 
     function applyView(view: ViewSnapshot, sourceKind: string): void {
         const newStart = Number(view.xMin);
@@ -194,12 +222,37 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         setLoading: (loading: boolean) => {
             const loadingEl = document.getElementById('main-chart-loading');
             if (loadingEl) loadingEl.hidden = !loading;
+            if (loading) {
+                failedRequestIdentity = null;
+                setRequestStatus(
+                    runtimeCache.data ? 'refreshing' : 'loading',
+                    runtimeCache.data
+                        ? 'Updating the chart. The previous result remains visible.'
+                        : 'Loading chart data…',
+                );
+            } else if (requestStatusRoot?.dataset.state !== 'failed') {
+                clearRequestStatus();
+            }
         },
         onError: (message: string) => {
             console.error('Failed to fetch data:', message);
-
+            if (!activeRequestIdentity || activeRequestIdentity !== currentRequestIdentity()) return;
+            failedRequestIdentity = activeRequestIdentity;
+            setRequestStatus(
+                'failed',
+                runtimeCache.data
+                    ? 'Chart refresh failed. Showing the previous result. ' + message
+                    : 'Chart data failed to load. ' + message,
+            );
         },
     });
+
+    const onRetryRequest = () => {
+        if (!failedRequestIdentity) return;
+        if (failedRequestIdentity !== currentRequestIdentity()) clearRequestStatus();
+        void fetchAndRender();
+    };
+    requestRetryButton?.addEventListener('click', onRetryRequest);
 
     function renderCurrentData(): void {
         const emptyState = getEmptyStateController();
@@ -222,6 +275,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             adaptiveLineFilters,
             datasetRange: deps.workspace.getSnapshot().dataset.metadata?.time_range,
             spectralPreview: analyticsState.spectralFilterPreview,
+            cleaningPlan: cleaningPlanStore.getSnapshot(),
         });
         emptyState.update(model.emptyState);
 
@@ -324,11 +378,19 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         const requestDataset = datasetKey();
         if (deps.workspace) sanitizeSelectedColumns(deps.workspace);
         const intent = getRequestIntent();
-        if (!Number.isFinite(intent.start) || !Number.isFinite(intent.end)) return;
+        const requestIdentityKey = requestIdentity(intent);
+        if (!Number.isFinite(intent.start) || !Number.isFinite(intent.end)) {
+            clearRequestStatus();
+            return;
+        }
         const currentStart = intent.start;
         const currentEnd = intent.end;
-        if (currentStart >= currentEnd) return;
+        if (currentStart >= currentEnd) {
+            clearRequestStatus();
+            return;
+        }
         if (intent.columns.length === 0) {
+            clearRequestStatus();
             deps.buildRangeControls();
             renderCurrentData();
             return;
@@ -357,12 +419,14 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
                 fetchedWindow,
                 downsampled: runtimeCache.data?._meta?.downsampled ?? null,
             });
+            clearRequestStatus();
             deps.buildRangeControls();
             primaryChart.current?.setXRange?.(currentStart, currentEnd);
             renderCurrentData();
             return;
         }
 
+        activeRequestIdentity = requestIdentityKey;
         await task.run(async (signal) => {
             let requestIntent = intent;
             const requestData = async () => {
@@ -397,7 +461,9 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
             }
 
 
-            if (disposed || signal.aborted || datasetKey() !== requestDataset || currentFetchKey() !== requestIntent.key) return;
+            if (disposed || signal.aborted || datasetKey() !== requestDataset
+                || currentRequestIdentity() !== requestIdentityKey) return;
+            clearRequestStatus();
             runtimeCache.data = data;
             runtimeCache.fetchedWindow = resolveFetchedWindow({
                 data,
@@ -544,6 +610,7 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         consecutiveZoomOuts = 0;
         lastKnownView = null;
         lastFetchedParams = null;
+        clearRequestStatus();
         setRollingBands(null);
     }
     const unsubscribeDataset = deps.workspace.subscribe?.(() => {
@@ -559,6 +626,8 @@ export function createTimeseriesPageController(deps: TimeseriesControllerDeps) {
         unsubscribeDataset?.();
         task.cancel();
         runtimeCache.dispose();
+        requestRetryButton?.removeEventListener('click', onRetryRequest);
+        clearRequestStatus();
         emptyStateController?.dispose();
         emptyStateController = null;
     }

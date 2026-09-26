@@ -1,89 +1,171 @@
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { loadCurrentDatasetProfile } from './currentProfile.js';
-import { startDatasetProfile, fetchDatasetProfile } from '../../services/api/profile.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+    fetchDatasetProfile,
+    fetchSampledDatasetProfile,
+    startDatasetProfile,
+} from '../../services/api/profile.js';
+import type { DatasetMetadata } from '../../types/api.js';
 import type { DatasetProfileResponse } from '../../contracts/api/v1/dataset.js';
+import { datasetProfiles } from '../../services/profile/datasetProfiles.js';
+import { loadCurrentDatasetProfile } from './currentProfile.js';
 
 vi.mock('../../services/api/profile.js', () => ({
-    startDatasetProfile: vi.fn(), fetchDatasetProfile: vi.fn(),
+    startDatasetProfile: vi.fn(),
+    fetchDatasetProfile: vi.fn(),
+    fetchSampledDatasetProfile: vi.fn(),
 }));
 
 const ui = {
-    hydrateColumnProfiles: vi.fn(), renderColumnProfilesGrid: vi.fn(), setUploadPreviewStatus: vi.fn(),
+    hydrateColumnProfiles: vi.fn(),
+    renderColumnProfilesGrid: vi.fn(),
+    setUploadPreviewStatus: vi.fn(),
+    applyTimeRangeFromMetadata: vi.fn(),
+    setProfileMode: vi.fn(),
 };
-const response = (status: DatasetProfileResponse['status']): DatasetProfileResponse => ({
-    algorithmVersion: 'exact-v1', sourceVersion: { id: 'sample', revision: 1, datasetFingerprint: 'sample' },
-    status, job: null, metadata: status === 'ready' ? {
-        total_rows: 1, columns: [], numeric_columns: [], time_column: null, time_range: null, column_profiles: [],
-    } : null,
-});
+let sourceSequence = 0;
+
+function makeMetadata(sourceId = `active-${++sourceSequence}`): DatasetMetadata {
+    return {
+        revision: 3,
+        source_version_id: sourceId,
+        source_version_revision: 3,
+        dataset_fingerprint: `${sourceId}-fingerprint`,
+        profile_status: 'immediate',
+        total_rows: 10,
+        columns: [{ name: 'time', dtype: 'datetime' }, { name: 'value', dtype: 'float64' }],
+        numeric_columns: ['value'],
+        time_column: 'time',
+        time_range: { min: 100, max: 200 },
+        column_profiles: [],
+    };
+}
+
+function response(
+    metadata: DatasetMetadata,
+    status: DatasetProfileResponse['status'],
+    kind: 'exact' | 'sampled' = 'exact',
+): DatasetProfileResponse {
+    return {
+        algorithmVersion: kind === 'exact' ? 'exact-v1' : 'sample-v1',
+        sourceVersion: {
+            id: String(metadata.source_version_id),
+            revision: metadata.source_version_revision ?? metadata.revision ?? 0,
+            datasetFingerprint: String(metadata.dataset_fingerprint),
+        },
+        status,
+        job: null,
+        metadata: status === 'ready' ? {
+            ...metadata,
+            profile_status: kind,
+            column_profiles: [{ name: 'value', dtype: 'float64', min: 1, max: 9 } as any],
+        } : null,
+    };
+}
 
 beforeEach(() => {
     vi.resetAllMocks();
     vi.useFakeTimers();
-    document.body.innerHTML = '<span id="profile-mode-badge" data-mode="dataset"></span>';
+    document.body.innerHTML = '<span id="profile-mode-badge" data-mode="dataset"></span><button id="upload-profile-build-btn" hidden></button>';
 });
 afterEach(() => vi.useRealTimers());
 
-it('polls a running profile and hydrates its completed metadata', async () => {
-    vi.mocked(startDatasetProfile).mockResolvedValue(response('queued'));
-    vi.mocked(fetchDatasetProfile).mockResolvedValueOnce(response('running')).mockResolvedValueOnce(response('ready'));
-    const work = loadCurrentDatasetProfile(new AbortController().signal, () => true, ui);
-    await vi.runAllTimersAsync();
-    await work;
-    expect(fetchDatasetProfile).toHaveBeenCalledTimes(2);
-    expect(ui.hydrateColumnProfiles).toHaveBeenCalledWith(response('ready').metadata);
-    expect(ui.setUploadPreviewStatus).not.toHaveBeenCalledWith(expect.stringContaining('did not complete'));
-});
+describe('loadCurrentDatasetProfile', () => {
+    it('reuses a ready source-keyed report without starting profiling', async () => {
+        const metadata = makeMetadata();
+        const cached = response(metadata, 'ready');
+        datasetProfiles.publish(cached);
 
-it('recovers a not_started response with one idempotent start', async () => {
-    vi.mocked(startDatasetProfile).mockResolvedValueOnce(response('not_started')).mockResolvedValueOnce(response('ready'));
-    await loadCurrentDatasetProfile(new AbortController().signal, () => true, ui);
-    expect(startDatasetProfile).toHaveBeenCalledTimes(2);
-    expect(ui.hydrateColumnProfiles).toHaveBeenCalledOnce();
-});
+        await loadCurrentDatasetProfile(new AbortController().signal, () => true, metadata, ui);
 
-it('does not retry a repeatedly missing job forever', async () => {
-    vi.mocked(startDatasetProfile).mockResolvedValue(response('not_started'));
-    await loadCurrentDatasetProfile(new AbortController().signal, () => true, ui);
-    expect(startDatasetProfile).toHaveBeenCalledTimes(2);
-    expect(ui.setUploadPreviewStatus).toHaveBeenCalledWith(expect.stringContaining('did not complete'));
-});
-
-it('reports the actual job failure without restarting it', async () => {
-    vi.mocked(startDatasetProfile).mockResolvedValue({ ...response('failed'), job: {
-        id: 'job-1', status: 'failed', progressPercent: 5, message: 'Background queue timed out',
-    } });
-    await loadCurrentDatasetProfile(new AbortController().signal, () => true, ui);
-    expect(startDatasetProfile).toHaveBeenCalledOnce();
-    expect(ui.setUploadPreviewStatus).toHaveBeenCalledWith(expect.stringContaining('Background queue timed out'));
-});
-
-it('does not overwrite a file preview with a background failure', async () => {
-    document.getElementById('profile-mode-badge')!.setAttribute('data-mode', 'preview');
-    vi.mocked(startDatasetProfile).mockResolvedValue(response('failed'));
-    await loadCurrentDatasetProfile(new AbortController().signal, () => true, ui);
-    expect(ui.setUploadPreviewStatus).not.toHaveBeenCalled();
-});
-
-it('stops polling when the dataset changes', async () => {
-    let current = true;
-    vi.mocked(startDatasetProfile).mockResolvedValue(response('running'));
-    const work = loadCurrentDatasetProfile(new AbortController().signal, () => current, ui);
-    await Promise.resolve();
-    current = false;
-    await vi.runAllTimersAsync();
-    await work;
-    expect(fetchDatasetProfile).not.toHaveBeenCalled();
-    expect(ui.hydrateColumnProfiles).not.toHaveBeenCalled();
-});
-
-it('ignores a completed response after abort', async () => {
-    const controller = new AbortController();
-    vi.mocked(startDatasetProfile).mockImplementation(async () => {
-        controller.abort();
-        return response('ready');
+        expect(startDatasetProfile).not.toHaveBeenCalled();
+        expect(fetchDatasetProfile).not.toHaveBeenCalled();
+        expect(ui.hydrateColumnProfiles).toHaveBeenCalledWith(cached.metadata);
+        expect(document.getElementById('upload-profile-build-btn')?.hidden).toBe(true);
     });
-    await loadCurrentDatasetProfile(controller.signal, () => true, ui);
-    expect(ui.hydrateColumnProfiles).not.toHaveBeenCalled();
-    expect(ui.setUploadPreviewStatus).not.toHaveBeenCalled();
+
+    it('recovers a sampled server report after an exact report is absent', async () => {
+        const metadata = makeMetadata();
+        vi.mocked(fetchDatasetProfile).mockResolvedValue(response(metadata, 'not_started'));
+        const sampled = response(metadata, 'ready', 'sampled');
+        vi.mocked(fetchSampledDatasetProfile).mockResolvedValue(sampled);
+
+        await loadCurrentDatasetProfile(new AbortController().signal, () => true, metadata, ui);
+
+        expect(fetchDatasetProfile).toHaveBeenCalledOnce();
+        expect(fetchSampledDatasetProfile).toHaveBeenCalledOnce();
+        expect(startDatasetProfile).not.toHaveBeenCalled();
+        expect(ui.hydrateColumnProfiles).toHaveBeenCalledWith(sampled.metadata);
+        expect(ui.applyTimeRangeFromMetadata).toHaveBeenCalledWith(metadata, false);
+    });
+
+    it('offers an explicit build action when neither saved report exists', async () => {
+        const metadata = makeMetadata();
+        vi.mocked(fetchDatasetProfile).mockResolvedValue(response(metadata, 'not_started'));
+        vi.mocked(fetchSampledDatasetProfile).mockResolvedValue(response(metadata, 'not_started', 'sampled'));
+
+        await loadCurrentDatasetProfile(new AbortController().signal, () => true, metadata, ui);
+
+        expect(startDatasetProfile).not.toHaveBeenCalled();
+        expect(document.getElementById('upload-profile-build-btn')?.hidden).toBe(false);
+        expect(ui.setUploadPreviewStatus).toHaveBeenCalledWith(expect.stringContaining('Build an exact report'));
+    });
+
+    it('starts and polls exact profiling only after the explicit build action', async () => {
+        const metadata = makeMetadata();
+        vi.mocked(startDatasetProfile).mockResolvedValue(response(metadata, 'queued'));
+        const completed = response(metadata, 'ready');
+        vi.mocked(fetchDatasetProfile).mockResolvedValue(completed);
+
+        const work = loadCurrentDatasetProfile(
+            new AbortController().signal,
+            () => true,
+            metadata,
+            ui,
+            { buildExact: true },
+        );
+        await vi.runAllTimersAsync();
+        await work;
+
+        expect(startDatasetProfile).toHaveBeenCalledOnce();
+        expect(fetchDatasetProfile).toHaveBeenCalledOnce();
+        expect(ui.hydrateColumnProfiles).toHaveBeenCalledWith(completed.metadata);
+    });
+
+    it('keeps a failed saved report retryable without automatically restarting it', async () => {
+        const metadata = makeMetadata();
+        vi.mocked(fetchDatasetProfile).mockResolvedValue({
+            ...response(metadata, 'failed'),
+            job: { id: 'job-1', status: 'failed', progressPercent: 5, message: 'Worker unavailable' },
+        });
+        vi.mocked(fetchSampledDatasetProfile).mockResolvedValue(response(metadata, 'not_started', 'sampled'));
+
+        await loadCurrentDatasetProfile(new AbortController().signal, () => true, metadata, ui);
+
+        expect(startDatasetProfile).not.toHaveBeenCalled();
+        expect(document.getElementById('upload-profile-build-btn')?.hidden).toBe(false);
+        expect(ui.setUploadPreviewStatus).toHaveBeenCalledWith(expect.stringContaining('Worker unavailable'));
+    });
+
+    it('does not replace an incoming file preview with active-source metadata', async () => {
+        document.getElementById('profile-mode-badge')!.setAttribute('data-mode', 'preview');
+        const metadata = makeMetadata();
+
+        await loadCurrentDatasetProfile(new AbortController().signal, () => true, metadata, ui);
+
+        expect(fetchDatasetProfile).not.toHaveBeenCalled();
+        expect(startDatasetProfile).not.toHaveBeenCalled();
+        expect(ui.hydrateColumnProfiles).not.toHaveBeenCalled();
+    });
+
+    it('ignores a report from another source revision', async () => {
+        const metadata = makeMetadata();
+        const wrong = makeMetadata('different-source');
+        vi.mocked(fetchDatasetProfile).mockResolvedValue(response(wrong, 'ready'));
+        vi.mocked(fetchSampledDatasetProfile).mockResolvedValue(response(metadata, 'not_started', 'sampled'));
+
+        await loadCurrentDatasetProfile(new AbortController().signal, () => true, metadata, ui);
+
+        expect(ui.setUploadPreviewStatus).toHaveBeenCalledWith(expect.stringContaining('No saved column profile'));
+        expect(document.getElementById('upload-profile-build-btn')?.hidden).toBe(false);
+    });
 });

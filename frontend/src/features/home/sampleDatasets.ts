@@ -1,12 +1,61 @@
 import type { WorkspaceStore } from '../../contracts/workspace.js';
 import { confirmDatasetReplacement } from '../../ui/datasetReplacement.js';
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export const GENERATED_SAMPLE_DATASETS = {
+    sinusoidal: {
+        id: 'sinusoidal',
+        label: 'Sinusoidal Waves',
+        start: '2024-01-01T00:00:00Z',
+        durationMs: 7 * DAY_MS,
+        intervalMs: 15 * 60 * 1000,
+        columns: ['timestamp', 'temperature', 'humidity', 'pressure'],
+        seed: 120241,
+    },
+    weather: {
+        id: 'weather',
+        label: 'Weather Patterns',
+        start: '2024-03-01T00:00:00Z',
+        durationMs: 7 * DAY_MS,
+        intervalMs: 10 * 60 * 1000,
+        columns: ['timestamp', 'temperature', 'humidity', 'pressure', 'wind_speed'],
+        seed: 320243,
+    },
+} as const;
+
+type GeneratedSampleId = keyof typeof GENERATED_SAMPLE_DATASETS;
+type GeneratedSampleSpec = typeof GENERATED_SAMPLE_DATASETS[GeneratedSampleId];
+
+function sampleRowCount(spec: GeneratedSampleSpec): number {
+    return Math.ceil(spec.durationMs / spec.intervalMs);
+}
+
+function updateGeneratedSampleCardMetadata(): void {
+    for (const spec of Object.values(GENERATED_SAMPLE_DATASETS)) {
+        const card = document.querySelector<HTMLElement>(`[data-sample-dataset="${spec.id}"]`);
+        const rows = card?.querySelector<HTMLElement>('[data-sample-row-count]');
+        const columns = card?.querySelector<HTMLElement>('[data-sample-column-count]');
+        if (rows) rows.textContent = `${sampleRowCount(spec).toLocaleString()} rows`;
+        if (columns) columns.textContent = `${spec.columns.length} columns`;
+    }
+}
+
+function createSeededRandom(seed: number): () => number {
+    let state = seed >>> 0;
+    return () => {
+        state = (Math.imul(1664525, state) + 1013904223) >>> 0;
+        return state / 0x1_0000_0000;
+    };
+}
+
 export function wireSampleDatasetCards(
     showPage: (page: string) => void,
     refreshDatasetAfterMutation?: () => Promise<void>,
     workspace?: Pick<WorkspaceStore, 'getSnapshot'>,
 ): () => void {
     const controller = new AbortController();
+    updateGeneratedSampleCardMetadata();
     document.querySelectorAll<HTMLElement>('[data-sample-dataset]').forEach((element) => {
         element.addEventListener('click', () => {
             const dataset = element.dataset.sampleDataset;
@@ -82,31 +131,33 @@ async function loadSampleDataset(
 }
 
 function generateSinusoidalCsv(): string {
-    const rows = ['timestamp,temperature,humidity,pressure'];
-    const start = new Date('2024-01-01T00:00:00Z').getTime();
-    const end = new Date('2024-01-08T00:00:00Z').getTime();
-    const interval = 15 * 60 * 1000;
-    for (let t = start; t < end; t += interval) {
-        const temp = 20 + 5 * Math.sin((t - start) / (3600 * 1000)) + (Math.random() - 0.5) * 0.5;
-        const hum = 50 + 20 * Math.sin((t - start) / (7200 * 1000)) + (Math.random() - 0.5) * 2;
-        const pres = 1013 + 5 * Math.sin((t - start) / (5400 * 1000)) + (Math.random() - 0.5) * 0.3;
+    const spec = GENERATED_SAMPLE_DATASETS.sinusoidal;
+    const rows = [spec.columns.join(',')];
+    const start = new Date(spec.start).getTime();
+    const random = createSeededRandom(spec.seed);
+    for (let index = 0; index < sampleRowCount(spec); index++) {
+        const t = start + index * spec.intervalMs;
+        const temp = 20 + 5 * Math.sin((t - start) / (3600 * 1000)) + (random() - 0.5) * 0.5;
+        const hum = 50 + 20 * Math.sin((t - start) / (7200 * 1000)) + (random() - 0.5) * 2;
+        const pres = 1013 + 5 * Math.sin((t - start) / (5400 * 1000)) + (random() - 0.5) * 0.3;
         rows.push(`${new Date(t).toISOString()},${temp.toFixed(3)},${hum.toFixed(3)},${pres.toFixed(3)}`);
     }
     return rows.join('\n');
 }
 
 function generateWeatherCsv(): string {
-    const rows = ['timestamp,temperature,humidity,pressure,wind_speed'];
-    const start = new Date('2024-03-01T00:00:00Z').getTime();
-    const end = new Date('2024-03-08T00:00:00Z').getTime();
-    const interval = 10 * 60 * 1000;
-    for (let t = start; t < end; t += interval) {
+    const spec = GENERATED_SAMPLE_DATASETS.weather;
+    const rows = [spec.columns.join(',')];
+    const start = new Date(spec.start).getTime();
+    const random = createSeededRandom(spec.seed);
+    for (let index = 0; index < sampleRowCount(spec); index++) {
+        const t = start + index * spec.intervalMs;
         const hour = new Date(t).getUTCHours();
-        const dayFactor = Math.sin((t - start) / (86400 * 1000));
-        const temp = 15 + 8 * dayFactor + 3 * Math.sin(hour * Math.PI / 12) + (Math.random() - 0.5) * 0.5;
-        const hum = 60 + 15 * Math.cos((t - start) / (43200 * 1000)) + (Math.random() - 0.5) * 3;
-        const pres = 1010 + 8 * dayFactor + (Math.random() - 0.5) * 0.5;
-        const wind = 5 + 3 * Math.abs(Math.sin((t - start) / (21600 * 1000))) + (Math.random() - 0.5) * 1;
+        const dayFactor = Math.sin((t - start) / DAY_MS);
+        const temp = 15 + 8 * dayFactor + 3 * Math.sin(hour * Math.PI / 12) + (random() - 0.5) * 0.5;
+        const hum = 60 + 15 * Math.cos((t - start) / (12 * 60 * 60 * 1000)) + (random() - 0.5) * 3;
+        const pres = 1010 + 8 * dayFactor + (random() - 0.5) * 0.5;
+        const wind = 5 + 3 * Math.abs(Math.sin((t - start) / (6 * 60 * 60 * 1000))) + (random() - 0.5) * 1;
         rows.push(`${new Date(t).toISOString()},${temp.toFixed(3)},${hum.toFixed(3)},${pres.toFixed(3)},${wind.toFixed(3)}`);
     }
     return rows.join('\n');

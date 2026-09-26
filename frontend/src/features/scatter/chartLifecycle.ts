@@ -7,8 +7,7 @@ import { getEl } from './helpers.js';
 import { initSelectionZoom } from './selectionZoom.js';
 import { isGPUAvailable, setGpuUnavailable } from './runtime.js';
 import type { DensityViewRefresh } from './rendering.js';
-import { createAccessibilitySummaryTable, type SeriesSummary } from '../../chart/accessibilityTable.js';
-import { currentControls } from './state.js';
+import { renderScatterAccessibilitySummary } from './accessibilitySummary.js';
 
 export interface ScatterChartLifecycleOptions {
     container: HTMLElement;
@@ -16,60 +15,6 @@ export interface ScatterChartLifecycleOptions {
     buildOption: (container: HTMLElement | null) => unknown;
     onPerformanceUpdate: () => void;
     onDensityViewRefresh?: DensityViewRefresh;
-}
-
-function syncAccessibilitySummary(container: HTMLElement, option: unknown): void {
-    container.querySelector('table[data-chart-summary="scatter"]')?.remove();
-    const correlationPills = document.querySelector<HTMLElement>('.scatter-stats-bar__correlations');
-    void option;
-    const controls = currentControls();
-    const axes: Array<{ name: string; index: 0 | 1 }> = [
-        { name: controls.x || 'X axis', index: 0 },
-        { name: controls.y || 'Y axis', index: 1 },
-    ];
-    const summaries: SeriesSummary[] = axes.flatMap(({ name, index }) => {
-        const values = scatterState.points.map((point) => Number(point[index])).filter(Number.isFinite);
-        if (values.length === 0) return [];
-        const sorted = [...values].sort((left, right) => left - right);
-        const total = values.reduce((sum, value) => sum + value, 0);
-        let min = values[0];
-        let max = values[0];
-        for (const value of values) {
-            min = Math.min(min, value);
-            max = Math.max(max, value);
-        }
-        const mean = total / values.length;
-        const midpoint = Math.floor(sorted.length / 2);
-        const median = sorted.length % 2 === 0 ? (sorted[midpoint - 1]! + sorted[midpoint]!) / 2 : sorted[midpoint]!;
-        const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
-        return [{ name, count: values.length, min, max, mean, std: Math.sqrt(variance), median, missingCount: 0 }];
-    });
-    if (summaries.length === 0) {
-        if (correlationPills) correlationPills.hidden = false;
-        return;
-    }
-    const table = createAccessibilitySummaryTable('Scatter chart', summaries, { visible: true });
-    const correlationRows: Array<[string, number | null | undefined]> = [
-        ['Pearson r', scatterState.currentPairStats?.pearsonRaw],
-        ['Spearman ρ', scatterState.currentPairStats?.spearmanRaw],
-    ];
-    const correlationBody = document.createElement('tbody');
-    correlationBody.className = 'chart-summary-table__correlations';
-    for (const [name, value] of correlationRows) {
-        const row = document.createElement('tr');
-        const heading = document.createElement('th');
-        heading.scope = 'row';
-        heading.textContent = name;
-        const cell = document.createElement('td');
-        cell.colSpan = 7;
-        cell.textContent = typeof value === 'number' && Number.isFinite(value) ? value.toFixed(4) : '—';
-        row.append(heading, cell);
-        correlationBody.append(row);
-    }
-    table.append(correlationBody);
-    table.dataset.chartSummary = 'scatter';
-    container.appendChild(table);
-    if (correlationPills) correlationPills.hidden = true;
 }
 
 /** Create or reuse the chart instance while preserving the render-signature contract. */
@@ -115,7 +60,7 @@ export async function renderScatterChart(options: ScatterChartLifecycleOptions):
         if (!chart) return container;
         scatterState.lastRenderSignature = options.renderSignature;
         chart.setOption(nextOption as any);
-        syncAccessibilitySummary(container, nextOption);
+        renderScatterAccessibilitySummary(container);
         initSelectionZoom(container, { onDensityViewRefresh: options.onDensityViewRefresh });
         chart.onPerformanceUpdate?.(() => {
             const now = performance.now();
@@ -125,7 +70,7 @@ export async function renderScatterChart(options: ScatterChartLifecycleOptions):
         });
     } else {
         scatterState.chart.setOption(nextOption as any);
-        syncAccessibilitySummary(container, nextOption);
+        renderScatterAccessibilitySummary(container);
         scatterState.lastRenderSignature = options.renderSignature;
         requestAnimationFrame(() => scatterState.chart?.resize?.());
     }

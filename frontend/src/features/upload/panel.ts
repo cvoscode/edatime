@@ -14,33 +14,30 @@ import {
     setUploadPreviewStatus,
     setProfileMode,
     createUploadPreviewController,
-    applyPreviewColumnSelection,
     applyTimeRangeFromMetadata,
 } from './preview.js';
 import {
     handleDatabaseConnect,
     handleDatabaseDisconnect,
     handleDatabaseLoad,
-    refreshDbTables,
-    resetDatabaseStatusLoaded,
     syncDatabaseStatus as doSyncDatabaseStatus,
 } from './databaseSource.js';
 import {
     validateFileSize,
     getPartialTimeRangeInputs,
-    clearPartialTimeRangeInputs,
-    setPartialTimeRangeInputs,
 } from './partialLoadControls.js';
-import { submitFileUpload } from './fileSource.js';
+import { getPreviewConfigurationError, submitFileUpload } from './fileSource.js';
 import { uploadProfile } from './profileState.js';
+import { loadCurrentDatasetProfile } from './currentProfile.js';
 import { setPreviewSelectedColumns, setPreviewTimeColumn, uploadUi } from './uploadUi.js';
 import { toast } from '../../utils/toast.js';
-import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
+import { getDropdownValue, setDropdownOptions } from '../../ui/primitives/Dropdown.js';
 import type { DatasetMetadata } from '../../types/api.js';
 import { confirmDatasetReplacement } from '../../ui/datasetReplacement.js';
 
 interface UploadPanelDeps {
     workspace?: Pick<WorkspaceStore, 'getSnapshot'>;
+    ensureDatasetMetadata?: () => Promise<'ready' | 'empty'>;
     buildColumnToggles: () => void;
     buildRangeControls: () => void;
     refreshDatasetAfterMutation?: () => Promise<void>;
@@ -74,7 +71,8 @@ export function initUploadPanel(
     const timeEndInput = document.getElementById('time-end-input') as HTMLInputElement | null;
     const uploadBtn = document.getElementById('upload-btn') as HTMLButtonElement | null;
     const uploadStatus = document.getElementById('upload-status') as HTMLElement | null;
-    const uploadLoading = document.getElementById('upload-loading') as HTMLElement | null;
+    const previewRetryBtn = document.getElementById('upload-preview-retry-btn') as HTMLButtonElement | null;
+    const profileBuildBtn = document.getElementById('upload-profile-build-btn') as HTMLButtonElement | null;
     const selectAllBtn = document.getElementById('profile-select-all-btn');
     const selectNoneBtn = document.getElementById('profile-select-none-btn');
     const selectInvertBtn = document.getElementById('profile-select-invert-btn');
@@ -90,6 +88,25 @@ export function initUploadPanel(
     }
 
     let selectedFile: File | null = null;
+    let fileGeneration = 0;
+    let previewSequence = 0;
+    let uploadPending = false;
+    let previewedFileGeneration: number | null = null;
+
+    const currentProfileUi = {
+        hydrateColumnProfiles,
+        renderColumnProfilesGrid,
+        setUploadPreviewStatus,
+        applyTimeRangeFromMetadata,
+        setProfileMode,
+    };
+    const restoreCurrentProfile = (metadata: DatasetMetadata, buildExact = false) => loadCurrentDatasetProfile(
+        listenerAbort.signal,
+        () => !listenerAbort.signal.aborted && !selectedFile && uploadProfile.metadata === metadata,
+        metadata,
+        currentProfileUi,
+        { buildExact },
+    );
 
     function formatUploadRowCountLocal(rowCount: number): string {
         return rowCount >= 1_000_000
@@ -97,22 +114,49 @@ export function initUploadPanel(
             : rowCount >= 1_000 ? (rowCount / 1_000).toFixed(0) + 'K' : String(rowCount);
     }
 
-    function showUploadLoading(show: boolean): void {
-        if (uploadLoading) uploadLoading.hidden = !show;
-    }
-
-    /**
-     * Disable the Upload & Ingest button whenever no valid file is
-     * selected. The legacy behaviour allowed the button to be clicked
-     * with no file (resulting in a no-op or stale request) — see
-     * `usage_issue.md` §6.2.
-     */
     function syncUploadButtonState(): void {
         if (!uploadBtn) return;
         const hasFile = !!selectedFile && selectedFile.size > 0;
-        uploadBtn.disabled = !hasFile;
-        uploadBtn.setAttribute('aria-disabled', hasFile ? 'false' : 'true');
-        uploadBtn.title = hasFile ? '' : 'Pick a CSV/Parquet file above first.';
+        const previewReady = hasFile && previewedFileGeneration === fileGeneration;
+        const previewError = uploadProfile.metadata
+            ? getPreviewConfigurationError(uploadProfile.metadata, uploadUi.previewSelectedColumns, uploadUi.previewTimeColumn)
+            : 'Preview the selected file before ingesting it.';
+        const canUpload = hasFile && previewReady && !previewError && !uploadPending;
+        uploadBtn.disabled = !canUpload;
+        uploadBtn.setAttribute('aria-disabled', canUpload ? 'false' : 'true');
+        uploadBtn.title = uploadPending
+            ? 'Loading the selected file…'
+            : !hasFile
+            ? 'Pick a CSV/Parquet file above first.'
+            : !previewReady
+                ? 'Wait for the selected file preview to finish.'
+                : previewError || '';
+    }
+
+    function clearFilePreviewState(): void {
+        uploadProfile.metadata = null;
+        uploadProfile.columnProfiles = [];
+        setPreviewSelectedColumns([]);
+        setPreviewTimeColumn(null);
+        setDropdownOptions('time-column-select', [{ value: '', label: 'Auto-detect' }], { preferredValue: '' });
+        applyTimeRangeFromMetadata(null, true);
+        const timeInputs = getPartialTimeRangeInputs();
+        if (timeInputs) {
+            timeInputs.startInput.value = '';
+            timeInputs.endInput.value = '';
+        }
+        hydrateColumnProfiles({
+            total_rows: 0,
+            columns: [],
+            numeric_columns: [],
+            time_column: null,
+            time_range: null,
+            column_profiles: [],
+        });
+        setProfileMode('preview');
+        renderColumnProfilesGrid(true);
+        setUploadPreviewStatus('Select a file to preview its columns');
+        if (previewRetryBtn) previewRetryBtn.hidden = true;
     }
 
     // Panel open/close
@@ -126,13 +170,51 @@ export function initUploadPanel(
         panel.classList.add('open');
     }
 
-    async function runPreviewWithCurrentFile(file: File) {
-        await previewController.run(file, {
+    async function runPreviewWithCurrentFile(file: File, generation = fileGeneration): Promise<void> {
+        const sequence = ++previewSequence;
+        previewedFileGeneration = null;
+        if (previewRetryBtn) previewRetryBtn.hidden = true;
+        syncUploadButtonState();
+        const result = await previewController.run(file, {
             hydrateColumnProfiles,
             renderColumnProfilesGrid,
-            onTimeColumnChanged: runPreviewWithCurrentFile,
+            onTimeColumnChanged: () => {
+                if (selectedFile && generation === fileGeneration) {
+                    void runPreviewWithCurrentFile(selectedFile, generation);
+                }
+            },
             signal: listenerAbort.signal,
         });
+        if (listenerAbort.signal.aborted || sequence !== previewSequence
+            || generation !== fileGeneration || selectedFile !== file || result === 'ignored') return;
+        previewedFileGeneration = result === 'ready' ? generation : null;
+        if (previewRetryBtn) previewRetryBtn.hidden = result !== 'failed';
+        syncUploadButtonState();
+    }
+
+    function selectFile(file: File | null): void {
+        previewController.cancel();
+        previewSequence += 1;
+        fileGeneration += 1;
+        const generation = fileGeneration;
+        selectedFile = file;
+        previewedFileGeneration = null;
+        fileDisplay!.textContent = file?.name ?? '';
+        if (profileBuildBtn) profileBuildBtn.hidden = true;
+        clearFilePreviewState();
+
+        const invalidFileMsg = validateFileSize(file);
+        if (invalidFileMsg) {
+            selectedFile = null;
+            if (fileInput) fileInput.value = '';
+            fileDisplay!.textContent = '';
+            setUploadPreviewStatus(invalidFileMsg, 'error');
+            notify(invalidFileMsg, 'error');
+            syncUploadButtonState();
+            return;
+        }
+        syncUploadButtonState();
+        if (file) void runPreviewWithCurrentFile(file, generation);
     }
 
     // Browse / choose
@@ -147,21 +229,7 @@ export function initUploadPanel(
     }, listenerOptions);
     browseBtn.addEventListener('click', () => fileInput!.click(), listenerOptions);
     fileInput.addEventListener('change', () => {
-        selectedFile = fileInput!.files?.[0] || null;
-        const invalidFileMsg = validateFileSize(selectedFile);
-        if (invalidFileMsg) {
-            selectedFile = null;
-            fileInput!.value = '';
-            fileDisplay!.textContent = '';
-            setUploadPreviewStatus(invalidFileMsg, 'error');
-            notify(invalidFileMsg, 'error');
-            syncUploadButtonState();
-            return;
-        }
-        fileDisplay!.textContent = selectedFile ? selectedFile.name : '';
-        setPreviewTimeColumn(null);
-        syncUploadButtonState();
-        if (selectedFile) void runPreviewWithCurrentFile(selectedFile);
+        selectFile(fileInput!.files?.[0] ?? null);
     }, listenerOptions);
 
     // Drag and drop
@@ -170,20 +238,14 @@ export function initUploadPanel(
     dropZone.addEventListener('drop', (e: DragEvent) => {
         e.preventDefault();
         dropZone!.classList.remove('dragover');
-        selectedFile = e.dataTransfer?.files[0] || null;
-        const invalidFileMsg = validateFileSize(selectedFile);
-        if (invalidFileMsg) {
-            selectedFile = null;
-            fileDisplay!.textContent = '';
-            setUploadPreviewStatus(invalidFileMsg, 'error');
-            notify(invalidFileMsg, 'error');
-            syncUploadButtonState();
-            return;
-        }
-        fileDisplay!.textContent = selectedFile ? selectedFile.name : '';
-        setPreviewTimeColumn(null);
-        syncUploadButtonState();
-        if (selectedFile) void runPreviewWithCurrentFile(selectedFile);
+        selectFile(e.dataTransfer?.files[0] ?? null);
+    }, listenerOptions);
+    previewRetryBtn?.addEventListener('click', () => {
+        if (selectedFile) void runPreviewWithCurrentFile(selectedFile, fileGeneration);
+    }, listenerOptions);
+    profileBuildBtn?.addEventListener('click', () => {
+        const metadata = uploadProfile.metadata;
+        if (metadata && !selectedFile) void restoreCurrentProfile(metadata, true);
     }, listenerOptions);
 
     // Partial load toggle
@@ -212,29 +274,52 @@ export function initUploadPanel(
         nRowsDisp.textContent = formatUploadRowCountLocal(defaultRows);
     }
 
+    const activateCurrentDataset = (metadata: DatasetMetadata) => {
+        if (listenerAbort.signal.aborted || selectedFile) return;
+        uploadProfile.metadata = metadata;
+        applyTimeRangeFromMetadata(metadata, false);
+        setProfileMode('dataset');
+        hydrateColumnProfiles(metadata);
+        renderColumnProfilesGrid(true);
+        setUploadPreviewStatus('Showing the active dataset profile');
+        void restoreCurrentProfile(metadata);
+    };
+
     uploadProfile.metadata = deps.workspace?.getSnapshot().dataset.metadata ?? null;
-    applyTimeRangeFromMetadata(uploadProfile.metadata, false);
     setProfileMode('dataset');
     if (uploadProfile.metadata) {
-        setUploadPreviewStatus('Showing the active dataset profile');
+        activateCurrentDataset(uploadProfile.metadata);
+    } else {
+        if (profileBuildBtn) profileBuildBtn.hidden = true;
+        setUploadPreviewStatus('Checking for an active dataset…', 'loading');
+        void (async () => {
+            try {
+                let freshMetadata: DatasetMetadata | null = null;
+                if (deps.ensureDatasetMetadata) {
+                    const result = await deps.ensureDatasetMetadata();
+                    if (result === 'ready') freshMetadata = deps.workspace?.getSnapshot().dataset.metadata ?? null;
+                } else {
+                    const { fetchMetadata } = await import('../../services/api/index.js');
+                    freshMetadata = await fetchMetadata({ signal: listenerAbort.signal });
+                }
+                if (listenerAbort.signal.aborted || selectedFile) return;
+                if (freshMetadata) {
+                    activateCurrentDataset(freshMetadata);
+                } else {
+                    setUploadPreviewStatus('No active dataset. Select a file to preview its columns.');
+                }
+            } catch (error) {
+                if (listenerAbort.signal.aborted || selectedFile) return;
+                const apiError = error as { status?: unknown; code?: unknown };
+                if (Number(apiError?.status) === 404 && apiError.code === 'not_found') {
+                    setUploadPreviewStatus('No active dataset. Select a file to preview its columns.');
+                    return;
+                }
+                setUploadPreviewStatus(`Could not load the active dataset: ${error instanceof Error ? error.message : String(error)}.`, 'error');
+            }
+        })();
     }
     syncUploadButtonState();
-
-    // If no preview is active and we have no metadata yet, fetch existing dataset state
-    if (!uploadProfile.metadata) {
-        void import('../../services/api/index.js').then(async ({ fetchMetadata }) => {
-            try {
-                const freshMetadata = await fetchMetadata({ signal: listenerAbort.signal });
-                if (!listenerAbort.signal.aborted && !selectedFile && freshMetadata) {
-                    uploadProfile.metadata = freshMetadata;
-                    hydrateColumnProfiles(freshMetadata);
-                    renderColumnProfilesGrid(true);
-                }
-            } catch (err) {
-                console.error('[upload] metadata fetch error:', err);
-            }
-        });
-    }
 
     selectAllBtn?.addEventListener('click', () => setSelectionMode('all'), listenerOptions);
     selectNoneBtn?.addEventListener('click', () => setSelectionMode('none'), listenerOptions);
@@ -263,27 +348,60 @@ export function initUploadPanel(
 
     // Upload submit
     uploadBtn.addEventListener('click', () => {
+        if (uploadPending) return;
         if (!selectedFile) {
             notify('Please select a file first.', 'error');
             return;
         }
+        const previewMetadata = uploadProfile.metadata;
+        const previewError = previewMetadata
+            ? getPreviewConfigurationError(previewMetadata, uploadUi.previewSelectedColumns, uploadUi.previewTimeColumn)
+            : 'Preview the selected file before ingesting it.';
+        if (previewedFileGeneration !== fileGeneration || previewError || !previewMetadata) {
+            const message = previewError || 'Wait for the selected file preview to finish before ingesting it.';
+            setUploadPreviewStatus(message, 'error');
+            notify(message, 'error');
+            syncUploadButtonState();
+            return;
+        }
         if (!confirmDatasetReplacement(deps.workspace, selectedFile.name)) return;
 
+        const submittedFile = selectedFile;
+        const submittedGeneration = fileGeneration;
+        uploadPending = true;
+        syncUploadButtonState();
         void submitFileUpload({
             selectedFile,
+            previewMetadata,
+            selectedColumns: [...uploadUi.previewSelectedColumns],
+            timeColumn: uploadUi.previewTimeColumn,
             partialEnabled: partialChk!.checked,
             nRowsInput: nRowsInput!,
             skipInput: skipInput!,
             timeStartInput: timeStartInput,
             timeEndInput: timeEndInput,
-            uploadBtn: uploadBtn!,
             statusEl: uploadStatus,
-            fileInput: fileInput!,
-            fileDisplay: fileDisplay!,
             signal: listenerAbort.signal,
             deps,
-            hydrateColumnProfiles,
-            renderColumnProfilesGrid,
+        }).then((result) => {
+            uploadPending = false;
+            if (!listenerAbort.signal.aborted) syncUploadButtonState();
+            if (result.status !== 'success' || listenerAbort.signal.aborted
+                || selectedFile !== submittedFile || fileGeneration !== submittedGeneration) return;
+            selectedFile = null;
+            fileGeneration += 1;
+            previewedFileGeneration = null;
+            if (fileInput) fileInput.value = '';
+            if (fileDisplay) fileDisplay.textContent = '';
+            if (profileBuildBtn) profileBuildBtn.hidden = true;
+            clearFilePreviewState();
+            const activeMetadata = result.metadata ?? deps.workspace?.getSnapshot().dataset.metadata ?? null;
+            if (activeMetadata) activateCurrentDataset(activeMetadata);
+            else {
+                setProfileMode('dataset');
+                setUploadPreviewStatus('No active dataset. Select a file to preview its columns.');
+            }
+            syncUploadButtonState();
         });
     }, listenerOptions);
 

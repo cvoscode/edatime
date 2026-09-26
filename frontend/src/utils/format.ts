@@ -31,6 +31,15 @@ export function normalizeDtypeLabel(dtype: string): string {
     return String(dtype || '');
 }
 
+/** True for supported scalar numeric dtypes; booleans and unknown types stay out. */
+export function isNumericDtype(dtype: string): boolean {
+    const normalized = String(dtype || '').trim().toLowerCase().replace(/^polars[.:]/, '');
+    if (!normalized || isTemporalDtype(normalized) || normalized === 'bool' || normalized === 'boolean') return false;
+    if (['int', 'integer', 'uint', 'float', 'double', 'real', 'numeric', 'number'].includes(normalized)) return true;
+    if (/^(?:u?int(?:8|16|32|64|128)|float(?:16|32|64|128)|[iu](?:8|16|32|64|128)|f(?:16|32|64|128))$/.test(normalized)) return true;
+    return /^decimal(?:\d+)?(?:$|[[(])/.test(normalized);
+}
+
 /**
  * Format a profile `min` / `max` value for display.
  *
@@ -90,6 +99,7 @@ export function formatToDatetimeLocal(ms: number): string {
 }
 
 export function toFiniteNumberOrNull(value: unknown): number | null {
+    if (value == null || (typeof value === 'string' && value.trim() === '')) return null;
     const n = Number(value);
     return Number.isFinite(n) ? n : null;
 }

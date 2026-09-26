@@ -87,6 +87,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
                 applyPartialTimeRangeFromMetadata: partialLoadModule.applyPartialTimeRangeFromMetadata,
                 setProfileMode: previewModule.setProfileMode,
                 setUploadPreviewStatus: previewModule.setUploadPreviewStatus,
+                applyTimeRangeFromMetadata: partialLoadModule.applyPartialTimeRangeFromMetadata,
             }));
         }
         return datasetUiModulesPromise;
@@ -169,7 +170,7 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         datasetUi.setUploadPreviewStatus('Showing current dataset profile. Drop/select a file to preview before loading.');
         datasetUi.setProfileMode('dataset');
         void datasetUi.loadProfile(signal, () => !disposed && !signal.aborted
-            && deps.workspace.getSnapshot().dataset.metadata === committedMetadata, datasetUi);
+            && deps.workspace.getSnapshot().dataset.metadata === committedMetadata, metadata, datasetUi);
         feature.rebuildColumns();
         feature.buildRangeControls();
         emitFeatureEvent('workflow:refresh', undefined);

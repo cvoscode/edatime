@@ -8,9 +8,6 @@
 import {
     uploadDataset,
 } from '../../services/api/index.js';
-import { uploadProfile } from './profileState.js';
-import { uploadUi } from './uploadUi.js';
-import { setProfileMode } from './preview.js';
 import { formatCount } from '../../utils/format.js';
 import { toast } from '../../utils/toast.js';
 import { validateFileSize } from './partialLoadControls.js';
@@ -40,53 +37,85 @@ export interface FileUploadDeps {
     refreshDatasetAfterMutation?: () => Promise<void>;
 }
 
+export type FileUploadResult =
+    | { status: 'success'; metadata?: DatasetMetadata }
+    | { status: 'failed' | 'ignored' | 'invalid' };
+
 export interface FileUploadParams {
     signal?: AbortSignal;
     selectedFile: File;
+    previewMetadata: DatasetMetadata;
+    selectedColumns: readonly string[];
+    timeColumn: string | null;
     partialEnabled: boolean;
     nRowsInput: HTMLInputElement;
     skipInput: HTMLInputElement;
     timeStartInput: HTMLInputElement | null;
     timeEndInput: HTMLInputElement | null;
-    uploadBtn: HTMLButtonElement;
     statusEl: HTMLElement | null;
-    fileInput: HTMLInputElement;
-    fileDisplay: HTMLElement;
     deps: FileUploadDeps;
-    hydrateColumnProfiles: (metadata: DatasetMetadata) => void;
-    renderColumnProfilesGrid: (resetScroll: boolean) => void;
 }
 
-export async function submitFileUpload(params: FileUploadParams): Promise<void> {
+export function getPreviewConfigurationError(
+    metadata: DatasetMetadata | null | undefined,
+    selectedColumns: readonly string[],
+    timeColumn: string | null,
+): string | null {
+    if (!metadata || !Array.isArray(metadata.columns)) return 'Preview this file before ingesting it.';
+    const availableColumns = new Set(metadata.columns
+        .map((column) => String(column?.name ?? '').trim())
+        .filter(Boolean));
+    if (selectedColumns.some((column) => !availableColumns.has(String(column).trim()))) {
+        return 'The selected columns do not match this file preview. Preview the file again.';
+    }
+
+    const selectedTimeColumn = String(timeColumn ?? '').trim();
+    if (selectedTimeColumn && !availableColumns.has(selectedTimeColumn)) {
+        return 'The selected time column is not present in this file preview.';
+    }
+    const min = metadata.time_range?.min;
+    const max = metadata.time_range?.max;
+    const hasDetectedTimeRange = min != null && max != null
+        && Number.isFinite(Number(min)) && Number.isFinite(Number(max));
+    if (!selectedTimeColumn && !hasDetectedTimeRange) {
+        return 'No time column selected. Please choose a time column in the upload panel before ingest.';
+    }
+    return null;
+}
+
+export async function submitFileUpload(params: FileUploadParams): Promise<FileUploadResult> {
     const {
         selectedFile,
+        previewMetadata,
+        selectedColumns: previewSelectedColumns,
+        timeColumn: previewTimeColumn,
         partialEnabled,
         nRowsInput,
         skipInput,
         timeStartInput,
         timeEndInput,
-        uploadBtn,
         statusEl,
-        fileInput,
-        fileDisplay,
         deps,
-        hydrateColumnProfiles,
-        renderColumnProfilesGrid,
     } = params;
 
     const invalidFileMsg = validateFileSize(selectedFile);
     if (invalidFileMsg) {
-        statusEl!.textContent = invalidFileMsg;
-        statusEl!.className = 'upload-status error';
+        if (statusEl) {
+            statusEl.textContent = invalidFileMsg;
+            statusEl.className = 'upload-status error';
+        }
         toast(invalidFileMsg, 'error', {});
-        return;
+        return { status: 'invalid' };
     }
 
-    if (!uploadUi.previewTimeColumn && !(uploadProfile.metadata && uploadProfile.metadata.time_range)) {
-        statusEl!.textContent = 'No time column selected. Please choose a time column in the upload panel before ingest.';
-        statusEl!.className = 'upload-status error';
-        toast('No time column selected. Please choose a time column in the upload panel before ingest.', 'error', {});
-        return;
+    const previewError = getPreviewConfigurationError(previewMetadata, previewSelectedColumns, previewTimeColumn);
+    if (previewError) {
+        if (statusEl) {
+            statusEl.textContent = previewError;
+            statusEl.className = 'upload-status error';
+        }
+        toast(previewError, 'error', {});
+        return { status: 'invalid' };
     }
 
     const formData = new FormData();
@@ -98,11 +127,12 @@ export async function submitFileUpload(params: FileUploadParams): Promise<void> 
         if (!isNaN(nRows) && nRows > 0) {
             formData.append('n_rows', String(nRows));
         } else {
-            statusEl!.textContent = 'Enter a valid Max rows value for partial load.';
-            statusEl!.className = 'upload-status error';
+            if (statusEl) {
+                statusEl.textContent = 'Enter a valid Max rows value for partial load.';
+                statusEl.className = 'upload-status error';
+            }
             toast('Enter a valid Max rows value for partial load.', 'error', {});
-            uploadBtn.disabled = false;
-            return;
+            return { status: 'invalid' };
         }
         if (skipRows > 0) formData.append('skip_rows', String(skipRows));
 
@@ -116,26 +146,25 @@ export async function submitFileUpload(params: FileUploadParams): Promise<void> 
         const tStartIso = toIsoOrNull(timeStartInput?.value || '');
         const tEndIso = toIsoOrNull(timeEndInput?.value || '');
         if (tStartIso && tEndIso && Date.parse(tStartIso) > Date.parse(tEndIso)) {
-            statusEl!.textContent = 'Start time must be before end time.';
-            statusEl!.className = 'upload-status error';
+            if (statusEl) {
+                statusEl.textContent = 'Start time must be before end time.';
+                statusEl.className = 'upload-status error';
+            }
             toast('Start time must be before end time.', 'error', {});
-            return;
+            return { status: 'invalid' };
         }
         if (tStartIso) formData.append('time_start', tStartIso);
         if (tEndIso) formData.append('time_end', tEndIso);
     }
 
-    const selectedColumns = Array.isArray(uploadUi.previewSelectedColumns)
-        ? uploadUi.previewSelectedColumns.filter(Boolean)
-        : [];
+    const selectedColumns = previewSelectedColumns.filter(Boolean);
     if (selectedColumns.length > 0) {
         formData.append('columns', JSON.stringify(selectedColumns));
     }
 
-    const timeColumn = String(uploadUi.previewTimeColumn || '').trim();
+    const timeColumn = String(previewTimeColumn || '').trim();
     if (timeColumn) formData.append('time_column', timeColumn);
 
-    uploadBtn.disabled = true;
     if (statusEl) {
         statusEl.textContent = 'Uploading…';
         statusEl.className = 'upload-status loading';
@@ -145,42 +174,39 @@ export async function submitFileUpload(params: FileUploadParams): Promise<void> 
     try {
         const res = await uploadDataset(formData, { signal: params.signal });
         const result = await res.json();
-        if (params.signal?.aborted) return;
+        if (params.signal?.aborted) return { status: 'ignored' };
         if (statusEl) {
             statusEl.className = 'upload-status';
         }
         toast(`${formatCount(Number(result.rows || 0))} rows loaded. Dataset ready.`, 'success', {});
-        fileInput.value = '';
-        fileDisplay.textContent = '';
 
+        let refreshedMetadata: DatasetMetadata | undefined;
         try {
             if (deps.refreshDatasetAfterMutation) {
                 await deps.refreshDatasetAfterMutation();
             } else {
                 const { fetchMetadata } = await import('../../services/api/index.js');
                 const freshMetadata = await fetchMetadata({ signal: params.signal });
-                if (params.signal?.aborted) return;
-                uploadProfile.metadata = freshMetadata;
-                hydrateColumnProfiles(freshMetadata);
-                renderColumnProfilesGrid(true);
+                if (params.signal?.aborted) return { status: 'ignored' };
+                refreshedMetadata = freshMetadata;
                 deps.buildColumnToggles();
                 deps.buildRangeControls();
-                setProfileMode('dataset');
             }
         } catch {
-            if (params.signal?.aborted) return;
+            if (params.signal?.aborted) return { status: 'ignored' };
             // Fall back to reload if metadata refresh fails
             setTimeout(() => { if (!params.signal?.aborted) window.location.reload(); }, 1200);
         }
+        return { status: 'success', metadata: refreshedMetadata };
     } catch (e: unknown) {
-        if (params.signal?.aborted) return;
+        if (params.signal?.aborted) return { status: 'ignored' };
         if (statusEl) {
             statusEl.textContent = 'Error: ' + (e instanceof Error ? e.message : String(e));
             statusEl.className = 'upload-status error';
         }
         toast(`Upload failed: ${e instanceof Error ? e.message : String(e)}`, 'error', {});
+        return { status: 'failed' };
     } finally {
         showUploadLoading(false);
-        uploadBtn.disabled = false;
     }
 }

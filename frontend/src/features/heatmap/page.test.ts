@@ -3,6 +3,7 @@ import { createCleaningPlanStore } from '../../cleaning/store.js';
 import { clearScatterPairIntent, consumeScatterPairIntent } from '../scatter/pairIntent.js';
 import { paletteForColorScale } from '../../utils/colorScales.js';
 import { getPlotColorScale } from '../../utils/settings.js';
+import { makeWorkspaceSnapshot } from '../../workspace/workspaceStore.js';
 
 class ResizeObserverMock {
     static instances: ResizeObserverMock[] = [];
@@ -186,6 +187,7 @@ describe('heatmapPage with clustering', () => {
             <button id="heatmap-axis-fit-toggle" type="button" class="btn btn-ghost btn-sm toolbar-toggle-btn" aria-pressed="false">Fit color axis</button>
             <button id="heatmap-add-columns-to-plan" type="button">Keep matrix columns…</button>
             <dialog id="heatmap-plan-columns-dialog"><p id="heatmap-plan-columns-summary"></p><button id="heatmap-plan-columns-cancel" type="button">Cancel</button><button id="heatmap-plan-columns-confirm" type="button">Add keep-columns stage</button></dialog>
+            <input id="scatter-link-brush" type="checkbox" checked>
             <select id="scatter-x-col"><option value=""></option><option value="a1">a1</option><option value="a2">a2</option><option value="a3">a3</option><option value="b1">b1</option><option value="b2">b2</option><option value="b3">b3</option></select>
             <select id="scatter-y-col"><option value=""></option><option value="a1">a1</option><option value="a2">a2</option><option value="a3">a3</option><option value="b1">b1</option><option value="b2">b2</option><option value="b3">b3</option></select>
             <section id="page-heatmap">
@@ -263,6 +265,86 @@ describe('heatmapPage with clustering', () => {
         await activateHeatmap();
         const cells = document.querySelectorAll('.heatmap-cell');
         expect(cells.length).toBe(36);
+    });
+
+    it('provides complete grid rows, arrow navigation, keyboard reorder, and Enter/Space activation', async () => {
+        const showPage = vi.fn();
+        const { initHeatmapPage } = await import('./page.js');
+        await initHeatmapPage({ showPage });
+        await activateHeatmap();
+
+        const grid = document.querySelector<HTMLElement>('.heatmap-grid')!;
+        const rows = Array.from(grid.querySelectorAll<HTMLElement>(':scope > [role="row"]'));
+        expect(grid.getAttribute('aria-rowcount')).toBe('7');
+        expect(grid.getAttribute('aria-colcount')).toBe('7');
+        expect(rows).toHaveLength(7);
+        expect(rows.map((row) => row.getAttribute('aria-rowindex'))).toEqual(['1', '2', '3', '4', '5', '6', '7']);
+        expect(rows[0]?.querySelectorAll('[role="columnheader"]')).toHaveLength(7);
+        expect(rows[1]?.firstElementChild).toMatchObject({ getAttribute: expect.any(Function) });
+        expect(rows[1]?.firstElementChild?.getAttribute('role')).toBe('rowheader');
+        expect(rows[1]?.firstElementChild?.getAttribute('aria-colindex')).toBe('1');
+        expect(rows[1]?.firstElementChild?.getAttribute('aria-rowindex')).toBe('2');
+        expect(rows[1]?.querySelector('.heatmap-cell')?.getAttribute('aria-colindex')).toBe('2');
+        expect(rows[1]?.querySelector('.heatmap-cell')?.getAttribute('aria-label')).toContain('Row 1 of 6, column 1 of 6');
+        expect(grid.querySelectorAll('[tabindex="0"]')).toHaveLength(1);
+
+        const firstCell = grid.querySelector<HTMLElement>('.heatmap-cell[data-interactive="true"][tabindex="0"]')!;
+        firstCell.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+        const movedCell = document.activeElement as HTMLElement;
+        expect(movedCell.classList.contains('heatmap-cell')).toBe(true);
+        expect(movedCell).not.toBe(firstCell);
+        expect(movedCell.tabIndex).toBe(0);
+        expect(grid.querySelectorAll('[tabindex="0"]')).toHaveLength(1);
+
+        movedCell.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+        expect(showPage).toHaveBeenCalledWith('scatter');
+        expect(consumeScatterPairIntent()).not.toBeNull();
+        movedCell.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
+        expect(showPage).toHaveBeenCalledTimes(2);
+
+        const before = Array.from(grid.querySelectorAll<HTMLElement>('.heatmap-header')).map((header) => header.dataset.dragName);
+        const header = grid.querySelector<HTMLElement>('.heatmap-header[data-order-index="0"]')!;
+        header.focus();
+        header.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', altKey: true, bubbles: true, cancelable: true }));
+        const afterHeaders = Array.from(document.querySelectorAll<HTMLElement>('.heatmap-header'));
+        expect(afterHeaders.map((item) => item.dataset.dragName)).toEqual([before[1], before[0], ...before.slice(2)]);
+        expect(document.activeElement).toBe(afterHeaders[1]);
+        expect(document.getElementById('heatmap-keyboard-status')?.textContent).toContain(`Moved ${before[0]} to column 2 of 6`);
+        expect(document.querySelector('.heatmap-grid')?.querySelectorAll('[tabindex="0"]')).toHaveLength(1);
+    });
+
+    it('keeps a keyboard entry when a refresh removes the previously focused pair', async () => {
+        const { initHeatmapPage } = await import('./page.js');
+        const { fetchCorrelationMatrix } = await import('../../services/api/index.js');
+        await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+        document.querySelector<HTMLElement>('.heatmap-grid [tabindex="0"]')!.focus();
+        vi.mocked(fetchCorrelationMatrix).mockResolvedValue({
+            ...structuredClone(DEFAULT_MATRIX_RESPONSE), columns: ['new'],
+            spearman_raw: [[1]],
+        } as any);
+        const metric = document.getElementById('heatmap-metric') as HTMLSelectElement;
+        metric.value = 'spearman_raw';
+        metric.dispatchEvent(new Event('change'));
+        await vi.waitFor(() => expect(document.querySelectorAll('.heatmap-header')).toHaveLength(1));
+        const stops = document.querySelectorAll<HTMLElement>('.heatmap-grid [tabindex="0"]');
+        expect(stops).toHaveLength(1);
+        expect(stops[0].textContent).toBe('new');
+    });
+
+    it('does not redraw the previous matrix after a failed context refresh', async () => {
+        const { initHeatmapPage } = await import('./page.js');
+        const { fetchCorrelationMatrix } = await import('../../services/api/index.js');
+        await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+        vi.mocked(fetchCorrelationMatrix).mockRejectedValue(new Error('Refresh failed'));
+        const metric = document.getElementById('heatmap-metric') as HTMLSelectElement;
+        metric.value = 'spearman_raw';
+        metric.dispatchEvent(new Event('change'));
+        await vi.waitFor(() => expect(metric.disabled).toBe(false));
+        document.getElementById('heatmap-axis-fit-toggle')!.click();
+        expect(document.querySelector('.heatmap-grid')).toBeNull();
+        document.getElementById('heatmap-axis-fit-toggle')!.click();
     });
 
     it('exports the live rendered heatmap element for every visual format', async () => {
@@ -364,6 +446,53 @@ describe('heatmapPage with clustering', () => {
             kind: 'columnSelect', sourcePage: 'correlation', mode: 'keep', columns: ['ts', ...DEFAULT_MATRIX_RESPONSE.columns],
         }]);
         expect(onPlanChanged).toHaveBeenCalledTimes(1);
+    });
+
+    it('requests coefficients with the same linked filters and time window as the matrix previews, and refreshes on context changes', async () => {
+        const { initHeatmapPage } = await import('./page.js');
+        const { fetchCorrelationMatrix } = await import('../../services/api/index.js');
+        let snapshot = makeWorkspaceSnapshot({
+            dataset: {
+                metadata: {
+                    time_column: 'ts',
+                    column_profiles: [
+                        { name: 'x', min: 0, max: 10 },
+                        { name: 'y', min: 0, max: 10 },
+                    ],
+                } as any,
+            },
+            filters: { columnRanges: { x: { from: 2, to: 4 } } },
+            viewport: { xMin: 100, xMax: 200, yMin: 0, yMax: 10 },
+        });
+        const listeners = new Set<(next: typeof snapshot) => void>();
+        const workspace = {
+            getSnapshot: vi.fn(() => snapshot),
+            subscribe: vi.fn((listener: (next: typeof snapshot) => void) => {
+                listeners.add(listener);
+                return () => listeners.delete(listener);
+            }),
+        };
+        await initHeatmapPage({ showPage: vi.fn(), workspace: workspace as any });
+        await activateHeatmap();
+
+        expect(fetchCorrelationMatrix).toHaveBeenLastCalledWith('pearson_raw', expect.objectContaining({
+            start: 100,
+            end: 200,
+            filters: [{ column: 'x', from: 2, to: 4 }],
+        }));
+
+        snapshot = makeWorkspaceSnapshot({
+            dataset: snapshot.dataset,
+            filters: snapshot.filters,
+            viewport: { xMin: 150, xMax: 175, yMin: 0, yMax: 10 },
+        });
+        listeners.forEach((listener) => listener(snapshot));
+        await vi.waitFor(() => expect(fetchCorrelationMatrix).toHaveBeenCalledTimes(2));
+        expect(fetchCorrelationMatrix).toHaveBeenLastCalledWith('pearson_raw', expect.objectContaining({
+            start: 150,
+            end: 175,
+            filters: [{ column: 'x', from: 2, to: 4 }],
+        }));
     });
 
     it('releases prior control listeners before re-initializing the Heatmap page', async () => {
@@ -575,14 +704,15 @@ describe('heatmapPage with clustering', () => {
         expect(container.textContent).not.toContain('Sort: |r| desc');
     });
 
-    it('renders one grid child and one canvas for every matrix coordinate', async () => {
+    it('renders semantic rows and one canvas for every matrix coordinate', async () => {
         const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
 
         const grid = document.querySelector('.heatmap-grid');
         const size = DEFAULT_MATRIX_RESPONSE.columns.length;
-        expect(grid?.children).toHaveLength((size + 1) ** 2);
+        expect(grid?.children).toHaveLength(size + 1);
+        expect(grid?.querySelectorAll(':scope > [role="row"]')).toHaveLength(size + 1);
         expect(grid?.querySelectorAll('.heatmap-cell')).toHaveLength(size ** 2);
         expect(grid?.querySelectorAll('.heatmap-cell-canvas')).toHaveLength(size ** 2);
         expect(grid?.querySelectorAll('.heatmap-cell--diagonal')).toHaveLength(size);

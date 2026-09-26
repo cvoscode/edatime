@@ -22,6 +22,7 @@ interface HomeSummaryDeps {
     workspace: Pick<WorkspaceStore, 'getSnapshot' | 'subscribe'>;
     cleaningPlanStore?: Pick<CleaningPlanStore, 'getSnapshot' | 'subscribe' | 'isDirty'>;
     showPage(page: string): void;
+    ensureDatasetMetadata?: () => Promise<'ready' | 'empty'>;
 }
 
 function setText(id: string, value: string): void {
@@ -51,6 +52,9 @@ function datasetName(metadata: NonNullable<ReturnType<HomeSummaryDeps['workspace
 export function initHomeWorkspaceSummary(deps: HomeSummaryDeps): () => void {
     const continueButton = document.getElementById('home-continue-btn') as HTMLButtonElement | null;
     let hadDataset = false;
+    let metadataState: 'loading' | 'ready' | 'empty' | 'error' = deps.ensureDatasetMetadata ? 'loading' : 'empty';
+    const metadataStatus = document.getElementById('home-dataset-status');
+    const retryMetadata = document.getElementById('home-dataset-retry') as HTMLButtonElement | null;
 
     const showWelcomeOnce = () => {
         try {
@@ -68,6 +72,7 @@ export function initHomeWorkspaceSummary(deps: HomeSummaryDeps): () => void {
         const snapshot = deps.workspace.getSnapshot();
         const metadata = snapshot.dataset.metadata;
         const hasDataset = !!metadata && Number(metadata.total_rows || 0) > 0;
+        if (metadata) metadataState = 'ready';
         if (hasDataset && !hadDataset) showWelcomeOnce();
         hadDataset = hasDataset;
         const summary = document.getElementById('home-active-dataset');
@@ -80,8 +85,23 @@ export function initHomeWorkspaceSummary(deps: HomeSummaryDeps): () => void {
         if (subtitle) {
             subtitle.textContent = hasDataset
                 ? 'Continue from the active dataset or review its analysis context.'
-                : 'Load a dataset, inspect its signals, then narrow the analysis path.';
+                : metadataState === 'loading'
+                    ? 'Checking whether a dataset is already active.'
+                    : metadataState === 'error'
+                        ? 'The active dataset could not be checked. Retry or load a dataset.'
+                        : 'Load a dataset, inspect its signals, then narrow the analysis path.';
         }
+        if (metadataStatus) {
+            const statusText = metadataState === 'loading'
+                ? 'Checking for an active dataset…'
+                : metadataState === 'error'
+                    ? 'Could not check for an active dataset.'
+                    : '';
+            metadataStatus.textContent = statusText;
+            metadataStatus.hidden = !statusText;
+            metadataStatus.setAttribute('role', metadataState === 'error' ? 'alert' : 'status');
+        }
+        if (retryMetadata) retryMetadata.hidden = metadataState !== 'error';
         if (samples) {
             samples.open = !hasDataset;
             const label = samples.querySelector<HTMLElement>('.home-samples-summary__label');
@@ -96,9 +116,13 @@ export function initHomeWorkspaceSummary(deps: HomeSummaryDeps): () => void {
                 || (sample === 'sinusoidal' && source.includes('sinusoidal'))
                 || (sample === 'weather' && source.includes('weather'))
             );
-            button.disabled = current;
+            button.disabled = current || metadataState === 'loading';
             button.classList.toggle('is-current', current);
-            button.setAttribute('aria-label', current ? `${sample} sample dataset is already active` : `Replace active dataset with ${sample} sample data`);
+            button.setAttribute('aria-label', metadataState === 'loading'
+                ? `Checking the active dataset before enabling ${sample} sample data`
+                : current
+                    ? `${sample} sample dataset is already active`
+                    : `Replace active dataset with ${sample} sample data`);
         });
 
         if (!hasDataset || !metadata) return;
@@ -120,6 +144,20 @@ export function initHomeWorkspaceSummary(deps: HomeSummaryDeps): () => void {
     };
 
     const onContinue = () => deps.showPage(continueButton?.dataset.page || 'timeseries');
+    const checkMetadata = async () => {
+        if (!deps.ensureDatasetMetadata) return;
+        metadataState = 'loading';
+        render();
+        try {
+            metadataState = await deps.ensureDatasetMetadata();
+        } catch (error) {
+            if (deps.workspace.getSnapshot().dataset.metadata) metadataState = 'ready';
+            else metadataState = 'error';
+        }
+        render();
+    };
+    const onRetryMetadata = () => { void checkMetadata(); };
+    retryMetadata?.addEventListener('click', onRetryMetadata);
     continueButton?.addEventListener('click', onContinue);
     const unsubscribeWorkspace = deps.workspace.subscribe(render);
     const unsubscribePlan = deps.cleaningPlanStore?.subscribe(render);
@@ -128,8 +166,10 @@ export function initHomeWorkspaceSummary(deps: HomeSummaryDeps): () => void {
         if ((navPage || page) === 'home') render();
     });
     render();
+    if (deps.ensureDatasetMetadata && !deps.workspace.getSnapshot().dataset.metadata) void checkMetadata();
 
     return () => {
+        retryMetadata?.removeEventListener('click', onRetryMetadata);
         continueButton?.removeEventListener('click', onContinue);
         unsubscribeWorkspace();
         unsubscribePlan?.();

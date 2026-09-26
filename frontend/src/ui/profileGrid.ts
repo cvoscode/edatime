@@ -8,12 +8,13 @@ import {
     formatCount,
     formatProfileValue,
     formatProfileValueTitle,
+    isNumericDtype,
     isTemporalDtype,
     normalizeDtypeLabel,
     toFiniteNumberOrNull,
 } from '../utils/format.js';
 import type { DatasetMetadata } from '../contracts/api/v1/dataset.js';
-import type { ProfileColumnDef, ProfileGridSort, ProfileRow } from '../types/store.js';
+import type { ProfileColumnDef, ProfileGridSort, ProfileQualityFindings, ProfileQualityStatus, ProfileRow } from '../types/store.js';
 import { bindProfileFilterCategoryControls } from './profileFilters.js';
 import type { ProfileFilterCategory } from './profileFilters.js';
 
@@ -67,7 +68,55 @@ function valueAt(value: unknown, key: string): unknown {
     return (value as Record<string, unknown>)[key];
 }
 
-function createProfileRow(raw: unknown): ProfileRow | null {
+function optionalFiniteNumber(raw: unknown, key: string): number | null {
+    const value = valueAt(raw, key);
+    if (value == null || value === '') return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+}
+
+function optionalCount(raw: unknown, key: string): number | null {
+    const value = optionalFiniteNumber(raw, key);
+    return value !== null && value >= 0 ? value : null;
+}
+
+function optionalBoolean(raw: unknown, key: string): boolean | null {
+    const value = valueAt(raw, key);
+    return typeof value === 'boolean' ? value : null;
+}
+
+function qualityFindings(
+    raw: unknown,
+    status: ProfileQualityStatus,
+    sampleRows: number | null,
+    isTimeColumn: boolean,
+    timeQuality: DatasetMetadata['time_quality'] | null | undefined,
+): ProfileQualityFindings {
+    return {
+        status, sampleRows,
+        nonFiniteCount: optionalCount(raw, 'non_finite_count'),
+        finiteCount: optionalCount(raw, 'finite_count'),
+        zeroCount: optionalCount(raw, 'zero_count'),
+        longestZeroRun: optionalCount(raw, 'longest_zero_run'),
+        longestZeroRunStartMs: optionalFiniteNumber(raw, 'longest_zero_run_start_ms'),
+        longestZeroRunEndMs: optionalFiniteNumber(raw, 'longest_zero_run_end_ms'),
+        distinctCount: optionalCount(raw, 'distinct_count'),
+        isConstant: optionalBoolean(raw, 'is_constant'),
+        q25: optionalFiniteNumber(raw, 'q25'),
+        q75: optionalFiniteNumber(raw, 'q75'),
+        interquartileRange: optionalFiniteNumber(raw, 'interquartile_range'),
+        isTimeColumn,
+        timeQuality: isTimeColumn ? timeQuality ?? null : null,
+    };
+}
+
+function createProfileRow(
+    raw: unknown,
+    status: ProfileQualityStatus,
+    sampleRows: number | null,
+    timeColumn: string | null,
+    timeQuality: DatasetMetadata['time_quality'] | null | undefined,
+): ProfileRow | null {
     const name = String(valueAt(raw, 'name') || '').trim();
     if (!name) return null;
 
@@ -86,10 +135,17 @@ function createProfileRow(raw: unknown): ProfileRow | null {
         max: toFiniteNumberOrNull(valueAt(raw, 'max')),
         histCounts: counts,
         profilePending: false,
+        quality: qualityFindings(raw, status, sampleRows, name === timeColumn, timeQuality),
     };
 }
 
-function createProfileStub(column: { name?: string | null; dtype?: string | null }): ProfileRow | null {
+function createProfileStub(
+    column: { name?: string | null; dtype?: string | null },
+    status: ProfileQualityStatus,
+    sampleRows: number | null,
+    timeColumn: string | null,
+    timeQuality: DatasetMetadata['time_quality'] | null | undefined,
+): ProfileRow | null {
     const name = String(column?.name || '').trim();
     if (!name) return null;
 
@@ -102,6 +158,7 @@ function createProfileStub(column: { name?: string | null; dtype?: string | null
         max: null,
         histCounts: [],
         profilePending: true,
+        quality: qualityFindings(null, status, sampleRows, name === timeColumn, timeQuality),
     };
 }
 
@@ -111,13 +168,16 @@ export function profileRowsFromMetadata(metadata: DatasetMetadata | null | undef
     const columns = Array.isArray(metadata?.columns) ? metadata.columns : [];
     const profileByName = new Map<string, ProfileRow>();
 
+    const status = metadata?.profile_status ?? 'unavailable';
+    const sampleRows = metadata?.profile_sample_rows ?? null;
+    const timeColumn = metadata?.time_column ?? null;
     for (const raw of incoming) {
-        const profile = createProfileRow(raw);
+        const profile = createProfileRow(raw, status, sampleRows, timeColumn, metadata?.time_quality);
         if (profile) profileByName.set(profile.name, profile);
     }
 
     for (const column of columns) {
-        const profile = createProfileStub(column);
+        const profile = createProfileStub(column, status, sampleRows, timeColumn, metadata?.time_quality);
         if (!profile || profileByName.has(profile.name)) continue;
         profileByName.set(profile.name, profile);
     }
@@ -131,6 +191,12 @@ function compareProfileValues(left: unknown, right: unknown, direction: 1 | -1):
     if (leftValue < rightValue) return -1 * direction;
     if (leftValue > rightValue) return 1 * direction;
     return 0;
+}
+
+function sortableProfileNumber(value: unknown): number | null {
+    if (value == null || (typeof value === 'string' && value.trim() === '')) return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
 }
 
 export function sortProfileRows(
@@ -150,13 +216,11 @@ export function sortProfileRows(
             return compareProfileValues(leftValue, rightValue, direction);
         }
 
-        const leftNumber = Number(leftValue);
-        const rightNumber = Number(rightValue);
-        const leftFinite = Number.isFinite(leftNumber);
-        const rightFinite = Number.isFinite(rightNumber);
-        if (!leftFinite && !rightFinite) return 0;
-        if (!leftFinite) return 1;
-        if (!rightFinite) return -1;
+        const leftNumber = sortableProfileNumber(leftValue);
+        const rightNumber = sortableProfileNumber(rightValue);
+        if (leftNumber === null && rightNumber === null) return 0;
+        if (leftNumber === null) return 1;
+        if (rightNumber === null) return -1;
         return (leftNumber - rightNumber) * direction;
     });
 }
@@ -170,7 +234,7 @@ function filteredProfileRows(
     const query = filterText.trim().toLowerCase();
     const filtered = profiles.filter((profile) => {
         if (query && !profile.name.toLowerCase().includes(query) && !profile.dtype.toLowerCase().includes(query)) return false;
-        if (filterCategory === 'numeric') return !isTemporalDtype(profile.dtype);
+        if (filterCategory === 'numeric') return isNumericDtype(profile.dtype);
         if (filterCategory === 'datetime') return isTemporalDtype(profile.dtype);
         return true;
     });
@@ -305,6 +369,83 @@ export function createProfileFilterControls(options: ProfileFilterControlsOption
     return controls;
 }
 
+function ensureQualityDetailsPanel(root: HTMLElement): HTMLDetailsElement {
+    const id = `${root.id || 'profile-grid'}-quality-details`;
+    let details = document.getElementById(id) as HTMLDetailsElement | null;
+    if (!details) {
+        details = createElement('details', 'profile-grid-quality-details');
+        details.id = id;
+        details.hidden = true;
+        details.setAttribute('role', 'region');
+        details.setAttribute('aria-label', 'Column quality details');
+        root.after(details);
+    }
+    return details;
+}
+
+function qualityStatusLabel(status: ProfileQualityStatus): string {
+    if (status === 'exact') return 'Exact statistics';
+    if (status === 'sampled') return 'Sampled estimate';
+    if (status === 'immediate') return 'Immediate schema only';
+    return 'Unavailable';
+}
+
+function setQualityDetails(root: HTMLElement, profile: ProfileRow, focus = true): void {
+    const details = ensureQualityDetailsPanel(root);
+    const quality = profile.quality;
+    const summary = createElement('summary');
+    summary.textContent = `Quality details for ${profile.name} · ${qualityStatusLabel(quality?.status ?? 'unavailable')}`;
+    const description = createElement('p', 'profile-grid-quality-details__status');
+    if (quality?.status === 'exact') description.textContent = 'Statistics describe the full source dataset for this report.';
+    else if (quality?.status === 'sampled') description.textContent = `Statistics are estimates from ${quality.sampleRows?.toLocaleString() ?? 'an unspecified number of'} sampled rows.`;
+    else if (quality?.status === 'immediate') description.textContent = 'Completed column statistics are unavailable until a sampled or exact report is built.';
+    else description.textContent = 'No profile statistics are available for this column.';
+    if (profile.profilePending) description.textContent += ' This column has not been profiled in the current report.';
+
+    const list = createElement('dl', 'profile-grid-quality-details__list');
+    const addItem = (label: string, value: string | number | boolean | null | undefined) => {
+        const term = createElement('dt'); term.textContent = label;
+        const detail = createElement('dd'); detail.textContent = value == null ? 'Unavailable' : typeof value === 'boolean' ? (value ? 'Yes' : 'No') : typeof value === 'number' ? value.toLocaleString() : value;
+        list.append(term, detail);
+    };
+    const facts = quality;
+    addItem('Non-finite values', facts?.nonFiniteCount);
+    addItem('Finite values', facts?.finiteCount);
+    addItem('Zero values', facts?.zeroCount);
+    addItem('Distinct values', facts?.distinctCount);
+    addItem('Constant column', facts?.isConstant);
+    addItem('25th percentile', facts?.q25 == null ? null : formatProfileValue(facts.q25, profile.dtype));
+    addItem('75th percentile', facts?.q75 == null ? null : formatProfileValue(facts.q75, profile.dtype));
+    addItem('Interquartile range', facts?.interquartileRange == null ? null : formatProfileValue(facts.interquartileRange, profile.dtype));
+    addItem('Longest zero run', facts?.longestZeroRun);
+    if (facts?.longestZeroRunStartMs != null) addItem('Zero run start (UTC ms)', facts.longestZeroRunStartMs);
+    if (facts?.longestZeroRunEndMs != null) addItem('Zero run end (UTC ms)', facts.longestZeroRunEndMs);
+    if (facts?.isTimeColumn) {
+        const time = facts.timeQuality;
+        addItem('Unique timestamps', time?.unique_timestamp_count);
+        addItem('Duplicate timestamps', time?.duplicate_timestamp_count);
+        addItem('Monotonic timestamp order', time?.is_monotonic_non_decreasing);
+        addItem('Out-of-order timestamps', time?.out_of_order_count);
+        addItem('Minimum timestamp gap (ms)', time?.min_gap_ms);
+        addItem('Median timestamp gap (ms)', time?.median_gap_ms);
+        addItem('Maximum timestamp gap (ms)', time?.max_gap_ms);
+    }
+    details.dataset.columnName = profile.name;
+    details.replaceChildren(summary, description, list);
+    details.hidden = false;
+    if (focus) {
+        details.open = true;
+        summary.focus();
+    }
+}
+
+function createQualityBadge(label: string, accessibleLabel: string, warning = false): HTMLSpanElement {
+    const badge = createElement('span', `profile-quality-badge${warning ? ' profile-quality-badge--warning' : ''}`);
+    badge.textContent = label;
+    badge.setAttribute('aria-label', accessibleLabel);
+    return badge;
+}
+
 function gridElements(root: HTMLElement): {
     viewport: HTMLElement;
     spacer: HTMLElement;
@@ -322,7 +463,7 @@ export function ensureProfileGridMarkup(root: HTMLElement, options: Pick<Profile
     root.setAttribute('role', 'table');
     root.setAttribute('aria-label', options.ariaLabel ?? 'Column profile table');
 
-    if (gridElements(root)) return;
+    if (gridElements(root)) { ensureQualityDetailsPanel(root); return; }
 
     const selectable = options.selectable !== false;
     const columns = profileColumns(selectable);
@@ -361,6 +502,7 @@ export function ensureProfileGridMarkup(root: HTMLElement, options: Pick<Profile
     spacer.appendChild(rows);
     viewport.appendChild(spacer);
     root.replaceChildren(caption, header, viewport);
+    ensureQualityDetailsPanel(root);
 }
 
 function applyColumnsTemplate(root: HTMLElement, options: ProfileGridOptions, columns: ProfileColumnDef[]): void {
@@ -465,6 +607,20 @@ function renderInternal(
     getVisibleProfiles: () => ProfileRow[],
 ): void {
     ensureProfileGridMarkup(options.root, options);
+    const qualityPanel = document.getElementById(`${options.root.id || 'profile-grid'}-quality-details`) as HTMLDetailsElement | null;
+    if (qualityPanel?.dataset.columnName) {
+        const profile = options.getProfiles().find((row) => row.name === qualityPanel.dataset.columnName);
+        if (profile) {
+            const active = document.activeElement;
+            const focusedSummary = active === qualityPanel.querySelector('summary');
+            setQualityDetails(options.root, profile, false);
+            if (focusedSummary) qualityPanel.querySelector('summary')?.focus({ preventScroll: true });
+        } else {
+            qualityPanel.hidden = true;
+            qualityPanel.open = false;
+            delete qualityPanel.dataset.columnName;
+        }
+    }
     const elements = gridElements(options.root);
     if (!elements) return;
     const columns = profileColumns(options.selectable !== false);
@@ -502,15 +658,24 @@ function renderInternal(
         const totalCount = profile.nonNullCount + profile.nullCount;
         const nonNullPct = totalCount > 0 ? (profile.nonNullCount / totalCount) * 100 : 0;
         const row = createElement('div', 'profile-grid-row');
+        row.dataset.columnName = profile.name;
         row.setAttribute('role', 'row');
 
         if (options.selectable !== false) row.appendChild(createSelectionCell(profile, options));
-        row.appendChild(createProfileCell(profile.name));
+        const nameCell = createProfileCell(profile.name);
+        if (profile.quality?.isConstant === true) nameCell.appendChild(createQualityBadge('Constant', `${profile.name} is constant`));
+        row.appendChild(nameCell);
         row.appendChild(createProfileCell(normalizeDtypeLabel(profile.dtype), 'muted'));
-        row.appendChild(createProfileCell(
+        const nonNullCell = createProfileCell(
             pending ? 'Pending' : `${formatCount(profile.nonNullCount)} (${nonNullPct.toFixed(1)}%)`,
             pending ? 'muted' : 'num',
-        ));
+        );
+        const nonFiniteCount = profile.quality?.nonFiniteCount;
+        if (!pending && nonFiniteCount != null && nonFiniteCount > 0) {
+            nonNullCell.appendChild(createQualityBadge(`${formatCount(nonFiniteCount)} non-finite`, `${formatCount(nonFiniteCount)} non-finite values${profile.quality?.status === 'sampled' ? ', sampled estimate' : ''}`, true));
+            nonNullCell.title = `${formatCount(nonFiniteCount)} non-finite values`;
+        }
+        row.appendChild(nonNullCell);
         row.appendChild(createProfileCell(pending ? 'Pending' : formatCount(profile.nullCount), pending ? 'muted' : 'num'));
 
         const minCell = createProfileCell(pending ? 'Pending' : formatProfileValue(profile.min, profile.dtype), pending ? 'muted' : 'num');
@@ -521,7 +686,16 @@ function renderInternal(
         const maxTitle = formatProfileValueTitle(profile.max, profile.dtype);
         if (maxTitle) maxCell.title = maxTitle;
         row.appendChild(maxCell);
-        row.appendChild(createHistogramCell(profile));
+        const distributionCell = createHistogramCell(profile);
+        const detailsButton = createElement('button', 'profile-quality-details-button');
+        detailsButton.type = 'button';
+        detailsButton.textContent = 'Details';
+        detailsButton.setAttribute('aria-label', `Show quality details for ${profile.name}`);
+        detailsButton.addEventListener('click', () => setQualityDetails(options.root, profile));
+        distributionCell.classList.add('profile-cell--distribution');
+        detailsButton.setAttribute('aria-controls', `${options.root.id || 'profile-grid'}-quality-details`);
+        distributionCell.appendChild(detailsButton);
+        row.appendChild(distributionCell);
         elements.rows.appendChild(row);
     }
 }

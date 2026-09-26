@@ -5,12 +5,22 @@ import {
     formatProfileValue,
     formatProfileValueTitle,
     formatToDatetimeLocal,
+    isNumericDtype,
     isTemporalDtype,
     normalizeDtypeLabel,
     toFiniteNumberOrNull,
 } from './format.js';
 
 describe('format helpers', () => {
+    it('classifies numeric scalar types explicitly and excludes boolean and unsupported dtypes', () => {
+        for (const dtype of ['Int64', 'UInt32', 'Float64', 'f64', 'i32', 'Decimal(18, 4)', 'numeric']) {
+            expect(isNumericDtype(dtype), dtype).toBe(true);
+        }
+        for (const dtype of ['Boolean', 'bool', 'String', 'Object', 'Date', 'Datetime[ns]', 'Duration']) {
+            expect(isNumericDtype(dtype), dtype).toBe(false);
+        }
+    });
+
     it('formats invalid counts and temporal dtype labels consistently', () => {
         expect(formatCount(-1)).toBe('0');
         expect(isTemporalDtype('Datetime[ns]')).toBe(true);
@@ -22,6 +32,8 @@ describe('format helpers', () => {
         expect(formatProfileValue(new Date('2024-01-01T00:00:00Z').getTime(), 'datetime')).not.toBe('—');
         expect(formatToDatetimeLocal(new Date('2024-01-01T12:30:00').getTime())).toMatch(/T12:30$/);
         expect(toFiniteNumberOrNull('4.5')).toBe(4.5);
+        expect(toFiniteNumberOrNull(null)).toBeNull();
+        expect(toFiniteNumberOrNull('')).toBeNull();
     });
 
     it('renders datetime profile values as UTC ISO 8601 without locale shifts', () => {

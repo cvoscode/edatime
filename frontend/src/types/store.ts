@@ -1,4 +1,26 @@
+import type { TimeQuality } from '../contracts/api/v1/dataset.js';
+
 /** Serializable state primitives shared by workspace and UI stores. */
+
+export type ProfileQualityStatus = 'immediate' | 'sampled' | 'exact' | 'unavailable';
+
+export interface ProfileQualityFindings {
+    status: ProfileQualityStatus;
+    sampleRows: number | null;
+    nonFiniteCount: number | null;
+    finiteCount: number | null;
+    zeroCount: number | null;
+    longestZeroRun: number | null;
+    longestZeroRunStartMs: number | null;
+    longestZeroRunEndMs: number | null;
+    distinctCount: number | null;
+    isConstant: boolean | null;
+    q25: number | null;
+    q75: number | null;
+    interquartileRange: number | null;
+    isTimeColumn: boolean;
+    timeQuality: TimeQuality | null;
+}
 
 export interface ProfileRow {
     name: string;
@@ -10,6 +32,7 @@ export interface ProfileRow {
     histCounts: number[];
     /** True when the row is a schema-only placeholder awaiting profiling. */
     profilePending?: boolean;
+    quality?: ProfileQualityFindings;
     [key: string]: unknown;
 }
 

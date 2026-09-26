@@ -1,7 +1,9 @@
 import {
     applyColumnRangesToData,
     clipDataToViewport,
+    resolveTimeseriesFilterIntentForResponse,
 } from '../../services/timeseries/filtering.js';
+import type { CleaningPlan } from '../../cleaning/types.js';
 import { isRangeOutsideDataset, type EmptyStateViewModel } from '../../ui/emptyState.js';
 import type {
     AdaptiveLineFilter,
@@ -33,6 +35,7 @@ export function buildTimeseriesRenderModel(input: {
     adaptiveLineFilters: readonly AdaptiveLineFilter[];
     datasetRange: TimeRange | null | undefined;
     spectralPreview: SpectralFilterPreview | null;
+    cleaningPlan?: CleaningPlan | null;
 }): TimeseriesRenderModel {
     const selectedColumns = [...input.selectedColumns];
     if (selectedColumns.length === 0) {
@@ -51,11 +54,15 @@ export function buildTimeseriesRenderModel(input: {
     if (!input.data) return { kind: 'awaiting-data', emptyState: HIDDEN_EMPTY_STATE };
 
     const viewportData = clipDataToViewport(input.data, input.viewport.start, input.viewport.end);
+    const filterIntent = resolveTimeseriesFilterIntentForResponse(input.data, {
+        selection: { columns: selectedColumns, colorColumn: null },
+        filters: { columnRanges: input.columnRanges, adaptiveLines: input.adaptiveLineFilters },
+    }, input.cleaningPlan);
     const filtered = applyColumnRangesToData(
         viewportData,
         selectedColumns,
-        input.columnRanges,
-        input.adaptiveLineFilters,
+        filterIntent.filters.columnRanges,
+        filterIntent.filters.adaptiveLines,
     );
     const hasPoints = selectedColumns.some((column) => {
         const y = filtered.series[column]?.y;

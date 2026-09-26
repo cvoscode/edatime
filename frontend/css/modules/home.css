@@ -61,6 +61,16 @@
     flex: 0 0 auto;
 }
 
+.home-dataset-status {
+    margin: 12px 28px 0;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+#home-dataset-retry {
+    margin: 8px 28px 0;
+}
+
 .home-active-dataset {
     margin: 18px 28px 0;
     padding: 18px;

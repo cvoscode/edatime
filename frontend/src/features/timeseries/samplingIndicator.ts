@@ -1,17 +1,24 @@
 /**
  * Downsampling indicator for the Signals (Timeseries) page.
  *
- * Pure helper that derives a small, user-facing summary of the
- * currently rendered dataset's sampling state from the response meta.
- * The actual `runtimeCache.data` lives in the timeseries controller;
- * this module only formats what we know about it.
+ * Classifies the sampling contract for the current response and distinguishes
+ * eligible observations, bounded sample candidates, returned rows, and chart
+ * points handed to the renderer.
  */
 
 export interface SamplingMeta {
     downsampled?: boolean | null;
     downsampleKnown?: boolean | null;
+    /** True when the response explicitly reported approximate/envelope work. */
+    approximate?: boolean | null;
+    /** Distinguishes a false header from a missing/unknown header. */
+    approximationKnown?: boolean | null;
+    samplingAlgorithm?: string | null;
     returnedRows?: number | null;
     targetPoints?: number | null;
+    filteredRows?: number | null;
+    candidateRows?: number | null;
+    droppedRows?: number | null;
     /** Total source rows represented by the active working dataset, when known. */
     sourceRows?: number | null;
     /** Observations inside the visible viewport, excluding lookaround rows. */
@@ -22,8 +29,20 @@ export interface SamplingMeta {
 
 export type SamplingState =
     | { kind: 'unknown' }
-    | { kind: 'exact'; rows: number | null; sourceRows?: number | null; renderedPoints?: number | null }
-    | { kind: 'downsampled'; rows: number | null; target: number | null; ratio: number | null; sourceRows?: number | null; renderedPoints?: number | null };
+    | { kind: 'exact'; rows: number | null; sourceRows?: number; renderedPoints?: number }
+    | {
+        kind: 'sampled';
+        eligibleRows: number | null;
+        candidateRows: number | null;
+        returnedRows: number | null;
+        target: number | null;
+        ratio: number | null;
+        algorithm: string | null;
+        approximate: boolean;
+        downsampled: boolean;
+        sourceRows?: number;
+        renderedPoints?: number;
+    };
 
 export interface SamplingIndicator {
     label: string;
@@ -31,64 +50,102 @@ export interface SamplingIndicator {
     level: 'info' | 'warn';
 }
 
+function countValue(value: unknown): number | null {
+    if (value === null || value === undefined || value === '') return null;
+    const count = Number(value);
+    return Number.isFinite(count) && count >= 0 ? count : null;
+}
+
 /**
- * Classify the current render's sampling state. Returns `unknown` when
- * the meta is missing or `downsampleKnown` is false, because we cannot
- * tell the user anything useful in that case.
+ * Classify using the full server contract. A candidate count smaller than the
+ * eligible row count is approximate even if an older/contradictory response
+ * says that final downsampling did not occur.
  */
 export function classifySamplingState(meta: SamplingMeta | null | undefined): SamplingState {
-    if (!meta || meta.downsampleKnown !== true) return { kind: 'unknown' };
-    const rows = Number(meta.visibleRows ?? meta.returnedRows);
-    const target = Number(meta.targetPoints);
-    const downsampled = meta.downsampled === true;
-    const hasRows = Number.isFinite(rows) ? { rows } : { rows: null };
-    const sourceRows = Number.isFinite(Number(meta.sourceRows)) ? Number(meta.sourceRows) : undefined;
-    const renderedPoints = Number.isFinite(Number(meta.renderedPoints)) ? Number(meta.renderedPoints) : undefined;
-    const hasTarget = Number.isFinite(target) ? target : null;
-    if (!downsampled) return { kind: 'exact', ...hasRows, ...(sourceRows === undefined ? {} : { sourceRows }), ...(renderedPoints === undefined ? {} : { renderedPoints }) };
-    const ratio = hasTarget && rows > 0 ? rows / hasTarget : null;
-    return { kind: 'downsampled', ...hasRows, target: hasTarget, ratio, ...(sourceRows === undefined ? {} : { sourceRows }), ...(renderedPoints === undefined ? {} : { renderedPoints }) };
+    if (!meta) return { kind: 'unknown' };
+    const eligibleRows = countValue(meta.visibleRows) ?? countValue(meta.filteredRows) ?? countValue(meta.returnedRows);
+    const candidateRows = countValue(meta.candidateRows);
+    const returnedRows = countValue(meta.returnedRows);
+    const target = countValue(meta.targetPoints);
+    const sourceRows = countValue(meta.sourceRows) ?? undefined;
+    const renderedPoints = countValue(meta.renderedPoints) ?? undefined;
+    const displayCounts = {
+        ...(sourceRows === undefined ? {} : { sourceRows }),
+        ...(renderedPoints === undefined ? {} : { renderedPoints }),
+    };
+    const filteredRows = countValue(meta.filteredRows);
+    const candidateReduction = candidateRows !== null && filteredRows !== null && candidateRows < filteredRows;
+    const finalReduction = returnedRows !== null && candidateRows !== null && returnedRows < candidateRows;
+    const approximate = meta.approximate === true || candidateReduction;
+    const downsampled = meta.downsampled === true || finalReduction;
+    const hasDownsampleContract = meta.downsampleKnown === true || finalReduction;
+    const approximationKnown = meta.approximationKnown !== false;
+    const countsProveNoApproximation = filteredRows !== null && candidateRows !== null
+        && returnedRows !== null && filteredRows === candidateRows && candidateRows === returnedRows;
+
+    if (hasDownsampleContract && meta.downsampled === false && !downsampled && !approximate
+        && (approximationKnown || countsProveNoApproximation)) {
+        return {
+            kind: 'exact',
+            rows: eligibleRows,
+            ...displayCounts,
+        };
+    }
+
+    const approximationContractMissing = meta.approximationKnown === false && !approximate
+        && !countsProveNoApproximation;
+    if (approximationContractMissing || (!hasDownsampleContract && !approximate && !downsampled)) {
+        return { kind: 'unknown' };
+    }
+
+    const ratio = target && eligibleRows !== null ? eligibleRows / target : null;
+    return {
+        kind: 'sampled',
+        eligibleRows,
+        candidateRows,
+        returnedRows,
+        target,
+        ratio,
+        algorithm: String(meta.samplingAlgorithm ?? '').trim() || null,
+        approximate,
+        downsampled,
+        ...displayCounts,
+    };
 }
 
 function formatCount(value: number | null): string {
     if (value == null) return 'unknown';
-    if (value >= 10_000) return `${(value / 1000).toFixed(1)}k`;
+    if (value >= 10_000) return (value / 1000).toFixed(1) + 'k';
     return String(value);
 }
 
-/**
- * Render a small user-facing indicator. Returns null when there is
- * nothing meaningful to surface.
- */
+/** Render a compact count trail from eligible observations to rendered points. */
 export function formatSamplingIndicator(state: SamplingState): SamplingIndicator | null {
     if (state.kind === 'unknown') return null;
     if (state.kind === 'exact') {
-        if (state.rows == null) return null;
+        if (state.rows == null && state.renderedPoints == null) return null;
         return {
             label: 'Exact',
-            detail: `Showing ${formatCount(state.renderedPoints ?? state.rows)} points`,
+            detail: 'Showing ' + formatCount(state.renderedPoints ?? state.rows) + ' original observations',
             level: 'info',
         };
     }
-    const rows = formatCount(state.rows);
-    const target = state.target != null ? formatCount(state.target) : 'unknown';
-    if (state.rows == null) {
-        return {
-            label: 'Downsampled',
-            detail: `Approximated to ~${target} points`,
-            level: 'warn',
-        };
-    }
-    if (state.sourceRows != null || state.renderedPoints != null) {
-        return {
-            label: 'Downsampled',
-            detail: `Showing ${formatCount(state.renderedPoints ?? state.rows)} of ${formatCount(state.rows)} points (downsampled)`,
-            level: 'warn',
-        };
-    }
-    return {
-        label: 'Downsampled',
-        detail: `Showing ${rows} of ${target} points (approx.)`,
-        level: 'warn',
-    };
+
+    const algorithm = state.algorithm ? ' · ' + state.algorithm : '';
+    const label = state.approximate && state.downsampled
+        ? 'Approximate + reduced'
+        : state.approximate
+            ? (state.algorithm?.toLowerCase().includes('envelope') ? 'Envelope sample' : 'Approximate sample')
+            : 'Downsampled';
+    const countTrail: string[] = [];
+    if (state.eligibleRows !== null) countTrail.push(formatCount(state.eligibleRows) + ' eligible observations');
+    if (state.candidateRows !== null) countTrail.push(formatCount(state.candidateRows) + ' candidates');
+    if (state.returnedRows !== null) countTrail.push(formatCount(state.returnedRows) + ' returned');
+    let detail = countTrail.join(' → ');
+    if (!detail && state.target !== null) detail = 'Target ~' + formatCount(state.target) + ' points';
+    if (!detail) detail = 'Sampling or reduction was applied';
+    if (state.renderedPoints !== undefined) detail += ' · ' + formatCount(state.renderedPoints) + ' rendered';
+    if (state.downsampled) detail += ' · final reduction';
+    detail += algorithm;
+    return { label, detail, level: 'warn' };
 }

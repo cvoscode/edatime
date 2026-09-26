@@ -72,6 +72,7 @@ export async function fetchData(
     const targetPointsHeader = res.headers.get('x-edatime-target-points');
     const samplingAlgorithmHeader = res.headers.get('x-edatime-sampling-algorithm');
     const approximateHeader = res.headers.get('x-edatime-approximate');
+    const hasApproximationHeader = approximateHeader === '0' || approximateHeader === '1';
     const filteredRowsHeader = res.headers.get('x-edatime-filtered-rows');
     const candidateRowsHeader = res.headers.get('x-edatime-candidate-rows');
     const droppedRowsHeader = res.headers.get('x-edatime-dropped-rows');
@@ -152,6 +153,7 @@ export async function fetchData(
             targetPoints: Number.isFinite(targetPoints) ? targetPoints : width * 2,
             samplingAlgorithm: samplingAlgorithmHeader || undefined,
             approximate: approximateHeader === '1',
+            approximationKnown: hasApproximationHeader,
             filteredRows: Number.isFinite(filteredRows) ? filteredRows : undefined,
             candidateRows: Number.isFinite(candidateRows) ? candidateRows : undefined,
             droppedRows: Number.isFinite(droppedRows) ? droppedRows : undefined,

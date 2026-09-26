@@ -27,6 +27,7 @@ vi.mock('./helpers.js', () => ({
 
 vi.mock('./state.js', () => ({
     ensureOptions: vi.fn((_select: HTMLElement, options: string[], preferred: string) => preferred || options[0] || ''),
+    currentControls: vi.fn(() => ({ x: 'HUFL', y: 'HULL' })),
 }));
 
 vi.mock('./rendering.js', () => ({
@@ -175,6 +176,28 @@ describe('correlations with an active working plan', () => {
         expect(document.getElementById('scatter-suggestions')?.textContent).toContain('0.95');
         resolveSecondary({ ...response, correlations: [{ column: 'HULL', value: 0.85, count: 100 }] });
         await vi.waitFor(() => expect(scatterState.currentPairStats).toMatchObject({ pearsonRaw: 0.95, spearmanRaw: 0.85 }));
+    });
+
+    it('updates visible correlation rows when the delayed secondary metric arrives', async () => {
+        document.body.innerHTML = '<div id="scatter-chart"><div class="scatter-stats-bar__correlations"></div></div><div id="scatter-x-col"></div><div id="scatter-y-col"></div><div id="scatter-suggestions"></div>';
+        scatterState.points = [[1, 2], [2, 3]];
+        const { renderScatterAccessibilitySummary } = await import('./accessibilitySummary.js');
+        renderScatterAccessibilitySummary(document.getElementById('scatter-chart')!);
+
+        let resolveSecondary!: (value: typeof response) => void;
+        vi.mocked(fetchScatterCorrelations)
+            .mockResolvedValueOnce(response)
+            .mockImplementationOnce(() => new Promise((resolve) => { resolveSecondary = resolve; }));
+        await refreshCorrelationsAndSuggestions();
+
+        const table = document.querySelector<HTMLTableElement>('table[data-chart-summary="scatter"]')!;
+        expect(table.querySelector('.chart-summary-table__correlations')?.textContent).toContain('0.9500');
+        expect(table.querySelector('.chart-summary-table__correlations')?.textContent).toContain('Spearman ρ—');
+
+        resolveSecondary({ ...response, correlations: [{ column: 'HULL', value: 0.85, count: 100 }] });
+        await vi.waitFor(() => expect(
+            table.querySelector('.chart-summary-table__correlations')?.textContent,
+        ).toContain('0.8500'));
     });
 
     it('discards secondary statistics from an older working plan', async () => {

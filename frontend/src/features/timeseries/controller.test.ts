@@ -72,6 +72,83 @@ describe('createTimeseriesPageController', () => {
         controller.dispose();
     });
 
+    it('labels the previous result after a plan refresh fails and retries the current request', async () => {
+        document.body.innerHTML = '<section id="page-timeseries" hidden></section><div id="main-chart-loading" hidden></div><div id="main-chart"></div><div id="timeseries-request-state" hidden><span data-request-message></span><button id="timeseries-request-retry-btn" type="button" hidden>Retry</button></div>';
+        setMetadata({
+            revision: 1,
+            columns: [{ name: 'value', dtype: 'Float64' }],
+            numeric_columns: ['value'],
+            time_column: 'ts',
+            time_range: { min: 0, max: 100 },
+            column_profiles: [],
+        });
+        cleaningPlanStore.resetForDataset({
+            sourceVersionId: 'source', datasetRevision: 1, datasetFingerprint: null,
+            schemaFingerprint: 'schema', timeColumn: 'ts',
+        });
+        setWorkspaceSelection(['value']);
+
+        const result = (values: number[]) => ({
+            ts: new Float64Array([0, 50, 100]),
+            values: { value: new Float64Array(values) },
+            color: null,
+            color_column: null,
+            _meta: { downsampled: false, downsampleKnown: true, returnedRows: 3, targetPoints: 3 },
+        });
+        const previousResult = result([1, 2, 3]);
+        const retriedResult = result([4, 5, 6]);
+        const fetchData = vi.fn()
+            .mockResolvedValueOnce(previousResult)
+            .mockRejectedValueOnce(new Error('HTTP 500'))
+            .mockResolvedValueOnce(retriedResult);
+        const chart = {
+            setChartText: vi.fn(),
+            updateDataMulti: vi.fn(),
+            setXRange: vi.fn(),
+            resetYRange: vi.fn(),
+            getYRange: vi.fn(() => ({ min: 1, max: 6 })),
+        };
+        setPrimaryChartInstance(chart as any);
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const controller = createTimeseriesPageController({
+            fetchData,
+            buildRangeControls: vi.fn(),
+            updateAnalysisYRange: vi.fn(),
+            updateAnalysisZoom: vi.fn(),
+            getCurrentView: vi.fn(),
+            fetchAndRenderAnalytics: vi.fn(),
+        });
+
+        await controller.fetchAndRender();
+        expect(controller.getCurrentData()).toBe(previousResult);
+
+        cleaningPlanStore.addStage({
+            kind: 'derivedColumn', executionClass: 'polarsExpression', scope: 'schema',
+            enabled: true, sourcePage: 'manual', label: 'Scale values',
+            outputColumn: 'value', expression: 'value * 2',
+        });
+        await controller.fetchAndRender();
+
+        const status = document.getElementById('timeseries-request-state')!;
+        const retry = document.getElementById('timeseries-request-retry-btn') as HTMLButtonElement;
+        expect(controller.getCurrentData()).toBe(previousResult);
+        expect(status.hidden).toBe(false);
+        expect(status.getAttribute('role')).toBe('alert');
+        expect(status.textContent).toContain('Showing the previous result.');
+        expect(status.textContent).toContain('HTTP 500');
+        expect(retry.hidden).toBe(false);
+        expect(chart.updateDataMulti).toHaveBeenCalledTimes(1);
+
+        retry.click();
+        await vi.waitFor(() => expect(fetchData).toHaveBeenCalledTimes(3));
+        await vi.waitFor(() => expect(status.hidden).toBe(true));
+        expect(controller.getCurrentData()).toBe(retriedResult);
+        expect(chart.updateDataMulti).toHaveBeenCalledTimes(2);
+
+        controller.dispose();
+        consoleError.mockRestore();
+    });
+
     it('keeps each controller empty-state reset binding isolated through disposal', () => {
         document.body.innerHTML = `
             <section id="timeseries-empty-state" hidden>

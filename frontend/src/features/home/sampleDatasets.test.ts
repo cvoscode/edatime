@@ -31,7 +31,47 @@ describe('wireSampleDatasetCards', () => {
         document.body.innerHTML = `
             <section id="page-home"></section>
             <button data-sample-dataset="ettm2" type="button">Load ETTm2 sample dataset</button>
+            <button data-sample-dataset="sinusoidal" type="button">
+                <span data-sample-row-count>672 rows</span><span data-sample-column-count>4 columns</span>
+            </button>
+            <button data-sample-dataset="weather" type="button">
+                <span data-sample-row-count>1,008 rows</span><span data-sample-column-count>5 columns</span>
+            </button>
         `;
+    });
+
+    it('derives generated-card labels and CSV dimensions from the same sample metadata', async () => {
+        mocks.uploadDataset.mockResolvedValue({ ok: true, json: async () => ({ rows: 0 }) });
+        const { GENERATED_SAMPLE_DATASETS, wireSampleDatasetCards } = await import('./sampleDatasets.js');
+        const showPage = vi.fn();
+        const cleanup = wireSampleDatasetCards(showPage);
+        const generatedContents: string[] = [];
+
+        for (const spec of Object.values(GENERATED_SAMPLE_DATASETS)) {
+            const card = document.querySelector<HTMLElement>(`[data-sample-dataset="${spec.id}"]`)!;
+            expect(card.querySelector('[data-sample-row-count]')?.textContent)
+                .toBe(`${Math.ceil(spec.durationMs / spec.intervalMs).toLocaleString()} rows`);
+            expect(card.querySelector('[data-sample-column-count]')?.textContent)
+                .toBe(`${spec.columns.length} columns`);
+
+            card.click();
+            await vi.waitFor(() => expect(mocks.uploadDataset).toHaveBeenCalledTimes(generatedContents.length + 1));
+            const formData = mocks.uploadDataset.mock.calls.at(-1)?.[0] as FormData;
+            const file = formData.get('file') as File;
+            const csv = await file.text();
+            const lines = csv.split('\n');
+            expect(lines).toHaveLength(Math.ceil(spec.durationMs / spec.intervalMs) + 1);
+            expect(lines[0]?.split(',')).toEqual(spec.columns);
+            generatedContents.push(csv);
+        }
+
+        const sinusoidalCard = document.querySelector<HTMLElement>('[data-sample-dataset="sinusoidal"]')!;
+        sinusoidalCard.click();
+        await vi.waitFor(() => expect(mocks.uploadDataset).toHaveBeenCalledTimes(3));
+        const repeatedFile = (mocks.uploadDataset.mock.calls.at(-1)?.[0] as FormData).get('file') as File;
+        expect(await repeatedFile.text()).toBe(generatedContents[0]);
+        expect(showPage).toHaveBeenCalledTimes(3);
+        cleanup();
     });
 
     it('uploads the selected sample dataset and opens the timeseries page', async () => {

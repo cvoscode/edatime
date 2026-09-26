@@ -61,6 +61,7 @@ function createDeps(): DeferredShellDeps {
     return {
         showPage: vi.fn(),
         ensurePageModuleLoaded: vi.fn(),
+        ensureDatasetMetadata: vi.fn(async () => 'empty' as const),
         fetchAndRender: vi.fn(),
         fetchAndRenderAnalytics: vi.fn(async () => {}),
         getCurrentTimeseriesData: vi.fn(() => null),
@@ -201,6 +202,7 @@ describe('deferred shell subsystems', () => {
             workspace: deps.workspace,
             cleaningPlanStore: deps.cleaningPlanStore,
             showPage: deps.showPage,
+            ensureDatasetMetadata: deps.ensureDatasetMetadata,
         });
         const refresh = mocks.wireSampleDatasetCards.mock.calls[0]?.[1] as (() => Promise<void>) | undefined;
         await refresh?.();

@@ -43,7 +43,7 @@ import {
     ensureDataModules as ensureBootstrapDataModules,
 } from './platform/runtimeModules.js';
 import { getHashPage } from './utils/router.js';
-import { pageNeedsDatasetBootstrap } from './utils/pageBootstrap.js';
+import { pageNeedsDatasetBootstrap, resolveBackingPageName } from './utils/pageBootstrap.js';
 import { startSessionPersistence } from './platform/sessionLifecycle.js';
 import {
     updateAnalysisZoom, updateAnalysisYRange,
@@ -52,6 +52,7 @@ import {
 } from './ui/toolbar.js';
 import type { ExportFeature } from './features/export/index.js';
 import type { DatasetMetadata, DataObject, AnomalyResponse } from './types/api.js';
+import type { ApiRequestOptions } from './services/api/http.js';
 import type { ChartInstance, ViewSnapshot } from './types/chart.js';
 
 import { primaryChart } from './charts/primaryChart.js';
@@ -82,6 +83,20 @@ export function createApp(): AppRoot {
     const runtime = createAppRuntime();
     const featureRegistry = createFeatureRegistry();
     const workspace = createWorkspaceStore();
+    const fetchMetadata = async (options?: ApiRequestOptions) => {
+        const modules = await ensureBootstrapDataModules();
+        return modules.fetchMetadata(options);
+    };
+    let homeMetadataBootstrap: ReturnType<typeof import('./features/home/index.js').createHomeMetadataBootstrap> | null = null;
+    const ensureDatasetMetadata = async () => {
+        const { createHomeMetadataBootstrap } = await import('./features/home/index.js');
+        if (appDisposed) throw new DOMException('Application disposed.', 'AbortError');
+        homeMetadataBootstrap ??= createHomeMetadataBootstrap({
+            workspace,
+            fetchMetadata,
+        });
+        return homeMetadataBootstrap.ensure();
+    };
     // Keep the cleaning plan identity in lockstep with the dataset before any
     // feature subscriber can issue a request. Workspace listeners run in
     // registration order, so installing this invariant at composition time
@@ -212,10 +227,7 @@ export function createApp(): AppRoot {
                 const { fetchData } = await ensureBootstrapDataModules();
                 return fetchData(start, end, width, columns, colorColumn, lookaroundMs, options);
             },
-            fetchMetadata: async (options) => {
-                const { fetchMetadata } = await ensureBootstrapDataModules();
-                return fetchMetadata(options);
-            },
+            fetchMetadata,
             workspace,
             ensurePrimaryChartCtor,
             markMetadataReady: featureRegistry.markMetadataReady,
@@ -287,8 +299,30 @@ export function createApp(): AppRoot {
         // every editor, page action, import, undo, and history restore updates
         // the visible plot without requiring each caller to remember a refresh.
         runtime.registerCleanup(cleaningPlanStore.subscribe(() => refreshCleaningPlanConsumers()));
+        // Register lazy page factories without blocking the shell. Navigation
+        // must wait for registration before loading a feature or emitting its
+        // activation event, including when the initial URL opens an analysis.
+        const pageDescriptorsReady = (async () => {
+            const { loadPageDescriptors } = await import('./app/pageModules.js');
+            await loadPageDescriptors(featureRegistry, {
+                getRenderTimeseries: () => timeseriesModule.renderCurrentData(),
+                getCurrentTimeseriesData: () => timeseriesModule.getCurrentData(),
+                refreshDatasetAfterMutation,
+                registerCleanup: runtime.registerCleanup,
+                showPage,
+                chipColor: (col) => getAnalyticsChipColor(col),
+                setLoading: setComputeLoading,
+                onCleaningPlanChanged: refreshCleaningPlanConsumers,
+                cleaningPlanStore,
+                workspace,
+            });
+        })();
         initAppShell({
-            ensurePageModuleLoaded: featureRegistry.ensureFeatureLoaded,
+            ensurePageModuleLoaded: async (page) => {
+                await pageDescriptorsReady;
+                if (!appDisposed) await featureRegistry.ensureFeatureLoaded(page);
+            },
+            ensureDatasetMetadata,
             ensureDatasetReady: () => timeseriesModule.ensureDatasetReady(),
             showPage,
             fetchAndRender: () => timeseriesModule.fetchAndRender(),
@@ -323,23 +357,7 @@ export function createApp(): AppRoot {
         planTrigger?.addEventListener('click', openCleaningPanel);
         runtime.registerCleanup(() => planTrigger?.removeEventListener('click', openCleaningPanel));
 
-        // Descriptor registration is independent of the primary shell and is
-        // itself deferred so every advanced page factory stays outside the
-        // initial app bundle. The shell starts first to preserve the existing
-        // fast startup contract; a page transition waits on its descriptor.
-        const { loadPageDescriptors } = await import('./app/pageModules.js');
-        await loadPageDescriptors(featureRegistry, {
-            getRenderTimeseries: () => timeseriesModule.renderCurrentData(),
-            getCurrentTimeseriesData: () => timeseriesModule.getCurrentData(),
-            refreshDatasetAfterMutation,
-            registerCleanup: runtime.registerCleanup,
-            showPage,
-            chipColor: (col) => getAnalyticsChipColor(col),
-            setLoading: setComputeLoading,
-            onCleaningPlanChanged: refreshCleaningPlanConsumers,
-            cleaningPlanStore,
-            workspace,
-        });
+        await pageDescriptorsReady;
 
         // The root may be disposed while deferred page descriptors are loading.
         // Do not continue into dataset startup after its lifetime has ended.
@@ -350,10 +368,11 @@ export function createApp(): AppRoot {
             if (pageNeedsDatasetBootstrap(initialPage)) {
                 await timeseriesModule.ensureDatasetReady();
             }
-            // The shell can request the initial route before its deferred
-            // descriptor is registered. Complete that navigation now, using
-            // the latest route in case the user moved during bootstrap.
-            if (!appDisposed) await featureRegistry.ensureFeatureLoaded(getHashPage() ?? 'home');
+            // Resolve aliases against the latest route before marking the app
+            // ready; the user may have navigated while bootstrap was pending.
+            if (!appDisposed) {
+                await featureRegistry.ensureFeatureLoaded(resolveBackingPageName(getHashPage()) ?? 'home');
+            }
         } catch (e: unknown) {
             const message = e instanceof Error ? e.message : String(e);
             console.error('Initial bootstrap failed:', e);

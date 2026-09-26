@@ -16,7 +16,48 @@ vi.mock('../../cleaning/api.js', () => cleaningApi);
 import { formatPipelinePreviewCaption, initPreparePage } from './index.js';
 import { cleaningPlanStore } from '../../cleaning/store.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
+import type { DatasetMetadata, DatasetProfileResponse } from '../../contracts/api/v1/dataset.js';
 let workspace = createWorkspaceStore();
+let profileTestSequence = 0;
+
+function selectProfileTestSource(metadata?: Partial<DatasetMetadata>) {
+    const sequence = ++profileTestSequence;
+    const id = `prepare-profile-${sequence}`;
+    const datasetFingerprint = `prepare-data-${sequence}`;
+    cleaningPlanStore.resetForDataset({
+        sourceVersionId: id, datasetRevision: 3, datasetFingerprint, schemaFingerprint: 'profile-schema', timeColumn: 'ts',
+    });
+    if (metadata) {
+        workspace.commitDataset(workspace.beginDatasetSession(), {
+            source_version_id: id, revision: 3, source_version_revision: 3,
+            dataset_fingerprint: datasetFingerprint, profile_status: 'immediate',
+            total_rows: 10, columns: [], numeric_columns: [], time_column: 'ts', time_range: null, column_profiles: [],
+            ...metadata,
+        } as DatasetMetadata, 3);
+    }
+    return { id, datasetFingerprint, revision: 3 };
+}
+
+function profileResponse(
+    source: { id: string; revision: number; datasetFingerprint: string },
+    status: DatasetProfileResponse['status'],
+    kind: 'exact' | 'sampled' = 'exact',
+): DatasetProfileResponse {
+    return {
+        algorithmVersion: kind === 'exact' ? 'exact-v1' : 'sample-v1',
+        sourceVersion: source,
+        status,
+        job: status === 'running' || status === 'queued' || status === 'cancelling'
+            ? { id: 'profile-job', status, progressPercent: 5, message: null }
+            : null,
+        metadata: status === 'ready' ? {
+            profile_status: kind, total_rows: 10,
+            columns: [{ name: 'exact_value', dtype: 'Float64' }], numeric_columns: ['exact_value'],
+            time_column: 'ts', time_range: null,
+            column_profiles: [{ name: 'exact_value', dtype: 'Float64', non_null_count: 9, null_count: 1, min: -2, max: 4 }],
+        } as DatasetMetadata : null,
+    };
+}
 
 describe('Prepare page', () => {
     beforeEach(() => {
@@ -34,6 +75,7 @@ describe('Prepare page', () => {
 
     afterEach(() => {
         cleaningPlanStore.clear();
+        vi.useRealTimers();
         vi.unstubAllGlobals();
     });
 
@@ -111,6 +153,41 @@ describe('Prepare page', () => {
         dispose();
     });
 
+    it('shows raw and working examples with source/result columns beside the preview approval gate', async () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        cleaningPlanStore.addStage({
+            kind: 'timeRange', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+            sourcePage: 'timeseries', label: 'Keep interval', startMs: 0, endMs: 10, mode: 'keepInside',
+        });
+        cleaningApi.previewCleaningPlan.mockResolvedValueOnce({
+            sourceVersion: { id: 'source-1' }, datasetRevision: 3, planHash: 'preview-hash',
+            rowsBefore: 100, rowsAfter: 100, rowsRemoved: 0, columnsBefore: 2, columnsAfter: 3,
+            sourceColumns: ['ts', 'value'], resultColumns: ['ts', 'value', 'value_squared'],
+            examples: {
+                raw: [{ rowNumber: 0, timestamp: '2024-01-01T00:00:00Z', values: { value: '2.0' } }],
+                working: [{ rowNumber: 0, timestamp: '2024-01-01T00:00:00Z', values: { value: '2.0', value_squared: '4.0' } }],
+            },
+            stageImpacts: [{ stageId: cleaningPlanStore.getSnapshot()!.stages[0]!.id, executed: true, rowsBefore: 100, rowsAfter: 100, rowsRemoved: 0 }],
+            warnings: [],
+        } as any);
+        const dispose = initPreparePage({ workspace });
+
+        const materialize = document.getElementById('prepare-materialize-button') as HTMLButtonElement;
+        expect(materialize.disabled).toBe(true);
+        document.getElementById('prepare-preview-button')!.click();
+        await vi.waitFor(() => expect(document.querySelector('.cleaning-plan-preview-evidence')).not.toBeNull());
+
+        const evidence = document.querySelector<HTMLElement>('.prepare-workspace__preview-evidence')!;
+        expect(evidence.querySelector('h3')?.textContent).toBe('Source and working data examples');
+        expect(evidence.textContent).toContain('Source columns: ts, value');
+        expect(evidence.textContent).toContain('Working columns: ts, value, value_squared');
+        expect(evidence.textContent).toContain('Raw examples (1)');
+        expect(evidence.textContent).toContain('Working examples (1)');
+        expect(evidence.textContent).toContain('value_squared=4.0');
+        expect((document.getElementById('prepare-materialize-button') as HTMLButtonElement).disabled).toBe(false);
+        dispose();
+    });
+
     it('stays source-first until a dataset establishes a plan', () => {
         const showPage = vi.fn();
         const dispose = initPreparePage({ workspace, showPage });
@@ -139,6 +216,85 @@ describe('Prepare page', () => {
 
         expect(document.getElementById('prepare-signals-filters')?.textContent).toContain('HULL: keep above the drawn line');
         expect(document.getElementById('prepare-pipeline-preview')?.textContent).toContain('Keep above line for HULL');
+        dispose();
+    });
+
+    it('updates Prepare workspace slices without rebuilding unrelated controls', () => {
+        const source = selectProfileTestSource({
+            columns: [{ name: 'value', dtype: 'Float64' }],
+            numeric_columns: ['value'],
+            column_profiles: [],
+        });
+        workspace.setSelection(['initial']);
+        const getProfile = vi.fn(async () => profileResponse(source, 'not_started'));
+        const getSampleProfile = vi.fn(async () => profileResponse(source, 'not_started', 'sampled'));
+        const dispose = initPreparePage({ workspace, getProfile, getSampleProfile });
+        const root = document.getElementById('prepare-workspace')!;
+        const header = root.querySelector('.prepare-workspace__header');
+        const stageEditor = root.querySelector('.prepare-workspace__stage-editor');
+        const columns = root.querySelector<HTMLInputElement>('#prepare-insight-columns')!;
+
+        columns.focus();
+        columns.value = 'unsaved user entry';
+        workspace.setSelection(['selected elsewhere']);
+        expect(document.activeElement).toBe(columns);
+        expect(columns.value).toBe('unsaved user entry');
+
+        (root.querySelector('#prepare-transformation') as HTMLSelectElement).focus();
+        workspace.setSelection(['value']);
+        expect(columns.value).toBe('value');
+        expect(document.activeElement?.id).toBe('prepare-transformation');
+
+        workspace.setFilters({
+            columnRanges: { value: { from: 1, to: 2 } },
+            adaptiveLines: [],
+        });
+        expect(root.querySelector('#prepare-signals-filters')?.textContent).toContain('Keep value between 1 and 2');
+        expect(root.querySelector('#prepare-signals-filters')?.hasAttribute('hidden')).toBe(false);
+        expect(root.querySelector('[data-prepare-section="prepare-signals-filters"]')).not.toBeNull();
+
+        workspace.setViewport({ xMin: 100, xMax: 200, yMin: null, yMax: null });
+        expect((root.querySelector('#prepare-keep-window') as HTMLButtonElement).disabled).toBe(false);
+        expect(root.querySelector('.prepare-workspace__header')).toBe(header);
+        expect(root.querySelector('.prepare-workspace__stage-editor')).toBe(stageEditor);
+
+        workspace.setAppearance({ chartText: { title: 'Unrelated chart title', xLabel: '', yLabel: '' } });
+        expect(root.querySelector('.prepare-workspace__header')).toBe(header);
+        expect(root.querySelector('.prepare-workspace__stage-editor')).toBe(stageEditor);
+
+        workspace.setFilters({ columnRanges: {}, adaptiveLines: [] });
+        expect(root.querySelector('#prepare-signals-filters')?.hasAttribute('hidden')).toBe(true);
+        expect(root.querySelector('[data-prepare-section="prepare-signals-filters"]')).toBeNull();
+        expect(root.querySelector('#prepare-section option[value="prepare-signals-filters"]')).toBeNull();
+        dispose();
+    });
+
+    it('updates profile progress in place and keeps page controls mounted', async () => {
+        const source = selectProfileTestSource({
+            columns: [{ name: 'value', dtype: 'Float64' }],
+            numeric_columns: ['value'],
+            column_profiles: [],
+        });
+        const getProfile = vi.fn(async () => profileResponse(source, 'not_started'));
+        const getSampleProfile = vi.fn(async () => profileResponse(source, 'not_started', 'sampled'));
+        const startProfile = vi.fn(() => new Promise<DatasetProfileResponse>(() => {}));
+        const dispose = initPreparePage({ workspace, getProfile, getSampleProfile, startProfile });
+        const root = document.getElementById('prepare-workspace')!;
+        const header = root.querySelector('.prepare-workspace__header');
+        const stageEditor = root.querySelector('.prepare-workspace__stage-editor');
+        const help = root.querySelector('#prepare-help-btn');
+        const build = Array.from(root.querySelectorAll<HTMLButtonElement>('#prepare-profile-findings button'))
+            .find((button) => button.textContent === 'Build exact quality report')!;
+
+        build.focus();
+        build.click();
+
+        expect(startProfile).toHaveBeenCalledOnce();
+        expect(root.querySelector('#prepare-profile-findings [role="status"]')?.textContent).toContain('Starting exact quality report');
+        expect(root.querySelector('.prepare-workspace__header')).toBe(header);
+        expect(root.querySelector('.prepare-workspace__stage-editor')).toBe(stageEditor);
+        expect(root.querySelector('#prepare-help-btn')).toBe(help);
+        expect(root.querySelector('#prepare-profile-findings')?.contains(document.activeElement)).toBe(true);
         dispose();
     });
 
@@ -177,6 +333,82 @@ describe('Prepare page', () => {
         expect(cleaningPlanStore.getSnapshot()!.stages).toHaveLength(1);
         expect(onPlanChanged).toHaveBeenCalledTimes(4);
 
+        dispose();
+    });
+
+    it('blocks disabling, removing, or moving a time-sort prerequisite ahead of ordered fill', () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        const session = workspace.beginDatasetSession();
+        workspace.commitDataset(session, {
+            source_version_id: 'source-1', revision: 3, source_version_revision: 3,
+            dataset_fingerprint: 'data', profile_status: 'immediate', total_rows: 10,
+            columns: [{ name: 'ts', dtype: 'Int64' }, { name: 'value', dtype: 'Float64' }],
+            numeric_columns: ['value'], time_column: 'ts', time_range: null, column_profiles: [],
+        } as any, 3);
+        const sort = cleaningPlanStore.addStage({
+            kind: 'sort', executionClass: 'polarsExpression', scope: 'order', enabled: true,
+            sourcePage: 'manual', label: 'Sort by time', columns: ['ts'], descending: false, nullsLast: true,
+        });
+        const fill = cleaningPlanStore.addStage({
+            kind: 'fillNull', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+            sourcePage: 'manual', label: 'Fill value', columns: ['value'], strategy: 'forward', limit: null,
+        });
+        const historyLength = cleaningPlanStore.getHistory().length;
+        vi.stubGlobal('confirm', vi.fn(() => true));
+        const dispose = initPreparePage({ workspace });
+
+        document.querySelector<HTMLButtonElement>(`[data-prepare-key="stage-${sort.id}-toggle"]`)!.click();
+        expect(cleaningPlanStore.getSnapshot()!.stages.find((stage) => stage.id === sort.id)?.enabled).toBe(true);
+        expect(document.getElementById('prepare-stage-status')?.textContent).toContain('Ordered null fill requires');
+        expect(cleaningPlanStore.getHistory()).toHaveLength(historyLength);
+
+        document.querySelector<HTMLButtonElement>(`[data-prepare-key="stage-${sort.id}-remove"]`)!.click();
+        expect(cleaningPlanStore.getSnapshot()!.stages.map((stage) => stage.id)).toEqual([sort.id, fill.id]);
+        expect(cleaningPlanStore.getHistory()).toHaveLength(historyLength);
+
+        const fillPosition = document.querySelector<HTMLSelectElement>(`[data-prepare-key="stage-${fill.id}-position"]`)!;
+        fillPosition.value = '0';
+        fillPosition.dispatchEvent(new Event('change'));
+        expect(cleaningPlanStore.getSnapshot()!.stages.map((stage) => stage.id)).toEqual([sort.id, fill.id]);
+        expect(fillPosition.value).toBe('1');
+        expect(document.getElementById('prepare-stage-status')?.textContent).toContain('Ordered null fill requires');
+        expect(cleaningPlanStore.getHistory()).toHaveLength(historyLength);
+
+        Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.textContent === 'Undo')!.click();
+        expect(cleaningPlanStore.getSnapshot()!.stages.map((stage) => stage.id)).toEqual([sort.id]);
+        dispose();
+    });
+
+    it('rejects moving a column drop before fill when it removes a referenced fill column', () => {
+        cleaningPlanStore.resetForDataset({ sourceVersionId: 'source-1', datasetRevision: 3, datasetFingerprint: 'data', schemaFingerprint: 'schema', timeColumn: 'ts' });
+        const session = workspace.beginDatasetSession();
+        workspace.commitDataset(session, {
+            source_version_id: 'source-1', revision: 3, source_version_revision: 3,
+            dataset_fingerprint: 'data', profile_status: 'immediate', total_rows: 10,
+            columns: [{ name: 'ts', dtype: 'Int64' }, { name: 'value', dtype: 'Float64' }],
+            numeric_columns: ['value'], time_column: 'ts', time_range: null, column_profiles: [],
+        } as any, 3);
+        const sort = cleaningPlanStore.addStage({
+            kind: 'sort', executionClass: 'polarsExpression', scope: 'order', enabled: true,
+            sourcePage: 'manual', label: 'Sort by time', columns: ['ts'], descending: false, nullsLast: true,
+        });
+        const fill = cleaningPlanStore.addStage({
+            kind: 'fillNull', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+            sourcePage: 'manual', label: 'Fill value', columns: ['value'], strategy: 'forward', limit: null,
+        });
+        const columnSelect = cleaningPlanStore.addStage({
+            kind: 'columnSelect', executionClass: 'polarsExpression', scope: 'schema', enabled: true,
+            sourcePage: 'manual', label: 'Drop value', mode: 'drop', columns: ['value'],
+        });
+        const dispose = initPreparePage({ workspace });
+
+        const position = document.querySelector<HTMLSelectElement>(`[data-prepare-key="stage-${columnSelect.id}-position"]`)!;
+        position.value = '1';
+        position.dispatchEvent(new Event('change'));
+
+        expect(cleaningPlanStore.getSnapshot()!.stages.map((stage) => stage.id)).toEqual([sort.id, fill.id, columnSelect.id]);
+        expect(position.value).toBe('2');
+        expect(document.getElementById('prepare-stage-status')?.textContent).toContain('value');
         dispose();
     });
 
@@ -315,6 +547,120 @@ describe('Prepare page', () => {
         expect(document.querySelector('#prepare-profile-grid .profile-grid-row')?.textContent).toContain('4');
         expect(document.querySelector('#prepare-profile-grid .profile-grid-row')?.textContent).not.toContain('preview_only');
         expect(document.getElementById('prepare-workspace')?.textContent).toContain('Exact background-profile findings');
+        dispose();
+    });
+
+    it('shows pending state synchronously, coalesces duplicate starts, and keeps the completed grid visible', async () => {
+        const source = selectProfileTestSource({
+            profile_status: 'exact',
+            columns: [{ name: 'exact_value', dtype: 'Float64' }], numeric_columns: ['exact_value'],
+            column_profiles: [{ name: 'exact_value', dtype: 'Float64', non_null_count: 9, null_count: 1 }] as any,
+        });
+        let resolveStart!: (response: DatasetProfileResponse) => void;
+        const startSampleProfile = vi.fn(() => new Promise<DatasetProfileResponse>((resolve) => { resolveStart = resolve; }));
+        const getProfile = vi.fn(async () => profileResponse(source, 'not_started'));
+        const getSampleProfile = vi.fn(async () => profileResponse(source, 'not_started', 'sampled'));
+        const dispose = initPreparePage({ workspace, startSampleProfile, getProfile, getSampleProfile });
+
+        Array.from(document.querySelectorAll<HTMLButtonElement>('#prepare-profile-findings button'))
+            .find((button) => button.textContent === 'Build sampled quality report')!.click();
+
+        expect(document.querySelector('#prepare-profile-findings [role="status"]')?.textContent).toContain('Starting sampled quality report');
+        expect(document.querySelector('#prepare-profile-grid .profile-grid-row')?.textContent).toContain('exact_value');
+        const pendingButton = Array.from(document.querySelectorAll<HTMLButtonElement>('#prepare-profile-findings button'))
+            .find((button) => button.textContent === 'Starting sampled report…')!;
+        expect(pendingButton.disabled).toBe(true);
+        pendingButton.click();
+        expect(startSampleProfile).toHaveBeenCalledTimes(1);
+
+        resolveStart(profileResponse(source, 'running', 'sampled'));
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(document.querySelector('#prepare-profile-findings button')?.textContent).toContain('Cancel sampled');
+        expect(document.querySelector('#prepare-profile-grid .profile-grid-row')?.textContent).toContain('exact_value');
+        dispose();
+    });
+
+    it('shows a failed start cause and a retry action without replacing completed findings', async () => {
+        const source = selectProfileTestSource({
+            profile_status: 'exact',
+            columns: [{ name: 'exact_value', dtype: 'Float64' }], numeric_columns: ['exact_value'],
+            column_profiles: [{ name: 'exact_value', dtype: 'Float64', non_null_count: 9, null_count: 1 }] as any,
+        });
+        const startSampleProfile = vi.fn()
+            .mockRejectedValueOnce(new Error('profile worker is unavailable'))
+            .mockRejectedValueOnce(new Error('profile worker is unavailable'));
+        const getProfile = vi.fn(async () => profileResponse(source, 'not_started'));
+        const getSampleProfile = vi.fn(async () => profileResponse(source, 'not_started', 'sampled'));
+        const dispose = initPreparePage({ workspace, startSampleProfile, getProfile, getSampleProfile });
+
+        const startButton = () => Array.from(document.querySelectorAll<HTMLButtonElement>('#prepare-profile-findings button'))
+            .find((button) => button.textContent === 'Build sampled quality report' || button.textContent === 'Retry sampled quality report')!;
+        startButton().click();
+        await vi.waitFor(() => expect(document.querySelector('#prepare-profile-findings [role="alert"]')?.textContent).toContain('profile worker is unavailable'));
+        expect(startButton().textContent).toBe('Retry sampled quality report');
+        expect(document.querySelector('#prepare-profile-grid .profile-grid-row')?.textContent).toContain('exact_value');
+
+        startButton().click();
+        await vi.waitFor(() => expect(startSampleProfile).toHaveBeenCalledTimes(2));
+        expect(document.querySelector('#prepare-profile-grid .profile-grid-row')?.textContent).toContain('exact_value');
+        dispose();
+    });
+
+    it('retains the poll failure cause and makes the report retryable', async () => {
+        vi.useFakeTimers();
+        const source = selectProfileTestSource();
+        const notStarted = profileResponse(source, 'not_started');
+        const getProfile = vi.fn()
+            .mockResolvedValueOnce(notStarted)
+            .mockRejectedValueOnce(new Error('profile poll connection timed out'))
+            .mockResolvedValueOnce(profileResponse(source, 'running'));
+        const getSampleProfile = vi.fn(async () => profileResponse(source, 'not_started', 'sampled'));
+        const startProfile = vi.fn(async () => profileResponse(source, 'running'));
+        const dispose = initPreparePage({ workspace, startProfile, getProfile, getSampleProfile });
+
+        Array.from(document.querySelectorAll<HTMLButtonElement>('#prepare-profile-findings button'))
+            .find((button) => button.textContent === 'Build exact quality report')!.click();
+        await Promise.resolve();
+        await Promise.resolve();
+        await vi.advanceTimersByTimeAsync(500);
+
+        expect(document.querySelector('#prepare-profile-findings [role="alert"]')?.textContent).toContain('profile poll connection timed out');
+        const retry = Array.from(document.querySelectorAll<HTMLButtonElement>('#prepare-profile-findings button'))
+            .find((button) => button.textContent === 'Retry exact quality report status')!;
+        retry.click();
+        await vi.advanceTimersByTimeAsync(500);
+        expect(document.querySelector('#prepare-profile-findings [role="alert"]')).toBeNull();
+        expect(document.querySelector('#prepare-profile-findings [role="status"]')?.textContent).toContain('Exact report in progress');
+        expect(startProfile).toHaveBeenCalledOnce();
+        dispose();
+    });
+
+    it('finishes a cancelled report and restores the build action', async () => {
+        vi.useFakeTimers();
+        const source = selectProfileTestSource();
+        const getProfile = vi.fn()
+            .mockResolvedValueOnce(profileResponse(source, 'not_started'))
+            .mockResolvedValueOnce(profileResponse(source, 'cancelled'));
+        const getSampleProfile = vi.fn(async () => profileResponse(source, 'not_started', 'sampled'));
+        const startProfile = vi.fn(async () => profileResponse(source, 'running'));
+        const cancelProfile = vi.fn(async () => ({}));
+        const dispose = initPreparePage({ workspace, startProfile, getProfile, getSampleProfile, cancelProfile });
+
+        Array.from(document.querySelectorAll<HTMLButtonElement>('#prepare-profile-findings button'))
+            .find((button) => button.textContent === 'Build exact quality report')!.click();
+        await Promise.resolve();
+        await Promise.resolve();
+        Array.from(document.querySelectorAll<HTMLButtonElement>('#prepare-profile-findings button'))
+            .find((button) => button.textContent === 'Cancel exact quality report')!.click();
+        expect(Array.from(document.querySelectorAll<HTMLButtonElement>('#prepare-profile-findings button'))
+            .find((button) => button.textContent === 'Cancel exact quality report')?.disabled).toBe(true);
+        await Promise.resolve();
+        await vi.advanceTimersByTimeAsync(500);
+
+        expect(cancelProfile).toHaveBeenCalledOnce();
+        expect(Array.from(document.querySelectorAll<HTMLButtonElement>('#prepare-profile-findings button'))
+            .some((button) => button.textContent === 'Build exact quality report')).toBe(true);
         dispose();
     });
 

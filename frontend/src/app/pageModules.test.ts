@@ -100,6 +100,7 @@ describe('page module descriptors', () => {
             showPage: deps.showPage,
             cleaningPlanStore: deps.cleaningPlanStore,
             onPlanChanged: deps.onCleaningPlanChanged,
+            workspace: deps.workspace,
         });
         expect(mocks.initHeatmapScatterLayer).toHaveBeenCalledWith(metadata, {
             workspace: deps.workspace,

@@ -18,6 +18,7 @@ export interface RefreshDatasetOptions {
 export interface DeferredShellDeps {
     showPage: (pageName: string) => void;
     ensurePageModuleLoaded: (page: string) => Promise<void>;
+    ensureDatasetMetadata: () => Promise<'ready' | 'empty'>;
     fetchAndRender: () => void;
     fetchAndRenderAnalytics: () => Promise<void>;
     getCurrentTimeseriesData: () => DataObject | null;
@@ -91,6 +92,7 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
         const { initUploadPanel } = await import('../../features/upload/index.js');
         const disposeUploadPanel = initUploadPanel(profileModule.hydrateColumnProfiles, profileModule.renderColumnProfilesGrid, {
             workspace: deps.workspace,
+            ensureDatasetMetadata: deps.ensureDatasetMetadata,
             buildColumnToggles: deps.buildTimeseriesColumns,
             buildRangeControls: deps.buildTimeseriesRanges,
             refreshDatasetAfterMutation: () => deps.refreshDatasetAfterMutation(),
@@ -194,6 +196,7 @@ export function createDeferredSubsystemRegistry(): DeferredSubsystemRegistry {
             workspace: deps.workspace,
             cleaningPlanStore: deps.cleaningPlanStore,
             showPage: deps.showPage,
+            ensureDatasetMetadata: deps.ensureDatasetMetadata,
         }));
     });
 
