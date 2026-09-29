@@ -14,3 +14,11 @@
 }
 
 #page-causal .causal-params-segment[open]>summary #causal-parameters-summary{display:none}
+
+
+.causal-links-table-wrap { max-height: 240px; overflow: auto; padding: 8px 12px; border-top: 1px solid var(--border-subtle); }
+.causal-links-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+.causal-links-table caption { padding: 4px 0 8px; text-align: left; color: var(--text-dim); }
+.causal-links-table th, .causal-links-table td { padding: 6px 8px; border-bottom: 1px solid var(--border-subtle); text-align: left; }
+.causal-links-table thead th { color: var(--text-muted); font-weight: 600; }
+.causal-links-table tbody th { color: var(--text); font-weight: 500; }

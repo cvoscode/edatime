@@ -38,6 +38,7 @@ export {
     type AnomalyResponse,
     type FftResult,
     type FftResponse,
+    type AnalysisSampling,
     type SpectrogramResult,
     type SpectrogramResponse,
     type CausalLink,
@@ -61,4 +62,6 @@ export {
     fetchDatabaseStatus,
     fetchDriftStats,
     fetchDriftInvestigation,
+    fetchDriftPreflight,
 } from './upload.js';
+export type { DriftPreflightColumn, DriftPreflightResponse } from '../../contracts/api/v1/drift.js';

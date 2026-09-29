@@ -1,3 +1,4 @@
+import { downloadBlob } from './dom.js';
 /**
  * Session save / restore for EdaTime.
  *
@@ -304,12 +305,7 @@ export function clearSavedSession(): void {
 export function exportSessionToFile(): void {
     const snap = captureSession();
     const blob = new Blob([JSON.stringify(snap, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `edatime-session-${new Date().toISOString().slice(0, 16).replace(/:/g, '-')}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, `edatime-session-${new Date().toISOString().slice(0, 16).replace(/:/g, '-')}.json`);
     toast('Session exported', 'success');
 }
 

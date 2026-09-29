@@ -1,3 +1,4 @@
+import type { ExecutionIdentity } from '../../contracts/api/v1/identity.js';
 /**
  * drift/viewModels.ts — Derived response shaping and formatting helpers for drift charts.
  *
@@ -168,6 +169,7 @@ export interface DriftQualitySummary {
 }
 
 export interface DriftInvestigationResponse {
+    executionIdentity?: ExecutionIdentity;
     overview: DriftInvestigationOverview;
     columns: Record<string, DriftResponse>;
     rankings: {
@@ -1376,18 +1378,19 @@ export function buildWindowListHtml(
     selectedWindowIdx: number | null,
     orderedIdxs: number[],
 ): { html: string; selectedIdx: number | null } {
-    const items = orderedIdxs.map((idx) => {
+    const rows = orderedIdxs.map((idx) => {
         const w = response.windows[idx];
         const isSelected = idx === selectedWindowIdx;
         const badgeClass = w.count < 5 ? 'empty' : w.drift_level;
-        return {
-            idx,
-            html: `<div class="drift-window-item${isSelected ? ' selected' : ''}" role="option" tabindex="0" aria-selected="${isSelected ? 'true' : 'false'}" data-window-idx="${idx}">
-                <span class="drift-window-badge drift-window-badge--${badgeClass}"></span>
-                <span class="drift-window-label">${compactWindowListLabel(w.label, idx)}</span>
-                <span class="drift-window-psi">PSI ${isFinite(w.psi) ? w.psi.toFixed(3) : '-'}</span>
-            </div>`,
-        };
+        return `<tr class="drift-window-item${isSelected ? ' selected' : ''}" tabindex="${isSelected ? '0' : '-1'}" aria-selected="${isSelected ? 'true' : 'false'}" data-window-idx="${idx}">
+                <td><span class="drift-window-badge drift-window-badge--${badgeClass}" aria-hidden="true"></span><span class="sr-only">${w.drift_level} drift</span></td>
+                <th scope="row" class="drift-window-label">${compactWindowListLabel(w.label, idx)}</th>
+                <td class="drift-window-count">${w.count.toLocaleString()} samples</td>
+                <td class="drift-window-psi">${isFinite(w.psi) ? w.psi.toFixed(3) : '—'}</td>
+            </tr>`;
     });
-    return { html: items.map((i) => i.html).join(''), selectedIdx: selectedWindowIdx };
+    return {
+        html: `<table class="drift-window-table"><caption class="sr-only">Drift windows. Select a row to inspect its distribution.</caption><thead><tr><th scope="col">Level</th><th scope="col">Window</th><th scope="col">Samples</th><th scope="col">PSI</th></tr></thead><tbody>${rows.join('')}</tbody></table>`,
+        selectedIdx: selectedWindowIdx,
+    };
 }

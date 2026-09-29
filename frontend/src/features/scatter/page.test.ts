@@ -712,6 +712,25 @@ describe('initScatterPage view toggles', () => {
         expect(ySelect.querySelector(`option[value="${xSelect.value}"]`)).toBeNull();
     });
 
+    it.each([false, true])('restores saved axes on direct entry, with new matrix intent taking priority (%s)', async (newIntent) => {
+        const { rememberScatterPair, requestScatterPair } = await import('./pairIntent.js');
+        const metadata = {
+            total_rows: 3, source_version_id: 'source-a', source_version_revision: 3,
+            columns: ['HUFL', 'HULL', 'OT'].map(name => ({ name, dtype: 'Float64' })),
+            numeric_columns: ['HUFL', 'HULL', 'OT'],
+            time_column: 'ts', time_range: { min: 0, max: 1_000 }, column_profiles: [],
+        } as any;
+        rememberScatterPair(metadata, { x: 'OT', y: 'HULL' });
+        if (newIntent) requestScatterPair('HULL', 'HUFL');
+        const { initScatterPage } = await import('./page.js');
+        await initScatterPage(metadata);
+        const expected = newIntent ? ['HULL', 'HUFL'] : ['OT', 'HULL'];
+        expect(fetchScatterPointsMock).toHaveBeenLastCalledWith(
+            expected[0], expected[1], expect.any(Number), null, expect.any(Object),
+            { signal: expect.any(AbortSignal) },
+        );
+    });
+
     it('prefers the strongest top-pair on first scatter init when no pair was restored', async () => {
         fetchScatterCorrelationsMock.mockResolvedValueOnce({
             mode: 'pearson_raw',

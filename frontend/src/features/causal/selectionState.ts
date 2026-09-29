@@ -1,3 +1,4 @@
+import type { AnalysisSampling } from '../../contracts/api/v1/analytics.js';
 /**
  * causal/selectionState — stateful helpers that do not need DOM ownership.
  *
@@ -18,7 +19,7 @@ export interface CausalMetadata {
 }
 
 export interface CausalDeps {
-    workspace: Pick<WorkspaceStore, 'getSnapshot'>;
+    workspace: Pick<WorkspaceStore, 'getSnapshot'> & Partial<Pick<WorkspaceStore, 'subscribe'>>;
     chipColor: (col: string, idx: number) => string;
     setLoading: (btnId: string, overlayId: string, loading: boolean, label?: string) => void;
 }
@@ -51,6 +52,8 @@ export interface NodeAttributes {
 export let _currentColumns: string[] = [];
 export let _currentLinks: CausalLink[] = [];
 export let _currentTauMax = 0;
+export let _currentSampling: AnalysisSampling | null = null;
+export function setCurrentSampling(sampling: AnalysisSampling | null): void { _currentSampling = sampling; }
 export const _chipColors = new Map<string, string>();
 export const _nodeLabels = new Map<string, string>();
 export const _nodeAttrs = new Map<string, NodeAttributes>();
@@ -80,6 +83,7 @@ export function resetSelectionState(): void {
     _currentColumns = [];
     _currentLinks = [];
     _currentTauMax = 0;
+    _currentSampling = null;
     _chipColors.clear();
     _nodeLabels.clear();
     _nodeAttrs.clear();

@@ -253,6 +253,10 @@ pub async fn post_scatter_correlations(
 
 #[derive(Debug, serde::Serialize)]
 pub struct CorrelationMatrixResponse {
+    pub input_rows: usize,
+    pub time_range_ms: Option<[f64; 2]>,
+    pub counts: Vec<Vec<usize>>,
+    pub diff_counts: Vec<Vec<usize>>,
     pub columns: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pearson_raw: Option<Vec<Vec<Option<f64>>>>,
@@ -391,6 +395,8 @@ fn chronologically_ordered_frame(frame: LazyFrame, time_column: &str) -> LazyFra
 #[doc(hidden)]
 #[derive(Debug, Clone)]
 pub struct CorrelationMatrixData {
+    input_rows: usize,
+    time_range_ms: Option<[f64; 2]>,
     columns: Vec<String>,
     pearson_raw: Vec<Vec<Option<f64>>>,
     spearman_raw: Vec<Vec<Option<f64>>>,
@@ -405,6 +411,7 @@ pub struct CorrelationMatrixData {
 impl CorrelationMatrixData {
     fn from_cache(entry: CorrelationMatrixCacheEntry) -> Self {
         Self {
+            input_rows: entry.input_rows, time_range_ms: entry.time_range_ms,
             columns: entry.columns,
             pearson_raw: entry.pearson_raw,
             spearman_raw: entry.spearman_raw,
@@ -419,6 +426,7 @@ impl CorrelationMatrixData {
 
     fn into_cache(self) -> CorrelationMatrixCacheEntry {
         CorrelationMatrixCacheEntry {
+            input_rows: self.input_rows, time_range_ms: self.time_range_ms,
             columns: self.columns,
             pearson_raw: self.pearson_raw,
             spearman_raw: self.spearman_raw,
@@ -433,6 +441,7 @@ impl CorrelationMatrixData {
 
     fn to_response(&self) -> CorrelationMatrixResponse {
         CorrelationMatrixResponse {
+            input_rows: self.input_rows, time_range_ms: self.time_range_ms, counts: self.counts.clone(), diff_counts: self.diff_counts.clone(),
             columns: self.columns.clone(),
             pearson_raw: Some(self.pearson_raw.clone()),
             spearman_raw: Some(self.spearman_raw.clone()),
@@ -445,6 +454,7 @@ impl CorrelationMatrixData {
 
     fn to_response_for_mode(&self, mode: CorrelationMode) -> CorrelationMatrixResponse {
         let mut response = CorrelationMatrixResponse {
+            input_rows: self.input_rows, time_range_ms: self.time_range_ms, counts: self.counts.clone(), diff_counts: self.diff_counts.clone(),
             columns: self.columns.clone(),
             pearson_raw: None,
             spearman_raw: None,
@@ -486,12 +496,29 @@ fn select_correlation_columns(frame: LazyFrame, columns: &[String]) -> LazyFrame
     )
 }
 
+fn correlation_time_range(df: &polars::prelude::DataFrame) -> Option<[f64; 2]> {
+    let times = crate::analytics::extract_ts_epoch_ms(df).ok()?;
+    let mut valid = times.into_iter().filter(|value| value.is_finite());
+    let first = valid.next()?;
+    Some(valid.fold([first, first], |range, value| [range[0].min(value), range[1].max(value)]))
+}
+
 fn collect_correlation_frame(
     frame: LazyFrame,
     columns: &[String],
     budget: Option<CorrelationWorkBudget>,
 ) -> Result<polars::prelude::DataFrame, AppError> {
-    let selected = select_correlation_columns(frame, columns);
+    let mut frame = frame;
+    let mut selected_columns = columns.to_vec();
+    if let Ok(schema) = frame.collect_schema() {
+        for (name, dtype) in schema.iter() {
+            if matches!(dtype, polars::prelude::DataType::Datetime(_, _)) && !selected_columns.iter().any(|column| column == name.as_str()) {
+                selected_columns.push(name.to_string());
+                break;
+            }
+        }
+    }
+    let selected = select_correlation_columns(frame, &selected_columns);
     let selected = match budget {
         Some(budget) => selected.limit(budget.probe_rows()),
         None => selected,
@@ -768,6 +795,7 @@ fn compute_correlation_data_for_mode_with_budget(
     let mut numeric = numeric_columns(lf.clone());
     numeric.sort();
     let mut data = CorrelationMatrixData {
+        input_rows: 0, time_range_ms: None,
         columns: numeric.clone(),
         pearson_raw: vec![],
         spearman_raw: vec![],
@@ -800,6 +828,8 @@ fn compute_correlation_data_for_mode_with_budget(
     );
 
     let pair_start = std::time::Instant::now();
+    data.input_rows = df.height();
+    data.time_range_ms = correlation_time_range(&df);
     data.counts = vec![vec![0; n]; n];
     data.diff_counts = vec![vec![0; n]; n];
     for (i, row) in selected.iter_mut().enumerate() {
@@ -861,6 +891,7 @@ fn compute_correlation_matrix_with_budget(
 
     if numeric.is_empty() {
         return Ok(CorrelationMatrixData {
+            input_rows: 0, time_range_ms: None,
             columns: vec![],
             pearson_raw: vec![],
             spearman_raw: vec![],
@@ -936,6 +967,7 @@ fn compute_correlation_matrix_with_budget(
     metrics.record_correlation_all_modes();
 
     Ok(CorrelationMatrixData {
+        input_rows: df.height(), time_range_ms: correlation_time_range(&df),
         columns: numeric,
         pearson_raw,
         spearman_raw,
@@ -1418,6 +1450,7 @@ mod tests {
     #[test]
     fn cached_matrix_builds_sorted_correlations_for_requested_base() {
         let cached = edatime_store::cache::CorrelationMatrixCacheEntry {
+            input_rows: 0, time_range_ms: None,
             columns: vec!["a".to_string(), "b".to_string(), "c".to_string()],
             pearson_raw: vec![
                 vec![Some(1.0), Some(0.25), Some(0.9)],
@@ -1487,6 +1520,7 @@ mod tests {
         // miss it when threshold > |corr(a,*)|; the new `top_pairs` field
         // surfaces it regardless — see `usage_issue.md` §2.1.
         let cached = edatime_store::cache::CorrelationMatrixCacheEntry {
+            input_rows: 0, time_range_ms: None,
             columns: vec![
                 "a".to_string(),
                 "b".to_string(),
@@ -1578,6 +1612,7 @@ mod tests {
     #[test]
     fn top_pairs_respects_selected_mode() {
         let cached = edatime_store::cache::CorrelationMatrixCacheEntry {
+            input_rows: 0, time_range_ms: None,
             columns: vec!["a".to_string(), "b".to_string()],
             pearson_raw: vec![vec![Some(1.0), Some(0.5)], vec![Some(0.5), Some(1.0)]],
             spearman_raw: vec![vec![Some(1.0), Some(0.9)], vec![Some(0.9), Some(1.0)]],
@@ -1612,6 +1647,7 @@ mod tests {
     #[test]
     fn top_pairs_returns_empty_when_matrix_has_no_pairs() {
         let cached = edatime_store::cache::CorrelationMatrixCacheEntry {
+            input_rows: 0, time_range_ms: None,
             columns: vec!["only".to_string()],
             pearson_raw: vec![vec![Some(1.0)]],
             spearman_raw: vec![vec![Some(1.0)]],

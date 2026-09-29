@@ -11,6 +11,7 @@ use polars::prelude::{
     DataFrame, IntoLazy, IpcStreamWriter, LazyFrame, ScanArgsParquet, SchemaExt, SerWriter,
 };
 use serde::Serialize;
+use serde_json::Value;
 
 use edatime_core::error::AppError;
 
@@ -26,9 +27,15 @@ pub struct DatasetVersionRecord {
     pub dataset_fingerprint: String,
     pub schema_fingerprint: String,
     pub source_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub time_column: Option<String>,
     pub materialized_from_plan_hash: Option<String>,
+    /// Kept out of the version-list response; the dedicated provenance route
+    /// returns this potentially large snapshot on demand.
+    #[serde(skip)]
+    pub applied_plan: Option<Value>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -194,9 +201,11 @@ impl DatasetVersionRegistry {
             revision,
             dataset_fingerprint,
             schema_fingerprint,
+            display_name: source_name.clone(),
             source_name,
             time_column: None,
             materialized_from_plan_hash: None,
+            applied_plan: None,
             created_at: Utc::now(),
         };
         let mut entries = BTreeMap::new();
@@ -464,9 +473,11 @@ impl DatasetVersionRegistry {
             revision,
             dataset_fingerprint: identity.dataset_fingerprint,
             schema_fingerprint: identity.schema_fingerprint,
+            display_name: source_name.clone(),
             source_name,
             time_column,
             materialized_from_plan_hash: None,
+            applied_plan: None,
             created_at: Utc::now(),
         };
         self.entries
@@ -504,6 +515,7 @@ impl DatasetVersionRegistry {
             revision,
             plan_hash,
             None,
+            None,
             ResidentVersionIdentity {
                 resident_bytes,
                 dataset_fingerprint,
@@ -519,20 +531,23 @@ impl DatasetVersionRegistry {
         revision: u64,
         plan_hash: String,
         time_column: Option<String>,
+        applied_plan: Option<Value>,
         identity: ResidentVersionIdentity,
     ) -> Result<DatasetVersionRecord, AppError> {
         let parent = self.record(parent_id)?;
         let id = self.allocate_version_id();
         let record = DatasetVersionRecord {
             id: id.clone(),
-            root_id: parent.root_id,
-            parent_id: Some(parent.id),
+            root_id: parent.root_id.clone(),
+            parent_id: Some(parent.id.clone()),
             revision,
             dataset_fingerprint: identity.dataset_fingerprint,
             schema_fingerprint: identity.schema_fingerprint,
-            source_name: parent.source_name,
-            time_column: time_column.or(parent.time_column),
+            display_name: Some(prepared_display_name(&parent, revision)),
+            source_name: parent.source_name.clone(),
+            time_column: time_column.or(parent.time_column.clone()),
             materialized_from_plan_hash: Some(plan_hash),
+            applied_plan,
             created_at: Utc::now(),
         };
         self.entries
@@ -599,9 +614,11 @@ impl DatasetVersionRegistry {
             revision,
             dataset_fingerprint: artifact.content_fingerprint,
             schema_fingerprint,
+            display_name: source_name.clone(),
             source_name,
             time_column,
             materialized_from_plan_hash: None,
+            applied_plan: None,
             created_at: artifact.created_at,
         };
         let mut entries = self
@@ -640,6 +657,7 @@ impl DatasetVersionRegistry {
         revision: u64,
         plan_hash: String,
         time_column: Option<String>,
+        applied_plan: Option<Value>,
     ) -> Result<DatasetVersionRecord, AppError> {
         if artifact.format != "parquet" {
             return Err(AppError::bad_request(format!(
@@ -652,14 +670,16 @@ impl DatasetVersionRegistry {
         let schema_fingerprint = schema_fingerprint(source.snapshot()?)?;
         let record = DatasetVersionRecord {
             id: artifact.version_id,
-            root_id: parent.root_id,
-            parent_id: Some(parent.id),
+            root_id: parent.root_id.clone(),
+            parent_id: Some(parent.id.clone()),
             revision,
             dataset_fingerprint: artifact.content_fingerprint,
             schema_fingerprint,
-            source_name: parent.source_name,
-            time_column: time_column.or(parent.time_column),
+            display_name: Some(prepared_display_name(&parent, revision)),
+            source_name: parent.source_name.clone(),
+            time_column: time_column.or(parent.time_column.clone()),
             materialized_from_plan_hash: Some(plan_hash),
+            applied_plan,
             created_at: artifact.created_at,
         };
         let mut entries = self
@@ -806,11 +826,24 @@ fn record_from_artifact(
         revision: provenance.revision,
         dataset_fingerprint: artifact.content_fingerprint.clone(),
         schema_fingerprint: provenance.schema_fingerprint,
+        display_name: provenance
+            .display_name
+            .or_else(|| provenance.source_name.clone()),
         source_name: provenance.source_name,
         time_column: provenance.time_column,
         materialized_from_plan_hash: provenance.materialized_from_plan_hash,
+        applied_plan: provenance.applied_plan,
         created_at: artifact.created_at,
     })
+}
+
+fn prepared_display_name(parent: &DatasetVersionRecord, revision: u64) -> String {
+    let source = parent
+        .source_name
+        .as_deref()
+        .or(parent.display_name.as_deref())
+        .unwrap_or(&parent.id);
+    format!("{source} · prepared v{revision}")
 }
 
 #[cfg(test)]
@@ -1022,8 +1055,10 @@ mod tests {
                         revision: 2,
                         schema_fingerprint: schema_fingerprint.clone(),
                         source_name: Some("input.csv".to_string()),
+                        display_name: Some("input.csv · prepared v2".to_string()),
                         time_column: None,
                         materialized_from_plan_hash: Some("plan-1".to_string()),
+                        applied_plan: Some(serde_json::json!({"id": "plan-1"})),
                         row_count: 1,
                         column_names: vec!["value".to_string()],
                     }),
@@ -1041,8 +1076,10 @@ mod tests {
                         revision: 1,
                         schema_fingerprint,
                         source_name: Some("input.csv".to_string()),
+                        display_name: Some("input.csv".to_string()),
                         time_column: None,
                         materialized_from_plan_hash: None,
+                        applied_plan: None,
                         row_count: 2,
                         column_names: vec!["value".to_string()],
                     }),
@@ -1051,7 +1088,16 @@ mod tests {
             .expect("restore catalog");
 
         assert_eq!(records.len(), 2);
-        assert_eq!(restored.current().expect("current").id, "artifact-child");
+        let current = restored.current().expect("current child");
+        assert_eq!(current.id, "artifact-child");
+        assert_eq!(
+            current.display_name.as_deref(),
+            Some("input.csv · prepared v2")
+        );
+        assert_eq!(
+            current.applied_plan,
+            Some(serde_json::json!({"id": "plan-1"}))
+        );
         assert_eq!(
             restored
                 .record("artifact-child")

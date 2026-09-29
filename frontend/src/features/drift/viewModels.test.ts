@@ -360,8 +360,12 @@ describe('drift view models', () => {
             },
         ]);
         const { html } = buildWindowListHtml(dailyResponse, 0, [0, 1]);
+        expect(html).toContain('<table class="drift-window-table">');
+        expect(html).toContain('scope="col">PSI');
         expect(html).toContain('Day 1');
         expect(html).toContain('Day 2');
+        expect(html).toContain('9 samples');
+        expect(html).toContain('0.260');
         expect(html).not.toContain('2025-01-01 00:00 - 2025-01-02 00:00');
     });
 });

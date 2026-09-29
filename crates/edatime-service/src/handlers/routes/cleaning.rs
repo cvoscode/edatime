@@ -2,13 +2,14 @@
 
 use axum::{
     Json,
-    extract::State,
+    extract::{Path, State},
     http::{HeaderValue, header},
     response::{IntoResponse, Response},
 };
 use chrono::{DateTime, Utc};
 use polars::prelude::DataType;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use super::cleaning_codegen::{generate_python_polars, generate_rust_polars};
 pub use super::cleaning_context::PlanRequestEnvelope;
@@ -134,6 +135,17 @@ pub struct CleaningPlanExportArtifact {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct DatasetVersionSelectRequest {
     pub version_id: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppliedPlanHistoryResponse {
+    pub source_version: DatasetVersionRecord,
+    pub applied_plan: Option<Value>,
+    /// available means the canonical plan snapshot is present; missing
+    /// identifies older materialized versions that only retained a hash.
+    /// Source versions use none.
+    pub history_status: &'static str,
 }
 
 pub async fn validate(
@@ -498,6 +510,10 @@ pub async fn apply(
     let version = context.version;
     let plan_hash = context.plan_hash;
     let frame = context.frame;
+    let applied_plan =
+        Some(serde_json::to_value(&envelope.plan).map_err(|error| {
+            AppError::internal(format!("Encode applied cleaning plan: {error}"))
+        })?);
     let job = state.jobs.create_with_request_id(
         JobKind::Materialization,
         crate::middleware::current_request_id(),
@@ -519,6 +535,7 @@ pub async fn apply(
                 frame,
                 plan_hash.clone(),
                 envelope.plan.time_column.clone(),
+                applied_plan.clone(),
                 Some(&job),
             )
             .await
@@ -541,6 +558,7 @@ pub async fn apply(
                     data,
                     plan_hash.clone(),
                     Some(envelope.plan.time_column.clone()),
+                    applied_plan,
                 )
                 .await
         }
@@ -570,6 +588,26 @@ pub async fn list_versions(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<DatasetVersionRecord>>, AppError> {
     Ok(Json(state.dataset_versions()?))
+}
+
+pub async fn get_applied_plan_history(
+    State(state): State<AppState>,
+    Path(version_id): Path<String>,
+) -> Result<Json<AppliedPlanHistoryResponse>, AppError> {
+    let source_version = state.dataset_versions.record(&version_id)?;
+    let history_status = match (
+        source_version.applied_plan.is_some(),
+        source_version.materialized_from_plan_hash.is_some(),
+    ) {
+        (true, _) => "available",
+        (false, true) => "missing",
+        (false, false) => "none",
+    };
+    Ok(Json(AppliedPlanHistoryResponse {
+        applied_plan: source_version.applied_plan.clone(),
+        source_version,
+        history_status,
+    }))
 }
 
 pub async fn get_storage_usage(
@@ -1427,5 +1465,58 @@ mod tests {
             state.current_dataset_version().expect("current").id,
             root.id
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn applied_plan_history_returns_saved_plan_and_marks_legacy_gaps() {
+        use polars::prelude::{DataFrame, NamedFrom, Series};
+
+        let state = state();
+        let root = state.current_dataset_version().expect("source version");
+        let plan = serde_json::json!({
+            "schemaVersion": 1,
+            "id": "saved-plan",
+            "sourceVersionId": root.id,
+            "datasetRevision": root.revision,
+            "datasetFingerprint": root.dataset_fingerprint,
+            "schemaFingerprint": root.schema_fingerprint,
+            "timeColumn": "ts",
+            "stages": []
+        });
+        let child = state
+            .materialize_dataset_child(
+                &root.id,
+                DataFrame::new(1, vec![Series::new("value".into(), [2.0_f64]).into()])
+                    .expect("prepared frame"),
+                "saved-hash".to_string(),
+                Some("ts".to_string()),
+                Some(plan.clone()),
+            )
+            .await
+            .expect("materialize prepared version");
+        let saved = get_applied_plan_history(State(state.clone()), Path(child.id.clone()))
+            .await
+            .expect("read applied plan")
+            .0;
+        assert_eq!(saved.history_status, "available");
+        assert_eq!(saved.applied_plan, Some(plan));
+
+        let legacy = state
+            .materialize_dataset_child(
+                &child.id,
+                DataFrame::new(1, vec![Series::new("value".into(), [3.0_f64]).into()])
+                    .expect("legacy frame"),
+                "legacy-hash".to_string(),
+                Some("ts".to_string()),
+                None,
+            )
+            .await
+            .expect("materialize legacy version");
+        let missing = get_applied_plan_history(State(state), Path(legacy.id))
+            .await
+            .expect("read legacy plan status")
+            .0;
+        assert_eq!(missing.history_status, "missing");
+        assert_eq!(missing.applied_plan, None);
     }
 }

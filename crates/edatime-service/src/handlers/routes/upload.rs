@@ -131,7 +131,11 @@ pub async fn upload_data(
             })?;
         let row_count = loaded.df.height();
         state
-            .replace_dataset_with_time_column(loaded.df, loaded.time_column_name.clone())
+            .replace_dataset_with_time_column_and_source_name(
+                loaded.df,
+                loaded.time_column_name.clone(),
+                Some(file_name.clone()),
+            )
             .await
             .map_err(|error| AppError::internal(format!("Failed to store dataset: {error}")))?;
         (

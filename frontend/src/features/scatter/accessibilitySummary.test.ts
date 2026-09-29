@@ -35,6 +35,40 @@ describe('Pair plot accessible summaries', () => {
         expect(table.textContent).toContain('0.00%');
         expect(table.querySelector('.chart-summary-table__correlations')?.textContent)
             .toContain('Correlations use all eligible working data');
+        expect(table.textContent).toContain('0.1200');
+        expect(container.querySelector('.chart-summary-actions button')?.textContent).toBe('Copy Pair plot summary');
+        const rows = Array.from(table.querySelectorAll<HTMLTableRowElement>('tbody tr'));
+        expect(rows[0]?.tabIndex).toBe(0);
+        rows[0]?.focus();
+        rows[0]?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+        expect(document.activeElement).toBe(rows[1]);
+        expect(container.querySelector('.chart-summary-focus')?.textContent).toContain('Focused Pair plot summary');
+    });
+
+    it('keeps the expandable data summary outside the chart and preserves its open state on refresh', () => {
+        document.body.innerHTML = `
+            <section data-page-name="scatter">
+                <div class="scatter-view"><main class="main"><div id="scatter-chart"><canvas></canvas></div></main></div>
+                <details id="scatter-summary-details">
+                    <summary>Pair plot data summary</summary>
+                    <section id="scatter-accessibility-summary"></section>
+                </details>
+            </section>`;
+        const container = document.getElementById('scatter-chart')!;
+        const details = document.getElementById('scatter-summary-details') as HTMLDetailsElement;
+        renderScatterAccessibilitySummary(container);
+        expect(details.open).toBe(false);
+        expect(details.querySelector('table')?.textContent).toContain('0.1200');
+        expect(container.querySelector('table')).toBeNull();
+        expect(container.querySelector('canvas')).not.toBeNull();
+
+        details.open = true;
+        scatterState.points = [[5, 50], [6, 60]];
+        renderScatterAccessibilitySummary(container);
+        expect(details.open).toBe(true);
+        expect(details.querySelectorAll('table')).toHaveLength(1);
+        expect(details.querySelectorAll('.chart-summary-actions')).toHaveLength(1);
+        expect(details.querySelector('table')?.textContent).toContain('5.5');
     });
 
     it('shows and refreshes the active first-difference family without recreating the table', () => {

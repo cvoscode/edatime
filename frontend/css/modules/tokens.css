@@ -32,8 +32,8 @@
   /* Typography */
   --text: #C8D2DC;
   --text-strong: #F1F5F9;
-  --text-dim: #8291A4;
-  --text-muted: #748394;
+  --text-dim: #9BA9B8;
+  --text-muted: #92A1B0;
 
   /* Control sizing — single source of truth */
   --ctrl-h: 32px;
@@ -114,8 +114,8 @@
 
   --text: #334155;
   --text-strong: #15202B;
-  --text-dim: #64748B;
-  --text-muted: #687789;
+  --text-dim: #526176;
+  --text-muted: #56657A;
 
   --shadow: 0 4px 16px rgba(0, 0, 0, .10), 0 1px 4px rgba(0, 0, 0, .06);
 

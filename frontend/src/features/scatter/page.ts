@@ -71,12 +71,13 @@ import {
 } from './correlationsPanel.js';
 import { computeInteractiveScatterLimit } from './renderLimit.js';
 import { applyScatterPointsResponse } from './responsePolicy.js';
+import { beginCompletedAnalysisExportContext } from '../../utils/exportProvenanceContext.js';
 import { renderScatterChart } from './chartLifecycle.js';
 
 import type { DatasetMetadata } from '../../types/api.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import { emitFeatureEvent } from '../../platform/featureEvents.js';
-import { consumeScatterPairIntent, publishScatterPairSelection } from './pairIntent.js';
+import { consumeScatterPairIntent, publishScatterPairSelection, rememberScatterPair, restoreSavedScatterPair } from './pairIntent.js';
 import { getEffectiveNumericColumns } from '../../platform/analyticsColumns.js';
 import { cleaningPlanStore } from '../../cleaning/store.js';
 
@@ -266,6 +267,7 @@ async function renderScatter(): Promise<void> {
 
     showError('');
     const requestId = ++scatterState.scatterRequestId;
+    const requestMetadata = scatterState.metadata;
 
     await scatterTask.run(async (signal) => {
         const ctl = currentControls();
@@ -281,9 +283,20 @@ async function renderScatter(): Promise<void> {
         // by a subsequent render.
         const preserveView = _preserveViewOnNextRender;
         _preserveViewOnNextRender = false;
+        const requestLimit = computeInteractiveScatterLimit(container);
+        const completeAnalysisProvenance = beginCompletedAnalysisExportContext({
+            pageName: 'scatter',
+            controls: {
+                xColumn: xValue,
+                yColumn: yValue,
+                colorColumn: colorColumn ?? '',
+                maxPoints: requestLimit,
+                queryContext: JSON.stringify(queryContext),
+            },
+        });
 
         const response = await fetchScatterPoints(
-            xValue, yValue, computeInteractiveScatterLimit(container),
+            xValue, yValue, requestLimit,
             colorColumn,
             queryContext,
             { signal },
@@ -333,6 +346,8 @@ async function renderScatter(): Promise<void> {
             },
         });
         if (!container || !scatterState.chart) return;
+        completeAnalysisProvenance(response.executionIdentity ?? null);
+        rememberScatterPair(requestMetadata, { x: xValue, y: yValue });
 
         updateColorbarUI();
         updateBinnedReadout();
@@ -454,7 +469,13 @@ export async function initScatterPage(
 
     const numeric = getEffectiveNumericColumns(metadata, cleaningPlanStore.getSnapshot());
     const pairIntent = consumeScatterPairIntent();
-    const hadRestoredPair = !!pairIntent || !!(getDropdownValue('scatter-x-col') && getDropdownValue('scatter-y-col'));
+    const currentX = getDropdownValue('scatter-x-col');
+    const currentY = getDropdownValue('scatter-y-col');
+    const restoredPair = !scatterState.initialized && !currentX && !currentY
+        ? restoreSavedScatterPair(metadata, numeric)
+        : null;
+    const preferredPair = pairIntent ?? restoredPair;
+    const hadRestoredPair = !!preferredPair || !!(currentX && currentY);
     scatterState.metadata = metadata;
     scatterState.columnTypes = new Map(
         ((metadata as any)?.columns || []).map((col: any) => [
@@ -469,11 +490,11 @@ export async function initScatterPage(
     // numeric columns, the selects are simply empty and the page stays in
     // the empty state until columns arrive.
     if (numeric.length > 0) {
-        const selectedX = ensureOptions(xSelect, numeric, pairIntent?.x || getDropdownValue('scatter-x-col') || numeric[0], { searchable: true });
+        const selectedX = ensureOptions(xSelect, numeric, preferredPair?.x || currentX || numeric[0], { searchable: true });
         ensureOptions(
             ySelect,
             numeric.filter((c) => c !== selectedX),
-            pairIntent?.y || getDropdownValue('scatter-y-col') || numeric[1] || numeric[0],
+            preferredPair?.y || currentY || numeric[1] || numeric[0],
             { searchable: true },
         );
     } else {

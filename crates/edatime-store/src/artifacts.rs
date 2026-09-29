@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use chrono::{DateTime, Utc};
 use polars::prelude::{DataFrame, ParquetWriter};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use edatime_core::error::AppError;
 
@@ -34,8 +35,12 @@ pub struct DatasetArtifactProvenance {
     pub schema_fingerprint: String,
     pub source_name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub time_column: Option<String>,
     pub materialized_from_plan_hash: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub applied_plan: Option<Value>,
     pub row_count: usize,
     pub column_names: Vec<String>,
 }

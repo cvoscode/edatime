@@ -55,8 +55,8 @@ export function buildFftChartOptions(input: {
             min: useScaledY && Number.isFinite(model.yMin) ? model.yMin : undefined,
             max: useScaledY && Number.isFinite(model.yMax) ? model.yMax : undefined,
             name: logScale
-                ? (useScaledY ? `scaled (${scaleLabel})` : `log10(${mode === 'psd' ? 'PSD' : 'Magnitude'})`)
-                : (useScaledY ? `scaled (${scaleLabel})` : mode === 'psd' ? 'PSD' : 'Magnitude'),
+                ? (useScaledY ? `scaled (${scaleLabel})` : `log10(${mode === 'psd' ? 'PSD [signal²/Hz]' : 'Magnitude [signal]'})`)
+                : (useScaledY ? `scaled (${scaleLabel})` : mode === 'psd' ? 'PSD [signal²/Hz]' : 'Magnitude [signal]'),
             nameLocation: 'middle', nameGap: 76,
             nameTextStyle: { color: palette.text, fontSize: 12, fontWeight: 600, padding: [0, 0, 8, 0] },
             axisLabel: {

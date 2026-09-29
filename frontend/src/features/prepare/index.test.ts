@@ -4,6 +4,7 @@ const cleaningApi = vi.hoisted(() => ({
     previewCleaningPlan: vi.fn(),
     applyCleaningPlan: vi.fn(),
     cancelSessionJob: vi.fn(),
+    getAppliedPlanHistory: vi.fn(),
     exportCleaningData: vi.fn(),
     exportCleaningPlan: vi.fn(),
     exportCleaningCode: vi.fn(),
@@ -70,6 +71,26 @@ describe('Prepare page', () => {
             warnings: [], stageImpacts: plan.stages.map((stage: { id: string }) => ({ stageId: stage.id, executed: true, rowsBefore: 100, rowsAfter: 80, rowsRemoved: 20 })),
         }));
         cleaningApi.applyCleaningPlan.mockReset();
+        cleaningApi.getAppliedPlanHistory.mockReset().mockImplementation(async (versionId: string) => {
+            const plan = cleaningPlanStore.getSnapshot();
+            return {
+                sourceVersion: {
+                    id: versionId,
+                    rootId: versionId,
+                    parentId: null,
+                    revision: plan?.datasetRevision ?? 3,
+                    datasetFingerprint: plan?.datasetFingerprint ?? '',
+                    schemaFingerprint: plan?.schemaFingerprint ?? 'profile-schema',
+                    sourceName: null,
+                    displayName: null,
+                    timeColumn: plan?.timeColumn ?? 'ts',
+                    materializedFromPlanHash: null,
+                    createdAt: '2026-09-26T00:00:00Z',
+                },
+                appliedPlan: null,
+                historyStatus: 'none' as const,
+            };
+        });
         cleaningApi.validateCleaningPlan.mockReset().mockResolvedValue({});
     });
 
@@ -150,6 +171,41 @@ describe('Prepare page', () => {
             expect(refreshDatasetAfterMutation).toHaveBeenCalledOnce();
             expect(onPlanChanged).toHaveBeenCalledOnce();
         });
+        dispose();
+    });
+
+    it('shows saved applied stages as read-only history beside an empty version draft', async () => {
+        cleaningPlanStore.resetForDataset({
+            sourceVersionId: 'source-parent', datasetRevision: 2, datasetFingerprint: 'parent-data',
+            schemaFingerprint: 'schema', timeColumn: 'ts',
+        });
+        cleaningPlanStore.addStage({
+            kind: 'timeRange', executionClass: 'polarsExpression', scope: 'row', enabled: true,
+            sourcePage: 'timeseries', label: 'Saved interval', startMs: 1, endMs: 2, mode: 'keepInside',
+        });
+        const appliedPlan = cleaningPlanStore.getSnapshot()!;
+        cleaningPlanStore.resetForDataset({
+            sourceVersionId: 'prepared-1', datasetRevision: 3, datasetFingerprint: 'child-data',
+            schemaFingerprint: 'schema', timeColumn: 'ts',
+        });
+        cleaningApi.getAppliedPlanHistory.mockResolvedValueOnce({
+            sourceVersion: {
+                id: 'prepared-1', rootId: 'source-parent', parentId: 'source-parent', revision: 3,
+                datasetFingerprint: 'child-data', schemaFingerprint: 'schema', sourceName: 'ETTm2.csv',
+                displayName: 'ETTm2.csv · prepared v3', timeColumn: 'ts',
+                materializedFromPlanHash: 'saved-hash', createdAt: '2026-09-26T00:00:00Z',
+            },
+            appliedPlan,
+            historyStatus: 'available',
+        });
+
+        const dispose = initPreparePage({ workspace });
+        await vi.waitFor(() => {
+            expect(document.querySelector('.prepare-workspace__applied-graph [data-stage-id]')).not.toBeNull();
+        });
+        expect(document.getElementById('prepare-applied-history')?.textContent).toContain('ETTm2.csv · prepared v3');
+        expect(document.querySelector('.prepare-workspace__stage-editor .prepare-workspace__stage')).toBeNull();
+        expect(document.querySelector('.prepare-workspace__applied-graph [data-stage-id]')?.getAttribute('tabindex')).toBe('-1');
         dispose();
     });
 

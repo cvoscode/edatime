@@ -36,7 +36,9 @@ export function buildSpectrogramRequest(input: SpectrogramRequestInput): Spectro
     const column = input.column?.trim();
     const { startMs, endMs } = input;
     if (!column || typeof startMs !== 'number' || typeof endMs !== 'number'
-        || !Number.isFinite(startMs) || !Number.isFinite(endMs)) return null;
+        || !Number.isFinite(startMs) || !Number.isFinite(endMs) || startMs >= endMs) return null;
+    const maxPoints = input.maxPoints ?? SPECTROGRAM_MAX_POINTS;
+    if (!Number.isInteger(maxPoints) || maxPoints < 256 || maxPoints > 65_536) return null;
 
     return {
         start: new Date(startMs).toISOString(),
@@ -44,7 +46,7 @@ export function buildSpectrogramRequest(input: SpectrogramRequestInput): Spectro
         column,
         windowSize: input.windowSize,
         hopSize: input.hopSize,
-        maxPoints: input.maxPoints ?? SPECTROGRAM_MAX_POINTS,
+        maxPoints,
         normalize: input.normalize,
         clip: input.clipEnabled ? input.clipMethod : 'none',
         clipParam: Number.isFinite(input.clipParam) ? input.clipParam : 0.5,

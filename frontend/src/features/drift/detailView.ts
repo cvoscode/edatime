@@ -203,6 +203,7 @@ export function renderWindowList(windowListEl: HTMLElement | null): void {
             const isSelected = orderedIdxs[i] === getSelectedWindowIdx();
             el.classList.toggle('selected', isSelected);
             el.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+            el.tabIndex = isSelected ? 0 : -1;
         });
         return;
     }
@@ -224,9 +225,18 @@ export function renderWindowList(windowListEl: HTMLElement | null): void {
         };
         item.addEventListener('click', selectWindow);
         item.addEventListener('keydown', (event: KeyboardEvent) => {
-            if (event.key !== 'Enter' && event.key !== ' ') return;
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                selectWindow();
+                return;
+            }
+            if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
             event.preventDefault();
-            selectWindow();
+            const rows = Array.from(windowListEl!.querySelectorAll<HTMLElement>('.drift-window-item'));
+            const next = rows[rows.indexOf(item) + (event.key === 'ArrowDown' ? 1 : -1)];
+            if (!next) return;
+            next.focus();
+            next.click();
         });
     });
 

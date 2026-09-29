@@ -1373,3 +1373,36 @@ async fn cors_allowlist_supports_delete_preflight() {
             .contains("DELETE")
     );
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn cors_exposes_execution_identity_headers_on_responses() {
+    let mut config = AppConfig::default();
+    config.server.cors_allowed_origins = vec!["https://trusted.example".to_string()];
+    let state = AppState::new(test_dataframe(), config);
+    let app = build_app(state, std::path::PathBuf::from("__missing_test_frontend__"));
+    let req = Request::builder()
+        .uri("/api/v1/health")
+        .header("origin", "https://trusted.example")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    let exposed = resp
+        .headers()
+        .get("access-control-expose-headers")
+        .expect("analysis identity headers exposed to browser clients")
+        .to_str()
+        .unwrap()
+        .to_ascii_lowercase();
+    for name in [
+        "x-edatime-source-version",
+        "x-edatime-source-revision",
+        "x-edatime-schema-fingerprint",
+        "x-edatime-plan-hash",
+    ] {
+        assert!(
+            exposed.contains(name),
+            "missing exposed header {name}: {exposed}"
+        );
+    }
+}

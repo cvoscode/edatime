@@ -7,7 +7,9 @@
  *   runtime.mount();
  * exposes the same interface as other analysis page runtimes.
  */
-import { fetchSpectrogram, type SpectrogramResult } from '../../services/api/index.js';
+import { fetchSpectrogram, type SpectrogramResponse, type SpectrogramResult } from '../../services/api/index.js';
+import { formatAnalysisSamplingContext, estimateAnalysisSampling, formatSamplingCadence } from '../spectralSampling.js';
+import { buildSpectrogramPeakRows } from './spectrogramPeaks.js';
 import { downloadBlob } from '../../utils/dom.js';
 import { exportEChartsPNG, exportEChartsSVG, exportEChartsHTML } from '../../utils/chartExport.js';
 import {
@@ -39,19 +41,23 @@ import { syncSpectrogramClipControls, syncSpectrogramClipLabel } from './spectro
 import { onThemeChange } from '../../utils/theme.js';
 import { describeSpectrogramFailure } from './spectrogramFailure.js';
 import { markDataUpdated } from '../../ui/freshnessIndicator.js';
+import { beginCompletedAnalysisExportContext } from '../../utils/exportProvenanceContext.js';
 
 interface SpectrogramPageDeps {
     setLoading: (btnId: string, overlayId: string, loading: boolean, label?: string) => void;
-    workspace?: Pick<WorkspaceStore, 'getSnapshot'>;
+    workspace?: Pick<WorkspaceStore, 'getSnapshot'> & Partial<Pick<WorkspaceStore, 'subscribe'>>;
 }
 
 // ── Module-level page result state ───────────────────────────────────────────
 let spectrogramChartController: SpectrogramChartController | null = null;
 let spectrogramResult: SpectrogramResult | null = null;
+let spectrogramSampling: SpectrogramResponse['sampling'] | undefined;
 let spectrogramRenderError: string | null = null;
 let spectrogramAppliedScaleMode: ScaleMode = 'none';
 let spectrogramAppliedClipMode: ClipMode = 'none';
 let spectrogramAppliedClipParam = 0.5;
+let appliedWindowSize = 96;
+let appliedHopSize = 48;
 
 /**
  * CSV export for the spectrogram. Mirrors the per-page export pattern used
@@ -98,6 +104,12 @@ export function __resetSpectrogramChartRuntimeForTests(): void {
     spectrogramChartController?.dispose();
     spectrogramChartController = null;
     spectrogramResult = null;
+    spectrogramSampling = undefined;
+    document.getElementById('spectrogram-peak-summary')?.setAttribute('hidden', '');
+    document.getElementById('spectrogram-frequency-callout')?.replaceChildren();
+    document.getElementById('spectrogram-peak-table-wrap')?.replaceChildren();
+    document.getElementById('spectrogram-peak-focus')?.replaceChildren();
+    document.getElementById('spectrogram-sampling-context')?.setAttribute('hidden', '');
     spectrogramRenderError = null;
     spectrogramAppliedScaleMode = 'none';
     spectrogramAppliedClipMode = 'none';
@@ -192,6 +204,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             const resetZoomBtn = document.getElementById('spectrogram-zoom-reset-btn') as HTMLButtonElement | null;
             const autoFitToggle = document.getElementById('spectrogram-auto-fit-toggle') as HTMLInputElement | null;
             const summaryEl = document.getElementById('spectrogram-summary') as HTMLElement | null;
+            const samplingContextEl = document.getElementById('spectrogram-sampling-context') as HTMLElement | null;
             const chartEl = document.getElementById('spectrogram-chart') as HTMLDivElement | null;
 
             if (!chartEl || !colSelect) {
@@ -256,6 +269,67 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             };
 
             const syncSpectrogramSummary = () => renderSpectrogramSummary(summaryEl, spectrogramResult);
+            const syncSpectrogramPeaks = (formatFrequency: (hz: number) => string = (hz) => `${hz} Hz`) => {
+                const wrap = document.getElementById('spectrogram-peak-summary');
+                const tableWrap = document.getElementById('spectrogram-peak-table-wrap');
+                const callout = document.getElementById('spectrogram-frequency-callout');
+                const focusReadout = document.getElementById('spectrogram-peak-focus');
+                if (!wrap || !tableWrap || !callout) return;
+                const result = spectrogramResult;
+                const peaks = result ? buildSpectrogramPeakRows(result) : [];
+                if (!result || peaks.length === 0) {
+                    wrap.hidden = true;
+                    tableWrap.replaceChildren();
+                    callout.textContent = '';
+                    if (focusReadout) focusReadout.textContent = '';
+                    return;
+                }
+                wrap.hidden = false;
+                const strongest = peaks[0]!;
+                callout.textContent = `Strongest frequency component in ${result.column}: ${formatFrequency(strongest.frequencyHz)} (mean magnitude ${strongest.meanMagnitude.toPrecision(4)} across ${strongest.timePointCount.toLocaleString()} time points).`;
+                const table = document.createElement('table');
+                table.className = 'spectrogram-peak-table';
+                const caption = document.createElement('caption');
+                caption.textContent = `Top frequency components for ${result.column}, ranked by mean absolute magnitude across the displayed spectrogram.`;
+                table.append(caption);
+                const head = table.createTHead().insertRow();
+                for (const label of ['Rank', 'Frequency', 'Mean magnitude', 'Time points']) {
+                    const th = document.createElement('th'); th.scope = 'col'; th.textContent = label; head.append(th);
+                }
+                const body = table.createTBody();
+                peaks.forEach((peak, index) => {
+                    const row = body.insertRow();
+                    row.tabIndex = 0;
+                    row.setAttribute('aria-label', `Rank ${index + 1}, ${formatFrequency(peak.frequencyHz)}, mean magnitude ${peak.meanMagnitude.toPrecision(4)}`);
+                    for (const value of [String(index + 1), formatFrequency(peak.frequencyHz), peak.meanMagnitude.toPrecision(4), peak.timePointCount.toLocaleString()]) {
+                        const cell = row.insertCell(); cell.textContent = value;
+                    }
+                });
+                body.addEventListener('focusin', (event) => {
+                    const row = (event.target as HTMLElement).closest('tr');
+                    if (row && focusReadout) focusReadout.textContent = `Focused frequency component: ${row.textContent?.replace(/\s+/g, ' ').trim() ?? ''}.`;
+                });
+                body.addEventListener('keydown', (event) => {
+                    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+                    const row = (event.target as HTMLElement).closest('tr');
+                    if (!row) return;
+                    const rows = Array.from(body.rows);
+                    const next = rows[rows.indexOf(row) + (event.key === 'ArrowDown' ? 1 : -1)];
+                    if (next) { event.preventDefault(); next.focus(); }
+                });
+                tableWrap.replaceChildren(table);
+            };
+            const syncSpectrogramSamplingContext = () => {
+                if (!samplingContextEl) return;
+                if (!spectrogramSampling) {
+                    samplingContextEl.hidden = true;
+                    samplingContextEl.textContent = '';
+                    return;
+                }
+                samplingContextEl.hidden = false;
+                const cadence = spectrogramResult?.sample_rate_hz ? 1000 / spectrogramResult.sample_rate_hz : Number(spectrogramSampling.effective_cadence_ms);
+                samplingContextEl.textContent = `${formatAnalysisSamplingContext(spectrogramSampling)} · Window ${appliedWindowSize} samples = ${formatSamplingCadence(cadence * appliedWindowSize)}; hop ${appliedHopSize} = ${formatSamplingCadence(cadence * appliedHopSize)}. Shorter events are blurred within this window.`;
+            };
 
             const renderSpectrogramChart = async () => {
                 if (!spectrogramResult || listenerAbort.signal.aborted) return;
@@ -279,11 +353,12 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                 chart.setOption(rendered.option);
 
                 const { dominantBand, formatFrequency, logScale } = rendered;
+                syncSpectrogramPeaks(formatFrequency);
                 if (summaryEl) {
                     summaryEl.setAttribute('aria-label', buildSpectrogramSummaryLabel({
                         result: spectrogramResult,
-                        windowSize: getResolvedSpectrogramWindowSize(),
-                        hopSize: getResolvedSpectrogramHopSize(getResolvedSpectrogramWindowSize()),
+                        windowSize: appliedWindowSize,
+                        hopSize: appliedHopSize,
                         scaleLabel: scaleModeLabel(
                             spectrogramAppliedScaleMode,
                             spectrogramAppliedClipMode,
@@ -320,12 +395,34 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             }, listenerOptions);
 
             let computeSequence = 0;
+            let computeController: AbortController | null = null;
+            let computeStartedAt = 0;
+            let computeTimer: number | undefined;
+            const computeButton = document.getElementById('spectrogram-compute-btn') as HTMLButtonElement | null;
+            const cancelButton = document.getElementById('spectrogram-cancel-btn') as HTMLButtonElement | null;
+            const computeReason = document.getElementById('spectrogram-compute-reason');
+            const analysisStatus = document.getElementById('spectrogram-analysis-status');
+            const loadingLabel = document.getElementById('spectrogram-loading-label');
+            const syncComputeAvailability = () => {
+                const reason = !getDropdownValue('spectrogram-col-select')
+                    ? 'Choose a numeric column before updating the time-frequency view.'
+                    : !currentViewport()
+                        ? 'Choose a valid time range on Signals before updating the time-frequency view.'
+                        : '';
+                if (computeReason) computeReason.textContent = reason || 'Updates the time-frequency view for the selected column and time range.';
+                if (computeButton) {
+                    computeButton.title = reason;
+                    if (!computeController) computeButton.disabled = Boolean(reason);
+                }
+            };
+            const unsubscribeWorkspace = deps.workspace?.subscribe?.(syncComputeAvailability);
+            if (unsubscribeWorkspace) listenerAbort.signal.addEventListener('abort', unsubscribeWorkspace, { once: true });
             const computeSpectrogram = async () => {
                 const sequence = ++computeSequence;
-                const isCurrent = () => !listenerAbort.signal.aborted && sequence === computeSequence;
                 const column = getDropdownValue('spectrogram-col-select');
                 if (!column) {
                     syncSpectrogramEmptyState('Pick a numeric column and update the spectrogram.');
+                    syncComputeAvailability();
                     return;
                 }
                 const viewport = currentViewport();
@@ -349,11 +446,44 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                     clipEnabled,
                     clipMethod,
                     clipParam,
-                    maxPoints: getSetting('spectrogramMaxPoints'),
+                    maxPoints: Number((document.getElementById('spectrogram-point-budget') as HTMLInputElement | null)?.value || getSetting('spectrogramMaxPoints')),
                 });
-                if (!request) return;
+                if (!request) {
+                    if (analysisStatus) analysisStatus.textContent = 'Choose a valid time range and time-frequency settings before computing.';
+                    return;
+                }
+                const completeAnalysisProvenance = beginCompletedAnalysisExportContext({
+                    pageName: 'spectrogram',
+                    controls: {
+                        column: request.column,
+                        start: request.start,
+                        end: request.end,
+                        windowSize: request.windowSize,
+                        hopSize: request.hopSize,
+                        maxPoints: request.maxPoints,
+                        normalize: request.normalize,
+                        clip: request.clip,
+                        clipParam: request.clipParam,
+                    },
+                });
+                computeController?.abort();
+                const controller = new AbortController();
+                computeController = controller;
+                const abortWithLifecycle = () => controller.abort();
+                listenerAbort.signal.addEventListener('abort', abortWithLifecycle, { once: true });
+                const isCurrent = () => !listenerAbort.signal.aborted && computeController === controller && !controller.signal.aborted && sequence === computeSequence;
                 try {
                     deps.setLoading('spectrogram-compute-btn', 'spectrogram-loading', true, 'Update spectrogram');
+                    if (computeButton) computeButton.title = 'Time-frequency calculation is running. Use Cancel computation to stop it.';
+                    if (loadingLabel) loadingLabel.textContent = `Computing time-frequency view for ${column} · 0s elapsed`;
+                    if (analysisStatus) analysisStatus.textContent = '';
+                    computeStartedAt = Date.now();
+                    const syncElapsed = () => {
+                        if (!isCurrent() || !loadingLabel) return;
+                        loadingLabel.textContent = `Computing time-frequency view for ${column} · ${Math.floor((Date.now() - computeStartedAt) / 1000)}s elapsed`;
+                    };
+                    syncElapsed();
+                    computeTimer = window.setInterval(syncElapsed, 1000);
                     spectrogramRenderError = null;
                     colorbar.resetFilter();
 
@@ -364,7 +494,7 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                         request.windowSize,
                         request.hopSize,
                         request.maxPoints,
-                        { signal: listenerAbort.signal },
+                        { signal: controller.signal },
                         {
                             normalize: request.normalize,
                             clip: request.clip,
@@ -372,25 +502,46 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
                         },
                     );
                     if (!isCurrent()) return;
+                    if (loadingLabel) loadingLabel.textContent = 'Time-frequency results received; rendering chart…';
                     spectrogramAppliedScaleMode = request.normalize;
                     spectrogramAppliedClipMode = request.clip;
                     spectrogramAppliedClipParam = request.clipParam;
                     spectrogramResult = response.result;
+                    spectrogramSampling = response.sampling;
+                    appliedWindowSize = request.windowSize;
+                    appliedHopSize = request.hopSize;
+                    syncSpectrogramSamplingContext();
                     await renderSpectrogramChart();
                     if (!isCurrent()) return;
                     spectrogramRenderError = null;
                     syncSpectrogramEmptyState();
+                    completeAnalysisProvenance(response.executionIdentity ?? null, { sampling: JSON.stringify(response.sampling ?? null), effectiveWindowMs: response.result.sample_rate_hz ? 1000 * request.windowSize / response.result.sample_rate_hz : null, effectiveHopMs: response.result.sample_rate_hz ? 1000 * request.hopSize / response.result.sample_rate_hz : null });
                     markDataUpdated();
                 } catch (error: unknown) {
-                    if (!isCurrent() || (error instanceof Error && error.name === 'AbortError')) return;
+                    if (controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')) return;
+                    if (!isCurrent()) return;
                     console.error('[edatime:spectrogram] generation failed', error);
                     spectrogramResult = null;
+                    spectrogramSampling = undefined;
+                    syncSpectrogramPeaks();
+                    syncSpectrogramSamplingContext();
                     spectrogramRenderError = describeSpectrogramFailure(error);
                     syncSpectrogramSummary();
                     syncSpectrogramEmptyState();
                     toast(spectrogramRenderError, 'error');
                 } finally {
-                    if (isCurrent()) deps.setLoading('spectrogram-compute-btn', 'spectrogram-loading', false, 'Update spectrogram');
+                    listenerAbort.signal.removeEventListener('abort', abortWithLifecycle);
+                    if (computeController === controller && sequence === computeSequence) {
+                        if (computeTimer !== undefined) window.clearInterval(computeTimer);
+                        computeTimer = undefined;
+                        computeStartedAt = 0;
+                        computeController = null;
+                        deps.setLoading('spectrogram-compute-btn', 'spectrogram-loading', false, 'Update spectrogram');
+                        if (loadingLabel) loadingLabel.textContent = 'Computing spectrogram…';
+                        syncComputeAvailability();
+                        if (controller.signal.aborted && analysisStatus) analysisStatus.textContent = 'Time-frequency computation canceled. The previous completed result remains visible.';
+                        if (cancelButton) cancelButton.onclick = null;
+                    }
                 }
             };
 
@@ -427,11 +578,29 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             syncSpectrogramCustomInputs();
             syncSpectrogramSummary();
 
+            const syncScopeEstimate = () => {
+                const hint = document.getElementById('spectrogram-scope-estimate');
+                const viewport = currentViewport();
+                const sampling = estimateAnalysisSampling(workspaceMetadata(), viewport ? { startMs: viewport.xMin!, endMs: viewport.xMax! } : null,
+                    Number((document.getElementById('spectrogram-point-budget') as HTMLInputElement | null)?.value || getSetting('spectrogramMaxPoints')));
+                const win = getResolvedSpectrogramWindowSize();
+                const hop = getResolvedSpectrogramHopSize(win);
+                if (hint) hint.textContent = sampling ? `Source-based estimate: window ${formatSamplingCadence(Number(sampling.effective_cadence_ms) * win)}, hop ${formatSamplingCadence(Number(sampling.effective_cadence_ms) * hop)}. Range follows Signals; narrow it or raise the budget for finer time resolution. Final durations follow the returned cadence.` : 'Select a time range on Signals.';
+            };
+            for (const id of ['spectrogram-point-budget', 'spectrogram-win-size', 'spectrogram-hop-size', 'spectrogram-win-size-custom', 'spectrogram-hop-size-custom'])
+                document.getElementById(id)?.addEventListener('change', syncScopeEstimate, listenerOptions);
+            syncScopeEstimate();
+            const unsubscribeScope = deps.workspace?.subscribe?.(syncScopeEstimate);
+            if (unsubscribeScope) listenerAbort.signal.addEventListener('abort', unsubscribeScope, { once: true });
+
             // ── Compute button ─────────────────────────────────────────────────
             document.getElementById('spectrogram-compute-btn')?.addEventListener('click', async () => {
                 autoComputeStarted = true;
                 await computeSpectrogram();
             }, listenerOptions);
+            cancelButton?.addEventListener('click', () => computeController?.abort(), listenerOptions);
+            colSelect.addEventListener('change', syncComputeAvailability, listenerOptions);
+            syncComputeAvailability();
 
             logCheck?.addEventListener('change', () => {
                 if (spectrogramResult) void renderSpectrogramChart();
@@ -458,6 +627,11 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             maybeAutoComputeSpectrogram();
             return () => {
                 listenerAbort.abort();
+                computeController?.abort();
+                if (computeTimer !== undefined) window.clearInterval(computeTimer);
+                computeTimer = undefined;
+                if (computeController) deps.setLoading('spectrogram-compute-btn', 'spectrogram-loading', false, 'Update spectrogram');
+                computeController = null;
                 disposeTheme();
                 if (controlAbort === listenerAbort) controlAbort = null;
                 colorbar.dispose();
@@ -497,6 +671,8 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
             if (!spectrogramResult && !spectrogramRenderError) {
                 autoComputeStarted = false;
             }
+            const currentButton = document.getElementById('spectrogram-compute-btn') as HTMLButtonElement | null;
+            if (currentButton && !spectrogramResult) currentButton.disabled = !getDropdownValue('spectrogram-col-select') || !currentViewport();
         },
     });
 

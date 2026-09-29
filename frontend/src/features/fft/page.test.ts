@@ -8,6 +8,7 @@ const fftChartInstance = {
     clear: vi.fn(),
     updateData: vi.fn(),
     resetView: vi.fn(),
+    setFocusFrequency: vi.fn(),
     getIsZoomed: vi.fn(() => false),
     onZoomChange: null as ((isZoomed: boolean) => void) | null,
 };
@@ -23,6 +24,7 @@ vi.mock('../../chart/FftChart.js', () => ({
         clear = fftChartInstance.clear;
         updateData = fftChartInstance.updateData;
         resetView = fftChartInstance.resetView;
+        setFocusFrequency = fftChartInstance.setFocusFrequency;
         getIsZoomed = fftChartInstance.getIsZoomed;
         onZoomChange = fftChartInstance.onZoomChange;
     },
@@ -53,16 +55,19 @@ function buildDom(): void {
         <select id="fft-mode-select"><option value="magnitude" selected>Magnitude</option><option value="psd">PSD</option></select>
         <input id="fft-log-scale" type="checkbox" checked>
         <button id="fft-zoom-reset-btn" type="button" hidden>Zoom</button>
+        <div id="fft-trace-selection" hidden><span id="fft-trace-selection-count"></span><button id="fft-select-all-btn" type="button">Select all</button><button id="fft-clear-all-btn" type="button">Clear all</button></div>
         <div id="fft-traces-bar"></div>
         <div id="fft-chart"></div>
         <button id="fft-compute-btn" type="button">Compute spectrum</button>
+        <span id="fft-compute-reason"></span>
+        <p id="fft-analysis-status"></p>
         <div id="fft-empty-state" data-empty-reason="">
           <strong id="fft-empty-title"></strong>
           <span id="fft-empty-message"></span>
           <button id="fft-empty-compute-btn" type="button">Compute spectrum</button>
         </div>
         <span id="fft-sampling-badge" hidden></span>
-        <div id="fft-chart-loading" hidden></div>
+        <div id="fft-chart-loading" hidden><span id="fft-chart-loading-label"></span><button id="fft-cancel-btn" type="button">Cancel computation</button></div>
         <button id="fft-export-png-btn" type="button"></button>
         <button id="fft-export-svg-btn" type="button"></button>
         <button id="fft-export-html-btn" type="button"></button>
@@ -75,7 +80,10 @@ function buildDom(): void {
         <div id="fft-spectral-info" hidden>
           <span id="fft-spectral-info-rate"></span>
           <span id="fft-spectral-info-nyquist"></span>
-          <span id="fft-spectral-info-peaks"></span>
+          <div id="fft-spectral-info-peaks"></div>
+          <p id="fft-frequency-callout"></p>
+          <button id="fft-copy-summary-btn" type="button"></button>
+          <span id="fft-summary-focus"></span>
         </div>
         <select id="fft-normalize"><option value="none" selected>None</option><option value="minmax">Min-max</option></select>
         <input id="fft-clip-toggle" type="checkbox" />
@@ -121,6 +129,8 @@ describe('initFftPage', () => {
                 input_points: 69680,
                 output_points: 65536,
                 aggregation_factor: 1.06,
+                source_cadence_ms: 10_000,
+                effective_cadence_ms: 10_600,
             },
             results: [{
                 column,
@@ -172,7 +182,47 @@ describe('initFftPage', () => {
         );
         await vi.waitFor(() => expect(emptyState.hidden).toBe(true));
         expect(document.getElementById('fft-sampling-badge')?.textContent)
-            .toBe('Downsampled to 65,536 of 69,680 points');
+            .toBe('Block-mean downsampled · 65,536 of 69,680 points · source cadence 10 s · effective cadence 10.6 s');
+    });
+
+    it('selects all and clears all FFT traces while updating the disabled reason', async () => {
+        workspace.commitDataset(workspace.beginDatasetSession(), {
+            total_rows: 10, columns: [], numeric_columns: ['value', 'temp', 'pressure'], time_column: 'ts',
+            time_range: { min: 0, max: 1000 }, column_profiles: [],
+        } as any, 0);
+        const { initFftPage } = await import('./page');
+        await initFftPage({ workspace, renderTimeseries: vi.fn() });
+        emitNavigationChange({ page: 'fft' });
+
+        const checked = () => Array.from(document.querySelectorAll<HTMLInputElement>('.fft-trace-chip input[type="checkbox"]')).filter((input) => input.checked);
+        expect(checked()).toHaveLength(2);
+        (document.getElementById('fft-select-all-btn') as HTMLButtonElement).click();
+        expect(checked()).toHaveLength(3);
+        expect(document.getElementById('fft-trace-selection-count')?.textContent).toBe('3 of 3 selected');
+        (document.getElementById('fft-clear-all-btn') as HTMLButtonElement).click();
+        expect(checked()).toHaveLength(0);
+        const compute = document.getElementById('fft-compute-btn') as HTMLButtonElement;
+        expect(compute.disabled).toBe(true);
+        expect(compute.title).toContain('Select one or more numeric columns');
+    });
+
+    it('cancels an in-flight FFT request and announces the preserved completed result', async () => {
+        fetchFftMock.mockImplementation((_start: string, _end: string, _column: string, _points: number, options: any) =>
+            new Promise((_resolve, reject) => options.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true })));
+        workspace.commitDataset(workspace.beginDatasetSession(), {
+            total_rows: 10, columns: [], numeric_columns: ['value', 'temp'], time_column: 'ts',
+            time_range: { min: 0, max: 1000 }, column_profiles: [],
+        } as any, 0);
+        const { initFftPage } = await import('./page');
+        await initFftPage({ workspace, renderTimeseries: vi.fn() });
+        emitNavigationChange({ page: 'fft' });
+
+        (document.getElementById('fft-compute-btn') as HTMLButtonElement).click();
+        await vi.waitFor(() => expect(fetchFftMock).toHaveBeenCalledTimes(2));
+        (document.getElementById('fft-cancel-btn') as HTMLButtonElement).click();
+        await vi.waitFor(() => expect(document.getElementById('fft-analysis-status')?.textContent).toContain('canceled'));
+        expect(fetchFftMock.mock.calls.every((call) => call[4].signal.aborted)).toBe(true);
+        expect((document.getElementById('fft-chart-loading') as HTMLElement).hidden).toBe(true);
     });
 
     it('replaces control listeners when the page is initialized twice', async () => {
@@ -531,7 +581,13 @@ describe('initFftPage', () => {
         });
         expect(document.getElementById('fft-spectral-info-rate')?.textContent).toBe('1 / 15.0 min');
         expect(document.getElementById('fft-spectral-info-nyquist')?.textContent).toBe('1 / 30.0 min');
+        expect(document.querySelector('#fft-spectral-info-peaks table caption')?.textContent).toContain('current spectrum');
         expect(document.getElementById('fft-spectral-info-peaks')?.textContent).toContain('Trend');
         expect(document.getElementById('fft-spectral-info-peaks')?.textContent).toMatch(/min|hr|day/);
+        const peakRow = document.querySelector<HTMLTableRowElement>('#fft-spectral-info-peaks tbody tr');
+        expect(peakRow?.tabIndex).toBe(0);
+        peakRow?.focus();
+        expect(fftChartInstance.setFocusFrequency).toHaveBeenCalledWith(0.00028);
+        expect(document.getElementById('fft-frequency-callout')?.textContent).toContain('value');
     });
 });

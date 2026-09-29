@@ -199,7 +199,6 @@ export function updateSeriesChipList(options: SeriesChipListOptions): void {
             if (checkbox) checkbox.checked = item.checked;
             chip.classList.toggle('active', item.checked);
             chip.classList.toggle('inactive', !item.checked);
-            chip.setAttribute('aria-pressed', item.checked ? 'true' : 'false');
             chip.style.setProperty('--chip-accent', item.color);
         }
     }
@@ -213,7 +212,7 @@ export function updateSeriesChipList(options: SeriesChipListOptions): void {
 export function bindSeriesChipKeyboard(container: HTMLElement): () => void {
     const handler = (event: KeyboardEvent) => {
         const chip = (event.target as HTMLElement)?.closest?.('.series-chip');
-        if (!chip) return;
+        if (!chip || chip.getAttribute('role') !== 'button' || event.target !== chip) return;
         if (event.key !== 'Enter' && event.key !== ' ') return;
         event.preventDefault();
         const checkbox = chip.querySelector<HTMLInputElement>('input[type="checkbox"]');

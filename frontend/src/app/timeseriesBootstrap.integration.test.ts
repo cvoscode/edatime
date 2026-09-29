@@ -193,6 +193,7 @@ describe('app -> timeseries bootstrap wiring', () => {
 
     it('passes the real bootstrap collaborators into createTimeseriesModule and shell without publishing ready aliases on window', async () => {
         await import('../app.js');
+        await vi.waitFor(() => expect(initAppShellMock).toHaveBeenCalledTimes(1));
 
         expect((window as any).__edatime?.state).toBeUndefined();
         expect((window as any).__edatime?.runAnalytics).toBeUndefined();
@@ -294,7 +295,10 @@ describe('app -> timeseries bootstrap wiring', () => {
             finishRegistration = resolve;
         }));
         const { startApp } = await import('../app.js');
-        await vi.waitFor(() => expect(loadPageDescriptors).toHaveBeenCalledTimes(1));
+        await Promise.all([
+            vi.waitFor(() => expect(loadPageDescriptors).toHaveBeenCalledTimes(1)),
+            vi.waitFor(() => expect(initAppShellMock).toHaveBeenCalledTimes(1)),
+        ]);
         const registry = vi.mocked(loadPageDescriptors).mock.calls[0]![0];
         const shellCalls = initAppShellMock.mock.calls as unknown as Array<[AppShellDeps]>;
         let navigationReady = false;

@@ -950,6 +950,72 @@
         }
       }
     },
+    "/datasets/versions/{id}/provenance": {
+      "get": {
+        "operationId": "getDatasetsVersionsIdProvenance",
+        "summary": "GET /api/v1/datasets/versions/{id}/provenance",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppliedPlanHistoryResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/datasets/versions/select": {
       "post": {
         "operationId": "postDatasetsVersionsSelect",
@@ -3318,6 +3384,74 @@
           }
         }
       }
+    },
+    "/drift/preflight": {
+      "post": {
+        "operationId": "postDriftPreflight",
+        "summary": "POST /api/v1/drift/preflight",
+        "tags": [
+          "plan-aware"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DriftInvestigateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-sha": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-build-profile": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-edatime-contract": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriftPreflightResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Structured application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3653,6 +3787,14 @@
           },
           "cleaning_plan": {
             "$ref": "#/components/schemas/CleaningPlanEnvelope"
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -3769,6 +3911,15 @@
           },
           "cleaning_plan": {
             "$ref": "#/components/schemas/CleaningPlanEnvelope"
+          },
+          "detrend": {
+            "type": "string",
+            "enum": [
+              "none",
+              "constant",
+              "linear"
+            ],
+            "default": "constant"
           }
         }
       },
@@ -4652,6 +4803,12 @@
               "null"
             ]
           },
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "profile_status": {
             "type": "string"
           },
@@ -4704,6 +4861,30 @@
             "type": "array",
             "items": {
               "type": "object"
+            }
+          },
+          "profile_sampling": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "method",
+              "source_rows",
+              "sampled_rows",
+              "seed"
+            ],
+            "properties": {
+              "method": {
+                "type": "string"
+              },
+              "source_rows": {
+                "type": "integer"
+              },
+              "sampled_rows": {
+                "type": "integer"
+              },
+              "seed": {
+                "type": "integer"
+              }
             }
           }
         }
@@ -4926,6 +5107,13 @@
             "items": {
               "$ref": "#/components/schemas/CausalLink"
             }
+          },
+          "sample_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sampling": {
+            "$ref": "#/components/schemas/AnalysisSampling"
           }
         }
       },
@@ -4964,6 +5152,332 @@
           }
         }
       },
+      "DatasetVersionRecord": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "rootId",
+          "parentId",
+          "revision",
+          "datasetFingerprint",
+          "schemaFingerprint",
+          "sourceName",
+          "materializedFromPlanHash",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "rootId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "parentId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "datasetFingerprint": {
+            "type": "string"
+          },
+          "schemaFingerprint": {
+            "type": "string"
+          },
+          "sourceName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "timeColumn": {
+            "type": "string",
+            "minLength": 1
+          },
+          "materializedFromPlanHash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "DatasetVersionsResponse": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DatasetVersionRecord"
+        }
+      },
+      "SelectVersionResponse": {
+        "$ref": "#/components/schemas/DatasetVersionRecord"
+      },
+      "AppliedPlanHistoryResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sourceVersion",
+          "appliedPlan",
+          "historyStatus"
+        ],
+        "properties": {
+          "sourceVersion": {
+            "$ref": "#/components/schemas/DatasetVersionRecord"
+          },
+          "appliedPlan": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": true
+          },
+          "historyStatus": {
+            "type": "string",
+            "enum": [
+              "available",
+              "missing",
+              "none"
+            ]
+          }
+        }
+      },
+      "AnalysisSampling": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "method",
+          "input_points",
+          "output_points",
+          "aggregation_factor",
+          "source_cadence_ms",
+          "effective_cadence_ms"
+        ],
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "exact",
+              "block_mean"
+            ]
+          },
+          "input_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "output_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "aggregation_factor": {
+            "type": "number",
+            "minimum": 1
+          },
+          "source_cadence_ms": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "effective_cadence_ms": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "source_start_ms": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "source_end_ms": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "analyzed_start_ms": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "analyzed_end_ms": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        }
+      },
+      "FftResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sample_count",
+          "sampling",
+          "results"
+        ],
+        "properties": {
+          "sample_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sampling": {
+            "$ref": "#/components/schemas/AnalysisSampling"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        }
+      },
+      "SpectrogramResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sample_count",
+          "sampling",
+          "result"
+        ],
+        "properties": {
+          "sample_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sampling": {
+            "$ref": "#/components/schemas/AnalysisSampling"
+          },
+          "result": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "DriftPreflightResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sourceVersionId",
+          "sourceRevision",
+          "schemaFingerprint",
+          "planHash",
+          "window",
+          "decisionReady",
+          "columns"
+        ],
+        "properties": {
+          "sourceVersionId": {
+            "type": "string"
+          },
+          "sourceRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "schemaFingerprint": {
+            "type": "string"
+          },
+          "planHash": {
+            "type": "string"
+          },
+          "window": {
+            "type": "string",
+            "enum": [
+              "hourly",
+              "daily",
+              "weekly"
+            ]
+          },
+          "decisionReady": {
+            "type": "boolean"
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "column",
+                "referenceValidSamples",
+                "comparisonValidSamples",
+                "comparisonWindows",
+                "windowsBelowMinimum",
+                "averageWindowSamples",
+                "referenceToWindowRatio",
+                "decisionReady",
+                "warnings",
+                "suggestions"
+              ],
+              "properties": {
+                "column": {
+                  "type": "string"
+                },
+                "referenceValidSamples": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "comparisonValidSamples": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "comparisonWindows": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "windowsBelowMinimum": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "averageWindowSamples": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "referenceToWindowRatio": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "decisionReady": {
+                  "type": "boolean"
+                },
+                "warnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "suggestions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       "ApiContract": {
         "type": "object",
         "additionalProperties": true,
@@ -4998,16 +5512,6 @@
         "type": "object",
         "additionalProperties": true,
         "description": "CleaningApplyResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
-      },
-      "DatasetVersionsResponse": {
-        "type": "object",
-        "additionalProperties": true,
-        "description": "DatasetVersionsResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
-      },
-      "SelectVersionResponse": {
-        "type": "object",
-        "additionalProperties": true,
-        "description": "SelectVersionResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
       },
       "StorageUsageResponse": {
         "type": "object",
@@ -5088,16 +5592,6 @@
         "type": "object",
         "additionalProperties": true,
         "description": "AnomalyResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
-      },
-      "FftResponse": {
-        "type": "object",
-        "additionalProperties": true,
-        "description": "FftResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
-      },
-      "SpectrogramResponse": {
-        "type": "object",
-        "additionalProperties": true,
-        "description": "SpectrogramResponse is a versioned application DTO. Its field-level schema is introduced incrementally in contracts/api-v1.json."
       },
       "SpectralFilterResponse": {
         "type": "object",

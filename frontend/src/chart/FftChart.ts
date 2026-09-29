@@ -49,6 +49,7 @@ export class FftChart {
     private _logScale = true;
     private _scaleOptions: SpectralScaleOptions = { ...DEFAULT_SPECTRAL_SCALE };
     private _annotations: number[] = [];  // freqHz values
+    private _focusFrequency: number | null = null;
     private _traces: FftTrace[] = [];
     private _overlayModel: FftDataModel | null = null;
     private _showPeakLabels = true;
@@ -137,9 +138,9 @@ export class FftChart {
         const model = buildFftDataModel(traces, mode, logScale, this._scaleOptions);
         this._overlayModel = model;
         this._fullXMax = model.fullXMax;
-        if (this._sampleRateHz === 0) this._sampleRateHz = model.sampleRateHz;
-        if (this._nyquistHz === 0) this._nyquistHz = model.nyquistHz;
-        if (this._dominantPeaks.length === 0) this._dominantPeaks = model.dominantPeaks;
+        this._sampleRateHz = model.sampleRateHz;
+        this._nyquistHz = model.nyquistHz;
+        this._dominantPeaks = model.dominantPeaks;
 
         // Notify external listeners about spectral info
         this.onSpectralInfoUpdate?.({
@@ -201,6 +202,7 @@ export class FftChart {
         this._traces = [];
         this._overlayModel = null;
         this._annotations = [];
+        this._focusFrequency = null;
         this._xMin = 0;
         this._xMax = 0;
         this._fullXMax = 1;
@@ -210,6 +212,12 @@ export class FftChart {
         this._chart?.setOption({ series: [] });
         this._accessibilityTable?.remove();
         this._accessibilityTable = null;
+        this._renderOverlay();
+    }
+
+    /** Synchronize keyboard focus in the peak table with a visible chart marker. */
+    setFocusFrequency(frequencyHz: number | null): void {
+        this._focusFrequency = Number.isFinite(frequencyHz) && Number(frequencyHz) >= 0 ? Number(frequencyHz) : null;
         this._renderOverlay();
     }
 
@@ -261,7 +269,9 @@ export class FftChart {
             xMin,
             xMax,
             unit: this._xUnit(),
-            annotations: this._annotations,
+            annotations: this._focusFrequency === null
+                ? this._annotations
+                : [...new Set([...this._annotations, this._focusFrequency])],
             showPeakLabels: this._showPeakLabels,
             dominantPeaks: this._dominantPeaks,
             primaryTracePoints: this._overlayModel?.series[0]?.data ?? [],

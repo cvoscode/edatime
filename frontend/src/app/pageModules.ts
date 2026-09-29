@@ -79,7 +79,7 @@ const PAGE_DESCRIPTORS: readonly PageDescriptor[] = [
     {
         name: 'heatmap',
         requiresMetadata: true,
-        cssModules: ['scatter'],
+        cssModules: ['scatter', 'heatmap'],
         async load(deps) {
             const { initHeatmapPage, initHeatmapScatterLayer } = await import('../features/heatmap/index.js');
             return {

@@ -23,6 +23,7 @@ import { composeChipListItems, bindChipCtrlClick } from './chipComposition.js';
 import { initFilterModalController } from './filterModalController.js';
 import { renderColorByControl } from './colorByControl.js';
 import type { SelectionWorkspace } from './selectionIntent.js';
+import { setTimeseriesSelection } from './selectionIntent.js';
 import type { FilterWorkspace } from './selectionIntent.js';
 import type { DataObject } from '../../types/api.js';
 import type { CleaningPlanStore } from '../../cleaning/store.js';
@@ -93,7 +94,30 @@ export function buildColumnToggles(
         container.setAttribute('aria-label', summaryText);
         const disclosureValue = document.getElementById('timeseries-series-disclosure-value');
         if (disclosureValue) disclosureValue.textContent = `${active} of ${total} active`;
+        const count = document.getElementById('timeseries-selection-count');
+        if (count) count.textContent = `${active} of ${total} selected`;
+        const selected = workspace.getSnapshot().selection.columns;
+        const selectAll = document.getElementById('timeseries-select-all') as HTMLButtonElement | null;
+        const clearAll = document.getElementById('timeseries-clear-all') as HTMLButtonElement | null;
+        if (selectAll) selectAll.disabled = total === 0 || active === total;
+        if (clearAll) clearAll.disabled = selected.length === 0;
     };
+
+    const applyBulkSelection = (columns: string[]) => {
+        const currentColor = workspace.getSnapshot().selection.colorColumn;
+        setTimeseriesSelection(workspace, columns);
+        workspace.setSelection(columns, columns.length ? currentColor : null);
+        ensureAdaptiveTargetStillValid(workspace);
+        buildColumnToggles(fetchAndRender, buildRangeControlsFn, renderCurrentDataFn, workspace, openColumnFilter, cleaningPlanStore);
+        buildRangeControlsFn();
+        fetchAndRender();
+    };
+    const selectAllButton = document.getElementById('timeseries-select-all') as HTMLButtonElement | null;
+    const clearAllButton = document.getElementById('timeseries-clear-all') as HTMLButtonElement | null;
+    if (selectAllButton) selectAllButton.onclick = () => applyBulkSelection(
+        getEffectiveNumericColumns(workspace.getSnapshot().dataset.metadata, cleaningPlanStore?.getSnapshot()),
+    );
+    if (clearAllButton) clearAllButton.onclick = () => applyBulkSelection([]);
 
     renderSeriesChipList({
         container,

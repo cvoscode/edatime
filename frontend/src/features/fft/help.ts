@@ -1,87 +1,23 @@
-/**
- * fftHelp — page-level "?" help for the FFT / PSD page.
- *
- * The FFT page transforms selected numeric columns from the time
- * domain to the frequency domain. Two display modes (Magnitude vs
- * PSD), optional log scale, optional pre-scaling (normalize + clip),
- * and per-trace overlays. The help modal covers all of that.
- *
- * Wired from `initFftPage` so the help loads the first time the user
- * navigates to the page (lazy via `pageModules`).
- */
-
 import { initPageHelp, type PageHelpContent } from '../../ui/pageHelp.js';
 
 export const FFT_HELP: PageHelpContent = {
     pageName: 'Spectrum',
-    intro:
-        'Frequency-domain view of the selected numeric columns. Every visible series on the Signals page gets its own FFT trace here; choose Magnitude or PSD, scale, then look for peaks that dominate the spectrum.',
+    intro: 'Find recurring cycles in selected numeric traces over the Signals time range. Spectrum has an independent trace selection, initially the first two numeric columns, and remembers that selection.',
     sections: [
-        {
-            title: 'Display segment',
-            body:
-                'The first segment picks the display mode and the vertical scale.',
-            bullets: [
-                'Mode — Magnitude (raw amplitude) or PSD (power spectral density; integrates energy over a frequency band)',
-                'Log scale — when on (default), the y-axis is in dB; useful when peaks span many orders of magnitude',
-                'Linear scale — when off, y-axis is the raw amplitude; useful for short, peaky signals',
-            ],
-        },
-        {
-            title: 'Pre-scaling segment',
-            body:
-                'The second segment applies optional normalization and outlier clipping before the FFT. The same controls are mirrored on the Spectrogram page.',
-            bullets: [
-                'Normalize — none (raw values), min-max [0,1], or z-score (subtract mean, divide by std)',
-                'Outliers — when enabled, clips the input time series before the FFT to suppress transient spikes that would otherwise dominate the spectrum',
-                'Method — percentile (clip above/below a percentile) or IQR (clip outside Q1 − k·IQR … Q3 + k·IQR)',
-                'Param — the percentile or k value; the hint next to the input tells you which one is active',
-            ],
-        },
-        {
-            title: 'FFT chart',
-            body:
-                'Each numeric column from the Signals chart is plotted as its own line, sharing the x-axis (frequency in Hz). Peaks in a trace line up with periodic components in the original signal.',
-            bullets: [
-                'X axis — frequency, scaled to the time window of the data (a 60-second window reaches 30 Hz, a 1-day window reaches ~5.8 µHz)',
-                'Y axis — amplitude (Magnitude mode) or power (PSD mode); log scale shows dB',
-                'Hover — tooltip with frequency, amplitude, and the originating column',
-                'Double-click — reset zoom to the full frequency range',
-                'Drag — box-zoom on either axis',
-            ],
-        },
-        {
-            title: 'Export',
-            body:
-                'PNG / SVG / HTML capture the visual; CSV saves the frequency grid and the per-trace amplitude (or PSD) values for downstream analysis.',
-            bullets: [
-                'PNG / SVG — visual snapshot for slides and documentation',
-                'HTML — single-file with the FFT traces visible',
-                'CSV — raw frequency column plus one column per trace; safe to import into another tool',
-            ],
-        },
-        {
-            title: 'How the help button works',
-            body:
-                'Every page has its own "?" button like this one. Hover or focus it for a one-line title; click for the full guide. Press Esc to close, or click outside the dialog. Toolbar-level "?" icons open a smaller inline tip with the same content.',
-        },
-    ],
-    shortcuts: [
-        { keys: '⌥5', description: 'Open the FFT / PSD page (this page)' },
-        { keys: '⌥6', description: 'Open the Spectrogram page — useful for time-localized frequency content' },
-        { keys: '?', description: 'Show the global keyboard shortcuts modal' },
-        { keys: 'P', description: 'Export the chart as PNG' },
-        { keys: 'E', description: 'Export the FFT traces as CSV' },
-        { keys: 'Ctrl+K', description: 'Command palette — every action above is searchable here' },
-    ],
-    tips: [
-        'If the FFT looks dominated by a single huge spike at low frequency, the data has a slow trend — switch to first-differences on the Signals page first, or enable Outlier clipping here.',
-        'Pre-scaling is mostly cosmetic for visual interpretation but does not change the underlying frequency content. Use it for side-by-side comparison of columns with different units.',
-        'Switch to PSD when you care about power in a band; stick with Magnitude when you care about the amplitude of a specific peak.',
-        'Save the session (Ctrl+S) to keep your Mode/Scale/Pre-scaling choices; otherwise they reset on reload.',
+        { title: 'Input processing', bullets: [
+            'Detrend: None retains the level; Remove mean subtracts the average; Remove linear trend subtracts a fitted straight line before the transform.',
+            'A symmetric Hann window reduces leakage. Magnitude corrects its coherent gain. PSD uses sample-rate and window-energy normalization.',
+            'The point budget bounds work. Larger inputs are averaged over equal-width bins covering the selected range. The returned effective cadence determines Nyquist and the shortest resolvable period.',
+            'The source must have an ascending regular time grid. Masked observations retain their time positions and contribute no centered value; extensive gaps can bias spectra. Review missing counts in export provenance.',
+        ] },
+        { title: 'Display', bullets: [
+            'Magnitude is one-sided amplitude in signal units, with coherent-gain correction. PSD is a one-sided periodogram in signal²/Hz; a frequency-band sum times bin width estimates mean-square signal power, not total energy.',
+            'Log displays log10 of positive spectral values. It is not decibels. A normalized or clipped display no longer has the raw physical units.',
+            'Normalize and Clip plotted values act on returned spectral ordinates only. They do not remove time-domain spikes, recompute the transform, or change the ranked raw peaks.',
+            'To change time-domain outliers, add an explicit Preparation rule and recompute. To reveal cycles beneath a slow trend, try Remove linear trend and compare the results.',
+        ] },
+        { title: 'Resolution', body: 'Frequency spacing depends on analyzed duration; the highest frequency depends on effective cadence. Narrow the Signals range or raise the point budget to retain shorter cycles. Peaks may reflect trend, leakage, or nonstationarity rather than a stable recurring process.' },
+        { title: 'Export', body: 'PNG, SVG, and HTML capture the display. CSV exports raw magnitudes or PSD before Normalize, Clip, or log10. Provenance records detrending, Hann window, estimator, units, range, missing observations, and sampling.' },
     ],
 };
-
-export function initFftHelp(): () => void {
-    return initPageHelp('fft', FFT_HELP);
-}
+export function initFftHelp(): () => void { return initPageHelp('fft', FFT_HELP); }

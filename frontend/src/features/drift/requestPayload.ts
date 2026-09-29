@@ -1,3 +1,5 @@
+import { parseUtcDatetimeInputValue } from '../../utils/datetimeInput.js';
+
 export interface DriftInvestigationRequestInput {
     columns: string[];
     window: string | null | undefined;
@@ -17,8 +19,13 @@ export function normalizeDriftThreshold(value: unknown, fallback: number): numbe
 }
 
 export function buildDriftInvestigationRequest(input: DriftInvestigationRequestInput): Record<string, unknown> {
-    const referenceStart = new Date(input.referenceStart).toISOString();
-    const referenceEnd = new Date(input.referenceEnd).toISOString();
+    const startMs = parseUtcDatetimeInputValue(input.referenceStart);
+    const endMs = parseUtcDatetimeInputValue(input.referenceEnd);
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || startMs >= endMs) {
+        throw new Error('Enter a valid UTC reference range with end after start.');
+    }
+    const referenceStart = new Date(startMs).toISOString();
+    const referenceEnd = new Date(endMs).toISOString();
     const payload: Record<string, unknown> = {
         columns: input.columns,
         window: input.window || 'daily',

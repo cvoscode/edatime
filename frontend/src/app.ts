@@ -28,7 +28,6 @@ import {
 import { createTimeseriesPlanFilterSync } from './platform/planFilterSync.js';
 // Scatter is dynamically imported on first navigation through the feature
 // registry, keeping its heavy chunks out of the initial application bundle.
-import { initAppShell } from './app/shell.js';
 import { showPage } from './app/navigation/showPage.js';
 import { createAppRuntime } from './app/runtime.js';
 import { configureSeriesColorWorkspace } from './utils/seriesColors.js';
@@ -58,6 +57,7 @@ import type { ChartInstance, ViewSnapshot } from './types/chart.js';
 import { primaryChart } from './charts/primaryChart.js';
 import { initDataFreshnessIndicator } from './ui/freshnessIndicator.js';
 import { getCleaningPlanHash } from './cleaning/store.js';
+import { setExportProvenanceContext } from './utils/exportProvenanceContext.js';
 import { invalidateDatasetRequestScope } from './services/api/datasetRequestScope.js';
 import { clearScatterViewSnapshots } from './store/scatterState.js';
 import { setSpectralFilterPreview, setAnomalyRegions, setAnomalySummaryStats } from './store/analyticsState.js';
@@ -83,6 +83,7 @@ export function createApp(): AppRoot {
     const runtime = createAppRuntime();
     const featureRegistry = createFeatureRegistry();
     const workspace = createWorkspaceStore();
+    runtime.registerCleanup(initDataFreshnessIndicator());
     const fetchMetadata = async (options?: ApiRequestOptions) => {
         const modules = await ensureBootstrapDataModules();
         return modules.fetchMetadata(options);
@@ -114,6 +115,15 @@ export function createApp(): AppRoot {
     runtime.registerCleanup(configureSeriesColorWorkspace(workspace));
     const analyticsOverlay = createAnalyticsOverlayController();
     let timeseriesModule!: ReturnType<typeof createTimeseriesModule>;
+    runtime.registerCleanup(setExportProvenanceContext({
+        workspace,
+        cleaningPlanStore,
+        getData: () => timeseriesModule?.getCurrentData() ?? null,
+        loadAppliedPlanHistory: async (versionId) => {
+            const { getAppliedPlanHistory } = await import('./cleaning/api.js');
+            return getAppliedPlanHistory(versionId);
+        },
+    }));
     let exportFeatureLoad: Promise<ExportFeature> | null = null;
     const runExport = async (action: keyof ExportFeature) => {
         try {
@@ -151,6 +161,11 @@ export function createApp(): AppRoot {
     runtime.registerCleanup(analyticsOverlay.dispose);
 
     let appDisposed = false;
+    let disposeDatasetFreshnessTracking: (() => void) | null = null;
+    runtime.registerCleanup(() => { disposeDatasetFreshnessTracking?.(); disposeDatasetFreshnessTracking = null; });
+    void import('./app/datasetFreshnessTracking.js').then(({ trackDatasetFreshness }) => {
+        if (!appDisposed) disposeDatasetFreshnessTracking = trackDatasetFreshness(workspace);
+    });
     let appStart: Promise<void> | null = null;
     let dataChartCtor: DataChartCtorType | null = null;
     let sessionPersistenceStarted = false;
@@ -184,6 +199,25 @@ export function createApp(): AppRoot {
     async function refreshDatasetAfterMutation(options?: { selectedColumn?: string }): Promise<void> {
         await timeseriesModule.refreshAfterMutation(options);
         if (!appDisposed) showPage(getHashPage() ?? 'timeseries');
+        if (appDisposed) return;
+
+        // A version switch or materialization can reuse an exact report already
+        // in the server cache, or start one for this immutable source. The API
+        // response is checked against the refreshed workspace before it is used.
+        const activeVersionId = workspace.getSnapshot().dataset.activeSourceVersionId;
+        if (!activeVersionId) return;
+        try {
+            const { fetchDatasetProfile, startDatasetProfile } = await import('./services/api/profile.js');
+            const current = await fetchDatasetProfile();
+            if (current.sourceVersion.id !== activeVersionId) return;
+            if (['ready', 'queued', 'running', 'cancelling'].includes(current.status)) return;
+            const started = await startDatasetProfile();
+            if (started.sourceVersion.id !== activeVersionId
+                || workspace.getSnapshot().dataset.activeSourceVersionId !== activeVersionId) return;
+        } catch {
+            // The dataset refresh already succeeded. The Preparation report
+            // retains its explicit retry action if background profiling fails.
+        }
     }
 
     async function ensureCleaningPanelMounted(refreshCleaningPlanConsumers: () => void): Promise<void> {
@@ -217,7 +251,6 @@ export function createApp(): AppRoot {
 
         upgradeSelects(document);
         upgradeFlexibleNumberInputs(document);
-        runtime.registerCleanup(initDataFreshnessIndicator());
         installWindowsWebGpuRequestAdapterWorkaround();
         // Hydrate persisted chart preferences (Y-range "stack from 0", etc.)
         // BEFORE the toolbar wires up so the toggle starts in the right state.
@@ -317,6 +350,8 @@ export function createApp(): AppRoot {
                 workspace,
             });
         })();
+        const { initAppShell } = await import('./app/shell.js');
+        if (appDisposed) return;
         initAppShell({
             ensurePageModuleLoaded: async (page) => {
                 await pageDescriptorsReady;

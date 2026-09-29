@@ -9,6 +9,8 @@ use bytes::Bytes;
 /// empty in a mode-specific working cache entry.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CorrelationMatrixCacheEntry {
+    pub input_rows: usize,
+    pub time_range_ms: Option<[f64; 2]>,
     pub columns: Vec<String>,
     pub pearson_raw: Vec<Vec<Option<f64>>>,
     pub spearman_raw: Vec<Vec<Option<f64>>>,

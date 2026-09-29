@@ -10,7 +10,7 @@ use edatime_core::error::AppError;
 use polars::prelude::{DataType, Expr, Field, Float64Chunked, IntoColumn, Schema, col, lit};
 
 const ALLOWED_FUNCTIONS: &[&str] = &[
-    "abs", "log", "log2", "log10", "sqrt", "exp", "sin", "cos", "tan", "ceil", "floor", "round",
+    "abs", "log", "log2", "log10", "sqrt", "exp", "sin", "cos", "tan", "ceil", "floor", "round", "nullifzero",
 ];
 
 #[derive(Debug, Clone, PartialEq)]
@@ -101,6 +101,7 @@ impl DerivedExpression {
             Self::Function { name, input } => {
                 let input = input.to_python_polars();
                 match name.as_str() {
+                    "nullifzero" => format!("pl.when(({input}) == 0).then(None).otherwise({input}).cast(pl.Float64)"),
                     "log" => format!("({input}).cast(pl.Float64).log(base=math.e)"),
                     "log2" => format!("({input}).cast(pl.Float64).log(base=2)"),
                     "log10" => format!("({input}).cast(pl.Float64).log(base=10)"),
@@ -125,6 +126,10 @@ impl DerivedExpression {
                 right.to_rust_polars()
             ),
             Self::Function { name, input } => {
+                if name == "nullifzero" {
+                    let input = input.to_rust_polars();
+                    return format!("when(({input}).eq(lit(0.0))).then(lit(NULL)).otherwise({input}).cast(DataType::Float64)");
+                }
                 let operation = match name.as_str() {
                     "abs" => "value.abs()",
                     "log" => "value.ln()",
@@ -174,6 +179,11 @@ fn number(value: f64) -> String {
 }
 
 fn parse_expression(expression: &str) -> Result<DerivedExpression, AppError> {
+    if expression.starts_with('"') && expression.ends_with('"') {
+        let column = serde_json::from_str::<String>(expression)
+            .map_err(|_| AppError::bad_request("Invalid quoted column name"))?;
+        return Ok(DerivedExpression::Column(column));
+    }
     if let Some(open) = expression.find('(')
         && expression.ends_with(')')
     {
@@ -239,6 +249,10 @@ fn parse_expression(expression: &str) -> Result<DerivedExpression, AppError> {
 }
 
 fn float_function(expression: Expr, name: &str) -> Expr {
+    if name == "nullifzero" {
+        return polars::prelude::when(expression.clone().eq(lit(0.0)))
+            .then(lit(polars::prelude::NULL)).otherwise(expression).cast(DataType::Float64);
+    }
     let name = name.to_string();
     expression.cast(DataType::Float64).map(
         move |series| {
@@ -274,6 +288,17 @@ fn apply_function(name: &str, value: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::{DerivedExpression, parse_derived_expression};
+
+    #[test]
+    fn zero_mask_preserves_nulls_and_nonzero_values_with_portable_exports() {
+        use polars::prelude::*;
+        let expression = parse_derived_expression("nullifzero(\"value with spaces\")").unwrap();
+        let df = DataFrame::new(5, vec![Series::new("value with spaces".into(), [Some(0.0), Some(-0.0), Some(-2.0), None, Some(3.0)]).into()]).unwrap();
+        let result = df.lazy().select([expression.to_polars_expr().alias("masked")]).collect().unwrap();
+        assert_eq!(result.column("masked").unwrap().f64().unwrap().into_iter().collect::<Vec<_>>(), vec![None, None, Some(-2.0), None, Some(3.0)]);
+        assert!(expression.to_python_polars().contains(".then(None)"));
+        assert!(expression.to_rust_polars().contains(".then(lit(NULL))"));
+    }
 
     #[test]
     fn parses_the_legacy_transform_grammar_into_a_portable_tree() {

@@ -6,7 +6,10 @@
  */
 
 import { DEBUG } from '../../debug.js';
-import { fetchDriftInvestigation } from '../../services/api/index.js';
+import { fetchDriftInvestigation, fetchDriftPreflight } from '../../services/api/index.js';
+import type { DriftPreflightResponse } from '../../contracts/api/v1/drift.js';
+import { cleaningPlanStore } from '../../cleaning/store.js';
+import { buildPlanRequestSnapshot } from '../../cleaning/compiler.js';
 import { bindDriftControls, getSelectedColumns, resetDriftControlsState } from './controls.js';
 import { toast } from '../../utils/toast.js';
 import { createAnalysisPageRuntime } from '../../platform/analysisRuntime.js';
@@ -23,6 +26,8 @@ import type {
     DriftResponse,
 } from './viewModels.js';
 import { exportEChartsPNG } from '../../utils/chartExport.js';
+import { downloadBlob } from '../../utils/dom.js';
+import { beginCompletedAnalysisExportContext } from '../../utils/exportProvenanceContext.js';
 import { markDataUpdated } from '../../ui/freshnessIndicator.js';
 import {
     getECharts,
@@ -141,6 +146,7 @@ export async function initDriftPage(
     const summaryStripEl = document.getElementById('drift-summary-strip') as HTMLElement | null;
     const columnSummaryEl = document.getElementById('drift-column-summary') as HTMLElement | null;
     const statusEl = document.getElementById('drift-status') as HTMLElement | null;
+    const preflightPanel = document.getElementById('drift-preflight-panel') as HTMLElement | null;
     const overviewPanelEl = document.getElementById('drift-overview-panel') as HTMLElement | null;
     const segmentsPanelEl = document.getElementById('drift-segments-panel') as HTMLElement | null;
     const qualityPanelEl = document.getElementById('drift-quality-panel') as HTMLElement | null;
@@ -155,6 +161,8 @@ export async function initDriftPage(
     let activeTab = 'timeline';
     let activeTraceFilter: 'all' | 'drifting' | 'stable' = 'all';
     let traceSearchQuery = '';
+    let pendingPreflightKey: string | null = null;
+    let preflightAbort: AbortController | null = null;
 
     getECharts().catch(() => { /* non-critical; will retry on first ensureCharts() call */ });
 
@@ -254,7 +262,18 @@ export async function initDriftPage(
         if (driftLayoutEl) driftLayoutEl.hidden = show;
     }
 
+    function clearDriftPreflight(): void {
+        pendingPreflightKey = null;
+        preflightAbort?.abort();
+        preflightAbort = null;
+        if (preflightPanel) {
+            preflightPanel.hidden = true;
+            preflightPanel.replaceChildren();
+        }
+    }
+
     function setIdleStatus(): void {
+        clearDriftPreflight();
         if (!statusEl) return;
         statusEl.textContent = 'Select one or more columns, choose a baseline, and run the analysis.';
     }
@@ -277,7 +296,8 @@ export async function initDriftPage(
                 ? ' Every window is flagged; the method-reliability warning above may explain this. Use a longer window or shorter reference before changing thresholds.'
                 : ' Every window is flagged; consider relaxing thresholds or using a longer baseline.'
             : '';
-        statusEl.textContent = `Drift analysis complete. ${summary.flaggedTotal} of ${summary.windowsTotal} windows flagged.${hint}`;
+        const testedWindows = Array.from(rawResponsesByColumn.values()).reduce((sum, response) => sum + response.windows.length, 0) || summary.windowsTotal;
+        statusEl.textContent = `Drift analysis complete. ${summary.flaggedTotal} of ${summary.windowsTotal} trace/window comparisons flagged. Up to ${(testedWindows * 2).toLocaleString()} unadjusted KS and E-S significance tests across ${testedWindows.toLocaleString()} computed trace/window comparisons; inspect effect size and persistent changes, since neighboring windows are dependent.${hint}`;
     }
 
     function updateDetailColumnSelect(): void {
@@ -533,44 +553,190 @@ export async function initDriftPage(
         if (statusEl) statusEl.textContent = 'Drift analysis canceled. Adjust the setup and run again when ready.';
     }, { signal: pageAbortController.signal });
 
-    async function runCompute(): Promise<void> {
+    function buildCurrentDriftPayload(): Record<string, unknown> | null {
         const columns = getSelectedColumns();
-        if (columns.length === 0) {
-            toast('Select at least one numeric column.', 'warning', {});
-            return;
-        }
-
         const refStart = refStartInput?.value;
         const refEnd = refEndInput?.value;
+        if (columns.length === 0) {
+            toast('Select at least one numeric column.', 'warning', {});
+            return null;
+        }
         if (!refStart || !refEnd) {
             toast('Set reference start and end dates.', 'warning', {});
+            return null;
+        }
+        return buildDriftInvestigationRequest({
+            columns,
+            window: getDropdownValue('drift-window-select'),
+            referenceStart: refStart,
+            referenceEnd: refEnd,
+            segmentBy: getDropdownValue('drift-segment-by'),
+            ksPvalueThreshold: ksThresholdInput?.value,
+            esPvalueThreshold: esThresholdInput?.value,
+            psiMinorThreshold: psiMinorThresholdInput?.value,
+            psiMajorThreshold: psiMajorThresholdInput?.value,
+            wassersteinStdMultiplier: wassersteinStdMultiplierInput?.value,
+        });
+    }
+
+    function driftSetupKey(payload: Record<string, unknown>): { key: string; plan: ReturnType<typeof buildPlanRequestSnapshot> } {
+        const currentPlan = cleaningPlanStore.getSnapshot();
+        if (!currentPlan) throw new Error('Choose a dataset before checking Drift setup.');
+        const plan = buildPlanRequestSnapshot(currentPlan);
+        return { key: JSON.stringify({ payload, plan }), plan };
+    }
+
+    function showPreflight(report: DriftPreflightResponse | null, errorMessage?: string): void {
+        if (!preflightPanel) return;
+        preflightPanel.replaceChildren();
+        const heading = document.createElement('h3');
+        heading.id = 'drift-preflight-title';
+        heading.textContent = report?.decisionReady ? 'Drift preflight passed' : 'Review Drift setup';
+        preflightPanel.append(heading);
+        if (errorMessage) {
+            const message = document.createElement('p');
+            message.textContent = errorMessage;
+            preflightPanel.append(message);
+        }
+        if (report) {
+            for (const column of report.columns) {
+                const card = document.createElement('section');
+                card.className = 'drift-preflight-column';
+                const title = document.createElement('h4');
+                title.textContent = `${column.column} · ${column.decisionReady ? 'Ready' : 'Not decision-ready'}`;
+                card.append(title);
+                const counts = document.createElement('p');
+                counts.textContent = `Valid samples: ${column.referenceValidSamples.toLocaleString()} in reference; ${column.comparisonValidSamples.toLocaleString()} in monitoring windows (${column.comparisonWindows} windows). Reference/window ratio: ${column.referenceToWindowRatio?.toFixed(1) ?? 'unavailable'}:1; average valid window n = ${column.averageWindowSamples.toFixed(1)}.`;
+                card.append(counts);
+                if (column.warnings.length > 0) {
+                    const warnings = document.createElement('ul');
+                    for (const text of column.warnings) {
+                        const item = document.createElement('li');
+                        item.textContent = text;
+                        warnings.append(item);
+                    }
+                    card.append(warnings);
+                }
+                if (column.suggestions.length > 0) {
+                    const suggestions = document.createElement('ul');
+                    suggestions.setAttribute('aria-label', `${column.column} suggested settings`);
+                    for (const text of column.suggestions) {
+                        const item = document.createElement('li');
+                        item.textContent = text;
+                        suggestions.append(item);
+                    }
+                    card.append(suggestions);
+                }
+                preflightPanel.append(card);
+            }
+        }
+        const actions = document.createElement('div');
+        actions.className = 'drift-preflight-actions';
+        const runAnyway = document.createElement('button');
+        runAnyway.type = 'button';
+        runAnyway.className = 'btn btn-accent btn-sm';
+        runAnyway.textContent = report ? 'Run anyway' : 'Retry preflight';
+        runAnyway.addEventListener('click', () => { void runCompute(Boolean(report)); }, { once: true, signal: pageAbortController.signal });
+        actions.append(runAnyway);
+        const edit = document.createElement('button');
+        edit.type = 'button';
+        edit.className = 'btn btn-ghost btn-sm';
+        edit.textContent = 'Change setup';
+        edit.addEventListener('click', clearDriftPreflight, { once: true, signal: pageAbortController.signal });
+        actions.append(edit);
+        preflightPanel.append(actions);
+        preflightPanel.hidden = false;
+        preflightPanel.focus?.();
+    }
+
+    async function runCompute(runAnyway = false): Promise<void> {
+        let basePayload: Record<string, unknown> | null;
+        let setup: ReturnType<typeof driftSetupKey>;
+        try {
+            basePayload = buildCurrentDriftPayload();
+            if (!basePayload) return;
+            setup = driftSetupKey(basePayload);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            if (statusEl) statusEl.textContent = message;
+            showPreflight(null, message);
+            return;
+        }
+        const completeAnalysisProvenance = beginCompletedAnalysisExportContext({
+            pageName: 'drift',
+            controls: {
+                columns: Array.isArray(basePayload.columns) ? basePayload.columns.join(', ') : '',
+                window: String(basePayload.window ?? ''),
+                significance: 'Unadjusted per-window KS and E-S p-values; dependent repeated comparisons', 
+                referenceStart: String(basePayload.referenceStart ?? ''),
+                referenceEnd: String(basePayload.referenceEnd ?? ''),
+                comparisonStart: String(basePayload.comparisonStart ?? ''),
+                segmentBy: String(basePayload.segmentBy ?? ''),
+                ksPvalueThreshold: Number(basePayload.ksPvalueThreshold),
+                esPvalueThreshold: Number(basePayload.esPvalueThreshold),
+                psiMinorThreshold: Number(basePayload.psiMinorThreshold),
+                psiMajorThreshold: Number(basePayload.psiMajorThreshold),
+                wassersteinStdMultiplier: Number(basePayload.wassersteinStdMultiplier),
+            },
+        });
+        if (runAnyway && pendingPreflightKey !== setup.key) {
+            clearDriftPreflight();
+            await runCompute();
             return;
         }
 
         computeBtnEl.disabled = true;
-        computeBtnEl.textContent = 'Running…';
+        computeBtnEl.textContent = 'Checking setup…';
+        computeBtnEl.title = 'Drift is checking the sample setup before analysis.';
+        if (statusEl) statusEl.textContent = 'Checking Drift sample counts and reliability before analysis…';
         syncEmptyState(false);
 
-        // Load the chart runtime in parallel with the API request. Drift results
-        // should not wait behind a large visualization chunk before the backend
-        // can start computing, especially on a cold mobile visit.
-        const chartsReady = ensureChartsAsync().catch(() => undefined);
-
         try {
-            await driftComputeTask.run(async (signal) => {
-                const basePayload = buildDriftInvestigationRequest({
-                    columns,
-                    window: getDropdownValue('drift-window-select'),
-                    referenceStart: refStart,
-                    referenceEnd: refEnd,
-                    segmentBy: getDropdownValue('drift-segment-by'),
-                    ksPvalueThreshold: ksThresholdInput?.value,
-                    esPvalueThreshold: esThresholdInput?.value,
-                    psiMinorThreshold: psiMinorThresholdInput?.value,
-                    psiMajorThreshold: psiMajorThresholdInput?.value,
-                    wassersteinStdMultiplier: wassersteinStdMultiplierInput?.value,
-                });
+            if (!runAnyway) {
+                const controller = new AbortController();
+                preflightAbort?.abort();
+                preflightAbort = controller;
+                const abortPreflight = () => controller.abort();
+                pageAbortController.signal.addEventListener('abort', abortPreflight, { once: true });
+                try {
+                    const report = await fetchDriftPreflight(basePayload, { signal: controller.signal });
+                    if (controller.signal.aborted) return;
+                    const currentPayload = buildCurrentDriftPayload();
+                    if (!currentPayload || driftSetupKey(currentPayload).key !== setup.key) {
+                        clearDriftPreflight();
+                        if (statusEl) statusEl.textContent = 'Drift setup changed during the preflight. Run again to check the updated inputs.';
+                        return;
+                    }
+                    const planMatches = report.sourceVersionId === setup.plan.expectedSourceVersionId
+                        && report.sourceRevision === setup.plan.expectedDatasetRevision
+                        && report.schemaFingerprint === setup.plan.plan.schemaFingerprint;
+                    // The client hash coalesces requests; the server uses its own canonical
+                    // hash. The snapshot key above verifies that this exact request is still current.
+                    if (!planMatches) throw new Error('The dataset or preparation plan changed during the preflight. Run analysis again.');
+                    if (!report.decisionReady || report.columns.some((column) => !column.decisionReady || column.warnings.length > 0)) {
+                        pendingPreflightKey = setup.key;
+                        showPreflight(report);
+                        if (statusEl) statusEl.textContent = 'Drift preflight found reliability concerns. Review the sample counts and suggestions before running.';
+                        return;
+                    }
+                    clearDriftPreflight();
+                    if (statusEl) statusEl.textContent = 'Drift preflight passed. Computing results…';
+                } catch (error) {
+                    if (controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')) return;
+                    pendingPreflightKey = setup.key;
+                    showPreflight(null, `Preflight could not verify the selected source and settings: ${error instanceof Error ? error.message : String(error)} Check the reference range and server connection, then retry.`);
+                    if (statusEl) statusEl.textContent = `Drift preflight failed: ${error instanceof Error ? error.message : String(error)}. Use Retry preflight or Change setup.`;
+                    return;
+                } finally {
+                    pageAbortController.signal.removeEventListener('abort', abortPreflight);
+                }
+            } else {
+                clearDriftPreflight();
+            }
 
+            computeBtnEl.textContent = 'Running…';
+            const chartsReady = ensureChartsAsync().catch(() => undefined);
+            await driftComputeTask.run(async (signal) => {
                 const investigation = await fetchDriftInvestigation<DriftInvestigationResponse>(basePayload, { signal });
                 await chartsReady;
                 const results = new Map<string, DriftResponse>(Object.entries(investigation.columns || {}));
@@ -578,12 +744,9 @@ export async function initDriftPage(
                 if (DEBUG && investigation.overview) console.debug('drift investigation overview', investigation.overview);
 
                 rawResponsesByColumn = results;
-
-                // Signal that the next render should do a full ECharts option reset
-                // (new series data) rather than an incremental merge (issue #8).
                 _pendingFullReset = true;
-
                 applyRenderedResponses(results, investigation);
+                completeAnalysisProvenance(investigation.executionIdentity ?? null);
                 markDataUpdated();
                 setActiveTab('timeline');
                 scheduleDriftChartRefresh();
@@ -598,22 +761,16 @@ export async function initDriftPage(
                     });
             });
         } finally {
-            // Reset button state regardless of whether the run completed,
-            // errored, or was superseded by another run() call.
             computeBtnEl.disabled = false;
             computeBtnEl.textContent = 'Run analysis';
+            computeBtnEl.title = '';
         }
     }
 
     function exportDriftCsv(): void {
         if (getResponsesByColumn().size === 0) return;
         const blob = new Blob([buildDriftCsv(getResponsesByColumn())], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `drift_multi_${new Date().toISOString().replace(/[:.]/g, '-')}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
+        downloadBlob(blob, `drift_multi_${new Date().toISOString().replace(/[:.]/g, '-')}.csv`);
     }
 
     function exportDriftJson(): void {
@@ -625,12 +782,7 @@ export async function initDriftPage(
             getLatestWindowCount(),
             getResponsesByColumn(),
         )], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `drift_multi_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
+        downloadBlob(blob, `drift_multi_${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
     }
 
     if (!timelineEl || !detailEl || !computeBtn || !detailColumnSelect) {
@@ -691,6 +843,12 @@ export async function initDriftPage(
     }
 
     // ── Wire controls ────────────────────────────────────────────────────────
+    const driftPageRoot = document.getElementById('page-drift');
+    const invalidatePreflightOnEdit = () => {
+        if (pendingPreflightKey || preflightAbort) clearDriftPreflight();
+    };
+    driftPageRoot?.addEventListener('input', invalidatePreflightOnEdit, { signal: pageAbortController.signal });
+    driftPageRoot?.addEventListener('change', invalidatePreflightOnEdit, { signal: pageAbortController.signal });
     const disposeControls = bindDriftControls(
         {
             getSelectedColumns,

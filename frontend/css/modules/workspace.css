@@ -958,3 +958,42 @@ header.app-topbar {
     transition: none;
   }
 }
+
+/* Frequency pages always report the cadence that produced their spectrum. */
+.spectral-sampling-context {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  margin: 6px 0;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--surface-1);
+  color: var(--text);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.spectrogram-peak-summary { padding: 8px 12px; border-top: 1px solid var(--border-subtle); }
+.spectrogram-peak-summary > p:first-child { margin: 0 0 8px; color: var(--text); font-size: 0.78rem; }
+.spectrogram-peak-table { width: 100%; border-collapse: collapse; font-size: 0.72rem; font-variant-numeric: tabular-nums; }
+.spectrogram-peak-table caption { padding: 4px 0 6px; text-align: left; color: var(--text-dim); }
+.spectrogram-peak-table th, .spectrogram-peak-table td { padding: 5px 8px; border-bottom: 1px solid var(--border-subtle); text-align: left; }
+.spectrogram-peak-table th { color: var(--text-muted); }
+.spectrogram-peak-table tbody tr { cursor: default; }
+.spectrogram-peak-table tbody tr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.analysis-selection-help { margin: 0; padding: 5px 12px; color: var(--text-dim); font-size: .74rem; }
+
+.timeseries-selection-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 8px; width: 100%; color: var(--text-dim); font-size: .72rem; }
+.timeseries-selection-tools > span:first-child { margin-right: auto; }
+.timeseries-selection-count { color: var(--text); font-variant-numeric: tabular-nums; }
+@media (max-width: 760px) { .timeseries-selection-tools > span:first-child { flex-basis: 100%; } }
+
+.dataset-change-indicator { color: var(--text-dim); border-color: var(--shell-border); }
+.export-provenance-retry { position: fixed; z-index: 1200; inset-inline-end: 16px; inset-block-end: 16px; display: flex; align-items: center; gap: 10px; max-width: min(720px, calc(100vw - 32px)); padding: 10px 12px; border: 1px solid var(--border-hi); border-radius: 8px; background: var(--surface-1); color: var(--text); box-shadow: 0 8px 28px rgb(0 0 0 / .25); }
+.export-provenance-retry[hidden] { display: none; }
+.export-provenance-retry__message { color: var(--text-dim); font-size: .8125rem; line-height: 1.4; }
+@media (max-width: 600px) { .export-provenance-retry { inset-inline: 10px; inset-block-end: 10px; flex-wrap: wrap; } }

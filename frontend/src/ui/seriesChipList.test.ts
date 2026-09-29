@@ -4,7 +4,7 @@ import { renderSeriesChipList, updateSeriesChipList } from './seriesChipList.js'
 // Mock the SeriesChip composite — only the factory function shape matters for these tests
 vi.mock('./composites/SeriesChip.js', () => ({
     SeriesChip: vi.fn(({ column, label, checked, color, disabled, onToggle, onColorInput, onMenuClick }) => {
-        const chip = document.createElement('div');
+        const chip = document.createElement('label');
         chip.className = 'series-chip' + (checked ? ' active' : '');
         chip.dataset.col = column;
         chip.style.setProperty('--chip-accent', color);
@@ -12,6 +12,8 @@ vi.mock('./composites/SeriesChip.js', () => ({
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.checked = checked;
+        checkbox.value = column;
+        checkbox.setAttribute('aria-label', `Toggle ${column} series`);
         checkbox.addEventListener('change', () => onToggle(checkbox.checked, column));
         chip.appendChild(checkbox);
 
@@ -213,7 +215,7 @@ describe('updateSeriesChipList', () => {
         expect(updatedChip.classList.contains('active')).toBe(true);
     });
 
-    it('binds keyboard activation when preserveExisting is used on the initial render', () => {
+    it('keeps trace selection as a focusable native checkbox without duplicate button state', () => {
         const onToggle = vi.fn();
         renderSeriesChipList({
             container,
@@ -222,9 +224,14 @@ describe('updateSeriesChipList', () => {
         });
 
         const chip = container.querySelector<HTMLElement>('[data-col="kbd"]')!;
-        chip.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-
-        expect(onToggle).toHaveBeenCalledTimes(1);
+        const checkbox = chip.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+        expect(chip.tagName).toBe('LABEL');
+        expect(chip.hasAttribute('role')).toBe(false);
+        expect(chip.hasAttribute('aria-pressed')).toBe(false);
+        expect(checkbox.tabIndex).toBe(0);
+        expect(checkbox.getAttribute('aria-label')).toBe('Toggle kbd series');
+        checkbox.checked = true;
+        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
         expect(onToggle).toHaveBeenCalledWith(true, 'kbd');
     });
 });

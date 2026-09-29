@@ -12,8 +12,16 @@ export interface DatasetVersionRecord {
     datasetFingerprint: string;
     schemaFingerprint: string;
     sourceName: string | null;
+    displayName?: string | null;
+    timeColumn?: string | null;
     materializedFromPlanHash: string | null;
     createdAt: string;
+}
+
+export interface AppliedPlanHistoryResponse {
+    sourceVersion: DatasetVersionRecord;
+    appliedPlan: CleaningPlan | null;
+    historyStatus: 'available' | 'missing' | 'none';
 }
 
 export interface ArtifactStorageUsage {
@@ -221,6 +229,17 @@ export function selectDatasetVersion(
     options?: ApiRequestOptions,
 ): Promise<DatasetVersionRecord> {
     return postJson(apiV1Routes.cleaning.selectVersion, { versionId }, 'Dataset version selection', options);
+}
+
+export function getAppliedPlanHistory(
+    versionId: string,
+    options?: ApiRequestOptions,
+): Promise<AppliedPlanHistoryResponse> {
+    return getJson(
+        apiV1Routes.cleaning.versionProvenance(versionId),
+        'Applied plan history',
+        options,
+    );
 }
 
 export function getArtifactStorageUsage(options?: ApiRequestOptions): Promise<ArtifactStorageUsage> {

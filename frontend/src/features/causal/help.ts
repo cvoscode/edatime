@@ -1,97 +1,29 @@
-/**
- * causalHelp — page-level "?" help for the Causality page.
- *
- * The Causality page wraps Tigramite-style algorithms (PCMCI, PCMCI+,
- * FullCI, BivCI, LPCMCI) and renders the directed graph with edge
- * lags and p-values. The help modal covers the algorithm choice,
- * the parameters, and the graph interactions.
- *
- * Wired from `initCausalPage` so the help loads the first time the
- * user navigates to the page (lazy via `pageModules`).
- */
-
 import { initPageHelp, type PageHelpContent } from '../../ui/pageHelp.js';
 
 export const CAUSAL_HELP: PageHelpContent = {
     pageName: 'Causality',
-    intro:
-        'Causal discovery via Tigramite. Pick a method, choose your columns and lags, then run the algorithm to get a directed graph with per-edge lags and p-values. Use it to test "does X cause Y, with what lag, and how confident are we?".',
+    intro: 'Explore candidate directional lag relationships using native Rust implementations of PCMCI-family methods. Observational results depend on assumptions; a small p-value is not a probability that an edge is causal.',
     sections: [
-        {
-            title: 'Method picker',
-            body:
-                'The first segment picks the causal-discovery algorithm and its parameters. The "?" next to each parameter shows an inline tip with the same explanation.',
-            bullets: [
-                'PCMCI — conditional-independence based; good general-purpose choice for time-series with linear / monotonic relationships',
-                'PCMCI+ — extended PCMCI that captures contemporaneous (lag-0) effects; preferred when you suspect same-tick causality',
-                'FullCI — exhaustive conditional-independence search; slower but more thorough; recommended for small column sets',
-                'BivCI — bivariate conditional independence; the fastest method, useful as a sanity check',
-                'LPCMCI — PCMCI for time-series with non-stationary or regime-dependent dynamics',
-            ],
-        },
-        {
-            title: 'Parameter panel',
-            body:
-                'The right panel exposes the per-method parameters. Defaults are sensible for most datasets; override only if you have a reason.',
-            bullets: [
-                'Max lag (tau_max) — the largest lag to consider; typically 1–5 for short-range dynamics, higher for slow processes',
-                'Significance level (alpha) — p-value threshold for keeping an edge; 0.05 is the common default',
-                'CI test — conditional-independence test (parcorr / gpdc / cmiknn / cmi); pick gpdc or cmiknn for non-linear / non-Gaussian data',
-                'Verbosity — controls how much log output the algorithm prints; the page surfaces the result, not the log',
-            ],
-        },
-        {
-            title: 'Column selection',
-            body:
-                'The left rail lists all numeric columns. Click to toggle; click a column again to remove. Selected columns become the nodes of the graph.',
-            bullets: [
-                'Search box — narrow the list with substring matching',
-                'Selection persists in the workspace store, so navigating away and back keeps your selection',
-                'Right-click — open the column context menu for advanced actions (e.g. preselect from another page)',
-            ],
-        },
-        {
-            title: 'Graph view',
-            body:
-                'The directed graph renders on the right. Nodes are columns; edges are causal links, annotated with the lag and the p-value.',
-            bullets: [
-                'Hover — tooltip with the lag, p-value, and the conditional set used by the test',
-                'Edge color — encodes the sign / strength of the effect (red/blue, solid/dashed)',
-                'Edge label — lag in samples; the axis label below the graph explains the unit conversion',
-                'Drag nodes — reposition; the layout is force-based so manual positions decay on rerun',
-                'Click an edge — highlights it and pins the tooltip; click again to unpin',
-            ],
-        },
-        {
-            title: 'Export',
-            body:
-                'Export saves the graph as JSON (nodes + edges + per-edge metadata) or as a torch_geometric Data object for downstream ML pipelines.',
-            bullets: [
-                'JSON — full graph state; safe to import into another tool or session',
-                'torch_geometric — Data object with x / edge_index / edge_attr arrays; load with `torch_geometric.data.Data.from_dict(...)`',
-            ],
-        },
-        {
-            title: 'How the help button works',
-            body:
-                'Every page has its own "?" button like this one. Hover or focus it for a one-line title; click for the full guide. Press Esc to close, or click outside the dialog. Toolbar-level "?" icons open a smaller inline tip with the same content.',
-        },
+        { title: 'Methods and assumptions', bullets: [
+            'PCMCI selects candidate lagged parents, then tests conditional independence. PCMCI+ also considers contemporaneous relationships.',
+            'LPCMCI addresses possible latent confounders; it does not remove stationarity requirements or automatically handle changing regimes.',
+            'FullCI conditions on the full lagged variable set. BivCI uses pairwise tests without controlling for other series.',
+            'Check time order, regular sampling, stationarity, measurement coverage, and plausible confounders. Unmeasured confounding and aggregation can change the interpretation.',
+        ] },
+        { title: 'Time range and point budget', bullets: [
+            'Choose the full working range or the Signals viewport. Enabled Preparation stages apply to both.',
+            'The point budget bounds computation. Continuous data above the budget are averaged into evenly spaced bins spanning the entire range. No tail is discarded.',
+            'Read the returned source coverage, analyzed point count, and effective cadence. Lag 1 is one analyzed time step; the maximum lag is also shown as a duration.',
+            'Averaging can blur short effects and alter graph structure. Narrow the range or increase the budget for shorter lags. Symbolic tests require exact observations.',
+        ] },
+        { title: 'Parameters', bullets: [
+            'Max lag sets the largest tested delay. Alpha sets the final p-value cutoff; PC alpha controls candidate parent selection for PCMCI, PCMCI+, and LPCMCI.',
+            'ParCorr tests linear partial correlation. RobustParCorr uses a rank-based transform. CMI-KNN is a nonlinear continuous-data test with higher compute cost.',
+            'G-squared and CMI-Symb require suitable discrete categories; do not treat arbitrary continuous measurements as categories.',
+            'Max conditioning dimension bounds candidate conditioning sets. BH FDR adjusts the tested family; no FDR means unadjusted p-values.',
+        ] },
+        { title: 'Results and export', body: 'The graph groups links by node pair. Inspect per-link direction, lag, statistic, and p-value in the evidence view. Graph JSON and model exports include sampling metadata. Manual graph edits are analyst hypotheses, not statistical discoveries.' },
     ],
-    shortcuts: [
-        { keys: '⌥7', description: 'Open the Causality page (this page)' },
-        { keys: '⌥2', description: 'Open the Signals page — pick your columns there first' },
-        { keys: '?', description: 'Show the global keyboard shortcuts modal' },
-        { keys: 'Ctrl+K', description: 'Command palette — every action above is searchable here' },
-    ],
-    tips: [
-        'Start with PCMCI + tau_max = 5 + parcorr. The defaults are tuned for short, roughly-linear, roughly-Gaussian signals.',
-        'Switch to PCMCI+ if you expect same-tick causality (e.g. two columns that react to the same external trigger).',
-        'Switch the CI test to gpdc or cmiknn when the data is non-linear or has heavy tails — parcorr assumes linearity.',
-        'Results depend heavily on the time range and any applied filters. Run on the full dataset first, then narrow once you have a baseline.',
-        'Save the session (Ctrl+S) to keep the column selection and method parameters.',
-    ],
+    tips: ['Start with a small set of scientifically plausible variables and inspect the Signals page before choosing lags.', 'Check whether conclusions survive reasonable ranges, preprocessing, lag limits, and tests.'],
 };
-
-export function initCausalHelp(): () => void {
-    return initPageHelp('causal', CAUSAL_HELP);
-}
+export function initCausalHelp(): () => void { return initPageHelp('causal', CAUSAL_HELP); }

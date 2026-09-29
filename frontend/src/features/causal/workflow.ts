@@ -1,3 +1,4 @@
+import { estimateAnalysisSampling, formatAnalysisSamplingContext, formatAnalysisTimeRange, formatSamplingCadence } from '../spectralSampling.js';
 /**
  * causal/workflow — workflow control helpers.
  *
@@ -18,6 +19,7 @@ import {
     setCurrentColumns,
     setCurrentLinks,
     setCurrentTauMax,
+    setCurrentSampling,
     isNumericColumn,
     ensureNodeMetadata,
     uniqueCausalLinks,
@@ -31,9 +33,11 @@ import {
     syncCausalEmptyState,
 } from './statusView.js';
 import { initChart, renderEChartsGraph } from './graphView.js';
+import { syncCausalComputeActionState } from './chipPanel.js';
 import type { CausalDeps } from './selectionState.js';
 import { getDropdownValueFromElement, setDropdownDisabledForElement } from '../../ui/primitives/Dropdown.js';
 import { markDataUpdated } from '../../ui/freshnessIndicator.js';
+import { beginCompletedAnalysisExportContext } from '../../utils/exportProvenanceContext.js';
 
 export const METHOD_PC_STAGE = new Set(['pcmci', 'pcmciplus', 'lpcmci']);
 
@@ -132,6 +136,27 @@ export function applyMethodControlState(method: string): void {
     syncCausalParameterSummary();
 }
 
+function causalScope(deps: CausalDeps) {
+    const snapshot = deps.workspace.getSnapshot();
+    const time = snapshot.dataset.metadata?.time_range;
+    const viewport = snapshot.viewport;
+    const useViewport = getDropdownValueFromElement(document.getElementById('causal-range')) === 'viewport';
+    const startMs = useViewport ? viewport?.xMin : time?.min;
+    const endMs = useViewport ? viewport?.xMax : time?.max;
+    const range = Number.isFinite(startMs) && Number.isFinite(endMs) && startMs! < endMs!
+        ? { startMs: startMs!, endMs: endMs! } : null;
+    const maxPoints = Number((document.getElementById('causal-point-budget') as HTMLInputElement | null)?.value || 5000);
+    return { range, maxPoints };
+}
+
+export function syncCausalSamplingEstimate(deps: CausalDeps): void {
+    const scope = causalScope(deps);
+    const sampling = estimateAnalysisSampling(deps.workspace.getSnapshot().dataset.metadata, scope.range, scope.maxPoints);
+    const hint = document.getElementById('causal-scope-estimate');
+    const tau = Number((document.getElementById('causal-tau-max') as HTMLInputElement | null)?.value || 3);
+    if (hint) hint.textContent = sampling ? `Source-based estimate: ${sampling.output_points.toLocaleString()} / ${sampling.input_points.toLocaleString()} points; lag 1 ≈ ${formatSamplingCadence(sampling.effective_cadence_ms)}, max lag ≈ ${formatSamplingCadence(tau * Number(sampling.effective_cadence_ms))}. ${formatAnalysisTimeRange(sampling)}. Working-plan counts are checked on run; averaging can change discovered relationships. Use the Signals viewport or raise the budget to retain shorter lags.` : 'Select a valid range on Signals before using its viewport.';
+}
+
 // ─── Add-edge mode ────────────────────────────────────────────────────────────
 
 export function toggleAddEdgeMode(addEdgeBtn: HTMLButtonElement | null): void {
@@ -180,37 +205,65 @@ export async function handleComputeClick(
     const test = getDropdownValueFromElement(testSelect) || 'par_corr';
     const maxCondsDim = maxCondsInput?.value ? parseInt(maxCondsInput.value, 10) : undefined;
     const fdrMethod = getDropdownValueFromElement(fdrSelect) || 'none';
+    const pcAlpha = parseFloat((document.getElementById('causal-pc-alpha') as HTMLInputElement | null)?.value || '0.2');
     const methodLabel = method.toUpperCase().replace('PCMCIPLUS', 'PCMCI+');
     const usesPcStage = METHOD_PC_STAGE.has(method);
-    let ticks = 0;
+    const scope = causalScope(deps);
+    if (!Number.isInteger(scope.maxPoints) || scope.maxPoints < 100 || scope.maxPoints > 50000) {
+        setStatus('Causal point budget must be an integer between 100 and 50,000.', 'error'); return;
+    }
+    if (!scope.range && getDropdownValueFromElement(document.getElementById('causal-range')) === 'viewport') {
+        setStatus('Select a valid time range on Signals first.', 'error'); return;
+    }
+    const range = scope.range ? { start: new Date(scope.range.startMs).toISOString(), end: new Date(scope.range.endMs).toISOString() } : undefined;
+    const completeAnalysisProvenance = beginCompletedAnalysisExportContext({
+        pageName: 'causal',
+        controls: {
+            columns: numericSelected.join(', '),
+            method,
+            test,
+            tauMax,
+            alpha,
+            pcAlpha,
+            maxCondsDim: usesPcStage ? maxCondsDim ?? null : null,
+            fdrMethod,
+            maxPoints: scope.maxPoints,
+            start: range?.start ?? 'full working range', end: range?.end ?? 'full working range',
+            engine: 'Native Rust', interpretation: 'Exploratory conditional-dependence evidence', 
+        },
+    });
     // Abort-before-new: cancel any in-flight compute before starting a new one
     // so a fast-clicking user does not pile up parallel causal runs.
-    if (causalComputeController) causalComputeController.abort();
-    causalComputeController = new AbortController();
-    const signal = causalComputeController.signal;
-    let progressId: number | undefined;
+    causalComputeController?.abort();
+    const controller = new AbortController();
+    causalComputeController = controller;
+    const signal = controller.signal;
+    const isCurrent = () => causalComputeController === controller && !signal.aborted;
     try {
         syncCausalEmptyState(_selectedColumns.size);
         deps.setLoading('causal-compute-btn', 'causal-loading', true, 'Run discovery');
+        syncCausalComputeActionState(deps);
         setStatus(`${methodLabel}: running causal discovery...`);
-        setProgress(0, methodLabel + ': preparing');
-        progressId = window.setInterval(() => {
-            ticks += 1;
-            const pct = Math.min(90, (usesPcStage ? 12 : 18) + ticks * 2);
-            setProgress(pct, methodLabel + ': ' + (usesPcStage && ticks < 14 ? 'parent selection' : 'conditional tests'));
-        }, 320);
-        const resp = await fetchCausalGraph(numericSelected, tauMax, alpha, method, 5000, { signal },
-            parseFloat((document.getElementById('causal-pc-alpha') as HTMLInputElement | null)?.value || '0.2'),
-            test, usesPcStage ? maxCondsDim : undefined, fdrMethod);
-        setProgress(100, methodLabel + ': complete');
-        window.setTimeout(hideProgress, 800);
+        setProgress(`${methodLabel}: computing on ${numericSelected.length} selected series`);
+        const resp = await fetchCausalGraph(numericSelected, tauMax, alpha, method, scope.maxPoints, { signal },
+            pcAlpha,
+            test, usesPcStage ? maxCondsDim : undefined, fdrMethod, range);
+        if (!isCurrent()) return;
+        setProgress(`${methodLabel}: results received; rendering graph`);
         const cols = [...resp.columns, ...manualOnly.filter((col) => !resp.columns.includes(col))];
         const links = uniqueCausalLinks(resp.links);
+        const chartReady = await initChart();
+        if (!isCurrent()) return;
         setCurrentColumns(cols);
         setCurrentLinks(links);
         setCurrentTauMax(resp.tau_max);
+        setCurrentSampling(resp.sampling ?? null);
+        const samplingContext = document.getElementById('causal-sampling-context');
+        if (samplingContext) {
+            samplingContext.hidden = false;
+            samplingContext.textContent = resp.sampling ? `${formatAnalysisSamplingContext(resp.sampling)} · lag 1 = ${formatSamplingCadence(resp.sampling.effective_cadence_ms)}; max lag = ${formatSamplingCadence(resp.tau_max * Number(resp.sampling.effective_cadence_ms))} · ${formatAnalysisTimeRange(resp.sampling)}` : 'Sampling metadata was not returned; lag duration is unknown.';
+        }
         for (const col of cols) ensureNodeMetadata(col, meta, deps);
-        const chartReady = await initChart();
         const graphRendered = chartReady && renderEChartsGraph();
         syncCausalGraphActionState(graphRendered && links.length > 0 && cols.length >= 2);
         if (!graphRendered) {
@@ -223,25 +276,28 @@ export async function handleComputeClick(
         }
         syncCausalEmptyState(cols.length, true);
         notifyCausalGraphUpdated(cols, links);
+        completeAnalysisProvenance(resp.executionIdentity ?? null, { sampling: JSON.stringify(resp.sampling ?? null), sampleCount: resp.sample_count ?? null });
         markDataUpdated();
         emitFeatureEvent('workflow:refresh', undefined);
         onComplete?.();
         setStatus(`${methodLabel}: graph updated with ${cols.length} nodes and ${links.length} links.`, 'success');
     } catch (error) {
+        if (!isCurrent()) return;
         if (error instanceof Error && error.name === 'AbortError') {
-            // Superseded by a newer compute run; the newer run owns status UI.
+            setStatus('Causal discovery canceled.', 'info');
             return;
         }
-        hideProgress();
         setStatus(error instanceof Error ? error.message : 'Causal discovery failed.', 'error');
         onComplete?.();
     } finally {
-        // Always clear the progress interval, even when aborted.
-        if (progressId !== undefined) {
-            window.clearInterval(progressId);
-            progressId = undefined;
+        // A superseded run must not hide or re-enable controls owned by its replacement.
+        if (causalComputeController === controller) {
+            causalComputeController = null;
+            hideProgress();
+            deps.setLoading('causal-compute-btn', 'causal-loading', false, 'Run discovery');
+            syncCausalComputeActionState(deps);
+            if (signal.aborted) setStatus('Causal discovery canceled.', 'info');
         }
-        deps.setLoading('causal-compute-btn', 'causal-loading', false, 'Run discovery');
     }
 }
 
@@ -258,9 +314,7 @@ export function disposeCausalCompute(): void {
 export function cancelCausalCompute(): void {
     if (!causalComputeController) return;
     causalComputeController.abort();
-    causalComputeController = null;
-    hideProgress();
-    setStatus('Causal discovery canceled.');
+    setStatus('Canceling causal discovery…');
 }
 
 /** Test-only alias for resetting the Causal compute request state. */

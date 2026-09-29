@@ -11,6 +11,14 @@ describe('heatmap grid layout', () => {
         expect(layout.rowTemplate).toBe(layout.colTemplate);
     });
 
+    it.each([600, 960, 1178, 1680])('keeps the matrix and legend within a %ipx panel', (containerWidth) => {
+        const columnCount = 7;
+        const layout = buildHeatmapGridLayout({ columnCount, preferredCellSize: 36, containerWidth, fitToScreen: true });
+        const gridWidth = layout.labelWidth + columnCount * layout.responsiveCell + columnCount * 2;
+
+        expect(gridWidth + 12 + 230).toBeLessThanOrEqual(containerWidth);
+    });
+
     it('keeps slider-driven cells capped and vertical headers on narrow grids', () => {
         const layout = buildHeatmapGridLayout({ columnCount: 12, preferredCellSize: 72, containerWidth: 480, fitToScreen: false });
 

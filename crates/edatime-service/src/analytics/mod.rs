@@ -24,7 +24,7 @@ pub use drift::{
     DriftInvestigationResponse, DriftMetadata, DriftResponse, DriftThresholds, DriftWindowStats,
     WindowDistributionStats, compute_drift_investigation, compute_temporal_drift,
 };
-pub use fft::{FftResult, FrequencyPeak, compute_fft};
+pub use fft::{compute_fft_with_detrend, FftResult, FrequencyPeak, compute_fft};
 pub use rolling::{RollingBands, compute_rolling_bands};
 pub use shared::{
     extract_columns_f64_mean, extract_columns_f64_preserve_missing, extract_f64_column,

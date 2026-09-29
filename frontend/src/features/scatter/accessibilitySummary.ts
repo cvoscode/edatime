@@ -4,6 +4,7 @@ import { getSetting } from '../../utils/settings.js';
 import { normalizeCorrelationMetric } from '../../utils/correlationModes.js';
 import { currentControls } from './state.js';
 import { getCleaningPlanHash } from '../../cleaning/store.js';
+import { copyTextToClipboard } from '../../utils/copyText.js';
 
 type ScatterAxis = { name: string; index: 0 | 1 };
 
@@ -101,13 +102,16 @@ function renderCorrelationRows(table: HTMLTableElement): void {
         cell.colSpan = 7;
         cell.textContent = typeof value === 'number' && Number.isFinite(value) ? value.toFixed(4) : '—';
         row.append(heading, cell);
+        row.tabIndex = 0;
         body.append(row);
     }
     table.append(body);
 }
 
 export function renderScatterAccessibilitySummary(container: HTMLElement): void {
-    container.querySelector('table[data-chart-summary="scatter"]')?.remove();
+    const summaryRoot = container.closest('[data-page-name="scatter"]')?.querySelector<HTMLElement>('#scatter-accessibility-summary') ?? container;
+    summaryRoot.querySelector('table[data-chart-summary="scatter"]')?.remove();
+    summaryRoot.querySelector('.chart-summary-actions[data-summary="scatter"]')?.remove();
     const correlationPills = document.querySelector<HTMLElement>('.scatter-stats-bar__correlations');
     const controls = currentControls();
     const axes: Array<ScatterAxis> = [
@@ -119,7 +123,7 @@ export function renderScatterAccessibilitySummary(container: HTMLElement): void 
         if (correlationPills) correlationPills.hidden = false;
         return;
     }
-    const table = createAccessibilitySummaryTable('Scatter chart', summaries, { visible: true });
+    const table = createAccessibilitySummaryTable('Pair plot', summaries, { visible: true });
     table.dataset.chartSummary = 'scatter';
     table.dataset.correlationContext = correlationContextKey();
     const returned = scatterState.allPoints.length;
@@ -140,7 +144,37 @@ export function renderScatterAccessibilitySummary(container: HTMLElement): void 
         'Incomplete source pairs are excluded upstream. Missing % counts invalid coordinates only among plotted pairs.',
     ].filter(Boolean).join(' ');
     renderCorrelationRows(table);
-    container.appendChild(table);
+    const actions = document.createElement('div');
+    actions.className = 'chart-summary-actions';
+    actions.dataset.summary = 'scatter';
+    const focusReadout = document.createElement('span');
+    focusReadout.className = 'chart-summary-focus';
+    focusReadout.setAttribute('role', 'status');
+    focusReadout.setAttribute('aria-live', 'polite');
+    focusReadout.textContent = 'Use the table rows to inspect axis summaries and current pair correlations.';
+    const copyButton = document.createElement('button');
+    copyButton.type = 'button';
+    copyButton.className = 'btn btn-ghost btn-sm';
+    copyButton.textContent = 'Copy Pair plot summary';
+    copyButton.addEventListener('click', async () => {
+        const copied = await copyTextToClipboard(table.innerText || table.textContent || '');
+        focusReadout.textContent = copied ? 'Pair plot summary copied.' : 'Copy was blocked by the browser. Select the summary table and copy its text.';
+    });
+    actions.append(focusReadout, copyButton);
+    for (const row of table.querySelectorAll<HTMLTableRowElement>('tbody tr')) row.tabIndex = 0;
+    table.addEventListener('focusin', (event) => {
+        const row = (event.target as HTMLElement).closest<HTMLTableRowElement>('tr');
+        if (row) focusReadout.textContent = `Focused Pair plot summary: ${row.textContent?.replace(/\s+/g, ' ').trim() ?? ''}.`;
+    });
+    table.addEventListener('keydown', (event: KeyboardEvent) => {
+        if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+        const row = (event.target as HTMLElement).closest<HTMLTableRowElement>('tr');
+        if (!row) return;
+        const rows = Array.from(table.querySelectorAll<HTMLTableRowElement>('tbody tr'));
+        const next = rows[rows.indexOf(row) + (event.key === 'ArrowDown' ? 1 : -1)];
+        if (next) { event.preventDefault(); next.focus(); }
+    });
+    summaryRoot.append(actions, table);
     if (correlationPills) correlationPills.hidden = true;
 }
 

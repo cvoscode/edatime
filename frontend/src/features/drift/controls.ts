@@ -116,7 +116,6 @@ function renderColumnChips(colPickerList: HTMLElement | null, allCols: string[])
             },
         })),
         chipClass: 'fft-trace-chip',
-        postChipAttributes: { role: 'button', tabIndex: '0' },
     });
     syncPickerLabel(allCols);
 }
@@ -190,7 +189,7 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
         ? pageMetadata.numeric_columns.filter((c: string) => c && c.toLowerCase() !== 'ts')
         : [];
 
-    selectedCols = new Set(numericCols);
+    selectedCols = new Set(numericCols.slice(0, 1));
     pickerLabelEl = colPickerLabel;
     selectionChangeCallback = cb.onSelectionChange;
 
@@ -234,13 +233,40 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
             return;
         }
         if (!timeRange) return;
+        if (preset === 'balanced') {
+            const windowMs = ({ hourly: 3_600_000, daily: 86_400_000, weekly: 604_800_000 } as Record<string, number>)[getDropdownValue('drift-window-select') || 'daily'] ?? 86_400_000;
+            if (refStartInput) refStartInput.value = formatUtcDatetimeInputValue(timeRange.min);
+            if (refEndInput) refEndInput.value = formatUtcDatetimeInputValue(timeRange.min + Math.min(7 * windowMs, (timeRange.max - timeRange.min) / 2));
+            return;
+        }
         const pct = Number(preset);
         if (!Number.isFinite(pct) || pct <= 0 || pct >= 100) return;
         const end = timeRange.min + ((timeRange.max - timeRange.min) * pct) / 100;
         if (refStartInput) refStartInput.value = formatUtcDatetimeInputValue(timeRange.min);
         if (refEndInput) refEndInput.value = formatUtcDatetimeInputValue(end);
     }
-    applyReferencePreset(getDropdownValue('drift-ref-preset') || '50');
+    applyReferencePreset(getDropdownValue('drift-ref-preset') || 'balanced');
+
+    const updateSetupEstimate = () => {
+        const hint = document.getElementById('drift-setup-estimate');
+        if (!hint || !timeRange) return;
+        const start = Date.parse(`${refStartInput?.value}Z`);
+        const end = Date.parse(`${refEndInput?.value}Z`);
+        const windowMs = ({ hourly: 3_600_000, daily: 86_400_000, weekly: 604_800_000 } as Record<string, number>)[getDropdownValue('drift-window-select') || 'daily'] ?? 86_400_000;
+        const ratio = (end - start) / windowMs;
+        const rows = pageMetadata?.total_rows ?? 0;
+        const perWindow = rows * windowMs / (timeRange.max - timeRange.min);
+        hint.textContent = Number.isFinite(ratio) && ratio > 0
+            ? `Source-based estimate: reference/window ratio ${ratio.toFixed(1)}:1; about ${Math.round(perWindow).toLocaleString()} rows per window. Exact valid counts are checked before analysis. Reference dates are UTC. Trace selection is independent of Signals; it starts with the first numeric trace.`
+            : 'Enter a valid UTC reference interval. Trace selection is independent of Signals.';
+    };
+    for (const id of ['drift-window-select', 'drift-ref-preset', 'drift-ref-start', 'drift-ref-end']) {
+        document.getElementById(id)?.addEventListener('change', () => {
+            if (id === 'drift-window-select' && getDropdownValue('drift-ref-preset') === 'balanced') applyReferencePreset('balanced');
+            updateSetupEstimate();
+        }, listenerOptions);
+    }
+    updateSetupEstimate();
 
     // ── Compute button ─────────────────────────────────────────────────────
     computeBtn?.addEventListener('click', () => {
@@ -316,7 +342,7 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
     }, listenerOptions);
 
     colSelectNoneBtn?.addEventListener('click', () => {
-        selectedCols = new Set(numericCols);
+        selectedCols = new Set(numericCols.slice(0, 1));
         renderColumnChips(colPickerList, numericCols);
         selectionChangeCallback?.();
     }, listenerOptions);
@@ -373,7 +399,7 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
             ? pageMetadata.numeric_columns.filter((c: string) => c && c.toLowerCase() !== 'ts')
             : [];
         numericCols = cols;
-        selectedCols = new Set(numericCols);
+        selectedCols = new Set(numericCols.slice(0, 1));
         repopulateColumnSelect(colPickerList, cols);
         selectionChangeCallback?.();
         cb.scheduleDriftChartRefresh();

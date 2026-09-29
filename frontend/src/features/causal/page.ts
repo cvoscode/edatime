@@ -24,13 +24,13 @@ import {
 } from './selectionState.js';
 
 import { renderColumnChips } from './chipPanel.js';
-import { scheduleCausalChartRefresh, setChartEl } from './graphView.js';
+import { clearCausalGraphResult, scheduleCausalChartRefresh, setChartEl } from './graphView.js';
 import { syncCausalEmptyState } from './statusView.js';
 import { initCausalHelp } from './help.js';
 import { openEditPanel, bindEditPanelEvents } from './editPanel.js';
 import { handleExport } from './export.js';
 import { initCausalComparison } from './causalComparison.js';
-import { applyMethodControlState, toggleAddEdgeMode, cancelAddEdgeMode, cancelCausalCompute, handleComputeClick, syncCausalGraphActionState, syncCausalParameterSummary } from './workflow.js';
+import { applyMethodControlState, toggleAddEdgeMode, cancelAddEdgeMode, cancelCausalCompute, handleComputeClick, syncCausalGraphActionState, syncCausalParameterSummary, syncCausalSamplingEstimate } from './workflow.js';
 import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
 import { bindInfoPopovers } from '../../ui/infoPopovers.js';
 import { onFeatureEvent } from '../../platform/featureEvents.js';
@@ -91,6 +91,29 @@ export function initCausalPage(deps: CausalDeps): () => void {
     seedSelectedColumnsFromDataset(deps);
     renderColumnChips(deps, columnsBar, openEditPanel);
     syncCausalEmptyState(_selectedColumns.size);
+    const sourceIdentity = (snapshot: ReturnType<typeof deps.workspace.getSnapshot>) =>
+        snapshot.dataset.activeSourceVersionId
+        || snapshot.dataset.metadata?.source_version_id
+        || snapshot.dataset.sourceFingerprint
+        || snapshot.dataset.metadata?.dataset_fingerprint
+        || `legacy:${snapshot.dataset.revision}`;
+    let activeSourceIdentity = sourceIdentity(deps.workspace.getSnapshot());
+    const unsubscribeDataset = deps.workspace.subscribe?.((snapshot) => {
+        const nextIdentity = sourceIdentity(snapshot);
+        if (nextIdentity === activeSourceIdentity) return;
+        activeSourceIdentity = nextIdentity;
+        clearCausalGraphResult();
+        resetSelectionState();
+        seedSelectedColumnsFromDataset(deps);
+        renderColumnChips(deps, columnsBar, openEditPanel);
+        syncCausalGraphActionState(false);
+        syncCausalEmptyState(_selectedColumns.size);
+        scheduleCausalChartRefresh(6, (rendered) => {
+            syncCausalGraphActionState(false);
+            syncCausalEmptyState(_selectedColumns.size, rendered && _currentColumns.length >= 2);
+        });
+    });
+    if (unsubscribeDataset) listenerController.signal.addEventListener('abort', unsubscribeDataset, { once: true });
     bindInfoPopovers();
     // Release page-level help with the page's controls and subscriptions.
     listenerController.signal.addEventListener('abort', initCausalHelp(), { once: true });
@@ -114,6 +137,10 @@ export function initCausalPage(deps: CausalDeps): () => void {
         syncCausalEmptyState(_selectedColumns.size);
     });
     listenerController.signal.addEventListener('abort', unsubscribePreselect, { once: true });
+
+    const syncScope = () => syncCausalSamplingEstimate(deps);
+    for (const id of ['causal-point-budget', 'causal-range', 'causal-tau-max']) document.getElementById(id)?.addEventListener('change', syncScope, listenerOptions);
+    syncScope();
 
     methodSelect?.addEventListener('change', () => applyMethodControlState(getDropdownValue('causal-method-select') || 'pcmci'), listenerOptions);
     for (const control of [testSelect, tauInput, alphaInput, maxCondsInput, fdrSelect, document.getElementById('causal-pc-alpha')]) {
@@ -156,6 +183,7 @@ export function initCausalPage(deps: CausalDeps): () => void {
 
     const unsubscribeNavigation = onNavigationChange((change) => {
         if (change.page === 'causal' && workspaceMetadata(deps)) {
+            syncScope();
             seedSelectedColumnsFromDataset(deps);
             renderColumnChips(deps, columnsBar, openEditPanel);
             scheduleGraphRefresh();

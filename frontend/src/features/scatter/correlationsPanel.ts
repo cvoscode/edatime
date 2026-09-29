@@ -16,7 +16,7 @@ import { scatterState } from '../../store/scatterState.js';
 import type { ScatterState } from '../../store/scatterState.js';
 import { getDropdownValue, setDropdownOptions, setDropdownValue } from '../../ui/primitives/Dropdown.js';
 import { emitFeatureEvent } from '../../platform/featureEvents.js';
-import { normalizeCorrelationMetric } from '../../utils/correlationModes.js';
+import { normalizeCorrelationMetric, getCorrelationModeLabel, getCorrelationModeBasisLabel } from '../../utils/correlationModes.js';
 import { getSetting } from '../../utils/settings.js';
 import { getEl } from './helpers.js';
 import { ensureOptions } from './state.js';
@@ -32,6 +32,11 @@ import type { ScatterFetchOptions } from '../../types/scatter.js';
  * X/Y selection, so re-clicking the active pill is a no-op.
  */
 export type SuggestionApplyHandler = (x: string, y: string) => void | Promise<void>;
+
+function suggestionMetricLabel(): string {
+    const metric = normalizeCorrelationMetric(getSetting('defaultCorrelationMetric'));
+    return `${getCorrelationModeLabel(metric)} · ${getCorrelationModeBasisLabel(metric)}`;
+}
 
 let correlationRequestGeneration = 0;
 
@@ -86,7 +91,7 @@ export function renderSuggestions(
     ));
     const suggestionsLabel = getEl('scatter-suggestions-label');
     if (suggestionsLabel) {
-        suggestionsLabel.textContent = `${currentPairSuggested ? 'Suggested pairs' : 'Other pairs in the dataset'} (|corr| >= ${scatterState.suggestionThreshold.toFixed(2)})`;
+        suggestionsLabel.textContent = `${currentPairSuggested ? 'Suggested pairs' : 'Other pairs in the dataset'} (${suggestionMetricLabel()}; |corr| >= ${scatterState.suggestionThreshold.toFixed(2)})`;
     }
 
     scatterState.lastSuggestions = Array.isArray(suggestions) ? suggestions.slice() : [];
@@ -156,8 +161,8 @@ function buildSuggestionButton(
     btn.dataset.xColumn = x;
     btn.dataset.yColumn = y;
     if (activeX === x && activeY === y) btn.classList.add('active');
-    btn.textContent = `${x} ↔ ${y}  |corr| ${corr}`;
-    btn.title = `Use ${x} (X) and ${y} (Y) — |corr| ${corr}`;
+    btn.textContent = `${x} ↔ ${y}  ${suggestionMetricLabel()} |corr| ${corr}`;
+    btn.title = `Use ${x} (X) and ${y} (Y) — ${suggestionMetricLabel()} |corr| ${corr}`;
     btn.addEventListener('click', () => {
         if (getDropdownValue('scatter-x-col') === x && getDropdownValue('scatter-y-col') === y) return;
         setDropdownValue('scatter-x-col', x);

@@ -190,14 +190,37 @@ describe('drift compute payload', () => {
 
         (document.getElementById('drift-ref-start') as HTMLInputElement).value = '1970-01-01T00:00';
         (document.getElementById('drift-ref-end') as HTMLInputElement).value = '1970-01-01T00:10';
+        (fetch as any).mockImplementationOnce((_input: RequestInfo | URL, init?: RequestInit) => {
+            const requestBody = JSON.parse(String(init?.body ?? '{}'));
+            const requestPlan = requestBody.cleaningPlan;
+            return Promise.resolve({ ok: true, json: async () => ({
+                sourceVersionId: requestPlan.expectedSourceVersionId,
+                sourceRevision: requestPlan.expectedDatasetRevision,
+                schemaFingerprint: requestPlan.plan.schemaFingerprint,
+                planHash: requestPlan.expectedPlanHash,
+                window: requestBody.window,
+                decisionReady: true,
+                columns: [{
+                    column: 'value', referenceValidSamples: 100, comparisonValidSamples: 100,
+                    comparisonWindows: 2, windowsBelowMinimum: 0, averageWindowSamples: 50,
+                    referenceToWindowRatio: 2, decisionReady: true, warnings: [], suggestions: [],
+                }],
+            }) });
+        });
 
         (document.getElementById('drift-compute-btn') as HTMLButtonElement).click();
 
         await vi.waitFor(() => {
             expect(fetch).toHaveBeenCalled();
         });
+        const preflight = document.querySelector<HTMLButtonElement>('#drift-preflight-panel button');
+        if (preflight?.textContent?.includes('Run anyway')) preflight.click();
+        await vi.waitFor(() => {
+            const urls = (fetch as any).mock.calls.map(([url]: [RequestInfo | URL]) => String(url));
+            expect(urls.some((url: string) => url.endsWith('/drift/investigate'))).toBe(true);
+        });
 
-        const request = (fetch as any).mock.calls[0];
+        const request = (fetch as any).mock.calls.find(([url]: [RequestInfo | URL]) => String(url).endsWith('/drift/investigate'));
         const body = JSON.parse(request[1].body);
         expect(body).toMatchObject({
             window: 'daily',
@@ -226,7 +249,7 @@ describe('drift compute payload', () => {
 
         expect(document.getElementById('drift-col-picker-label')?.textContent).toBe('3 of 3 selected');
         expect(document.querySelectorAll('#drift-col-picker-list .series-chip')).toHaveLength(3);
-        expect(document.querySelector('#drift-col-picker-list [data-col="HUFL"]')?.getAttribute('aria-pressed')).toBe('true');
+        expect((document.querySelector<HTMLInputElement>('#drift-col-picker-list [data-col="HUFL"] input[type=checkbox]')?.checked ? 'true' : 'false')).toBe('true');
     });
 
     it('explains why Latest N is disabled until the matching evaluation mode is selected', async () => {

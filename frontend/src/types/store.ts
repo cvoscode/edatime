@@ -7,6 +7,7 @@ export type ProfileQualityStatus = 'immediate' | 'sampled' | 'exact' | 'unavaila
 export interface ProfileQualityFindings {
     status: ProfileQualityStatus;
     sampleRows: number | null;
+    samplingDescription?: string;
     nonFiniteCount: number | null;
     finiteCount: number | null;
     zeroCount: number | null;

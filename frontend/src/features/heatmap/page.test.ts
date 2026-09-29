@@ -295,12 +295,17 @@ describe('heatmapPage with clustering', () => {
         expect(movedCell).not.toBe(firstCell);
         expect(movedCell.tabIndex).toBe(0);
         expect(grid.querySelectorAll('[tabindex="0"]')).toHaveLength(1);
+        expect(document.getElementById('heatmap-focus-readout')?.textContent).toContain('correlation');
+        expect(document.getElementById('heatmap-copy-cell-btn')?.hasAttribute('disabled')).toBe(false);
+        expect(movedCell.getAttribute('aria-selected')).toBe('true');
 
         movedCell.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
         expect(showPage).toHaveBeenCalledWith('scatter');
+        const openPairButton = document.getElementById('heatmap-open-pair-btn') as HTMLButtonElement;
+        expect(openPairButton.disabled).toBe(false);
+        expect(openPairButton.textContent).toContain('Open Pair plot:');
         expect(consumeScatterPairIntent()).not.toBeNull();
-        movedCell.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
-        expect(showPage).toHaveBeenCalledTimes(2);
+        expect(showPage).toHaveBeenCalledTimes(1);
 
         const before = Array.from(grid.querySelectorAll<HTMLElement>('.heatmap-header')).map((header) => header.dataset.dragName);
         const header = grid.querySelector<HTMLElement>('.heatmap-header[data-order-index="0"]')!;
@@ -620,7 +625,7 @@ describe('heatmapPage with clustering', () => {
         expect(crossCell).not.toBeNull();
     });
 
-    it('opens a cell in the dedicated Pair plot page', async () => {
+    it('opens a matrix cell pair with a single click', async () => {
         const showPage = vi.fn();
         const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage });
@@ -636,13 +641,14 @@ describe('heatmapPage with clustering', () => {
         expect(handler).toBeTypeOf('function');
         (handler as (ev: Partial<MouseEvent>) => void).call(container, { target: cell } as unknown as MouseEvent);
 
+        expect(showPage).toHaveBeenCalledTimes(1);
+        expect(cell.classList.contains('is-selected')).toBe(true);
         expect(showPage).toHaveBeenCalledWith('scatter');
         expect(consumeScatterPairIntent()).toEqual({ x: 'a1', y: 'b1' });
-        expect(cell.classList.contains('is-selected')).toBe(true);
         expect(cell.getAttribute('aria-selected')).toBe('true');
     });
 
-    it('opens the Pair plot with both Enter and Space', async () => {
+    it('opens the chosen pair directly with Enter and Space', async () => {
         const showPage = vi.fn();
         const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage });
@@ -663,6 +669,22 @@ describe('heatmapPage with clustering', () => {
         expect(consumeScatterPairIntent()).toEqual({ x: 'a1', y: 'b1' });
     });
 
+    it('previews a focused pair without navigating and keeps the optional Open Pair plot action', async () => {
+        const showPage = vi.fn();
+        const { initHeatmapPage } = await import('./page.js');
+        await initHeatmapPage({ showPage });
+        await activateHeatmap();
+        const cell = document.querySelector<HTMLElement>('.heatmap-cell[data-row="0"][data-col="3"]')!;
+        cell.focus();
+        cell.dispatchEvent(new Event('pointerover', { bubbles: true }));
+        expect(showPage).not.toHaveBeenCalled();
+        expect(document.getElementById('heatmap-focus-readout')?.textContent).toContain('a1 and b1');
+        (document.getElementById('heatmap-open-pair-btn') as HTMLButtonElement).click();
+        expect(showPage).toHaveBeenCalledTimes(1);
+        expect(showPage).toHaveBeenCalledWith('scatter');
+        expect(consumeScatterPairIntent()).toEqual({ x: 'a1', y: 'b1' });
+    });
+
     it('opens the selected pair without requiring the Pair plot controls to be upgraded', async () => {
         const showPage = vi.fn();
         const { initHeatmapPage } = await import('./page.js');
@@ -671,9 +693,10 @@ describe('heatmapPage with clustering', () => {
         const cell = document.querySelector('.heatmap-cell[data-row="0"][data-col="3"]') as HTMLElement;
         const container = document.getElementById('heatmap-container')!;
         container.onclick!.call(container, { target: cell } as unknown as PointerEvent);
+        expect(showPage).toHaveBeenCalledTimes(1);
+        expect(cell.classList.contains('is-selected')).toBe(true);
         expect(showPage).toHaveBeenCalledWith('scatter');
         expect(consumeScatterPairIntent()).toEqual({ x: 'a1', y: 'b1' });
-        expect(cell.classList.contains('is-selected')).toBe(true);
     });
 
     it('reselects the matching matrix cell when Pair plot axes change', async () => {
@@ -890,6 +913,8 @@ describe('heatmapPage with clustering', () => {
         expect(scale).not.toBeNull();
         expect(grid!.nextElementSibling).toBe(document.querySelector('.heatmap-legend-stack'));
         expect(document.querySelector('.heatmap-legend-stack')?.contains(scale!)).toBe(true);
+        expect(document.querySelector('.heatmap-legend-stack')?.contains(document.getElementById('heatmap-focus-readout'))).toBe(true);
+        expect(document.querySelector('.heatmap-legend-stack')?.contains(document.getElementById('heatmap-open-pair-btn'))).toBe(true);
         // The shell must also allow horizontal scrolling for very wide
         // matrices rather than clipping cells.
         expect(getComputedStyle(shell!).overflowX).not.toBe('visible');

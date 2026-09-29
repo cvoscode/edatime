@@ -999,3 +999,8 @@
   color: var(--text-dim);
   font-size: 0.6875rem;
 }
+
+.profile-grid-scroll-cue { display: block; padding: 3px 10px; color: var(--text-dim); font-size: .6875rem; line-height: 1.4; text-align: right; }
+.profile-grid-scroll-cue[hidden] { display: none; }
+.profile-grid--scroll-left + .profile-grid-scroll-cue { text-align: left; }
+.profile-grid--scroll-left.profile-grid--scroll-right + .profile-grid-scroll-cue { text-align: center; }

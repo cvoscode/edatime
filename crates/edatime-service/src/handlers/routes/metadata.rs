@@ -3,7 +3,7 @@ use std::{collections::HashSet, fmt::Display, hash::Hash, path::Path};
 use axum::{Json, extract::State};
 use polars::prelude::{
     DataFrame, DataType, LazyCsvReader, LazyFileListReader, LazyFrame, ScanArgsParquet, SchemaExt,
-    col, len,
+    col, len, lit, NamedFrom, Series,
 };
 use serde::{Deserialize, Serialize};
 
@@ -17,7 +17,7 @@ use edatime_store::{
 };
 
 const PROFILE_ALGORITHM_VERSION: &str = "exact-v1";
-const SAMPLED_PROFILE_ALGORITHM_VERSION: &str = "sample-v1";
+const SAMPLED_PROFILE_ALGORITHM_VERSION: &str = "sample-v2";
 const SAMPLED_PROFILE_ROW_CAP: usize = 10_000;
 
 #[derive(Debug, Clone, Serialize)]
@@ -47,9 +47,13 @@ pub struct DatasetMetadata {
     pub schema_fingerprint: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
     pub profile_status: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile_sample_rows: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile_sampling: Option<ProfileSampling>,
     pub total_rows: usize,
     pub columns: Vec<ColumnMetadata>,
     pub numeric_columns: Vec<String>,
@@ -58,6 +62,30 @@ pub struct DatasetMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub time_quality: Option<TimeQuality>,
     pub column_profiles: Vec<ColumnProfile>,
+}
+
+/// Sampling applies to distribution estimates only, not adjacency/run statistics.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProfileSampling {
+    pub method: String,
+    pub source_rows: usize,
+    pub sampled_rows: usize,
+    pub seed: u64,
+}
+
+fn profile_sample_indices(rows: usize, cap: usize) -> Vec<u32> {
+    let target = rows.min(cap);
+    let mut random = 0xeda71_u64;
+    (0..target).map(|bucket| {
+        let start = bucket * rows / target;
+        let end = (bucket + 1) * rows / target;
+        random ^= random << 13;
+        random ^= random >> 7;
+        random ^= random << 17;
+        let index = if bucket == 0 { 0 } else if bucket + 1 == target { rows - 1 }
+            else { start + random as usize % (end - start) };
+        index as u32
+    }).collect()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -460,8 +488,10 @@ fn build_immediate_dataset_metadata_from_lazyframe(
         dataset_fingerprint: None,
         schema_fingerprint: None,
         source_name: None,
+        display_name: None,
         profile_status: "immediate".to_string(),
         profile_sample_rows: None,
+        profile_sampling: None,
         total_rows,
         columns,
         numeric_columns,
@@ -696,8 +726,10 @@ pub fn build_dataset_metadata(
         dataset_fingerprint: None,
         schema_fingerprint: None,
         source_name: None,
+        display_name: None,
         profile_status: "exact".to_string(),
         profile_sample_rows: None,
+        profile_sampling: None,
         total_rows,
         columns,
         numeric_columns,
@@ -776,8 +808,9 @@ pub async fn get_metadata(
     let version = state.current_dataset_version()?;
     let metadata_key = immediate_metadata_cache_key(&version);
     if let Some(cached) = state.cached_immediate_metadata(&metadata_key) {
-        let metadata = serde_json::from_value(cached)
+        let mut metadata: DatasetMetadata = serde_json::from_value(cached)
             .map_err(|error| AppError::internal(format!("Decode cached metadata: {error}")))?;
+        metadata.display_name = version.display_name;
         return Ok(Json(metadata));
     }
     // Resolve the immutable source before yielding to the admitted worker.
@@ -803,6 +836,7 @@ pub async fn get_metadata(
     metadata.dataset_fingerprint = Some(version.dataset_fingerprint);
     metadata.schema_fingerprint = Some(version.schema_fingerprint);
     metadata.source_name = version.source_name;
+    metadata.display_name = version.display_name;
     state.store_immediate_metadata(metadata_key, serde_json::to_value(&metadata)?);
     Ok(Json(metadata))
 }
@@ -891,9 +925,8 @@ pub async fn start_profile(
     start_profile_mode(state, PROFILE_ALGORITHM_VERSION, None).await
 }
 
-/// Start or reuse a bounded first-rows sample profile. It intentionally uses
-/// the same observable job lifecycle as exact profiling, but its lazy limit
-/// bounds retained profile-frame memory regardless of source size.
+/// Deterministic stratified sample spanning the source order, with endpoint
+/// coverage. Gathering retains at most the cap; the source count scan is admitted.
 pub async fn start_sample_profile(
     State(state): State<AppState>,
 ) -> Result<Json<ProfileResponse>, AppError> {
@@ -927,11 +960,6 @@ async fn start_profile_mode(
     // a request error, never a reason to profile whichever source is current
     // by the time a background task begins.
     let mut snapshot = state.dataset_snapshot_for_version(&version.id)?;
-    if let Some(cap) = sample_row_cap {
-        let cap = u32::try_from(cap)
-            .map_err(|_| AppError::internal("Profile sample row cap exceeds Polars index width"))?;
-        snapshot = snapshot.limit(cap);
-    }
 
     let job = state
         .jobs
@@ -963,6 +991,27 @@ async fn start_profile_mode(
             worker_state.jobs.complete(&job);
             return;
         }
+
+        let source_rows = if let Some(cap) = sample_row_cap {
+            let count = match worker_state.query_executor
+                .execute_queued_background_async(snapshot.clone().select([len().alias("rows")])).await {
+                Ok(frame) => frame.column("rows").ok().and_then(|c| c.u32().ok()).and_then(|c| c.get(0)).map(|n| n as usize),
+                Err(error) => { worker_state.jobs.fail(&job, error.to_string()); return; }
+            };
+            let Some(rows) = count else { worker_state.jobs.fail(&job, "Could not count the sampled source".to_string()); return; };
+            snapshot = match worker_state.query_executor.run_queued_background(
+                edatime_core::metrics::CpuStage::Analytics,
+                move || -> Result<LazyFrame, AppError> {
+                    let schema = snapshot.collect_schema()?;
+                    let indices = lit(Series::new("profile_indices".into(), profile_sample_indices(rows, cap)));
+                    Ok(snapshot.select(schema.iter_names().map(|name| col(name.as_str()).gather(indices.clone())).collect::<Vec<_>>()))
+                }).await {
+                Ok(Ok(selected)) => selected,
+                Ok(Err(error)) => { worker_state.jobs.fail(&job, error.to_string()); return; }
+                Err(error) => { worker_state.jobs.fail(&job, error.to_string()); return; }
+            };
+            Some(rows)
+        } else { None };
 
         let frame = match worker_state
             .query_executor
@@ -1015,6 +1064,19 @@ async fn start_profile_mode(
         if sample_row_cap.is_some() {
             report.profile_status = "sampled".to_string();
             report.profile_sample_rows = Some(report.total_rows);
+            report.profile_sampling = Some(ProfileSampling {
+                method: "stratified_source_rows_with_endpoints".into(),
+                source_rows: source_rows.unwrap_or(report.total_rows), sampled_rows: report.total_rows,
+                seed: 0xeda71,
+            });
+            // Sampled rows are not adjacent observations. Run lengths and cadence
+            // computed on them would be false source-quality claims.
+            report.time_quality = None;
+            for column in &mut report.column_profiles {
+                column.longest_zero_run = None;
+                column.longest_zero_run_start_ms = None;
+                column.longest_zero_run_end_ms = None;
+            }
         }
         report.revision = worker_version.revision;
         report.source_version_id = Some(worker_version.id.clone());
@@ -1024,6 +1086,7 @@ async fn start_profile_mode(
         report.dataset_fingerprint = Some(worker_version.dataset_fingerprint.clone());
         report.schema_fingerprint = Some(worker_version.schema_fingerprint.clone());
         report.source_name = worker_version.source_name.clone();
+        report.display_name = worker_version.display_name.clone();
         match serde_json::to_value(report) {
             Ok(result) => {
                 worker_state.store_profile(
@@ -1070,6 +1133,17 @@ mod tests {
             ],
         )
         .expect("two-time-column dataframe")
+    }
+
+    #[test]
+    fn stratified_profile_covers_endpoints_without_periodic_stride() {
+        let indices = profile_sample_indices(69_680, 10_000);
+        assert_eq!(indices.len(), 10_000);
+        assert_eq!(indices[0], 0);
+        assert_eq!(indices[9_999], 69_679);
+        assert!(indices.windows(2).all(|pair| pair[0] < pair[1]));
+        assert!(indices.windows(2).any(|pair| pair[1] - pair[0] != 7));
+        assert_eq!(indices, profile_sample_indices(69_680, 10_000));
     }
 
     #[test]
@@ -1935,6 +2009,10 @@ mod tests {
         }
         let report = report.expect("completed sampled profile");
         assert_eq!(report["profile_status"], serde_json::json!("sampled"));
+        assert_eq!(report["profile_sampling"]["source_rows"], serde_json::json!(rows));
+        assert!(report.get("time_quality").is_none());
+        let value_profile = report["column_profiles"].as_array().unwrap().iter().find(|profile| profile["name"] == "value").unwrap();
+        assert_eq!(value_profile["max"], serde_json::json!((rows - 1) as f64));
         assert_eq!(
             report["profile_sample_rows"],
             serde_json::json!(SAMPLED_PROFILE_ROW_CAP)

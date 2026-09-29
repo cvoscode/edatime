@@ -7,9 +7,14 @@ use axum::{
 };
 use chrono::{DateTime, NaiveDateTime, Utc};
 use polars::prelude::col;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
-use crate::analytics::{DriftThresholds, compute_drift_investigation, compute_temporal_drift};
+use crate::analytics::drift::quantile_histogram_edges;
+use crate::analytics::{
+    DriftThresholds, compute_drift_investigation, compute_temporal_drift, extract_f64_column_opt,
+    shared::extract_ts_epoch_ms_with_col,
+};
 use crate::error::AppError;
 use crate::handlers::routes::shared::{ExecutionIdentity, add_execution_identity_headers};
 use edatime_core::temporal::native_to_epoch_ms;
@@ -31,6 +36,33 @@ pub struct DriftQuery {
     pub psi_major_threshold: Option<f64>,
     pub wasserstein_std_multiplier: Option<f64>,
     pub cleaning_plan: crate::handlers::routes::cleaning::PlanRequestEnvelope,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DriftPreflightColumn {
+    pub column: String,
+    pub reference_valid_samples: usize,
+    pub comparison_valid_samples: usize,
+    pub comparison_windows: usize,
+    pub windows_below_minimum: usize,
+    pub average_window_samples: f64,
+    pub reference_to_window_ratio: Option<f64>,
+    pub decision_ready: bool,
+    pub warnings: Vec<String>,
+    pub suggestions: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DriftPreflightResponse {
+    pub source_version_id: String,
+    pub source_revision: u64,
+    pub schema_fingerprint: String,
+    pub plan_hash: String,
+    pub window: String,
+    pub decision_ready: bool,
+    pub columns: Vec<DriftPreflightColumn>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -167,6 +199,114 @@ async fn filtered_drift_df(
     ))
 }
 
+fn build_drift_preflight_columns(
+    df: &polars::prelude::DataFrame,
+    ts_col: &str,
+    columns: &[String],
+    reference_start_ms: f64,
+    reference_end_ms: f64,
+    comparison_start_ms: f64,
+    comparison_end_ms: f64,
+    window_size_ms: i64,
+) -> Result<Vec<DriftPreflightColumn>, AppError> {
+    let timestamps = extract_ts_epoch_ms_with_col(df, ts_col)?;
+    let window_size_ms = window_size_ms.max(1) as f64;
+    let comparison_windows = ((comparison_end_ms - comparison_start_ms).max(0.0) / window_size_ms)
+        .ceil()
+        .max(1.0) as usize;
+    let mut preflight = Vec::with_capacity(columns.len());
+
+    for column in columns {
+        let values = extract_f64_column_opt(df, column)?;
+        let mut reference_valid_samples = 0usize;
+        let mut reference_values = Vec::new();
+        let mut comparison_valid_samples = 0usize;
+        let mut window_counts = BTreeMap::<usize, usize>::new();
+        for (timestamp, value) in timestamps.iter().zip(values.iter()) {
+            let Some(value) = value else { continue };
+            if *timestamp >= reference_start_ms && *timestamp < reference_end_ms {
+                reference_valid_samples += 1;
+                reference_values.push(*value);
+            }
+            if *timestamp >= comparison_start_ms && *timestamp <= comparison_end_ms {
+                let index = ((*timestamp - comparison_start_ms) / window_size_ms).floor() as usize;
+                if index < comparison_windows {
+                    comparison_valid_samples += 1;
+                    *window_counts.entry(index).or_default() += 1;
+                }
+            }
+        }
+
+        let usable_windows: Vec<usize> = window_counts
+            .values()
+            .copied()
+            .filter(|count| *count >= 5)
+            .collect();
+        let windows_below_minimum = comparison_windows.saturating_sub(usable_windows.len());
+        let average_window_samples = if usable_windows.is_empty() {
+            0.0
+        } else {
+            usable_windows.iter().sum::<usize>() as f64 / usable_windows.len() as f64
+        };
+        let ratio = (average_window_samples > 0.0)
+            .then_some(reference_valid_samples as f64 / average_window_samples);
+        let mut warnings = Vec::new();
+        let mut suggestions = Vec::new();
+        if reference_valid_samples < 5 {
+            warnings.push(
+                "Reference has fewer than 5 valid samples; Drift cannot compute a baseline."
+                    .to_string(),
+            );
+            suggestions.push(
+                "Widen the reference range until this column has at least 5 valid samples."
+                    .to_string(),
+            );
+        }
+        if windows_below_minimum > 0 {
+            warnings.push(format!(
+                "{windows_below_minimum} of {comparison_windows} monitoring windows have fewer than 5 valid samples; their Drift metrics will be zeroed."
+            ));
+            suggestions.push(
+                "Choose a longer monitoring window or inspect missing and non-finite values."
+                    .to_string(),
+            );
+        }
+        if ratio.is_some_and(|ratio| ratio > 10.0) {
+            warnings.push(format!(
+                "The reference is more than 10× the average usable monitoring window ({:.1}×); PSI and KS may be unreliable.",
+                ratio.unwrap_or_default()
+            ));
+            suggestions.push("Try a longer monitoring window or a shorter reference range to reduce the sample-size imbalance.".to_string());
+        }
+        reference_values.sort_by(f64::total_cmp);
+        if reference_valid_samples >= 5 && quantile_histogram_edges(&reference_values, 20).1 {
+            warnings.push(
+                "The reference has too few distinct values for stable histogram bins.".to_string(),
+            );
+            suggestions.push(
+                "Inspect a less flat reference period or treat distribution metrics cautiously."
+                    .to_string(),
+            );
+        }
+        suggestions.sort();
+        suggestions.dedup();
+        let decision_ready = warnings.is_empty();
+        preflight.push(DriftPreflightColumn {
+            column: column.clone(),
+            reference_valid_samples,
+            comparison_valid_samples,
+            comparison_windows,
+            windows_below_minimum,
+            average_window_samples,
+            reference_to_window_ratio: ratio,
+            decision_ready,
+            warnings,
+            suggestions,
+        });
+    }
+    Ok(preflight)
+}
+
 fn drift_frame_with_identity(
     state: &AppState,
     cleaning_plan: &crate::handlers::routes::cleaning::PlanRequestEnvelope,
@@ -243,6 +383,97 @@ pub async fn post_drift_stats(
         .body(body.into())
         .map_err(|e| AppError::internal(e.to_string()))?;
     Ok(add_execution_identity_headers(response, &identity))
+}
+
+#[tracing::instrument(skip(state))]
+pub async fn post_drift_preflight(
+    State(state): State<AppState>,
+    Json(query): Json<DriftInvestigateQuery>,
+) -> Result<Response, AppError> {
+    let window_size = validated_drift_stats_window_ms(&query.window)?;
+    let reference_start = parse_datetime(&query.reference_start)?;
+    let reference_end = parse_datetime(&query.reference_end)?;
+    validate_time_window(reference_start, reference_end)?;
+    let comparison_start = match query.comparison_start.as_deref() {
+        Some(value) => parse_datetime(value)?,
+        None => reference_end,
+    };
+    let (lf, identity) = drift_frame_with_identity(&state, &query.cleaning_plan)?;
+    let comparison_end = match query.comparison_end.as_deref() {
+        Some(value) => parse_datetime(value)?,
+        None => {
+            let ctx = state.ts_context(&lf)?;
+            let max_native = max_timestamp_native(
+                &state,
+                &lf,
+                &ctx.ts_col,
+                reference_end.timestamp_millis() * ctx.multiplier,
+            )
+            .await?;
+            DateTime::<Utc>::from_timestamp_millis(
+                native_to_epoch_ms(max_native, &ctx.dtype).round() as i64,
+            )
+            .ok_or_else(|| AppError::bad_request("invalid comparison end derived from dataset"))?
+        }
+    };
+    validate_time_window(comparison_start, comparison_end)?;
+    let columns = validate_numeric_columns_lazy(&lf, &query.columns, &state.config.validation)
+        .map_err(AppError::from)?;
+    let ctx = state.ts_context(&lf)?;
+    if let Some(segment_by) = query.segment_by.as_deref() {
+        let schema = lf
+            .clone()
+            .collect_schema()
+            .map_err(|error| AppError::bad_request(format!("Failed to read schema: {error}")))?;
+        let dtype = schema.get(segment_by).ok_or_else(|| {
+            AppError::bad_request(format!("Unknown segment column '{segment_by}'"))
+        })?;
+        if segment_by == ctx.ts_col
+            || matches!(
+                dtype,
+                polars::prelude::DataType::Datetime(_, _) | polars::prelude::DataType::Date
+            )
+        {
+            return Err(AppError::bad_request(format!(
+                "Segment column '{segment_by}' cannot be the time column",
+            )));
+        }
+    }
+    let (df, _, _) = filtered_drift_df(
+        &state,
+        lf,
+        &columns,
+        query.segment_by.as_deref(),
+        reference_start,
+        comparison_end,
+    )
+    .await?;
+    let column_reports = build_drift_preflight_columns(
+        &df,
+        &ctx.ts_col,
+        &columns,
+        reference_start.timestamp_millis() as f64,
+        reference_end.timestamp_millis() as f64,
+        comparison_start.timestamp_millis() as f64,
+        comparison_end.timestamp_millis() as f64,
+        window_size,
+    )?;
+    let response = DriftPreflightResponse {
+        source_version_id: identity.source_version_id.clone(),
+        source_revision: identity.source_revision,
+        schema_fingerprint: identity.schema_fingerprint.clone(),
+        plan_hash: identity
+            .plan_hash
+            .clone()
+            .unwrap_or_else(|| "none".to_string()),
+        window: query.window,
+        decision_ready: column_reports.iter().all(|report| report.decision_ready),
+        columns: column_reports,
+    };
+    Ok(add_execution_identity_headers(
+        Json(response).into_response(),
+        &identity,
+    ))
 }
 
 #[tracing::instrument(skip(state))]
@@ -346,7 +577,7 @@ pub async fn post_drift_investigate(
 mod tests {
     use super::*;
     use polars::df;
-    use polars::prelude::IntoLazy;
+    use polars::prelude::{DataFrame, DataType, IntoLazy, NamedFrom, Series, TimeUnit};
     use serde_json::json;
 
     fn sample_drift_query() -> DriftQuery {
@@ -373,6 +604,195 @@ mod tests {
             }))
             .expect("test plan envelope should deserialize"),
         }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn drift_preflight_endpoint_returns_matching_source_identity_and_counts() {
+        let base = 1_700_000_000_000_i64;
+        let timestamp_series = Series::new(
+            "ts".into(),
+            (0_i64..130)
+                .map(|minute| base + minute * 60_000)
+                .collect::<Vec<_>>(),
+        )
+        .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))
+        .unwrap();
+        let value_series = Series::new(
+            "value".into(),
+            (0_i64..130).map(|minute| minute as f64).collect::<Vec<_>>(),
+        );
+        let frame =
+            DataFrame::new(130, vec![timestamp_series.into(), value_series.into()]).unwrap();
+        let state = AppState::new(frame, Default::default());
+        let version = state.current_dataset_version().unwrap();
+        let cleaning_plan = serde_json::from_value(json!({
+            "plan": {
+                "schemaVersion": 1, "id": "drift-preflight-test-plan", "planRevision": 1,
+                "sourceVersionId": version.id, "datasetRevision": version.revision,
+                "datasetFingerprint": version.dataset_fingerprint,
+                "schemaFingerprint": version.schema_fingerprint,
+                "timeColumn": "ts", "sourceName": null, "stages": [],
+                "createdAt": "now", "updatedAt": "now"
+            },
+            "expectedPlanHash": null,
+            "expectedSourceVersionId": version.id,
+            "expectedDatasetRevision": version.revision
+        }))
+        .unwrap();
+        let start = DateTime::<Utc>::from_timestamp_millis(base).unwrap();
+        let reference_end = DateTime::<Utc>::from_timestamp_millis(base + 120 * 60_000).unwrap();
+        let comparison_end = DateTime::<Utc>::from_timestamp_millis(base + 129 * 60_000).unwrap();
+        let response = post_drift_preflight(
+            State(state),
+            Json(DriftInvestigateQuery {
+                columns: vec!["value".to_string()],
+                window: "daily".to_string(),
+                reference_start: start.to_rfc3339(),
+                reference_end: reference_end.to_rfc3339(),
+                comparison_start: Some(reference_end.to_rfc3339()),
+                comparison_end: Some(comparison_end.to_rfc3339()),
+                segment_by: None,
+                segment_limit: None,
+                ks_pvalue_threshold: None,
+                es_pvalue_threshold: None,
+                psi_minor_threshold: None,
+                psi_major_threshold: None,
+                wasserstein_std_multiplier: None,
+                include_quality: None,
+                include_change_points: None,
+                include_correlations: None,
+                cleaning_plan,
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            response.headers().get("x-edatime-source-version").unwrap(),
+            version.id.as_str()
+        );
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let result: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(result["sourceVersionId"], version.id);
+        assert_eq!(result["sourceRevision"], version.revision);
+        assert_eq!(result["columns"][0]["referenceValidSamples"], 120);
+        assert_eq!(result["columns"][0]["comparisonValidSamples"], 10);
+        assert_eq!(result["columns"][0]["decisionReady"], false);
+        assert!(
+            result["columns"][0]["warnings"][0]
+                .as_str()
+                .unwrap()
+                .contains("10×")
+        );
+    }
+
+    #[test]
+    fn drift_preflight_reports_finite_counts_and_sample_imbalance() {
+        let base = 1_700_000_000_000_i64;
+        let timestamps = (0_i64..24)
+            .map(|minute| base + minute * 60_000)
+            .collect::<Vec<_>>();
+        let values = (0_i64..24).map(|minute| minute as f64).collect::<Vec<_>>();
+        // One 12-minute monitoring window with 12 values; reference is also 12 values.
+        let frame = df!("ts" => timestamps, "value" => values).unwrap();
+        let reports = build_drift_preflight_columns(
+            &frame,
+            "ts",
+            &["value".to_string()],
+            base as f64,
+            (base + 12 * 60_000) as f64,
+            (base + 12 * 60_000) as f64,
+            (base + 23 * 60_000) as f64,
+            12 * 60_000,
+        )
+        .unwrap();
+        let report = &reports[0];
+        assert_eq!(report.reference_valid_samples, 12);
+        assert_eq!(report.comparison_valid_samples, 12);
+        assert_eq!(report.comparison_windows, 1);
+        assert_eq!(report.windows_below_minimum, 0);
+        assert!(report.decision_ready);
+    }
+
+    #[test]
+    fn drift_preflight_flags_quantile_collapsed_histograms_with_many_distinct_values() {
+        let base = 1_700_000_000_000_i64;
+        let timestamps = (0_i64..2_000)
+            .map(|minute| base + minute * 60_000)
+            .collect::<Vec<_>>();
+        let values = (0_i64..2_000)
+            .map(|index| {
+                if index < 980 {
+                    0.0
+                } else if index < 1_000 {
+                    (index - 979) as f64
+                } else {
+                    ((index - 1_000) % 20 + 1) as f64
+                }
+            })
+            .collect::<Vec<_>>();
+        let frame = df!("ts" => timestamps, "value" => values).unwrap();
+        let reports = build_drift_preflight_columns(
+            &frame,
+            "ts",
+            &["value".to_string()],
+            base as f64,
+            (base + 1_000 * 60_000) as f64,
+            (base + 1_000 * 60_000) as f64,
+            (base + 1_999 * 60_000) as f64,
+            24 * 60 * 60_000,
+        )
+        .unwrap();
+        let report = &reports[0];
+        assert_eq!(report.reference_valid_samples, 1_000);
+        assert_eq!(report.average_window_samples, 1_000.0);
+        assert!(!report.decision_ready);
+        assert!(
+            report
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("histogram bins"))
+        );
+    }
+
+    #[test]
+    fn drift_preflight_flags_reference_to_window_imbalance_and_sparse_windows() {
+        let base = 1_700_000_000_000_i64;
+        let frame = df!(
+            "ts" => (0_i64..90).map(|minute| base + minute * 60_000).collect::<Vec<_>>(),
+            "value" => (0_i64..90).map(|minute| (minute != 62).then_some(minute as f64)).collect::<Vec<_>>(),
+        )
+        .unwrap();
+        let reports = build_drift_preflight_columns(
+            &frame,
+            "ts",
+            &["value".to_string()],
+            base as f64,
+            (base + 60 * 60_000) as f64,
+            (base + 60 * 60_000) as f64,
+            (base + 89 * 60_000) as f64,
+            5 * 60_000,
+        )
+        .unwrap();
+        let report = &reports[0];
+        assert!(!report.decision_ready);
+        assert_eq!(report.reference_valid_samples, 60);
+        assert_eq!(report.comparison_windows, 6);
+        assert_eq!(report.windows_below_minimum, 1);
+        assert!(
+            report
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("10×"))
+        );
+        assert!(
+            report
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("fewer than 5"))
+        );
+        assert!(!report.suggestions.is_empty());
     }
 
     #[test]

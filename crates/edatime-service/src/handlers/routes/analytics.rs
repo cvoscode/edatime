@@ -193,6 +193,8 @@ pub struct FftQuery {
     pub columns: Option<String>,
     /// Max points for FFT (default: 8192, will downsample if data is larger)
     pub max_points: Option<usize>,
+    /// none, constant (mean removal, default), or linear.
+    pub detrend: Option<String>,
     pub cleaning_plan: crate::handlers::routes::cleaning::PlanRequestEnvelope,
 }
 
@@ -217,12 +219,14 @@ async fn fft_response(state: AppState, params: FftQuery) -> Result<Response, App
     }
     let (work_df, sampling) = downsample_for_analysis(filtered, max_pts, "FFT")?;
 
+    let sample_rate_hz = sampling.effective_cadence_ms.map(|cadence| 1000.0 / cadence);
+    let detrend = params.detrend.unwrap_or_else(|| "constant".to_string());
     let results = state
         .query_executor
         .run_interactive(edatime_core::metrics::CpuStage::Analytics, {
             let work_df = work_df.clone();
             let value_cols = value_cols.clone();
-            move || analytics::compute_fft(&work_df, &value_cols, None)
+            move || analytics::compute_fft_with_detrend(&work_df, &value_cols, sample_rate_hz, &detrend)
         })
         .await
         .map_err(AppError::from)??;
@@ -314,6 +318,7 @@ async fn spectrogram_response(
         params.clip_param,
     )?;
 
+    let analysis_rate = sampling.effective_cadence_ms.map(|cadence| 1000.0 / cadence);
     let result = state
         .query_executor
         .run_interactive_cancellable(edatime_core::metrics::CpuStage::Analytics, {
@@ -327,6 +332,10 @@ async fn spectrogram_response(
                     hop,
                     &cancellation,
                 )?;
+                if let Some(rate) = analysis_rate {
+                    for frequency in &mut result.frequencies { *frequency *= rate / result.sample_rate_hz; }
+                    result.sample_rate_hz = rate;
+                }
                 if scale.mode != analytics::ScaleMode::None
                     || scale.clip != analytics::ClipMode::None
                 {
@@ -616,6 +625,8 @@ pub struct CausalGraphRequest {
     /// Columns to include in the causal search (comma-separated string or JSON array)
     #[serde(default, deserialize_with = "deserialize_columns")]
     pub columns: Option<String>,
+    pub start: Option<DateTime<Utc>>,
+    pub end: Option<DateTime<Utc>>,
     /// Maximum time lag (default: 3)
     pub tau_max: Option<usize>,
     /// Significance level for PC condition selection (default: 0.2)
@@ -711,11 +722,25 @@ pub async fn post_causal_graph(
     if value_cols.len() > 20 {
         return Err(AppError::bad_request("Too many columns (max 20)"));
     }
-    let df = state
-        .query_executor
-        .execute_async(lf)
-        .await
-        .map_err(|e| AppError::io(e.to_string()))?;
+    let time_column = &params.cleaning_plan.plan.time_column;
+    if !lf.clone().collect_schema()?.contains(time_column.as_str()) {
+        return Err(AppError::bad_request("Causal discovery requires the selected timestamp column. Choose a valid time column in Data source."));
+    }
+    let lf = match (params.start, params.end) {
+        (Some(start), Some(end)) => {
+            edatime_query::validation::validate_time_window(start, end)?;
+            let ctx = state.ts_context(&lf)?;
+            edatime_query::pipeline::filter_time_range(lf, start.timestamp_millis() * ctx.multiplier,
+                end.timestamp_millis() * ctx.multiplier, &value_cols, time_column)?
+        }
+        (None, None) => {
+            let selected = std::iter::once(time_column).chain(value_cols.iter())
+                .map(|name| polars::prelude::col(name)).collect::<Vec<_>>();
+            lf.select(selected)
+        }
+        _ => return Err(AppError::bad_request("Causal start and end must be provided together")),
+    };
+    let df = state.query_executor.execute_async(lf).await?;
 
     let tau_max = parse_causal_tau_max(params.tau_max)?;
     let pc_alpha = params.pc_alpha.unwrap_or(0.2).clamp(0.001, 0.5);
@@ -751,6 +776,11 @@ pub async fn post_causal_graph(
         state.config.budgets.max_causal_work_units as u128,
     )?;
 
+    if matches!(test_kind, crate::causal::IndependenceTestKind::Gsquared | crate::causal::IndependenceTestKind::CmiSymb)
+        && df.height() > max_pts {
+        return Err(AppError::bad_request("Symbolic causal tests require exact observations. Narrow the range or raise the point budget; averaging would change categories."));
+    }
+    let (df, sampling) = downsample_for_analysis(df, max_pts, "Causal discovery")?;
     let n_preliminary_iterations = params.n_preliminary_iterations.unwrap_or(1).clamp(0, 5);
     let knn = params.knn.unwrap_or(10).clamp(1, 100);
     let result = state
@@ -807,8 +837,11 @@ pub async fn post_causal_graph(
                     }
                 };
 
-                serde_json::to_value(&causal_result)
-                    .map_err(|e| AppError::internal(format!("Serialize causal result: {e}")))
+                let mut result = serde_json::to_value(&causal_result)
+                    .map_err(|e| AppError::internal(format!("Serialize causal result: {e}")))?;
+                result["sampling"] = serde_json::to_value(&sampling)?;
+                result["sample_count"] = serde_json::json!(df.height());
+                Ok(result)
             },
         )
         .await
@@ -882,6 +915,7 @@ mod tests {
         let df = DataFrame::new(
             6,
             vec![
+                Series::new("ts".into(), (0..6).map(|i| i * 900_000_i64).collect::<Vec<_>>()).into(),
                 Series::new("x".into(), [1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).into(),
                 Series::new("y".into(), [0.0_f64, 0.5, 1.0, 1.5, 2.0, 2.5]).into(),
             ],
@@ -893,6 +927,7 @@ mod tests {
         let response = post_causal_graph(
             State(state.clone()),
             Json(CausalGraphRequest {
+                start: None, end: None,
                 columns: Some("x,y".to_string()),
                 tau_max: Some(1),
                 pc_alpha: Some(0.2),
@@ -938,6 +973,7 @@ mod tests {
         let df = DataFrame::new(
             512,
             vec![
+                Series::new("ts".into(), (0..512).map(|i| i * 900_000_i64).collect::<Vec<_>>()).into(),
                 Series::new("x".into(), (0..512).map(|i| i as f64).collect::<Vec<_>>()).into(),
                 Series::new(
                     "y".into(),
@@ -953,6 +989,7 @@ mod tests {
         let response = post_causal_graph(
             State(state),
             Json(CausalGraphRequest {
+                start: None, end: None,
                 columns: Some("x,y".to_string()),
                 tau_max: Some(128),
                 pc_alpha: Some(0.2),
@@ -983,7 +1020,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn causal_route_rejects_excessive_high_lag_work() {
         let row_count = 5_000usize;
-        let columns: Vec<_> = (0..8)
+        let mut columns: Vec<_> = (0..8)
             .map(|idx| {
                 Series::new(
                     format!("c{idx}").into(),
@@ -994,6 +1031,7 @@ mod tests {
                 .into()
             })
             .collect();
+        columns.insert(0, Series::new("ts".into(), (0..row_count).map(|i| i as i64 * 900_000).collect::<Vec<_>>()).into());
         let df = DataFrame::new(row_count, columns).expect("test dataframe should build");
         let mut config = AppConfig::default();
         config.budgets.max_causal_work_units = 40_000_000;
@@ -1003,6 +1041,7 @@ mod tests {
         let err = post_causal_graph(
             State(state),
             Json(CausalGraphRequest {
+                start: None, end: None,
                 columns: Some("c0,c1,c2,c3,c4,c5,c6,c7".to_string()),
                 tau_max: Some(128),
                 pc_alpha: Some(0.2),

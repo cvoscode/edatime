@@ -620,6 +620,50 @@ pub fn format_window_label(start_ms: f64, end_ms: f64, window_ms: i64) -> String
     }
 }
 
+/// Build reference quantile edges and detect the tied-bin fallback used by Drift.
+/// The preflight uses the same calculation so its warning cannot drift from
+/// the analysis that produces the exported metrics.
+pub fn quantile_histogram_edges(sorted_reference: &[f64], n_bins: usize) -> (Vec<f64>, bool) {
+    if sorted_reference.is_empty() {
+        return (Vec::new(), true);
+    }
+    let effective_bins = n_bins.clamp(4, 50);
+    let raw_edges: Vec<f64> = (0..=effective_bins)
+        .map(|i| {
+            let frac = i as f64 / effective_bins as f64;
+            let idx = ((sorted_reference.len() - 1) as f64 * frac).round() as usize;
+            sorted_reference[idx.min(sorted_reference.len() - 1)]
+        })
+        .collect();
+
+    let mut hist_edges = vec![raw_edges[0]];
+    for &edge in &raw_edges[1..] {
+        if edge > hist_edges[hist_edges.len() - 1] {
+            hist_edges.push(edge);
+        }
+    }
+    if hist_edges.len() < 2 {
+        let lo = sorted_reference[0];
+        let hi = sorted_reference[sorted_reference.len() - 1];
+        let range = (hi - lo).max(f64::EPSILON);
+        let width = range / effective_bins as f64;
+        hist_edges = (0..=effective_bins)
+            .map(|i| lo + width * i as f64)
+            .collect();
+        return (hist_edges, true);
+    }
+    if hist_edges.len() < effective_bins / 2 + 2 {
+        let lo = hist_edges[0];
+        let hi = hist_edges[hist_edges.len() - 1];
+        let width = (hi - lo).max(f64::EPSILON) / effective_bins as f64;
+        hist_edges = (0..=effective_bins)
+            .map(|i| lo + width * i as f64)
+            .collect();
+        return (hist_edges, true);
+    }
+    (hist_edges, false)
+}
+
 /// Compute temporal drift analysis for a given column.
 #[allow(clippy::too_many_arguments)]
 pub fn compute_temporal_drift(
@@ -664,43 +708,7 @@ pub fn compute_temporal_drift(
     ref_vals.sort_by(|a, b| a.total_cmp(b));
     let ref_sorted = ref_vals;
 
-    let effective_bins = n_bins.clamp(4, 50);
-    let raw_edges: Vec<f64> = (0..=effective_bins)
-        .map(|i| {
-            let frac = i as f64 / effective_bins as f64;
-            let idx = ((ref_sorted.len() - 1) as f64 * frac).round() as usize;
-            ref_sorted[idx.min(ref_sorted.len() - 1)]
-        })
-        .collect();
-
-    let mut hist_edges: Vec<f64> = vec![raw_edges[0]];
-    for &e in &raw_edges[1..] {
-        if e > hist_edges[hist_edges.len() - 1] {
-            hist_edges.push(e);
-        }
-    }
-
-    let bin_count_warning: bool;
-    if hist_edges.len() < 2 {
-        let lo = ref_sorted[0];
-        let hi = ref_sorted[ref_sorted.len() - 1];
-        let range = (hi - lo).max(f64::EPSILON);
-        let width = range / effective_bins as f64;
-        hist_edges = (0..=effective_bins)
-            .map(|i| lo + width * i as f64)
-            .collect();
-        bin_count_warning = true;
-    } else if hist_edges.len() < effective_bins / 2 + 2 {
-        let lo = hist_edges[0];
-        let hi = hist_edges[hist_edges.len() - 1];
-        let width = (hi - lo).max(f64::EPSILON) / effective_bins as f64;
-        hist_edges = (0..=effective_bins)
-            .map(|i| lo + width * i as f64)
-            .collect();
-        bin_count_warning = true;
-    } else {
-        bin_count_warning = false;
-    }
+    let (hist_edges, bin_count_warning) = quantile_histogram_edges(&ref_sorted, n_bins);
     let effective_bin_count = hist_edges.len().saturating_sub(1);
 
     let ref_label = format!("Ref ({})", format_range_full(ref_start_ms, ref_end_ms));

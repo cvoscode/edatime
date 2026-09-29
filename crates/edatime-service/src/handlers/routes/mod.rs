@@ -45,6 +45,10 @@ pub fn api_router(max_json_body_bytes: usize) -> Router<AppState> {
         .route("/cleaning/export/manifest", post(cleaning::export_manifest))
         .route("/cleaning/export/bundle", post(cleaning::export_bundle))
         .route("/datasets/versions", get(cleaning::list_versions))
+        .route(
+            "/datasets/versions/{id}/provenance",
+            get(cleaning::get_applied_plan_history),
+        )
         .route("/datasets/versions/select", post(cleaning::select_version))
         .route("/datasets/storage", get(cleaning::get_storage_usage))
         .route("/metadata", get(metadata::get_metadata))
@@ -92,6 +96,7 @@ pub fn api_router(max_json_body_bytes: usize) -> Router<AppState> {
         // Drift endpoint
         .route("/drift/stats", post(drift::post_drift_stats))
         .route("/drift/investigate", post(drift::post_drift_investigate))
+        .route("/drift/preflight", post(drift::post_drift_preflight))
         .layer(DefaultBodyLimit::max(max_json_body_bytes.max(1024)));
 
     let upload_routes = Router::new()

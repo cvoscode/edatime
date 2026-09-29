@@ -1,3 +1,4 @@
+import { downloadBlob } from '../../utils/dom.js';
 import { fetchCorrelationMatrix } from '../../services/api/index.js';
 import type { CorrelationMatrixResponse } from '../../services/api/analytics.js';
 import { exportElementPNG, exportElementSVG, exportElementHTML, exportMatrixCSV } from '../../utils/chartExport.js';
@@ -33,6 +34,8 @@ import type { WorkspaceStore, WorkspaceSnapshot } from '../../contracts/workspac
 import { buildScatterQueryContext, type ScatterQueryContext } from '../scatter/state.js';
 import { toast } from '../../utils/toast.js';
 import { requestScatterPair } from '../scatter/pairIntent.js';
+import { copyTextToClipboard } from '../../utils/copyText.js';
+import { beginCompletedAnalysisExportContext } from '../../utils/exportProvenanceContext.js';
 import { MATRIX_POINT_LIMIT } from '../scatter/helpers.js';
 import {
     readHeatmapDisplayModes,
@@ -215,13 +218,22 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
         setDropdownDisabled('heatmap-metric', true);
         heatmapRuntime?.updateStatus(label);
         try {
-            const response = await fetchCorrelationMatrix(nextMetric, captureQueryContext(snapshot ?? deps.workspace?.getSnapshot()));
+            const queryContext = captureQueryContext(snapshot ?? deps.workspace?.getSnapshot());
+            const completeAnalysisProvenance = beginCompletedAnalysisExportContext({
+                pageName: 'heatmap',
+                controls: {
+                    metric: nextMetric,
+                    queryContext: JSON.stringify(queryContext ?? null),
+                },
+            });
+            const response = await fetchCorrelationMatrix(nextMetric, queryContext);
             if (loadSequence !== matrixLoadSequence) return;
             // The previous dataset's manual order doesn't apply to the
             // next one — clear it so the next render either clusters or
             // shows the new columns in source order.
             if (!heatmapOrderLocked) userColumnOrder = null;
             matrixData = response;
+            completeAnalysisProvenance(response.executionIdentity ?? null);
             if (typeof document !== 'undefined' && (document as any).fonts?.ready) {
                 await (document as any).fonts.ready;
             }
@@ -388,20 +400,25 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
                 const cellStyle = densityCell
                     ? `background:var(--surface-2);color:var(--text);border:2px solid ${presentation.background};`
                     : `background:${presentation.background};color:${presentation.textColor};`;
-                const previewScope = `${metricLabel} correlation; pair previews use sampled working-data levels with current linked filters and time window (up to ${MATRIX_POINT_LIMIT} observations per pair).`;
+                const validN = (metric.endsWith('_diff') ? matrixData?.diff_counts : matrixData?.counts)?.[rowOriginal]?.[colOriginal];
+                const eligible = matrixData?.input_rows == null ? null : Math.max(0, matrixData.input_rows - (metric.endsWith('_diff') ? 1 : 0));
+                const countScope = validN == null ? 'Pairwise n unavailable.' : `Pairwise valid n = ${validN.toLocaleString()}; ${eligible == null ? 'unknown' : (eligible - validN).toLocaleString()} excluded from ${eligible?.toLocaleString() ?? 'unknown'} eligible ${metric.endsWith('_diff') ? 'adjacent changes' : 'rows'}.`;
+                const range = matrixData?.time_range_ms;
+                const rangeScope = range ? `Working range: ${new Date(range[0]).toISOString()} – ${new Date(range[1]).toISOString()} (UTC).` : 'Working range unavailable.';
+                const previewScope = `${countScope} ${rangeScope} ${metricLabel} correlation; pair previews use sampled working-data levels with current linked filters and time window (up to ${MATRIX_POINT_LIMIT} observations per pair).`;
                 const isActiveCell = activeKeyboardTarget?.kind === 'cell'
                     && activeKeyboardTarget.row === rowName && activeKeyboardTarget.column === colName;
                 const isRovingCell = presentation.interactive && (isActiveCell || (!activeKeyboardTarget && !hasRovingTabStop));
                 if (isRovingCell) hasRovingTabStop = true;
                 rowCells.push(
-                    `<div role="gridcell" aria-rowindex="${r + 2}" aria-colindex="${c + 2}" class="${cellClass}" data-interactive="${presentation.interactive}" data-row="${rowOriginal}" data-col="${colOriginal}" data-row-name="${escapeAttr(rowName)}" data-col-name="${escapeAttr(colName)}" data-correlation-value="${Number.isFinite(value) ? value : ''}" data-correlation-label="${escapeAttr(presentation.signedValue)}" data-cell-background="${escapeAttr(presentation.background)}" data-cell-color="${escapeAttr(presentation.textColor)}" data-correlation-tooltip="${escapeAttr(presentation.tooltip)}" style="grid-column:${colGridFor(c)};grid-row:${rowGridFor(r)};${cellStyle}cursor:${presentation.interactive ? 'pointer' : 'default'};" aria-label="${escapeAttr(`Row ${r + 1} of ${size}, column ${c + 1} of ${size}. ${presentation.tooltip} ${previewScope}`)}" title="${escapeAttr(`${presentation.tooltip} ${previewScope}`)}" tabindex="${isRovingCell ? '0' : '-1'}"><canvas class="heatmap-cell-canvas" data-css-height="${responsiveCell}" aria-hidden="true"></canvas></div>`,
+                    `<div role="gridcell" aria-rowindex="${r + 2}" aria-colindex="${c + 2}" class="${cellClass}" data-interactive="${presentation.interactive}" data-row="${rowOriginal}" data-col="${colOriginal}" data-row-name="${escapeAttr(rowName)}" data-col-name="${escapeAttr(colName)}" data-correlation-value="${Number.isFinite(value) ? value : ''}" data-correlation-label="${escapeAttr(presentation.signedValue)}" data-cell-background="${escapeAttr(presentation.background)}" data-cell-color="${escapeAttr(presentation.textColor)}" data-correlation-tooltip="${escapeAttr(`${presentation.tooltip} ${countScope} ${rangeScope}`)}" style="grid-column:${colGridFor(c)};grid-row:${rowGridFor(r)};${cellStyle}cursor:${presentation.interactive ? 'pointer' : 'default'};" aria-label="${escapeAttr(`Row ${r + 1} of ${size}, column ${c + 1} of ${size}. ${presentation.tooltip} ${previewScope}`)}" title="${escapeAttr(`${presentation.tooltip} ${previewScope}`)}" tabindex="${isRovingCell ? '0' : '-1'}"><canvas class="heatmap-cell-canvas" data-css-height="${responsiveCell}" aria-hidden="true"></canvas></div>`,
                 );
             }
             gridRows.push(`<div role="row" aria-rowindex="${r + 2}" class="heatmap-grid-row">${rowCells.join('')}</div>`);
         }
 
         let html = '<div class="heatmap-shell">';
-        html += `<div role="grid" aria-rowcount="${size + 1}" aria-colcount="${size + 1}" aria-label="${escapeAttr(`${metricLabel} correlation matrix. Use arrow keys to move through headers and cells. Press Alt+ArrowLeft or Alt+ArrowRight on a column header to reorder it. Press Enter or Space on an off-diagonal cell to inspect that pair.`)}" class="heatmap-grid" style="display:grid;grid-template-columns:${colTemplate};grid-template-rows:${rowTemplate};">`;
+        html += `<div role="grid" aria-rowcount="${size + 1}" aria-colcount="${size + 1}" aria-label="${escapeAttr(`${metricLabel} correlation matrix. Use arrow keys to move through headers and cells. Press Alt+ArrowLeft or Alt+ArrowRight on a column header to reorder it. Click or press Enter or Space on an off-diagonal cell to open its Pair plot.`)}" class="heatmap-grid" style="display:grid;grid-template-columns:${colTemplate};grid-template-rows:${rowTemplate};">`;
         html += gridRows.join('');
         html += '</div>';
         html += '<div class="heatmap-legend-stack">';
@@ -414,8 +431,9 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
         html += `<div class="heatmap-grid-legend__bar" aria-hidden="true" style="background:${correlationScaleGradient(undefined, '90deg')}"></div>`;
         html += `<span class="heatmap-grid-legend__tick heatmap-grid-legend__tick--positive">+${formatScaleTick(colorDomainMax)}${densityScaleActive ? ' / Higher' : ''}</span>`;
         html += '</div>';
-        html += '</div>';
+        html += '<div class="heatmap-cell-inspector"><p id="heatmap-focus-readout" role="status" aria-live="polite">Focus or point to a cell to inspect its correlation. Click or press Enter or Space to open its Pair plot.</p><div class="heatmap-cell-inspector__actions"><button id="heatmap-copy-cell-btn" class="btn btn-ghost btn-sm" type="button" disabled>Copy cell summary</button><button id="heatmap-open-pair-btn" class="btn btn-accent btn-sm" type="button" disabled>Open Pair plot</button></div></div>';
         html += '<div id="heatmap-keyboard-status" class="sr-only" role="status" aria-live="polite"></div>';
+        html += '</div>';
         html += '</div>';
         if (heatmapClusterEnabled && orderChanged && !heatmapOrderLocked) {
             html += `<div class="heatmap-order-caption" role="status">Order updated by clustering under ${escapeAttr(metricLabel)}.</div>`;
@@ -430,17 +448,50 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
             getDropdownValue('scatter-x-col'),
             getDropdownValue('scatter-y-col'),
         );
+        const focusReadout = container.querySelector<HTMLElement>('#heatmap-focus-readout');
+        const copyCellButton = container.querySelector<HTMLButtonElement>('#heatmap-copy-cell-btn');
+        let focusedCellSummary = '';
+        let focusedPair: { x: string; y: string } | null = null;
+        const openPairButton = container.querySelector<HTMLButtonElement>('#heatmap-open-pair-btn');
+        const updateFocusedCell = (cell: HTMLElement) => {
+            if (cell.dataset.interactive !== 'true') return;
+            const rowName = cell.dataset.rowName || '';
+            const columnName = cell.dataset.colName || '';
+            const value = Number(cell.dataset.correlationValue);
+            const label = cell.dataset.correlationLabel || (Number.isFinite(value) ? value.toFixed(3) : '—');
+            const sampleCount = Number(cell.dataset.previewSampleCount);
+            focusedCellSummary = `${metricLabel}: ${cell.dataset.correlationTooltip || `${rowName} and ${columnName}: ${label}`}${Number.isFinite(sampleCount) ? `; ${sampleCount.toLocaleString()} rendered preview pairs` : ''}. Serial dependence and shared trends can inflate associations; no independent-observation confidence interval is claimed.`;
+            focusedPair = { x: rowName, y: columnName };
+            activeKeyboardTarget = { kind: 'cell', row: rowName, column: columnName };
+            syncSelectedPair(rowName, columnName);
+            if (focusReadout) focusReadout.textContent = focusedCellSummary;
+            if (copyCellButton) copyCellButton.disabled = false;
+            if (openPairButton) { openPairButton.disabled = false; openPairButton.textContent = `Open Pair plot: ${rowName} × ${columnName}`; }
+        };
+        container.querySelector('.heatmap-shell')?.addEventListener('focusin', (event) => {
+            const cell = (event.target as HTMLElement).closest<HTMLElement>('.heatmap-cell[data-interactive="true"]');
+            if (cell) updateFocusedCell(cell);
+        });
+        container.querySelector('.heatmap-shell')?.addEventListener('pointerover', (event) => {
+            const cell = (event.target as HTMLElement).closest<HTMLElement>('.heatmap-cell[data-interactive="true"]');
+            if (cell) updateFocusedCell(cell);
+        });
+        copyCellButton?.addEventListener('click', async () => {
+            if (!focusedCellSummary || !copyCellButton) return;
+            const copied = await copyTextToClipboard(focusedCellSummary);
+            if (focusReadout) focusReadout.textContent = copied ? `Copied: ${focusedCellSummary}` : 'Copy was blocked by the browser. Select the focused cell summary and copy its text.';
+        });
+        openPairButton?.addEventListener('click', () => {
+            if (focusedPair) openScatterPair(focusedPair.x, focusedPair.y);
+        });
         document.dispatchEvent(new CustomEvent('edatime:heatmap-grid-rendered'));
-        // A cell opens the dedicated Pair plot page with the selected axes.
+        // Mouse, touch, and keyboard activation open the selected pair directly.
+        // Focus and hover still expose the readout and optional explicit action.
         container.onclick = (event: MouseEvent) => {
-            const cell = (event.target as HTMLElement).closest<HTMLElement>('.heatmap-cell');
+            const cell = (event.target as HTMLElement).closest<HTMLElement>('.heatmap-cell[data-interactive="true"]');
             if (!cell) return;
-            const rowIndex = Number.parseInt(cell.dataset.row || '', 10);
-            const colIndex = Number.parseInt(cell.dataset.col || '', 10);
-            if (!Number.isFinite(rowIndex) || !Number.isFinite(colIndex) || rowIndex === colIndex) return;
-            const x = cell.dataset.rowName || columns[rowIndex]!;
-            const y = cell.dataset.colName || columns[colIndex]!;
-            openScatterPair(x, y);
+            updateFocusedCell(cell);
+            openScatterPair(cell.dataset.rowName || '', cell.dataset.colName || '');
         };
 
         const reorderColumnByDelta = (name: string, delta: -1 | 1): void => {
@@ -730,7 +781,16 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
                     const data = matrixData ? getSelectedCorrelationMatrix(matrixData, metric) : null;
                     if (!matrixData || !data) return;
                     if (!getVisibleHeatmapContainer()) return;
-                    exportMatrixCSV(matrixData!.columns, data, `edatime_correlation_${metric}.csv`);
+                    const counts = metric.endsWith('_diff') ? matrixData.diff_counts : matrixData.counts;
+                    const eligible = matrixData.input_rows == null ? null : Math.max(0, matrixData.input_rows - (metric.endsWith('_diff') ? 1 : 0));
+                    const quote = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+                    const rows = [['row', 'column', 'metric', 'coefficient', 'valid_n', 'excluded', 'eligible', 'working_start_utc', 'working_end_utc']];
+                    matrixData.columns.forEach((row, i) => matrixData!.columns.forEach((column, j) => {
+                        const n = counts?.[i]?.[j];
+                        rows.push([row, column, metric, String(data[i]?.[j] ?? ''), String(n ?? ''), String(n == null || eligible == null ? '' : eligible - n), String(eligible ?? ''),
+                            ...([0, 1].map((index) => matrixData?.time_range_ms ? new Date(matrixData.time_range_ms[index]).toISOString() : ''))]);
+                    }));
+                    downloadBlob(new Blob([rows.map((row) => row.map(quote).join(',')).join('\n')], { type: 'text/csv;charset=utf-8' }), `edatime_correlation_${metric}.csv`);
                 },
                 filename: `edatime_correlation_${metric}.csv`,
                 dataCheck: () => matrixData != null && getSelectedCorrelationMatrix(matrixData, metric) != null,

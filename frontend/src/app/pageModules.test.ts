@@ -96,6 +96,7 @@ describe('page module descriptors', () => {
         await heatmap!.init();
 
         expect(mocks.ensureStyleModule).toHaveBeenCalledWith('scatter');
+        expect(mocks.ensureStyleModule).toHaveBeenCalledWith('heatmap');
         expect(mocks.initHeatmapPage).toHaveBeenCalledWith({
             showPage: deps.showPage,
             cleaningPlanStore: deps.cleaningPlanStore,

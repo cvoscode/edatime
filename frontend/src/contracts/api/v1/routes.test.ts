@@ -28,6 +28,11 @@ describe('API v1 route contract', () => {
                 spectralFilter: '/api/v1/analytics/spectral-filter',
                 causal: '/api/v1/analytics/causal',
             },
+            drift: {
+                stats: '/api/v1/drift/stats',
+                investigate: '/api/v1/drift/investigate',
+                preflight: '/api/v1/drift/preflight',
+            },
             scatter: {
                 points: '/api/v1/scatter/points',
                 matrix: '/api/v1/scatter/matrix',

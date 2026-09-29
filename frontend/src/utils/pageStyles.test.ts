@@ -14,9 +14,9 @@ describe('pageStyles', () => {
         expect(pageStyleModulesFor('home')).toEqual(['home']);
         expect(pageStyleModulesFor('causal')).toEqual(['drift', 'causal']);
         expect(pageStyleModulesFor('drift')).toEqual(['drift']);
-        expect(pageStyleModulesFor('heatmap')).toEqual(['scatter']);
+        expect(pageStyleModulesFor('heatmap')).toEqual(['scatter', 'heatmap']);
         expect(pageStyleModulesFor('scatter')).toEqual(['scatter']);
-        expect(pageStyleModulesFor('scattermatrix')).toEqual(['scatter']);
+        expect(pageStyleModulesFor('scattermatrix')).toEqual(['scatter', 'heatmap']);
         expect(pageStyleModulesFor('timeseries')).toEqual([]);
     });
 
@@ -37,6 +37,7 @@ describe('pageStyles', () => {
         preloadPageStyles('home');
 
         expect(document.head.querySelector('link[data-edatime-style="scatter"]')).toBeInstanceOf(HTMLLinkElement);
+        expect(document.head.querySelector('link[data-edatime-style="heatmap"]')).toBeInstanceOf(HTMLLinkElement);
         expect(document.head.querySelector('link[data-edatime-style="home"]')).toBeInstanceOf(HTMLLinkElement);
         expect(document.head.querySelector('link[data-edatime-style="drift"]')).toBeNull();
     });

@@ -1,3 +1,4 @@
+import { downloadBlob } from '../../utils/dom.js';
 /**
  * causal/export — export functions for causal graph data.
  *
@@ -9,7 +10,7 @@
  */
 
 import {
-    _currentColumns, _currentLinks, _currentTauMax,
+    _currentColumns, _currentLinks, _currentTauMax, _currentSampling,
     _chipColors, _nodeLabels, _nodeAttrs, _pairAttrs,
     _nodePositions, listPairGroups,
 } from './selectionState.js';
@@ -51,10 +52,10 @@ export function exportJSON(): string {
     }));
     return JSON.stringify({
         meta: {
-            tau_max: _currentTauMax, rendered_edge_mode: 'one_edge_per_node_pair',
+            sampling: _currentSampling, engine: 'Native Rust', interpretation: 'Candidate lag relationships; p-values are not probabilities of causation', tau_max: _currentTauMax, rendered_edge_mode: 'one_edge_per_node_pair',
             references: { overview: 'Runge et al. Nat Rev Earth Environ (2023)', pcmci: 'Runge et al. Science Advances (2019)', pcmciplus: 'Runge UAI (2020)', lpcmci: 'Gerhardus and Runge NeurIPS (2020)' }
         },
-        nodes, edges: aggregateExportEdges(), raw_links: _currentLinks,
+        nodes, edges: aggregateExportEdges(), raw_links: _currentLinks.map((link) => ({ ...link, lag_duration_ms: _currentSampling?.effective_cadence_ms != null ? link.lag * _currentSampling.effective_cadence_ms : null })),
     }, null, 2);
 }
 
@@ -90,11 +91,11 @@ export function exportTorchGeometric(): string {
     const nodeFeatures = _currentColumns.map((col) => ({ index: nodeIndex[col], id: col, label: _nodeLabels.get(col) || col, attrs: _nodeAttrs.get(col) ?? {} }));
     return JSON.stringify({
         meta: {
-            description: 'Aggregated pair-edge export for downstream graph modeling', edge_mode: 'one_edge_per_node_pair', tau_max: _currentTauMax,
+            description: 'Aggregated pair-edge export for downstream graph modeling', edge_mode: 'one_edge_per_node_pair', sampling: _currentSampling, engine: 'Native Rust', interpretation: 'Candidate lag relationships; p-values are not probabilities of causation', tau_max: _currentTauMax,
             edge_attr_names: ['connection_count', 'min_lag', 'max_lag', 'mean_value', 'min_pvalue', 'direction_code'],
             direction_codes: { 0: 'mixed_or_unknown', 1: 'node_a_to_node_b', 2: 'node_b_to_node_a', 3: 'undirected_or_uncertain' }
         },
-        node_features: nodeFeatures, edge_index: [edgeIndexA, edgeIndexB], edge_attr: edgeAttr, edge_details: edgeDetails, raw_links: _currentLinks,
+        node_features: nodeFeatures, edge_index: [edgeIndexA, edgeIndexB], edge_attr: edgeAttr, edge_details: edgeDetails, raw_links: _currentLinks.map((link) => ({ ...link, lag_duration_ms: _currentSampling?.effective_cadence_ms != null ? link.lag * _currentSampling.effective_cadence_ms : null })),
     }, null, 2);
 }
 
@@ -106,10 +107,5 @@ export function handleExport(fmt: string): void {
     if (fmt === 'glm') { content = exportGLM(); filename = 'causal_glm_formulas.txt'; mime = 'text/plain'; }
     else if (fmt === 'torch') { content = exportTorchGeometric(); filename = 'causal_torch_geometric.json'; }
     else { content = exportJSON(); }
-    const blob = new Blob([content], { type: mime });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url; anchor.download = filename; anchor.style.display = 'none';
-    document.body.appendChild(anchor);
-    requestAnimationFrame(() => { anchor.click(); window.setTimeout(() => { anchor.remove(); URL.revokeObjectURL(url); }, 250); });
+    downloadBlob(new Blob([content], { type: mime }), filename);
 }

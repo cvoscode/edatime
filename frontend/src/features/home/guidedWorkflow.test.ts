@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { buildWorkflowSuggestion, computeWorkflowProgress, type WorkflowSnapshot } from './guidedWorkflow';
+import { buildWorkflowDatasetKey, buildWorkflowSuggestion, computeWorkflowProgress, type WorkflowSnapshot } from './guidedWorkflow';
 import { makeWorkspaceSnapshot } from '../../workspace/workspaceStore.js';
 import { emitNavigationChange } from '../../platform/navigationEvents.js';
 
@@ -38,7 +38,7 @@ describe('computeWorkflowProgress', () => {
     });
 
     it('marks upload and timeseries complete once a dataset and series selection exist', () => {
-        const progress = computeWorkflowProgress(snapshot({ hasDataset: true, selectedSeriesCount: 3 }));
+        const progress = computeWorkflowProgress(snapshot({ hasDataset: true, selectedSeriesCount: 3, visitedPages: ['timeseries'] }));
         expect(progress.completedStepIds).toEqual(['upload', 'timeseries']);
         expect(progress.nextStepId).toBe('correlations');
     });
@@ -58,7 +58,7 @@ describe('computeWorkflowProgress', () => {
             currentPage: 'causal',
             hasDataset: true,
             selectedSeriesCount: 2,
-            visitedPages: ['upload', 'timeseries', 'correlations'],
+            visitedPages: ['upload', 'timeseries', 'correlations', 'causal'],
             scatterX: 'HUFL',
             scatterY: 'OT',
             causalLinkCount: 4,
@@ -67,6 +67,21 @@ describe('computeWorkflowProgress', () => {
         expect(progress.nextStepId).toBe('prepare');
     });
 });
+
+
+    it('scopes saved workflow history to the immutable source version and revision', () => {
+        const first = makeWorkspaceSnapshot({
+            dataset: { metadata: { source_version_id: 'version-a', source_version_revision: 1, total_rows: 100, dataset_fingerprint: 'fp-a' } as any, activeSourceVersionId: 'version-a', revision: 1, sourceFingerprint: 'fp-a' },
+        });
+        const sameVersionAfterReload = makeWorkspaceSnapshot({
+            dataset: { metadata: { source_version_id: 'version-a', source_version_revision: 1, total_rows: 100, dataset_fingerprint: 'fp-a' } as any, activeSourceVersionId: 'version-a', revision: 99, sourceFingerprint: 'fp-a' },
+        });
+        const nextVersion = makeWorkspaceSnapshot({
+            dataset: { metadata: { source_version_id: 'version-b', source_version_revision: 2, total_rows: 100, dataset_fingerprint: 'fp-b' } as any, activeSourceVersionId: 'version-b', revision: 2, sourceFingerprint: 'fp-b' },
+        });
+        expect(buildWorkflowDatasetKey(first)).toBe(buildWorkflowDatasetKey(sameVersionAfterReload));
+        expect(buildWorkflowDatasetKey(first)).not.toBe(buildWorkflowDatasetKey(nextVersion));
+    });
 
 describe('buildWorkflowSuggestion', () => {
     it('guides home users to upload when no dataset exists', () => {
@@ -138,7 +153,7 @@ describe('buildWorkflowSuggestion', () => {
             currentPage: 'prepare',
             hasDataset: true,
             selectedSeriesCount: 2,
-            visitedPages: ['upload', 'timeseries', 'correlations', 'prepare'],
+            visitedPages: ['upload', 'timeseries', 'correlations', 'causal', 'prepare'],
             scatterX: 'HUFL',
             scatterY: 'OT',
             causalLinkCount: 1,
@@ -156,6 +171,7 @@ describe('initGuidedWorkflow', () => {
             <nav class="sidebar">
                 <button class="nav-item active" data-page="home" type="button">Home</button>
                 <button class="nav-item" data-page="timeseries" type="button">Timeseries</button>
+                <button class="nav-item" data-page="fft" type="button">Spectrum</button>
             </nav>
             <button id="workflow-toggle-btn" type="button"></button>
             <section id="workflow-panel"></section>
@@ -170,8 +186,11 @@ describe('initGuidedWorkflow', () => {
     it('delays workflow panel updates on page-change so stale copy does not flash through', async () => {
         const { initGuidedWorkflow } = await import('./guidedWorkflow.js');
 
-        initGuidedWorkflow(workflowDeps());
-        expect(document.getElementById('workflow-panel')?.textContent).toContain('Open Upload');
+        initGuidedWorkflow(workflowDeps({
+            total_rows: 2, time_range: { min: 1, max: 2 }, numeric_columns: ['a', 'b'],
+        }, ['a', 'b']));
+        expect(document.getElementById('workflow-panel')?.textContent).toContain('Guided workflow · 1/5');
+        expect(document.getElementById('workflow-panel')?.textContent).toContain('Open Signals');
 
         const home = document.querySelector('.sidebar .nav-item[data-page="home"]') as HTMLButtonElement;
         const timeseries = document.querySelector('.sidebar .nav-item[data-page="timeseries"]') as HTMLButtonElement;
@@ -179,13 +198,21 @@ describe('initGuidedWorkflow', () => {
         timeseries.classList.add('active');
         emitNavigationChange({ page: 'timeseries', navPage: 'timeseries' });
 
-        expect(document.getElementById('workflow-panel')?.textContent).toContain('Open Upload');
+        expect(document.getElementById('workflow-panel')?.textContent).toContain('Guided workflow · 1/5');
 
         await vi.advanceTimersByTimeAsync(50);
 
         expect(document.getElementById('workflow-panel')?.hidden).toBe(false);
         expect(document.getElementById('workflow-panel')?.textContent).toContain('Inspect the selected signals');
         expect(document.getElementById('workflow-toggle-btn')?.getAttribute('aria-label')).toBe('Close guided workflow panel');
+        expect(document.getElementById('workflow-panel')?.textContent).toContain('Guided workflow · 2/5');
+
+        const fft = document.querySelector('.sidebar .nav-item[data-page="fft"]') as HTMLButtonElement;
+        timeseries.classList.remove('active');
+        fft.classList.add('active');
+        emitNavigationChange({ page: 'fft', navPage: 'fft' });
+        await vi.advanceTimersByTimeAsync(50);
+        expect(document.getElementById('workflow-panel')?.textContent).toContain('Guided workflow · 2/5');
     });
 
     it('opens and closes the visible panel from the Guide button', async () => {
@@ -212,7 +239,7 @@ describe('initGuidedWorkflow', () => {
 
         const panel = document.getElementById('workflow-panel');
         expect(panel?.classList.contains('workflow-panel--compact-shell')).toBe(true);
-        expect(panel?.textContent).toContain('Guided workflow · 1/5');
+        expect(panel?.textContent).toContain('Guided workflow · 0/5');
         expect(panel?.textContent).toContain('Open Upload');
     });
 

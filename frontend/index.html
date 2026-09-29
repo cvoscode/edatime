@@ -256,11 +256,15 @@
               <span class="dataset-switcher__status">Open to load datasets…</span>
             </div>
           </details>
+          <div id="dataset-load-announcement" class="dataset-load-announcement" role="status" aria-live="polite" aria-atomic="true"></div>
           <!-- Data freshness indicator -->
           <div id="data-freshness-indicator" class="data-freshness profile-mode-badge" data-mode="preview" hidden
             aria-label="Data freshness">
             <span class="data-freshness-dot" aria-hidden="true">●</span>
             <span class="data-freshness-time">—</span>
+          </div>
+          <div id="dataset-change-indicator" class="dataset-change-indicator profile-mode-badge" hidden aria-label="Dataset freshness">
+            <span class="dataset-freshness-time"></span>
           </div>
 
           <button class="btn btn-ghost btn-sm" id="keyboard-help-btn" type="button" title="Keyboard shortcuts (?)"
@@ -380,6 +384,12 @@
               </div>
             </div>
             <div class="timeseries-command-bar__center">
+              <div class="timeseries-selection-tools" role="group" aria-label="Visible Signals series">
+                <span id="timeseries-selection-help">Starts with up to three numeric series, including a likely target such as OT.</span>
+                <button id="timeseries-select-all" class="btn btn-ghost btn-xs" type="button">Select all</button>
+                <button id="timeseries-clear-all" class="btn btn-ghost btn-xs" type="button">Clear all</button>
+                <span id="timeseries-selection-count" class="timeseries-selection-count"></span>
+              </div>
               <div class="series-toggles timeseries-chip-rail" id="column-toggles"></div>
               <div id="timeseries-color-slot" class="timeseries-color-slot"></div>
             </div>
@@ -710,6 +720,10 @@
             <div id="scatter-error" class="scatter-error" hidden></div>
           </main>
         </div>
+        <details id="scatter-summary-details" class="scatter-summary-details">
+          <summary>Pair plot data summary</summary>
+          <section id="scatter-accessibility-summary" class="scatter-accessibility-summary" aria-label="Pair plot data summary"></section>
+        </details>
 
       </section>
 
@@ -743,8 +757,8 @@
                 </span>
               </label>
               <label class="toolbar-field scatter-toolbar__field" for="fft-normalize">
-                <span class="toolbar-field__label">Normalize</span>
-                <select id="fft-normalize" class="modal-select" aria-label="Normalize y-axis">
+                <span class="toolbar-field__label">Display scaling</span>
+                <select id="fft-normalize" class="modal-select" aria-label="Normalize plotted spectral values">
                   <option value="none" selected>None</option>
                   <option value="minmax">Min–max [0,1]</option>
                   <option value="zscore">Z-score</option>
@@ -756,7 +770,7 @@
                 <span class="toolbar-field__label">Clip</span>
                 <span class="toolbar-field__control scatter-link-toggle">
                   <input id="fft-clip-toggle" type="checkbox" name="fft-clip-toggle" aria-label="Clip outliers">
-                  <span>Outliers</span>
+                  <span>Clip plotted values</span>
                 </span>
               </label>
               <label class="toolbar-field scatter-toolbar__field" for="fft-clip-method">
@@ -805,7 +819,7 @@
               </div>
               <div class="fft-filter-actions">
                 <button id="fft-filter-apply-btn" class="btn btn-ghost btn-sm" type="button"
-                  title="Preview filtered signal on the Signals page">Preview filter on Signals</button>
+                  title="Preview filtered signal on the Signals page" aria-describedby="fft-filter-status">Preview filter on Signals</button>
                 <span id="fft-filter-status" class="scatter-panel-status"></span>
               </div>
             </div>
@@ -846,13 +860,21 @@
 
           <div class="scatter-toolbar__segment scatter-toolbar__segment--actions toolbar-group--push">
             <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
-              <button id="fft-compute-btn" class="btn btn-accent btn-sm" type="button">Compute spectrum</button>
+              <label class="toolbar-field">Point budget <input id="fft-point-budget" type="number" min="64" max="65536" step="1" value="65536" aria-label="Spectrum point budget"></label>
+              <label class="toolbar-field">Detrend <select id="fft-detrend" aria-label="Spectrum detrend"><option value="constant" selected>Remove mean</option><option value="linear">Remove linear trend</option><option value="none">None</option></select></label>
+              <span id="fft-scope-estimate" class="toolbar-field__hint" role="status"></span><button id="fft-compute-btn" class="btn btn-accent btn-sm" type="button" aria-describedby="fft-compute-reason">Compute spectrum</button>
             </div>
           </div>
         </div>
-        <span id="fft-sampling-badge" class="profile-mode-badge" data-mode="preview"
+        <span id="fft-sampling-badge" class="spectral-sampling-context" data-mode="preview"
           role="status" aria-live="polite" hidden></span>
+        <div class="fft-trace-selection" id="fft-trace-selection" hidden>
+          <div><span id="fft-trace-selection-help">Default selection: the first two numeric columns. Your selected columns are remembered.</span><span id="fft-trace-selection-count" class="fft-trace-selection__count"></span></div>
+          <div class="fft-trace-selection__actions"><button id="fft-select-all-btn" class="btn btn-ghost btn-sm" type="button">Select all</button><button id="fft-clear-all-btn" class="btn btn-ghost btn-sm" type="button">Clear all</button></div>
+        </div>
         <div class="fft-traces-bar" id="fft-traces-bar" hidden></div>
+        <div id="fft-compute-reason" class="sr-only">Select at least one numeric trace before computing a spectrum.</div>
+        <p id="fft-analysis-status" class="analysis-status" role="status" aria-live="polite"></p>
         <main class="main main--analysis-chart">
           <div id="fft-chart" role="img" tabindex="0" aria-label="Frequency spectrum chart"
             style="width:100%;height:100%;"></div>
@@ -867,8 +889,11 @@
             </span>
             <details class="fft-spectral-info__row fft-peaks-details" data-responsive-collapse="640" open>
               <summary class="fft-spectral-info__label">Top peaks</summary>
-              <span id="fft-spectral-info-peaks" class="fft-spectral-info__value">—</span>
+              <div id="fft-spectral-info-peaks" class="fft-spectral-info__value"></div>
             </details>
+            <p id="fft-frequency-callout" class="fft-frequency-callout" role="status" aria-live="polite"></p>
+            <button id="fft-copy-summary-btn" class="btn btn-ghost btn-sm" type="button">Copy spectrum summary</button>
+            <span id="fft-summary-focus" class="sr-only" role="status" aria-live="polite"></span>
           </div>
           <div id="fft-empty-state" class="plot-empty-state" data-empty-reason="no-columns-selected">
             <strong id="fft-empty-title">Select one or more traces</strong>
@@ -877,7 +902,8 @@
           </div>
           <div id="fft-chart-loading" class="chart-loading-overlay" hidden role="status" aria-live="polite">
             <div class="chart-loading-spinner"></div>
-            <span class="chart-loading-label">Computing FFT…</span>
+            <span id="fft-chart-loading-label" class="chart-loading-label">Computing spectrum…</span>
+            <button id="fft-cancel-btn" class="btn btn-ghost btn-sm" type="button">Cancel computation</button>
           </div>
         </main>
       </section>
@@ -1037,21 +1063,21 @@
         <div class="toolbar scatter-toolbar">
           <div class="scatter-toolbar__segment scatter-toolbar__segment--display">
             <div class="scatter-toolbar__fields">
-              <label class="toolbar-field scatter-toolbar__field" for="spectrogram-col-select">
-                <span class="toolbar-field__label">Column</span>
+              <label class="toolbar-field scatter-toolbar__field" for="spectrogram-col-select" title="Defaults to the selected Signals column, then the first numeric column.">
+                <span class="toolbar-field__label">Column <span class="toolbar-field__hint">Selected Signals column, or first numeric column</span></span>
                 <select id="spectrogram-col-select" class="modal-select" aria-label="Column"></select>
               </label>
               <label class="toolbar-field scatter-toolbar__field" for="spectrogram-win-size">
                 <span class="toolbar-field__label">Window</span>
                 <select id="spectrogram-win-size" class="modal-select" aria-label="FFT window size">
-                  <option value="32">32 (~8h @ 15min)</option>
-                  <option value="64">64 (~16h @ 15min)</option>
-                  <option value="96" selected>96 (1 day @ 15min)</option>
-                  <option value="128">128 (~1.3d @ 15min)</option>
-                  <option value="192">192 (2 days @ 15min)</option>
-                  <option value="256">256 (~2.7d @ 15min)</option>
-                  <option value="512">512 (~5.3d @ 15min)</option>
-                  <option value="1024">1024 (~10.7d @ 15min)</option>
+                  <option value="32">32 samples</option>
+                  <option value="64">64 samples</option>
+                  <option value="96" selected>96 samples</option>
+                  <option value="128">128 samples</option>
+                  <option value="192">192 samples</option>
+                  <option value="256">256 samples</option>
+                  <option value="512">512 samples</option>
+                  <option value="1024">1024 samples</option>
                   <option value="custom">Custom…</option>
                 </select>
                 <input id="spectrogram-win-size-custom" class="modal-input" type="number" min="16" max="4096" step="1"
@@ -1140,11 +1166,15 @@
 
           <div class="scatter-toolbar__segment scatter-toolbar__segment--actions toolbar-group--push">
             <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
-              <button id="spectrogram-compute-btn" class="btn btn-accent btn-sm" type="button">Update
+              <label class="toolbar-field">Point budget <input id="spectrogram-point-budget" type="number" min="256" max="65536" value="32768" aria-label="Time-frequency point budget"></label>
+              <span id="spectrogram-scope-estimate" class="toolbar-field__hint" role="status"></span>
+              <button id="spectrogram-compute-btn" class="btn btn-accent btn-sm" type="button" aria-describedby="spectrogram-compute-reason">Update
                 spectrogram</button>
             </div>
           </div>
         </div>
+        <span id="spectrogram-compute-reason" class="sr-only">Choose a numeric column and a valid time range to compute a time-frequency view.</span>
+        <p id="spectrogram-analysis-status" class="analysis-status" role="status" aria-live="polite"></p>
         <main class="main main--chart main--analysis-chart">
           <div class="spectrogram-chart-row">
             <div id="spectrogram-chart" role="img" tabindex="0"
@@ -1164,6 +1194,7 @@
               <span class="scatter-colorbar-vname">scaled</span>
             </div>
           </div>
+          <div id="spectrogram-sampling-context" class="spectral-sampling-context" role="status" aria-live="polite" hidden></div>
           <div id="spectrogram-summary" class="spectrogram-spectral-info" hidden aria-live="polite">
             <span class="spectrogram-spectral-info__row">
               <span class="spectrogram-spectral-info__label">Sample&nbsp;rate</span>
@@ -1182,6 +1213,11 @@
               <span id="spectrogram-summary-bins" class="spectrogram-spectral-info__value">—</span>
             </span>
           </div>
+          <div id="spectrogram-peak-summary" class="spectrogram-peak-summary" hidden>
+            <p id="spectrogram-frequency-callout" role="status" aria-live="polite"></p>
+            <div id="spectrogram-peak-table-wrap"></div>
+            <p id="spectrogram-peak-focus" class="sr-only" role="status" aria-live="polite"></p>
+          </div>
           <div id="spectrogram-empty-state" class="plot-empty-state" data-empty-reason="no-columns-selected">
             <svg class="plot-empty-state__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
               <path d="M2 14h2v6H2zm4-4h2v10H6zm4 2h2v8h-2zm4-6h2v14h-2zm4 4h2v10h-2zm4-2h2v12h-2z" fill="currentColor"
@@ -1195,7 +1231,8 @@
           </div>
           <div id="spectrogram-loading" class="chart-loading-overlay" hidden role="status" aria-live="polite">
             <div class="chart-loading-spinner"></div>
-            <span class="chart-loading-label">Computing spectrogram…</span>
+            <span id="spectrogram-loading-label" class="chart-loading-label">Computing spectrogram…</span>
+            <button id="spectrogram-cancel-btn" class="btn btn-ghost btn-sm" type="button">Cancel computation</button>
           </div>
         </main>
       </section>
@@ -1295,18 +1332,18 @@
           <div class="scatter-toolbar__segment scatter-toolbar__segment--actions toolbar-group--push">
             <span class="scatter-toolbar__eyebrow">Graph</span>
             <div class="scatter-toolbar__controls scatter-toolbar__controls--actions">
-              <button id="causal-compute-btn" class="btn btn-accent btn-sm" type="button">Run discovery</button>
+              <label class="toolbar-field">Point budget <input id="causal-point-budget" type="number" min="100" max="50000" value="5000" aria-label="Causal point budget"></label>
+              <label class="toolbar-field">Time range <select id="causal-range" aria-label="Causal time range"><option value="full">Full working range</option><option value="viewport">Signals viewport</option></select></label>
+              <p id="causal-scope-estimate" class="toolbar-field__hint" role="status"></p>
+              <p id="causal-sampling-context" class="toolbar-field__hint" role="status" hidden></p>
+              <p class="toolbar-field__hint">Native Rust discovery of candidate lag relationships. Results depend on time order, stationarity, confounder assumptions, and the chosen test. P-values are not probabilities of causation. This page has its own trace selection.</p>
+              <button id="causal-compute-btn" class="btn btn-accent btn-sm" type="button" aria-describedby="causal-compute-reason">Run discovery</button>
             </div>
           </div>
         </div>
         <div id="causal-status" class="analysis-status" role="status" aria-live="polite"></div>
-        <!-- Progress bar -->
-        <div id="causal-progress" class="causal-progress-wrap" hidden>
-          <div class="causal-progress-track">
-            <div class="causal-progress-fill" id="causal-progress-fill"></div>
-          </div>
-          <span class="causal-progress-label" id="causal-progress-label"></span>
-        </div>
+        <p id="causal-selection-help" class="analysis-selection-help">Starts with numeric series selected on Signals. Choose at least two series before running discovery.</p>
+        <span id="causal-compute-reason" class="sr-only">Select at least two numeric series to run causal discovery.</span>
         <div class="fft-traces-bar" id="causal-columns-bar"
           style="flex-wrap:wrap;gap:6px;padding:6px 12px;border-bottom:1px solid var(--border);min-height:34px;">
         </div>
@@ -1319,10 +1356,11 @@
           </div>
           <div id="causal-loading" class="chart-loading-overlay" hidden role="status" aria-live="polite">
             <div class="chart-loading-spinner"></div>
-            <span class="chart-loading-label">Running causal discovery…</span>
-            <button id="causal-cancel-btn" class="btn btn-ghost btn-sm" type="button">Cancel</button>
+            <span class="chart-loading-label" id="causal-progress-label">Running causal discovery…</span>
+            <button id="causal-cancel-btn" class="btn btn-ghost btn-sm" type="button">Cancel discovery</button>
           </div>
         </main>
+        <section id="causal-links-table-wrap" class="causal-links-table-wrap" aria-label="Causal link data" hidden></section>
         <div class="causal-result-toolbar" aria-label="Causal graph actions">
           <button id="causal-add-edge-btn" class="btn btn-ghost btn-sm" type="button"
             title="Click two nodes to add an edge between them">+ Edge</button>
@@ -1385,12 +1423,13 @@
             title="Show help for the Drift page (?)"><span aria-hidden="true">?</span><span
               class="page-help-trigger__label">Help</span></button>
         </div>
-        <nav id="drift-investigation-tabs" class="drift-page-tabs" role="tablist" aria-label="Drift investigation views">
-          <button type="button" class="drift-page-tab" data-drift-tab="timeline" role="tab" aria-pressed="true">Timeline plots</button>
-          <button type="button" class="drift-page-tab" data-drift-tab="overview" role="tab" aria-pressed="false">Overview</button>
-          <button type="button" class="drift-page-tab" data-drift-tab="segments" role="tab" aria-pressed="false">Segments</button>
-          <button type="button" class="drift-page-tab" data-drift-tab="quality" role="tab" aria-pressed="false">Quality</button>
-          <button type="button" class="drift-page-tab" data-drift-tab="relationships" role="tab" aria-pressed="false">Relationships</button>
+        <p id="drift-setup-estimate" class="toolbar-field__hint" role="status"></p>
+        <nav id="drift-investigation-tabs" class="drift-page-tabs" role="group" aria-label="Drift investigation views">
+          <button type="button" class="drift-page-tab" data-drift-tab="timeline" aria-pressed="true">Timeline plots</button>
+          <button type="button" class="drift-page-tab" data-drift-tab="overview" aria-pressed="false">Overview</button>
+          <button type="button" class="drift-page-tab" data-drift-tab="segments" aria-pressed="false">Segments</button>
+          <button type="button" class="drift-page-tab" data-drift-tab="quality" aria-pressed="false">Quality</button>
+          <button type="button" class="drift-page-tab" data-drift-tab="relationships" aria-pressed="false">Relationships</button>
         </nav>
         <div class="toolbar drift-toolbar" aria-label="Drift analysis setup">
           <div class="drift-toolbar__primary">
@@ -1407,11 +1446,11 @@
                 <div id="drift-col-picker-panel" class="drift-col-picker-panel drift-col-picker-panel--inline"
                   role="group" aria-label="Numeric columns" hidden>
                   <div class="drift-col-picker-header">
-                    <span class="toolbar-label">Columns</span>
+                    <span class="toolbar-label" title="The first numeric trace is selected by default.">Columns · first numeric trace by default</span>
                     <div class="drift-col-picker-actions">
-                      <button id="drift-cols-all" type="button" class="btn btn-xs">All</button>
+                      <button id="drift-cols-all" type="button" class="btn btn-xs" aria-label="Select all traces">Select all</button>
                       <button id="drift-cols-single" type="button" class="btn btn-xs">Single</button>
-                      <button id="drift-cols-none" type="button" class="btn btn-xs">Clear</button>
+                      <button id="drift-cols-none" type="button" class="btn btn-xs" aria-label="Clear all traces">Clear all</button>
                     </div>
                   </div>
                   <div id="drift-col-picker-list" class="drift-col-picker-list drift-col-chip-list" role="group"
@@ -1434,7 +1473,8 @@
               <select id="drift-ref-preset" class="modal-select" aria-label="Reference window preset"
                 title="Choose the early portion used as the baseline, or select an explicit visible or custom range">
                 <option value="30">First 30%</option>
-                <option value="50" selected>First 50%</option>
+                <option value="balanced" selected>First 7 windows (balanced)</option>
+                <option value="50">First 50%</option>
                 <option value="70">First 70%</option>
                 <option value="viewport">Current viewport</option>
                 <option value="custom">Custom</option>
@@ -1463,16 +1503,16 @@
               <div class="drift-toolbar-menu__panel">
                 <div class="drift-rules-copy">
                   <strong>Composite drift</strong>
-                  <span>Drift is severe when two or more checks fire.</span>
+                  <span>Drift is severe when two or more checks fire. KS and E-S p-values are unadjusted per window; repeated, dependent comparisons can produce isolated flags. Inspect effect sizes and persistence.</span>
                 </div>
                 <div class="drift-rules-grid">
                   <label class="toolbar-field">
-                    <span class="toolbar-field__label">Reference start</span>
+                    <span class="toolbar-field__label">Reference start (UTC)</span>
                     <input id="drift-ref-start" type="datetime-local" class="modal-input" name="drift-ref-start"
                       aria-label="Reference start">
                   </label>
                   <label class="toolbar-field">
-                    <span class="toolbar-field__label">Reference end</span>
+                    <span class="toolbar-field__label">Reference end (UTC)</span>
                     <input id="drift-ref-end" type="datetime-local" class="modal-input" name="drift-ref-end"
                       aria-label="Reference end">
                   </label>
@@ -1529,12 +1569,13 @@
                   title="Export full response as JSON (J)" disabled>JSON report</button>
               </div>
             </details>
-            <button id="drift-compute-btn" class="btn btn-accent btn-sm" type="button">Run analysis</button>
+            <button id="drift-compute-btn" class="btn btn-accent btn-sm" type="button" aria-describedby="drift-status">Run analysis</button>
           </div>
         </div>
         <div id="drift-status" class="analysis-status drift-status-announcement" role="status" aria-live="polite">
           Select one or more columns, choose a baseline, and run the analysis.
         </div>
+        <section id="drift-preflight-panel" class="drift-preflight-panel" aria-labelledby="drift-preflight-title" tabindex="-1" hidden></section>
         <main class="main main--chart">
           <div id="drift-summary-strip" class="drift-summary-strip" aria-live="polite"></div>
           <div class="drift-layout" hidden>
@@ -1642,7 +1683,7 @@
                     <option value="severity-desc">Highest severity</option>
                   </select>
                 </div>
-                <div id="drift-window-list" class="drift-window-list" role="listbox" aria-label="Drift windows list">
+                <div id="drift-window-list" class="drift-window-list" aria-label="Drift windows">
                 </div>
               </details>
             </section>
@@ -2034,6 +2075,7 @@
                   <div class="field-group">
                     <label>Time range (optional)</label>
                     <div class="row row-time">
+                      <span class="toolbar-field__hint">Local time (browser timezone); quality report timestamps use UTC.</span>
                       <input type="datetime-local" id="time-start-input" aria-label="Start time">
                       <input type="datetime-local" id="time-end-input" aria-label="End time">
                     </div>
@@ -2760,6 +2802,11 @@
     </div>
   </div>
 
+  <div id="export-provenance-retry" class="export-provenance-retry" role="status" aria-live="polite" hidden>
+    <span class="export-provenance-retry__message"></span>
+    <button id="retry-export-provenance-btn" class="btn btn-ghost btn-sm" type="button" hidden>Retry provenance JSON</button>
+    <button id="dismiss-export-provenance-btn" class="btn btn-ghost btn-sm" type="button" aria-label="Dismiss provenance export notice">Dismiss</button>
+  </div>
   <script type="module" src="/src/app.ts"></script>
 </body>
 

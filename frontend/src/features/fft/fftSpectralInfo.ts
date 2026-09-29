@@ -5,7 +5,7 @@ export interface FftSpectralInfo {
     visible: boolean;
     sampleRate: { text: string; title: string };
     nyquist: { text: string; title: string };
-    peaks: Array<{ rank: string; frequency: string; period: string; power: string; title: string }>;
+    peaks: Array<{ rank: string; frequency: string; frequencyHz: number; period: string; power: string; title: string }>;
 }
 
 export function buildFftSpectralInfo(traces: readonly FftTrace[]): FftSpectralInfo {
@@ -28,12 +28,12 @@ export function buildFftSpectralInfo(traces: readonly FftTrace[]): FftSpectralIn
         const isRecordLengthTrend = !isDc && Number.isFinite(firstPositiveBin) && frequencyHz <= firstPositiveBin * 1.01;
         const classification = isDc ? 'DC' : isRecordLengthTrend ? 'Trend' : `#${index + 1}`;
         return {
-            rank: classification, frequency, period, power: powerText,
+            rank: classification, frequency, frequencyHz, period, power: powerText,
             title: isDc
-                ? `DC (zero-frequency) component · power ${powerText}`
+                ? `DC (zero-frequency) component · PSD ${powerText} signal²/Hz`
                 : isRecordLengthTrend
-                    ? `Record-length trend bin · ${frequency} · ${period} · power ${powerText}; do not interpret as a stable periodic cycle without detrending.`
-                    : `${index + 1}. ${frequency} · ${period} · power ${powerText} (r=${peak.rank ?? index + 1})`,
+                    ? `Record-length trend bin · ${frequency} · ${period} · PSD ${powerText} signal²/Hz; do not interpret as a stable periodic cycle without detrending.`
+                    : `${index + 1}. ${frequency} · ${period} · PSD ${powerText} signal²/Hz (r=${peak.rank ?? index + 1})`,
         };
     });
     return {

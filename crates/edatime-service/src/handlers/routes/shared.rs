@@ -269,6 +269,22 @@ pub struct AnalysisSampling {
     pub input_points: usize,
     pub output_points: usize,
     pub aggregation_factor: f64,
+    pub source_cadence_ms: Option<f64>,
+    pub effective_cadence_ms: Option<f64>,
+    pub source_start_ms: Option<f64>,
+    pub source_end_ms: Option<f64>,
+    pub analyzed_start_ms: Option<f64>,
+    pub analyzed_end_ms: Option<f64>,
+}
+
+fn analysis_timestamps(df: &DataFrame) -> Option<Vec<f64>> {
+    // Time is the first column in plan-aware analysis frames.
+    let timestamp = df.columns().first()?.as_materialized_series();
+    let dtype = timestamp.dtype().clone();
+    let values = timestamp.cast(&DataType::Int64).ok()?;
+    Some(values.i64().ok()?.into_iter().map(|value| value
+        .map(|value| edatime_core::temporal::native_to_epoch_ms(value, &dtype))
+        .unwrap_or(f64::NAN)).collect())
 }
 
 /// Anti-aliased bounded sampling for frequency-domain analytics. Consecutive
@@ -281,6 +297,17 @@ pub fn downsample_for_analysis(
     label: &str,
 ) -> Result<(DataFrame, AnalysisSampling), AppError> {
     let input_points = df.height();
+    let timestamps = analysis_timestamps(&df).unwrap_or_default();
+    let source_start_ms = timestamps.first().copied();
+    let source_end_ms = timestamps.last().copied();
+    let source_cadence_ms = timestamps.windows(2).next().map(|pair| pair[1] - pair[0]);
+    if timestamps.len() != input_points || timestamps.iter().any(|value| !value.is_finite())
+        || source_cadence_ms.is_some_and(|cadence| cadence <= 0.0 || timestamps.windows(2)
+            .any(|pair| pair[1] <= pair[0] || ((pair[1] - pair[0]) - cadence).abs() > (cadence * 1e-6).max(0.001))) {
+        return Err(AppError::bad_request(format!(
+            "{label} requires an ascending, regular time grid without duplicate or missing timestamps. Sort and resample in Preparation, or choose a contiguous regular range."
+        )));
+    }
     if df.height() <= max_pts {
         return Ok((
             df,
@@ -289,6 +316,10 @@ pub fn downsample_for_analysis(
                 input_points,
                 output_points: input_points,
                 aggregation_factor: 1.0,
+                source_cadence_ms,
+                effective_cadence_ms: source_cadence_ms,
+                source_start_ms, source_end_ms,
+                analyzed_start_ms: source_start_ms, analyzed_end_ms: source_end_ms,
             },
         ));
     }
@@ -316,19 +347,27 @@ pub fn downsample_for_analysis(
             })?;
             let means = (0..target)
                 .map(|bucket| {
-                    let start = bucket.saturating_mul(input_points) / target;
-                    let end = ((bucket + 1).saturating_mul(input_points) / target).max(start + 1);
+                    // Equal-width bins with fractional boundary weights cover every
+                    // source sample and produce one regular grid, even when N/M is
+                    // non-integral. Integer-sized buckets produce a misleading median cadence.
+                    let width = input_points as f64 / target as f64;
+                    let start = bucket as f64 * width;
+                    let end = (bucket + 1) as f64 * width;
+                    if column.name() == df.columns()[0].name() {
+                        let first = values.get(0)?;
+                        let step = values.get(1)? - first;
+                        return Some(first + ((start + end) / 2.0 - 0.5) * step);
+                    }
                     let mut sum = 0.0;
-                    let mut count = 0usize;
-                    for index in start..end {
-                        if let Some(value) = values.get(index)
-                            && value.is_finite()
-                        {
-                            sum += value;
-                            count += 1;
+                    let mut weight_sum = 0.0;
+                    for index in start.floor() as usize..(end.ceil() as usize).min(input_points) {
+                        let weight = (end.min(index as f64 + 1.0) - start.max(index as f64)).max(0.0);
+                        if let Some(value) = values.get(index) && value.is_finite() {
+                            sum += value * weight;
+                            weight_sum += weight;
                         }
                     }
-                    (count > 0).then_some(sum / count as f64)
+                    (weight_sum > 0.0).then_some(sum / weight_sum)
                 })
                 .collect::<Vec<_>>();
             let averaged = Series::new(column.name().clone(), means);
@@ -356,13 +395,21 @@ pub fn downsample_for_analysis(
     }
     let sampled = DataFrame::new(target, output)
         .map_err(|error| AppError::internal(format!("{label} sampled frame: {error}")))?;
+    let aggregation_factor = input_points as f64 / target as f64;
+    let effective_cadence_ms = source_cadence_ms.map(|cadence| cadence * aggregation_factor);
+    let analyzed_timestamps = analysis_timestamps(&sampled).unwrap_or_default();
     Ok((
         sampled,
         AnalysisSampling {
             method: "block_mean",
             input_points,
             output_points: target,
-            aggregation_factor: input_points as f64 / target as f64,
+            aggregation_factor,
+            source_cadence_ms,
+            effective_cadence_ms,
+            source_start_ms, source_end_ms,
+            analyzed_start_ms: analyzed_timestamps.first().copied(),
+            analyzed_end_ms: analyzed_timestamps.last().copied(),
         },
     ))
 }
@@ -372,6 +419,57 @@ mod sampling_tests {
     use polars::prelude::{DataFrame, NamedFrom, Series};
 
     use super::downsample_for_analysis;
+
+    #[test]
+    fn fractional_bins_cover_tail_and_keep_time_regular() {
+        use polars::prelude::{DataType, TimeUnit};
+        let frame = DataFrame::new(10, vec![
+            Series::new("ts".into(), (0..10).map(|i| i * 900_000_i64).collect::<Vec<_>>())
+                .cast(&DataType::Datetime(TimeUnit::Milliseconds, None)).unwrap().into(),
+            Series::new("value".into(), (0..10).map(|i| i as f64).collect::<Vec<_>>()).into(),
+        ]).unwrap();
+        let (sampled, sampling) = downsample_for_analysis(frame, 4, "test").unwrap();
+        assert_eq!(sampling.source_end_ms, Some(8_100_000.0));
+        assert_eq!(sampling.effective_cadence_ms, Some(2_250_000.0));
+        let times = super::analysis_timestamps(&sampled).unwrap();
+        assert!(times.windows(2).all(|pair| pair[1] - pair[0] == 2_250_000.0));
+        let values = sampled.column("value").unwrap().f64().unwrap().into_no_null_iter().collect::<Vec<_>>();
+        assert_eq!(values, vec![0.8, 3.2, 5.8, 8.2]);
+        assert!((values.iter().sum::<f64>() / 4.0 - 4.5).abs() < 1e-12);
+    }
+
+    #[test]
+    fn rejects_reordered_duplicate_or_irregular_source_times() {
+        for times in [vec![0_i64, 1000, 1000], vec![0, 2000, 1000], vec![0, 1000, 3000]] {
+            let frame = DataFrame::new(3, vec![Series::new("ts".into(), times).into()]).unwrap();
+            assert!(downsample_for_analysis(frame, 2, "test").is_err());
+        }
+    }
+
+    #[test]
+    fn exact_analysis_sampling_reports_matching_source_and_effective_cadence() {
+        let base = 1_700_000_000_000_i64;
+        let frame = DataFrame::new(
+            4,
+            vec![
+                Series::new(
+                    "ts".into(),
+                    (0_i64..4)
+                        .map(|minute| base + minute * 600_000)
+                        .collect::<Vec<_>>(),
+                )
+                .into(),
+                Series::new("value".into(), vec![1.0, 2.0, 3.0, 4.0]).into(),
+            ],
+        )
+        .expect("frame");
+
+        let (sampled, metadata) = downsample_for_analysis(frame, 4, "test").expect("exact frame");
+        assert_eq!(sampled.height(), 4);
+        assert_eq!(metadata.method, "exact");
+        assert_eq!(metadata.source_cadence_ms, Some(600_000.0));
+        assert_eq!(metadata.effective_cadence_ms, Some(600_000.0));
+    }
 
     #[test]
     fn analysis_sampling_uses_bucket_means_instead_of_stride_aliasing() {
@@ -389,6 +487,8 @@ mod sampling_tests {
         assert_eq!(metadata.method, "block_mean");
         assert_eq!(metadata.input_points, 8);
         assert_eq!(metadata.output_points, 4);
+        assert_eq!(metadata.source_cadence_ms, Some(1_000.0));
+        assert_eq!(metadata.effective_cadence_ms, Some(2_000.0));
         assert_eq!(sampled.height(), 4);
         assert_eq!(
             sampled

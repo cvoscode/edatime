@@ -35,18 +35,8 @@ export interface DataFetchMeta {
     executionIdentity?: ExecutionIdentity;
 }
 
-/**
- * Backend-issued identity of the immutable dataset snapshot and pipeline that
- * produced a result. It lets the UI keep result provenance alongside decoded
- * Arrow data instead of assuming the currently active dataset did the work.
- */
-export interface ExecutionIdentity {
-    sourceVersionId: string;
-    sourceRevision: number;
-    schemaFingerprint: string;
-    /** `none` means the unchanged source snapshot. */
-    planHash: string;
-}
+export type { ExecutionIdentity } from '../contracts/api/v1/identity.js';
+import type { ExecutionIdentity } from '../contracts/api/v1/identity.js';
 
 export interface FetchedWindow {
     start: number;

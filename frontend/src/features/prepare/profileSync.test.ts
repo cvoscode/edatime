@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DatasetMetadata, DatasetProfileResponse } from '../../contracts/api/v1/dataset.js';
+import type { AppliedPlanHistoryResponse } from '../../cleaning/api.js';
 import { cleaningPlanStore } from '../../cleaning/store.js';
 import { createWorkspaceStore } from '../../workspace/workspaceStore.js';
 import { fetchDatasetProfile, startDatasetProfile } from '../../services/api/profile.js';
@@ -27,6 +28,18 @@ function metadata(): DatasetMetadata {
         dataset_fingerprint: source.datasetFingerprint, profile_status: 'immediate',
         total_rows: 100, columns: [{ name: 'temperature', dtype: 'Float64' }],
         numeric_columns: ['temperature'], time_column: 'ts', time_range: null, column_profiles: [],
+    };
+}
+
+function appliedHistory(): AppliedPlanHistoryResponse {
+    return {
+        sourceVersion: {
+            id: source.id, rootId: source.id, parentId: null, revision: source.revision,
+            datasetFingerprint: source.datasetFingerprint, schemaFingerprint: 'schema', sourceName: 'ETTm2.csv',
+            displayName: null, timeColumn: 'ts', materializedFromPlanHash: null, createdAt: '2026-09-27T00:00:00.000Z',
+        },
+        appliedPlan: null,
+        historyStatus: 'none',
     };
 }
 
@@ -66,7 +79,7 @@ beforeEach(() => {
     workspace = createWorkspaceStore();
     document.body.innerHTML = '<span id="profile-mode-badge" data-mode="dataset"></span><div id="profile-grid"></div><div id="prepare-workspace"></div>';
     selectSource();
-    vi.mocked(getJson).mockImplementation(async () => profile('not_started'));
+    vi.mocked(getJson).mockImplementation(async (_url, label) => label === 'Applied plan history' ? appliedHistory() : profile('not_started'));
 });
 
 afterEach(() => {
@@ -88,15 +101,18 @@ describe('source profile synchronization', () => {
 
         expectReady();
         expect(postJson).toHaveBeenCalledOnce();
-        expect(getJson).not.toHaveBeenCalled();
+        expect(getJson).toHaveBeenCalledOnce();
+        expect(getJson).toHaveBeenCalledWith(expect.stringContaining('/provenance'), 'Applied plan history', expect.anything());
     });
 
     it('recovers a completed server report when Preparation opens without a client cache', async () => {
-        vi.mocked(getJson).mockResolvedValue(profile());
+        vi.mocked(getJson).mockImplementation(async (_url, label) => label === 'Applied plan history' ? appliedHistory() : profile());
         dispose = initPreparePage({ workspace });
 
         await vi.waitFor(expectReady);
-        expect(getJson).toHaveBeenCalledOnce();
+        expect(getJson).toHaveBeenCalledTimes(2);
+        expect(getJson).toHaveBeenNthCalledWith(1, expect.stringContaining('/provenance'), 'Applied plan history', expect.anything());
+        expect(getJson).toHaveBeenNthCalledWith(2, '/api/v1/profile', 'Dataset profile', expect.anything());
         expect(postJson).not.toHaveBeenCalled();
     });
 
@@ -118,11 +134,14 @@ describe('source profile synchronization', () => {
     });
 
     it('follows an existing job to completion without starting it again', async () => {
-        vi.mocked(getJson).mockResolvedValueOnce(profile('running')).mockResolvedValue(profile());
+        let profileCalls = 0;
+        vi.mocked(getJson).mockImplementation(async (_url, label) => label === 'Applied plan history'
+            ? appliedHistory()
+            : profile(profileCalls++ === 0 ? 'running' : 'ready'));
         dispose = initPreparePage({ workspace });
 
         await vi.waitFor(expectReady, { timeout: 2000 });
-        expect(getJson).toHaveBeenCalledTimes(2);
+        expect(getJson).toHaveBeenCalledTimes(3);
         expect(postJson).not.toHaveBeenCalled();
     });
 
@@ -148,7 +167,9 @@ describe('source profile synchronization', () => {
 
     it('keeps a ready report when an older pending poll arrives afterwards', async () => {
         let finish!: (result: DatasetProfileResponse) => void;
-        vi.mocked(getJson).mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+        vi.mocked(getJson).mockImplementation((url, label) => label === 'Applied plan history'
+            ? Promise.resolve(appliedHistory())
+            : new Promise((resolve) => { finish = resolve; }));
         dispose = initPreparePage({ workspace });
         const pendingPoll = fetchDatasetProfile();
         vi.mocked(postJson).mockResolvedValue(profile());

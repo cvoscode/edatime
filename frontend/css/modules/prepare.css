@@ -53,7 +53,7 @@
 .prepare-workspace__history .btn { min-height: 30px; padding: 4px 10px; }
 .prepare-workspace__mobile-nav { display: none; }
 
-.prepare-workspace :is(.prepare-workspace__quality, .prepare-workspace__graph, .prepare-workspace__stages, .prepare-workspace__exports, .prepare-workspace__signals-filters, .prepare-workspace__start) {
+.prepare-workspace :is(.prepare-workspace__quality, .prepare-workspace__graph, .prepare-workspace__stages, .prepare-workspace__exports, .prepare-workspace__signals-filters, .prepare-workspace__applied-history, .prepare-workspace__start) {
     display: grid;
     gap: 16px;
     padding: clamp(14px, 1.4vw, 20px);
@@ -65,6 +65,7 @@
 .prepare-workspace__section-copy { display: grid; gap: 4px; }
 .prepare-workspace__step { display: grid; flex: 0 0 26px; place-items: center; height: 26px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-dim); font-size: .625rem; font-weight: 650; font-variant-numeric: tabular-nums; }
 .prepare-workspace__start .btn { justify-self: start; }
+.prepare-workspace__applied-graph { min-width: 0; overflow-x: auto; overscroll-behavior-x: contain; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-0); }
 .prepare-workspace__report-header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px 20px; }
 .prepare-workspace__report-header .prepare-workspace__section-heading { flex: 1 1 420px; }
 .prepare-workspace__quality-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
@@ -200,3 +201,8 @@
 @media (max-height: 560px) and (max-width: 900px) {
     .prepare-workspace__toolbar { position: static; }
 }
+
+.prepare-workspace__zero-plateaus { padding: 12px 14px; border-left: 3px solid var(--amber); border-radius: var(--radius); background: var(--surface-1); }
+.prepare-workspace__zero-plateaus h3 { margin: 0 0 4px; color: var(--text-strong); font-size: .875rem; }
+.prepare-workspace__zero-plateaus p { margin: 0 0 6px; color: var(--text-dim); font-size: .75rem; line-height: 1.5; }
+.prepare-workspace__zero-plateaus ul { display: grid; gap: 3px; margin: 0; padding-left: 20px; color: var(--text); font-size: .78rem; }

@@ -28,6 +28,7 @@ export type {
     FrequencyPeak,
     FftResult,
     FftResponse,
+    AnalysisSampling,
     SpectrogramResult,
     SpectrogramResponse,
     SpectrogramScaleOptions,
@@ -78,10 +79,11 @@ export async function fetchFft(
     columns: string,
     maxPoints = 8192,
     options?: ApiRequestOptions,
+    detrend?: string,
 ): Promise<FftResponse> {
     const plan = activeCleaningPlan();
     return postJson<FftResponse>(apiV1Routes.analytics.fft, {
-        start, end, columns, max_points: maxPoints, cleaning_plan: plan,
+        start, end, columns, max_points: maxPoints, detrend, cleaning_plan: plan,
     }, 'FFT', options);
 }
 
@@ -110,7 +112,7 @@ export async function fetchSpectrogram(
     }, 'Spectrogram', options);
 }
 
-// ── Causal Graph (Tigramite) ────────────────────────────────────────────────
+// ── Causal Graph (native Rust) ────────────────────────────────────────────────
 
 export async function fetchCausalGraph(
     columns: string[],
@@ -123,6 +125,7 @@ export async function fetchCausalGraph(
     test = 'par_corr',
     maxCondsDim?: number,
     fdrMethod = 'none',
+    range?: { start: string; end: string },
 ): Promise<CausalGraphResponse> {
     const url = apiV1Routes.analytics.causal;
     const body: Record<string, unknown> = {
@@ -134,6 +137,7 @@ export async function fetchCausalGraph(
         pc_alpha: pcAlpha,
         test,
         fdr_method: fdrMethod,
+        ...range,
     };
     body.cleaning_plan = activeCleaningPlan();
     if (maxCondsDim != null) body.max_conds_dim = maxCondsDim;

@@ -162,11 +162,18 @@ test.describe('Preparation touch workflow', () => {
             ['Export Rust', 'apply_edatime_plan.rs'],
             ['Export reproducibility bundle', 'edatime_handoff_bundle.zip'],
         ]) {
-            const downloadEvent = page.waitForEvent('download');
+            const sidecarFilename = `${filename.replace(/\.[^.]+$/, '')}.provenance.json`;
+            const downloadEvent = page.waitForEvent('download', (download) => download.suggestedFilename() === filename);
+            const sidecarEvent = page.waitForEvent('download', (download) => download.suggestedFilename() === sidecarFilename);
             await page.locator('#prepare-export').getByRole('button', { name: label, exact: true }).tap();
-            const download = await downloadEvent;
+            const [download, sidecar] = await Promise.all([downloadEvent, sidecarEvent]);
             expect(download.suggestedFilename()).toBe(filename);
+            expect(sidecar.suggestedFilename()).toBe(sidecarFilename);
             expect(await download.failure()).toBeNull();
+            expect(await sidecar.failure()).toBeNull();
+            const sidecarBody = JSON.parse((await readFile((await sidecar.path())!)).toString());
+            expect(sidecarBody.export.filename).toBe(filename);
+            expect(sidecarBody.dataset.sourceVersionId).toBeTruthy();
             const body = await readFile((await download.path())!);
             if (filename.endsWith('.json')) {
                 expect(JSON.parse(body.toString()).plan.stages[0].outputColumn).toBe('combined_signal');

@@ -75,26 +75,97 @@
     "CausalGraphRequest": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["cleaning_plan"],
+      "required": [
+        "cleaning_plan"
+      ],
       "properties": {
         "columns": {
           "oneOf": [
-            { "type": "string", "minLength": 1 },
-            { "type": "array", "minItems": 2, "items": { "type": "string", "minLength": 1 } }
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "array",
+              "minItems": 2,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
           ]
         },
-        "tau_max": { "type": "integer", "minimum": 1, "maximum": 128 },
-        "pc_alpha": { "type": "number", "description": "Finite values are accepted and clamped to the server-supported range." },
-        "alpha": { "type": "number", "description": "Finite values are accepted and clamped to the server-supported range." },
-        "method": { "type": "string", "enum": ["pcmci", "pcmciplus", "fullci", "bivci", "lpcmci"] },
-        "test": { "type": "string", "enum": ["par_corr", "cmi_knn", "robust_parcorr", "gsquared", "cmi_symb"] },
-        "max_points": { "type": "integer", "minimum": 1 },
-        "max_conds_dim": { "type": "integer", "minimum": 0 },
-        "fdr_method": { "type": "string", "enum": ["none", "fdr_bh"] },
-        "n_preliminary_iterations": { "type": "integer", "minimum": 0 },
-        "knn": { "type": "integer", "minimum": 1 },
-        "sig_samples": { "type": "integer", "minimum": 1 },
-        "cleaning_plan": { "$ref": "#/components/schemas/CleaningPlanEnvelope" }
+        "tau_max": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 128
+        },
+        "pc_alpha": {
+          "type": "number",
+          "description": "Finite values are accepted and clamped to the server-supported range."
+        },
+        "alpha": {
+          "type": "number",
+          "description": "Finite values are accepted and clamped to the server-supported range."
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "pcmci",
+            "pcmciplus",
+            "fullci",
+            "bivci",
+            "lpcmci"
+          ]
+        },
+        "test": {
+          "type": "string",
+          "enum": [
+            "par_corr",
+            "cmi_knn",
+            "robust_parcorr",
+            "gsquared",
+            "cmi_symb"
+          ]
+        },
+        "max_points": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_conds_dim": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fdr_method": {
+          "type": "string",
+          "enum": [
+            "none",
+            "fdr_bh"
+          ]
+        },
+        "n_preliminary_iterations": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "knn": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sig_samples": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "cleaning_plan": {
+          "$ref": "#/components/schemas/CleaningPlanEnvelope"
+        },
+        "start": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "end": {
+          "type": "string",
+          "format": "date-time"
+        }
       }
     },
     "RollingRequest": {
@@ -125,13 +196,45 @@
     "FftRequest": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["start", "end", "cleaning_plan"],
+      "required": [
+        "start",
+        "end",
+        "cleaning_plan"
+      ],
       "properties": {
-        "start": { "type": "string", "format": "date-time" },
-        "end": { "type": "string", "format": "date-time" },
-        "columns": { "type": ["string", "null"] },
-        "max_points": { "type": ["integer", "null"], "minimum": 64 },
-        "cleaning_plan": { "$ref": "#/components/schemas/CleaningPlanEnvelope" }
+        "start": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "end": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "columns": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "max_points": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 64
+        },
+        "cleaning_plan": {
+          "$ref": "#/components/schemas/CleaningPlanEnvelope"
+        },
+        "detrend": {
+          "type": "string",
+          "enum": [
+            "none",
+            "constant",
+            "linear"
+          ],
+          "default": "constant"
+        }
       }
     },
     "SpectrogramRequest": {
@@ -359,25 +462,148 @@
     "DatasetMetadata": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["revision", "profile_status", "total_rows", "columns", "numeric_columns", "time_column", "time_range", "column_profiles"],
+      "required": [
+        "revision",
+        "profile_status",
+        "total_rows",
+        "columns",
+        "numeric_columns",
+        "time_column",
+        "time_range",
+        "column_profiles"
+      ],
       "properties": {
-        "revision": { "type": "integer", "minimum": 0 },
-        "source_version_id": { "type": ["string", "null"] },
-        "source_version_revision": { "type": ["integer", "null"], "minimum": 0 },
-        "root_source_version_id": { "type": ["string", "null"] },
-        "parent_source_version_id": { "type": ["string", "null"] },
-        "dataset_fingerprint": { "type": ["string", "null"] },
-        "schema_fingerprint": { "type": ["string", "null"] },
-        "source_name": { "type": ["string", "null"] },
-        "profile_status": { "type": "string" },
-        "profile_sample_rows": { "type": ["integer", "null"], "minimum": 0 },
-        "total_rows": { "type": "integer", "minimum": 0 },
-        "columns": { "type": "array", "items": { "$ref": "#/components/schemas/ColumnMetadata" } },
-        "numeric_columns": { "type": "array", "items": { "type": "string" } },
-        "time_column": { "type": ["string", "null"] },
-        "time_range": { "oneOf": [{ "$ref": "#/components/schemas/TimeRange" }, { "type": "null" }] },
-        "time_quality": { "type": ["object", "null"] },
-        "column_profiles": { "type": "array", "items": { "type": "object" } }
+        "revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_version_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_version_revision": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "root_source_version_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "parent_source_version_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dataset_fingerprint": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "schema_fingerprint": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "display_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "profile_status": {
+          "type": "string"
+        },
+        "profile_sample_rows": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "total_rows": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/ColumnMetadata"
+          }
+        },
+        "numeric_columns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "time_column": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "time_range": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/TimeRange"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "time_quality": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "column_profiles": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "profile_sampling": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "method",
+            "source_rows",
+            "sampled_rows",
+            "seed"
+          ],
+          "properties": {
+            "method": {
+              "type": "string"
+            },
+            "source_rows": {
+              "type": "integer"
+            },
+            "sampled_rows": {
+              "type": "integer"
+            },
+            "seed": {
+              "type": "integer"
+            }
+          }
+        }
       }
     },
     "ColumnMetadata": {
@@ -413,15 +639,78 @@
       "properties": { "metadata": { "$ref": "#/components/schemas/DatasetMetadata" } }
     },
     "CausalGraphResponse": {
-      "type": "object", "additionalProperties": false,
-      "required": ["graph", "val_matrix", "p_matrix", "columns", "tau_max", "links"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "graph",
+        "val_matrix",
+        "p_matrix",
+        "columns",
+        "tau_max",
+        "links"
+      ],
       "properties": {
-        "graph": { "type": "array", "items": { "type": "array", "items": { "type": "array", "items": { "type": "string" } } } },
-        "val_matrix": { "type": "array", "items": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } } },
-        "p_matrix": { "type": "array", "items": { "type": "array", "items": { "type": "array", "items": { "type": "number", "minimum": 0, "maximum": 1 } } } },
-        "columns": { "type": "array", "items": { "type": "string" } },
-        "tau_max": { "type": "integer", "minimum": 1 },
-        "links": { "type": "array", "items": { "$ref": "#/components/schemas/CausalLink" } }
+        "graph": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "val_matrix": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        "p_matrix": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          }
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tau_max": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/CausalLink"
+          }
+        },
+        "sample_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sampling": {
+          "$ref": "#/components/schemas/AnalysisSampling"
+        }
       }
     },
     "CausalLink": {
@@ -431,6 +720,332 @@
         "source": { "type": "string" }, "target": { "type": "string" },
         "lag": { "type": "integer", "minimum": 0 }, "type": { "type": "string" },
         "value": { "type": "number" }, "pvalue": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "DatasetVersionRecord":     {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "rootId",
+        "parentId",
+        "revision",
+        "datasetFingerprint",
+        "schemaFingerprint",
+        "sourceName",
+        "materializedFromPlanHash",
+        "createdAt"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rootId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parentId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "datasetFingerprint": {
+          "type": "string"
+        },
+        "schemaFingerprint": {
+          "type": "string"
+        },
+        "sourceName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timeColumn": {
+          "type": "string",
+          "minLength": 1
+        },
+        "materializedFromPlanHash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "DatasetVersionsResponse":     {
+      "type": "array",
+      "items": {
+        "$ref": "#/components/schemas/DatasetVersionRecord"
+      }
+    },
+    "SelectVersionResponse":     {
+      "$ref": "#/components/schemas/DatasetVersionRecord"
+    },
+    "AppliedPlanHistoryResponse":     {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceVersion",
+        "appliedPlan",
+        "historyStatus"
+      ],
+      "properties": {
+        "sourceVersion": {
+          "$ref": "#/components/schemas/DatasetVersionRecord"
+        },
+        "appliedPlan": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": true
+        },
+        "historyStatus": {
+          "type": "string",
+          "enum": [
+            "available",
+            "missing",
+            "none"
+          ]
+        }
+      }
+    },
+    "AnalysisSampling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "input_points",
+        "output_points",
+        "aggregation_factor",
+        "source_cadence_ms",
+        "effective_cadence_ms"
+      ],
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": [
+            "exact",
+            "block_mean"
+          ]
+        },
+        "input_points": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_points": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "aggregation_factor": {
+          "type": "number",
+          "minimum": 1
+        },
+        "source_cadence_ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "effective_cadence_ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "source_start_ms": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "source_end_ms": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "analyzed_start_ms": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "analyzed_end_ms": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    },
+    "FftResponse":     {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sample_count",
+        "sampling",
+        "results"
+      ],
+      "properties": {
+        "sample_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sampling": {
+          "$ref": "#/components/schemas/AnalysisSampling"
+        },
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      }
+    },
+    "SpectrogramResponse":     {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sample_count",
+        "sampling",
+        "result"
+      ],
+      "properties": {
+        "sample_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sampling": {
+          "$ref": "#/components/schemas/AnalysisSampling"
+        },
+        "result": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "DriftPreflightResponse":     {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceVersionId",
+        "sourceRevision",
+        "schemaFingerprint",
+        "planHash",
+        "window",
+        "decisionReady",
+        "columns"
+      ],
+      "properties": {
+        "sourceVersionId": {
+          "type": "string"
+        },
+        "sourceRevision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "schemaFingerprint": {
+          "type": "string"
+        },
+        "planHash": {
+          "type": "string"
+        },
+        "window": {
+          "type": "string",
+          "enum": [
+            "hourly",
+            "daily",
+            "weekly"
+          ]
+        },
+        "decisionReady": {
+          "type": "boolean"
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "column",
+              "referenceValidSamples",
+              "comparisonValidSamples",
+              "comparisonWindows",
+              "windowsBelowMinimum",
+              "averageWindowSamples",
+              "referenceToWindowRatio",
+              "decisionReady",
+              "warnings",
+              "suggestions"
+            ],
+            "properties": {
+              "column": {
+                "type": "string"
+              },
+              "referenceValidSamples": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "comparisonValidSamples": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "comparisonWindows": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "windowsBelowMinimum": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "averageWindowSamples": {
+                "type": "number",
+                "minimum": 0
+              },
+              "referenceToWindowRatio": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "decisionReady": {
+                "type": "boolean"
+              },
+              "warnings": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "suggestions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -450,6 +1065,7 @@
     {"method":"POST","path":"/api/v1/cleaning/export/manifest","request":"CleaningPlanEnvelope","response":"File","contentType":"application/json"},
     {"method":"POST","path":"/api/v1/cleaning/export/bundle","request":"CleaningPlanEnvelope","response":"File","contentType":"application/zip"},
     {"method":"GET","path":"/api/v1/datasets/versions","response":"DatasetVersionsResponse","contentType":"application/json"},
+    {"method":"GET","path":"/api/v1/datasets/versions/{id}/provenance","response":"AppliedPlanHistoryResponse","contentType":"application/json"},
     {"method":"POST","path":"/api/v1/datasets/versions/select","request":"SelectVersionRequest","response":"SelectVersionResponse","contentType":"application/json"},
     {"method":"GET","path":"/api/v1/datasets/storage","response":"StorageUsageResponse","contentType":"application/json"},
     {"method":"GET","path":"/api/v1/metadata","response":"DatasetMetadata","contentType":"application/json"},
@@ -485,6 +1101,7 @@
     {"method":"POST","path":"/api/v1/analytics/spectral-filter","request":"SpectralFilterRequest","response":"SpectralFilterResponse","contentType":"application/json","planAware":true},
     {"method":"POST","path":"/api/v1/analytics/causal","request":"CausalGraphRequest","response":"CausalGraphResponse","contentType":"application/json","planAware":true},
     {"method":"POST","path":"/api/v1/drift/stats","request":"DriftStatsRequest","response":"DriftStatsResponse","contentType":"application/json","planAware":true},
-    {"method":"POST","path":"/api/v1/drift/investigate","request":"DriftInvestigateRequest","response":"DriftInvestigateResponse","contentType":"application/json","planAware":true}
+    {"method":"POST","path":"/api/v1/drift/investigate","request":"DriftInvestigateRequest","response":"DriftInvestigateResponse","contentType":"application/json","planAware":true},
+    {"method":"POST","path":"/api/v1/drift/preflight","request":"DriftInvestigateRequest","response":"DriftPreflightResponse","contentType":"application/json","planAware":true}
   ]
 }

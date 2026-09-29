@@ -298,6 +298,21 @@
   color: var(--accent);
 }
 
+.drift-preflight-panel {
+  margin: 10px 0;
+  padding: 14px;
+  border: 1px solid var(--amber);
+  border-left-width: 3px;
+  border-radius: var(--radius-md, 8px);
+  background: var(--shell-hover);
+  color: var(--text);
+}
+.drift-preflight-panel h3,
+.drift-preflight-panel h4,
+.drift-preflight-panel p { margin: 0 0 8px; }
+.drift-preflight-column + .drift-preflight-column { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.drift-preflight-panel ul { margin: 6px 0; padding-left: 22px; }
+.drift-preflight-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .drift-verdict {
   display: grid;
   grid-template-columns: minmax(250px, 1.3fr) repeat(4, minmax(92px, 0.52fr));
@@ -946,31 +961,27 @@
 }
 
 .drift-window-list {
-  display: grid;
+  display: block;
   max-height: 220px;
   overflow-y: auto;
   padding: 6px;
-  gap: 2px;
   scrollbar-width: thin;
   scrollbar-color: rgba(120, 139, 174, 0.3) transparent;
 }
 
 .drift-window-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: var(--radius);
   color: var(--text-dim);
   font-size: 0.7rem;
   cursor: pointer;
 }
 
+.drift-window-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.drift-window-table th,
+.drift-window-table td { padding: 6px 8px; border-bottom: 1px solid var(--border-subtle); text-align: left; white-space: nowrap; }
+.drift-window-table thead th { color: var(--text-muted); font-size: 0.64rem; font-weight: 600; }
 .drift-window-item:hover,
-.drift-window-item.selected {
-  background: var(--accent-dim);
-  color: var(--text);
-}
+.drift-window-item.selected { background: var(--accent-dim); color: var(--text); }
+.drift-window-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 .drift-window-badge {
   width: 7px;
@@ -984,10 +995,8 @@
 .drift-window-badge--red { background: var(--red); }
 .drift-window-badge--empty { background: var(--text-muted); }
 
-.drift-window-label {
-  flex: 1;
-  overflow-wrap: anywhere;
-}
+.drift-window-label { font-weight: 500; overflow-wrap: anywhere; white-space: normal !important; }
+.drift-window-count { color: var(--text-muted); }
 
 .drift-window-psi {
   color: var(--text-muted);

@@ -72,8 +72,9 @@ describe('drift summary panels', () => {
         const panels = buildDriftSummaryPanelHtml(new Map([['temperature', imbalancedResponse]]));
 
         expect(panels.summaryStrip).toContain('drift-verdict--degraded');
-        expect(panels.summaryStrip).toContain('Method reliability');
-        expect(panels.summaryStrip).toMatch(/[Rr]eference.{0,40}window.{0,40}10×/i);
+        expect(panels.summaryStrip).toContain('Not decision-ready');
+        expect(panels.summaryStrip).toContain('Raw metrics are still shown');
+        expect(panels.summaryStrip).toContain('review the Quality panel');
         expect(panels.summaryStrip).toContain('Open Quality panel');
     });
 

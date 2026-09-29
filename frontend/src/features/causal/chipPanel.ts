@@ -15,6 +15,24 @@ import {
     type CausalMetadata,
 } from './selectionState.js';
 
+export function syncCausalComputeActionState(deps: CausalDeps): void {
+    const meta = workspaceMetadata(deps);
+    const numeric = numericSet(meta);
+    const selectedCount = Array.from(_selectedColumns).filter((column) => numeric.has(column)).length;
+    const overlay = document.getElementById('causal-loading');
+    const busy = Boolean(overlay && !overlay.hidden);
+    const reason = busy
+        ? 'Causal discovery is running. Use Cancel discovery to stop it.'
+        : selectedCount < 2 ? 'Select at least two numeric series to run causal discovery.' : '';
+    const reasonEl = document.getElementById('causal-compute-reason');
+    if (reasonEl) reasonEl.textContent = reason || 'Runs causal discovery on the selected numeric series.';
+    const button = document.getElementById('causal-compute-btn') as HTMLButtonElement | null;
+    if (button) {
+        button.disabled = busy || selectedCount < 2;
+        button.title = reason;
+    }
+}
+
 export function renderColumnChips(
     deps: CausalDeps,
     columnsBar: HTMLElement,
@@ -44,6 +62,7 @@ export function renderColumnChips(
         }
         renderColumnChips(deps, columnsBar, openEditPanel);
         syncCausalEmptyState(selectedNumericCount());
+        syncCausalComputeActionState(deps);
         if (savedTauMax && tauInputEl && tauInputEl.value !== savedTauMax) {
             tauInputEl.value = savedTauMax;
         }
@@ -73,6 +92,7 @@ export function renderColumnChips(
                     } else _selectedColumns.delete(col);
                     renderColumnChips(deps, columnsBar, openEditPanel);
                     syncCausalEmptyState(selectedNumericCount());
+                    syncCausalComputeActionState(deps);
                 },
                 onColorInput: (color) => {
                     _chipColors.set(col, color);
@@ -82,7 +102,6 @@ export function renderColumnChips(
             };
         }),
         chipClass: 'fft-trace-chip',
-        postChipAttributes: { role: 'button', tabIndex: '0' },
         postChipClass: (item) => {
             const col = item.column;
             return numeric.has(col) ? '' : 'causal-chip-nonnumeric';
@@ -93,6 +112,7 @@ export function renderColumnChips(
         },
     });
     columnsBar.prepend(selectAllBtn);
+    syncCausalComputeActionState(deps);
 
     for (const item of cols) {
         if (numeric.has(item.name)) continue;

@@ -66,10 +66,13 @@ export interface DatasetMetadata {
     dataset_fingerprint?: string;
     schema_fingerprint?: string;
     source_name?: string | null;
+    /** Version-specific identity shown in the workspace shell. */
+    display_name?: string | null;
     /** `immediate` contains schema/row/time facts; sampled and exact carry column statistics. */
     profile_status?: 'immediate' | 'sampled' | 'exact';
     /** Row count used for a `sampled` profile. */
     profile_sample_rows?: number;
+    profile_sampling?: { method: string; source_rows: number; sampled_rows: number; seed: number };
     total_rows: number;
     columns: ColumnMetadata[];
     numeric_columns: string[];

@@ -1327,7 +1327,7 @@ export function mountCleaningPlanPanel(deps: CleaningPlanPanelDeps): () => void 
                 // baseline. Do not let a draft saved under the root version
                 // silently reapply the child plan on the next metadata refresh.
                 deps.planStore.clear();
-                preview.textContent = 'Restored original source ' + (root.sourceName || root.id)
+                preview.textContent = 'Restored original source ' + (root.displayName || root.sourceName || root.id)
                     + ' (' + root.id + '). The working plan was cleared.';
                 await deps.onPlanApplied?.();
             } catch (error) {

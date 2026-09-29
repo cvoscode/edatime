@@ -10,10 +10,13 @@ interface DatasetSwitcherDeps {
 function datasetLabel(deps: DatasetSwitcherDeps): string {
     const snapshot = deps.workspace.getSnapshot();
     const metadata = snapshot.dataset.metadata;
-    return metadata?.source_name?.trim()
+    const name = metadata?.display_name?.trim()
+        || metadata?.source_name?.trim()
         || snapshot.dataset.activeSourceVersionId
         || metadata?.source_version_id
         || 'No dataset';
+    const revision = metadata?.source_version_revision ?? metadata?.revision;
+    return Number.isSafeInteger(revision) && Number(revision) > 0 ? `${name} · ${metadata?.source_version_id || snapshot.dataset.activeSourceVersionId || 'source'} · revision ${revision}` : name;
 }
 
 /** Header-level selector for retained datasets/versions, available on every page. */
@@ -58,7 +61,7 @@ export function initDatasetSwitcher(deps: DatasetSwitcherDeps): () => void {
                 item.setAttribute('role', 'menuitemradio');
                 item.setAttribute('aria-checked', version.id === activeId ? 'true' : 'false');
                 item.dataset.versionId = version.id;
-                const name = version.sourceName?.trim() || version.id;
+                const name = version.displayName?.trim() || version.sourceName?.trim() || version.id;
                 item.textContent = `${version.id === activeId ? '✓ ' : ''}${name} · revision ${version.revision}`;
                 item.title = version.id;
                 item.addEventListener('click', async () => {

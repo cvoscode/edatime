@@ -9,7 +9,7 @@ export interface DatasetProfileSource {
 
 export function datasetProfileKind(response: DatasetProfileResponse): DatasetProfileKind | null {
     if (response.algorithmVersion === 'exact-v1') return 'exact';
-    if (response.algorithmVersion === 'sample-v1') return 'sampled';
+    if (['sample-v1', 'sample-v2'].includes(response.algorithmVersion)) return 'sampled';
     return null;
 }
 
@@ -35,7 +35,8 @@ export function createDatasetProfileStore() {
             const sourceKey = key(response.sourceVersion);
             const profiles = sources.get(sourceKey) ?? {};
             // A late poll must not replace a completed immutable-source report with pending state.
-            if (profiles[kind]?.status === 'ready' || profiles[kind] === response) return;
+            if ((profiles[kind]?.status === 'ready' && profiles[kind]?.algorithmVersion === response.algorithmVersion) || profiles[kind] === response) return;
+            if (profiles[kind]?.algorithmVersion === 'sample-v2' && response.algorithmVersion === 'sample-v1') return;
             profiles[kind] = response;
             sources.delete(sourceKey);
             sources.set(sourceKey, profiles);

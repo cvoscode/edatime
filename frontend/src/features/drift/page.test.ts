@@ -17,6 +17,7 @@ const chartMock = {
 
 vi.mock('echarts', () => ({
     init: vi.fn(() => chartMock),
+    getInstanceByDom: vi.fn(() => undefined),
 }));
 
 vi.mock('../../utils/toast.js', () => ({
@@ -69,9 +70,25 @@ describe('drift page accessibility and debug metadata', () => {
         // code path during module initialisation that calls fetch() hits the mock.
         // Use vi.stubGlobal instead of direct assignment so vi.unstubAllGlobals
         // can properly restore the original value in subsequent tests.
-        fetchMock = vi.fn().mockResolvedValue({
-            ok: true,
-            json: async () => ({
+        fetchMock = vi.fn().mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+            const requestUrl = String(input);
+            const requestBody = JSON.parse(String(init?.body ?? '{}'));
+            const cleaningPlan = requestBody.cleaningPlan;
+            return Promise.resolve({
+                ok: true,
+                json: async () => requestUrl.endsWith('/preflight') ? ({
+                    sourceVersionId: cleaningPlan.expectedSourceVersionId,
+                    sourceRevision: cleaningPlan.expectedDatasetRevision,
+                    schemaFingerprint: cleaningPlan.plan.schemaFingerprint,
+                    planHash: cleaningPlan.expectedPlanHash,
+                    window: requestBody.window,
+                    decisionReady: true,
+                    columns: [{
+                        column: 'value', referenceValidSamples: 100, comparisonValidSamples: 100,
+                        comparisonWindows: 2, windowsBelowMinimum: 0, averageWindowSamples: 50,
+                        referenceToWindowRatio: 2, decisionReady: true, warnings: [], suggestions: [],
+                    }],
+                }) : ({
                 overview: {
                     driftScore: 91,
                     worstLevel: 'red',
@@ -182,6 +199,7 @@ describe('drift page accessibility and debug metadata', () => {
                 quality: { byColumn: { value: { latestMissingRate: 0, latestCompletenessDelta: -0.18, latestZeroRate: 0, flatline: false, lowSampleWarning: false, issues: ['missingness_jump'] } } },
                 relationships: { mode: 'pearson_raw', pairs: [] },
             }),
+            });
         });
         vi.stubGlobal('fetch', fetchMock);
 
@@ -273,6 +291,7 @@ describe('drift page accessibility and debug metadata', () => {
               <div id="drift-summary-strip"></div>
               <div id="drift-column-summary"></div>
               <div id="drift-status" role="status" aria-live="polite">Select one or more columns, choose a baseline, and run the analysis.</div>
+              <section id="drift-preflight-panel" aria-labelledby="drift-preflight-title" tabindex="-1" hidden></section>
               <div id="drift-timeline-chart"></div>
               <div id="drift-detail-chart"></div>
               <select id="drift-detail-col-select"></select>
@@ -334,7 +353,7 @@ describe('drift page accessibility and debug metadata', () => {
 
         const items = await waitForWindowItems();
         expect(items.length).toBe(2);
-        expect(items[0].getAttribute('role')).toBe('option');
+        expect(items[0].tagName).toBe('TR');
         expect(items[0].getAttribute('tabindex')).toBe('0');
         expect(items[0].getAttribute('aria-selected')).toBe('true');
 
@@ -496,13 +515,112 @@ describe('drift page accessibility and debug metadata', () => {
         (document.getElementById('drift-compute-btn') as HTMLButtonElement).click();
 
         await vi.waitFor(() => {
-            expect(fetchMock).toHaveBeenCalledTimes(1);
+            expect(fetchMock).toHaveBeenCalledTimes(2);
         });
+    });
+
+    it('invalidates a weak Drift preflight when its inputs change', async () => {
+        fetchMock.mockImplementationOnce((_input: RequestInfo | URL, init?: RequestInit) => {
+            const body = JSON.parse(String(init?.body ?? '{}'));
+            return Promise.resolve({
+                ok: true,
+                json: async () => ({
+                    sourceVersionId: body.cleaningPlan.expectedSourceVersionId,
+                    sourceRevision: body.cleaningPlan.expectedDatasetRevision,
+                    schemaFingerprint: body.cleaningPlan.plan.schemaFingerprint,
+                    planHash: body.cleaningPlan.expectedPlanHash,
+                    window: body.window,
+                    decisionReady: false,
+                    columns: [{
+                        column: 'value', referenceValidSamples: 5, comparisonValidSamples: 2,
+                        comparisonWindows: 2, windowsBelowMinimum: 1, averageWindowSamples: 0,
+                        referenceToWindowRatio: null, decisionReady: false,
+                        warnings: ['One monitoring window has fewer than 5 valid samples.'],
+                        suggestions: ['Choose a longer monitoring window.'],
+                    }],
+                }),
+            });
+        });
+        await (await import('./page.js')).initDriftPage({
+            numeric_columns: ['value'],
+            columns: [{ name: 'value', dtype: 'Float64' }],
+            time_range: { min: 0, max: 1_000 },
+        });
+        (document.getElementById('drift-ref-start') as HTMLInputElement).value = '1970-01-01T00:00';
+        (document.getElementById('drift-ref-end') as HTMLInputElement).value = '1970-01-01T00:10';
+        (document.getElementById('drift-compute-btn') as HTMLButtonElement).click();
+
+        const panel = document.getElementById('drift-preflight-panel') as HTMLElement;
+        await vi.waitFor(() => expect(panel.hidden).toBe(false));
+        expect(panel.textContent).toContain('Valid samples: 5 in reference; 2 in monitoring windows');
+        expect(panel.textContent).toContain('Choose a longer monitoring window.');
+        expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual(['/api/v1/drift/preflight']);
+
+        const threshold = document.getElementById('drift-ks-threshold') as HTMLInputElement;
+        threshold.value = '0.01';
+        threshold.dispatchEvent(new Event('input', { bubbles: true }));
+        expect(panel.hidden).toBe(true);
+
+        (document.getElementById('drift-compute-btn') as HTMLButtonElement).click();
+        await vi.waitFor(() => expect(fetchMock.mock.calls.map(([url]) => String(url))).toContain('/api/v1/drift/investigate'));
+    });
+
+    it('offers Run anyway after a weak source-bound Drift preflight', async () => {
+        fetchMock.mockImplementationOnce((_input: RequestInfo | URL, init?: RequestInit) => {
+            const body = JSON.parse(String(init?.body ?? '{}'));
+            return Promise.resolve({
+                ok: true,
+                json: async () => ({
+                    sourceVersionId: body.cleaningPlan.expectedSourceVersionId,
+                    sourceRevision: body.cleaningPlan.expectedDatasetRevision,
+                    schemaFingerprint: body.cleaningPlan.plan.schemaFingerprint,
+                    planHash: body.cleaningPlan.expectedPlanHash,
+                    window: body.window,
+                    decisionReady: false,
+                    columns: [{
+                        column: 'value', referenceValidSamples: 5, comparisonValidSamples: 2,
+                        comparisonWindows: 2, windowsBelowMinimum: 1, averageWindowSamples: 0,
+                        referenceToWindowRatio: null, decisionReady: false,
+                        warnings: ['One monitoring window has fewer than 5 valid samples.'],
+                        suggestions: ['Choose a longer monitoring window.'],
+                    }],
+                }),
+            });
+        });
+        await (await import('./page.js')).initDriftPage({
+            numeric_columns: ['value'],
+            columns: [{ name: 'value', dtype: 'Float64' }],
+            time_range: { min: 0, max: 1_000 },
+        });
+        (document.getElementById('drift-ref-start') as HTMLInputElement).value = '1970-01-01T00:00';
+        (document.getElementById('drift-ref-end') as HTMLInputElement).value = '1970-01-01T00:10';
+        (document.getElementById('drift-compute-btn') as HTMLButtonElement).click();
+
+        const panel = document.getElementById('drift-preflight-panel') as HTMLElement;
+        await vi.waitFor(() => expect(panel.hidden).toBe(false));
+        expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual(['/api/v1/drift/preflight']);
+        (panel.querySelector('button') as HTMLButtonElement).click();
+        await vi.waitFor(() => expect(fetchMock.mock.calls.map(([url]) => String(url))).toContain('/api/v1/drift/investigate'));
     });
 
     it('reports investigate failures without issuing legacy per-column requests', async () => {
         fetchMock.mockReset();
         fetchMock
+            .mockImplementationOnce((input: RequestInfo | URL, init?: RequestInit) => {
+                const body = JSON.parse(String(init?.body ?? '{}'));
+                return Promise.resolve({
+                    ok: true,
+                    json: async () => ({
+                        sourceVersionId: body.cleaningPlan.expectedSourceVersionId,
+                        sourceRevision: body.cleaningPlan.expectedDatasetRevision,
+                        schemaFingerprint: body.cleaningPlan.plan.schemaFingerprint,
+                        planHash: body.cleaningPlan.expectedPlanHash,
+                        window: body.window,
+                        decisionReady: true,
+                        columns: [{ column: 'value', decisionReady: true, warnings: [], suggestions: [] }],
+                    }),
+                });
+            })
             .mockResolvedValueOnce({
                 ok: false,
                 status: 405,
@@ -522,10 +640,11 @@ describe('drift page accessibility and debug metadata', () => {
         (document.getElementById('drift-compute-btn') as HTMLButtonElement).click();
 
         await vi.waitFor(() => {
-            expect(fetchMock).toHaveBeenCalledTimes(1);
+            expect(fetchMock).toHaveBeenCalledTimes(2);
         });
 
-        expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/drift/investigate');
+        expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/drift/preflight');
+        expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/v1/drift/investigate');
         expect(document.getElementById('drift-overview-panel')?.textContent).toBe('');
     });
 });

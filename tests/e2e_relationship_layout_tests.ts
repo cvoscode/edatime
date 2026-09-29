@@ -181,6 +181,74 @@ test('matrix density controls separate preview encodings and survive reloads', a
     await expect(matrix.locator('.heatmap-density-legend')).toBeVisible();
 });
 
+test('matrix activation opens the selected pair directly and summary disclosure preserves plot height', async ({ page }, testInfo) => {
+    test.setTimeout(120_000);
+    const errors: string[] = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const matrix = await openRelationship(page, 'correlation-matrix');
+    const pair = page.locator('#heatmap-pair-plot');
+    const chart = page.locator('#scatter-chart');
+    const details = page.locator('#scatter-summary-details');
+    const table = details.locator('table[data-chart-summary="scatter"]');
+
+    for (const selection of [
+        { x: 'HUFL', y: 'HULL', key: null },
+        { x: 'HULL', y: 'OT', key: 'Enter' },
+        { x: 'OT', y: 'MUFL', key: 'Space' },
+    ]) {
+        if (await pair.isVisible()) {
+            await page.locator('.sidebar').getByRole('button', { name: 'Correlation matrix', exact: true }).click();
+            await expect(matrix).toBeVisible();
+            await expect(page.locator('#heatmap-loading')).toBeHidden({ timeout: 30_000 });
+        }
+        const cell = matrix.locator(`.heatmap-cell[data-row-name="${selection.x}"][data-col-name="${selection.y}"]`);
+        if (selection.key) {
+            await cell.focus();
+            await cell.press(selection.key);
+        } else {
+            await cell.click();
+        }
+        await expect(pair).toBeVisible({ timeout: 30_000 });
+        await expect(page.locator('#scatter-x-col .dropdown__label')).toHaveText(selection.x);
+        await expect(page.locator('#scatter-y-col .dropdown__label')).toHaveText(selection.y);
+        await expect(chart.locator('canvas').first()).toBeVisible({ timeout: 30_000 });
+        await expect(page.locator('#scatter-chart-loading')).toBeHidden({ timeout: 30_000 });
+        expect((await chart.boundingBox())!.height).toBeGreaterThanOrEqual(300);
+        await expect(details).not.toHaveAttribute('open', '');
+        await expect(table).toBeHidden();
+    }
+    await page.screenshot({ path: testInfo.outputPath('pair-plot-restored-desktop.png') });
+
+    await details.locator('summary').focus();
+    await page.keyboard.press('Enter');
+    await expect(table).toBeVisible();
+    expect((await chart.boundingBox())!.height).toBeGreaterThanOrEqual(300);
+    const rows = table.locator('tbody tr');
+    await rows.first().focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(rows.nth(1)).toBeFocused();
+    await expect(details.getByRole('button', { name: 'Copy Pair plot summary' })).toBeVisible();
+    await expectContained(pair);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expectContained(pair);
+    expect((await chart.boundingBox())!.height).toBeGreaterThanOrEqual(300);
+    await details.locator('summary').click();
+    await expect(table).toBeHidden();
+    await pair.evaluate(el => { el.scrollTop = 0; });
+    await page.screenshot({ path: testInfo.outputPath('pair-plot-restored-mobile.png') });
+
+    await page.reload();
+    await expect(pair).toBeVisible();
+    await expect(page.locator('#scatter-x-col .dropdown__label')).toHaveText('OT');
+    await expect(page.locator('#scatter-y-col .dropdown__label')).toHaveText('MUFL');
+    await expect(page.locator('#scatter-chart-loading')).toBeHidden({ timeout: 30_000 });
+    expect((await chart.boundingBox())!.height).toBeGreaterThanOrEqual(300);
+    expect(errors).toEqual([]);
+});
+
 test('matrix controls, keyboard pair navigation, and pair options keep their existing behavior', async ({ page }, testInfo) => {
     test.setTimeout(120_000);
     await page.setViewportSize({ width: 1440, height: 1000 });

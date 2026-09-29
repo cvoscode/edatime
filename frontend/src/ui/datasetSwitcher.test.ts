@@ -55,6 +55,22 @@ describe('dataset switcher', () => {
         api.selectDatasetVersion.mockResolvedValue(undefined);
     });
 
+    it('shows the active prepared display name and revision in the shell', () => {
+        const workspace = {
+            getSnapshot: () => makeWorkspaceSnapshot({ dataset: {
+                activeSourceVersionId: 'source-2',
+                metadata: {
+                    source_version_id: 'source-2', source_name: 'ETTm2.csv',
+                    display_name: 'ETTm2.csv · prepared v2', source_version_revision: 2,
+                } as any,
+            } }),
+            subscribe: vi.fn(() => vi.fn()),
+        };
+        const dispose = initDatasetSwitcher({ workspace, onDatasetSelected: vi.fn(), showPage: vi.fn() });
+        expect(document.getElementById('dataset-switcher-label')?.textContent).toBe('ETTm2.csv · prepared v2 · r2');
+        dispose();
+    });
+
     it('opens and loads versions from click and keeps aria-expanded in sync', async () => {
         const { dispose } = setup();
         const root = document.getElementById('dataset-switcher') as HTMLDetailsElement;

@@ -44,6 +44,26 @@ describe('api http request invalidation', () => {
         __resetApiRequestStateForTests();
     });
 
+    it('attaches backend execution identity headers to JSON analysis results', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ value: 1 }), {
+            status: 200,
+            headers: {
+                'content-type': 'application/json',
+                'x-edatime-source-version': 'source-2',
+                'x-edatime-source-revision': '2',
+                'x-edatime-schema-fingerprint': 'schema-2',
+                'x-edatime-plan-hash': 'plan-2',
+            },
+        })));
+        await expect(postJson('/api/v1/drift/investigate', {}, 'Drift')).resolves.toEqual({
+            value: 1,
+            executionIdentity: {
+                sourceVersionId: 'source-2', sourceRevision: 2,
+                schemaFingerprint: 'schema-2', planHash: 'plan-2',
+            },
+        });
+    });
+
     it('rejects stale in-flight GET responses after dataset scope invalidation and refetches metadata', async () => {
         const first = createDeferredResponse();
         const second = createDeferredResponse();

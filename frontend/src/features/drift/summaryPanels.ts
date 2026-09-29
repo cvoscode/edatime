@@ -165,23 +165,25 @@ export function buildDriftSummaryPanelHtml(
     const coverage = buildDatasetWindowCoverage(responsesByColumn);
     const allWindowsAffected = coverage.total > 0 && coverage.affected === coverage.total;
     const degradedColumns = Array.from(responsesByColumn.values())
-        .filter((response) => response.metadata?.psi_sample_ratio_warning);
+        .filter((response) => response.metadata?.psi_sample_ratio_warning
+            || response.metadata?.bin_count_warning
+            || response.windows.some((window) => window.low_sample_warning));
     const isDegraded = degradedColumns.length > 0;
     const verdictClass = isDegraded
         ? ' drift-verdict--degraded'
         : globalSummary.anyDrift ? '' : ' drift-verdict--stable';
     const verdictMarker = isDegraded ? '?' : globalSummary.anyDrift ? '!' : 'OK';
     const verdictTitle = isDegraded
-        ? 'Method reliability warning'
+        ? 'Not decision-ready'
         : globalSummary.anyDrift ? 'Data drift detected' : 'No data drift detected';
     const qualityCopy = isDegraded
-        ? `Reference is much larger than the evaluation window (≥ 10×). PSI and KS may be unreliable — try a longer window or a shorter reference before drawing conclusions.`
+        ? `One or more sample or distribution checks failed. Raw metrics are still shown; review the Quality panel and improve the baseline or window sizes before drawing conclusions.`
         : allWindowsAffected
             ? 'Every evaluation window is flagged — review baseline and thresholds.'
             : 'Analysis quality checks passed for the selected baseline and thresholds.';
 
     const degradedBadge = isDegraded
-        ? `<span class="drift-verdict__severity drift-amber">Reliability</span>`
+        ? `<span class="drift-verdict__severity drift-amber">Reliability warning</span>`
         : `<span class="drift-verdict__severity drift-${globalSummary.worstSeverity}">${severityLabel(globalSummary.worstSeverity)}</span>`;
 
     const strongestEvidence = rows

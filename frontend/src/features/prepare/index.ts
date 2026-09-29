@@ -1,7 +1,11 @@
+import { sampledProfileDescription } from '../../services/profile/samplingDescription.js';
+import { createZeroDecisionControls } from './zeroSemantics.js';
 import { hasAscendingTimeSortBefore, normalizeFixedDuration, parseResampleAggregations } from '../../cleaning/resample.js';
 import { cleaningPlanStore } from '../../cleaning/store.js';
-import { cancelSessionJob } from '../../cleaning/api.js';
+import { cancelSessionJob, getAppliedPlanHistory } from '../../cleaning/api.js';
+import type { AppliedPlanHistoryResponse } from '../../cleaning/api.js';
 import type { CleaningPlan } from '../../cleaning/types.js';
+import { buildPipelineGraph, renderPipelineGraphSvg } from '../../cleaning/pipelineGraph.js';
 import type { ApiRequestOptions } from '../../services/api/http.js';
 import type { WorkspaceSnapshot, WorkspaceStore } from '../../contracts/workspace.js';
 import {
@@ -25,6 +29,7 @@ import {
     type ProfileFilterCategory,
     type ProfileGridController,
 } from '../../ui/profileGrid.js';
+import { findZeroPlateauObservations, formatZeroPlateauRange } from './zeroPlateauObservations.js';
 import type { ProfileGridSort } from '../../types/store.js';
 import { createPreparationPreview, type PreparationPreview } from './preview.js';
 import { renderPreviewEvidence } from '../../cleaning/previewEvidence.js';
@@ -71,6 +76,7 @@ export interface PreparePageDeps {
     cancelProfile?: (jobId: string, options?: ApiRequestOptions) => Promise<unknown>;
     getCurrentData?: () => DataObject | null;
     refreshDatasetAfterMutation?: () => void | Promise<void>;
+    getAppliedPlanHistory?: (versionId: string, options?: ApiRequestOptions) => Promise<AppliedPlanHistoryResponse>;
 }
 
 function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string): HTMLElementTagNameMap[K] {
@@ -413,7 +419,7 @@ function renderQualityReport(
         : reportKind === 'exact'
             ? 'Exact background-profile findings are ready. Review counts, ranges, and distributions before refining the pipeline.'
             : reportKind === 'sampled'
-                ? 'Sampled quality findings are estimates from ' + (sourceMetadata?.profile_sample_rows ?? 0).toLocaleString() + ' rows. Confirm them with the exact report before materializing.'
+                ? sourceMetadata ? sampledProfileDescription(sourceMetadata) : 'Sampled quality estimates are unavailable.'
                 : 'Review the active dataset profile before refining the pipeline. Build a sampled or exact profile when you need completed statistics.';
 
     const profileActions = createElement('div', 'prepare-workspace__quality-actions');
@@ -475,11 +481,29 @@ function renderQualityReport(
         : sourceMetadata?.total_rows;
     status.textContent = reportKind === 'immediate'
         ? 'Showing the active dataset schema; detailed profile values are pending.'
-        : `${reportLabel} profile report · ${sourceRows?.toLocaleString() ?? '—'} source rows`;
+        : `${reportLabel} profile report · ${sourceRows?.toLocaleString() ?? '—'} ${reportKind === 'sampled' ? 'sampled rows' : 'source rows'}`;
 
     const gridRoot = createElement('div', 'profile-grid');
     gridRoot.id = 'prepare-profile-grid';
     const profiles = profileRowsFromMetadata(sourceMetadata);
+    const zeroPlateaus = findZeroPlateauObservations(sourceMetadata, 1);
+    const zeroPlateauNotice = zeroPlateaus.length > 0 ? createElement('section', 'prepare-workspace__zero-plateaus') : null;
+    if (zeroPlateauNotice) {
+        const noticeTitle = createElement('h3');
+        noticeTitle.textContent = 'Zero values and potential plateaus';
+        const noticeCopy = createElement('p');
+        noticeCopy.textContent = 'Review each column’s domain meaning. Saving an interpretation adds an annotation. A suspected sentinel requires an impact preview and a separate Apply action to convert zeros to missing values. Disable or undo that stage to restore them.';
+        const noticeList = createElement('ul');
+        for (const observation of zeroPlateaus) {
+            const item = createElement('li');
+            const range = formatZeroPlateauRange(observation.startMs, observation.endMs);
+            item.textContent = `${observation.column}: ${observation.zeroCount.toLocaleString()} zero values; longest consecutive run ${observation.consecutiveRows.toLocaleString()} rows${range ? ` (${range})` : ''}.`;
+            if (sourceMetadata) item.append(createZeroDecisionControls(observation.column, sourceMetadata));
+            noticeList.append(item);
+        }
+        zeroPlateauNotice.append(noticeTitle, noticeCopy, noticeList);
+        zeroPlateauNotice.setAttribute('aria-label', 'Potential zero plateaus from the exact profile');
+    }
     let grid!: ProfileGridController;
     const filterControls = createProfileFilterControls({
         inputId: 'prepare-profile-filter-input',
@@ -531,8 +555,77 @@ function renderQualityReport(
     reportFooter.append(modeBadge, status, scrollHint);
     section.append(reportHeader);
     if (errorNotice) section.append(errorNotice);
-    section.append(filterControls, gridRoot, reportFooter);
+    section.append(filterControls);
+    if (zeroPlateauNotice) section.append(zeroPlateauNotice);
+    section.append(gridRoot, reportFooter);
     return { section, grid };
+}
+
+interface AppliedPlanHistoryState {
+    key: string;
+    history: AppliedPlanHistoryResponse | null;
+    status: 'idle' | 'loading' | 'error' | 'ready';
+    message: string | null;
+}
+
+function renderAppliedPlanHistorySection(state: AppliedPlanHistoryState): HTMLElement {
+    const section = createElement('section', 'prepare-workspace__applied-history');
+    section.id = 'prepare-applied-history';
+    section.setAttribute('aria-labelledby', 'prepare-applied-history-title');
+    const title = createElement('h2');
+    title.id = 'prepare-applied-history-title';
+    title.textContent = 'Previously applied stages';
+    const copy = createElement('p', 'prepare-workspace__copy');
+    copy.textContent = 'Read-only history for this prepared version. The editable pipeline below starts as a fresh draft.';
+    section.append(title, copy);
+
+    if (state.status === 'loading') {
+        const message = createElement('p', 'prepare-workspace__policy-status');
+        message.setAttribute('role', 'status');
+        message.textContent = 'Loading saved plan history…';
+        section.append(message);
+        return section;
+    }
+    if (state.status === 'error') {
+        const message = createElement('p', 'prepare-workspace__quality-error');
+        message.setAttribute('role', 'status');
+        message.textContent = state.message ?? 'Saved plan history could not be loaded.';
+        section.append(message);
+        return section;
+    }
+    const history = state.history;
+    if (!history || history.historyStatus === 'none') {
+        const message = createElement('p', 'prepare-workspace__policy-status');
+        message.textContent = 'This source version has no materialized plan history.';
+        section.append(message);
+        return section;
+    }
+    if (history.historyStatus === 'missing' || !history.appliedPlan) {
+        const message = createElement('p', 'prepare-workspace__policy-status');
+        const hash = history.sourceVersion.materializedFromPlanHash;
+        message.textContent = hash
+            ? `Saved plan history is unavailable for this older version (plan hash ${hash}).`
+            : 'Saved plan history is unavailable for this version.';
+        section.append(message);
+        return section;
+    }
+
+    const name = history.sourceVersion.displayName?.trim()
+        || history.sourceVersion.sourceName?.trim()
+        || history.sourceVersion.id;
+    const label = createElement('p', 'prepare-workspace__copy');
+    label.textContent = `Applied plan for ${name} · ${history.appliedPlan.stages.length} saved stage${history.appliedPlan.stages.length === 1 ? '' : 's'}.`;
+    const graph = createElement('div', 'prepare-workspace__applied-graph');
+    graph.innerHTML = renderPipelineGraphSvg(buildPipelineGraph(history.appliedPlan), {
+        title: `Applied plan history for ${name}`,
+    });
+    graph.setAttribute('aria-label', `Read-only applied plan graph for ${name}`);
+    for (const node of graph.querySelectorAll<SVGElement>('[data-stage-id]')) {
+        node.setAttribute('role', 'img');
+        node.setAttribute('tabindex', '-1');
+    }
+    section.append(label, graph);
+    return section;
 }
 
 function renderPrepareWorkspace(
@@ -550,6 +643,7 @@ function renderPrepareWorkspace(
     cancelProfile: () => void,
     preview: PreparationPreview,
     profileGridState: PrepareProfileGridState,
+    appliedHistory: AppliedPlanHistoryState,
 ): ProfileGridController | null {
     root.replaceChildren();
     const header = createElement('div', 'page-header prepare-workspace__header');
@@ -584,6 +678,7 @@ function renderPrepareWorkspace(
     localNav.setAttribute('aria-label', 'Prepare sections');
     const navTargets = [
         ['Data quality report', 'prepare-profile-findings'],
+        ['Applied plan history', 'prepare-applied-history'],
         ['Pipeline stages', 'prepare-pipeline-stages'],
         ['Pipeline preview', 'prepare-pipeline-preview'],
         ['Export', 'prepare-export'],
@@ -678,7 +773,7 @@ function renderPrepareWorkspace(
     revisionLink.textContent = String(plan.datasetRevision);
     revisionLink.title = 'Open Graph history in the Pipeline Workbench';
     revisionLink.addEventListener('click', () => document.getElementById('open-cleaning-plan-btn')?.click());
-    appendIdentityFact('Source', plan.sourceName || plan.sourceVersionId);
+    appendIdentityFact('Source', `${plan.sourceName || 'Dataset'} · ${plan.sourceVersionId}`);
     const rows = metadata?.total_rows;
     const columnCount = metadata?.columns?.length;
     appendIdentityFact('Dataset size', rows != null && columnCount != null
@@ -1207,7 +1302,18 @@ function renderPrepareWorkspace(
     const exportCopy = createElement('p', 'prepare-workspace__copy');
     exportCopy.textContent = 'Download all rows and columns after the enabled steps as Parquet. Export the same pipeline as JSON or Python / Rust code, or download a bundle with the plan, code, and provenance. Exporting does not require creating a prepared dataset.';
     exportSection.append(sectionHeading(exportTitle, exportCopy, '04'), createPipelineExportControls(() => cleaningPlanStore.getSnapshot()));
-    root.append(header, identity, toolbar, qualityReport.section, stagesSection, graphSection, exportSection, insightSection, signalsFilterSection);
+    root.append(
+        header,
+        identity,
+        toolbar,
+        qualityReport.section,
+        renderAppliedPlanHistorySection(appliedHistory),
+        stagesSection,
+        graphSection,
+        exportSection,
+        insightSection,
+        signalsFilterSection,
+    );
     return qualityReport.grid;
 }
 
@@ -1240,10 +1346,55 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
         columnWidths: getDefaultProfileColumnWidths().slice(1),
     };
     const datasetKey = (plan: CleaningPlan | null) => JSON.stringify(plan && [plan.sourceVersionId, plan.datasetRevision, plan.datasetFingerprint, plan.schemaFingerprint]);
+    let appliedHistoryState: AppliedPlanHistoryState = {
+        key: '',
+        history: null,
+        status: 'idle',
+        message: null,
+    };
+    let historyRequest = new AbortController();
     const profileSource = () => {
         const plan = cleaningPlanStore.getSnapshot();
         return plan ? { id: plan.sourceVersionId, revision: plan.datasetRevision, datasetFingerprint: plan.datasetFingerprint } : null;
     };
+    function loadAppliedPlanHistory(plan: CleaningPlan | null): void {
+        const key = datasetKey(plan);
+        if (appliedHistoryState.key === key) return;
+        historyRequest.abort();
+        historyRequest = new AbortController();
+        appliedHistoryState = {
+            key,
+            history: null,
+            status: plan ? 'loading' : 'idle',
+            message: null,
+        };
+        if (!plan) return;
+        const owner = historyRequest;
+        void (deps.getAppliedPlanHistory ?? getAppliedPlanHistory)(plan.sourceVersionId, { signal: owner.signal })
+            .then((history) => {
+                const current = cleaningPlanStore.getSnapshot();
+                if (disposed || owner.signal.aborted || owner !== historyRequest || datasetKey(current) !== key) return;
+                const version = history.sourceVersion;
+                if (version.id !== plan.sourceVersionId
+                    || version.revision !== plan.datasetRevision
+                    || version.schemaFingerprint !== plan.schemaFingerprint
+                    || (plan.datasetFingerprint !== null && version.datasetFingerprint !== plan.datasetFingerprint)) {
+                    throw new Error('Saved plan history belongs to a different dataset version.');
+                }
+                appliedHistoryState = { key, history, status: 'ready', message: null };
+                render();
+            })
+            .catch((error: unknown) => {
+                if (disposed || owner.signal.aborted || owner !== historyRequest) return;
+                appliedHistoryState = {
+                    key,
+                    history: null,
+                    status: 'error',
+                    message: error instanceof Error ? error.message : 'Saved plan history could not be loaded.',
+                };
+                render();
+            });
+    }
     const preview = createPreparationPreview({
         getPlan: () => cleaningPlanStore.getSnapshot(),
         onChange: () => render(),
@@ -1255,6 +1406,7 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
     const render = () => {
         if (disposed) return;
         const plan = cleaningPlanStore.getSnapshot();
+        loadAppliedPlanHistory(plan);
         const savedView = capturePreparationView(root);
         const sameDataset = datasetKey(plan) === datasetKey(renderedPlan);
         const addedStage = sameDataset ? plan?.stages.find((stage) => !renderedPlan?.stages.some((previous) => previous.id === stage.id)) : undefined;
@@ -1278,6 +1430,7 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
             cancelProfile,
             preview,
             profileGridState,
+            appliedHistoryState,
         );
         disposeProfileGrid = nextProfileGrid ? () => nextProfileGrid.dispose() : () => {};
         nextProfileGrid?.render(false);
@@ -1532,6 +1685,7 @@ export function initPreparePage(deps: PreparePageDeps = {}): () => void {
     }
     return () => {
         disposed = true;
+        historyRequest.abort();
         preview.dispose();
         request.abort();
         unsubscribeProfiles();

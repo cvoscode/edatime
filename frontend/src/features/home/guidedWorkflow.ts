@@ -1,3 +1,4 @@
+import type { WorkspaceSnapshot } from '../../contracts/workspace.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import { getCurrentCausalGraph } from '../causal/index.js';
 import { onFeatureEvent } from '../../platform/featureEvents.js';
@@ -83,24 +84,31 @@ function sanitizeVisitedPagesByDataset(value: unknown): Record<string, string[]>
     return Object.fromEntries(entries);
 }
 
-function currentDatasetKey(): string {
-    const snapshot = workspaceSnapshot();
+export function buildWorkflowDatasetKey(snapshot: Pick<WorkspaceSnapshot, 'dataset'>): string {
     const metadata = snapshot.dataset.metadata;
     const rows = Number(metadata?.total_rows || 0);
+    if (!rows) return 'no-dataset';
+
+    const versionId = String(snapshot.dataset.activeSourceVersionId || metadata?.source_version_id || '').trim();
+    const revision = Number(metadata?.source_version_revision ?? metadata?.revision ?? snapshot.dataset.revision ?? 0);
+    const fingerprint = String(snapshot.dataset.sourceFingerprint || metadata?.dataset_fingerprint || '').trim();
+    if (versionId || fingerprint) {
+        return `source:${versionId || 'unknown'}:revision:${Number.isFinite(revision) ? revision : 0}:fingerprint:${fingerprint}`;
+    }
+
+    // Older API responses have no immutable source identity. Retain the prior
+    // schema/range fallback until the backend can identify that version.
     const rangeStart = Number(metadata?.time_range?.min);
     const rangeEnd = Number(metadata?.time_range?.max);
-    if (!rows || !Number.isFinite(rangeStart) || !Number.isFinite(rangeEnd)) return 'no-dataset';
-
-    const revision = Number(snapshot.dataset.revision || metadata?.revision || 0);
     const numericColumns = Array.isArray(metadata?.numeric_columns) ? metadata.numeric_columns.join('|') : '';
     return [
-        Number.isFinite(revision) ? revision : 0,
-        rows,
-        metadata?.time_column || '',
-        rangeStart,
-        rangeEnd,
-        numericColumns,
+        'legacy', Number.isFinite(revision) ? revision : 0, rows,
+        metadata?.time_column || '', rangeStart, rangeEnd, numericColumns,
     ].join(':');
+}
+
+function currentDatasetKey(): string {
+    return buildWorkflowDatasetKey(workspaceSnapshot());
 }
 
 function getVisitedPagesForCurrentDataset(prefs: WorkflowPrefs): string[] {
@@ -184,11 +192,11 @@ export function computeWorkflowProgress(snapshot: WorkflowSnapshot): WorkflowPro
     const completedStepIds: WorkflowStepId[] = [];
 
     if (snapshot.hasDataset) completedStepIds.push('upload');
-    if (snapshot.selectedSeriesCount > 0) completedStepIds.push('timeseries');
+    if (snapshot.selectedSeriesCount > 0 && visited.has('timeseries')) completedStepIds.push('timeseries');
     if (visited.has('correlations') || visited.has('heatmap') || visited.has('scattermatrix') || visited.has('scatter')) {
         completedStepIds.push('correlations');
     }
-    if (snapshot.causalLinkCount > 0) completedStepIds.push('causal');
+    if (snapshot.causalLinkCount > 0 && visited.has('causal')) completedStepIds.push('causal');
     if (visited.has('prepare')) completedStepIds.push('prepare');
 
     const nextStepId = WORKFLOW_STEPS.find((step) => !completedStepIds.includes(step.id))?.id || null;
@@ -522,11 +530,11 @@ function renderCompactAssistant(
 ): void {
     panel.classList.add('workflow-panel--compact-shell');
     const activeStep = progress.steps.find(s => s.status === 'current');
-    const activeIndex = activeStep ? progress.steps.indexOf(activeStep) + 1 : progress.steps.length;
+    const completedCount = progress.completedStepIds.length;
     panel.innerHTML = `
         <div class="workflow-panel--compact">
             <div class="workflow-panel__summary">
-                <div class="workflow-panel__eyebrow">Guided workflow · ${activeIndex}/${progress.steps.length}</div>
+                <div class="workflow-panel__eyebrow">Guided workflow · ${completedCount}/${progress.steps.length}</div>
                 <span class="workflow-panel__hint-text">${escapeHtml(suggestion.title)}</span>
                 <span class="workflow-panel__current-step">${escapeHtml(suggestion.body)}</span>
             </div>

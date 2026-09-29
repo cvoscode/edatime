@@ -21,6 +21,7 @@ describe('Causal graph lifecycle', () => {
         document.body.innerHTML = `
             <section id="page-causal">
                 <div id="causal-chart"></div>
+                <section id="causal-links-table-wrap" hidden></section>
             </section>
         `;
         const chart = document.getElementById('causal-chart') as HTMLDivElement;
@@ -83,6 +84,10 @@ describe('Causal graph lifecycle', () => {
         expect(chartInstance.setOption).toHaveBeenCalledOnce();
         expect(chartInstance.setOption.mock.calls[0]?.[0].series[0].data).toHaveLength(2);
         expect(chartInstance.setOption.mock.calls[0]?.[0].series[0].edgeLabel.show).toBe(true);
+        const linkTable = document.querySelector('#causal-links-table-wrap table');
+        expect(linkTable?.textContent).toContain('HUFL');
+        expect(linkTable?.textContent).toContain('0.5000');
+        expect(linkTable?.textContent).toContain('0.0100');
 
         state.setCurrentColumns(['HUFL', 'HULL', 'OT']);
         state.setCurrentLinks([
@@ -94,6 +99,9 @@ describe('Causal graph lifecycle', () => {
         const denseSeries = chartInstance.setOption.mock.calls.at(-1)?.[0].series[0];
         expect(denseSeries.edgeLabel.show).toBe(false);
         expect(denseSeries.emphasis.edgeLabel.show).toBe(true);
+        state.setCurrentLinks([]);
+        graph.renderEChartsGraph();
+        expect((document.getElementById('causal-links-table-wrap') as HTMLElement).hidden).toBe(true);
 
         chart.closest('section')!.hidden = true;
         expect(graph.renderEChartsGraph()).toBe(false);

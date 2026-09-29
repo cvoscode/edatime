@@ -60,6 +60,12 @@ pub fn build_app(state: AppState, frontend_dir: PathBuf) -> Router {
             header::CONTENT_TYPE,
             header::ACCEPT,
             header::HeaderName::from_static("x-request-id"),
+        ])
+        .expose_headers([
+            header::HeaderName::from_static("x-edatime-source-version"),
+            header::HeaderName::from_static("x-edatime-source-revision"),
+            header::HeaderName::from_static("x-edatime-schema-fingerprint"),
+            header::HeaderName::from_static("x-edatime-plan-hash"),
         ]);
     if !allowed_origins.is_empty() {
         cors = cors.allow_origin(AllowOrigin::list(allowed_origins));

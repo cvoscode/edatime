@@ -1,3 +1,4 @@
+import { sampledProfileDescription } from '../services/profile/samplingDescription.js';
 import {
     PROFILE_COLUMNS,
     PROFILE_OVERSCAN,
@@ -182,7 +183,11 @@ export function profileRowsFromMetadata(metadata: DatasetMetadata | null | undef
         profileByName.set(profile.name, profile);
     }
 
-    return Array.from(profileByName.values());
+    const rows = Array.from(profileByName.values());
+    if (metadata?.profile_status === 'sampled') for (const row of rows) {
+        if (row.quality) row.quality.samplingDescription = sampledProfileDescription(metadata);
+    }
+    return rows;
 }
 
 function compareProfileValues(left: unknown, right: unknown, direction: 1 | -1): number {
@@ -397,7 +402,7 @@ function setQualityDetails(root: HTMLElement, profile: ProfileRow, focus = true)
     summary.textContent = `Quality details for ${profile.name} · ${qualityStatusLabel(quality?.status ?? 'unavailable')}`;
     const description = createElement('p', 'profile-grid-quality-details__status');
     if (quality?.status === 'exact') description.textContent = 'Statistics describe the full source dataset for this report.';
-    else if (quality?.status === 'sampled') description.textContent = `Statistics are estimates from ${quality.sampleRows?.toLocaleString() ?? 'an unspecified number of'} sampled rows.`;
+    else if (quality?.status === 'sampled') description.textContent = quality.samplingDescription ?? `Statistics are estimates from ${quality.sampleRows?.toLocaleString() ?? 'an unspecified number of'} sampled rows; sampling method unavailable.`;
     else if (quality?.status === 'immediate') description.textContent = 'Completed column statistics are unavailable until a sampled or exact report is built.';
     else description.textContent = 'No profile statistics are available for this column.';
     if (profile.profilePending) description.textContent += ' This column has not been profiled in the current report.';
@@ -444,6 +449,36 @@ function createQualityBadge(label: string, accessibleLabel: string, warning = fa
     badge.textContent = label;
     badge.setAttribute('aria-label', accessibleLabel);
     return badge;
+}
+
+function ensureProfileGridScrollCue(root: HTMLElement): HTMLElement {
+    const id = (root.id || 'profile-grid') + '-scroll-cue';
+    let cue = document.getElementById(id);
+    if (!cue) {
+        cue = createElement('span', 'profile-grid-scroll-cue');
+        cue.id = id;
+        cue.setAttribute('aria-hidden', 'true');
+        root.after(cue);
+    }
+    return cue;
+}
+
+export function syncProfileGridScrollCue(root: HTMLElement, viewport: HTMLElement): void {
+    const cue = ensureProfileGridScrollCue(root);
+    const overflows = viewport.scrollWidth > viewport.clientWidth + 1;
+    cue.hidden = !overflows;
+    if (!overflows) {
+        root.classList.remove('profile-grid--scroll-left', 'profile-grid--scroll-right');
+        cue.textContent = '';
+        return;
+    }
+    const canScrollLeft = viewport.scrollLeft > 1;
+    const canScrollRight = viewport.scrollLeft + viewport.clientWidth < viewport.scrollWidth - 1;
+    root.classList.toggle('profile-grid--scroll-left', canScrollLeft);
+    root.classList.toggle('profile-grid--scroll-right', canScrollRight);
+    cue.textContent = canScrollLeft && canScrollRight
+        ? '← More columns on both sides →'
+        : canScrollRight ? 'Scroll right to see more columns →' : '← Scroll left to see earlier columns';
 }
 
 function gridElements(root: HTMLElement): {
@@ -735,6 +770,8 @@ export function createProfileGridController(options: ProfileGridOptions): Profil
         render(resetScroll = false) {
             renderInternal(options, resetScroll, getVisibleProfiles);
             updateHeaderState(options.root, options);
+            const rendered = gridElements(options.root);
+            if (rendered) syncProfileGridScrollCue(options.root, rendered.viewport);
         },
         invalidate() {
             cachedProfiles = null;
@@ -755,7 +792,8 @@ export function createProfileGridController(options: ProfileGridOptions): Profil
             scrollRafId = requestAnimationFrame(() => {
                 scrollRafId = null;
                 controller.render(false);
-                if (header) header.style.transform = `translateX(${-viewport.scrollLeft}px)`;
+                if (header) header.style.transform = 'translateX(' + (-viewport.scrollLeft) + 'px)';
+                syncProfileGridScrollCue(options.root, viewport);
             });
         }, { signal: lifetime.signal });
 

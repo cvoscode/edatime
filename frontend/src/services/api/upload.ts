@@ -3,6 +3,7 @@ import { cleaningPlanStore } from '../../cleaning/store.js';
 import { buildPlanRequestSnapshot } from '../../cleaning/compiler.js';
 import type { ApiRequestOptions } from './http.js';
 import { apiV1Routes } from '../../contracts/api/v1/routes.js';
+import type { DriftPreflightResponse } from '../../contracts/api/v1/drift.js';
 
 // ── Upload ─────────────────────────────────────────────────────────────────
 
@@ -117,6 +118,13 @@ export async function fetchDriftStats<T>(payload: unknown, options?: ApiRequestO
 
 export async function fetchDriftInvestigation<T>(payload: unknown, options?: ApiRequestOptions): Promise<T> {
     return postJson<T>(apiV1Routes.drift.investigate, withCleaningPlan(payload), 'Drift investigation', options);
+}
+
+export async function fetchDriftPreflight(
+    payload: unknown,
+    options?: ApiRequestOptions,
+): Promise<DriftPreflightResponse> {
+    return postJson<DriftPreflightResponse>(apiV1Routes.drift.preflight, withCleaningPlan(payload), 'Drift preflight', options);
 }
 
 function withCleaningPlan(payload: unknown): unknown {

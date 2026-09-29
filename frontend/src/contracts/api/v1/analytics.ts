@@ -1,3 +1,5 @@
+import type { ExecutionIdentity } from './identity.js';
+
 /** JSON request/response DTOs for versioned analysis routes. */
 export interface RollingBand {
     column: string;
@@ -50,9 +52,16 @@ export interface FftResult {
     sample_rate_hz: number;
     nyquist_hz: number;
     dominant_peaks: FrequencyPeak[];
+    estimator?: string;
+    window?: string;
+    detrend?: string;
+    magnitude_units?: string;
+    psd_units?: string;
+    missing_count?: number;
 }
 
 export interface FftResponse {
+    executionIdentity?: ExecutionIdentity;
     sample_count: number;
     sampling?: AnalysisSampling;
     results: FftResult[];
@@ -63,6 +72,12 @@ export interface AnalysisSampling {
     input_points: number;
     output_points: number;
     aggregation_factor: number;
+    source_cadence_ms?: number | null;
+    effective_cadence_ms?: number | null;
+    source_start_ms?: number | null;
+    source_end_ms?: number | null;
+    analyzed_start_ms?: number | null;
+    analyzed_end_ms?: number | null;
 }
 
 export interface SpectrogramResult {
@@ -75,7 +90,9 @@ export interface SpectrogramResult {
 }
 
 export interface SpectrogramResponse {
+    executionIdentity?: ExecutionIdentity;
     sample_count: number;
+    sampling?: AnalysisSampling;
     result: SpectrogramResult;
 }
 
@@ -95,6 +112,9 @@ export interface CausalLink {
 }
 
 export interface CausalGraphResponse {
+    executionIdentity?: ExecutionIdentity;
+    sampling?: AnalysisSampling;
+    sample_count?: number;
     columns: string[];
     tau_max: number;
     links: CausalLink[];
@@ -104,6 +124,11 @@ export interface CausalGraphResponse {
 }
 
 export interface CorrelationMatrixResponse {
+    executionIdentity?: ExecutionIdentity;
+    input_rows?: number;
+    time_range_ms?: [number, number] | null;
+    counts?: number[][];
+    diff_counts?: number[][];
     columns: string[];
     pearson_raw?: (number | null)[][];
     spearman_raw?: (number | null)[][];

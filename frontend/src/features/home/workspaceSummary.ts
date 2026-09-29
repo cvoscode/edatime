@@ -133,9 +133,24 @@ export function initHomeWorkspaceSummary(deps: HomeSummaryDeps): () => void {
         setText('home-dataset-rows', Number(metadata.total_rows || 0).toLocaleString());
         setText('home-dataset-columns', String(metadata.columns?.length ?? 0));
         setText('home-dataset-time-column', metadata.time_column || 'Not detected');
-        setText('home-dataset-span', metadata.time_range
-            ? `${formatAnalysisTime(metadata.time_range.min)} → ${formatAnalysisTime(metadata.time_range.max)}`
-            : 'Not available');
+        const rangeSpan = document.getElementById('home-dataset-span');
+        if (rangeSpan) {
+            const range = metadata.time_range;
+            const start = Number(range?.min);
+            const end = Number(range?.max);
+            const dateLimit = 8_640_000_000_000_000;
+            if (Number.isFinite(start) && Number.isFinite(end) && Math.abs(start) <= dateLimit && Math.abs(end) <= dateLimit) {
+                const startIso = new Date(start).toISOString();
+                const endIso = new Date(end).toISOString();
+                rangeSpan.textContent = `${formatAnalysisTime(start)} → ${formatAnalysisTime(end)}`;
+                rangeSpan.title = `UTC ${startIso} → UTC ${endIso}`;
+                rangeSpan.setAttribute('aria-label', `Time span from UTC ${startIso} to UTC ${endIso}`);
+            } else {
+                rangeSpan.textContent = 'Not available';
+                rangeSpan.removeAttribute('title');
+                rangeSpan.removeAttribute('aria-label');
+            }
+        }
         setText('home-dataset-plan', `${activeStages} active stage${activeStages === 1 ? '' : 's'}${deps.cleaningPlanStore?.isDirty() ? ' · draft' : ' · baseline'}`);
         if (continueButton) {
             continueButton.dataset.page = lastPage || 'timeseries';

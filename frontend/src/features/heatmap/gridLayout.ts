@@ -19,14 +19,14 @@ export function buildHeatmapGridLayout(options: {
     const maxCell = Math.max(minCell, preferredCellSize);
     const maxFittedCell = 180;
     const shellWidth = Math.max(containerWidth, 480);
-    // Reserve the legend, shell padding, and gap before fitting the matrix.
+    // Reserve the 230px legend and 12px shell gap before fitting the matrix.
     // Fit mode is intentionally width-driven: constraining it by the short
     // dimension of a wide viewport makes the plot unreadably small and leaves
     // most of the panel empty. A modest upper bound keeps small matrices from
     // turning into oversized tiles; taller results scroll with the page.
-    const legendSlot = 228;
+    const legendSlot = 242;
     const usableWidth = Math.max(labelWidth + minCell * columnCount + 8, shellWidth - legendSlot);
-    const fitCell = Math.floor((usableWidth - labelWidth - 2 * (columnCount - 1)) / Math.max(1, columnCount));
+    const fitCell = Math.floor((usableWidth - labelWidth - 2 * columnCount) / Math.max(1, columnCount));
     const responsiveCell = fitToScreen
         ? Math.max(minCell, Math.min(maxFittedCell, fitCell))
         : Math.max(minCell, Math.min(maxCell, fitCell));

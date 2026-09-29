@@ -401,6 +401,16 @@ impl AppState {
         df: DataFrame,
         time_column: Option<String>,
     ) -> Result<u64, AppError> {
+        self.replace_dataset_with_time_column_and_source_name(df, time_column, None)
+            .await
+    }
+
+    pub async fn replace_dataset_with_time_column_and_source_name(
+        &self,
+        df: DataFrame,
+        time_column: Option<String>,
+        source_name: Option<String>,
+    ) -> Result<u64, AppError> {
         let rev = if let Some(store) = &self.artifact_store {
             let version_id = self.dataset_versions.allocate_artifact_version_id();
             let store = Arc::clone(store);
@@ -424,7 +434,7 @@ impl AppState {
             let record = self.dataset_versions.register_root_artifact(
                 descriptor.clone(),
                 rev,
-                None,
+                source_name,
                 time_column.clone(),
             )?;
             descriptor.provenance = Some(provenance_from_record(&record, row_count, column_names));
@@ -457,7 +467,7 @@ impl AppState {
             self.dataset_versions.register_root_with_identity(
                 df,
                 rev,
-                None,
+                source_name,
                 time_column.clone(),
                 identity,
             )?;
@@ -611,6 +621,7 @@ impl AppState {
         df: DataFrame,
         plan_hash: String,
         time_column: Option<String>,
+        applied_plan: Option<Value>,
     ) -> Result<DatasetVersionRecord, AppError> {
         // Resolve the parent before replacing the compatibility repository so
         // a bad/stale ID cannot mutate the live working dataset.
@@ -642,6 +653,7 @@ impl AppState {
                 revision,
                 plan_hash,
                 time_column.clone(),
+                applied_plan.clone(),
             )?;
             descriptor.provenance = Some(provenance_from_record(&record, row_count, column_names));
             store.publish(descriptor)?;
@@ -676,6 +688,7 @@ impl AppState {
                 revision,
                 plan_hash,
                 time_column,
+                applied_plan,
                 identity,
             )?;
             self.dataset_versions.enforce_resident_retention(
@@ -700,6 +713,7 @@ impl AppState {
         mut frame: LazyFrame,
         plan_hash: String,
         time_column: String,
+        applied_plan: Option<Value>,
         job: Option<&JobHandle>,
     ) -> Result<DatasetVersionRecord, AppError> {
         ensure_job_not_cancelled(job)?;
@@ -784,6 +798,7 @@ impl AppState {
             revision,
             plan_hash,
             Some(time_column.clone()),
+            applied_plan,
         )?;
         descriptor.provenance = Some(provenance_from_record(&record, row_count, column_names));
         store.publish(descriptor)?;
@@ -1057,8 +1072,10 @@ fn provenance_from_record(
         revision: record.revision,
         schema_fingerprint: record.schema_fingerprint.clone(),
         source_name: record.source_name.clone(),
+        display_name: record.display_name.clone(),
         time_column: record.time_column.clone(),
         materialized_from_plan_hash: record.materialized_from_plan_hash.clone(),
+        applied_plan: record.applied_plan.clone(),
         row_count,
         column_names,
     }
@@ -1106,6 +1123,7 @@ mod tests {
         let n = 20;
         let values = vec![vec![Some(0.5); n]; n];
         let entry = CorrelationMatrixCacheEntry {
+            input_rows: 10, time_range_ms: None,
             columns: (0..n).map(|index| format!("column_{index}")).collect(),
             pearson_raw: values.clone(),
             spearman_raw: values.clone(),
@@ -1288,12 +1306,28 @@ mod tests {
         .expect("join root scan");
         assert_eq!(root_height, 2);
 
+        let applied_plan = serde_json::json!({"schemaVersion": 1, "id": "plan-1", "stages": []});
         let child = state
-            .materialize_dataset_child(&root.id, frame(vec![2]), "plan-1".to_string(), None)
+            .materialize_dataset_child(
+                &root.id,
+                frame(vec![2]),
+                "plan-1".to_string(),
+                None,
+                Some(applied_plan.clone()),
+            )
             .await
             .expect("persist child");
         assert_eq!(child.parent_id.as_deref(), Some(root.id.as_str()));
         assert!(child.id.starts_with("artifact-"));
+        assert_eq!(child.materialized_from_plan_hash.as_deref(), Some("plan-1"));
+        assert_eq!(child.applied_plan, Some(applied_plan.clone()));
+        assert!(
+            child
+                .display_name
+                .as_deref()
+                .unwrap_or_default()
+                .contains("prepared v")
+        );
         let catalog = state
             .artifact_store
             .as_ref()
@@ -1315,6 +1349,13 @@ mod tests {
             &child,
             Some(root.id.as_str()),
         );
+        assert_eq!(
+            child_artifact
+                .provenance
+                .as_ref()
+                .and_then(|value| value.applied_plan.clone()),
+            Some(applied_plan.clone()),
+        );
 
         let restored = AppState::new(DataFrame::default(), config);
         assert_eq!(
@@ -1332,6 +1373,11 @@ mod tests {
             2
         );
         assert_eq!(restored.dataset_rows().await, 1);
+        let restored_child = restored
+            .current_dataset_version()
+            .expect("restored child provenance");
+        assert_eq!(restored_child.display_name, child.display_name);
+        assert_eq!(restored_child.applied_plan, Some(applied_plan));
         let restored_scan = restored.dataset_snapshot();
         let restored_height = tokio::task::spawn_blocking(move || {
             restored_scan
@@ -1373,7 +1419,7 @@ mod tests {
         assert_eq!(root.time_column.as_deref(), Some("time"));
         let root_id = root.id;
         state
-            .materialize_dataset_child(&root_id, frame(vec![4, 5]), "child-plan".into(), None)
+            .materialize_dataset_child(&root_id, frame(vec![4, 5]), "child-plan".into(), None, None)
             .await
             .expect("persist child");
 
@@ -1435,6 +1481,7 @@ mod tests {
                 frame(vec![1, 2]).lazy(),
                 "plan-cancelled".to_string(),
                 "value".to_string(),
+                None,
                 Some(&job),
             )
             .await
@@ -1472,7 +1519,13 @@ mod tests {
             .expect("first root");
         let first_root = state.current_dataset_version().expect("first root record");
         let first_child = state
-            .materialize_dataset_child(&first_root.id, frame(vec![2]), "plan-1".to_string(), None)
+            .materialize_dataset_child(
+                &first_root.id,
+                frame(vec![2]),
+                "plan-1".to_string(),
+                None,
+                None,
+            )
             .await
             .expect("first child");
         assert_eq!(

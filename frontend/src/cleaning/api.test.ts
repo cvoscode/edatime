@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { __resetApiRequestStateForTests } from '../services/api/http.js';
-import { applyCleaningPlan, exportCleaningBundle, exportCleaningCode, exportCleaningData, exportCleaningManifest, exportCleaningPlan, previewCleaningPlan, proposeCleaningOutliers, selectDatasetVersion, validateCleaningPlan } from './api.js';
+import { applyCleaningPlan, exportCleaningBundle, exportCleaningCode, exportCleaningData, exportCleaningManifest, exportCleaningPlan, getAppliedPlanHistory, previewCleaningPlan, proposeCleaningOutliers, selectDatasetVersion, validateCleaningPlan } from './api.js';
 import type { CleaningPlan } from './types.js';
 
 function plan(): CleaningPlan {
@@ -123,6 +123,16 @@ describe('cleaning API', () => {
         await exportCleaningBundle(plan());
         expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/cleaning/export/bundle');
         expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({ expectedSourceVersionId: 'source-0' });
+    });
+
+    it('reads saved applied-plan provenance for one immutable version', async () => {
+        fetchMock.mockResolvedValueOnce(jsonResponse({
+            sourceVersion: { id: 'source-0', revision: 0, datasetFingerprint: 'frame' },
+            appliedPlan: null,
+            historyStatus: 'none',
+        }));
+        await getAppliedPlanHistory('source-0');
+        expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/datasets/versions/source-0/provenance');
     });
 
     it('selects a retained version through the dedicated explicit endpoint', async () => {

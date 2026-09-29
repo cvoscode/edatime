@@ -1,4 +1,7 @@
 /** JSON DTOs shared by Scatter and correlation endpoints. */
+import type { ExecutionIdentity } from './identity.js';
+export type { ExecutionIdentity } from './identity.js';
+
 export const CORRELATION_METRICS = [
     'pearson_raw',
     'spearman_raw',
@@ -9,13 +12,6 @@ export const CORRELATION_METRICS = [
 ] as const;
 
 export type CorrelationMetric = typeof CORRELATION_METRICS[number];
-
-export interface ExecutionIdentity {
-    sourceVersionId: string;
-    sourceRevision: number;
-    schemaFingerprint: string;
-    planHash: string;
-}
 
 export interface ColorCardinality {
     requested: number;

@@ -10,6 +10,9 @@ function buildDom(): void {
         <div id="header-meta"></div>
         <div id="column-toggles"></div>
         <span id="timeseries-series-disclosure-value"></span>
+        <span id="timeseries-selection-count"></span>
+        <button id="timeseries-select-all" type="button">Select all</button>
+        <button id="timeseries-clear-all" type="button">Clear all</button>
         <div id="timeseries-color-slot"></div>
     `;
 }
@@ -35,7 +38,7 @@ describe('buildColumnToggles', () => {
                 { name: 'MULL', dtype: 'Float64' },
                 { name: 'OT', dtype: 'Float64' },
             ],
-            numeric_columns: ['HUFL', 'HULL', 'MUFL', 'MULL', 'LUFL', 'LULL', 'OT'],
+            numeric_columns: ['HUFL', 'HULL', 'LUFL', 'LULL', 'MUFL', 'MULL', 'OT'],
             time_column: 'ts',
             time_range: { min: 0, max: 1000 },
             column_profiles: [],
@@ -79,6 +82,23 @@ describe('buildColumnToggles', () => {
         hullChip!.click();
 
         expect(workspace.getSnapshot().selection.columns).toEqual(['HUFL', 'OT']);
+    });
+
+    it('selects or clears every effective numeric series through the visible actions', () => {
+        const fetchAndRender = vi.fn();
+        const buildRangeControls = vi.fn();
+        buildColumnToggles(fetchAndRender, buildRangeControls, null, workspace);
+
+        expect(document.getElementById('timeseries-selection-count')?.textContent).toBe('3 of 7 selected');
+        (document.getElementById('timeseries-select-all') as HTMLButtonElement).click();
+        expect(workspace.getSnapshot().selection.columns).toEqual(['HUFL', 'HULL', 'LUFL', 'LULL', 'MUFL', 'MULL', 'OT']);
+        expect(fetchAndRender).toHaveBeenCalledTimes(1);
+        expect(buildRangeControls).toHaveBeenCalledTimes(1);
+
+        (document.getElementById('timeseries-clear-all') as HTMLButtonElement).click();
+        expect(workspace.getSnapshot().selection.columns).toEqual([]);
+        expect(workspace.getSnapshot().selection.colorColumn).toBeNull();
+        expect(fetchAndRender).toHaveBeenCalledTimes(2);
     });
 
     it('accumulates rapid chip changes from the live workspace selection', () => {

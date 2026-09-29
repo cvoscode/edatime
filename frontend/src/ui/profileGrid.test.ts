@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createProfileFilterControls, createProfileGridController, profileRowsFromMetadata, sortProfileRows } from './profileGrid.js';
+import { createProfileFilterControls, createProfileGridController, profileRowsFromMetadata, sortProfileRows, syncProfileGridScrollCue } from './profileGrid.js';
 import type { ProfileFilterCategory } from './profileFilters.js';
 import type { DatasetMetadata } from '../contracts/api/v1/dataset.js';
 import type { ProfileRow } from '../types/store.js';
@@ -81,6 +81,44 @@ describe('shared profile grid filters', () => {
         expect(details.textContent).toContain('Monotonic timestamp orderNo');
         expect(details.textContent).toContain('Out-of-order timestamps1');
         expect(details.textContent).toContain('Median timestamp gap (ms)2,000');
+        grid.dispose();
+    });
+
+    it('shows scroll direction cues and full UTC dates for temporal extrema', () => {
+        document.body.innerHTML = '<div id="temporal-grid"></div>';
+        const metadata = {
+            profile_status: 'exact', total_rows: 2, numeric_columns: [], time_column: 'ts', time_range: null,
+            columns: [{ name: 'ts', dtype: 'Datetime[ms]' }],
+            column_profiles: [{ name: 'ts', dtype: 'Datetime[ms]', count: 2, min: 1467331200000, max: 1467462896000, mean: null, median: null, std: null, unique: null, top: null, freq: null, histogram: null, non_null_count: 2, null_count: 0 }],
+        } as DatasetMetadata;
+        const root = document.getElementById('temporal-grid')!;
+        const grid = createProfileGridController({ root, getProfiles: () => profileRowsFromMetadata(metadata), selectable: false });
+        grid.render();
+        const dateRow = root.querySelector<HTMLElement>('[data-column-name="ts"]')!;
+        expect([...dateRow.querySelectorAll<HTMLElement>('.profile-cell[title^="UTC "]')].map((cell) => cell.title))
+            .toEqual(['UTC 2016-07-01T00:00:00.000Z', 'UTC 2016-07-02T12:34:56.000Z']);
+
+        const viewport = root.querySelector<HTMLElement>('.profile-grid-viewport')!;
+        let clientWidth = 200;
+        let scrollLeft = 0;
+        Object.defineProperties(viewport, {
+            clientWidth: { configurable: true, get: () => clientWidth },
+            scrollWidth: { configurable: true, get: () => 500 },
+            scrollLeft: { configurable: true, get: () => scrollLeft },
+        });
+        syncProfileGridScrollCue(root, viewport);
+        const cue = document.getElementById('temporal-grid-scroll-cue')!;
+        expect(cue.hidden).toBe(false);
+        expect(cue.textContent).toContain('Scroll right');
+        scrollLeft = 150;
+        syncProfileGridScrollCue(root, viewport);
+        expect(cue.textContent).toContain('both sides');
+        scrollLeft = 300;
+        syncProfileGridScrollCue(root, viewport);
+        expect(cue.textContent).toContain('Scroll left');
+        clientWidth = 500;
+        syncProfileGridScrollCue(root, viewport);
+        expect(cue.hidden).toBe(true);
         grid.dispose();
     });
 

@@ -40,6 +40,7 @@ export const apiV1Routes = {
         exportBundle: '/api/v1/cleaning/export/bundle',
         versions: '/api/v1/datasets/versions',
         selectVersion: '/api/v1/datasets/versions/select',
+        versionProvenance: (id: string): string => `/api/v1/datasets/versions/${encodeURIComponent(id)}/provenance`,
         storage: '/api/v1/datasets/storage',
     },
     upload: '/api/v1/upload',
@@ -70,6 +71,7 @@ export const apiV1Routes = {
     drift: {
         stats: '/api/v1/drift/stats',
         investigate: '/api/v1/drift/investigate',
+        preflight: '/api/v1/drift/preflight',
     },
     aggregate: '/api/v1/aggregate',
 } as const;

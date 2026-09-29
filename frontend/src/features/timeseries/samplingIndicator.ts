@@ -113,10 +113,8 @@ export function classifySamplingState(meta: SamplingMeta | null | undefined): Sa
     };
 }
 
-function formatCount(value: number | null): string {
-    if (value == null) return 'unknown';
-    if (value >= 10_000) return (value / 1000).toFixed(1) + 'k';
-    return String(value);
+function formatCount(value: number | null | undefined): string {
+    return value == null ? '—' : value.toLocaleString('en-US');
 }
 
 /** Render a compact count trail from eligible observations to rendered points. */

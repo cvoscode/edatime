@@ -30,6 +30,11 @@ vi.mock('../../services/api/index.js', () => ({
             magnitudes: [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
         },
         sample_count: 1000,
+        sampling: {
+            method: 'block_mean', input_points: 69_680, output_points: 32_768,
+            aggregation_factor: 69_680 / 32_768,
+            source_cadence_ms: 900_000, effective_cadence_ms: 900_000 * (69_680 / 32_768),
+        },
     }),
 }));
 
@@ -90,6 +95,7 @@ describe('spectrogramPage', () => {
         toastMock.mockReset();
         document.body.innerHTML = `
             <div id="spectrogram-chart"></div>
+            <div id="spectrogram-sampling-context" role="status" aria-live="polite" hidden></div>
             <div id="spectrogram-empty-state"></div>
             <select id="spectrogram-col-select">
               <option value="HUFL" selected>HUFL</option>
@@ -238,11 +244,17 @@ describe('spectrogramPage colorbar filter', () => {
         toastMock.mockReset();
         document.body.innerHTML = `
             <section id="page-spectrogram">
+              <div id="spectrogram-sampling-context" role="status" aria-live="polite" hidden></div>
               <div id="spectrogram-summary" aria-live="polite" hidden>
                 <span id="spectrogram-summary-rate"></span>
                 <span id="spectrogram-summary-nyquist"></span>
                 <span id="spectrogram-summary-points"></span>
                 <span id="spectrogram-summary-bins"></span>
+              </div>
+              <div id="spectrogram-peak-summary" hidden>
+                <p id="spectrogram-frequency-callout" role="status" aria-live="polite"></p>
+                <div id="spectrogram-peak-table-wrap"></div>
+                <p id="spectrogram-peak-focus" role="status" aria-live="polite"></p>
               </div>
               <label><input id="spectrogram-auto-fit-toggle" type="checkbox" checked />Auto-fit</label>
               <div id="spectrogram-chart"></div>
@@ -283,6 +295,9 @@ describe('spectrogramPage colorbar filter', () => {
               <select id="spectrogram-clip-method" disabled><option value="percentile" selected>Percentile</option></select>
               <input id="spectrogram-clip-param" type="number" value="0.5" disabled />
               <button id="spectrogram-compute-btn">Compute</button>
+              <span id="spectrogram-compute-reason"></span>
+              <p id="spectrogram-analysis-status"></p>
+              <div id="spectrogram-loading" hidden><span id="spectrogram-loading-label"></span><button id="spectrogram-cancel-btn">Cancel computation</button></div>
             </section>
         `;
         makeChartReady();
@@ -302,6 +317,33 @@ describe('spectrogramPage colorbar filter', () => {
             await new Promise((resolve) => setTimeout(resolve, 0));
         }
     }
+
+    it('cancels a time-frequency request and preserves the previous completed result', async () => {
+        const { fetchSpectrogram } = await import('../../services/api/index.js');
+        const fetchMock = vi.mocked(fetchSpectrogram);
+        const workspace = createViewportWorkspace(200, 800);
+        const { initSpectrogramPage } = await import('./page.js');
+        const setLoading = vi.fn((btnId: string, overlayId: string, loading: boolean) => {
+            (document.getElementById(btnId) as HTMLButtonElement).disabled = loading;
+            (document.getElementById(overlayId) as HTMLElement).hidden = !loading;
+        });
+        await initSpectrogramPage({ setLoading, workspace });
+        await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        fetchMock.mockClear();
+        fetchMock.mockImplementationOnce((...args: any[]) => new Promise((_resolve, reject) =>
+            args[6]?.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true })) as any);
+
+        (document.getElementById('spectrogram-compute-btn') as HTMLButtonElement).click();
+        await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+        const previousResult = document.getElementById('spectrogram-summary')?.getAttribute('aria-label');
+        (document.getElementById('spectrogram-cancel-btn') as HTMLButtonElement).click();
+
+        await vi.waitFor(() => expect(document.getElementById('spectrogram-analysis-status')?.textContent).toContain('canceled'));
+        expect(fetchMock.mock.calls[0]?.[6]?.signal?.aborted).toBe(true);
+        expect(document.getElementById('spectrogram-summary')?.getAttribute('aria-label')).toBe(previousResult);
+        expect((document.getElementById('spectrogram-loading') as HTMLElement).hidden).toBe(true);
+    });
 
     it('shows and populates the DOM colorbar after compute', async () => {
         await mountAndCompute();
@@ -374,6 +416,16 @@ describe('spectrogramPage colorbar filter', () => {
         expect(document.getElementById('spectrogram-summary-bins')?.textContent).toMatch(/[0-9]/);
         expect(document.getElementById('spectrogram-summary-rate')?.textContent).not.toBe('—');
         expect(document.getElementById('spectrogram-summary-nyquist')?.textContent).not.toBe('—');
+        const peakRows = document.querySelectorAll<HTMLTableRowElement>('#spectrogram-peak-table-wrap tbody tr');
+        expect(peakRows.length).toBe(3);
+        expect(peakRows[0]?.textContent).toContain('300.00 µHz');
+        expect(peakRows[0]?.textContent).toContain('6.000');
+        expect(document.getElementById('spectrogram-frequency-callout')?.textContent).toContain('Strongest frequency component in test_col');
+        const samplingContext = document.getElementById('spectrogram-sampling-context');
+        expect(samplingContext?.hidden).toBe(false);
+        expect(samplingContext?.textContent).toContain('Block-mean downsampled');
+        expect(samplingContext?.textContent).toContain('source cadence 15 min');
+        expect(samplingContext?.textContent).toContain('effective cadence 31.9 min');
         expect(yZoomCalls.some(([action]: any[]) => action.start > 0 || action.end < 100)).toBe(true);
     });
 

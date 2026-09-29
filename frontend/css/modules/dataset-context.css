@@ -11,3 +11,8 @@
 .dataset-switcher__status { color: var(--text-dim); }
 .dataset-switcher__status--error { color: var(--red); }
 @media (max-width: 800px) { .dataset-switcher__summary { max-width: 150px; } }
+
+
+.dataset-load-announcement { max-width: min(44vw, 620px); color: var(--text-dim); font-size: .68rem; line-height: 1.35; }
+@media (max-width: 900px) { .dataset-load-announcement { max-width: 38vw; } }
+@media (max-width: 640px) { .dataset-load-announcement { display: none; } }

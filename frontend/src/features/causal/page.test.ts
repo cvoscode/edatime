@@ -92,6 +92,7 @@ describe('causal page chart bootstrap', () => {
               <select id="causal-fdr-select"><option value="none" selected>None</option></select>
               <span id="causal-parameters-summary"></span>
               <button id="causal-compute-btn" type="button">Compute</button>
+              <span id="causal-compute-reason"></span>
               <div id="causal-columns-bar"></div>
               <button id="causal-add-edge-btn" type="button">Add edge</button>
               <button id="causal-export-btn" type="button">Export</button>
@@ -105,7 +106,7 @@ describe('causal page chart bootstrap', () => {
               <button id="causal-edit-delete" type="button">Delete</button>
               <div id="causal-chart"></div>
               <div id="causal-empty-state"><strong>No causal graph yet</strong><span>Select columns.</span></div>
-              <div id="causal-loading" hidden></div>
+              <div id="causal-loading" hidden><span id="causal-progress-label">Running causal discovery…</span><button id="causal-cancel-btn" type="button">Cancel discovery</button></div>
               <div id="causal-compare-panel">
                 <select id="causal-compare-run-a"></select>
                 <select id="causal-compare-run-b"></select>
@@ -207,9 +208,9 @@ describe('causal page chart bootstrap', () => {
             ],
         }, ['HULL', 'OT']));
 
-        expect(document.querySelector('[data-col="HUFL"]')?.getAttribute('aria-pressed')).toBe('false');
-        expect(document.querySelector('[data-col="HULL"]')?.getAttribute('aria-pressed')).toBe('true');
-        expect(document.querySelector('[data-col="OT"]')?.getAttribute('aria-pressed')).toBe('true');
+        expect((document.querySelector<HTMLInputElement>('[data-col="HUFL"] input[type=checkbox]')?.checked ? 'true' : 'false')).toBe('false');
+        expect((document.querySelector<HTMLInputElement>('[data-col="HULL"] input[type=checkbox]')?.checked ? 'true' : 'false')).toBe('true');
+        expect((document.querySelector<HTMLInputElement>('[data-col="OT"] input[type=checkbox]')?.checked ? 'true' : 'false')).toBe('true');
     });
 
     it('replaces the selected chips when Scatter preselects a causal pair', async () => {
@@ -228,9 +229,9 @@ describe('causal page chart bootstrap', () => {
 
         emitFeatureEvent('causal:preselect', { columns: ['HULL', 'OT'] });
 
-        expect(document.querySelector('[data-col="HUFL"]')?.getAttribute('aria-pressed')).toBe('false');
-        expect(document.querySelector('[data-col="HULL"]')?.getAttribute('aria-pressed')).toBe('true');
-        expect(document.querySelector('[data-col="OT"]')?.getAttribute('aria-pressed')).toBe('true');
+        expect((document.querySelector<HTMLInputElement>('[data-col="HUFL"] input[type=checkbox]')?.checked ? 'true' : 'false')).toBe('false');
+        expect((document.querySelector<HTMLInputElement>('[data-col="HULL"] input[type=checkbox]')?.checked ? 'true' : 'false')).toBe('true');
+        expect((document.querySelector<HTMLInputElement>('[data-col="OT"] input[type=checkbox]')?.checked ? 'true' : 'false')).toBe('true');
     });
 
     it('unsubscribes causal-pair preselection when the page is disposed', async () => {
@@ -248,8 +249,44 @@ describe('causal page chart bootstrap', () => {
         disposeCausalPage();
         emitFeatureEvent('causal:preselect', { columns: ['HULL'] });
 
-        expect(document.querySelector('[data-col="HUFL"]')?.getAttribute('aria-pressed')).toBe('true');
-        expect(document.querySelector('[data-col="HULL"]')?.getAttribute('aria-pressed')).toBe('false');
+        expect((document.querySelector<HTMLInputElement>('[data-col="HUFL"] input[type=checkbox]')?.checked ? 'true' : 'false')).toBe('true');
+        expect((document.querySelector<HTMLInputElement>('[data-col="HULL"] input[type=checkbox]')?.checked ? 'true' : 'false')).toBe('false');
+    });
+
+    it('explains when compute is disabled and offers cancellation during a real request', async () => {
+        const { fetchCausalGraph } = await import('../../services/api/index.js');
+        const { initCausalPage, disposeCausalPage } = await import('./page.js');
+        const { resetSelectionState } = await import('./selectionState.js');
+        resetSelectionState();
+        const metadata = { numeric_columns: ['a', 'b'], columns: [{ name: 'a', dtype: 'Float64' }, { name: 'b', dtype: 'Float64' }] };
+        const deps = causalDeps(metadata, []);
+        initCausalPage(deps);
+        const compute = document.getElementById('causal-compute-btn') as HTMLButtonElement;
+        expect(compute.disabled).toBe(true);
+        expect(compute.title).toContain('at least two numeric series');
+
+        const { _selectedColumns } = await import('./selectionState.js');
+        _selectedColumns.add('a');
+        _selectedColumns.add('b');
+        const { renderColumnChips } = await import('./chipPanel.js');
+        const { openEditPanel } = await import('./editPanel.js');
+        renderColumnChips(deps, document.getElementById('causal-columns-bar') as HTMLElement, openEditPanel);
+        expect(compute.disabled).toBe(false);
+        vi.mocked(fetchCausalGraph).mockImplementationOnce((...args: any[]) => new Promise((_resolve, reject) =>
+            args[5].signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true })) as any);
+        deps.setLoading = vi.fn((btnId: string, overlayId: string, loading: boolean) => {
+            (document.getElementById(btnId) as HTMLButtonElement).disabled = loading;
+            (document.getElementById(overlayId) as HTMLElement).hidden = !loading;
+        });
+        // Rebuild to capture the deps object carrying the real loading lifecycle.
+        renderColumnChips(deps, document.getElementById('causal-columns-bar') as HTMLElement, openEditPanel);
+        compute.click();
+        await vi.waitFor(() => expect(document.getElementById('causal-progress-label')?.textContent).toContain('computing on 2 selected series'));
+        (document.getElementById('causal-cancel-btn') as HTMLButtonElement).click();
+        await vi.waitFor(() => expect(compute.disabled).toBe(false));
+        expect(document.getElementById('causal-loading')?.hasAttribute('hidden')).toBe(true);
+        expect(mocks.toast.mock.calls.some((call) => String(call[0]).includes('canceled'))).toBe(true);
+        disposeCausalPage();
     });
 
     it('keeps graph-only actions disabled until a causal graph exists', async () => {

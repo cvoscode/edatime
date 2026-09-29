@@ -1,3 +1,4 @@
+import { downloadBlob } from '../utils/dom.js';
 /**
  * Annotation panel UI for EdaTime.
  *
@@ -174,13 +175,7 @@ export function initAnnotationPanel(deps: AnnotationPanelDeps = {}): () => void 
     document.getElementById('annotations-modal-bookmark-btn')?.addEventListener('click', () => addBookmarkAtCurrentView(requestOverlayRender, getViewport, getDatasetRevision), listenerOptions);
     document.getElementById('annotations-export-btn')?.addEventListener('click', () => {
         const json = exportAnnotations();
-        const blob = new Blob([json], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `edatime-annotations-${Date.now()}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
+        downloadBlob(new Blob([json], { type: 'application/json' }), `edatime-annotations-${Date.now()}.json`);
     }, listenerOptions);
     document.getElementById('annotations-clear-btn')?.addEventListener('click', () => {
         if (confirm('Clear all annotations? This cannot be undone.')) {

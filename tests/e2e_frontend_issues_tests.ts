@@ -122,9 +122,10 @@ test('matrix keyboard navigation preserves focus and Pair plot coefficients foll
         && response.request().postDataJSON()?.mode === 'pearson_raw'
         && response.request().postDataJSON()?.base === pair.x);
     await page.keyboard.press('Enter');
-    await expect(page.getByRole('region', { name: 'Pair plot', exact: true })).toBeVisible();
+    await expect(page.locator('#heatmap-pair-plot')).toBeVisible();
     await expect(page.locator('#scatter-x-col .dropdown__label')).toHaveText(pair.x!);
     await expect(page.locator('#scatter-y-col .dropdown__label')).toHaveText(pair.y!);
+    await page.locator('#scatter-summary-details > summary').click();
     const summary = page.locator('table[data-chart-summary="scatter"]');
     await expect(summary).toBeVisible({ timeout: 30_000 });
     await expect(summary.locator('caption')).toContainText('Axis statistics use');

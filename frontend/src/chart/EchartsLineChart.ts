@@ -28,6 +28,7 @@ export class EchartsLineChart {
     private _resizeObserver: ResizeObserver | null = null;
     private _themeUnsubscribe: (() => void) | null = null;
     private _accessibilityTable: HTMLTableElement | null = null;
+    private _focusFrequency: number | null = null;
     private _lastUpdate: {
         traces: EchartsFftTrace[];
         mode: string;
@@ -91,8 +92,13 @@ export class EchartsLineChart {
                 right: 12,
                 textStyle: { color: chartPalette.text },
             },
-            series: model.series.map((series) => ({
+            series: model.series.map((series, index) => ({
                 ...series,
+                markLine: this._focusFrequency !== null && index === 0 ? {
+                    silent: true, symbol: ['none', 'none'],
+                    lineStyle: { color: getChartPalette().warning, type: 'dashed', width: 2 },
+                    data: [{ xAxis: this._focusFrequency }],
+                } : undefined,
                 showSymbol: false,
                 smooth: false,
                 lineStyle: { width: 1.5, color: series.color },
@@ -104,7 +110,14 @@ export class EchartsLineChart {
         if (this._accessibilityTable) this._container?.appendChild(this._accessibilityTable);
     }
 
+    setFocusFrequency(frequencyHz: number | null): void {
+        this._focusFrequency = Number.isFinite(frequencyHz) && Number(frequencyHz) >= 0 ? Number(frequencyHz) : null;
+        if (!this._lastUpdate) return;
+        this.updateData(this._lastUpdate.traces, this._lastUpdate.mode, this._lastUpdate.logScale, this._lastUpdate.scaleOptions);
+    }
+
     clear(): void {
+        this._focusFrequency = null;
         this._chart?.clear();
         this._accessibilityTable?.remove();
         this._accessibilityTable = null;
@@ -129,6 +142,7 @@ export class EchartsLineChart {
         this._themeUnsubscribe?.();
         this._themeUnsubscribe = null;
         this._lastUpdate = null;
+        this._focusFrequency = null;
         this._accessibilityTable?.remove();
         this._accessibilityTable = null;
         this._chart?.dispose?.();

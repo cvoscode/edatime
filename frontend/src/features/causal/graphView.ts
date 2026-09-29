@@ -27,6 +27,7 @@ import type { CausalLink } from './causalComparison.js';
 import { showCtxMenu, openEditPanel, type EditTarget } from './editPanel.js';
 import { setStatus } from './statusView.js';
 import { getPaletteColor, getChartPalette } from '../../utils/theme.js';
+import { buildCausalLinksTableHtml } from './linkTable.js';
 
 export let _eChart: any = null;
 export let _chartEl: HTMLDivElement | null = null;
@@ -83,12 +84,20 @@ export function scheduleCausalChartRefresh(
     scheduleChartRefresh(attempts, generation, onRendered);
 }
 
+function syncCausalLinksTable(): void {
+    const linksTable = document.getElementById('causal-links-table-wrap');
+    if (!linksTable) return;
+    linksTable.innerHTML = buildCausalLinksTableHtml(_currentLinks);
+    linksTable.hidden = _currentLinks.length === 0;
+}
+
 function scheduleChartRefresh(
     attempts: number,
     generation: number,
     onRendered?: (rendered: boolean) => void,
 ): void {
     if (generation !== chartRefreshGeneration) return;
+    syncCausalLinksTable();
     // A deferred retry may outlive a test environment or an application root.
     // Never schedule another browser timer once the DOM has been torn down.
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
@@ -119,6 +128,12 @@ export function setChartEl(el: HTMLDivElement | null): void {
  * Advancing the generation also makes queued retry timers and delayed dynamic
  * imports harmless after the feature root has been replaced.
  */
+export function clearCausalGraphResult(): void {
+    _eChart?.clear?.();
+    document.querySelectorAll('.causal-node-edit').forEach((input) => input.remove());
+    syncCausalLinksTable();
+}
+
 export function disposeCausalGraph(): void {
     chartRefreshGeneration += 1;
     _chartResizeObserver?.disconnect();
@@ -356,6 +371,7 @@ function edgeTooltip(group: PairEdgeGroup): string {
 }
 
 export function renderEChartsGraph(): boolean {
+    syncCausalLinksTable();
     if (!_eChart || !isCausalChartReadyForInit() || _currentColumns.length === 0) return false;
     captureRenderedNodePositions(_eChart);
     seedNodePositions(_chartEl);

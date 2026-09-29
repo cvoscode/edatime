@@ -341,7 +341,10 @@ function postJson<T>(
         const data: unknown = await res.json();
         assertJsonContainer(data, label);
         if (scope !== null) assertDatasetRequestScopeActive(scope);
-        return data as T;
+        const executionIdentity = readExecutionIdentity(res.headers);
+        return (executionIdentity && isObject(data)
+            ? { ...data, executionIdentity }
+            : data) as T;
     });
 }
 

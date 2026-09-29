@@ -230,6 +230,7 @@ describe('contract: every endpoint targets /api/v1', () => {
                 fetchDatabaseStatus,
                 fetchDriftStats,
                 fetchDriftInvestigation,
+                fetchDriftPreflight,
             } = await import('./upload.js');
             cleaningPlanStore.resetForDataset({
                 sourceVersionId: 'source-drift', datasetRevision: 2,
@@ -245,6 +246,7 @@ describe('contract: every endpoint targets /api/v1', () => {
             await fetchDatabaseStatus();
             await fetchDriftStats({});
             await fetchDriftInvestigation({});
+            await fetchDriftPreflight({});
             const urls = spy.calls.map((c) => c.url);
             expect(urls).toEqual([
                 '/api/v1/upload/preview',
@@ -256,8 +258,9 @@ describe('contract: every endpoint targets /api/v1', () => {
                 '/api/v1/database/status',
                 '/api/v1/drift/stats',
                 '/api/v1/drift/investigate',
+                '/api/v1/drift/preflight',
             ]);
-            for (const call of spy.calls.slice(-2)) {
+            for (const call of spy.calls.slice(-3)) {
                 expect(JSON.parse(String(call.init?.body))).toMatchObject({
                     cleaningPlan: {
                         expectedSourceVersionId: 'source-drift',

@@ -16,6 +16,8 @@ const PROGRESS_LABEL_ID = 'causal-progress-label';
 let dismissActiveStatusToast: (() => void) | null = null;
 let disposeStatusLifecycle: (() => void) | null = null;
 let progressStartedAt = 0;
+let progressTimer: number | undefined;
+let progressStage = 'Running causal discovery';
 
 /** Bind the Causal status lifecycle once for the active feature instance. */
 export function initCausalStatusLifecycle(): void {
@@ -50,26 +52,32 @@ function progressLabel(): HTMLElement | null {
     );
 }
 
-/** Show the progress overlay and update its label alongside the indeterminate spinner. */
-export function setProgress(percent: number, label?: string): void {
+/** Show truthful stage text and elapsed time beside the indeterminate spinner. */
+export function setProgress(stage = 'Running causal discovery'): void {
     const overlay = progressOverlay();
-    const text = progressLabel();
-    if (overlay) {
-        if (overlay.hidden || percent <= 0) progressStartedAt = performance.now();
-        overlay.hidden = false;
-    }
-    if (text) {
+    if (!overlay) return;
+    if (overlay.hidden || !progressStartedAt) progressStartedAt = performance.now();
+    progressStage = stage;
+    overlay.hidden = false;
+    const update = () => {
+        const text = progressLabel();
+        if (!text) return;
         const elapsed = Math.max(0, Math.floor((performance.now() - progressStartedAt) / 1000));
-        text.textContent = `${label || 'Running causal discovery'} · ${elapsed}s elapsed`;
-    }
+        text.textContent = `${progressStage} · ${elapsed}s elapsed`;
+    };
+    update();
+    if (progressTimer === undefined) progressTimer = window.setInterval(update, 1000);
 }
 
 export function hideProgress(): void {
     const overlay = progressOverlay();
     if (overlay) overlay.hidden = true;
+    if (progressTimer !== undefined) window.clearInterval(progressTimer);
+    progressTimer = undefined;
     const text = progressLabel();
     if (text) text.textContent = 'Running causal discovery…';
     progressStartedAt = 0;
+    progressStage = 'Running causal discovery';
 }
 
 export function setStatus(message: string, tone: 'info' | 'error' | 'success' = 'info'): void {

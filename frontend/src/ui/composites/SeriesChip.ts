@@ -47,12 +47,10 @@ export function SeriesChip(props: SeriesChipProps): HTMLLabelElement {
     checkbox.value = props.column;
     checkbox.disabled = props.disabled ?? false;
     checkbox.setAttribute('aria-label', `Toggle ${props.column} series`);
-    chip.setAttribute('aria-pressed', props.checked ? 'true' : 'false');
     checkbox.addEventListener('change', () => {
         props.onToggle?.(checkbox.checked);
         chip.classList.toggle('active', checkbox.checked);
         chip.classList.toggle('inactive', !checkbox.checked);
-        chip.setAttribute('aria-pressed', checkbox.checked ? 'true' : 'false');
     });
 
     const displayLabel = props.label ?? props.column;

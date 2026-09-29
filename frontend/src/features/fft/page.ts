@@ -1,4 +1,5 @@
 import { fetchFft, fetchSpectralFilter } from '../../services/api/index.js';
+import { formatAnalysisSamplingContext, estimateAnalysisSampling, spectralResolutionText, formatAnalysisTimeRange } from '../spectralSampling.js';
 import { FftChart, type FftTrace } from '../../chart/FftChart.js';
 import { EchartsLineChart } from '../../chart/EchartsLineChart.js';
 import { exportContainerCanvasPNG, exportContainerCanvasSVG, exportContainerCanvasHTML, exportTraceCSV } from '../../utils/chartExport.js';
@@ -22,9 +23,12 @@ import { buildFftFilterRequest } from './fftFilterRequest.js';
 import { buildFftTrace, resolveFftViewport } from './fftTraceModel.js';
 import { fetchFftPointBudget } from './fftBudget.js';
 import type { AnalysisSampling } from '../../contracts/api/v1/analytics.js';
+import type { ExecutionIdentity } from '../../contracts/api/v1/identity.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import './fft.css';
 import { markDataUpdated } from '../../ui/freshnessIndicator.js';
+import { copyTextToClipboard } from '../../utils/copyText.js';
+import { beginCompletedAnalysisExportContext, updateCompletedAnalysisDisplayControls } from '../../utils/exportProvenanceContext.js';
 
 interface FftPageDeps {
     renderTimeseries: () => void;
@@ -48,6 +52,8 @@ const fftTraceColors: Record<string, string> = {};
 let fftRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
 let fftPageCleanup: (() => void) | null = null;
 let fftControlAbort: AbortController | null = null;
+let fftComputeController: AbortController | null = null;
+let fftComputeTimer: number | undefined;
 let fftInitialSelectionSeeded = false;
 let workspace: Pick<WorkspaceStore, 'getSnapshot'> | null = null;
 
@@ -63,6 +69,10 @@ function resetFftPageState(): void {
     fftPageCleanup = null;
     fftControlAbort?.abort();
     fftControlAbort = null;
+    fftComputeController?.abort();
+    fftComputeController = null;
+    if (fftComputeTimer !== undefined) window.clearInterval(fftComputeTimer);
+    fftComputeTimer = undefined;
     fftTraces = [];
     fftSelectedColumns = [];
     fftSamplingByColumn = {};
@@ -149,16 +159,37 @@ function syncFftEmptyState(): void {
     fftRuntime?.updateEmptyState(model);
     syncFftActions();
     syncFftSamplingBadge();
+    syncFftScopeEstimate();
+}
+
+function syncFftScopeEstimate(): void {
+    const element = document.getElementById('fft-scope-estimate');
+    const sampling = estimateAnalysisSampling(workspace?.getSnapshot().dataset.metadata, getFftViewport(), Number((document.getElementById('fft-point-budget') as HTMLInputElement | null)?.value || 65536));
+    if (element) element.textContent = sampling ? `Source-based estimate: ${sampling.output_points.toLocaleString()} points; ${spectralResolutionText(sampling)}. Range follows Signals. Narrow that range or raise the budget for shorter cycles. Working-plan counts are validated on Compute. CSV exports raw output; Normalize and Clip only change the display.` : 'Choose a valid range on Signals.';
 }
 
 function syncFftActions(): void {
     const disabled = fftSelectedColumns.length === 0 || fftComputing;
-    for (const id of ['fft-compute-btn']) {
-        const button = document.getElementById(id) as HTMLButtonElement | null;
-        if (!button) continue;
+    const reason = fftComputing
+        ? 'Spectrum computation is running. Use Cancel computation to stop it.'
+        : fftSelectedColumns.length === 0 ? 'Select one or more numeric columns to compute a spectrum.' : '';
+    const reasonEl = document.getElementById('fft-compute-reason');
+    if (reasonEl) reasonEl.textContent = reason;
+    const button = document.getElementById('fft-compute-btn') as HTMLButtonElement | null;
+    if (button) {
         button.disabled = disabled;
         button.textContent = fftComputing ? 'Computing…' : 'Compute spectrum';
+        button.title = reason;
     }
+    const columns = fftColumns();
+    const selectionBar = document.getElementById('fft-trace-selection');
+    const count = document.getElementById('fft-trace-selection-count');
+    if (selectionBar) selectionBar.hidden = columns.length === 0;
+    if (count) count.textContent = `${fftSelectedColumns.length} of ${columns.length} selected`;
+    const selectAll = document.getElementById('fft-select-all-btn') as HTMLButtonElement | null;
+    const clearAll = document.getElementById('fft-clear-all-btn') as HTMLButtonElement | null;
+    if (selectAll) selectAll.disabled = fftComputing || columns.length === 0 || fftSelectedColumns.length === columns.length;
+    if (clearAll) clearAll.disabled = fftComputing || fftSelectedColumns.length === 0;
 }
 
 function syncFftSamplingBadge(): void {
@@ -166,7 +197,7 @@ function syncFftSamplingBadge(): void {
     if (!badge) return;
     const sampling = fftSelectedColumns
         .map((column) => fftSamplingByColumn[column])
-        .find((entry) => entry && entry.input_points > entry.output_points);
+        .find((entry) => Boolean(entry));
     if (!sampling) {
         badge.hidden = true;
         badge.textContent = '';
@@ -174,13 +205,16 @@ function syncFftSamplingBadge(): void {
         return;
     }
     badge.hidden = false;
-    badge.textContent = `Downsampled to ${sampling.output_points.toLocaleString()} of ${sampling.input_points.toLocaleString()} points`;
+    badge.textContent = `${formatAnalysisSamplingContext(sampling)} · ${spectralResolutionText(sampling)} · ${formatAnalysisTimeRange(sampling)}`;
     badge.title = sampling.method === 'block_mean'
-        ? `Anti-aliased block-mean sampling bounded this analysis to ${sampling.output_points.toLocaleString()} points; this is not zero padding.`
-        : `The analysis was bounded to ${sampling.output_points.toLocaleString()} points.`;
+        ? `Anti-aliased block-mean sampling was applied. ${formatAnalysisSamplingContext(sampling)}`
+        : `The selected range was analyzed at its source cadence. ${formatAnalysisSamplingContext(sampling)}`;
 }
 
 function rerenderOrClear(): void {
+    updateCompletedAnalysisDisplayControls('fft', { mode: fftMode, logScale: fftLogScale,
+        normalize: fftScaleOptions.mode, clipEnabled: fftScaleOptions.clip !== 'none',
+        clipMethod: fftScaleOptions.clip, clipParam: fftScaleOptions.clipParam });
     syncFftEmptyState();
     syncFftSpectralInfo();
     // Safety net: keep the disabled state of the clip fields consistent
@@ -234,31 +268,83 @@ function syncFftSpectralInfo(): void {
     nyquistEl.textContent = info.nyquist.text;
     rateEl.title = info.sampleRate.title;
     nyquistEl.title = info.nyquist.title;
+    const callout = document.getElementById('fft-frequency-callout');
+    const focusReadout = document.getElementById('fft-summary-focus');
+    const copyButton = document.getElementById('fft-copy-summary-btn') as HTMLButtonElement | null;
+    peaksEl.replaceChildren();
     if (info.peaks.length === 0) {
-        peaksEl.textContent = '—';
-        peaksEl.removeAttribute('title');
+        if (callout) callout.textContent = '';
+        if (copyButton) copyButton.disabled = true;
+        if (focusReadout) focusReadout.textContent = '';
         return;
     }
-    const fragment = document.createDocumentFragment();
-    peaksEl.replaceChildren();
-    peaksEl.classList.add('fft-spectral-info__peak-table');
-    info.peaks.forEach((peak) => {
-        const row = document.createElement('span');
-        row.className = 'fft-spectral-info__peak-row';
 
-        const cells = [peak.rank, peak.frequency, peak.period, peak.power];
-        cells.forEach((cellText, cellIndex) => {
-            const cell = document.createElement('span');
-            cell.className = `fft-spectral-info__peak-cell fft-spectral-info__peak-cell--${cellIndex}`;
-            cell.textContent = cellText;
-            row.appendChild(cell);
-        });
-        fragment.appendChild(row);
+    const table = document.createElement('table');
+    table.className = 'fft-spectral-info__peak-table';
+    const caption = document.createElement('caption');
+    caption.className = 'sr-only';
+    caption.textContent = 'Top frequency peaks from the current spectrum. Focus a row to mark its frequency on the chart.';
+    table.append(caption);
+    const header = table.createTHead().insertRow();
+    for (const label of ['Rank', 'Frequency', 'Period', 'PSD (signal²/Hz)']) {
+        const th = document.createElement('th'); th.scope = 'col'; th.textContent = label; header.append(th);
+    }
+    const body = table.createTBody();
+    info.peaks.forEach((peak) => {
+        const row = body.insertRow();
+        row.tabIndex = 0;
+        row.dataset.frequencyHz = String(peak.frequencyHz);
+        row.setAttribute('aria-label', peak.title);
+        for (const value of [peak.rank, peak.frequency, peak.period, peak.power]) {
+            const cell = row.insertCell(); cell.textContent = value;
+        }
     });
-    peaksEl.appendChild(fragment);
-    peaksEl.title = info.peaks
-        .map((peak) => peak.title)
-        .join('\n');
+    peaksEl.append(table);
+    peaksEl.title = info.peaks.map((peak) => peak.title).join('\n');
+    if (callout) {
+        const peak = info.peaks[0]!;
+        callout.textContent = `Strongest reported frequency for ${fftTraces.map((trace) => trace.column).join(', ')}: ${peak.frequency} (${peak.rank}, period ${peak.period}, PSD ${peak.power} signal²/Hz).`;
+    }
+    if (copyButton) {
+        copyButton.disabled = false;
+        if (!copyButton.dataset.bound) {
+            copyButton.dataset.bound = 'true';
+            copyButton.addEventListener('click', async () => {
+                const current = buildFftSpectralInfo(fftTraces);
+                const sampling = fftSelectedColumns.map((column) => fftSamplingByColumn[column]).find(Boolean);
+                const lines = [
+                    `Spectrum for ${fftTraces.map((trace) => trace.column).join(', ') || 'no completed traces'}`,
+                    sampling ? `Sampling: ${formatAnalysisSamplingContext(sampling)}` : '',
+                    `Sample rate: ${current.sampleRate.text}; Nyquist: ${current.nyquist.text}`,
+                    ...current.peaks.map((peak) => `${peak.rank}: ${peak.frequency}; period ${peak.period}; power ${peak.power}`),
+                ].filter(Boolean);
+                const copied = await copyTextToClipboard(lines.join('\n'));
+                if (focusReadout) focusReadout.textContent = copied ? 'Spectrum summary copied.' : 'Copy was blocked by the browser. Select the peak table and copy its text.';
+            });
+        }
+    }
+    if (!peaksEl.dataset.keyboardBound) {
+        peaksEl.dataset.keyboardBound = 'true';
+        peaksEl.addEventListener('focusin', (event) => {
+            const row = (event.target as HTMLElement).closest<HTMLTableRowElement>('tbody tr[data-frequency-hz]');
+            if (!row) return;
+            const frequencyHz = Number(row.dataset.frequencyHz);
+            fftChart?.setFocusFrequency?.(frequencyHz);
+            if (focusReadout) focusReadout.textContent = `Focused frequency ${row.cells[1]?.textContent ?? ''}. A marker is shown on the spectrum chart.`;
+        });
+        peaksEl.addEventListener('keydown', (event: KeyboardEvent) => {
+            if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+            const row = (event.target as HTMLElement).closest<HTMLTableRowElement>('tbody tr[data-frequency-hz]');
+            if (!row) return;
+            const rows = Array.from(peaksEl.querySelectorAll<HTMLTableRowElement>('tbody tr[data-frequency-hz]'));
+            const next = rows[rows.indexOf(row) + (event.key === 'ArrowDown' ? 1 : -1)];
+            if (next) { event.preventDefault(); next.focus(); }
+        });
+        peaksEl.addEventListener('focusout', (event) => {
+            if (!peaksEl.contains(event.relatedTarget as Node | null)) fftChart?.setFocusFrequency?.(null);
+        });
+    }
+
 }
 
 async function ensureFftChartReady(): Promise<void> {
@@ -299,20 +385,22 @@ async function fetchFftTrace(
     column: string,
     maxPoints: number,
     signal?: AbortSignal,
-): Promise<{ trace: FftTrace; sampling?: AnalysisSampling }> {
-    const viewport = getFftViewport();
+    viewport = getFftViewport(),
+    detrend = 'constant',
+): Promise<{ trace: FftTrace; sampling?: AnalysisSampling; executionIdentity?: ExecutionIdentity; estimator: string; missingCount: number }> {
     if (!viewport) throw new Error('No time range selected');
     const response = await fetchFft(
         new Date(viewport.startMs).toISOString(),
         new Date(viewport.endMs).toISOString(),
         column,
         maxPoints,
-        { signal },
+        { signal }, detrend,
     );
     if (!response?.results?.length) throw new Error('No results');
     const trace = buildFftTrace(response.results[0], fftColorFor(column));
     if (!trace) throw new Error('Malformed result');
-    return { trace, sampling: response.sampling };
+    return { trace, sampling: response.sampling, executionIdentity: response.executionIdentity,
+        estimator: response.results[0].estimator ?? 'unspecified', missingCount: response.results[0].missing_count ?? 0 };
 }
 
 function seedInitialFftSelection(): void {
@@ -330,13 +418,44 @@ function seedInitialFftSelection(): void {
     persistFftSelection();
 }
 
-async function computeSelectedFft(signal?: AbortSignal): Promise<void> {
-    if (fftComputing || fftSelectedColumns.length === 0) return;
+async function computeSelectedFft(lifecycleSignal?: AbortSignal): Promise<void> {
+    if (fftComputing || fftSelectedColumns.length === 0 || lifecycleSignal?.aborted) return;
     const requestedColumns = [...fftSelectedColumns];
+    const requestedViewport = getFftViewport();
+    const requestedWorkspace = workspace?.getSnapshot();
+    const requestedDetrend = getDropdownValue('fft-detrend') || 'constant';
+    const requestedBudget = Number((document.getElementById('fft-point-budget') as HTMLInputElement | null)?.value || 65536);
+    const requestedDisplay = {
+        mode: getDropdownValue('fft-mode-select') || 'magnitude',
+        logScale: (document.getElementById('fft-log-scale') as HTMLInputElement | null)?.checked ?? true,
+        normalize: getDropdownValue('fft-normalize') || 'none',
+        clipEnabled: (document.getElementById('fft-clip-toggle') as HTMLInputElement | null)?.checked ?? false,
+        clipMethod: getDropdownValue('fft-clip-method') || 'percentile',
+        clipParam: Number((document.getElementById('fft-clip-param') as HTMLInputElement | null)?.value || 0.5),
+    };
+    const controller = new AbortController();
+    fftComputeController?.abort();
+    fftComputeController = controller;
+    const signal = controller.signal;
+    const abortWithLifecycle = () => controller.abort();
+    lifecycleSignal?.addEventListener('abort', abortWithLifecycle, { once: true });
+    const isCurrent = () => fftComputeController === controller && !signal.aborted;
+    const startedAt = Date.now();
+    const loadingEl = document.getElementById('fft-chart-loading');
+    const loadingLabel = document.getElementById('fft-chart-loading-label');
+    const statusEl = document.getElementById('fft-analysis-status');
+    const updateElapsed = () => {
+        if (!isCurrent()) return;
+        const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+        if (loadingLabel) loadingLabel.textContent = `Computing spectrum for ${requestedColumns.length} trace${requestedColumns.length === 1 ? '' : 's'} · ${elapsed}s elapsed`;
+    };
     fftComputing = true;
     fftComputeError = '';
-    const loadingEl = document.getElementById('fft-chart-loading');
     if (loadingEl) loadingEl.hidden = false;
+    updateElapsed();
+    fftComputeTimer = window.setInterval(updateElapsed, 1000);
+    const cancelButton = document.getElementById('fft-cancel-btn') as HTMLButtonElement | null;
+    if (cancelButton) cancelButton.onclick = () => controller.abort();
     renderChips();
     document.querySelectorAll<HTMLElement>('#fft-traces-bar .fft-trace-chip.active').forEach((chip) => {
         chip.classList.add('loading');
@@ -345,11 +464,28 @@ async function computeSelectedFft(signal?: AbortSignal): Promise<void> {
     syncFftEmptyState();
 
     try {
-        const maxPoints = await fetchFftPointBudget(signal);
+        if (!Number.isInteger(requestedBudget) || requestedBudget < 64) throw new Error('Spectrum point budget must be an integer of at least 64.');
+        const serverBudget = await fetchFftPointBudget(signal);
+        if (requestedBudget > serverBudget) throw new Error(`Spectrum point budget exceeds this server's limit of ${serverBudget.toLocaleString()}. Lower the budget or narrow the Signals range.`);
+        const maxPoints = requestedBudget;
+        if (!isCurrent()) return;
+        const completeAnalysisProvenance = beginCompletedAnalysisExportContext({
+            pageName: 'fft',
+            controls: {
+                columns: requestedColumns.join(', '),
+                start: requestedViewport ? new Date(requestedViewport.startMs).toISOString() : '',
+                end: requestedViewport ? new Date(requestedViewport.endMs).toISOString() : '',
+                maxPoints, detrend: requestedDetrend,
+                units: 'Magnitude: signal; PSD: signal^2/Hz', window: 'Hann symmetric',
+                csvValues: 'Raw output before display scaling, clipping, or log10',
+                ...requestedDisplay,
+            },
+            workspaceSnapshot: requestedWorkspace,
+        });
         const settled = await Promise.allSettled(
-            requestedColumns.map((column) => fetchFftTrace(column, maxPoints, signal)),
+            requestedColumns.map((column) => fetchFftTrace(column, maxPoints, signal, requestedViewport, requestedDetrend)),
         );
-        if (signal?.aborted) return;
+        if (!isCurrent()) return;
         const nextTraces: FftTrace[] = [];
         const nextSampling: Record<string, AnalysisSampling> = {};
         const failures: string[] = [];
@@ -376,22 +512,38 @@ async function computeSelectedFft(signal?: AbortSignal): Promise<void> {
         fftTraces = nextTraces;
         fftSamplingByColumn = nextSampling;
         document.dispatchEvent(new CustomEvent('fft:computed'));
+        if (loadingLabel) loadingLabel.textContent = 'Spectrum received; rendering chart…';
         await ensureFftChartReady();
-        if (signal?.aborted) return;
+        if (!isCurrent()) return;
+        const firstSuccessful = settled.find((result) => result.status === 'fulfilled');
+        syncFftSamplingBadge();
+        completeAnalysisProvenance(firstSuccessful?.status === 'fulfilled' ? firstSuccessful.value.executionIdentity ?? null : null, {
+            estimator: firstSuccessful?.status === 'fulfilled' ? firstSuccessful.value.estimator : 'unknown',
+            missingData: settled.filter((entry) => entry.status === 'fulfilled').map((entry) => `${entry.value.trace.column}: ${entry.value.missingCount} masked analysis samples`).join('; '),
+            sampling: JSON.stringify(nextSampling),
+        });
         markDataUpdated();
         if (failures.length > 0) {
             toast(`FFT skipped ${failures.length} trace${failures.length === 1 ? '' : 's'}: ${failures.join(', ')}`, 'warning');
         }
     } catch (error) {
-        if (signal?.aborted) return;
+        if (!isCurrent() || (error instanceof Error && error.name === 'AbortError')) return;
         const detail = error instanceof Error ? error.message : String(error);
         fftComputeError = detail;
         toast(`FFT failed: ${detail}`, 'error');
     } finally {
-        // A disposed page can have been replaced by a new compute owner.
-        if (signal?.aborted) return;
+        lifecycleSignal?.removeEventListener('abort', abortWithLifecycle);
+        if (fftComputeController !== controller) return;
+        if (fftComputeTimer !== undefined) window.clearInterval(fftComputeTimer);
+        fftComputeTimer = undefined;
+        fftComputeController = null;
         fftComputing = false;
         if (loadingEl) loadingEl.hidden = true;
+        if (statusEl) statusEl.textContent = signal.aborted
+            ? 'Spectrum computation canceled. The previous completed result remains visible.'
+            : fftComputeError ? `Spectrum failed: ${fftComputeError}` : 'Spectrum updated.';
+        if (loadingLabel) loadingLabel.textContent = 'Computing spectrum…';
+        if (cancelButton) cancelButton.onclick = null;
         document.querySelectorAll<HTMLElement>('#fft-traces-bar .fft-trace-chip.loading').forEach((chip) => {
             chip.classList.remove('loading');
             chip.removeAttribute('aria-disabled');
@@ -441,7 +593,6 @@ function renderChips(): void {
         }),
         chipClass: 'fft-trace-chip',
         preserveExisting: true,
-        postChipAttributes: { role: 'button', tabIndex: '0' },
         onColorUpdate: (column, color) => {
             const trace = fftTraces.find((item) => item.column === column);
             if (trace) {
@@ -503,7 +654,22 @@ export async function initFftPage(deps: FftPageDeps): Promise<() => void> {
             controlAbort.signal.addEventListener('abort', initFftHelp(), { once: true });
 
             const runCompute = () => void computeSelectedFft(controlAbort.signal);
+            for (const id of ['fft-point-budget', 'fft-detrend']) document.getElementById(id)?.addEventListener('change', () => {
+                syncFftScopeEstimate();
+                const status = document.getElementById('fft-analysis-status');
+                if (status && fftTraces.length) status.textContent = 'Analysis settings changed. Compute spectrum to update the result.';
+            }, listenerOptions);
             document.getElementById('fft-compute-btn')?.addEventListener('click', runCompute, listenerOptions);
+            document.getElementById('fft-cancel-btn')?.addEventListener('click', () => fftComputeController?.abort(), listenerOptions);
+            const updateSelection = (next: string[]) => {
+                fftSelectedColumns = [...new Set(next)].filter((column) => fftColumns().includes(column));
+                fftComputeError = '';
+                persistFftSelection();
+                renderChips();
+                rerenderOrClear();
+            };
+            document.getElementById('fft-select-all-btn')?.addEventListener('click', () => updateSelection(fftColumns()), listenerOptions);
+            document.getElementById('fft-clear-all-btn')?.addEventListener('click', () => updateSelection([]), listenerOptions);
 
             modeSelect?.addEventListener('change', () => {
                 fftMode = getDropdownValue('fft-mode-select') || 'magnitude';
@@ -674,7 +840,10 @@ export async function initFftPage(deps: FftPageDeps): Promise<() => void> {
                     bandEl.classList.toggle('is-hidden', !policy.bandVisible);
                 }
                 const applyButton = document.getElementById('fft-filter-apply-btn') as HTMLButtonElement | null;
-                if (applyButton) applyButton.disabled = !validation.valid;
+                if (applyButton) {
+                    applyButton.disabled = !validation.valid;
+                    applyButton.title = validation.valid ? 'Preview filtered signal on the Signals page' : validation.message;
+                }
                 const status = document.getElementById('fft-filter-status');
                 if (status) status.textContent = filterType === 'none' ? '' : validation.message;
             };

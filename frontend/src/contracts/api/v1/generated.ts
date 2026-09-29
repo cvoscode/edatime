@@ -142,6 +142,15 @@ export const apiV1Operations = [
         "planAware": false
     },
     {
+        "id": "getDatasetsVersionsIdProvenance",
+        "method": "GET",
+        "path": "/api/v1/datasets/versions/{id}/provenance",
+        "request": null,
+        "response": "AppliedPlanHistoryResponse",
+        "contentType": "application/json",
+        "planAware": false
+    },
+    {
         "id": "postDatasetsVersionsSelect",
         "method": "POST",
         "path": "/api/v1/datasets/versions/select",
@@ -462,6 +471,15 @@ export const apiV1Operations = [
         "path": "/api/v1/drift/investigate",
         "request": "DriftInvestigateRequest",
         "response": "DriftInvestigateResponse",
+        "contentType": "application/json",
+        "planAware": true
+    },
+    {
+        "id": "postDriftPreflight",
+        "method": "POST",
+        "path": "/api/v1/drift/preflight",
+        "request": "DriftInvestigateRequest",
+        "response": "DriftPreflightResponse",
         "contentType": "application/json",
         "planAware": true
     }
