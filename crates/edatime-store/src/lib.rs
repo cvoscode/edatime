@@ -2,6 +2,7 @@
 
 pub mod arrow_adapter;
 pub mod artifacts;
+pub mod bounded_map;
 pub mod cache;
 pub mod csv_adapter;
 pub mod db;

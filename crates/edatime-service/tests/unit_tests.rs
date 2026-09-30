@@ -4,7 +4,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use edatime_core::config::AppConfig;
-use edatime_core::error::AppError;
+use edatime_core::error::DomainError;
 use edatime_core::metrics::AppMetrics;
 use edatime_core::stats::{build_histogram, compute_column_stats};
 use edatime_core::temporal::{epoch_ms_to_native, native_to_epoch_ms, unit_multiplier};
@@ -271,7 +271,15 @@ async fn pipeline_filter_time_range() {
     let df = small_df();
     let start = 1_704_067_200_000_i64; // row 0
     let end = 1_704_067_200_000 + 5 * 3_600_000; // row 5
-    let result = filter_time_range(df.lazy(), start, end, &["value".to_string()], "ts").unwrap();
+    let result = filter_time_range(
+        df.lazy(),
+        start,
+        end,
+        &["value".to_string()],
+        "ts",
+        &DataType::Datetime(TimeUnit::Milliseconds, None),
+    )
+    .unwrap();
     // filter_time_range now returns LazyFrame — collect to get the DataFrame
     let collected =
         tokio::task::block_in_place(|| result.with_new_streaming(true).collect()).unwrap();
@@ -400,21 +408,21 @@ fn metrics_recording() {
 // ─── Error module ─────────────────────────────────────────────────────────────
 
 #[test]
-fn app_error_bad_request_is_bad_request_variant() {
-    let err = AppError::bad_request("test error");
-    assert!(matches!(err, AppError::BadRequest(ref message) if message == "test error"));
+fn domain_error_bad_request_is_bad_request_variant() {
+    let err = DomainError::bad_request("test error");
+    assert!(matches!(err, DomainError::BadRequest(ref message) if message == "test error"));
 }
 
 #[test]
-fn app_error_internal_is_internal_variant() {
-    let err = AppError::internal("oops");
-    assert!(matches!(err, AppError::Internal(ref message) if message == "oops"));
+fn domain_error_internal_is_internal_variant() {
+    let err = DomainError::internal("oops");
+    assert!(matches!(err, DomainError::Internal(ref message) if message == "oops"));
 }
 
 #[test]
-fn app_error_validation_is_validation_variant() {
-    let err = AppError::validation("bad");
-    assert!(matches!(err, AppError::Validation(ref message) if message == "bad"));
+fn domain_error_validation_is_validation_variant() {
+    let err = DomainError::validation("bad");
+    assert!(matches!(err, DomainError::Validation(ref message) if message == "bad"));
 }
 
 // ─── Drift module ─────────────────────────────────────────────────────────────

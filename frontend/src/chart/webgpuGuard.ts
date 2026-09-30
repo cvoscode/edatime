@@ -4,6 +4,7 @@
  */
 
 import { requestGpuAdapter, installWindowsWebGpuRequestAdapterWorkaround } from '../utils/platform.js';
+import { errorMessage } from '../utils/errors.js';
 
 export async function checkWebGPU(): Promise<string | null> {
     if (!navigator.gpu) {
@@ -20,7 +21,7 @@ export async function checkWebGPU(): Promise<string | null> {
         installWindowsWebGpuRequestAdapterWorkaround();
         return null;
     } catch (e: unknown) {
-        const message = (e as Error).message ?? 'Unknown error';
+        const message = errorMessage(e) || 'Unknown error';
         return `WebGPU adapter request failed: ${message}`;
     }
 }

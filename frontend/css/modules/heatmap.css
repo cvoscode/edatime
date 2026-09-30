@@ -32,4 +32,4 @@
 }
 
 .heatmap-cell.is-selected { outline: 2px solid var(--accent); outline-offset: -2px; z-index: 1; }
-.heatmap-cell:focus-visible { outline: 3px solid var(--focus-ring, var(--accent)); outline-offset: -2px; z-index: 2; }
+.heatmap-cell:focus-visible { outline: 3px solid var(--accent); outline-offset: -2px; z-index: 2; }

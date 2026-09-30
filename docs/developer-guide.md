@@ -2,7 +2,7 @@
 
 ## Local development
 
-The backend workspace requires Rust 1.86 or newer. Cargo enforces this MSRV
+The backend workspace requires Rust 1.88 or newer. Cargo enforces this MSRV
 consistently for every workspace crate.
 
 Run the app:
@@ -117,7 +117,7 @@ docker build -t edatime .
 docker run --rm -p 3000:3000 edatime
 ```
 
-The image uses `rust:1.86-bookworm` for the build stage and `debian:bookworm-slim` for the runtime — no Node.js required. The final image contains only the compiled binary and the frontend static files.
+The image uses `rust:1.88-bookworm` for the build stage and `debian:bookworm-slim` for the runtime — no Node.js required. The final image contains only the compiled binary and the frontend static files.
 
 ## Makefile
 

@@ -12,7 +12,7 @@ resolver = "3"
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.86"
+rust-version = "1.88"
 
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
@@ -20,6 +20,8 @@ unused_lifetimes = "deny"
 
 [workspace.lints.clippy]
 dbg_macro = "deny"
+expect_used = "deny"
+unwrap_used = "deny"
 print_stderr = "deny"
 print_stdout = "deny"
 todo = "deny"
@@ -28,7 +30,6 @@ unimplemented = "deny"
 [workspace.dependencies]
 # Shared across all workspace crates
 arrow = "58.0.0"
-arrow-ipc = "58.0.0"
 axum = { version = "0.8.8", features = ["multipart"] }
 base64 = "0.22"
 bytes = "1"
@@ -68,6 +69,13 @@ debug = true
 [profile.release]
 opt-level = 3
 lto = true
+
+# For flame graphs and allocation profiles: release optimizations with line
+# tables and unstripped symbols. `cargo build --profile profiling`.
+[profile.profiling]
+inherits = "release"
+debug = "line-tables-only"
+strip = "none"
 
 # Workaround for https://github.com/rust-lang/rust/issues/157363.
 #

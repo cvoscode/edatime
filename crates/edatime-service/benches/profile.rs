@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Criterion benchmark for exact high-cardinality numeric profiling.
 
 use criterion::{Criterion, criterion_group, criterion_main};

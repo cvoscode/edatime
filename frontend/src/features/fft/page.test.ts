@@ -179,10 +179,11 @@ describe('initFftPage', () => {
             expect.any(String),
             65536,
             expect.objectContaining({ signal: expect.any(AbortSignal) }),
+            'constant',
         );
         await vi.waitFor(() => expect(emptyState.hidden).toBe(true));
         expect(document.getElementById('fft-sampling-badge')?.textContent)
-            .toBe('Block-mean downsampled · 65,536 of 69,680 points · source cadence 10 s · effective cadence 10.6 s');
+            .toBe('Block-mean downsampled · 65,536 of 69,680 points · source cadence 10 s · effective cadence 10.6 s · Shortest resolvable period ≈ 21.2 s');
     });
 
     it('selects all and clears all FFT traces while updating the disabled reason', async () => {

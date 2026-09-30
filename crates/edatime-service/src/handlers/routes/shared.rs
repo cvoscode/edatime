@@ -227,7 +227,8 @@ pub async fn filter_preamble(
     let ts_col = ctx.ts_col;
     let start_ts = start.timestamp_millis() * ctx.multiplier;
     let end_ts = end.timestamp_millis() * ctx.multiplier;
-    let filtered_lf = pipeline::filter_time_range(lf, start_ts, end_ts, &value_cols, &ts_col)?;
+    let filtered_lf =
+        pipeline::filter_time_range(lf, start_ts, end_ts, &value_cols, &ts_col, &ctx.dtype)?;
     let filtered = state.query_executor.execute_async(filtered_lf).await?;
     Ok((value_cols, filtered))
 }
@@ -255,6 +256,7 @@ pub async fn filter_preamble_with_plan(
         end.timestamp_millis() * ctx.multiplier,
         &value_cols,
         &ctx.ts_col,
+        &ctx.dtype,
     )?;
     Ok((
         value_cols,
@@ -282,9 +284,18 @@ fn analysis_timestamps(df: &DataFrame) -> Option<Vec<f64>> {
     let timestamp = df.columns().first()?.as_materialized_series();
     let dtype = timestamp.dtype().clone();
     let values = timestamp.cast(&DataType::Int64).ok()?;
-    Some(values.i64().ok()?.into_iter().map(|value| value
-        .map(|value| edatime_core::temporal::native_to_epoch_ms(value, &dtype))
-        .unwrap_or(f64::NAN)).collect())
+    Some(
+        values
+            .i64()
+            .ok()?
+            .into_iter()
+            .map(|value| {
+                value
+                    .map(|value| edatime_core::temporal::native_to_epoch_ms(value, &dtype))
+                    .unwrap_or(f64::NAN)
+            })
+            .collect(),
+    )
 }
 
 /// Anti-aliased bounded sampling for frequency-domain analytics. Consecutive
@@ -301,9 +312,16 @@ pub fn downsample_for_analysis(
     let source_start_ms = timestamps.first().copied();
     let source_end_ms = timestamps.last().copied();
     let source_cadence_ms = timestamps.windows(2).next().map(|pair| pair[1] - pair[0]);
-    if timestamps.len() != input_points || timestamps.iter().any(|value| !value.is_finite())
-        || source_cadence_ms.is_some_and(|cadence| cadence <= 0.0 || timestamps.windows(2)
-            .any(|pair| pair[1] <= pair[0] || ((pair[1] - pair[0]) - cadence).abs() > (cadence * 1e-6).max(0.001))) {
+    if timestamps.len() != input_points
+        || timestamps.iter().any(|value| !value.is_finite())
+        || source_cadence_ms.is_some_and(|cadence| {
+            cadence <= 0.0
+                || timestamps.windows(2).any(|pair| {
+                    pair[1] <= pair[0]
+                        || ((pair[1] - pair[0]) - cadence).abs() > (cadence * 1e-6).max(0.001)
+                })
+        })
+    {
         return Err(AppError::bad_request(format!(
             "{label} requires an ascending, regular time grid without duplicate or missing timestamps. Sort and resample in Preparation, or choose a contiguous regular range."
         )));
@@ -318,8 +336,10 @@ pub fn downsample_for_analysis(
                 aggregation_factor: 1.0,
                 source_cadence_ms,
                 effective_cadence_ms: source_cadence_ms,
-                source_start_ms, source_end_ms,
-                analyzed_start_ms: source_start_ms, analyzed_end_ms: source_end_ms,
+                source_start_ms,
+                source_end_ms,
+                analyzed_start_ms: source_start_ms,
+                analyzed_end_ms: source_end_ms,
             },
         ));
     }
@@ -361,8 +381,11 @@ pub fn downsample_for_analysis(
                     let mut sum = 0.0;
                     let mut weight_sum = 0.0;
                     for index in start.floor() as usize..(end.ceil() as usize).min(input_points) {
-                        let weight = (end.min(index as f64 + 1.0) - start.max(index as f64)).max(0.0);
-                        if let Some(value) = values.get(index) && value.is_finite() {
+                        let weight =
+                            (end.min(index as f64 + 1.0) - start.max(index as f64)).max(0.0);
+                        if let Some(value) = values.get(index)
+                            && value.is_finite()
+                        {
                             sum += value * weight;
                             weight_sum += weight;
                         }
@@ -407,7 +430,8 @@ pub fn downsample_for_analysis(
             aggregation_factor,
             source_cadence_ms,
             effective_cadence_ms,
-            source_start_ms, source_end_ms,
+            source_start_ms,
+            source_end_ms,
             analyzed_start_ms: analyzed_timestamps.first().copied(),
             analyzed_end_ms: analyzed_timestamps.last().copied(),
         },
@@ -423,24 +447,51 @@ mod sampling_tests {
     #[test]
     fn fractional_bins_cover_tail_and_keep_time_regular() {
         use polars::prelude::{DataType, TimeUnit};
-        let frame = DataFrame::new(10, vec![
-            Series::new("ts".into(), (0..10).map(|i| i * 900_000_i64).collect::<Vec<_>>())
-                .cast(&DataType::Datetime(TimeUnit::Milliseconds, None)).unwrap().into(),
-            Series::new("value".into(), (0..10).map(|i| i as f64).collect::<Vec<_>>()).into(),
-        ]).unwrap();
+        let frame = DataFrame::new(
+            10,
+            vec![
+                Series::new(
+                    "ts".into(),
+                    (0..10).map(|i| i * 900_000_i64).collect::<Vec<_>>(),
+                )
+                .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))
+                .unwrap()
+                .into(),
+                Series::new(
+                    "value".into(),
+                    (0..10).map(|i| i as f64).collect::<Vec<_>>(),
+                )
+                .into(),
+            ],
+        )
+        .unwrap();
         let (sampled, sampling) = downsample_for_analysis(frame, 4, "test").unwrap();
         assert_eq!(sampling.source_end_ms, Some(8_100_000.0));
         assert_eq!(sampling.effective_cadence_ms, Some(2_250_000.0));
         let times = super::analysis_timestamps(&sampled).unwrap();
-        assert!(times.windows(2).all(|pair| pair[1] - pair[0] == 2_250_000.0));
-        let values = sampled.column("value").unwrap().f64().unwrap().into_no_null_iter().collect::<Vec<_>>();
+        assert!(
+            times
+                .windows(2)
+                .all(|pair| pair[1] - pair[0] == 2_250_000.0)
+        );
+        let values = sampled
+            .column("value")
+            .unwrap()
+            .f64()
+            .unwrap()
+            .into_no_null_iter()
+            .collect::<Vec<_>>();
         assert_eq!(values, vec![0.8, 3.2, 5.8, 8.2]);
         assert!((values.iter().sum::<f64>() / 4.0 - 4.5).abs() < 1e-12);
     }
 
     #[test]
     fn rejects_reordered_duplicate_or_irregular_source_times() {
-        for times in [vec![0_i64, 1000, 1000], vec![0, 2000, 1000], vec![0, 1000, 3000]] {
+        for times in [
+            vec![0_i64, 1000, 1000],
+            vec![0, 2000, 1000],
+            vec![0, 1000, 3000],
+        ] {
             let frame = DataFrame::new(3, vec![Series::new("ts".into(), times).into()]).unwrap();
             assert!(downsample_for_analysis(frame, 2, "test").is_err());
         }

@@ -7,16 +7,28 @@ interface DatasetSwitcherDeps {
     onDatasetSelected: () => void | Promise<void>;
 }
 
-function datasetLabel(deps: DatasetSwitcherDeps): string {
+interface DatasetLabel {
+    /** Compact text for the header, e.g. `ETTm2.csv · prepared v2 · r2`. */
+    short: string;
+    /** Unabbreviated text for the accessible name and tooltip. */
+    full: string;
+}
+
+function datasetLabel(deps: DatasetSwitcherDeps): DatasetLabel {
     const snapshot = deps.workspace.getSnapshot();
     const metadata = snapshot.dataset.metadata;
+    const sourceId = metadata?.source_version_id || snapshot.dataset.activeSourceVersionId;
     const name = metadata?.display_name?.trim()
         || metadata?.source_name?.trim()
         || snapshot.dataset.activeSourceVersionId
         || metadata?.source_version_id
         || 'No dataset';
     const revision = metadata?.source_version_revision ?? metadata?.revision;
-    return Number.isSafeInteger(revision) && Number(revision) > 0 ? `${name} · ${metadata?.source_version_id || snapshot.dataset.activeSourceVersionId || 'source'} · revision ${revision}` : name;
+    if (!Number.isSafeInteger(revision) || Number(revision) <= 0) return { short: name, full: name };
+    return {
+        short: `${name} · r${revision}`,
+        full: `${name}${sourceId ? ` · ${sourceId}` : ''} · revision ${revision}`,
+    };
 }
 
 /** Header-level selector for retained datasets/versions, available on every page. */
@@ -30,9 +42,10 @@ export function initDatasetSwitcher(deps: DatasetSwitcherDeps): () => void {
     let loadGeneration = 0;
 
     const syncLabel = () => {
-        const text = datasetLabel(deps);
-        label.textContent = text;
-        root.setAttribute('aria-label', `Active dataset: ${text}`);
+        const { short, full } = datasetLabel(deps);
+        label.textContent = short;
+        root.setAttribute('aria-label', `Active dataset: ${full}`);
+        label.title = full;
     };
 
     const syncExpanded = () => {

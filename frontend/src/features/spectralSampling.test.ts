@@ -4,6 +4,11 @@ import { formatAnalysisSamplingContext, formatSamplingCadence } from './spectral
 describe('spectral sampling context', () => {
     it('formats a known source cadence and distinguishes exact from downsampled views', () => {
         expect(formatSamplingCadence(600_000)).toBe('10 min');
+        expect(formatSamplingCadence(1_914_000)).toBe('31.9 min');
+        expect(formatSamplingCadence(86_400_000)).toBe('1 day');
+        expect(formatSamplingCadence(183_744_000)).toBe('2.13 days');
+        expect(formatSamplingCadence(5_400_000)).toBe('1.5 hours');
+        expect(formatSamplingCadence(250)).toBe('250 ms');
         expect(formatAnalysisSamplingContext({
             method: 'exact', input_points: 1_440, output_points: 1_440, aggregation_factor: 1,
             source_cadence_ms: 600_000, effective_cadence_ms: 600_000,

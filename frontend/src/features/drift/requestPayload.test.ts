@@ -19,9 +19,10 @@ describe('drift investigation request payload', () => {
         expect(payload).toMatchObject({
             columns: ['temperature'],
             window: 'daily',
-            referenceStart: new Date('2025-01-01T00:00').toISOString(),
-            referenceEnd: new Date('2025-01-02T00:00').toISOString(),
-            comparisonStart: new Date('2025-01-02T00:00').toISOString(),
+            // The inputs are labelled "(UTC)", so they must not shift with the host timezone.
+            referenceStart: '2025-01-01T00:00:00.000Z',
+            referenceEnd: '2025-01-02T00:00:00.000Z',
+            comparisonStart: '2025-01-02T00:00:00.000Z',
             ksPvalueThreshold: 0.02,
             esPvalueThreshold: 0.05,
             segmentBy: 'site',

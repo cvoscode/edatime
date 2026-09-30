@@ -332,7 +332,6 @@ pub fn time_column_is_non_decreasing(frame: LazyFrame, time_column: &str) -> Pol
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
     use std::fs;

@@ -1,4 +1,4 @@
-import { sampledProfileDescription } from '../../services/profile/samplingDescription.js';
+import { sampledProfileDescription, sampledProfileRowCount } from '../../services/profile/samplingDescription.js';
 import { createZeroDecisionControls } from './zeroSemantics.js';
 import { hasAscendingTimeSortBefore, normalizeFixedDuration, parseResampleAggregations } from '../../cleaning/resample.js';
 import { cleaningPlanStore } from '../../cleaning/store.js';
@@ -419,7 +419,9 @@ function renderQualityReport(
         : reportKind === 'exact'
             ? 'Exact background-profile findings are ready. Review counts, ranges, and distributions before refining the pipeline.'
             : reportKind === 'sampled'
-                ? sourceMetadata ? sampledProfileDescription(sourceMetadata) : 'Sampled quality estimates are unavailable.'
+                ? sourceMetadata
+                    ? `Sampled quality findings are estimates from ${sampledProfileRowCount(sourceMetadata).toLocaleString()} rows. ${sampledProfileDescription(sourceMetadata)} Confirm them with the exact report before materializing.`
+                    : 'Sampled quality estimates are unavailable.'
                 : 'Review the active dataset profile before refining the pipeline. Build a sampled or exact profile when you need completed statistics.';
 
     const profileActions = createElement('div', 'prepare-workspace__quality-actions');

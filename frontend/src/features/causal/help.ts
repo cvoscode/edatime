@@ -23,6 +23,11 @@ export const CAUSAL_HELP: PageHelpContent = {
             'Max conditioning dimension bounds candidate conditioning sets. BH FDR adjusts the tested family; no FDR means unadjusted p-values.',
         ] },
         { title: 'Results and export', body: 'The graph groups links by node pair. Inspect per-link direction, lag, statistic, and p-value in the evidence view. Graph JSON and model exports include sampling metadata. Manual graph edits are analyst hypotheses, not statistical discoveries.' },
+        { title: 'Graph editing and run comparison', bullets: [
+            'Select + Edge, then click two nodes to add a link from the first to the second. Press Escape to cancel.',
+            'Right-click a node or link to edit its attributes or delete it. Edits change the displayed graph and exports, not the computed evidence.',
+            'Save Run keeps the current graph in this browser (up to 20 runs). With two saved runs, compare them to see added, removed, and changed links.',
+        ] },
     ],
     tips: ['Start with a small set of scientifically plausible variables and inspect the Signals page before choosing lags.', 'Check whether conclusions survive reasonable ranges, preprocessing, lag limits, and tests.'],
 };

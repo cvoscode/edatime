@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Shared-scan scatter-matrix Criterion coverage.
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};

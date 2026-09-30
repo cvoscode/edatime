@@ -1,7 +1,7 @@
 import { downloadBlob } from '../../utils/dom.js';
 import { fetchCorrelationMatrix } from '../../services/api/index.js';
 import type { CorrelationMatrixResponse } from '../../services/api/analytics.js';
-import { exportElementPNG, exportElementSVG, exportElementHTML, exportMatrixCSV } from '../../utils/chartExport.js';
+import { exportElementPNG, exportElementSVG, exportElementHTML } from '../../utils/chartExport.js';
 import { getDropdownValue, setDropdownDisabled, setDropdownValue } from '../../ui/primitives/Dropdown.js';
 import { bindInfoPopovers } from '../../ui/infoPopovers.js';
 import { initHeatmapHelp } from './help.js';
@@ -22,6 +22,7 @@ import {
 } from './colorScale.js';
 import {
     buildHeatmapStatus,
+    buildCorrelationMatrixCsv,
     getSelectedCorrelationMatrix,
     getUnavailableMatrixMessage,
 } from './matrixPolicy.js';
@@ -240,7 +241,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
             requestAnimationFrame(() => {
                 if (loadSequence === matrixLoadSequence) renderHeatmap();
             });
-        } catch (error: any) {
+        } catch (error) {
             if (loadSequence !== matrixLoadSequence) return;
             const presentation = classifyHeatmapLoadError(error);
             syncHeatmapEmptyState(
@@ -411,7 +412,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
                 const isRovingCell = presentation.interactive && (isActiveCell || (!activeKeyboardTarget && !hasRovingTabStop));
                 if (isRovingCell) hasRovingTabStop = true;
                 rowCells.push(
-                    `<div role="gridcell" aria-rowindex="${r + 2}" aria-colindex="${c + 2}" class="${cellClass}" data-interactive="${presentation.interactive}" data-row="${rowOriginal}" data-col="${colOriginal}" data-row-name="${escapeAttr(rowName)}" data-col-name="${escapeAttr(colName)}" data-correlation-value="${Number.isFinite(value) ? value : ''}" data-correlation-label="${escapeAttr(presentation.signedValue)}" data-cell-background="${escapeAttr(presentation.background)}" data-cell-color="${escapeAttr(presentation.textColor)}" data-correlation-tooltip="${escapeAttr(`${presentation.tooltip} ${countScope} ${rangeScope}`)}" style="grid-column:${colGridFor(c)};grid-row:${rowGridFor(r)};${cellStyle}cursor:${presentation.interactive ? 'pointer' : 'default'};" aria-label="${escapeAttr(`Row ${r + 1} of ${size}, column ${c + 1} of ${size}. ${presentation.tooltip} ${previewScope}`)}" title="${escapeAttr(`${presentation.tooltip} ${previewScope}`)}" tabindex="${isRovingCell ? '0' : '-1'}"><canvas class="heatmap-cell-canvas" data-css-height="${responsiveCell}" aria-hidden="true"></canvas></div>`,
+                    `<div role="gridcell" aria-rowindex="${r + 2}" aria-colindex="${c + 2}" class="${cellClass}" data-interactive="${presentation.interactive}" data-row="${rowOriginal}" data-col="${colOriginal}" data-row-name="${escapeAttr(rowName)}" data-col-name="${escapeAttr(colName)}" data-correlation-value="${Number.isFinite(value) ? value : ''}" data-correlation-label="${escapeAttr(presentation.signedValue)}" data-cell-background="${escapeAttr(presentation.background)}" data-cell-color="${escapeAttr(presentation.textColor)}" data-correlation-tooltip="${escapeAttr(`${presentation.tooltip} ${countScope} ${rangeScope}`)}" data-correlation-precise="${escapeAttr(presentation.preciseValue)}" data-correlation-scope="${escapeAttr(`${countScope} ${rangeScope}`)}" style="grid-column:${colGridFor(c)};grid-row:${rowGridFor(r)};${cellStyle}cursor:${presentation.interactive ? 'pointer' : 'default'};" aria-label="${escapeAttr(`Row ${r + 1} of ${size}, column ${c + 1} of ${size}. ${presentation.tooltip} ${previewScope}`)}" title="${escapeAttr(`${presentation.tooltip} ${previewScope}`)}" tabindex="${isRovingCell ? '0' : '-1'}"><canvas class="heatmap-cell-canvas" data-css-height="${responsiveCell}" aria-hidden="true"></canvas></div>`,
                 );
             }
             gridRows.push(`<div role="row" aria-rowindex="${r + 2}" class="heatmap-grid-row">${rowCells.join('')}</div>`);
@@ -458,9 +459,15 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
             const rowName = cell.dataset.rowName || '';
             const columnName = cell.dataset.colName || '';
             const value = Number(cell.dataset.correlationValue);
-            const label = cell.dataset.correlationLabel || (Number.isFinite(value) ? value.toFixed(3) : '—');
+            const label = cell.dataset.correlationPrecise || cell.dataset.correlationLabel || (Number.isFinite(value) ? value.toFixed(4) : 'unavailable');
             const sampleCount = Number(cell.dataset.previewSampleCount);
-            focusedCellSummary = `${metricLabel}: ${cell.dataset.correlationTooltip || `${rowName} and ${columnName}: ${label}`}${Number.isFinite(sampleCount) ? `; ${sampleCount.toLocaleString()} rendered preview pairs` : ''}. Serial dependence and shared trends can inflate associations; no independent-observation confidence interval is claimed.`;
+            // Built from parts rather than the hover tooltip, which carries pointer-only wording.
+            focusedCellSummary = [
+                `${metricLabel} correlation between ${rowName} and ${columnName}: ${label}.`,
+                cell.dataset.correlationScope,
+                Number.isFinite(sampleCount) ? `${sampleCount.toLocaleString()} rendered preview pairs.` : '',
+                'Serial dependence and shared trends can inflate associations; no independent-observation confidence interval is claimed.',
+            ].filter(Boolean).join(' ');
             focusedPair = { x: rowName, y: columnName };
             activeKeyboardTarget = { kind: 'cell', row: rowName, column: columnName };
             syncSelectedPair(rowName, columnName);
@@ -777,20 +784,12 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
             svg: { fn: (filename) => exportVisibleHeatmap(exportElementSVG, filename), filename: 'edatime_heatmap.svg' },
             html: { fn: (filename) => exportVisibleHeatmap(exportElementHTML, filename), filename: 'edatime_heatmap.html' },
             csv: {
-                fn: (filename) => {
-                    const data = matrixData ? getSelectedCorrelationMatrix(matrixData, metric) : null;
-                    if (!matrixData || !data) return;
-                    if (!getVisibleHeatmapContainer()) return;
-                    const counts = metric.endsWith('_diff') ? matrixData.diff_counts : matrixData.counts;
-                    const eligible = matrixData.input_rows == null ? null : Math.max(0, matrixData.input_rows - (metric.endsWith('_diff') ? 1 : 0));
-                    const quote = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
-                    const rows = [['row', 'column', 'metric', 'coefficient', 'valid_n', 'excluded', 'eligible', 'working_start_utc', 'working_end_utc']];
-                    matrixData.columns.forEach((row, i) => matrixData!.columns.forEach((column, j) => {
-                        const n = counts?.[i]?.[j];
-                        rows.push([row, column, metric, String(data[i]?.[j] ?? ''), String(n ?? ''), String(n == null || eligible == null ? '' : eligible - n), String(eligible ?? ''),
-                            ...([0, 1].map((index) => matrixData?.time_range_ms ? new Date(matrixData.time_range_ms[index]).toISOString() : ''))]);
-                    }));
-                    downloadBlob(new Blob([rows.map((row) => row.map(quote).join(',')).join('\n')], { type: 'text/csv;charset=utf-8' }), `edatime_correlation_${metric}.csv`);
+                // The configured filename is fixed at init; name the file from the metric selected now.
+                fn: () => {
+                    if (!matrixData || !getVisibleHeatmapContainer()) return;
+                    const csv = buildCorrelationMatrixCsv(matrixData, metric);
+                    if (csv == null) return;
+                    downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), `edatime_correlation_${metric}.csv`);
                 },
                 filename: `edatime_correlation_${metric}.csv`,
                 dataCheck: () => matrixData != null && getSelectedCorrelationMatrix(matrixData, metric) != null,

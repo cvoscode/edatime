@@ -16,6 +16,11 @@ export const FFT_HELP: PageHelpContent = {
             'Normalize and Clip plotted values act on returned spectral ordinates only. They do not remove time-domain spikes, recompute the transform, or change the ranked raw peaks.',
             'To change time-domain outliers, add an explicit Preparation rule and recompute. To reveal cycles beneath a slow trend, try Remove linear trend and compare the results.',
         ] },
+        { title: 'Spectral filter', bullets: [
+            'Low-pass keeps frequencies up to High Hz, High-pass keeps frequencies from Low Hz, Band-pass keeps the band between them, and Band-stop removes it. Cutoffs must lie between 0 and the Nyquist frequency of the computed spectrum.',
+            'Preview filter on Signals overlays the filtered version of the first Spectrum trace on the Signals chart. It is a preview only: the dataset, the computed spectrum, and exports are unchanged. Set Type to Off to remove it.',
+            'The filter zeroes frequency bins outside the kept band (an ideal, sharp-edged filter). Expect ringing near abrupt changes and at the range edges.',
+        ] },
         { title: 'Resolution', body: 'Frequency spacing depends on analyzed duration; the highest frequency depends on effective cadence. Narrow the Signals range or raise the point budget to retain shorter cycles. Peaks may reflect trend, leakage, or nonstationarity rather than a stable recurring process.' },
         { title: 'Export', body: 'PNG, SVG, and HTML capture the display. CSV exports raw magnitudes or PSD before Normalize, Clip, or log10. Provenance records detrending, Hann window, estimator, units, range, missing observations, and sampling.' },
     ],

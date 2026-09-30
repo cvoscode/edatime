@@ -207,7 +207,6 @@ pub fn numeric_columns<I: Into<LazyFrame>>(df: I) -> Vec<String> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
     use edatime_core::config::ValidationSettings;

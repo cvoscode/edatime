@@ -199,7 +199,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
     if (linkBrushInput) listen(linkBrushInput, 'change', async () => {
         const icon = linkBrushInput.closest('label')?.querySelector<HTMLElement>('.scatter-link-icon');
         if (icon) icon.textContent = linkBrushInput.checked ? '🔗' : '⛓';
-        try { await cb.renderScatter(); } catch (err: any) { cb.handleErr(err); }
+        try { await cb.renderScatter(); } catch (err) { cb.handleErr(err); }
     });
     if (clipOutliersInput) listen(clipOutliersInput, 'change', () => { void cb.rerenderScatterFromCache(true); });
     if (backToMatrix) listen(backToMatrix, 'click', () => {
@@ -219,7 +219,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
     if (exportCsv) listen(exportCsv, 'click', () => exportScatterData('csv'));
     if (exportJson) listen(exportJson, 'click', () => exportScatterData('json'));
     if (exportParquet) listen(exportParquet, 'click', async () => {
-        try { await (cb.exportScatterParquet?.() ?? exportScatterParquet()); } catch (error: any) { cb.handleErr(error); }
+        try { await (cb.exportScatterParquet?.() ?? exportScatterParquet()); } catch (error) { cb.handleErr(error); }
     });
 
     listen(ySelect, 'change', async () => {
@@ -239,7 +239,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
         try {
             cb.syncScatterFilterBadge();
             if (!requireLinkedBrush || isLinkedBrushEnabled()) cb.renderScatterDebounced();
-        } catch (err: any) { cb.handleErr(err); }
+        } catch (err) { cb.handleErr(err); }
     };
 
     if (cb.workspace) {
@@ -307,7 +307,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
         try {
             cb.syncScatterFilterBadge();
             await cb.refreshActiveScatterView();
-        } catch (err: any) {
+        } catch (err) {
             cb.handleErr(err);
         }
     }), { once: true });
@@ -374,7 +374,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
             await cb.refreshCorrelationsAndSuggestions()
                 .then(() => (nextView === 'matrix' ? cb.refreshActiveScatterView() : cb.renderScatter()))
                 .then(() => { scatterState.pageInitialized = true; })
-                .catch((err: any) => { cb.handleErr(err); });
+                .catch((err: unknown) => { cb.handleErr(err); });
         } else {
             try {
                 const activeFilters = cb.workspace?.getSnapshot().filters;
@@ -393,7 +393,7 @@ export function bindScatterControls(cb: ScatterRenderCallbacks): () => void {
                 } else {
                     await cb.rerenderScatterFromCache(true);
                 }
-            } catch (err: any) { cb.handleErr(err); }
+            } catch (err) { cb.handleErr(err); }
         }
     };
 

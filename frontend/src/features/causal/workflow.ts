@@ -154,7 +154,7 @@ export function syncCausalSamplingEstimate(deps: CausalDeps): void {
     const sampling = estimateAnalysisSampling(deps.workspace.getSnapshot().dataset.metadata, scope.range, scope.maxPoints);
     const hint = document.getElementById('causal-scope-estimate');
     const tau = Number((document.getElementById('causal-tau-max') as HTMLInputElement | null)?.value || 3);
-    if (hint) hint.textContent = sampling ? `Source-based estimate: ${sampling.output_points.toLocaleString()} / ${sampling.input_points.toLocaleString()} points; lag 1 ≈ ${formatSamplingCadence(sampling.effective_cadence_ms)}, max lag ≈ ${formatSamplingCadence(tau * Number(sampling.effective_cadence_ms))}. ${formatAnalysisTimeRange(sampling)}. Working-plan counts are checked on run; averaging can change discovered relationships. Use the Signals viewport or raise the budget to retain shorter lags.` : 'Select a valid range on Signals before using its viewport.';
+    if (hint) hint.textContent = sampling ? `Source-based estimate: ${sampling.output_points.toLocaleString()} / ${sampling.input_points.toLocaleString()} points; lag 1 ≈ ${formatSamplingCadence(sampling.effective_cadence_ms)}, max lag ≈ ${formatSamplingCadence(tau * Number(sampling.effective_cadence_ms))}. ${formatAnalysisTimeRange(sampling) ? `${formatAnalysisTimeRange(sampling)}. ` : ''}Working-plan counts are checked on run; averaging can change discovered relationships. Use the Signals viewport or raise the budget to retain shorter lags.` : 'Select a valid range on Signals before using its viewport.';
 }
 
 // ─── Add-edge mode ────────────────────────────────────────────────────────────
@@ -261,7 +261,13 @@ export async function handleComputeClick(
         const samplingContext = document.getElementById('causal-sampling-context');
         if (samplingContext) {
             samplingContext.hidden = false;
-            samplingContext.textContent = resp.sampling ? `${formatAnalysisSamplingContext(resp.sampling)} · lag 1 = ${formatSamplingCadence(resp.sampling.effective_cadence_ms)}; max lag = ${formatSamplingCadence(resp.tau_max * Number(resp.sampling.effective_cadence_ms))} · ${formatAnalysisTimeRange(resp.sampling)}` : 'Sampling metadata was not returned; lag duration is unknown.';
+            samplingContext.textContent = resp.sampling
+                ? [
+                    formatAnalysisSamplingContext(resp.sampling),
+                    `lag 1 = ${formatSamplingCadence(resp.sampling.effective_cadence_ms)}; max lag = ${formatSamplingCadence(resp.tau_max * Number(resp.sampling.effective_cadence_ms))}`,
+                    formatAnalysisTimeRange(resp.sampling),
+                ].filter(Boolean).join(' · ')
+                : 'Sampling metadata was not returned; lag duration is unknown.';
         }
         for (const col of cols) ensureNodeMetadata(col, meta, deps);
         const graphRendered = chartReady && renderEChartsGraph();

@@ -42,7 +42,7 @@ export function initSelectionZoom(
         if (ev.button !== 0) return;
         const rect = container.getBoundingClientRect();
         scatterState.drag = { pointerId: ev.pointerId, startX: ev.clientX - rect.left, endX: ev.clientX - rect.left, startY: ev.clientY - rect.top, endY: ev.clientY - rect.top };
-        try { container.setPointerCapture(ev.pointerId); } catch { }
+        try { container.setPointerCapture(ev.pointerId); } catch { /* capture is best-effort; the pointer may already be gone */ }
         renderSelectionBox();
     });
     container.addEventListener('pointermove', (ev) => {
@@ -58,7 +58,7 @@ export function initSelectionZoom(
         const drag: DragState = { ...scatterState.drag };
         scatterState.drag = null;
         hideSelectionBox();
-        try { container.releasePointerCapture(ev.pointerId); } catch { }
+        try { container.releasePointerCapture(ev.pointerId); } catch { /* already released when the pointer ended */ }
 
         const isDensityMode = currentControls().renderMode === 'density';
         const dx = Math.abs(drag.endX - drag.startX);

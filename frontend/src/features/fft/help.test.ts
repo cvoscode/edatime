@@ -41,12 +41,13 @@ describe('FFT page help button', () => {
         expect(modal).not.toBeNull();
         expect(modal?.textContent).toContain('Spectrum — Help');
         // Section headings should be present.
-        expect(modal?.textContent).toContain('Display segment');
-        expect(modal?.textContent).toContain('Pre-scaling segment');
-        expect(modal?.textContent).toContain('FFT chart');
+        for (const section of ['Input processing', 'Display', 'Spectral filter', 'Resolution', 'Export']) {
+            expect(modal?.textContent).toContain(section);
+        }
         expect(modal?.textContent).toContain('Magnitude');
         expect(modal?.textContent).toContain('PSD');
-        expect(modal?.textContent).toContain('Outliers');
+        expect(modal?.textContent).toContain('Preview filter on Signals');
+        expect(modal?.textContent).toContain('outliers');
     });
 
     it('initFftHelp is safe to call twice (idempotent)', async () => {

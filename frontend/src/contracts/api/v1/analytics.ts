@@ -60,6 +60,9 @@ export interface FftResult {
     missing_count?: number;
 }
 
+/** Detrend applied before the FFT (`contracts/api-v1.json`, default `constant`). */
+export type FftDetrend = 'none' | 'constant' | 'linear';
+
 export interface FftResponse {
     executionIdentity?: ExecutionIdentity;
     sample_count: number;

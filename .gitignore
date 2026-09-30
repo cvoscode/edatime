@@ -30,3 +30,6 @@ crates/*/frontend/dist/*
 Modelfile
 tmp/
 /docs/_build/
+# Playwright output
+test-results/
+playwright-report/

@@ -505,7 +505,7 @@ export function initFilterModalController(deps: FilterModalControllerDeps): Colu
         populateColumns(col || getDropdownValue('column-filter-col') || deps.workspace.getSnapshot().selection.columns[0] || null);
         refreshInputsForCol(getDropdownValue('column-filter-col'));
         modalEl.hidden = false;
-        try { minTextInput.focus(); } catch { }
+        try { minTextInput.focus(); } catch { /* focus is a convenience; the input may be detached */ }
     }
 
     function closeModal() {

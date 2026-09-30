@@ -34,7 +34,7 @@ impl<'a> PcmciPlus<'a> {
     }
 
     /// Run the full PCMCI+ algorithm.
-    pub fn run(&self, config: &PcmciConfig) -> CausalResult {
+    pub fn run(&self, config: &PcmciConfig) -> Result<CausalResult, AppError> {
         let n = self.df.n_vars;
         let tau_max = config.tau_max;
 
@@ -56,12 +56,12 @@ impl<'a> PcmciPlus<'a> {
             config.pc_alpha,
             config.max_conds_dim,
             config.max_combinations,
-        );
+        )?;
 
         tracing::info!("PCMCI+ Step 1 (lagged PC) complete");
 
         // Step 2: Skeleton with contemporaneous conditions via MCI
-        let mut graph = self.skeleton_step(config, &pc_result.all_parents);
+        let mut graph = self.skeleton_step(config, &pc_result.all_parents)?;
 
         tracing::info!("PCMCI+ Step 2 (skeleton) complete");
 
@@ -69,16 +69,16 @@ impl<'a> PcmciPlus<'a> {
         graph.threshold(config.alpha_level);
 
         // Step 3: Collider orientation
-        self.orient_colliders(&mut graph);
+        self.orient_colliders(&mut graph)?;
         tracing::info!("PCMCI+ Step 3 (colliders) complete");
 
         // Step 4: Meek rules
-        self.apply_meek_rules(&mut graph);
+        self.apply_meek_rules(&mut graph)?;
         tracing::info!("PCMCI+ Step 4 (Meek rules) complete");
 
         let result = CausalResult::from_graph(&graph, &self.df.var_names);
         tracing::info!(n_links = result.links.len(), "PCMCI+ complete");
-        result
+        Ok(result)
     }
 
     /// Cooperative variant of [`run`]. Checks the request-owned probe between
@@ -149,9 +149,8 @@ impl<'a> PcmciPlus<'a> {
         &self,
         config: &PcmciConfig,
         all_parents: &HashMap<usize, Vec<VarLag>>,
-    ) -> CausalGraph {
+    ) -> Result<CausalGraph, AppError> {
         self.skeleton_step_with_cancellation(config, all_parents, None)
-            .expect("non-cancellable skeleton step never returns AppError")
     }
 
     fn skeleton_step_cancellable(
@@ -271,9 +270,8 @@ impl<'a> PcmciPlus<'a> {
     /// - a-c are NOT adjacent
     /// - The separating set for (a, c) does NOT contain b
     /// - Orient as a → b ← c.
-    fn orient_colliders(&self, graph: &mut CausalGraph) {
+    fn orient_colliders(&self, graph: &mut CausalGraph) -> Result<(), AppError> {
         self.orient_colliders_with_cancellation(graph, None)
-            .expect("ordinary orientation cannot be cancelled");
     }
 
     fn orient_colliders_with_cancellation(
@@ -393,9 +391,8 @@ impl<'a> PcmciPlus<'a> {
     /// R1: If a → b — c and a ⊥ c, orient b → c
     /// R2: If a → b → c and a — c, orient a → c
     /// R3: If a — b, a — c, b → d ← c, and a — d, orient a → d
-    fn apply_meek_rules(&self, graph: &mut CausalGraph) {
+    fn apply_meek_rules(&self, graph: &mut CausalGraph) -> Result<(), AppError> {
         self.apply_meek_rules_with_cancellation(graph, None)
-            .expect("ordinary orientation cannot be cancelled");
     }
 
     fn apply_meek_rules_with_cancellation(
@@ -554,13 +551,15 @@ mod tests {
         let df = CausalDataFrame::new(vec![x, y, z], vec!["X".into(), "Y".into(), "Z".into()]);
         let test = CondIndTest::new(IndependenceTestKind::ParCorr);
         let engine = PcmciPlus::new(&df, &test);
-        let result = engine.run(&PcmciConfig {
-            tau_min: 0,
-            tau_max: 1,
-            pc_alpha: 0.05,
-            alpha_level: 0.01,
-            ..Default::default()
-        });
+        let result = engine
+            .run(&PcmciConfig {
+                tau_min: 0,
+                tau_max: 1,
+                pc_alpha: 0.05,
+                alpha_level: 0.01,
+                ..Default::default()
+            })
+            .unwrap();
 
         assert!(
             result
@@ -604,13 +603,15 @@ mod tests {
         let df = CausalDataFrame::new(vec![x, y, z], vec!["X".into(), "Y".into(), "Z".into()]);
         let test = CondIndTest::new(IndependenceTestKind::ParCorr);
         let engine = PcmciPlus::new(&df, &test);
-        let result = engine.run(&PcmciConfig {
-            tau_min: 0,
-            tau_max: 1,
-            pc_alpha: 0.05,
-            alpha_level: 0.01,
-            ..Default::default()
-        });
+        let result = engine
+            .run(&PcmciConfig {
+                tau_min: 0,
+                tau_max: 1,
+                pc_alpha: 0.05,
+                alpha_level: 0.01,
+                ..Default::default()
+            })
+            .unwrap();
 
         assert!(
             !result

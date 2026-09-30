@@ -8,7 +8,7 @@ use polars::prelude::{DataFrame, ParquetWriter};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use edatime_core::error::AppError;
+use edatime_core::error::DomainError;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -81,20 +81,20 @@ impl DatasetArtifactStore {
         self.root.join("catalog.json")
     }
 
-    pub fn load_catalog(&self) -> Result<Vec<DatasetArtifactDescriptor>, AppError> {
+    pub fn load_catalog(&self) -> Result<Vec<DatasetArtifactDescriptor>, DomainError> {
         let path = self.catalog_path();
         if !path.exists() {
             return Ok(Vec::new());
         }
         let bytes = std::fs::read(&path)
-            .map_err(|e| AppError::Io(format!("Read artifact catalog: {e}")))?;
+            .map_err(|e| DomainError::Io(format!("Read artifact catalog: {e}")))?;
         serde_json::from_slice(&bytes)
-            .map_err(|e| AppError::internal(format!("Parse artifact catalog: {e}")))
+            .map_err(|e| DomainError::internal(format!("Parse artifact catalog: {e}")))
     }
 
-    pub fn publish(&self, descriptor: DatasetArtifactDescriptor) -> Result<(), AppError> {
+    pub fn publish(&self, descriptor: DatasetArtifactDescriptor) -> Result<(), DomainError> {
         std::fs::create_dir_all(&self.root)
-            .map_err(|e| AppError::Io(format!("Create artifact directory: {e}")))?;
+            .map_err(|e| DomainError::Io(format!("Create artifact directory: {e}")))?;
         let mut catalog = self.load_catalog()?;
         catalog.retain(|entry| entry.version_id != descriptor.version_id);
         catalog.push(descriptor);
@@ -108,7 +108,7 @@ impl DatasetArtifactStore {
     pub fn prune_except(
         &self,
         retained: &BTreeSet<String>,
-    ) -> Result<Vec<DatasetArtifactDescriptor>, AppError> {
+    ) -> Result<Vec<DatasetArtifactDescriptor>, DomainError> {
         let catalog = self.load_catalog()?;
         let (kept, removed): (Vec<_>, Vec<_>) = catalog
             .into_iter()
@@ -130,16 +130,16 @@ impl DatasetArtifactStore {
         Ok(removed)
     }
 
-    fn write_catalog(&self, catalog: &[DatasetArtifactDescriptor]) -> Result<(), AppError> {
+    fn write_catalog(&self, catalog: &[DatasetArtifactDescriptor]) -> Result<(), DomainError> {
         std::fs::create_dir_all(&self.root)
-            .map_err(|e| AppError::Io(format!("Create artifact directory: {e}")))?;
+            .map_err(|e| DomainError::Io(format!("Create artifact directory: {e}")))?;
         let temp = self.root.join("catalog.json.tmp");
         let bytes = serde_json::to_vec_pretty(catalog)
-            .map_err(|e| AppError::internal(format!("Encode artifact catalog: {e}")))?;
+            .map_err(|e| DomainError::internal(format!("Encode artifact catalog: {e}")))?;
         std::fs::write(&temp, bytes)
-            .map_err(|e| AppError::Io(format!("Write artifact catalog: {e}")))?;
+            .map_err(|e| DomainError::Io(format!("Write artifact catalog: {e}")))?;
         std::fs::rename(temp, self.catalog_path())
-            .map_err(|e| AppError::Io(format!("Publish artifact catalog: {e}")))
+            .map_err(|e| DomainError::Io(format!("Publish artifact catalog: {e}")))
     }
 
     /// Write a complete immutable frame to its final managed Parquet path but
@@ -151,27 +151,27 @@ impl DatasetArtifactStore {
         content_fingerprint: String,
         created_at: DateTime<Utc>,
         mut frame: DataFrame,
-    ) -> Result<DatasetArtifactDescriptor, AppError> {
+    ) -> Result<DatasetArtifactDescriptor, DomainError> {
         let file_name = artifact_file_name(&version_id)?;
         std::fs::create_dir_all(&self.root)
-            .map_err(|e| AppError::Io(format!("Create artifact directory: {e}")))?;
+            .map_err(|e| DomainError::Io(format!("Create artifact directory: {e}")))?;
         let path = self.root.join(&file_name);
         if path.exists() {
-            return Err(AppError::bad_request(format!(
+            return Err(DomainError::bad_request(format!(
                 "Artifact for dataset version '{version_id}' already exists"
             )));
         }
         let temp = self.root.join(format!("{file_name}.tmp"));
         let file = std::fs::File::create(&temp)
-            .map_err(|e| AppError::Io(format!("Create Parquet artifact: {e}")))?;
+            .map_err(|e| DomainError::Io(format!("Create Parquet artifact: {e}")))?;
         if let Err(error) = ParquetWriter::new(file).finish(&mut frame) {
             let _ = std::fs::remove_file(&temp);
-            return Err(AppError::internal(format!(
+            return Err(DomainError::internal(format!(
                 "Write Parquet artifact: {error}"
             )));
         }
         let byte_size = std::fs::metadata(&temp)
-            .map_err(|e| AppError::Io(format!("Read pending Parquet artifact size: {e}")))?
+            .map_err(|e| DomainError::Io(format!("Read pending Parquet artifact size: {e}")))?
             .len();
         if let Err(error) = self.ensure_capacity(&version_id, byte_size) {
             let _ = std::fs::remove_file(&temp);
@@ -179,7 +179,9 @@ impl DatasetArtifactStore {
         }
         if let Err(error) = std::fs::rename(&temp, &path) {
             let _ = std::fs::remove_file(&temp);
-            return Err(AppError::Io(format!("Finalize Parquet artifact: {error}")));
+            return Err(DomainError::Io(format!(
+                "Finalize Parquet artifact: {error}"
+            )));
         }
         let descriptor = DatasetArtifactDescriptor {
             version_id,
@@ -196,13 +198,13 @@ impl DatasetArtifactStore {
     /// Reserve the temporary path used by a lazy streaming Parquet sink. The
     /// final artifact remains invisible until `finalize_lazy_parquet` renames
     /// it and the caller publishes its descriptor.
-    pub fn prepare_lazy_parquet(&self, version_id: &str) -> Result<PathBuf, AppError> {
+    pub fn prepare_lazy_parquet(&self, version_id: &str) -> Result<PathBuf, DomainError> {
         let file_name = artifact_file_name(version_id)?;
         std::fs::create_dir_all(&self.root)
-            .map_err(|e| AppError::Io(format!("Create artifact directory: {e}")))?;
+            .map_err(|e| DomainError::Io(format!("Create artifact directory: {e}")))?;
         let path = self.root.join(&file_name);
         if path.exists() {
-            return Err(AppError::bad_request(format!(
+            return Err(DomainError::bad_request(format!(
                 "Artifact for dataset version '{version_id}' already exists"
             )));
         }
@@ -216,18 +218,18 @@ impl DatasetArtifactStore {
         &self,
         version_id: String,
         created_at: DateTime<Utc>,
-    ) -> Result<DatasetArtifactDescriptor, AppError> {
+    ) -> Result<DatasetArtifactDescriptor, DomainError> {
         let file_name = artifact_file_name(&version_id)?;
         let temp = self.root.join(format!("{file_name}.tmp"));
         let path = self.root.join(file_name);
-        let finalize = || -> Result<DatasetArtifactDescriptor, AppError> {
+        let finalize = || -> Result<DatasetArtifactDescriptor, DomainError> {
             let byte_size = std::fs::metadata(&temp)
-                .map_err(|e| AppError::Io(format!("Read pending Parquet artifact size: {e}")))?
+                .map_err(|e| DomainError::Io(format!("Read pending Parquet artifact size: {e}")))?
                 .len();
             self.ensure_capacity(&version_id, byte_size)?;
             let content_fingerprint = fingerprint_file(&temp)?;
             std::fs::rename(&temp, &path)
-                .map_err(|e| AppError::Io(format!("Finalize Parquet artifact: {e}")))?;
+                .map_err(|e| DomainError::Io(format!("Finalize Parquet artifact: {e}")))?;
             Ok(DatasetArtifactDescriptor {
                 version_id,
                 path,
@@ -268,7 +270,7 @@ impl DatasetArtifactStore {
         content_fingerprint: String,
         created_at: DateTime<Utc>,
         frame: DataFrame,
-    ) -> Result<DatasetArtifactDescriptor, AppError> {
+    ) -> Result<DatasetArtifactDescriptor, DomainError> {
         let descriptor = self.write_parquet(version_id, content_fingerprint, created_at, frame)?;
         if let Err(error) = self.publish(descriptor.clone()) {
             let _ = std::fs::remove_file(&descriptor.path);
@@ -285,7 +287,7 @@ impl DatasetArtifactStore {
         self.max_bytes
     }
 
-    pub fn usage(&self) -> Result<ArtifactStorageUsage, AppError> {
+    pub fn usage(&self) -> Result<ArtifactStorageUsage, DomainError> {
         let catalog = self.load_catalog()?;
         Ok(ArtifactStorageUsage {
             enabled: true,
@@ -295,7 +297,7 @@ impl DatasetArtifactStore {
         })
     }
 
-    fn ensure_capacity(&self, version_id: &str, pending_bytes: u64) -> Result<(), AppError> {
+    fn ensure_capacity(&self, version_id: &str, pending_bytes: u64) -> Result<(), DomainError> {
         let Some(limit) = self.max_bytes else {
             return Ok(());
         };
@@ -306,7 +308,7 @@ impl DatasetArtifactStore {
             .map(|entry| entry.byte_size)
             .sum::<u64>();
         if used.saturating_add(pending_bytes) > limit {
-            return Err(AppError::bad_request(format!(
+            return Err(DomainError::bad_request(format!(
                 "Managed artifact quota exceeded: {} bytes used + {} bytes pending exceeds {} bytes",
                 used, pending_bytes, limit
             )));
@@ -317,21 +319,21 @@ impl DatasetArtifactStore {
     /// Remove files left by interrupted writes before the store begins serving
     /// requests. This must not run during a live write because another unique
     /// artifact temporary file may still be an active streaming sink.
-    pub fn recover_temporary_files(&self) -> Result<(), AppError> {
+    pub fn recover_temporary_files(&self) -> Result<(), DomainError> {
         if !self.root.exists() {
             return Ok(());
         }
         let entries = std::fs::read_dir(&self.root)
-            .map_err(|error| AppError::Io(format!("Read artifact directory: {error}")))?;
+            .map_err(|error| DomainError::Io(format!("Read artifact directory: {error}")))?;
         for entry in entries {
             let entry =
-                entry.map_err(|error| AppError::Io(format!("Read artifact entry: {error}")))?;
+                entry.map_err(|error| DomainError::Io(format!("Read artifact entry: {error}")))?;
             let name = entry.file_name();
             let name = name.to_string_lossy();
             let path = entry.path();
             if (name == "catalog.json.tmp" || name.ends_with(".parquet.tmp")) && path.is_file() {
                 std::fs::remove_file(path).map_err(|error| {
-                    AppError::Io(format!("Remove incomplete artifact: {error}"))
+                    DomainError::Io(format!("Remove incomplete artifact: {error}"))
                 })?;
             }
         }
@@ -339,30 +341,30 @@ impl DatasetArtifactStore {
     }
 }
 
-fn artifact_file_name(version_id: &str) -> Result<String, AppError> {
+fn artifact_file_name(version_id: &str) -> Result<String, DomainError> {
     if version_id.is_empty()
         || !version_id.chars().all(|character| {
             character.is_ascii_alphanumeric() || character == '-' || character == '_'
         })
     {
-        return Err(AppError::bad_request(
+        return Err(DomainError::bad_request(
             "Dataset version IDs for managed artifacts may contain only letters, digits, '-' and '_'",
         ));
     }
     Ok(format!("{version_id}.parquet"))
 }
 
-fn fingerprint_file(path: &Path) -> Result<String, AppError> {
+fn fingerprint_file(path: &Path) -> Result<String, DomainError> {
     use std::io::Read;
 
     let mut file = std::fs::File::open(path)
-        .map_err(|error| AppError::Io(format!("Open pending artifact fingerprint: {error}")))?;
+        .map_err(|error| DomainError::Io(format!("Open pending artifact fingerprint: {error}")))?;
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
     let mut buffer = [0_u8; 64 * 1024];
     loop {
-        let read = file
-            .read(&mut buffer)
-            .map_err(|error| AppError::Io(format!("Read pending artifact fingerprint: {error}")))?;
+        let read = file.read(&mut buffer).map_err(|error| {
+            DomainError::Io(format!("Read pending artifact fingerprint: {error}"))
+        })?;
         if read == 0 {
             break;
         }
@@ -375,234 +377,4 @@ fn fingerprint_file(path: &Path) -> Result<String, AppError> {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::fs;
-    use std::path::PathBuf;
-    use std::sync::atomic::{AtomicU64, Ordering};
-
-    use chrono::Utc;
-    use polars::prelude::{DataFrame, NamedFrom, Series};
-
-    use super::{ArtifactStorageUsage, DatasetArtifactDescriptor, DatasetArtifactStore};
-
-    static NEXT_TEST_DIRECTORY: AtomicU64 = AtomicU64::new(0);
-
-    fn test_root() -> PathBuf {
-        let serial = NEXT_TEST_DIRECTORY.fetch_add(1, Ordering::Relaxed);
-        std::env::temp_dir().join(format!(
-            "edatime-artifact-store-{}-{serial}",
-            Utc::now().timestamp_nanos_opt().unwrap_or_default()
-        ))
-    }
-
-    fn descriptor(version_id: &str, byte_size: u64) -> DatasetArtifactDescriptor {
-        DatasetArtifactDescriptor {
-            version_id: version_id.to_string(),
-            path: PathBuf::from(format!("{version_id}.parquet")),
-            format: "parquet".to_string(),
-            byte_size,
-            content_fingerprint: format!("fingerprint-{version_id}-{byte_size}"),
-            created_at: Utc::now(),
-            provenance: None,
-        }
-    }
-
-    fn frame(values: Vec<i64>) -> DataFrame {
-        DataFrame::new(
-            values.len(),
-            vec![Series::new("value".into(), values).into()],
-        )
-        .expect("frame")
-    }
-
-    #[test]
-    fn a_missing_catalog_is_an_empty_catalog() {
-        let root = test_root();
-        let store = DatasetArtifactStore::new(&root);
-
-        assert_eq!(
-            store.load_catalog().expect("load empty catalog"),
-            Vec::new()
-        );
-        assert!(!root.exists());
-    }
-
-    #[test]
-    fn publishing_replaces_a_version_without_leaving_a_temp_catalog() {
-        let root = test_root();
-        let store = DatasetArtifactStore::new(&root);
-        let first = descriptor("source-7", 12);
-        let replacement = descriptor("source-7", 24);
-
-        store.publish(first).expect("publish first descriptor");
-        store
-            .publish(replacement.clone())
-            .expect("replace descriptor");
-
-        assert_eq!(
-            store.load_catalog().expect("load replacement catalog"),
-            vec![replacement]
-        );
-        assert!(!root.join("catalog.json.tmp").exists());
-
-        fs::remove_dir_all(root).expect("clean test artifact directory");
-    }
-
-    #[test]
-    fn publishing_parquet_writes_the_artifact_before_catalog_visibility() {
-        let root = test_root();
-        let store = DatasetArtifactStore::new(&root);
-
-        let published = store
-            .publish_parquet(
-                "source-8".to_string(),
-                "content-8".to_string(),
-                Utc::now(),
-                frame(vec![1, 2, 3]),
-            )
-            .expect("publish parquet artifact");
-
-        assert!(published.path.exists());
-        assert!(published.byte_size > 0);
-        assert_eq!(store.load_catalog().expect("load catalog"), vec![published]);
-        assert!(!root.join("source-8.parquet.tmp").exists());
-
-        fs::remove_dir_all(root).expect("clean test artifact directory");
-    }
-
-    #[test]
-    fn quota_rejects_an_artifact_before_it_is_published() {
-        let root = test_root();
-        let store = DatasetArtifactStore::with_max_bytes(&root, Some(1));
-
-        let error = store
-            .publish_parquet(
-                "source-9".to_string(),
-                "content-9".to_string(),
-                Utc::now(),
-                frame(vec![1, 2, 3]),
-            )
-            .expect_err("quota should reject parquet");
-
-        assert!(error.to_string().contains("quota exceeded"));
-        assert!(store.load_catalog().expect("catalog").is_empty());
-        assert!(!root.join("source-9.parquet").exists());
-        assert!(!root.join("source-9.parquet.tmp").exists());
-
-        fs::remove_dir_all(root).expect("clean test artifact directory");
-    }
-
-    #[test]
-    fn usage_reports_catalogued_artifact_bytes_and_quota() {
-        let root = test_root();
-        let store = DatasetArtifactStore::with_max_bytes(&root, Some(10_000));
-        store
-            .publish(descriptor("source-10", 123))
-            .expect("publish descriptor");
-
-        assert_eq!(
-            store.usage().expect("usage"),
-            ArtifactStorageUsage {
-                enabled: true,
-                artifact_count: 1,
-                used_bytes: 123,
-                max_bytes: Some(10_000),
-            }
-        );
-
-        fs::remove_dir_all(root).expect("clean test artifact directory");
-    }
-
-    #[test]
-    fn lazy_finalize_checks_quota_and_removes_rejected_temp_output() {
-        let root = test_root();
-        let store = DatasetArtifactStore::with_max_bytes(&root, Some(1));
-        let temp = store
-            .prepare_lazy_parquet("source-11")
-            .expect("pending path");
-        fs::write(&temp, b"larger than quota").expect("pending bytes");
-
-        let error = store
-            .finalize_lazy_parquet("source-11".to_string(), Utc::now())
-            .expect_err("quota should reject lazy artifact");
-
-        assert!(error.to_string().contains("quota exceeded"));
-        assert!(!temp.exists());
-        assert!(!root.join("source-11.parquet").exists());
-        fs::remove_dir_all(root).expect("clean test artifact directory");
-    }
-
-    #[test]
-    fn startup_recovery_cleans_only_recognized_interrupted_artifacts() {
-        let root = test_root();
-        fs::create_dir_all(&root).expect("create artifact directory");
-        fs::write(root.join("catalog.json.tmp"), "partial catalog").expect("write catalog temp");
-        fs::write(root.join("source-11.parquet.tmp"), "partial parquet")
-            .expect("write parquet temp");
-        fs::write(root.join("operator-note.tmp"), "keep me").expect("write unrelated temp");
-        let store = DatasetArtifactStore::new(&root);
-
-        store
-            .recover_temporary_files()
-            .expect("recover interrupted writes");
-
-        assert!(!root.join("catalog.json.tmp").exists());
-        assert!(!root.join("source-11.parquet.tmp").exists());
-        assert!(root.join("operator-note.tmp").exists());
-
-        fs::remove_dir_all(root).expect("clean test artifact directory");
-    }
-
-    #[test]
-    fn catalog_publication_does_not_remove_an_active_sink_temp_file() {
-        let root = test_root();
-        let store = DatasetArtifactStore::new(&root);
-        let active = store
-            .prepare_lazy_parquet("source-active")
-            .expect("active sink path");
-        fs::write(&active, "in progress").expect("active sink bytes");
-
-        store
-            .publish(descriptor("source-complete", 1))
-            .expect("publish unrelated descriptor");
-
-        assert!(active.exists());
-        fs::remove_dir_all(root).expect("clean test artifact directory");
-    }
-
-    #[test]
-    fn pruning_updates_the_catalog_and_removes_only_pruned_managed_files() {
-        let root = test_root();
-        let store = DatasetArtifactStore::new(&root);
-        let first = store
-            .write_parquet(
-                "source-retained".to_string(),
-                "fingerprint-retained".to_string(),
-                Utc::now(),
-                frame(vec![1]),
-            )
-            .expect("first artifact");
-        let second = store
-            .write_parquet(
-                "source-pruned".to_string(),
-                "fingerprint-pruned".to_string(),
-                Utc::now(),
-                frame(vec![2]),
-            )
-            .expect("second artifact");
-        store.publish(first.clone()).expect("publish first");
-        store.publish(second.clone()).expect("publish second");
-        let operator_file = root.join("operator.parquet");
-        fs::write(&operator_file, "leave me alone").expect("operator file");
-
-        let retained = [first.version_id.clone()].into_iter().collect();
-        let removed = store.prune_except(&retained).expect("prune artifacts");
-
-        assert_eq!(removed, vec![second.clone()]);
-        assert!(first.path.exists());
-        assert!(!second.path.exists());
-        assert!(operator_file.exists());
-        assert_eq!(store.load_catalog().expect("catalog"), vec![first]);
-        fs::remove_dir_all(root).expect("clean test artifact directory");
-    }
-}
+mod tests;

@@ -8,7 +8,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::error::AppError;
+use crate::error::DomainError;
 
 #[derive(Clone, Debug)]
 pub struct CancellationProbe(Arc<AtomicBool>);
@@ -37,9 +37,9 @@ impl CancellationProbe {
         self.0.load(Ordering::Acquire)
     }
 
-    pub fn check(&self) -> Result<(), AppError> {
+    pub fn check(&self) -> Result<(), DomainError> {
         if self.is_cancelled() {
-            Err(AppError::Cancelled(
+            Err(DomainError::Cancelled(
                 "interactive request cancelled".to_string(),
             ))
         } else {
@@ -58,6 +58,6 @@ mod tests {
         assert!(!probe.is_cancelled());
         handle.cancel();
         assert!(probe.is_cancelled());
-        assert!(matches!(probe.check(), Err(AppError::Cancelled(_))));
+        assert!(matches!(probe.check(), Err(DomainError::Cancelled(_))));
     }
 }

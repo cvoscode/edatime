@@ -4,6 +4,7 @@ import { getDropdownValue } from '../../ui/primitives/Dropdown.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import type { CleaningPlanStore } from '../../cleaning/store.js';
 import { addDerivedColumn } from '../../cleaning/derivedColumn.js';
+import { errorMessage } from '../../utils/errors.js';
 
 const dataMutationFeature = createDataMutationFeature();
 
@@ -72,8 +73,8 @@ export function initTransformModal(deps: TransformModalDeps): void {
             if (selection) deps.workspace?.setSelection([...selection.columns, name], selection.colorColumn);
             deps.onPlanChanged?.();
             controller.close();
-        } catch (error: any) {
-            if (errorEl) errorEl.textContent = error?.message || 'Could not add transform to the pipeline.';
+        } catch (error) {
+            if (errorEl) errorEl.textContent = errorMessage(error) || 'Could not add transform to the pipeline.';
         } finally {
             if (applyBtn) {
                 applyBtn.textContent = 'Add to pipeline';
@@ -158,8 +159,8 @@ export function initOutlierModal(deps: OutlierModalDeps): void {
                     ? 'No global bounds were needed for the selected columns; the pipeline is unchanged.'
                     : `Added ${proposal.ranges.length} global inlier range${proposal.ranges.length === 1 ? '' : 's'} to the Pipeline Workbench. Preview or materialize them there.`;
             }
-        } catch (error: any) {
-            if (errorEl) errorEl.textContent = error?.message || 'Could not propose outlier ranges.';
+        } catch (error) {
+            if (errorEl) errorEl.textContent = errorMessage(error) || 'Could not propose outlier ranges.';
         } finally {
             if (applyBtn) {
                 applyBtn.disabled = false;

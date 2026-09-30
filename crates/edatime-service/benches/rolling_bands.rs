@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Criterion bench for the rolling bands computation.
 //!
 //! Phase 0.2: measures `analytics::compute_rolling_bands` against the

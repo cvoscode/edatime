@@ -459,6 +459,21 @@ fn equal_freq_bins(values: &[f64], n_bins: usize) -> Vec<usize> {
     bins
 }
 
+/// Pack the bin index of each dimension in `dims` for sample `s` into one key.
+///
+/// Horner-style base-`n_bins` packing is exact while `n_bins^dims.len()` fits
+/// in 64 bits (at most 10 bins, so up to 19 dimensions). Larger conditioning
+/// sets wrap: keys stay deterministic, and a collision needs two distinct
+/// bin tuples to agree modulo 2^64, which is negligible for counting.
+/// Wrapping arithmetic is deliberate; checked/`pow` arithmetic would panic in
+/// debug builds and silently overflow in release builds.
+fn encode_bins(binned: &[Vec<usize>], dims: &[usize], s: usize, n_bins: usize) -> u64 {
+    dims.iter().fold(0u64, |key, &d| {
+        key.wrapping_mul(n_bins as u64)
+            .wrapping_add(binned[d][s] as u64)
+    })
+}
+
 // ── G-squared helpers ─────────────────────────────────────────────────
 
 /// Compute G² statistic and degrees of freedom from discretized data.
@@ -475,43 +490,25 @@ fn gsquared_statistic(
     use std::collections::HashMap;
 
     // Encode X, Y, Z values as single integers for speed
-    let x_vals: Vec<usize> = (0..n_samples)
-        .map(|s| {
-            let mut v = 0usize;
-            for (k, &xi) in x_idx.iter().enumerate() {
-                v += binned[xi][s] * n_bins.pow(k as u32);
-            }
-            v
-        })
+    let x_vals: Vec<u64> = (0..n_samples)
+        .map(|s| encode_bins(binned, x_idx, s, n_bins))
         .collect();
-    let y_vals: Vec<usize> = (0..n_samples)
-        .map(|s| {
-            let mut v = 0usize;
-            for (k, &yi) in y_idx.iter().enumerate() {
-                v += binned[yi][s] * n_bins.pow(k as u32);
-            }
-            v
-        })
+    let y_vals: Vec<u64> = (0..n_samples)
+        .map(|s| encode_bins(binned, y_idx, s, n_bins))
         .collect();
-    let z_vals: Vec<usize> = if z_idx.is_empty() {
-        vec![0usize; n_samples]
+    let z_vals: Vec<u64> = if z_idx.is_empty() {
+        vec![0u64; n_samples]
     } else {
         (0..n_samples)
-            .map(|s| {
-                let mut v = 0usize;
-                for (k, &zi) in z_idx.iter().enumerate() {
-                    v += binned[zi][s] * n_bins.pow(k as u32);
-                }
-                v
-            })
+            .map(|s| encode_bins(binned, z_idx, s, n_bins))
             .collect()
     };
 
     // Count joint (z, y, x) occurrences
-    let mut joint: HashMap<(usize, usize, usize), f64> = HashMap::new();
-    let mut zy_count: HashMap<(usize, usize), f64> = HashMap::new();
-    let mut zx_count: HashMap<(usize, usize), f64> = HashMap::new();
-    let mut z_count: HashMap<usize, f64> = HashMap::new();
+    let mut joint: HashMap<(u64, u64, u64), f64> = HashMap::new();
+    let mut zy_count: HashMap<(u64, u64), f64> = HashMap::new();
+    let mut zx_count: HashMap<(u64, u64), f64> = HashMap::new();
+    let mut z_count: HashMap<u64, f64> = HashMap::new();
 
     for s in 0..n_samples {
         let (zv, yv, xv) = (z_vals[s], y_vals[s], x_vals[s]);
@@ -565,13 +562,7 @@ fn cmi_symb_value(
     use std::collections::HashMap;
 
     // Helper: encode a set of dimensions into a single key
-    let encode = |dims: &[usize], s: usize| -> usize {
-        let mut v = 0usize;
-        for (k, &d) in dims.iter().enumerate() {
-            v += binned[d][s] * n_bins.pow(k as u32);
-        }
-        v
-    };
+    let encode = |dims: &[usize], s: usize| -> u64 { encode_bins(binned, dims, s, n_bins) };
 
     let xz_dims: Vec<usize> = x_idx.iter().chain(z_idx.iter()).copied().collect();
     let yz_dims: Vec<usize> = y_idx.iter().chain(z_idx.iter()).copied().collect();
@@ -583,10 +574,10 @@ fn cmi_symb_value(
         .collect();
 
     // Count frequencies
-    let mut xz_freq: HashMap<usize, f64> = HashMap::new();
-    let mut yz_freq: HashMap<usize, f64> = HashMap::new();
-    let mut z_freq: HashMap<usize, f64> = HashMap::new();
-    let mut xyz_freq: HashMap<usize, f64> = HashMap::new();
+    let mut xz_freq: HashMap<u64, f64> = HashMap::new();
+    let mut yz_freq: HashMap<u64, f64> = HashMap::new();
+    let mut z_freq: HashMap<u64, f64> = HashMap::new();
+    let mut xyz_freq: HashMap<u64, f64> = HashMap::new();
 
     for s in 0..n_samples {
         *xz_freq.entry(encode(&xz_dims, s)).or_default() += 1.0;
@@ -600,7 +591,7 @@ fn cmi_symb_value(
     let n = n_samples as f64;
 
     // H(S) = -(Σ count * ln(count) - T * ln(T)) / T
-    let entropy = |freq: &HashMap<usize, f64>| -> f64 {
+    let entropy = |freq: &HashMap<u64, f64>| -> f64 {
         let sum_plogp: f64 = freq
             .values()
             .filter(|&&c| c > 0.0)
@@ -1028,6 +1019,30 @@ fn digamma(x: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn wide_conditioning_sets_do_not_overflow_bin_packing() {
+        // 30 conditioning dimensions with 10 bins would overflow `10^k`.
+        let n_samples = 12;
+        let dims = 32;
+        let binned: Vec<Vec<usize>> = (0..dims)
+            .map(|d| (0..n_samples).map(|s| (s * (d + 1)) % 10).collect())
+            .collect();
+        let x = [0usize];
+        let y = [1usize];
+        let z: Vec<usize> = (2..dims).collect();
+        let (g2, dof) = gsquared_statistic(&binned, &x, &y, &z, n_samples, 10);
+        assert!(g2.is_finite() && dof >= 1);
+        let cmi = cmi_symb_value(&binned, &x, &y, &z, n_samples, 10);
+        assert!(cmi.is_finite());
+    }
+
+    #[test]
+    fn bin_packing_is_exact_below_the_overflow_limit() {
+        let binned = vec![vec![3, 4], vec![5, 6]];
+        assert_eq!(encode_bins(&binned, &[0, 1], 0, 10), 35);
+        assert_eq!(encode_bins(&binned, &[0, 1], 1, 10), 46);
+    }
+
     use super::*;
 
     #[test]

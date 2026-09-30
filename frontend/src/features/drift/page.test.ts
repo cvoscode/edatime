@@ -423,7 +423,7 @@ describe('drift page accessibility and debug metadata', () => {
         });
 
         const statusText = document.getElementById('drift-status')?.textContent ?? '';
-        expect(statusText).toContain('2 of 2 windows flagged');
+        expect(statusText).toContain('2 of 2 trace/window comparisons flagged');
         expect(statusText).toContain('Every window is flagged');
     });
 

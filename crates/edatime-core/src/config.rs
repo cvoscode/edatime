@@ -5,7 +5,7 @@ use std::{
 
 use serde::Deserialize;
 
-use crate::error::AppError;
+use crate::error::DomainError;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
@@ -89,6 +89,9 @@ pub struct DataSettings {
     /// Avoid relying on unmeasured external-sort behavior when a managed scan
     /// must remain bounded. Operators can opt into streaming sort explicitly.
     pub require_sorted_scan_backed: bool,
+    /// Directory holding the built-in sample datasets served by
+    /// `/api/v1/sample/{name}`. Defaults to the repository root.
+    pub sample_dir: PathBuf,
 }
 
 impl Default for DataSettings {
@@ -98,6 +101,7 @@ impl Default for DataSettings {
             max_artifact_bytes: Some(20 * 1024 * 1024 * 1024),
             max_artifact_versions: Some(12),
             require_sorted_scan_backed: true,
+            sample_dir: Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."),
         }
     }
 }
@@ -220,7 +224,6 @@ pub enum DatabaseBackend {
     None,
     Postgres,
     Timescale,
-    Sqlite,
 }
 
 impl Default for ServerConfig {
@@ -297,20 +300,20 @@ impl Default for ValidationSettings {
 }
 
 impl AppConfig {
-    pub fn load() -> Result<Self, AppError> {
+    pub fn load() -> Result<Self, DomainError> {
         let config_path = env::var("EDATIME_CONFIG").unwrap_or_else(|_| "config.toml".to_string());
         let mut config = if Path::new(&config_path).exists() {
             let contents = fs::read_to_string(&config_path).map_err(|error| {
-                AppError::internal(format!("Failed to read config '{config_path}': {error}"))
+                DomainError::internal(format!("Failed to read config '{config_path}': {error}"))
             })?;
             toml::from_str::<AppConfig>(&contents).map_err(|error| {
-                AppError::internal(format!("Failed to parse config '{config_path}': {error}"))
+                DomainError::internal(format!("Failed to parse config '{config_path}': {error}"))
             })?
         } else {
             AppConfig::default()
         };
 
-        config.apply_env_overrides();
+        config.apply_env_overrides()?;
         Ok(config)
     }
 
@@ -327,10 +330,10 @@ impl AppConfig {
     /// Refuse an accidentally public unauthenticated listener. Operators that
     /// intentionally put edatime behind a trusted authenticated gateway must
     /// opt in explicitly.
-    pub fn validate_bind_security(&self) -> Result<(), AppError> {
+    pub fn validate_bind_security(&self) -> Result<(), DomainError> {
         let address = self.bind_address();
         if !address.ip().is_loopback() && !self.server.allow_insecure_public {
-            return Err(AppError::bad_request(format!(
+            return Err(DomainError::bad_request(format!(
                 "Refusing public bind on {} without server.allow_insecure_public=true",
                 address.ip()
             )));
@@ -338,253 +341,257 @@ impl AppConfig {
         Ok(())
     }
 
-    fn apply_env_overrides(&mut self) {
-        if let Ok(host) = env::var("EDATIME_HOST") {
-            let host = host.trim().to_string();
+    /// Apply `EDATIME_*` environment overrides. A variable that is set but
+    /// cannot be parsed (or is out of range) is an error rather than being
+    /// ignored, so a typo cannot silently leave a safety limit at its default.
+    fn apply_env_overrides(&mut self) -> Result<(), DomainError> {
+        if let Some(host) = read_env("EDATIME_HOST")? {
+            let host = host.trim();
             if !host.is_empty() {
-                self.server.host = host;
+                self.server.host = host.to_string();
             }
         }
-        if let Ok(port) = env::var("EDATIME_PORT")
-            && let Ok(port) = port.parse::<u16>()
-        {
-            self.server.port = port;
+        set_from_env(&mut self.server.port, "EDATIME_PORT")?;
+        set_from_env(&mut self.cache.ttl_seconds, "EDATIME_CACHE_TTL_SECONDS")?;
+        set_from_env(&mut self.cache.max_entries, "EDATIME_CACHE_MAX_ENTRIES")?;
+        set_from_env(&mut self.cache.max_bytes, "EDATIME_CACHE_MAX_BYTES")?;
+        set_from_env(
+            &mut self.rate_limit.max_requests,
+            "EDATIME_RATE_LIMIT_MAX_REQUESTS",
+        )?;
+        set_from_env(
+            &mut self.rate_limit.window_seconds,
+            "EDATIME_RATE_LIMIT_WINDOW_SECONDS",
+        )?;
+        set_positive_from_env(
+            &mut self.rate_limit.max_clients,
+            "EDATIME_RATE_LIMIT_MAX_CLIENTS",
+        )?;
+        set_from_env(
+            &mut self.server.allow_insecure_public,
+            "EDATIME_ALLOW_INSECURE_PUBLIC",
+        )?;
+        set_from_env(
+            &mut self.upload.max_upload_bytes,
+            "EDATIME_MAX_UPLOAD_BYTES",
+        )?;
+        set_positive_from_env(
+            &mut self.upload.max_concurrent_uploads,
+            "EDATIME_MAX_CONCURRENT_UPLOADS",
+        )?;
+        set_positive_from_env(
+            &mut self.upload.queue_timeout_ms,
+            "EDATIME_UPLOAD_QUEUE_TIMEOUT_MS",
+        )?;
+        set_some_from_env(
+            &mut self.data.max_artifact_bytes,
+            "EDATIME_MAX_ARTIFACT_BYTES",
+        )?;
+        set_some_positive_from_env(
+            &mut self.data.max_artifact_versions,
+            "EDATIME_MAX_ARTIFACT_VERSIONS",
+        )?;
+        set_from_env(
+            &mut self.data.require_sorted_scan_backed,
+            "EDATIME_REQUIRE_SORTED_SCAN_BACKED",
+        )?;
+        set_positive_from_env(
+            &mut self.query.max_interactive_concurrency,
+            "EDATIME_MAX_INTERACTIVE_QUERIES",
+        )?;
+        set_positive_from_env(
+            &mut self.query.max_background_concurrency,
+            "EDATIME_MAX_BACKGROUND_JOBS",
+        )?;
+        set_positive_from_env(
+            &mut self.query.max_blocking_io_concurrency,
+            "EDATIME_MAX_BLOCKING_IO",
+        )?;
+        set_positive_from_env(
+            &mut self.query.max_queued_per_class,
+            "EDATIME_MAX_QUEUED_WORK",
+        )?;
+        set_positive_from_env(
+            &mut self.query.queue_timeout_ms,
+            "EDATIME_WORK_QUEUE_TIMEOUT_MS",
+        )?;
+        set_positive_from_env(
+            &mut self.retention.max_resident_versions,
+            "EDATIME_MAX_RESIDENT_VERSIONS",
+        )?;
+        set_positive_from_env(
+            &mut self.retention.max_resident_bytes,
+            "EDATIME_MAX_RESIDENT_BYTES",
+        )?;
+        set_positive_from_env(
+            &mut self.retention.max_terminal_jobs,
+            "EDATIME_MAX_TERMINAL_JOBS",
+        )?;
+        set_positive_from_env(
+            &mut self.retention.terminal_job_ttl_seconds,
+            "EDATIME_TERMINAL_JOB_TTL_SECONDS",
+        )?;
+        set_positive_from_env(
+            &mut self.retention.max_profile_entries,
+            "EDATIME_MAX_PROFILE_ENTRIES",
+        )?;
+        set_positive_from_env(
+            &mut self.budgets.max_analytics_points,
+            "EDATIME_MAX_ANALYTICS_POINTS",
+        )?;
+        set_positive_from_env(
+            &mut self.budgets.max_correlation_work_units,
+            "EDATIME_MAX_CORRELATION_WORK_UNITS",
+        )?;
+        set_positive_from_env(
+            &mut self.budgets.max_database_rows,
+            "EDATIME_MAX_DATABASE_ROWS",
+        )?;
+        set_positive_from_env(
+            &mut self.budgets.max_database_bytes,
+            "EDATIME_MAX_DATABASE_BYTES",
+        )?;
+        set_positive_from_env(
+            &mut self.budgets.database_timeout_seconds,
+            "EDATIME_DATABASE_TIMEOUT_SECONDS",
+        )?;
+        set_from_env(
+            &mut self.validation.min_viewport_width,
+            "EDATIME_MIN_VIEWPORT_WIDTH",
+        )?;
+        set_from_env(
+            &mut self.validation.max_viewport_width,
+            "EDATIME_MAX_VIEWPORT_WIDTH",
+        )?;
+        set_from_env(
+            &mut self.validation.default_scatter_limit,
+            "EDATIME_DEFAULT_SCATTER_LIMIT",
+        )?;
+        set_from_env(
+            &mut self.validation.max_scatter_limit,
+            "EDATIME_MAX_SCATTER_LIMIT",
+        )?;
+        set_from_env(
+            &mut self.validation.max_color_cardinality,
+            "EDATIME_MAX_COLOR_CARDINALITY",
+        )?;
+        if let Some(origins) = read_env("EDATIME_CORS_ALLOWED_ORIGINS")? {
+            self.server.cors_allowed_origins = split_csv(&origins);
         }
-        if let Ok(ttl_seconds) = env::var("EDATIME_CACHE_TTL_SECONDS")
-            && let Ok(ttl_seconds) = ttl_seconds.parse::<u64>()
-        {
-            self.cache.ttl_seconds = ttl_seconds;
+        if let Some(proxies) = read_env("EDATIME_TRUSTED_PROXY_IPS")? {
+            self.server.trusted_proxy_ips = split_csv(&proxies);
         }
-        if let Ok(max_entries) = env::var("EDATIME_CACHE_MAX_ENTRIES")
-            && let Ok(max_entries) = max_entries.parse::<usize>()
-        {
-            self.cache.max_entries = max_entries;
+        if let Some(sample_dir) = read_env("EDATIME_SAMPLE_DATA_DIR")? {
+            let sample_dir = sample_dir.trim();
+            if !sample_dir.is_empty() {
+                self.data.sample_dir = PathBuf::from(sample_dir);
+            }
         }
-        if let Ok(max_bytes) = env::var("EDATIME_CACHE_MAX_BYTES")
-            && let Ok(max_bytes) = max_bytes.parse::<usize>()
-        {
-            self.cache.max_bytes = max_bytes;
-        }
-        if let Ok(max_requests) = env::var("EDATIME_RATE_LIMIT_MAX_REQUESTS")
-            && let Ok(max_requests) = max_requests.parse::<usize>()
-        {
-            self.rate_limit.max_requests = max_requests;
-        }
-        if let Ok(window_seconds) = env::var("EDATIME_RATE_LIMIT_WINDOW_SECONDS")
-            && let Ok(window_seconds) = window_seconds.parse::<u64>()
-        {
-            self.rate_limit.window_seconds = window_seconds;
-        }
-        if let Ok(max_clients) = env::var("EDATIME_RATE_LIMIT_MAX_CLIENTS")
-            && let Ok(max_clients) = max_clients.parse::<usize>()
-            && max_clients > 0
-        {
-            self.rate_limit.max_clients = max_clients;
-        }
-        if let Ok(origins) = env::var("EDATIME_CORS_ALLOWED_ORIGINS") {
-            self.server.cors_allowed_origins = origins
-                .split(',')
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .map(str::to_string)
-                .collect();
-        }
-        if let Ok(proxies) = env::var("EDATIME_TRUSTED_PROXY_IPS") {
-            self.server.trusted_proxy_ips = proxies
-                .split(',')
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .map(str::to_string)
-                .collect();
-        }
-        if let Ok(allow_public) = env::var("EDATIME_ALLOW_INSECURE_PUBLIC")
-            && let Ok(allow_public) = allow_public.parse::<bool>()
-        {
-            self.server.allow_insecure_public = allow_public;
-        }
-        if let Ok(max_upload_bytes) = env::var("EDATIME_MAX_UPLOAD_BYTES")
-            && let Ok(max_upload_bytes) = max_upload_bytes.parse::<usize>()
-        {
-            self.upload.max_upload_bytes = max_upload_bytes;
-        }
-        if let Ok(max_concurrent_uploads) = env::var("EDATIME_MAX_CONCURRENT_UPLOADS")
-            && let Ok(max_concurrent_uploads) = max_concurrent_uploads.parse::<usize>()
-            && max_concurrent_uploads > 0
-        {
-            self.upload.max_concurrent_uploads = max_concurrent_uploads;
-        }
-        if let Ok(queue_timeout_ms) = env::var("EDATIME_UPLOAD_QUEUE_TIMEOUT_MS")
-            && let Ok(queue_timeout_ms) = queue_timeout_ms.parse::<u64>()
-            && queue_timeout_ms > 0
-        {
-            self.upload.queue_timeout_ms = queue_timeout_ms;
-        }
-        if let Ok(max_estimated_resident_bytes) =
-            env::var("EDATIME_UPLOAD_MAX_ESTIMATED_RESIDENT_BYTES")
-            && let Ok(max_estimated_resident_bytes) = max_estimated_resident_bytes.parse::<usize>()
-            && max_estimated_resident_bytes > 0
-        {
-            self.upload.max_estimated_resident_bytes = max_estimated_resident_bytes;
-        }
-        if let Ok(resident_memory_multiplier) =
-            env::var("EDATIME_UPLOAD_RESIDENT_MEMORY_MULTIPLIER")
-            && let Ok(resident_memory_multiplier) = resident_memory_multiplier.parse::<usize>()
-            && resident_memory_multiplier > 0
-        {
-            self.upload.resident_memory_multiplier = resident_memory_multiplier;
-        }
-        if let Ok(artifact_dir) = env::var("EDATIME_ARTIFACT_DIR") {
+        if let Some(artifact_dir) = read_env("EDATIME_ARTIFACT_DIR")? {
             let artifact_dir = artifact_dir.trim();
             if !artifact_dir.is_empty() {
                 self.data.artifact_dir = Some(PathBuf::from(artifact_dir));
             }
         }
-        if let Ok(max_artifact_bytes) = env::var("EDATIME_MAX_ARTIFACT_BYTES")
-            && let Ok(max_artifact_bytes) = max_artifact_bytes.parse::<u64>()
-        {
-            self.data.max_artifact_bytes = Some(max_artifact_bytes);
-        }
-        if let Ok(max_artifact_versions) = env::var("EDATIME_MAX_ARTIFACT_VERSIONS")
-            && let Ok(max_artifact_versions) = max_artifact_versions.parse::<usize>()
-            && max_artifact_versions > 0
-        {
-            self.data.max_artifact_versions = Some(max_artifact_versions);
-        }
-        if let Ok(require_sorted) = env::var("EDATIME_REQUIRE_SORTED_SCAN_BACKED")
-            && let Ok(require_sorted) = require_sorted.parse::<bool>()
-        {
-            self.data.require_sorted_scan_backed = require_sorted;
-        }
-        if let Ok(max_interactive) = env::var("EDATIME_MAX_INTERACTIVE_QUERIES")
-            && let Ok(max_interactive) = max_interactive.parse::<usize>()
-            && max_interactive > 0
-        {
-            self.query.max_interactive_concurrency = max_interactive;
-        }
-        if let Ok(max_background) = env::var("EDATIME_MAX_BACKGROUND_JOBS")
-            && let Ok(max_background) = max_background.parse::<usize>()
-            && max_background > 0
-        {
-            self.query.max_background_concurrency = max_background;
-        }
-        if let Ok(max_io) = env::var("EDATIME_MAX_BLOCKING_IO")
-            && let Ok(max_io) = max_io.parse::<usize>()
-            && max_io > 0
-        {
-            self.query.max_blocking_io_concurrency = max_io;
-        }
-        if let Ok(max_queued) = env::var("EDATIME_MAX_QUEUED_WORK")
-            && let Ok(max_queued) = max_queued.parse::<usize>()
-            && max_queued > 0
-        {
-            self.query.max_queued_per_class = max_queued;
-        }
-        if let Ok(timeout_ms) = env::var("EDATIME_WORK_QUEUE_TIMEOUT_MS")
-            && let Ok(timeout_ms) = timeout_ms.parse::<u64>()
-            && timeout_ms > 0
-        {
-            self.query.queue_timeout_ms = timeout_ms;
-        }
-        if let Ok(max_versions) = env::var("EDATIME_MAX_RESIDENT_VERSIONS")
-            && let Ok(max_versions) = max_versions.parse::<usize>()
-            && max_versions > 0
-        {
-            self.retention.max_resident_versions = max_versions;
-        }
-        if let Ok(max_bytes) = env::var("EDATIME_MAX_RESIDENT_BYTES")
-            && let Ok(max_bytes) = max_bytes.parse::<u64>()
-            && max_bytes > 0
-        {
-            self.retention.max_resident_bytes = max_bytes;
-        }
-        if let Ok(max_jobs) = env::var("EDATIME_MAX_TERMINAL_JOBS")
-            && let Ok(max_jobs) = max_jobs.parse::<usize>()
-            && max_jobs > 0
-        {
-            self.retention.max_terminal_jobs = max_jobs;
-        }
-        if let Ok(ttl_seconds) = env::var("EDATIME_TERMINAL_JOB_TTL_SECONDS")
-            && let Ok(ttl_seconds) = ttl_seconds.parse::<u64>()
-            && ttl_seconds > 0
-        {
-            self.retention.terminal_job_ttl_seconds = ttl_seconds;
-        }
-        if let Ok(max_profiles) = env::var("EDATIME_MAX_PROFILE_ENTRIES")
-            && let Ok(max_profiles) = max_profiles.parse::<usize>()
-            && max_profiles > 0
-        {
-            self.retention.max_profile_entries = max_profiles;
-        }
-        if let Ok(max_points) = env::var("EDATIME_MAX_ANALYTICS_POINTS")
-            && let Ok(max_points) = max_points.parse::<usize>()
-            && max_points > 0
-        {
-            self.budgets.max_analytics_points = max_points;
-        }
-        if let Ok(max_work) = env::var("EDATIME_MAX_CORRELATION_WORK_UNITS")
-            && let Ok(max_work) = max_work.parse::<u64>()
-            && max_work > 0
-        {
-            self.budgets.max_correlation_work_units = max_work;
-        }
-        if let Ok(max_rows) = env::var("EDATIME_MAX_DATABASE_ROWS")
-            && let Ok(max_rows) = max_rows.parse::<usize>()
-            && max_rows > 0
-        {
-            self.budgets.max_database_rows = max_rows;
-        }
-        if let Ok(max_bytes) = env::var("EDATIME_MAX_DATABASE_BYTES")
-            && let Ok(max_bytes) = max_bytes.parse::<usize>()
-            && max_bytes > 0
-        {
-            self.budgets.max_database_bytes = max_bytes;
-        }
-        if let Ok(timeout_seconds) = env::var("EDATIME_DATABASE_TIMEOUT_SECONDS")
-            && let Ok(timeout_seconds) = timeout_seconds.parse::<u64>()
-            && timeout_seconds > 0
-        {
-            self.budgets.database_timeout_seconds = timeout_seconds;
-        }
-        if let Ok(min_width) = env::var("EDATIME_MIN_VIEWPORT_WIDTH")
-            && let Ok(min_width) = min_width.parse::<usize>()
-        {
-            self.validation.min_viewport_width = min_width;
-        }
-        if let Ok(max_width) = env::var("EDATIME_MAX_VIEWPORT_WIDTH")
-            && let Ok(max_width) = max_width.parse::<usize>()
-        {
-            self.validation.max_viewport_width = max_width;
-        }
-        if let Ok(default_scatter) = env::var("EDATIME_DEFAULT_SCATTER_LIMIT")
-            && let Ok(default_scatter) = default_scatter.parse::<usize>()
-        {
-            self.validation.default_scatter_limit = default_scatter;
-        }
-        if let Ok(max_scatter) = env::var("EDATIME_MAX_SCATTER_LIMIT")
-            && let Ok(max_scatter) = max_scatter.parse::<usize>()
-        {
-            self.validation.max_scatter_limit = max_scatter;
-        }
-        if let Ok(max_card) = env::var("EDATIME_MAX_COLOR_CARDINALITY")
-            && let Ok(max_card) = max_card.parse::<usize>()
-        {
-            self.validation.max_color_cardinality = max_card;
-        }
-        if let Ok(db_url) = env::var("EDATIME_DATABASE_URL") {
-            let db_url = db_url.trim().to_string();
+        if let Some(db_url) = read_env("EDATIME_DATABASE_URL")? {
+            let db_url = db_url.trim();
             if !db_url.is_empty() {
-                self.database.connection_string = Some(db_url);
+                self.database.connection_string = Some(db_url.to_string());
                 self.database.enabled = true;
             }
         }
-        if let Ok(db_backend) = env::var("EDATIME_DATABASE_BACKEND") {
-            match db_backend.trim().to_lowercase().as_str() {
-                "postgres" => self.database.backend = DatabaseBackend::Postgres,
-                "sqlite" => self.database.backend = DatabaseBackend::Sqlite,
-                _ => {}
-            }
+        if let Some(backend) = read_env("EDATIME_DATABASE_BACKEND")? {
+            self.database.backend = match backend.trim().to_lowercase().as_str() {
+                "postgres" => DatabaseBackend::Postgres,
+                "timescale" => DatabaseBackend::Timescale,
+                other => {
+                    return Err(DomainError::bad_request(format!(
+                        "EDATIME_DATABASE_BACKEND must be 'postgres' or 'timescale', got '{other}'"
+                    )));
+                }
+            };
         }
+        Ok(())
     }
+}
+
+/// Read an environment variable; `None` when unset, an error when not UTF-8.
+fn read_env(name: &str) -> Result<Option<String>, DomainError> {
+    match env::var(name) {
+        Ok(value) => Ok(Some(value)),
+        Err(env::VarError::NotPresent) => Ok(None),
+        Err(env::VarError::NotUnicode(_)) => Err(DomainError::bad_request(format!(
+            "{name} must be valid UTF-8"
+        ))),
+    }
+}
+
+fn parse_env<T: std::str::FromStr>(name: &str) -> Result<Option<T>, DomainError> {
+    read_env(name)?
+        .map(|raw| {
+            raw.trim().parse::<T>().map_err(|_| {
+                DomainError::bad_request(format!("{name} has an invalid value '{}'", raw.trim()))
+            })
+        })
+        .transpose()
+}
+
+fn parse_positive_env<T>(name: &str) -> Result<Option<T>, DomainError>
+where
+    T: std::str::FromStr + Default + PartialOrd,
+{
+    let value = parse_env::<T>(name)?;
+    if value.as_ref().is_some_and(|value| *value <= T::default()) {
+        return Err(DomainError::bad_request(format!(
+            "{name} must be greater than zero"
+        )));
+    }
+    Ok(value)
+}
+
+fn set_from_env<T: std::str::FromStr>(target: &mut T, name: &str) -> Result<(), DomainError> {
+    if let Some(value) = parse_env(name)? {
+        *target = value;
+    }
+    Ok(())
+}
+
+fn set_positive_from_env<T>(target: &mut T, name: &str) -> Result<(), DomainError>
+where
+    T: std::str::FromStr + Default + PartialOrd,
+{
+    if let Some(value) = parse_positive_env(name)? {
+        *target = value;
+    }
+    Ok(())
+}
+
+fn set_some_from_env<T: std::str::FromStr>(
+    target: &mut Option<T>,
+    name: &str,
+) -> Result<(), DomainError> {
+    if let Some(value) = parse_env(name)? {
+        *target = Some(value);
+    }
+    Ok(())
+}
+
+fn set_some_positive_from_env<T>(target: &mut Option<T>, name: &str) -> Result<(), DomainError>
+where
+    T: std::str::FromStr + Default + PartialOrd,
+{
+    if let Some(value) = parse_positive_env(name)? {
+        *target = Some(value);
+    }
+    Ok(())
+}
+
+fn split_csv(raw: &str) -> Vec<String> {
+    raw.split(',')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .collect()
 }
 
 /// Cache configuration for runtime use.
@@ -618,7 +625,6 @@ impl CacheSettings {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
     use std::sync::{Mutex, OnceLock};
@@ -626,6 +632,35 @@ mod tests {
     fn env_lock() -> &'static Mutex<()> {
         static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
         LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    #[test]
+    fn invalid_env_values_are_reported_instead_of_ignored() {
+        let _guard = env_lock().lock().expect("env lock should not be poisoned");
+        unsafe {
+            env::set_var("EDATIME_PORT", "not-a-port");
+        }
+        let mut config = AppConfig::default();
+        let error = config.apply_env_overrides().unwrap_err().to_string();
+        unsafe {
+            env::remove_var("EDATIME_PORT");
+        }
+        assert!(error.contains("EDATIME_PORT"), "{error}");
+        assert_eq!(config.server.port, ServerConfig::default().port);
+    }
+
+    #[test]
+    fn zero_is_rejected_for_positive_only_limits() {
+        let _guard = env_lock().lock().expect("env lock should not be poisoned");
+        unsafe {
+            env::set_var("EDATIME_MAX_INTERACTIVE_QUERIES", "0");
+        }
+        let mut config = AppConfig::default();
+        let error = config.apply_env_overrides().unwrap_err().to_string();
+        unsafe {
+            env::remove_var("EDATIME_MAX_INTERACTIVE_QUERIES");
+        }
+        assert!(error.contains("greater than zero"), "{error}");
     }
 
     #[test]
@@ -638,7 +673,7 @@ mod tests {
         }
 
         let mut config = AppConfig::default();
-        config.apply_env_overrides();
+        config.apply_env_overrides().unwrap();
         assert_eq!(config.validation.default_scatter_limit, 345_678);
 
         match previous {
@@ -661,7 +696,7 @@ mod tests {
         }
 
         let mut config = AppConfig::default();
-        config.apply_env_overrides();
+        config.apply_env_overrides().unwrap();
         assert_eq!(
             config.data.artifact_dir,
             Some(PathBuf::from("/tmp/edatime-artifacts"))
@@ -687,7 +722,7 @@ mod tests {
         }
 
         let mut config = AppConfig::default();
-        config.apply_env_overrides();
+        config.apply_env_overrides().unwrap();
         assert_eq!(config.data.max_artifact_bytes, Some(1_048_576));
 
         match previous {
@@ -710,7 +745,7 @@ mod tests {
         }
 
         let mut config = AppConfig::default();
-        config.apply_env_overrides();
+        config.apply_env_overrides().unwrap();
         assert_eq!(config.data.max_artifact_versions, Some(3));
 
         match previous {
@@ -733,7 +768,7 @@ mod tests {
             env::set_var("EDATIME_REQUIRE_SORTED_SCAN_BACKED", "false");
         }
         let mut config = AppConfig::default();
-        config.apply_env_overrides();
+        config.apply_env_overrides().unwrap();
         assert!(!config.data.require_sorted_scan_backed);
 
         match previous {
@@ -757,7 +792,7 @@ mod tests {
         }
 
         let mut config = AppConfig::default();
-        config.apply_env_overrides();
+        config.apply_env_overrides().unwrap();
         assert_eq!(config.query.max_interactive_concurrency, 7);
         assert_eq!(config.query.max_background_concurrency, 2);
 

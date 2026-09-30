@@ -17,12 +17,12 @@ import {
 } from '../../utils/spectralScaling.js';
 import { createAnalysisPageRuntime } from '../../platform/analysisRuntime.js';
 import { initFftHelp } from './help.js';
-import { buildFftFilterCutoffState, buildFftScaleOptions, validateFftFilterCutoffs } from './fftControls.js';
+import { buildFftFilterCutoffState, buildFftScaleOptions, parseFftDetrend, validateFftFilterCutoffs } from './fftControls.js';
 import { buildFftSpectralInfo } from './fftSpectralInfo.js';
 import { buildFftFilterRequest } from './fftFilterRequest.js';
 import { buildFftTrace, resolveFftViewport } from './fftTraceModel.js';
 import { fetchFftPointBudget } from './fftBudget.js';
-import type { AnalysisSampling } from '../../contracts/api/v1/analytics.js';
+import type { AnalysisSampling, FftDetrend } from '../../contracts/api/v1/analytics.js';
 import type { ExecutionIdentity } from '../../contracts/api/v1/identity.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 import './fft.css';
@@ -205,7 +205,9 @@ function syncFftSamplingBadge(): void {
         return;
     }
     badge.hidden = false;
-    badge.textContent = `${formatAnalysisSamplingContext(sampling)} · ${spectralResolutionText(sampling)} · ${formatAnalysisTimeRange(sampling)}`;
+    badge.textContent = [formatAnalysisSamplingContext(sampling), spectralResolutionText(sampling), formatAnalysisTimeRange(sampling)]
+        .filter(Boolean)
+        .join(' · ');
     badge.title = sampling.method === 'block_mean'
         ? `Anti-aliased block-mean sampling was applied. ${formatAnalysisSamplingContext(sampling)}`
         : `The selected range was analyzed at its source cadence. ${formatAnalysisSamplingContext(sampling)}`;
@@ -386,7 +388,7 @@ async function fetchFftTrace(
     maxPoints: number,
     signal?: AbortSignal,
     viewport = getFftViewport(),
-    detrend = 'constant',
+    detrend: FftDetrend = 'constant',
 ): Promise<{ trace: FftTrace; sampling?: AnalysisSampling; executionIdentity?: ExecutionIdentity; estimator: string; missingCount: number }> {
     if (!viewport) throw new Error('No time range selected');
     const response = await fetchFft(
@@ -423,7 +425,7 @@ async function computeSelectedFft(lifecycleSignal?: AbortSignal): Promise<void> 
     const requestedColumns = [...fftSelectedColumns];
     const requestedViewport = getFftViewport();
     const requestedWorkspace = workspace?.getSnapshot();
-    const requestedDetrend = getDropdownValue('fft-detrend') || 'constant';
+    const requestedDetrend = parseFftDetrend(getDropdownValue('fft-detrend'));
     const requestedBudget = Number((document.getElementById('fft-point-budget') as HTMLInputElement | null)?.value || 65536);
     const requestedDisplay = {
         mode: getDropdownValue('fft-mode-select') || 'magnitude',

@@ -1151,14 +1151,9 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "edatime-core",
- "edatime-query",
  "edatime-service",
- "edatime-store",
  "polars",
- "serde",
  "tokio",
- "toml",
- "tower-http",
  "tracing",
  "tracing-subscriber",
 ]
@@ -1167,9 +1162,6 @@ dependencies = [
 name = "edatime-core"
 version = "0.1.0"
 dependencies = [
- "arrow",
- "bytes",
- "chrono",
  "polars",
  "proptest",
  "rand 0.8.6",
@@ -1184,14 +1176,10 @@ dependencies = [
 name = "edatime-ingest"
 version = "0.1.0"
 dependencies = [
- "arrow",
- "bytes",
  "edatime-core",
  "polars",
  "serde",
  "tempfile",
- "thiserror 1.0.69",
- "tokio",
  "tracing",
 ]
 
@@ -1221,7 +1209,6 @@ dependencies = [
  "arrow",
  "axum",
  "base64",
- "bytes",
  "chrono",
  "criterion",
  "edatime-core",
@@ -1242,7 +1229,6 @@ dependencies = [
  "sha2 0.10.9",
  "statrs",
  "tempfile",
- "thiserror 1.0.69",
  "tokio",
  "tokio-util",
  "tower",
@@ -1255,7 +1241,6 @@ dependencies = [
 name = "edatime-store"
 version = "0.1.0"
 dependencies = [
- "arrow",
  "bytes",
  "chrono",
  "deadpool-postgres",
@@ -1265,7 +1250,6 @@ dependencies = [
  "polars",
  "serde",
  "serde_json",
- "thiserror 1.0.69",
  "tokio",
  "tokio-postgres",
  "tracing",

@@ -4,7 +4,7 @@ use std::sync::atomic::Ordering;
 
 use axum::{
     Json,
-    extract::{Multipart, State},
+    extract::{Multipart, State, multipart::Field},
     http::StatusCode,
     response::IntoResponse,
 };
@@ -285,15 +285,107 @@ fn reserve_upload_memory(
     }
 }
 
+/// Read the next multipart part's name and reject a repeated field.
+fn claim_field_name(
+    field: &Field<'_>,
+    seen_fields: &mut BTreeSet<String>,
+) -> Result<String, AppError> {
+    let field_name = field
+        .name()
+        .map(str::to_owned)
+        .ok_or_else(|| AppError::bad_request("Every multipart part must have a field name"))?;
+    if !seen_fields.insert(field_name.clone()) {
+        return Err(AppError::bad_request(format!(
+            "Multipart field '{field_name}' may appear only once"
+        )));
+    }
+    Ok(field_name)
+}
+
+/// Stream a multipart file part into a temporary file, enforcing the upload
+/// size limit while it arrives. The returned path deletes the file on drop, so
+/// any later validation failure cleans up automatically.
+async fn stage_file_field(
+    state: &AppState,
+    mut field: Field<'_>,
+    prefix: &str,
+) -> Result<TempPath, AppError> {
+    let temp_file = create_temp_upload_file(field.file_name(), prefix)?;
+    let mut writer = tokio::fs::File::from_std(
+        temp_file
+            .reopen()
+            .map_err(|error| AppError::io(error.to_string()))?,
+    );
+    let mut total_bytes = 0usize;
+    while let Some(chunk) = field
+        .chunk()
+        .await
+        .map_err(|error| AppError::bad_request(error.to_string()))?
+    {
+        total_bytes = total_bytes.saturating_add(chunk.len());
+        validate_upload_size_with_limit(total_bytes, state.config.upload.max_upload_bytes)?;
+        writer
+            .write_all(&chunk)
+            .await
+            .map_err(|error| AppError::io(error.to_string()))?;
+    }
+    writer
+        .flush()
+        .await
+        .map_err(|error| AppError::io(error.to_string()))?;
+    Ok(temp_file.into_temp_path())
+}
+
+async fn text_field(field: Field<'_>, name: &str) -> Result<String, AppError> {
+    field
+        .text()
+        .await
+        .map_err(|error| AppError::bad_request(format!("Invalid {name}: {error}")))
+}
+
+fn non_empty_column_name(text: &str) -> Result<String, AppError> {
+    let column = text.trim();
+    if column.is_empty() {
+        return Err(AppError::bad_request(
+            "Invalid time_column: value must not be empty",
+        ));
+    }
+    Ok(column.to_string())
+}
+
+fn parse_selected_columns(text: &str) -> Result<Vec<String>, AppError> {
+    let columns = serde_json::from_str::<Vec<String>>(text)
+        .map_err(|_| AppError::bad_request("Invalid columns: expected a JSON string array"))?;
+    if columns.is_empty() {
+        return Err(AppError::bad_request(
+            "Invalid columns: select at least one column",
+        ));
+    }
+    let mut unique_columns = BTreeSet::new();
+    let mut selected_columns = Vec::with_capacity(columns.len());
+    for column in columns {
+        let column = column.trim();
+        if column.is_empty() {
+            return Err(AppError::bad_request(
+                "Invalid columns: column names must not be empty",
+            ));
+        }
+        if !unique_columns.insert(column.to_string()) {
+            return Err(AppError::bad_request(format!(
+                "Invalid columns: duplicate column '{column}'"
+            )));
+        }
+        selected_columns.push(column.to_string());
+    }
+    Ok(selected_columns)
+}
+
 async fn extract_upload_parts(
     state: &AppState,
     mut multipart: Multipart,
 ) -> Result<(TempPath, IngestParams, String), AppError> {
-    let mut temp_file = None;
-    let mut temp_writer = None;
-    let mut has_file = false;
+    let mut temp_path = None;
     let mut params = IngestParams::default();
-    let mut total_bytes = 0usize;
     let mut file_name = String::new();
     let mut seen_fields = BTreeSet::new();
 
@@ -302,54 +394,14 @@ async fn extract_upload_parts(
         .await
         .map_err(|error| AppError::bad_request(error.to_string()))?
     {
-        let field_name = field
-            .name()
-            .map(str::to_owned)
-            .ok_or_else(|| AppError::bad_request("Every multipart part must have a field name"))?;
-        if !seen_fields.insert(field_name.clone()) {
-            return Err(AppError::bad_request(format!(
-                "Multipart field '{field_name}' may appear only once"
-            )));
-        }
-
+        let field_name = claim_field_name(&field, &mut seen_fields)?;
         match field_name.as_str() {
             "file" => {
-                let name = field.file_name().unwrap_or("").to_string();
-                file_name = name.clone();
-                temp_file = Some(create_temp_upload_file(Some(&name), "edatime-upload-")?);
-                let std_file = temp_file
-                    .as_ref()
-                    .ok_or_else(|| AppError::internal("Upload temp file unexpectedly absent"))?
-                    .reopen()
-                    .map_err(|error| AppError::io(error.to_string()))?;
-                temp_writer = Some(tokio::fs::File::from_std(std_file));
-                let mut field = field;
-                while let Some(chunk) = field
-                    .chunk()
-                    .await
-                    .map_err(|error| AppError::bad_request(error.to_string()))?
-                {
-                    total_bytes = total_bytes.saturating_add(chunk.len());
-                    validate_upload_size_with_limit(
-                        total_bytes,
-                        state.config.upload.max_upload_bytes,
-                    )?;
-                    temp_writer
-                        .as_mut()
-                        .ok_or_else(|| {
-                            AppError::internal("Upload temp writer unexpectedly absent")
-                        })?
-                        .write_all(&chunk)
-                        .await
-                        .map_err(|error| AppError::io(error.to_string()))?;
-                }
-                has_file = true;
+                file_name = field.file_name().unwrap_or("").to_string();
+                temp_path = Some(stage_file_field(state, field, "edatime-upload-").await?);
             }
             "n_rows" => {
-                let text = field
-                    .text()
-                    .await
-                    .map_err(|error| AppError::bad_request(format!("Invalid n_rows: {error}")))?;
+                let text = text_field(field, "n_rows").await?;
                 let count = text.trim().parse::<usize>().map_err(|_| {
                     AppError::bad_request("Invalid n_rows: expected a positive integer")
                 })?;
@@ -361,69 +413,27 @@ async fn extract_upload_parts(
                 params.n_rows = Some(count);
             }
             "skip_rows" => {
-                let text = field.text().await.map_err(|error| {
-                    AppError::bad_request(format!("Invalid skip_rows: {error}"))
-                })?;
+                let text = text_field(field, "skip_rows").await?;
                 params.skip_rows = text
                     .trim()
                     .parse::<usize>()
                     .map_err(|_| AppError::bad_request("Invalid skip_rows: expected an integer"))?;
             }
             "time_start" => {
-                let text = field.text().await.map_err(|error| {
-                    AppError::bad_request(format!("Invalid time_start: {error}"))
-                })?;
+                let text = text_field(field, "time_start").await?;
                 params.time_start_ms = Some(parse_time_ms("time_start", &text)?);
             }
             "time_end" => {
-                let text = field
-                    .text()
-                    .await
-                    .map_err(|error| AppError::bad_request(format!("Invalid time_end: {error}")))?;
+                let text = text_field(field, "time_end").await?;
                 params.time_end_ms = Some(parse_time_ms("time_end", &text)?);
             }
             "columns" => {
-                let text = field
-                    .text()
-                    .await
-                    .map_err(|error| AppError::bad_request(format!("Invalid columns: {error}")))?;
-                let columns = serde_json::from_str::<Vec<String>>(&text).map_err(|_| {
-                    AppError::bad_request("Invalid columns: expected a JSON string array")
-                })?;
-                if columns.is_empty() {
-                    return Err(AppError::bad_request(
-                        "Invalid columns: select at least one column",
-                    ));
-                }
-                let mut unique_columns = BTreeSet::new();
-                let mut selected_columns = Vec::with_capacity(columns.len());
-                for column in columns {
-                    let column = column.trim();
-                    if column.is_empty() {
-                        return Err(AppError::bad_request(
-                            "Invalid columns: column names must not be empty",
-                        ));
-                    }
-                    if !unique_columns.insert(column.to_string()) {
-                        return Err(AppError::bad_request(format!(
-                            "Invalid columns: duplicate column '{column}'"
-                        )));
-                    }
-                    selected_columns.push(column.to_string());
-                }
-                params.selected_columns = Some(selected_columns);
+                let text = text_field(field, "columns").await?;
+                params.selected_columns = Some(parse_selected_columns(&text)?);
             }
             "time_column" => {
-                let text = field.text().await.map_err(|error| {
-                    AppError::bad_request(format!("Invalid time_column: {error}"))
-                })?;
-                let column = text.trim();
-                if column.is_empty() {
-                    return Err(AppError::bad_request(
-                        "Invalid time_column: value must not be empty",
-                    ));
-                }
-                params.time_column = Some(column.to_string());
+                let text = text_field(field, "time_column").await?;
+                params.time_column = Some(non_empty_column_name(&text)?);
             }
             _ => {
                 return Err(AppError::bad_request(format!(
@@ -433,11 +443,9 @@ async fn extract_upload_parts(
         }
     }
 
-    if !has_file {
-        return Err(AppError::bad_request(
-            "No file part found in multipart upload; expected one 'file' field",
-        ));
-    }
+    let temp_path = temp_path.ok_or_else(|| {
+        AppError::bad_request("No file part found in multipart upload; expected one 'file' field")
+    })?;
     if let (Some(start), Some(end)) = (params.time_start_ms, params.time_end_ms)
         && start > end
     {
@@ -445,16 +453,6 @@ async fn extract_upload_parts(
             "Invalid time range: time_start must not be after time_end",
         ));
     }
-
-    if let Some(mut writer) = temp_writer.take() {
-        writer
-            .flush()
-            .await
-            .map_err(|error| AppError::io(error.to_string()))?;
-    }
-    let temp_path = temp_file
-        .ok_or_else(|| AppError::bad_request("No file part found in multipart upload"))?
-        .into_temp_path();
     Ok((temp_path, params, file_name))
 }
 
@@ -462,10 +460,7 @@ async fn extract_preview_file(
     state: &AppState,
     mut multipart: Multipart,
 ) -> Result<(TempPath, Option<String>), AppError> {
-    let mut temp_file = None;
-    let mut temp_writer = None;
-    let mut has_file = false;
-    let mut total_bytes = 0usize;
+    let mut temp_path = None;
     let mut time_column: Option<String> = None;
     let mut seen_fields = BTreeSet::new();
 
@@ -474,61 +469,14 @@ async fn extract_preview_file(
         .await
         .map_err(|error| AppError::bad_request(error.to_string()))?
     {
-        let field_name = field
-            .name()
-            .map(str::to_owned)
-            .ok_or_else(|| AppError::bad_request("Every multipart part must have a field name"))?;
-        if !seen_fields.insert(field_name.clone()) {
-            return Err(AppError::bad_request(format!(
-                "Multipart field '{field_name}' may appear only once"
-            )));
-        }
-
+        let field_name = claim_field_name(&field, &mut seen_fields)?;
         match field_name.as_str() {
             "file" => {
-                temp_file = Some(create_temp_upload_file(
-                    field.file_name(),
-                    "edatime-preview-",
-                )?);
-                let std_file = temp_file
-                    .as_ref()
-                    .ok_or_else(|| AppError::internal("Preview temp file unexpectedly absent"))?
-                    .reopen()
-                    .map_err(|error| AppError::io(error.to_string()))?;
-                temp_writer = Some(tokio::fs::File::from_std(std_file));
-                let mut field = field;
-                while let Some(chunk) = field
-                    .chunk()
-                    .await
-                    .map_err(|error| AppError::bad_request(error.to_string()))?
-                {
-                    total_bytes = total_bytes.saturating_add(chunk.len());
-                    validate_upload_size_with_limit(
-                        total_bytes,
-                        state.config.upload.max_upload_bytes,
-                    )?;
-                    temp_writer
-                        .as_mut()
-                        .ok_or_else(|| {
-                            AppError::internal("Preview temp writer unexpectedly absent")
-                        })?
-                        .write_all(&chunk)
-                        .await
-                        .map_err(|error| AppError::io(error.to_string()))?;
-                }
-                has_file = true;
+                temp_path = Some(stage_file_field(state, field, "edatime-preview-").await?);
             }
             "time_column" => {
-                let text = field.text().await.map_err(|error| {
-                    AppError::bad_request(format!("Invalid time_column: {error}"))
-                })?;
-                let column = text.trim();
-                if column.is_empty() {
-                    return Err(AppError::bad_request(
-                        "Invalid time_column: value must not be empty",
-                    ));
-                }
-                time_column = Some(column.to_string());
+                let text = text_field(field, "time_column").await?;
+                time_column = Some(non_empty_column_name(&text)?);
             }
             _ => {
                 return Err(AppError::bad_request(format!(
@@ -538,25 +486,10 @@ async fn extract_preview_file(
         }
     }
 
-    if !has_file {
-        return Err(AppError::bad_request(
-            "No file selected for preview; expected one 'file' field",
-        ));
-    }
-
-    if let Some(mut writer) = temp_writer.take() {
-        writer
-            .flush()
-            .await
-            .map_err(|error| AppError::io(error.to_string()))?;
-    }
-
-    Ok((
-        temp_file
-            .ok_or_else(|| AppError::bad_request("No file selected for preview"))?
-            .into_temp_path(),
-        time_column,
-    ))
+    let temp_path = temp_path.ok_or_else(|| {
+        AppError::bad_request("No file selected for preview; expected one 'file' field")
+    })?;
+    Ok((temp_path, time_column))
 }
 
 fn parse_time_ms(field_name: &str, text: &str) -> Result<i64, AppError> {
@@ -597,41 +530,37 @@ pub async fn serve_sample_file(
     // Sandbox: only allow known sample dataset names
     let allowed = ["ETTm1.csv", "ETTm2.csv", "ETTm1.parquet", "ETTm2.parquet"];
     if !allowed.contains(&name.as_str()) {
-        return Err(AppError::bad_request("Sample dataset not found"));
+        return Err(sample_not_found());
     }
 
-    let base_dir = std::env::var("EDATIME_SAMPLE_DATA_DIR")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|_| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."));
-
-    let file_path = base_dir.join(&name);
-    if !file_path.exists() {
-        return Err(AppError::bad_request("Sample dataset file not found"));
-    }
-
-    let body = state
-        .query_executor
-        .run_blocking_io(
-            edatime_core::metrics::CpuStage::Materialization,
-            move || std::fs::read(&file_path),
-        )
-        .await
-        .map_err(AppError::from)?;
-
-    match body {
-        Ok(bytes) => {
-            let mime = if name.ends_with(".csv") {
-                "text/csv"
-            } else {
-                "application/octet-stream"
-            };
-            Ok(axum::response::Response::builder()
-                .header(axum::http::header::CONTENT_TYPE, mime)
-                .body(axum::body::Body::from(bytes))
-                .map_err(|e| AppError::internal(e.to_string()))?)
+    let file = match tokio::fs::File::open(state.config.data.sample_dir.join(&name)).await {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Err(sample_not_found());
         }
-        Err(e) => Err(AppError::io(e.to_string())),
-    }
+        Err(error) => return Err(AppError::io(format!("Open sample dataset: {error}"))),
+    };
+    let byte_size = file
+        .metadata()
+        .await
+        .map_err(|error| AppError::io(format!("Read sample dataset size: {error}")))?
+        .len();
+    let mime = if name.ends_with(".csv") {
+        "text/csv"
+    } else {
+        "application/octet-stream"
+    };
+    axum::response::Response::builder()
+        .header(axum::http::header::CONTENT_TYPE, mime)
+        .header(axum::http::header::CONTENT_LENGTH, byte_size)
+        .body(axum::body::Body::from_stream(
+            tokio_util::io::ReaderStream::new(file),
+        ))
+        .map_err(|error| AppError::internal(error.to_string()))
+}
+
+fn sample_not_found() -> AppError {
+    AppError::framework(StatusCode::NOT_FOUND, "Sample dataset not found")
 }
 
 #[cfg(test)]

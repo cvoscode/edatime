@@ -3,8 +3,8 @@
 use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::pin::Pin;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, OnceLock};
 use std::time::Instant;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -245,17 +245,48 @@ pub fn rate_limit_middleware(
     }
 }
 
+/// Route templates (`/api/v1/jobs/{id}`) taken from the embedded API contract,
+/// the source of truth for every public path.
+fn route_templates() -> &'static [Vec<String>] {
+    static TEMPLATES: OnceLock<Vec<Vec<String>>> = OnceLock::new();
+    TEMPLATES.get_or_init(|| {
+        let contract: serde_json::Value =
+            match serde_json::from_str(include_str!("../../../contracts/api-v1.json")) {
+                Ok(contract) => contract,
+                Err(error) => {
+                    tracing::error!("embedded API contract is not valid JSON: {error}");
+                    return Vec::new();
+                }
+            };
+        contract["operations"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|operation| operation["path"].as_str())
+            .map(|path| path.split('/').map(str::to_string).collect())
+            .collect()
+    })
+}
+
+/// Map a request path to a bounded metrics label. Path parameters collapse to
+/// their template, and anything that matches no contract route (scanners, typos)
+/// shares one `unmatched` label so the metrics maps cannot grow with attacker input.
 fn normalized_route(path: &str) -> String {
     if !path.starts_with("/api/v1/") {
         return "/frontend".to_string();
     }
-    let mut parts = path.split('/').collect::<Vec<_>>();
-    if parts.len() >= 5 && parts.get(3) == Some(&"jobs") {
-        parts[4] = "{id}";
-    } else if parts.len() >= 5 && parts.get(3) == Some(&"sample") {
-        parts[4] = "{name}";
-    }
-    parts.join("/")
+    let segments: Vec<&str> = path.split('/').collect();
+    route_templates()
+        .iter()
+        .find(|template| {
+            template.len() == segments.len()
+                && template
+                    .iter()
+                    .zip(&segments)
+                    .all(|(pattern, actual)| pattern.starts_with('{') || pattern == actual)
+        })
+        .map(|template| template.join("/"))
+        .unwrap_or_else(|| "/api/v1/unmatched".to_string())
 }
 
 fn track_response_body(
@@ -385,7 +416,7 @@ pub fn csp_header_value(extra_origins: &[String]) -> HeaderValue {
 
 #[cfg(test)]
 mod tests {
-    use super::extract_client_ip;
+    use super::{extract_client_ip, normalized_route};
     use axum::extract::ConnectInfo;
     use axum::{body::Body, http::Request};
     use std::collections::HashSet;
@@ -413,5 +444,17 @@ mod tests {
         let request = forwarded_request("192.0.2.5:3000");
         let trusted = HashSet::from(["192.0.2.5".to_string()]);
         assert_eq!(extract_client_ip(&request, &trusted), "203.0.113.12");
+    }
+
+    #[test]
+    fn route_labels_collapse_parameters_and_bound_unknown_paths() {
+        assert_eq!(normalized_route("/api/v1/jobs/abc123"), "/api/v1/jobs/{id}");
+        assert_eq!(
+            normalized_route("/api/v1/datasets/versions/v-9/provenance"),
+            "/api/v1/datasets/versions/{id}/provenance"
+        );
+        assert_eq!(normalized_route("/api/v1/health"), "/api/v1/health");
+        assert_eq!(normalized_route("/api/v1/wp-admin/x"), "/api/v1/unmatched");
+        assert_eq!(normalized_route("/assets/app.js"), "/frontend");
     }
 }

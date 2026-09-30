@@ -363,21 +363,6 @@ function escapeHtml(str: string): string {
 
 /* ── CSV export helpers ───────────────────────────────── */
 
-export function exportMatrixCSV(columns: string[], data: (number | null)[][], filename: string): void {
-    if (!columns.length || !data.length) {
-        toast('No data to export.', 'warning');
-        return;
-    }
-    const header = ['', ...columns].join(',');
-    const rows = data.map((row, i) =>
-        [columns[i], ...row.map((v) => v !== null ? v.toFixed(6) : '')].join(','),
-    );
-    const csv = [header, ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    downloadBlob(blob, filename);
-    toast('CSV exported.', 'success');
-}
-
 export function exportTraceCSV(
     traces: { column: string; xs: number[]; ys: number[] }[],
     xLabel: string,

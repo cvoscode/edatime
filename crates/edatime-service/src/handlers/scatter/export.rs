@@ -10,7 +10,7 @@ use crate::handlers::routes::cleaning::compile_request_frame;
 use crate::handlers::routes::shared::{ExecutionIdentity, add_execution_identity_headers};
 use crate::streaming_export::lazy_parquet_response;
 
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(skip(state, params))]
 pub async fn post_scatter_export_parquet(
     State(state): State<AppState>,
     Json(params): Json<ScatterPointsQuery>,
@@ -49,7 +49,6 @@ pub async fn post_scatter_export_parquet(
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use super::post_scatter_export_parquet;
     use crate::handlers::routes::cleaning::PlanRequestEnvelope;

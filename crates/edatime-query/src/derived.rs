@@ -6,11 +6,23 @@
 //! and generated code share one contract instead of treating a browser string
 //! as an opaque backend implementation detail.
 
-use edatime_core::error::AppError;
+use edatime_core::error::DomainError;
 use polars::prelude::{DataType, Expr, Field, Float64Chunked, IntoColumn, Schema, col, lit};
 
 const ALLOWED_FUNCTIONS: &[&str] = &[
-    "abs", "log", "log2", "log10", "sqrt", "exp", "sin", "cos", "tan", "ceil", "floor", "round", "nullifzero",
+    "abs",
+    "log",
+    "log2",
+    "log10",
+    "sqrt",
+    "exp",
+    "sin",
+    "cos",
+    "tan",
+    "ceil",
+    "floor",
+    "round",
+    "nullifzero",
 ];
 
 #[derive(Debug, Clone, PartialEq)]
@@ -28,13 +40,13 @@ pub enum DerivedExpression {
     },
 }
 
-pub fn parse_derived_expression(raw: &str) -> Result<DerivedExpression, AppError> {
+pub fn parse_derived_expression(raw: &str) -> Result<DerivedExpression, DomainError> {
     let expression = raw.trim();
     if expression.is_empty() {
-        return Err(AppError::bad_request("Derived expression is empty"));
+        return Err(DomainError::bad_request("Derived expression is empty"));
     }
     if expression.len() > 500 {
-        return Err(AppError::bad_request(
+        return Err(DomainError::bad_request(
             "Derived expression is too long (max 500 chars)",
         ));
     }
@@ -44,10 +56,10 @@ pub fn parse_derived_expression(raw: &str) -> Result<DerivedExpression, AppError
 pub fn validate_derived_expression_columns(
     expression: &DerivedExpression,
     schema: &Schema,
-) -> Result<(), AppError> {
+) -> Result<(), DomainError> {
     for column in expression.columns() {
         if schema.get(column.as_str()).is_none() {
-            return Err(AppError::bad_request(format!(
+            return Err(DomainError::bad_request(format!(
                 "Derived expression references unknown column '{column}'"
             )));
         }
@@ -101,7 +113,9 @@ impl DerivedExpression {
             Self::Function { name, input } => {
                 let input = input.to_python_polars();
                 match name.as_str() {
-                    "nullifzero" => format!("pl.when(({input}) == 0).then(None).otherwise({input}).cast(pl.Float64)"),
+                    "nullifzero" => format!(
+                        "pl.when(({input}) == 0).then(None).otherwise({input}).cast(pl.Float64)"
+                    ),
                     "log" => format!("({input}).cast(pl.Float64).log(base=math.e)"),
                     "log2" => format!("({input}).cast(pl.Float64).log(base=2)"),
                     "log10" => format!("({input}).cast(pl.Float64).log(base=10)"),
@@ -128,7 +142,9 @@ impl DerivedExpression {
             Self::Function { name, input } => {
                 if name == "nullifzero" {
                     let input = input.to_rust_polars();
-                    return format!("when(({input}).eq(lit(0.0))).then(lit(NULL)).otherwise({input}).cast(DataType::Float64)");
+                    return format!(
+                        "when(({input}).eq(lit(0.0))).then(lit(NULL)).otherwise({input}).cast(DataType::Float64)"
+                    );
                 }
                 let operation = match name.as_str() {
                     "abs" => "value.abs()",
@@ -167,7 +183,8 @@ impl DerivedExpression {
 }
 
 fn quote(value: &str) -> String {
-    serde_json::to_string(value).expect("string serialization cannot fail")
+    // Serializing a `&str` cannot fail; the Debug form is a valid fallback.
+    serde_json::to_string(value).unwrap_or_else(|_| format!("{value:?}"))
 }
 
 fn number(value: f64) -> String {
@@ -178,10 +195,10 @@ fn number(value: f64) -> String {
     }
 }
 
-fn parse_expression(expression: &str) -> Result<DerivedExpression, AppError> {
+fn parse_expression(expression: &str) -> Result<DerivedExpression, DomainError> {
     if expression.starts_with('"') && expression.ends_with('"') {
         let column = serde_json::from_str::<String>(expression)
-            .map_err(|_| AppError::bad_request("Invalid quoted column name"))?;
+            .map_err(|_| DomainError::bad_request("Invalid quoted column name"))?;
         return Ok(DerivedExpression::Column(column));
     }
     if let Some(open) = expression.find('(')
@@ -189,7 +206,7 @@ fn parse_expression(expression: &str) -> Result<DerivedExpression, AppError> {
     {
         let name = expression[..open].trim().to_ascii_lowercase();
         if !ALLOWED_FUNCTIONS.contains(&name.as_str()) {
-            return Err(AppError::bad_request(format!(
+            return Err(DomainError::bad_request(format!(
                 "Unknown derived expression function '{name}'. Allowed: {}",
                 ALLOWED_FUNCTIONS.join(", ")
             )));
@@ -236,12 +253,12 @@ fn parse_expression(expression: &str) -> Result<DerivedExpression, AppError> {
         if number.is_finite() {
             return Ok(DerivedExpression::Literal(number));
         }
-        return Err(AppError::bad_request(
+        return Err(DomainError::bad_request(
             "Derived expression numeric literals must be finite",
         ));
     }
     if expression.chars().any(char::is_whitespace) {
-        return Err(AppError::bad_request(format!(
+        return Err(DomainError::bad_request(format!(
             "Invalid derived expression token '{expression}'"
         )));
     }
@@ -251,7 +268,9 @@ fn parse_expression(expression: &str) -> Result<DerivedExpression, AppError> {
 fn float_function(expression: Expr, name: &str) -> Expr {
     if name == "nullifzero" {
         return polars::prelude::when(expression.clone().eq(lit(0.0)))
-            .then(lit(polars::prelude::NULL)).otherwise(expression).cast(DataType::Float64);
+            .then(lit(polars::prelude::NULL))
+            .otherwise(expression)
+            .cast(DataType::Float64);
     }
     let name = name.to_string();
     expression.cast(DataType::Float64).map(
@@ -293,9 +312,32 @@ mod tests {
     fn zero_mask_preserves_nulls_and_nonzero_values_with_portable_exports() {
         use polars::prelude::*;
         let expression = parse_derived_expression("nullifzero(\"value with spaces\")").unwrap();
-        let df = DataFrame::new(5, vec![Series::new("value with spaces".into(), [Some(0.0), Some(-0.0), Some(-2.0), None, Some(3.0)]).into()]).unwrap();
-        let result = df.lazy().select([expression.to_polars_expr().alias("masked")]).collect().unwrap();
-        assert_eq!(result.column("masked").unwrap().f64().unwrap().into_iter().collect::<Vec<_>>(), vec![None, None, Some(-2.0), None, Some(3.0)]);
+        let df = DataFrame::new(
+            5,
+            vec![
+                Series::new(
+                    "value with spaces".into(),
+                    [Some(0.0), Some(-0.0), Some(-2.0), None, Some(3.0)],
+                )
+                .into(),
+            ],
+        )
+        .unwrap();
+        let result = df
+            .lazy()
+            .select([expression.to_polars_expr().alias("masked")])
+            .collect()
+            .unwrap();
+        assert_eq!(
+            result
+                .column("masked")
+                .unwrap()
+                .f64()
+                .unwrap()
+                .into_iter()
+                .collect::<Vec<_>>(),
+            vec![None, None, Some(-2.0), None, Some(3.0)]
+        );
         assert!(expression.to_python_polars().contains(".then(None)"));
         assert!(expression.to_rust_polars().contains(".then(lit(NULL))"));
     }

@@ -402,7 +402,7 @@ async function onMatrixCellClick(x: string, y: string): Promise<void> {
     if (matrixLoading) matrixLoading.hidden = false;
     try {
         await selectScatterPair(x, y);
-    } catch (error: any) {
+    } catch (error) {
         handleErr(error);
     } finally {
         if (matrixLoading) matrixLoading.hidden = true;
@@ -540,7 +540,7 @@ export async function initScatterPage(
         });
         await refreshActiveScatterView();
         scatterState.pageInitialized = true;
-    } catch (err: any) {
+    } catch (err) {
         handleErr(err);
     }
     return disposeScatterPage;

@@ -240,8 +240,8 @@
 }
 
 .drift-column-card__level.drift-yellow {
-  background: color-mix(in srgb, var(--yellow) 18%, transparent);
-  color: var(--yellow);
+  background: color-mix(in srgb, var(--amber) 18%, transparent);
+  color: var(--amber);
 }
 
 .drift-column-card__level.drift-green {
@@ -303,7 +303,7 @@
   padding: 14px;
   border: 1px solid var(--amber);
   border-left-width: 3px;
-  border-radius: var(--radius-md, 8px);
+  border-radius: var(--radius-md);
   background: var(--shell-hover);
   color: var(--text);
 }
@@ -1233,7 +1233,7 @@
 }
 
 .causal-compare-panel .causal-compare-clear-btn {
-  color: var(--danger, #f44);
+  color: var(--red);
 }
 
 .causal-saved-runs-list {

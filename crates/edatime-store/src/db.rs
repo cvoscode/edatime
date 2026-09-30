@@ -17,7 +17,7 @@ use std::time::Duration;
 use tokio::time::timeout;
 use tokio_postgres::{NoTls, Row};
 
-use edatime_core::error::AppError;
+use edatime_core::error::DomainError;
 
 // ── Public types ───────────────────────────────
 
@@ -59,14 +59,14 @@ pub struct ColumnInfo {
 /// Build a connection pool and verify the credentials by running a trivial
 /// query.  Returns an error if the credentials are wrong or the host is
 /// unreachable.
-pub async fn connect(connection_string: &str) -> Result<DbPool, AppError> {
+pub async fn connect(connection_string: &str) -> Result<DbPool, DomainError> {
     connect_with_timeout(connection_string, Duration::from_secs(30)).await
 }
 
 pub async fn connect_with_timeout(
     connection_string: &str,
     timeout_duration: Duration,
-) -> Result<DbPool, AppError> {
+) -> Result<DbPool, DomainError> {
     let mut cfg = PgConfig::new();
     // Parse a plain postgres:// URI into the deadpool config.
     cfg.url = Some(connection_string.to_string());
@@ -76,18 +76,20 @@ pub async fn connect_with_timeout(
 
     let pool = cfg
         .create_pool(Some(deadpool_postgres::Runtime::Tokio1), NoTls)
-        .map_err(|e| AppError::database_configuration(format!("Failed to create DB pool: {e}")))?;
+        .map_err(|e| {
+            DomainError::database_configuration(format!("Failed to create DB pool: {e}"))
+        })?;
 
     // Smoke-test the connection.
     let client = timeout(timeout_duration, pool.get())
         .await
-        .map_err(|_| AppError::database_timeout("Database connection timed out"))?
-        .map_err(|e| AppError::database_unavailable(format!("DB connection failed: {e}")))?;
+        .map_err(|_| DomainError::database_timeout("Database connection timed out"))?
+        .map_err(|e| DomainError::database_unavailable(format!("DB connection failed: {e}")))?;
 
     timeout(timeout_duration, client.execute("SELECT 1", &[]))
         .await
-        .map_err(|_| AppError::database_timeout("Database ping timed out"))?
-        .map_err(|e| AppError::database_unavailable(format!("DB ping failed: {e}")))?;
+        .map_err(|_| DomainError::database_timeout("Database ping timed out"))?
+        .map_err(|e| DomainError::database_unavailable(format!("DB ping failed: {e}")))?;
 
     tracing::info!("TimescaleDB/Postgres connection pool ready");
     Ok(DbPool(pool))
@@ -96,12 +98,12 @@ pub async fn connect_with_timeout(
 // ── Discovery queries ──────────────────────────
 
 /// List user tables and hypertables visible to the connected role.
-pub async fn list_tables(pool: &DbPool) -> Result<Vec<TableInfo>, AppError> {
+pub async fn list_tables(pool: &DbPool) -> Result<Vec<TableInfo>, DomainError> {
     let client = pool
         .pool()
         .get()
         .await
-        .map_err(|e| AppError::database_unavailable(format!("DB pool unavailable: {e}")))?;
+        .map_err(|e| DomainError::database_unavailable(format!("DB pool unavailable: {e}")))?;
 
     // Check if TimescaleDB extension is present.
     let has_timescale: bool = client
@@ -163,7 +165,7 @@ pub async fn list_tables(pool: &DbPool) -> Result<Vec<TableInfo>, AppError> {
             &[],
         )
         .await
-        .map_err(|e| AppError::database_query(format!("Table list query failed: {e}")))?;
+        .map_err(|e| DomainError::database_query(format!("Table list query failed: {e}")))?;
 
     let existing: std::collections::HashSet<String> = tables
         .iter()
@@ -191,12 +193,12 @@ pub async fn list_columns(
     pool: &DbPool,
     schema: &str,
     table: &str,
-) -> Result<Vec<ColumnInfo>, AppError> {
+) -> Result<Vec<ColumnInfo>, DomainError> {
     let client = pool
         .pool()
         .get()
         .await
-        .map_err(|e| AppError::database_unavailable(format!("DB pool unavailable: {e}")))?;
+        .map_err(|e| DomainError::database_unavailable(format!("DB pool unavailable: {e}")))?;
 
     let rows = client
         .query(
@@ -208,7 +210,7 @@ pub async fn list_columns(
             &[&schema, &table],
         )
         .await
-        .map_err(|e| AppError::database_query(format!("Column list query failed: {e}")))?;
+        .map_err(|e| DomainError::database_query(format!("Column list query failed: {e}")))?;
 
     Ok(rows
         .into_iter()
@@ -273,20 +275,20 @@ pub async fn ingest_table(
     table: &str,
     time_col: Option<&str>,
     opts: &IngestOptions,
-) -> Result<DataFrame, AppError> {
+) -> Result<DataFrame, DomainError> {
     let timeout_duration =
         Duration::from_millis(opts.statement_timeout_ms.unwrap_or(30_000).max(1));
     let client = timeout(timeout_duration, pool.pool().get())
         .await
-        .map_err(|_| AppError::database_timeout("Database pool acquisition timed out"))?
-        .map_err(|e| AppError::database_unavailable(format!("DB pool error: {e}")))?;
+        .map_err(|_| DomainError::database_timeout("Database pool acquisition timed out"))?
+        .map_err(|e| DomainError::database_unavailable(format!("DB pool error: {e}")))?;
     client
         .batch_execute(&format!(
             "SET statement_timeout = {}",
             timeout_duration.as_millis().min(u128::from(u32::MAX))
         ))
         .await
-        .map_err(|e| AppError::database_query(format!("Set statement timeout failed: {e}")))?;
+        .map_err(|e| DomainError::database_query(format!("Set statement timeout failed: {e}")))?;
 
     // Validate and sanitise identifiers upfront (no borrows held).
     // Identifiers are double-quoted per SQL standard — this is the only safe
@@ -311,7 +313,7 @@ pub async fn ingest_table(
     };
 
     if sel_cols.is_empty() {
-        return Err(AppError::bad_request("No valid columns selected"));
+        return Err(DomainError::bad_request("No valid columns selected"));
     }
 
     // Auto-detect time column if not specified.
@@ -376,7 +378,7 @@ pub async fn ingest_table(
             std::iter::empty::<&(dyn tokio_postgres::types::ToSql + Sync)>(),
         )
         .await
-        .map_err(|e| AppError::database_query(format!("TimescaleDB query failed: {e}")))?;
+        .map_err(|e| DomainError::database_query(format!("TimescaleDB query failed: {e}")))?;
     pin_mut!(rows);
     let mut accumulators = sel_cols
         .iter()
@@ -385,13 +387,13 @@ pub async fn ingest_table(
     let mut estimated_bytes = 0usize;
     while let Some(row) = rows.next().await {
         let row = row.map_err(|error| {
-            AppError::database_query(format!("TimescaleDB row stream failed: {error}"))
+            DomainError::database_query(format!("TimescaleDB row stream failed: {error}"))
         })?;
         for (index, accumulator) in accumulators.iter_mut().enumerate() {
             estimated_bytes = estimated_bytes.saturating_add(accumulator.push(&row, index));
         }
         if opts.max_bytes.is_some_and(|limit| estimated_bytes > limit) {
-            return Err(AppError::Validation(format!(
+            return Err(DomainError::Validation(format!(
                 "database snapshot byte budget exceeded: estimated={estimated_bytes}, limit={}",
                 opts.max_bytes.unwrap_or_default()
             )));
@@ -402,14 +404,14 @@ pub async fn ingest_table(
 
 // ── Internal helpers ───────────────────────────
 
-fn sanitise_ident(name: &str) -> Result<String, AppError> {
+fn sanitise_ident(name: &str) -> Result<String, DomainError> {
     if name
         .chars()
         .all(|c| c.is_alphanumeric() || c == '_' || c == '.')
     {
         Ok(name.to_string())
     } else {
-        Err(AppError::bad_request(format!(
+        Err(DomainError::bad_request(format!(
             "Invalid identifier: {name:?}"
         )))
     }
@@ -430,7 +432,7 @@ async fn list_columns_raw(
     client: &tokio_postgres::Client,
     schema: &str,
     table: &str,
-) -> Result<Vec<(String, String)>, AppError> {
+) -> Result<Vec<(String, String)>, DomainError> {
     let rows = client
         .query(
             "SELECT column_name, data_type
@@ -440,7 +442,7 @@ async fn list_columns_raw(
             &[&schema, &table],
         )
         .await
-        .map_err(|e| AppError::database_query(format!("Column list query failed: {e}")))?;
+        .map_err(|e| DomainError::database_query(format!("Column list query failed: {e}")))?;
 
     Ok(rows
         .into_iter()
@@ -552,7 +554,7 @@ impl ColumnAccumulator {
         }
     }
 
-    fn into_series(self, name: &str) -> Result<Series, AppError> {
+    fn into_series(self, name: &str) -> Result<Series, DomainError> {
         let series = match self {
             Self::I16(values) => Series::new(name.into(), values),
             Self::I32(values) => Series::new(name.into(), values),
@@ -562,10 +564,10 @@ impl ColumnAccumulator {
             Self::Bool(values) => Series::new(name.into(), values),
             Self::Datetime(values) => Series::new(name.into(), values)
                 .cast(&DataType::Datetime(TimeUnit::Microseconds, None))
-                .map_err(|error| AppError::internal(format!("Datetime cast failed: {error}")))?,
+                .map_err(|error| DomainError::internal(format!("Datetime cast failed: {error}")))?,
             Self::Date(values) => Series::new(name.into(), values)
                 .cast(&DataType::Date)
-                .map_err(|error| AppError::internal(format!("Date cast failed: {error}")))?,
+                .map_err(|error| DomainError::internal(format!("Date cast failed: {error}")))?,
             Self::String(values) => Series::new(name.into(), values),
         };
         Ok(series)
@@ -575,7 +577,7 @@ impl ColumnAccumulator {
 fn accumulators_to_dataframe(
     accumulators: Vec<ColumnAccumulator>,
     cols: &[(String, String)],
-) -> Result<DataFrame, AppError> {
+) -> Result<DataFrame, DomainError> {
     use polars::prelude::Column;
     let height = accumulators
         .first()
@@ -588,7 +590,7 @@ fn accumulators_to_dataframe(
         .collect::<Result<_, _>>()?;
 
     DataFrame::new(height, columns)
-        .map_err(|e| AppError::internal(format!("DataFrame build failed: {e}")))
+        .map_err(|e| DomainError::internal(format!("DataFrame build failed: {e}")))
 }
 
 #[cfg(test)]

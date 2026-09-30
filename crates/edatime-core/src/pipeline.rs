@@ -6,7 +6,7 @@
 //! down to the scan level.
 
 use crate::{
-    error::AppError,
+    error::DomainError,
     types::{DataType, LazyFrame},
 };
 use polars::prelude::*;
@@ -22,42 +22,29 @@ pub struct TimeFilterStage {
     pub start_ts: i64,
     pub end_ts: i64,
     pub ts_col: String,
+    pub ts_dtype: DataType,
 }
 
 impl TimeFilterStage {
     /// Construct from explicit bounds.
-    pub fn new(ts_col: String, start_ts: i64, end_ts: i64) -> Self {
+    pub fn new(ts_col: String, ts_dtype: DataType, start_ts: i64, end_ts: i64) -> Self {
         Self {
             ts_col,
+            ts_dtype,
             start_ts,
             end_ts,
-        }
-    }
-    /// Construct from optional bounds — returns None when both are None.
-    pub fn optional(ts_col: String, start: Option<i64>, end: Option<i64>) -> Option<Self> {
-        match (start, end) {
-            (None, None) => None,
-            (s, e) => Some(Self {
-                ts_col,
-                start_ts: s.unwrap_or(i64::MIN),
-                end_ts: e.unwrap_or(i64::MAX),
-            }),
         }
     }
 }
 
 impl PipelineStage for TimeFilterStage {
     fn apply(&self, lf: LazyFrame) -> LazyFrame {
-        lf.filter(
-            col(&self.ts_col)
-                .cast(DataType::Int64)
-                .gt_eq(lit(self.start_ts))
-                .and(
-                    col(&self.ts_col)
-                        .cast(DataType::Int64)
-                        .lt_eq(lit(self.end_ts)),
-                ),
-        )
+        lf.filter(crate::temporal::native_time_range(
+            &self.ts_col,
+            &self.ts_dtype,
+            self.start_ts,
+            self.end_ts,
+        ))
     }
 
     fn name(&self) -> &'static str {
@@ -140,17 +127,16 @@ impl Pipeline {
     }
 
     /// Explain the pipeline as a query plan string (for debugging).
-    #[allow(dead_code)]
-    pub fn explain(&self, lf: LazyFrame) -> Result<String, AppError> {
+    pub fn explain(&self, lf: LazyFrame) -> Result<String, DomainError> {
         self.apply(lf)
             .explain(false)
-            .map_err(|e| AppError::Query(e.to_string()))
+            .map_err(|e| DomainError::Query(e.to_string()))
     }
 
     /// Execute the pipeline.
-    pub fn execute(self, lf: LazyFrame) -> Result<DataFrame, AppError> {
+    pub fn execute(self, lf: LazyFrame) -> Result<DataFrame, DomainError> {
         self.apply(lf)
             .collect()
-            .map_err(|e| AppError::Query(e.to_string()))
+            .map_err(|e| DomainError::Query(e.to_string()))
     }
 }

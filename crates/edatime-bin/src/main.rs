@@ -20,8 +20,10 @@ async fn main() {
     let config = match AppConfig::load() {
         Ok(c) => c,
         Err(error) => {
-            tracing::warn!("Could not load config: {error}. Using defaults.");
-            AppConfig::default()
+            // Falling back to defaults would silently drop the operator's
+            // security settings (bind address, CORS, limits).
+            tracing::error!("Invalid configuration: {error}");
+            std::process::exit(2);
         }
     };
 

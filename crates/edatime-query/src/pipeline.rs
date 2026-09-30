@@ -7,7 +7,7 @@ use polars::prelude::*;
 
 use crate::arrow_export::dataframe_to_arrow_ipc;
 use crate::query::AggFn;
-use edatime_core::error::AppError;
+use edatime_core::error::DomainError;
 
 /// Window aggregation materializes one output row per step. Keep that result
 /// bounded so a millisecond step across a multi-year sparse series cannot
@@ -24,7 +24,8 @@ pub fn filter_time_range(
     end_ts: i64,
     select_cols: &[String],
     ts_col: &str,
-) -> Result<LazyFrame, AppError> {
+    ts_dtype: &DataType,
+) -> Result<LazyFrame, DomainError> {
     let mut exprs = vec![col(ts_col)];
     for c in select_cols {
         if c != ts_col {
@@ -33,8 +34,9 @@ pub fn filter_time_range(
     }
 
     Ok(lf
-        .filter(col(ts_col).cast(DataType::Int64).gt_eq(lit(start_ts)))
-        .filter(col(ts_col).cast(DataType::Int64).lt_eq(lit(end_ts)))
+        .filter(edatime_core::temporal::native_time_range(
+            ts_col, ts_dtype, start_ts, end_ts,
+        ))
         .select(exprs))
 }
 
@@ -57,6 +59,15 @@ pub enum Reduction {
     None,
 }
 
+/// A zero-length window offset for `group_by_dynamic`.
+///
+/// This must be a time duration parsed from text: `Duration::new(0)` builds an
+/// integer-index duration, which changes how dynamic windows are computed.
+pub(crate) fn zero_offset() -> Result<Duration, DomainError> {
+    Duration::try_parse("0ns")
+        .map_err(|error| DomainError::Internal(format!("Zero window offset: {error}")))
+}
+
 /// Build a bounded, lazy time-series envelope. Each dynamic time bucket emits
 /// the first, finite minimum, finite maximum, and last value for one numeric
 /// series. Callers expand this small result back into ordinary time/value rows
@@ -66,9 +77,10 @@ pub fn lazy_time_envelope(
     ts_col: &str,
     value_col: &str,
     bucket_width_ms: i64,
-) -> Result<LazyFrame, AppError> {
-    let every = Duration::try_parse(&format!("{}ms", bucket_width_ms.max(1)))
-        .map_err(|error| AppError::BadRequest(format!("Invalid overview bucket width: {error}")))?;
+) -> Result<LazyFrame, DomainError> {
+    let every = Duration::try_parse(&format!("{}ms", bucket_width_ms.max(1))).map_err(|error| {
+        DomainError::BadRequest(format!("Invalid overview bucket width: {error}"))
+    })?;
     Ok(lf
         .group_by_dynamic(
             col(ts_col),
@@ -76,7 +88,7 @@ pub fn lazy_time_envelope(
             DynamicGroupOptions {
                 every,
                 period: every,
-                offset: Duration::try_parse("0ns").expect("zero duration is valid"),
+                offset: zero_offset()?,
                 label: Label::Left,
                 include_boundaries: false,
                 closed_window: ClosedWindow::Left,
@@ -107,9 +119,10 @@ pub fn lazy_multi_time_envelope(
     value_cols: &[String],
     extra_cols: &[String],
     bucket_width_ms: i64,
-) -> Result<LazyFrame, AppError> {
-    let every = Duration::try_parse(&format!("{}ms", bucket_width_ms.max(1)))
-        .map_err(|error| AppError::BadRequest(format!("Invalid overview bucket width: {error}")))?;
+) -> Result<LazyFrame, DomainError> {
+    let every = Duration::try_parse(&format!("{}ms", bucket_width_ms.max(1))).map_err(|error| {
+        DomainError::BadRequest(format!("Invalid overview bucket width: {error}"))
+    })?;
     let mut aggregates = Vec::with_capacity(value_cols.len() * 4 + extra_cols.len() * 2 + 1);
     for (index, name) in value_cols.iter().enumerate() {
         aggregates.extend([
@@ -139,7 +152,7 @@ pub fn lazy_multi_time_envelope(
             DynamicGroupOptions {
                 every,
                 period: every,
-                offset: Duration::try_parse("0ns").expect("zero duration is valid"),
+                offset: zero_offset()?,
                 label: Label::Left,
                 include_boundaries: false,
                 closed_window: ClosedWindow::Left,
@@ -155,12 +168,12 @@ pub fn expand_multi_time_envelope(
     ts_col: &str,
     value_cols: &[String],
     extra_cols: &[String],
-) -> Result<(DataFrame, usize), AppError> {
+) -> Result<(DataFrame, usize), DomainError> {
     let filtered_rows = envelope
         .column("__rows")
-        .map_err(|error| AppError::BadRequest(format!("Envelope count missing: {error}")))?
+        .map_err(|error| DomainError::BadRequest(format!("Envelope count missing: {error}")))?
         .u64()
-        .map_err(|error| AppError::Io(format!("Envelope count read: {error}")))?
+        .map_err(|error| DomainError::Io(format!("Envelope count read: {error}")))?
         .into_iter()
         .flatten()
         .fold(0_u64, u64::saturating_add) as usize;
@@ -171,13 +184,17 @@ pub fn expand_multi_time_envelope(
         columns.push(
             envelope
                 .column(ts_col)
-                .map_err(|error| AppError::BadRequest(format!("Envelope time missing: {error}")))?
+                .map_err(|error| {
+                    DomainError::BadRequest(format!("Envelope time missing: {error}"))
+                })?
                 .clone(),
         );
         for (index, name) in value_cols.iter().enumerate() {
             let mut column = envelope
                 .column(&format!("__value_{index}_{stat}"))
-                .map_err(|error| AppError::BadRequest(format!("Envelope value missing: {error}")))?
+                .map_err(|error| {
+                    DomainError::BadRequest(format!("Envelope value missing: {error}"))
+                })?
                 .clone();
             column.rename(name.into());
             columns.push(column);
@@ -186,17 +203,19 @@ pub fn expand_multi_time_envelope(
         for (index, name) in extra_cols.iter().enumerate() {
             let mut column = envelope
                 .column(&format!("__extra_{index}_{extra_stat}"))
-                .map_err(|error| AppError::BadRequest(format!("Envelope extra missing: {error}")))?
+                .map_err(|error| {
+                    DomainError::BadRequest(format!("Envelope extra missing: {error}"))
+                })?
                 .clone();
             column.rename(name.into());
             columns.push(column);
         }
         let frame = DataFrame::new(envelope.height(), columns)
-            .map_err(|error| AppError::Io(format!("Build multi-series envelope: {error}")))?;
+            .map_err(|error| DomainError::Io(format!("Build multi-series envelope: {error}")))?;
         if let Some(output) = expanded.as_mut() {
-            output
-                .vstack_mut(&frame)
-                .map_err(|error| AppError::Io(format!("Stack multi-series envelope: {error}")))?;
+            output.vstack_mut(&frame).map_err(|error| {
+                DomainError::Io(format!("Stack multi-series envelope: {error}"))
+            })?;
         } else {
             expanded = Some(frame);
         }
@@ -207,7 +226,7 @@ pub fn expand_multi_time_envelope(
             [ts_col],
             SortMultipleOptions::default().with_maintain_order(true),
         )
-        .map_err(|error| AppError::Io(format!("Sort multi-series envelope: {error}")))?;
+        .map_err(|error| DomainError::Io(format!("Sort multi-series envelope: {error}")))?;
     Ok((output, filtered_rows))
 }
 
@@ -218,13 +237,13 @@ pub fn expand_time_envelope(
     envelope: &DataFrame,
     ts_col: &str,
     value_col: &str,
-) -> Result<DataFrame, AppError> {
+) -> Result<DataFrame, DomainError> {
     let ts = envelope
         .column(ts_col)
-        .map_err(|error| AppError::BadRequest(format!("Envelope timestamp missing: {error}")))?
+        .map_err(|error| DomainError::BadRequest(format!("Envelope timestamp missing: {error}")))?
         .as_materialized_series()
         .cast(&DataType::Int64)
-        .map_err(|error| AppError::Io(format!("Envelope timestamp cast: {error}")))?;
+        .map_err(|error| DomainError::Io(format!("Envelope timestamp cast: {error}")))?;
     let values = [
         "__edatime_first",
         "__edatime_min",
@@ -235,21 +254,21 @@ pub fn expand_time_envelope(
     .map(|name| {
         envelope
             .column(name)
-            .map_err(|error| AppError::BadRequest(format!("Envelope value missing: {error}")))?
+            .map_err(|error| DomainError::BadRequest(format!("Envelope value missing: {error}")))?
             .as_materialized_series()
             .cast(&DataType::Float64)
-            .map_err(|error| AppError::Io(format!("Envelope value cast: {error}")))
+            .map_err(|error| DomainError::Io(format!("Envelope value cast: {error}")))
     })
     .collect::<Result<Vec<_>, _>>()?;
     let ts_values = ts
         .i64()
-        .map_err(|error| AppError::Io(format!("Envelope timestamp read: {error}")))?;
+        .map_err(|error| DomainError::Io(format!("Envelope timestamp read: {error}")))?;
     let value_columns = values
         .iter()
         .map(|series| {
             series
                 .f64()
-                .map_err(|error| AppError::Io(format!("Envelope value read: {error}")))
+                .map_err(|error| DomainError::Io(format!("Envelope value read: {error}")))
         })
         .collect::<Result<Vec<_>, _>>()?;
     let mut out_ts = Vec::with_capacity(envelope.height() * 4);
@@ -270,10 +289,10 @@ pub fn expand_time_envelope(
         .cast(
             envelope
                 .column(ts_col)
-                .map_err(|error| AppError::BadRequest(error.to_string()))?
+                .map_err(|error| DomainError::BadRequest(error.to_string()))?
                 .dtype(),
         )
-        .map_err(|error| AppError::Io(format!("Restore envelope timestamp dtype: {error}")))?;
+        .map_err(|error| DomainError::Io(format!("Restore envelope timestamp dtype: {error}")))?;
     DataFrame::new(
         output_len,
         vec![
@@ -281,7 +300,7 @@ pub fn expand_time_envelope(
             Series::new(value_col.into(), out_values).into(),
         ],
     )
-    .map_err(|error| AppError::Io(format!("Build envelope frame: {error}")))
+    .map_err(|error| DomainError::Io(format!("Build envelope frame: {error}")))
 }
 
 /// Apply the chosen reduction strategy. Returns `(reduced_df, was_reduced)`.
@@ -291,7 +310,7 @@ pub fn apply_reduction(
     extra_cols: &[String],
     strategy: &Reduction,
     ts_col: &str,
-) -> Result<(DataFrame, bool), AppError> {
+) -> Result<(DataFrame, bool), DomainError> {
     match strategy {
         Reduction::None => {
             let mut select_cols: Vec<&str> = vec![ts_col];
@@ -307,7 +326,7 @@ pub fn apply_reduction(
             }
             let out = df
                 .select(select_cols)
-                .map_err(|e| AppError::Io(format!("select error: {}", e)))?;
+                .map_err(|e| DomainError::Io(format!("select error: {}", e)))?;
             Ok((out, false))
         }
 
@@ -319,7 +338,7 @@ pub fn apply_reduction(
                 select_cols.extend_from_slice(extra_cols);
                 let out = df
                     .select(select_cols)
-                    .map_err(|e| AppError::Io(format!("select error: {}", e)))?;
+                    .map_err(|e| DomainError::Io(format!("select error: {}", e)))?;
                 return Ok((out, false));
             }
             let col_refs: Vec<&str> = value_cols.iter().map(|s| s.as_str()).collect();
@@ -331,7 +350,7 @@ pub fn apply_reduction(
                 &extra_refs,
                 target,
             )
-            .map_err(|e| AppError::Io(format!("Downsample error: {}", e)))?;
+            .map_err(|e| DomainError::Io(format!("Downsample error: {}", e)))?;
             Ok((out, true))
         }
 
@@ -374,12 +393,12 @@ fn window_aggregate(
     step_size_native: i64,
     agg_fn: AggFn,
     ts_col: &str,
-) -> Result<(DataFrame, bool), AppError> {
+) -> Result<(DataFrame, bool), DomainError> {
     if df.height() == 0 {
         return Ok((DataFrame::default(), true));
     }
     if window_size_native <= 0 || step_size_native <= 0 {
-        return Err(AppError::BadRequest(
+        return Err(DomainError::BadRequest(
             "Window and step sizes must be positive".to_string(),
         ));
     }
@@ -387,12 +406,12 @@ fn window_aggregate(
     let ts_i64 = df
         .column(ts_col)
         .map(|c| c.as_materialized_series())
-        .map_err(|e| AppError::BadRequest(format!("Missing ts column '{}': {}", ts_col, e)))?
+        .map_err(|e| DomainError::BadRequest(format!("Missing ts column '{}': {}", ts_col, e)))?
         .cast(&DataType::Int64)
-        .map_err(|e| AppError::Io(format!("ts cast: {}", e)))?;
+        .map_err(|e| DomainError::Io(format!("ts cast: {}", e)))?;
     let ts_values = ts_i64
         .i64()
-        .map_err(|e| AppError::Io(format!("ts i64: {}", e)))?;
+        .map_err(|e| DomainError::Io(format!("ts i64: {}", e)))?;
 
     // Keep timestamp positions alongside their original DataFrame rows.
     // Value vectors below deliberately preserve null/NaN slots, so using a
@@ -416,7 +435,7 @@ fn window_aggregate(
     let step_size = step_size_native as u64;
     let window_count = (ts_max.saturating_sub(ts_min) as u64 / step_size).saturating_add(1);
     if window_count > MAX_WINDOW_AGGREGATE_WINDOWS {
-        return Err(AppError::BadRequest(format!(
+        return Err(DomainError::BadRequest(format!(
             "Window aggregation would produce {window_count} windows; reduce the time range or increase the step"
         )));
     }
@@ -426,12 +445,12 @@ fn window_aggregate(
         let series = df
             .column(col_name)
             .map(|c| c.as_materialized_series())
-            .map_err(|e| AppError::BadRequest(format!("Missing '{}': {}", col_name, e)))?;
+            .map_err(|e| DomainError::BadRequest(format!("Missing '{}': {}", col_name, e)))?;
         let values = series
             .cast(&DataType::Float64)
-            .map_err(|e| AppError::Io(format!("Cast '{}': {}", col_name, e)))?
+            .map_err(|e| DomainError::Io(format!("Cast '{}': {}", col_name, e)))?
             .f64()
-            .map_err(|e| AppError::Io(format!("Read '{}': {}", col_name, e)))?
+            .map_err(|e| DomainError::Io(format!("Read '{}': {}", col_name, e)))?
             .into_iter()
             .map(|value| value.filter(|value| value.is_finite()))
             .collect();
@@ -473,7 +492,7 @@ fn window_aggregate(
         columns.push(Series::new(name.as_str().into(), out_cols[idx].clone()).into());
     }
     let result = DataFrame::new(columns.len(), columns)
-        .map_err(|e| AppError::Io(format!("window aggregate frame: {}", e)))?;
+        .map_err(|e| DomainError::Io(format!("window aggregate frame: {}", e)))?;
 
     Ok((result, true))
 }
@@ -489,7 +508,7 @@ fn bucket_aggregate(
     n_buckets: usize,
     agg_fn: AggFn,
     ts_col: &str,
-) -> Result<(DataFrame, bool), AppError> {
+) -> Result<(DataFrame, bool), DomainError> {
     let n_buckets = n_buckets.clamp(1, 10_000);
 
     if df.height() == 0 {
@@ -499,12 +518,12 @@ fn bucket_aggregate(
     let ts_series = df
         .column(ts_col)
         .map(|c| c.as_materialized_series())
-        .map_err(|e| AppError::Io(format!("Missing ts column '{}': {}", ts_col, e)))?
+        .map_err(|e| DomainError::Io(format!("Missing ts column '{}': {}", ts_col, e)))?
         .cast(&DataType::Int64)
-        .map_err(|e| AppError::Io(format!("ts cast failed: {}", e)))?;
+        .map_err(|e| DomainError::Io(format!("ts cast failed: {}", e)))?;
     let mut iter = ts_series
         .i64()
-        .map_err(|e| AppError::Io(format!("ts i64 failed: {}", e)))?
+        .map_err(|e| DomainError::Io(format!("ts i64 failed: {}", e)))?
         .into_iter()
         .flatten();
     let first = iter.next();
@@ -575,7 +594,7 @@ fn bucket_aggregate(
         })
         .with_new_streaming(true)
         .collect()
-        .map_err(|e| AppError::Io(e.to_string()))?;
+        .map_err(|e| DomainError::Io(e.to_string()))?;
 
     Ok((result, true))
 }
@@ -585,7 +604,7 @@ fn bucket_aggregate(
 /// Serialize a DataFrame to Arrow IPC bytes, normalizing the timestamp column
 /// to Datetime(Milliseconds) for consistent frontend parsing while preserving
 /// the source timestamp column name.
-pub fn serialize_arrow(df: DataFrame, ts_col: &str) -> Result<Vec<u8>, AppError> {
+pub fn serialize_arrow(df: DataFrame, ts_col: &str) -> Result<Vec<u8>, DomainError> {
     let ts_dtype = df
         .column(ts_col)
         .map(|c| c.as_materialized_series().dtype().clone());
@@ -595,11 +614,11 @@ pub fn serialize_arrow(df: DataFrame, ts_col: &str) -> Result<Vec<u8>, AppError>
             .lazy()
             .with_column(col(ts_col).cast(DataType::Datetime(TimeUnit::Milliseconds, None)))
             .collect()
-            .map_err(|e| AppError::Io(format!("ts cast: {}", e)))?,
+            .map_err(|e| DomainError::Io(format!("ts cast: {}", e)))?,
         _ => df,
     };
     dataframe_to_arrow_ipc(df)
-        .map_err(|e| AppError::Io(format!("Arrow IPC serialization: {:?}", e)))
+        .map_err(|e| DomainError::Io(format!("Arrow IPC serialization: {:?}", e)))
 }
 
 /// Serialize a DataFrame to a JSON value with the original timestamp column
@@ -610,22 +629,22 @@ pub fn serialize_json(
     color_col: Option<&String>,
     ts_dtype: &DataType,
     ts_col: &str,
-) -> Result<serde_json::Value, AppError> {
+) -> Result<serde_json::Value, DomainError> {
     let multiplier = edatime_core::temporal::unit_multiplier(ts_dtype);
 
     let ts_series = df
         .column(ts_col)
         .map(|c| c.as_materialized_series())
-        .map_err(|e| AppError::Io(format!("Missing ts '{}': {}", ts_col, e)))?
+        .map_err(|e| DomainError::Io(format!("Missing ts '{}': {}", ts_col, e)))?
         .clone();
 
     let ts_i64 = ts_series
         .cast(&DataType::Int64)
-        .map_err(|e| AppError::Io(format!("ts cast: {}", e)))?;
+        .map_err(|e| DomainError::Io(format!("ts cast: {}", e)))?;
 
     let ts: Vec<f64> = ts_i64
         .i64()
-        .map_err(|e| AppError::Io(format!("ts i64: {}", e)))?
+        .map_err(|e| DomainError::Io(format!("ts i64: {}", e)))?
         .into_iter()
         .map(|v| {
             v.map(|raw| {
@@ -644,16 +663,16 @@ pub fn serialize_json(
         let col_series = df
             .column(col_name.as_str())
             .map(|c| c.as_materialized_series())
-            .map_err(|e| AppError::Io(format!("Missing '{}': {}", col_name, e)))?
+            .map_err(|e| DomainError::Io(format!("Missing '{}': {}", col_name, e)))?
             .clone();
 
         let col_series = col_series
             .cast(&DataType::Float64)
-            .map_err(|e| AppError::Io(format!("Cast '{}': {}", col_name, e)))?;
+            .map_err(|e| DomainError::Io(format!("Cast '{}': {}", col_name, e)))?;
 
         let vals: Vec<f64> = col_series
             .f64()
-            .map_err(|e| AppError::Io(format!("Read '{}': {}", col_name, e)))?
+            .map_err(|e| DomainError::Io(format!("Read '{}': {}", col_name, e)))?
             .into_iter()
             .map(|v| v.unwrap_or(f64::NAN))
             .collect();

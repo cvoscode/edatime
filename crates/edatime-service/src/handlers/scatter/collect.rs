@@ -396,7 +396,6 @@ pub fn collect_filtered_scatter_columns_frame<I: Into<LazyFrame>>(
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use super::{
         cap_categorical_cardinality, collect_filtered_scatter_frame, series_to_scatter_values,

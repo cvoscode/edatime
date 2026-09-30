@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::sync::Arc;
-use std::sync::Mutex;
 use std::sync::atomic::AtomicUsize;
+use std::sync::{Mutex, MutexGuard};
 
 use chrono::Utc;
 use polars::prelude::{DataFrame, DataType, LazyFrame, ScanArgsParquet, SchemaExt, len};
@@ -13,6 +13,7 @@ use crate::artifacts::{
     ArtifactStorageUsage, DatasetArtifactDescriptor, DatasetArtifactProvenance,
     DatasetArtifactStore,
 };
+use crate::bounded_map::BoundedMap;
 use crate::cache::{CorrelationMatrixCacheEntry, ResponseCache, WorkingCorrelationCache};
 use crate::db::DbPool;
 use crate::jobs::{JobHandle, JobRegistry};
@@ -22,11 +23,24 @@ use crate::versions::{
     VersionRetentionSnapshot, fingerprints_for_frame,
 };
 use edatime_core::config::AppConfig;
-use edatime_core::error::AppError;
+use edatime_core::error::DomainError;
 use edatime_core::metrics::{AppMetrics, CpuStage};
 use edatime_core::temporal::{TsContext, ts_context};
 use edatime_query::executor::{ExecutionContext, QueryExecutor};
 use edatime_query::query::QueryEntry;
+
+/// Compiled cleaning plans retained across requests.
+const WORKING_PLAN_CACHE_ENTRIES: usize = 8;
+
+/// Lock a std mutex, recovering the data if a panicking holder poisoned it.
+/// These caches hold plain values that stay consistent between statements, so
+/// continuing is safer than permanently disabling the cache.
+fn lock_recovering<'a, T>(mutex: &'a Mutex<T>, name: &str) -> MutexGuard<'a, T> {
+    mutex.lock().unwrap_or_else(|error| {
+        tracing::warn!("{name} lock poisoned; recovering the last value");
+        error.into_inner()
+    })
+}
 
 /// Own the pending/final file until activation. Keeping this guard with the
 /// worker result also removes an unpublished artifact if its caller is
@@ -77,9 +91,25 @@ pub struct RetainedStateSnapshot {
     pub immediate_metadata_entries: usize,
 }
 
-#[allow(clippy::clone_on_ref_ptr)]
+/// Shared application state. Cloning is one `Arc` bump; every handler and
+/// background task holds a clone. Fields are reachable through `Deref`; the
+/// caches that need invariants (bounds, revision checks) stay private and are
+/// only exposed through `AppState` methods.
+#[derive(Clone)]
 pub struct AppState {
-    pub repository: Arc<dyn DataRepository>,
+    inner: Arc<AppStateInner>,
+}
+
+impl std::ops::Deref for AppState {
+    type Target = AppStateInner;
+
+    fn deref(&self) -> &AppStateInner {
+        &self.inner
+    }
+}
+
+pub struct AppStateInner {
+    repository: Arc<dyn DataRepository>,
     pub dataset_versions: Arc<DatasetVersionRegistry>,
     pub artifact_store: Option<Arc<DatasetArtifactStore>>,
     pub query_executor: Arc<QueryExecutor>,
@@ -95,46 +125,19 @@ pub struct AppState {
     /// conservative and complements (rather than replaces) the concurrency
     /// semaphore and wire-size limit.
     pub upload_memory_reserved: Arc<AtomicUsize>,
-    pub db_pool: Arc<RwLock<Option<Arc<DbPool>>>>,
-    pub db_info: Arc<RwLock<Option<DbConnectionInfo>>>,
-    pub correlation_matrix_cache: Arc<Mutex<Option<(u64, CorrelationMatrixCacheEntry)>>>,
+    pub db_pool: RwLock<Option<Arc<DbPool>>>,
+    pub db_info: RwLock<Option<DbConnectionInfo>>,
+    correlation_matrix_cache: Mutex<Option<(u64, CorrelationMatrixCacheEntry)>>,
     correlation_single_flight:
-        Arc<tokio::sync::Mutex<BTreeMap<u64, std::sync::Weak<tokio::sync::Mutex<()>>>>>,
+        tokio::sync::Mutex<BTreeMap<u64, std::sync::Weak<tokio::sync::Mutex<()>>>>,
     /// Bounded compiled working plans, keyed by immutable source and semantic hash.
-    pub working_plan_cache: Arc<Mutex<BTreeMap<(String, String), LazyFrame>>>,
+    working_plan_cache: Mutex<BoundedMap<(String, String), LazyFrame>>,
     /// Working matrices by source, plan and metric, with per-entry single flight.
-    pub working_correlation_cache: Arc<tokio::sync::Mutex<WorkingCorrelationCache>>,
-    pub profile_cache: Arc<Mutex<BTreeMap<String, ProfileCacheEntry>>>,
-    immediate_metadata_cache: Arc<Mutex<BTreeMap<String, Value>>>,
-    pub query_log: Arc<Mutex<VecDeque<QueryEntry>>>,
-    pub query_counter: Arc<std::sync::atomic::AtomicU64>,
-}
-
-impl Clone for AppState {
-    fn clone(&self) -> Self {
-        Self {
-            repository: Arc::clone(&self.repository),
-            dataset_versions: Arc::clone(&self.dataset_versions),
-            artifact_store: self.artifact_store.clone(),
-            query_executor: Arc::clone(&self.query_executor),
-            jobs: Arc::clone(&self.jobs),
-            cache: Arc::clone(&self.cache),
-            metrics: Arc::clone(&self.metrics),
-            config: Arc::clone(&self.config),
-            upload_admission: Arc::clone(&self.upload_admission),
-            upload_memory_reserved: Arc::clone(&self.upload_memory_reserved),
-            db_pool: Arc::clone(&self.db_pool),
-            db_info: Arc::clone(&self.db_info),
-            correlation_matrix_cache: Arc::clone(&self.correlation_matrix_cache),
-            correlation_single_flight: Arc::clone(&self.correlation_single_flight),
-            working_plan_cache: Arc::clone(&self.working_plan_cache),
-            working_correlation_cache: Arc::clone(&self.working_correlation_cache),
-            profile_cache: Arc::clone(&self.profile_cache),
-            immediate_metadata_cache: Arc::clone(&self.immediate_metadata_cache),
-            query_log: Arc::clone(&self.query_log),
-            query_counter: Arc::clone(&self.query_counter),
-        }
-    }
+    pub working_correlation_cache: tokio::sync::Mutex<WorkingCorrelationCache>,
+    profile_cache: Mutex<BoundedMap<String, ProfileCacheEntry>>,
+    immediate_metadata_cache: Mutex<BoundedMap<String, Value>>,
+    query_log: Mutex<VecDeque<QueryEntry>>,
+    query_counter: std::sync::atomic::AtomicU64,
 }
 
 impl AppState {
@@ -167,7 +170,7 @@ impl AppState {
                                 let provenance = descriptor
                                     .and_then(|entry| entry.provenance.as_ref())
                                     .ok_or_else(|| {
-                                        AppError::internal(
+                                        DomainError::internal(
                                             "Restored artifact unexpectedly has no provenance",
                                         )
                                     })?;
@@ -179,7 +182,7 @@ impl AppState {
                                         time_column: record.time_column.clone(),
                                     },
                                 )?;
-                                Ok::<_, AppError>(())
+                                Ok::<_, DomainError>(())
                             });
                             if let Err(error) = attached {
                                 tracing::warn!(
@@ -229,28 +232,30 @@ impl AppState {
         let upload_admission =
             Arc::new(Semaphore::new(config.upload.max_concurrent_uploads.max(1)));
         Self {
-            repository,
-            dataset_versions,
-            artifact_store,
-            query_executor,
-            jobs,
-            cache,
-            metrics,
-            config: Arc::new(config),
-            upload_admission,
-            upload_memory_reserved: Arc::new(AtomicUsize::new(0)),
-            db_pool: Arc::new(RwLock::new(None)),
-            db_info: Arc::new(RwLock::new(None)),
-            correlation_matrix_cache: Arc::new(Mutex::new(None)),
-            correlation_single_flight: Arc::new(tokio::sync::Mutex::new(BTreeMap::new())),
-            working_plan_cache: Arc::new(Mutex::new(BTreeMap::new())),
-            working_correlation_cache: Arc::new(tokio::sync::Mutex::new(
-                WorkingCorrelationCache::new(correlation_cache_max_bytes),
-            )),
-            profile_cache: Arc::new(Mutex::new(BTreeMap::new())),
-            immediate_metadata_cache: Arc::new(Mutex::new(BTreeMap::new())),
-            query_log: Arc::new(Mutex::new(VecDeque::with_capacity(max_stored))),
-            query_counter: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            inner: Arc::new(AppStateInner {
+                repository,
+                dataset_versions,
+                artifact_store,
+                query_executor,
+                jobs,
+                cache,
+                metrics,
+                config: Arc::new(config),
+                upload_admission,
+                upload_memory_reserved: Arc::new(AtomicUsize::new(0)),
+                db_pool: RwLock::new(None),
+                db_info: RwLock::new(None),
+                correlation_matrix_cache: Mutex::new(None),
+                correlation_single_flight: tokio::sync::Mutex::new(BTreeMap::new()),
+                working_plan_cache: Mutex::new(BoundedMap::new()),
+                working_correlation_cache: tokio::sync::Mutex::new(WorkingCorrelationCache::new(
+                    correlation_cache_max_bytes,
+                )),
+                profile_cache: Mutex::new(BoundedMap::new()),
+                immediate_metadata_cache: Mutex::new(BoundedMap::new()),
+                query_log: Mutex::new(VecDeque::with_capacity(max_stored)),
+                query_counter: std::sync::atomic::AtomicU64::new(0),
+            }),
         }
     }
 
@@ -265,41 +270,37 @@ impl AppState {
     }
 
     /// Resolve an immutable source/baseline snapshot for a plan-aware request.
-    pub fn dataset_snapshot_for_version(&self, version_id: &str) -> Result<LazyFrame, AppError> {
+    pub fn dataset_snapshot_for_version(&self, version_id: &str) -> Result<LazyFrame, DomainError> {
         self.dataset_versions.snapshot(version_id)
     }
 
-    pub fn current_dataset_version(&self) -> Result<DatasetVersionRecord, AppError> {
+    pub fn current_dataset_version(&self) -> Result<DatasetVersionRecord, DomainError> {
         self.dataset_versions.current()
     }
 
-    pub fn dataset_versions(&self) -> Result<Vec<DatasetVersionRecord>, AppError> {
+    pub fn dataset_versions(&self) -> Result<Vec<DatasetVersionRecord>, DomainError> {
         self.dataset_versions.list()
     }
 
-    pub fn version_retention_snapshot(&self) -> Result<VersionRetentionSnapshot, AppError> {
+    pub fn version_retention_snapshot(&self) -> Result<VersionRetentionSnapshot, DomainError> {
         self.dataset_versions.retention_snapshot()
     }
 
-    pub fn retained_state_snapshot(&self) -> Result<RetainedStateSnapshot, AppError> {
+    pub fn retained_state_snapshot(&self) -> Result<RetainedStateSnapshot, DomainError> {
         Ok(RetainedStateSnapshot {
             versions: self.version_retention_snapshot()?,
             artifacts: self.artifact_storage_usage()?,
             jobs: self.jobs.snapshot(),
-            profile_entries: self
-                .profile_cache
-                .lock()
-                .map(|cache| cache.len())
-                .unwrap_or_else(|error| error.into_inner().len()),
-            immediate_metadata_entries: self
-                .immediate_metadata_cache
-                .lock()
-                .map(|cache| cache.len())
-                .unwrap_or_else(|error| error.into_inner().len()),
+            profile_entries: lock_recovering(&self.profile_cache, "profile_cache").len(),
+            immediate_metadata_entries: lock_recovering(
+                &self.immediate_metadata_cache,
+                "immediate_metadata_cache",
+            )
+            .len(),
         })
     }
 
-    pub fn artifact_storage_usage(&self) -> Result<ArtifactStorageUsage, AppError> {
+    pub fn artifact_storage_usage(&self) -> Result<ArtifactStorageUsage, DomainError> {
         match &self.artifact_store {
             Some(store) => store.usage(),
             None => Ok(ArtifactStorageUsage {
@@ -315,7 +316,7 @@ impl AppState {
     /// lineage is mandatory; newer independent chains are added only while
     /// they fit the configured cap, so pruning can never make catalog recovery
     /// refer to a missing parent.
-    fn enforce_artifact_retention(&self, active_id: &str) -> Result<(), AppError> {
+    fn enforce_artifact_retention(&self, active_id: &str) -> Result<(), DomainError> {
         let Some(limit) = self.config.data.max_artifact_versions else {
             return Ok(());
         };
@@ -368,12 +369,12 @@ impl AppState {
     pub async fn dataset_snapshot_for_columns(
         &self,
         columns: &[&str],
-    ) -> Result<LazyFrame, AppError> {
+    ) -> Result<LazyFrame, DomainError> {
         let lf = self.repository.snapshot();
         let schema = lf
             .clone()
             .collect_schema()
-            .map_err(|e| AppError::internal(format!("LazyFrame schema unavailable: {}", e)))?;
+            .map_err(|e| DomainError::internal(format!("LazyFrame schema unavailable: {}", e)))?;
         let col_names: Vec<String> = schema
             .iter_fields()
             .filter(|f| columns.iter().any(|&col| col == f.name().as_str()))
@@ -392,7 +393,7 @@ impl AppState {
         }
     }
 
-    pub async fn replace_dataset(&self, df: DataFrame) -> Result<u64, AppError> {
+    pub async fn replace_dataset(&self, df: DataFrame) -> Result<u64, DomainError> {
         self.replace_dataset_with_time_column(df, None).await
     }
 
@@ -400,7 +401,7 @@ impl AppState {
         &self,
         df: DataFrame,
         time_column: Option<String>,
-    ) -> Result<u64, AppError> {
+    ) -> Result<u64, DomainError> {
         self.replace_dataset_with_time_column_and_source_name(df, time_column, None)
             .await
     }
@@ -410,7 +411,7 @@ impl AppState {
         df: DataFrame,
         time_column: Option<String>,
         source_name: Option<String>,
-    ) -> Result<u64, AppError> {
+    ) -> Result<u64, DomainError> {
         let rev = if let Some(store) = &self.artifact_store {
             let version_id = self.dataset_versions.allocate_artifact_version_id();
             let store = Arc::clone(store);
@@ -427,7 +428,7 @@ impl AppState {
                         Utc::now(),
                         artifact_frame,
                     )?;
-                    Ok::<_, AppError>((descriptor, row_count, column_names))
+                    Ok::<_, DomainError>((descriptor, row_count, column_names))
                 })
                 .await??;
             let rev = self.repository.replace_from_dataframe(df)?;
@@ -489,7 +490,7 @@ impl AppState {
         &self,
         store: &Arc<DatasetArtifactStore>,
         version_id: String,
-    ) -> Result<(DatasetArtifactDescriptor, UnpublishedArtifactCleanup), AppError> {
+    ) -> Result<(DatasetArtifactDescriptor, UnpublishedArtifactCleanup), DomainError> {
         // Create cleanup before admission so cancellation of a queued worker
         // removes the completed sink output as well.
         let cleanup = UnpublishedArtifactCleanup {
@@ -512,7 +513,7 @@ impl AppState {
         frame: LazyFrame,
         source_name: Option<String>,
         time_column: String,
-    ) -> Result<DatasetVersionRecord, AppError> {
+    ) -> Result<DatasetVersionRecord, DomainError> {
         self.replace_dataset_lazy_root_with_resources(frame, source_name, time_column, ())
             .await
     }
@@ -523,12 +524,12 @@ impl AppState {
         source_name: Option<String>,
         time_column: String,
         resources: R,
-    ) -> Result<DatasetVersionRecord, AppError> {
+    ) -> Result<DatasetVersionRecord, DomainError> {
         let store = self.artifact_store.as_ref().ok_or_else(|| {
-            AppError::internal("Lazy root ingest requires managed artifact storage")
+            DomainError::internal("Lazy root ingest requires managed artifact storage")
         })?;
         let schema = frame.collect_schema().map_err(|error| {
-            AppError::bad_request(format!("Ingest schema unavailable: {error}"))
+            DomainError::bad_request(format!("Ingest schema unavailable: {error}"))
         })?;
         let column_names = schema
             .iter_names()
@@ -553,7 +554,7 @@ impl AppState {
                 ScanArgsParquet::default(),
             )
             .map_err(|error| {
-                AppError::internal(format!("Open ingested Parquet artifact: {error}"))
+                DomainError::internal(format!("Open ingested Parquet artifact: {error}"))
             })?;
             let count = self
                 .query_executor
@@ -568,13 +569,13 @@ impl AppState {
                 .and_then(|column| column.u64().ok())
                 .and_then(|column| column.get(0))
                 .and_then(|value| usize::try_from(value).ok())
-                .ok_or_else(|| AppError::internal("Ingested Parquet row count unavailable"))?;
+                .ok_or_else(|| DomainError::internal("Ingested Parquet row count unavailable"))?;
             if row_count == 0 {
-                return Err(AppError::bad_request(
+                return Err(DomainError::bad_request(
                     "No rows loaded for the selected partial range. Reduce skip_rows or increase n_rows.",
                 ));
             }
-            Ok::<_, AppError>((scan, row_count))
+            Ok::<_, DomainError>((scan, row_count))
         }
         .await;
         let (scan, row_count) = match prepared {
@@ -622,7 +623,7 @@ impl AppState {
         plan_hash: String,
         time_column: Option<String>,
         applied_plan: Option<Value>,
-    ) -> Result<DatasetVersionRecord, AppError> {
+    ) -> Result<DatasetVersionRecord, DomainError> {
         // Resolve the parent before replacing the compatibility repository so
         // a bad/stale ID cannot mutate the live working dataset.
         let parent = self.dataset_versions.record(parent_id)?;
@@ -643,7 +644,7 @@ impl AppState {
                         Utc::now(),
                         artifact_frame,
                     )?;
-                    Ok::<_, AppError>((descriptor, row_count, column_names))
+                    Ok::<_, DomainError>((descriptor, row_count, column_names))
                 })
                 .await??;
             let revision = self.repository.replace_from_dataframe(df)?;
@@ -715,14 +716,14 @@ impl AppState {
         time_column: String,
         applied_plan: Option<Value>,
         job: Option<&JobHandle>,
-    ) -> Result<DatasetVersionRecord, AppError> {
+    ) -> Result<DatasetVersionRecord, DomainError> {
         ensure_job_not_cancelled(job)?;
         let _parent = self.dataset_versions.record(parent_id)?;
         let store = self.artifact_store.as_ref().ok_or_else(|| {
-            AppError::internal("Lazy materialization requires managed artifact storage")
+            DomainError::internal("Lazy materialization requires managed artifact storage")
         })?;
         let schema = frame.collect_schema().map_err(|error| {
-            AppError::bad_request(format!("Materialized plan schema unavailable: {error}"))
+            DomainError::bad_request(format!("Materialized plan schema unavailable: {error}"))
         })?;
         let column_names = schema
             .iter_names()
@@ -747,7 +748,7 @@ impl AppState {
                 ScanArgsParquet::default(),
             )
             .map_err(|error| {
-                AppError::internal(format!("Open materialized Parquet artifact: {error}"))
+                DomainError::internal(format!("Open materialized Parquet artifact: {error}"))
             })?;
             let count = self
                 .query_executor
@@ -762,8 +763,10 @@ impl AppState {
                 .and_then(|column| column.u64().ok())
                 .and_then(|column| column.get(0))
                 .and_then(|value| usize::try_from(value).ok())
-                .ok_or_else(|| AppError::internal("Materialized Parquet row count unavailable"))?;
-            Ok::<_, AppError>((scan, row_count))
+                .ok_or_else(|| {
+                    DomainError::internal("Materialized Parquet row count unavailable")
+                })?;
+            Ok::<_, DomainError>((scan, row_count))
         }
         .await;
         let (scan, row_count) = match prepared {
@@ -812,11 +815,11 @@ impl AppState {
     pub async fn select_dataset_version(
         &self,
         version_id: &str,
-    ) -> Result<DatasetVersionRecord, AppError> {
+    ) -> Result<DatasetVersionRecord, DomainError> {
         let version = self.dataset_versions.record(version_id)?;
         let snapshot = self.dataset_snapshot_for_version(version_id)?;
         let schema = snapshot.clone().collect_schema().map_err(|error| {
-            AppError::internal(format!("Dataset version schema unavailable: {error}"))
+            DomainError::internal(format!("Dataset version schema unavailable: {error}"))
         })?;
         let column_names = schema
             .iter_names()
@@ -836,7 +839,7 @@ impl AppState {
             .and_then(|column| column.u64().ok())
             .and_then(|column| column.get(0))
             .and_then(|value| usize::try_from(value).ok())
-            .ok_or_else(|| AppError::internal("Dataset version row count unavailable"))?;
+            .ok_or_else(|| DomainError::internal("Dataset version row count unavailable"))?;
         self.repository.replace_from_lazyframe(
             snapshot,
             DatasetMeta {
@@ -858,11 +861,7 @@ impl AppState {
         // concurrent dataset replacement may commit immediately after this
         // lookup, so storing the recomputed matrix is guarded separately by
         // store_correlation_matrix_if_current().
-        let guard = self
-            .correlation_matrix_cache
-            .lock()
-            .map_err(|error| error.into_inner())
-            .ok()?;
+        let guard = lock_recovering(&self.correlation_matrix_cache, "correlation_matrix_cache");
         guard
             .as_ref()
             .filter(|(cached_revision, _)| *cached_revision == revision)
@@ -877,13 +876,7 @@ impl AppState {
         if self.dataset_revision() != revision {
             return false;
         }
-        let Ok(mut guard) = self
-            .correlation_matrix_cache
-            .lock()
-            .map_err(|error| error.into_inner())
-        else {
-            return false;
-        };
+        let mut guard = lock_recovering(&self.correlation_matrix_cache, "correlation_matrix_cache");
         if entry.estimated_bytes() > self.config.cache.max_bytes.max(1024) {
             return false;
         }
@@ -892,13 +885,7 @@ impl AppState {
     }
 
     pub fn clear_correlation_matrix_cache(&self) {
-        if let Ok(mut guard) = self
-            .correlation_matrix_cache
-            .lock()
-            .map_err(|error| error.into_inner())
-        {
-            *guard = None;
-        }
+        *lock_recovering(&self.correlation_matrix_cache, "correlation_matrix_cache") = None;
     }
 
     pub async fn acquire_correlation_single_flight(
@@ -923,65 +910,61 @@ impl AppState {
     /// algorithm key. Cache entries deliberately survive source selection so
     /// returning to a retained source can reuse its completed profile.
     pub fn cached_profile(&self, key: &str) -> Option<ProfileCacheEntry> {
-        self.profile_cache
-            .lock()
-            .map_err(|error| error.into_inner())
-            .ok()?
-            .get(key)
+        lock_recovering(&self.profile_cache, "profile_cache")
+            .get(&key.to_string())
             .cloned()
     }
 
     /// Record either a pending job or its completed result for one immutable
     /// profile key. Callers must verify cancellation before publishing a
     /// result; this method intentionally has no knowledge of HTTP DTOs.
+    /// Completed results are evicted (oldest first) before pending jobs.
     pub fn store_profile(&self, key: String, entry: ProfileCacheEntry) {
-        if let Ok(mut cache) = self
-            .profile_cache
-            .lock()
-            .map_err(|error| error.into_inner())
-        {
-            cache.insert(key, entry);
-            while cache
-                .values()
-                .filter(|entry| entry.result.is_some())
-                .count()
-                > self.config.retention.max_profile_entries.max(1)
-            {
-                let Some(oldest_completed) = cache
-                    .iter()
-                    .find(|(_, entry)| entry.result.is_some())
-                    .map(|(key, _)| key.clone())
-                else {
-                    break;
-                };
-                cache.remove(&oldest_completed);
-            }
-        }
+        lock_recovering(&self.profile_cache, "profile_cache").insert_bounded(
+            key,
+            entry,
+            self.config.retention.max_profile_entries,
+            |entry| entry.result.is_some(),
+        );
     }
 
     pub fn cached_immediate_metadata(&self, key: &str) -> Option<Value> {
-        self.immediate_metadata_cache
-            .lock()
-            .map_err(|error| error.into_inner())
-            .ok()?
-            .get(key)
+        lock_recovering(&self.immediate_metadata_cache, "immediate_metadata_cache")
+            .get(&key.to_string())
             .cloned()
     }
 
     pub fn store_immediate_metadata(&self, key: String, value: Value) {
-        if let Ok(mut cache) = self
-            .immediate_metadata_cache
-            .lock()
-            .map_err(|error| error.into_inner())
-        {
-            cache.insert(key, value);
-            while cache.len() > self.config.retention.max_profile_entries.max(1) {
-                let Some(oldest) = cache.keys().next().cloned() else {
-                    break;
-                };
-                cache.remove(&oldest);
-            }
+        lock_recovering(&self.immediate_metadata_cache, "immediate_metadata_cache").insert_bounded(
+            key,
+            value,
+            self.config.retention.max_profile_entries,
+            |_| true,
+        );
+    }
+
+    /// Compiled cleaning plan for an immutable `(source version, plan hash)`.
+    pub fn cached_working_plan(&self, source_version: &str, plan_hash: &str) -> Option<LazyFrame> {
+        lock_recovering(&self.working_plan_cache, "working_plan_cache")
+            .get(&(source_version.to_string(), plan_hash.to_string()))
+            .cloned()
+    }
+
+    /// Publish a compiled plan. If a concurrent request already published one
+    /// for the same key, that winner is returned so callers share one plan.
+    pub fn store_working_plan(
+        &self,
+        source_version: &str,
+        plan_hash: &str,
+        frame: LazyFrame,
+    ) -> LazyFrame {
+        let key = (source_version.to_string(), plan_hash.to_string());
+        let mut cache = lock_recovering(&self.working_plan_cache, "working_plan_cache");
+        if let Some(winner) = cache.get(&key) {
+            return winner.clone();
         }
+        cache.insert_bounded(key, frame.clone(), WORKING_PLAN_CACHE_ENTRIES, |_| true);
+        frame
     }
 
     pub fn set_time_column_display_name(&self, name: Option<String>) {
@@ -994,7 +977,7 @@ impl AppState {
 
     /// Returns TsContext (ts_col name, multiplier, dtype) for the time column.
     /// All route handlers that duplicate the 3-line pattern should use this.
-    pub fn ts_context(&self, lf: &LazyFrame) -> Result<TsContext, AppError> {
+    pub fn ts_context(&self, lf: &LazyFrame) -> Result<TsContext, DomainError> {
         let ts_col = self
             .current_dataset_version()?
             .time_column
@@ -1019,10 +1002,7 @@ impl AppState {
 
     /// Push a query entry to the ring buffer.
     pub fn push_query(&self, entry: QueryEntry) {
-        let Ok(mut log) = self.query_log.lock().map_err(|e| e.into_inner()) else {
-            tracing::warn!("query_log lock failed, dropping entry");
-            return;
-        };
+        let mut log = lock_recovering(&self.query_log, "query_log");
         let max = self.config.query.max_stored.max(1);
         while log.len() >= max {
             log.pop_front();
@@ -1032,10 +1012,7 @@ impl AppState {
 
     /// Drain all query entries (for export).
     pub fn drain_queries(&self) -> Vec<QueryEntry> {
-        let Ok(mut log) = self.query_log.lock().map_err(|e| e.into_inner()) else {
-            tracing::warn!("query_log drain failed, returning empty");
-            return Vec::new();
-        };
+        let mut log = lock_recovering(&self.query_log, "query_log");
         log.drain(..).collect::<Vec<_>>()
     }
 
@@ -1046,9 +1023,9 @@ impl AppState {
     }
 }
 
-fn ensure_job_not_cancelled(job: Option<&JobHandle>) -> Result<(), AppError> {
+fn ensure_job_not_cancelled(job: Option<&JobHandle>) -> Result<(), DomainError> {
     if job.is_some_and(JobHandle::is_cancelled) {
-        return Err(AppError::bad_request(
+        return Err(DomainError::bad_request(
             "Materialization job cancelled before publication",
         ));
     }
@@ -1093,490 +1070,4 @@ fn frame_metadata(frame: &DataFrame) -> (usize, Vec<String>) {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::fs;
-
-    use chrono::Utc;
-    use polars::prelude::{DataFrame, IntoLazy, NamedFrom, Series};
-
-    use super::AppState;
-    use crate::artifacts::DatasetArtifactProvenance;
-    use crate::cache::CorrelationMatrixCacheEntry;
-    use crate::jobs::JobKind;
-    use crate::versions::DatasetVersionRecord;
-    use edatime_core::config::AppConfig;
-
-    fn frame(values: Vec<i64>) -> DataFrame {
-        DataFrame::new(
-            values.len(),
-            vec![Series::new("value".into(), values).into()],
-        )
-        .expect("frame")
-    }
-
-    #[test]
-    fn active_correlation_matrix_cache_rejects_entries_over_byte_budget() {
-        let mut config = AppConfig::default();
-        config.cache.max_bytes = 1024;
-        let state = AppState::new(frame(vec![1]), config);
-        let revision = state.dataset_revision();
-        let n = 20;
-        let values = vec![vec![Some(0.5); n]; n];
-        let entry = CorrelationMatrixCacheEntry {
-            input_rows: 10, time_range_ms: None,
-            columns: (0..n).map(|index| format!("column_{index}")).collect(),
-            pearson_raw: values.clone(),
-            spearman_raw: values.clone(),
-            kendall_raw: values.clone(),
-            pearson_diff: values.clone(),
-            spearman_diff: values.clone(),
-            kendall_diff: values,
-            counts: vec![vec![10; n]; n],
-            diff_counts: vec![vec![9; n]; n],
-        };
-
-        assert!(!state.store_correlation_matrix_if_current(revision, entry));
-        assert!(state.cached_correlation_matrix(revision).is_none());
-    }
-
-    #[tokio::test]
-    async fn lazy_finalization_waits_for_io_admission_and_cleans_cancelled_queue() {
-        use edatime_core::metrics::CpuStage;
-        use std::sync::{Arc, mpsc};
-        use std::time::Duration;
-
-        let root = std::env::temp_dir().join(format!(
-            "edatime-finalize-queue-{}",
-            Utc::now().timestamp_nanos_opt().unwrap()
-        ));
-        let mut config = AppConfig::default();
-        config.data.artifact_dir = Some(root.clone());
-        config.query.max_blocking_io_concurrency = 1;
-        let state = AppState::new(DataFrame::default(), config);
-        let store = state.artifact_store.as_ref().expect("artifact store");
-        let version_id = "queued-finalizer".to_string();
-        let pending = store
-            .prepare_lazy_parquet(&version_id)
-            .expect("pending path");
-        fs::write(&pending, b"pending artifact fixture").expect("pending sink output");
-        let executor = Arc::clone(&state.query_executor);
-        let (started, running) = tokio::sync::oneshot::channel();
-        let (release, blocked) = mpsc::channel();
-        let blocker = tokio::spawn(async move {
-            executor
-                .run_blocking_io(CpuStage::Materialization, move || {
-                    started.send(()).expect("worker started");
-                    blocked.recv().expect("release worker");
-                })
-                .await
-                .expect("blocking worker");
-        });
-        running.await.expect("I/O lane occupied");
-        let mut finalizing = Box::pin(state.finalize_lazy_artifact(store, version_id));
-        assert!(
-            tokio::time::timeout(Duration::from_millis(25), &mut finalizing)
-                .await
-                .is_err(),
-            "file hashing must wait for the bounded I/O lane"
-        );
-        assert!(pending.exists());
-        drop(finalizing);
-        assert!(
-            !pending.exists(),
-            "cancelling queued finalization must remove sink output"
-        );
-        release.send(()).expect("release I/O lane");
-        blocker.await.expect("blocker joined");
-        assert!(store.load_catalog().expect("catalog").is_empty());
-        fs::remove_dir_all(root).expect("remove fixture directory");
-    }
-
-    #[tokio::test]
-    async fn dropping_unpublished_finalization_result_removes_the_artifact() {
-        let root = std::env::temp_dir().join(format!(
-            "edatime-finalize-result-{}",
-            Utc::now().timestamp_nanos_opt().unwrap()
-        ));
-        let mut config = AppConfig::default();
-        config.data.artifact_dir = Some(root.clone());
-        let state = AppState::new(DataFrame::default(), config);
-        let store = state.artifact_store.as_ref().expect("artifact store");
-        let version_id = "unpublished-finalizer".to_string();
-        let pending = store
-            .prepare_lazy_parquet(&version_id)
-            .expect("pending path");
-        fs::write(&pending, b"pending artifact fixture").expect("pending sink output");
-        let (descriptor, cleanup) = state
-            .finalize_lazy_artifact(store, version_id)
-            .await
-            .expect("finalize");
-        assert!(!pending.exists());
-        assert!(descriptor.path.exists());
-        assert!(descriptor.content_fingerprint.starts_with("fnv1a-parquet-"));
-        drop(cleanup);
-        assert!(
-            !descriptor.path.exists(),
-            "unobserved worker results must not leave artifacts behind"
-        );
-        assert!(store.load_catalog().expect("catalog").is_empty());
-        fs::remove_dir_all(root).expect("remove fixture directory");
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn configured_lazy_root_ingest_activates_a_scan_backed_artifact() {
-        let artifact_dir = std::env::temp_dir().join(format!(
-            "edatime-state-lazy-root-{}",
-            Utc::now().timestamp_nanos_opt().unwrap_or_default()
-        ));
-        let mut config = AppConfig::default();
-        config.data.artifact_dir = Some(artifact_dir.clone());
-        let state = AppState::new(frame(vec![0]), config);
-        let lazy = DataFrame::new(
-            3,
-            vec![
-                Series::new("time".into(), vec![1_i64, 2, 3]).into(),
-                Series::new("value".into(), vec![10.0_f64, 20.0, 30.0]).into(),
-            ],
-        )
-        .expect("ingest frame")
-        .lazy();
-
-        let record = state
-            .replace_dataset_lazy_root(
-                lazy,
-                Some("fixture.parquet".to_string()),
-                "time".to_string(),
-            )
-            .await
-            .expect("lazy root ingest");
-
-        assert!(record.id.starts_with("artifact-"));
-        assert_eq!(record.source_name.as_deref(), Some("fixture.parquet"));
-        assert_eq!(state.dataset_rows().await, 3);
-        assert_eq!(
-            state
-                .query_executor
-                .execute_async(state.dataset_snapshot())
-                .await
-                .expect("active scan")
-                .height(),
-            3
-        );
-        let catalog = state
-            .artifact_store
-            .as_ref()
-            .expect("artifact store")
-            .load_catalog()
-            .expect("catalog");
-        assert_eq!(catalog.len(), 1);
-        assert_eq!(catalog[0].version_id, record.id);
-        assert_eq!(
-            catalog[0]
-                .provenance
-                .as_ref()
-                .and_then(|provenance| provenance.source_name.as_deref()),
-            Some("fixture.parquet")
-        );
-        fs::remove_dir_all(artifact_dir).expect("clean artifact directory");
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn configured_artifact_storage_publishes_root_and_child_versions() {
-        let artifact_dir = std::env::temp_dir().join(format!(
-            "edatime-state-artifacts-{}",
-            Utc::now().timestamp_nanos_opt().unwrap_or_default()
-        ));
-        let mut config = AppConfig::default();
-        config.data.artifact_dir = Some(artifact_dir.clone());
-        let state = AppState::new(frame(vec![0]), config.clone());
-
-        state
-            .replace_dataset(frame(vec![1, 2]))
-            .await
-            .expect("persist root");
-        let root = state.current_dataset_version().expect("root record");
-        assert!(root.id.starts_with("artifact-"));
-        let root_scan = state
-            .dataset_snapshot_for_version(&root.id)
-            .expect("root scan");
-        let root_height = tokio::task::spawn_blocking(move || {
-            root_scan.collect().expect("collect root scan").height()
-        })
-        .await
-        .expect("join root scan");
-        assert_eq!(root_height, 2);
-
-        let applied_plan = serde_json::json!({"schemaVersion": 1, "id": "plan-1", "stages": []});
-        let child = state
-            .materialize_dataset_child(
-                &root.id,
-                frame(vec![2]),
-                "plan-1".to_string(),
-                None,
-                Some(applied_plan.clone()),
-            )
-            .await
-            .expect("persist child");
-        assert_eq!(child.parent_id.as_deref(), Some(root.id.as_str()));
-        assert!(child.id.starts_with("artifact-"));
-        assert_eq!(child.materialized_from_plan_hash.as_deref(), Some("plan-1"));
-        assert_eq!(child.applied_plan, Some(applied_plan.clone()));
-        assert!(
-            child
-                .display_name
-                .as_deref()
-                .unwrap_or_default()
-                .contains("prepared v")
-        );
-        let catalog = state
-            .artifact_store
-            .as_ref()
-            .expect("configured artifact store")
-            .load_catalog()
-            .expect("catalog");
-        assert_eq!(catalog.len(), 2);
-        let root_artifact = catalog
-            .iter()
-            .find(|artifact| artifact.version_id == root.id)
-            .expect("root artifact");
-        expect_provenance(root_artifact.provenance.as_ref(), &root, None);
-        let child_artifact = catalog
-            .iter()
-            .find(|artifact| artifact.version_id == child.id)
-            .expect("child artifact");
-        expect_provenance(
-            child_artifact.provenance.as_ref(),
-            &child,
-            Some(root.id.as_str()),
-        );
-        assert_eq!(
-            child_artifact
-                .provenance
-                .as_ref()
-                .and_then(|value| value.applied_plan.clone()),
-            Some(applied_plan.clone()),
-        );
-
-        let restored = AppState::new(DataFrame::default(), config);
-        assert_eq!(
-            restored
-                .current_dataset_version()
-                .expect("restored current version")
-                .id,
-            child.id
-        );
-        assert_eq!(
-            restored
-                .dataset_versions()
-                .expect("restored versions")
-                .len(),
-            2
-        );
-        assert_eq!(restored.dataset_rows().await, 1);
-        let restored_child = restored
-            .current_dataset_version()
-            .expect("restored child provenance");
-        assert_eq!(restored_child.display_name, child.display_name);
-        assert_eq!(restored_child.applied_plan, Some(applied_plan));
-        let restored_scan = restored.dataset_snapshot();
-        let restored_height = tokio::task::spawn_blocking(move || {
-            restored_scan
-                .collect()
-                .expect("collect restored scan")
-                .height()
-        })
-        .await
-        .expect("join restored scan");
-        assert_eq!(restored_height, 1);
-
-        fs::remove_dir_all(artifact_dir).expect("clean artifact test directory");
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn selecting_artifact_version_restores_scan_and_metadata_without_eager_frame_copy() {
-        let artifact_dir = std::env::temp_dir().join(format!(
-            "edatime-state-select-artifact-{}",
-            Utc::now().timestamp_nanos_opt().unwrap_or_default()
-        ));
-        let mut config = AppConfig::default();
-        config.data.artifact_dir = Some(artifact_dir.clone());
-        config.retention.max_resident_bytes = 1;
-        let state = AppState::new(DataFrame::default(), config);
-        let root_frame = DataFrame::new(
-            3,
-            vec![
-                Series::new("time".into(), vec![10_i64, 20, 30]).into(),
-                Series::new("value".into(), vec![1.0_f64, 2.0, 3.0]).into(),
-            ],
-        )
-        .expect("root frame");
-        assert!(root_frame.estimated_size() as u64 > state.config.retention.max_resident_bytes);
-        state
-            .replace_dataset_with_time_column(root_frame, Some("time".to_string()))
-            .await
-            .expect("persist root");
-        let root = state.current_dataset_version().expect("root version");
-        assert_eq!(root.time_column.as_deref(), Some("time"));
-        let root_id = root.id;
-        state
-            .materialize_dataset_child(&root_id, frame(vec![4, 5]), "child-plan".into(), None, None)
-            .await
-            .expect("persist child");
-
-        let selected = state
-            .select_dataset_version(&root_id)
-            .await
-            .expect("select root version");
-        assert_eq!(selected.id, root_id);
-        assert_eq!(selected.time_column.as_deref(), Some("time"));
-        {
-            let metadata = state.repository.meta();
-            let metadata = metadata.read().expect("dataset metadata lock");
-            assert_eq!(metadata.row_count, 3);
-            assert_eq!(metadata.column_names, vec!["time", "value"]);
-            assert_eq!(metadata.time_column.as_deref(), Some("time"));
-        }
-        let plan = state
-            .dataset_snapshot()
-            .describe_optimized_plan()
-            .expect("selected plan");
-        assert!(
-            plan.to_ascii_lowercase().contains("parquet scan"),
-            "selection must keep a Parquet scan instead of a resident frame: {plan}"
-        );
-        let restored = state
-            .query_executor
-            .execute_async(state.dataset_snapshot())
-            .await
-            .expect("collect selected lazy scan");
-        assert_eq!(restored.height(), 3);
-        assert_eq!(
-            restored
-                .get_column_names()
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>(),
-            vec!["time", "value"]
-        );
-
-        fs::remove_dir_all(artifact_dir).expect("clean artifact directory");
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn cancelled_lazy_materialization_discards_its_unpublished_artifact() {
-        let artifact_dir = std::env::temp_dir().join(format!(
-            "edatime-state-cancelled-materialization-{}",
-            Utc::now().timestamp_nanos_opt().unwrap_or_default()
-        ));
-        let mut config = AppConfig::default();
-        config.data.artifact_dir = Some(artifact_dir.clone());
-        let state = AppState::new(frame(vec![0]), config);
-        let job = state.jobs.create(JobKind::Materialization);
-        assert!(state.jobs.start(&job));
-        state.jobs.cancel(job.id());
-
-        let error = state
-            .materialize_dataset_child_lazy(
-                "source-0",
-                frame(vec![1, 2]).lazy(),
-                "plan-cancelled".to_string(),
-                "value".to_string(),
-                None,
-                Some(&job),
-            )
-            .await
-            .expect_err("cancelled job must not publish");
-        assert!(error.to_string().contains("cancelled"));
-        assert!(
-            state
-                .artifact_store
-                .as_ref()
-                .expect("artifact store")
-                .load_catalog()
-                .expect("catalog")
-                .is_empty()
-        );
-        assert_eq!(state.dataset_rows().await, 1);
-        if artifact_dir.exists() {
-            fs::remove_dir_all(artifact_dir).expect("clean artifact directory");
-        }
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn artifact_retention_preserves_active_lineage_and_prunes_old_roots() {
-        let artifact_dir = std::env::temp_dir().join(format!(
-            "edatime-state-retention-{}",
-            Utc::now().timestamp_nanos_opt().unwrap_or_default()
-        ));
-        let mut config = AppConfig::default();
-        config.data.artifact_dir = Some(artifact_dir.clone());
-        config.data.max_artifact_versions = Some(2);
-        let state = AppState::new(frame(vec![0]), config);
-
-        state
-            .replace_dataset(frame(vec![1, 2]))
-            .await
-            .expect("first root");
-        let first_root = state.current_dataset_version().expect("first root record");
-        let first_child = state
-            .materialize_dataset_child(
-                &first_root.id,
-                frame(vec![2]),
-                "plan-1".to_string(),
-                None,
-                None,
-            )
-            .await
-            .expect("first child");
-        assert_eq!(
-            state
-                .artifact_store
-                .as_ref()
-                .expect("artifact store")
-                .load_catalog()
-                .expect("catalog")
-                .len(),
-            2
-        );
-
-        state
-            .replace_dataset(frame(vec![10, 20, 30]))
-            .await
-            .expect("second root");
-        let active = state.current_dataset_version().expect("second root record");
-        let catalog = state
-            .artifact_store
-            .as_ref()
-            .expect("artifact store")
-            .load_catalog()
-            .expect("catalog");
-        assert_eq!(catalog.len(), 2);
-        assert!(catalog.iter().any(|entry| entry.version_id == active.id));
-        assert!(
-            catalog
-                .iter()
-                .any(|entry| entry.version_id == first_root.id)
-        );
-        assert!(state.dataset_snapshot_for_version(&first_root.id).is_ok());
-        assert!(state.dataset_snapshot_for_version(&first_child.id).is_err());
-        assert_eq!(state.dataset_versions().expect("versions").len(), 2);
-        assert_eq!(state.dataset_rows().await, 3);
-        fs::remove_dir_all(artifact_dir).expect("clean artifact directory");
-    }
-
-    fn expect_provenance(
-        provenance: Option<&DatasetArtifactProvenance>,
-        record: &DatasetVersionRecord,
-        expected_parent: Option<&str>,
-    ) {
-        let provenance = provenance.expect("artifact provenance");
-        assert_eq!(provenance.root_id, record.root_id);
-        assert_eq!(provenance.parent_id.as_deref(), expected_parent);
-        assert_eq!(provenance.revision, record.revision);
-        assert_eq!(provenance.schema_fingerprint, record.schema_fingerprint);
-        assert_eq!(
-            provenance.materialized_from_plan_hash,
-            record.materialized_from_plan_hash
-        );
-    }
-}
+mod tests;

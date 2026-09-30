@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Criterion bench for the scatter sampler.
 //!
 //! Phase 0.2: measures `collect_sampled_xyc_rows` (the inner-loop cost of

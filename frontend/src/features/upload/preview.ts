@@ -14,6 +14,7 @@ import { getPartialTimeRangeInputs } from './partialLoadControls.js';
 import { toast } from '../../utils/toast.js';
 import { getDropdownValue, setDropdownOptions, setDropdownValue } from '../../ui/primitives/Dropdown.js';
 import type { DatasetMetadata } from '../../types/api.js';
+import { errorMessage, isAbortError } from '../../utils/errors.js';
 
 // ── Status display ───────────────────────────────────────────────────────────
 
@@ -114,12 +115,13 @@ export function createUploadPreviewController(): UploadPreviewController {
                 setProfileMode('preview');
                 return 'ready';
             } catch (e: unknown) {
-                if (disposed || controller.signal.aborted || request !== controller || (e as Error)?.name === 'AbortError') return 'ignored';
-                if (String((e as Error)?.message || '').includes('Specified time column not found')) {
+                if (disposed || controller.signal.aborted || request !== controller || isAbortError(e)) return 'ignored';
+                const message = errorMessage(e);
+                if (message.includes('Specified time column not found')) {
                     setPreviewTimeColumn(null);
                 }
-                setUploadPreviewStatus(`Preview failed: ${e instanceof Error ? e.message : String(e)}`, 'error');
-                toast(`Upload preview failed: ${e instanceof Error ? e.message : String(e)}`, 'error', {});
+                setUploadPreviewStatus(`Preview failed: ${message}`, 'error');
+                toast(`Upload preview failed: ${message}`, 'error', {});
                 applyTimeRangeFromMetadata(null, false);
                 return 'failed';
             } finally {

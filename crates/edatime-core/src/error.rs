@@ -3,7 +3,7 @@
 use thiserror::Error;
 
 #[derive(Debug, Clone, Error)]
-pub enum AppError {
+pub enum DomainError {
     #[error("invalid time range: {0}")]
     InvalidTimeRange(String),
     #[error("invalid viewport width: {0}")]
@@ -44,7 +44,7 @@ pub enum AppError {
     Internal(String),
 }
 
-impl AppError {
+impl DomainError {
     pub fn bad_request(msg: impl Into<String>) -> Self {
         Self::BadRequest(msg.into())
     }
@@ -78,14 +78,14 @@ impl AppError {
     }
 }
 
-impl From<polars::prelude::PolarsError> for AppError {
+impl From<polars::prelude::PolarsError> for DomainError {
     fn from(value: polars::prelude::PolarsError) -> Self {
-        AppError::Internal(value.to_string())
+        DomainError::Internal(value.to_string())
     }
 }
 
-impl From<std::io::Error> for AppError {
+impl From<std::io::Error> for DomainError {
     fn from(value: std::io::Error) -> Self {
-        AppError::Io(value.to_string())
+        DomainError::Io(value.to_string())
     }
 }

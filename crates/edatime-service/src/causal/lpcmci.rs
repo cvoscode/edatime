@@ -33,7 +33,11 @@ impl<'a> Lpcmci<'a> {
     /// Run the full LPCMCI algorithm.
     ///
     /// `n_preliminary_iterations`: number of preliminary rounds (default 1).
-    pub fn run(&self, config: &PcmciConfig, n_preliminary_iterations: usize) -> CausalResult {
+    pub fn run(
+        &self,
+        config: &PcmciConfig,
+        n_preliminary_iterations: usize,
+    ) -> Result<CausalResult, AppError> {
         let n = self.df.n_vars;
         let tau_max = config.tau_max;
 
@@ -61,10 +65,10 @@ impl<'a> Lpcmci<'a> {
                 config.pc_alpha,
                 config.max_conds_dim,
                 config.max_combinations,
-            );
+            )?;
 
             // Run ancestral removal with preliminary flag
-            let graph = self.ancestral_removal_phase(config, &pc_result.all_parents, true);
+            let graph = self.ancestral_removal_phase(config, &pc_result.all_parents, true)?;
 
             // Extract definite ancestors: any lagged link that survives is a
             // definite ancestor
@@ -94,7 +98,7 @@ impl<'a> Lpcmci<'a> {
                 config.pc_alpha,
                 config.max_conds_dim,
                 config.max_combinations,
-            );
+            )?;
             // Merge PC parents with definite ancestors
             for j in 0..n {
                 let mut parents = pc_result.all_parents.get(&j).cloned().unwrap_or_default();
@@ -109,21 +113,21 @@ impl<'a> Lpcmci<'a> {
             }
         }
 
-        let mut graph = self.ancestral_removal_phase(config, &merged_parents, false);
+        let mut graph = self.ancestral_removal_phase(config, &merged_parents, false)?;
         tracing::info!("LPCMCI ancestral removal complete");
 
         // Step 3: Non-ancestral phase — additional conditioning on
         // contemporaneous neighbors for remaining undirected links.
-        self.non_ancestral_phase(config, &mut graph, &merged_parents);
+        self.non_ancestral_phase(config, &mut graph, &merged_parents)?;
         tracing::info!("LPCMCI non-ancestral phase complete");
 
         // Step 4: Final orientation
-        self.orient_edges(&mut graph);
+        self.orient_edges(&mut graph)?;
         tracing::info!("LPCMCI orientation complete");
 
         let result = CausalResult::from_graph(&graph, &self.df.var_names);
         tracing::info!(n_links = result.links.len(), "LPCMCI complete");
-        result
+        Ok(result)
     }
 
     /// Cooperative variant of [`run`]. Polls the request-owned probe at the
@@ -249,9 +253,8 @@ impl<'a> Lpcmci<'a> {
         config: &PcmciConfig,
         all_parents: &HashMap<usize, Vec<VarLag>>,
         preliminary: bool,
-    ) -> CausalGraph {
+    ) -> Result<CausalGraph, AppError> {
         self.ancestral_removal_phase_with_cancellation(config, all_parents, preliminary, None)
-            .expect("ordinary LPCMCI cannot be cancelled")
     }
 
     fn ancestral_removal_phase_with_cancellation(
@@ -388,9 +391,8 @@ impl<'a> Lpcmci<'a> {
         config: &PcmciConfig,
         graph: &mut CausalGraph,
         all_parents: &HashMap<usize, Vec<VarLag>>,
-    ) {
+    ) -> Result<(), AppError> {
         self.non_ancestral_phase_with_cancellation(config, graph, all_parents, None)
-            .expect("ordinary LPCMCI cannot be cancelled")
     }
 
     fn non_ancestral_phase_with_cancellation(
@@ -500,9 +502,8 @@ impl<'a> Lpcmci<'a> {
     /// Final orientation: orient edges based on collider detection and
     /// ancestral rules. Latent-confounder-aware: surviving undirected
     /// contemporaneous edges become Undirected (potential bidirected).
-    fn orient_edges(&self, graph: &mut CausalGraph) {
+    fn orient_edges(&self, graph: &mut CausalGraph) -> Result<(), AppError> {
         self.orient_edges_with_cancellation(graph, None)
-            .expect("ordinary LPCMCI cannot be cancelled")
     }
 
     fn orient_edges_with_cancellation(
@@ -652,16 +653,18 @@ mod tests {
         let df = CausalDataFrame::new(vec![x, y], vec!["X".into(), "Y".into()]);
         let test = CondIndTest::new(IndependenceTestKind::ParCorr);
         let engine = Lpcmci::new(&df, &test);
-        let result = engine.run(
-            &PcmciConfig {
-                tau_min: 0,
-                tau_max: 1,
-                pc_alpha: 0.05,
-                alpha_level: 0.05,
-                ..Default::default()
-            },
-            1,
-        );
+        let result = engine
+            .run(
+                &PcmciConfig {
+                    tau_min: 0,
+                    tau_max: 1,
+                    pc_alpha: 0.05,
+                    alpha_level: 0.05,
+                    ..Default::default()
+                },
+                1,
+            )
+            .unwrap();
 
         assert!(
             result.links.iter().any(|l| l.lag == 0

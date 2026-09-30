@@ -7,6 +7,7 @@ import type {
     AnomalyResponse,
     CausalGraphResponse,
     CorrelationMatrixResponse,
+    FftDetrend,
     FftResponse,
     RollingResponse,
     SpectralFilterResponse,
@@ -27,6 +28,7 @@ export type {
     AnomalyResponse,
     FrequencyPeak,
     FftResult,
+    FftDetrend,
     FftResponse,
     AnalysisSampling,
     SpectrogramResult,
@@ -79,7 +81,7 @@ export async function fetchFft(
     columns: string,
     maxPoints = 8192,
     options?: ApiRequestOptions,
-    detrend?: string,
+    detrend?: FftDetrend,
 ): Promise<FftResponse> {
     const plan = activeCleaningPlan();
     return postJson<FftResponse>(apiV1Routes.analytics.fft, {

@@ -3,7 +3,7 @@ use std::sync::{
     atomic::{AtomicU64, Ordering},
 };
 
-use edatime_core::error::AppError;
+use edatime_core::error::DomainError;
 use polars::prelude::{DataFrame, IntoLazy, LazyFrame};
 
 #[derive(Debug, Clone, Default)]
@@ -107,10 +107,14 @@ pub trait DataRepository: Send + Sync {
 
     /// Replace the dataset — blocks until write lock acquired.
     /// Returns the new revision number, or `Err` if a write lock was poisoned.
-    fn replace_from_dataframe(&self, df: DataFrame) -> Result<u64, AppError>;
+    fn replace_from_dataframe(&self, df: DataFrame) -> Result<u64, DomainError>;
     /// Replace the active source with a lazy scan and persisted metadata
     /// without collecting its rows into memory.
-    fn replace_from_lazyframe(&self, frame: LazyFrame, meta: DatasetMeta) -> Result<u64, AppError>;
+    fn replace_from_lazyframe(
+        &self,
+        frame: LazyFrame,
+        meta: DatasetMeta,
+    ) -> Result<u64, DomainError>;
 }
 
 impl DataRepository for InMemoryDataRepository {
@@ -155,7 +159,7 @@ impl DataRepository for InMemoryDataRepository {
         *guard = name;
     }
 
-    fn replace_from_dataframe(&self, df: DataFrame) -> Result<u64, AppError> {
+    fn replace_from_dataframe(&self, df: DataFrame) -> Result<u64, DomainError> {
         // Capture df info BEFORE moving df into lazy()
         let column_names: Vec<String> = df
             .get_column_names()
@@ -178,11 +182,11 @@ impl DataRepository for InMemoryDataRepository {
         let mut meta_guard = self
             .meta
             .write()
-            .map_err(|_| AppError::internal("dataset meta write lock poisoned"))?;
+            .map_err(|_| DomainError::internal("dataset meta write lock poisoned"))?;
         let mut frame_guard = self
             .lf
             .write()
-            .map_err(|_| AppError::internal("dataset write lock poisoned"))?;
+            .map_err(|_| DomainError::internal("dataset write lock poisoned"))?;
 
         *frame_guard = lf;
         *meta_guard = meta;
@@ -190,15 +194,19 @@ impl DataRepository for InMemoryDataRepository {
         Ok(self.bump_revision())
     }
 
-    fn replace_from_lazyframe(&self, frame: LazyFrame, meta: DatasetMeta) -> Result<u64, AppError> {
+    fn replace_from_lazyframe(
+        &self,
+        frame: LazyFrame,
+        meta: DatasetMeta,
+    ) -> Result<u64, DomainError> {
         let mut meta_guard = self
             .meta
             .write()
-            .map_err(|_| AppError::internal("dataset meta write lock poisoned"))?;
+            .map_err(|_| DomainError::internal("dataset meta write lock poisoned"))?;
         let mut frame_guard = self
             .lf
             .write()
-            .map_err(|_| AppError::internal("dataset write lock poisoned"))?;
+            .map_err(|_| DomainError::internal("dataset write lock poisoned"))?;
 
         *frame_guard = frame;
         *meta_guard = meta;

@@ -51,9 +51,9 @@ pub fn run_pc_stable(
     pc_alpha: f64,
     max_conds_dim: Option<usize>,
     max_combinations: usize,
-) -> PcResult {
-    // No cancellation probe — the only `Ok` path can fail with cancellation,
-    // so `expect` is unreachable and the legacy contract is preserved.
+) -> Result<PcResult, AppError> {
+    // No cancellation probe, so the only failure the shared implementation
+    // can report (cancellation) cannot occur; other errors still propagate.
     run_pc_stable_with_cancellation(
         df,
         test,
@@ -64,7 +64,6 @@ pub fn run_pc_stable(
         max_combinations,
         None,
     )
-    .expect("non-cancellable PC-stable never returns AppError")
 }
 
 /// Cooperative variant of [`run_pc_stable`]. See that function for the
@@ -225,11 +224,9 @@ fn pc_stable_single_with_cancellation(
 
             let mut cancelled = false;
             for_each_combination(&other_parents, conds_dim, max_combinations, |z_set| {
-                if let Some(cancellation) = cancellation {
-                    if cancellation.is_cancelled() {
-                        cancelled = true;
-                        return true;
-                    }
+                if cancellation.is_some_and(|probe| probe.is_cancelled()) {
+                    cancelled = true;
+                    return true;
                 }
                 let x = [(i, neg_tau)];
                 let y = [(j, 0i32)];
@@ -260,7 +257,9 @@ fn pc_stable_single_with_cancellation(
             if cancelled {
                 // The callback cannot return a Result, so stop it early and
                 // propagate the cancellation at the parent boundary.
-                cancellation.expect("cancelled requires a probe").check()?;
+                if let Some(probe) = cancellation {
+                    probe.check()?;
+                }
             }
         }
 

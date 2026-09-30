@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Criterion bench for the correlation matrix computation.
 //!
 //! Phase 0.2: measures `compute_correlation_matrix` (the inner loop of

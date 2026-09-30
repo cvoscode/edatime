@@ -24,7 +24,7 @@ import {
 } from '../utils/settings.js';
 import { getSeriesPalette } from '../utils/seriesColors.js';
 import { paletteForColorScale } from '../utils/colorScales.js';
-import { createModalController } from './shell/createModalController';
+import { createModalController } from './shell/createModalController.js';
 import { getDropdownValue, setDropdownValue } from './primitives/Dropdown.js';
 import { initSettingsHelp } from './settingsHelp.js';
 

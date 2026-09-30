@@ -2,17 +2,17 @@
 
 use polars::prelude::*;
 
-use crate::error::AppError;
+use crate::error::DomainError;
 
 /// Cast a series to f64 and collect values, filtering out non-finite entries.
 /// Returns `Vec<Option<f64>>` where `None` was either null or non-finite.
-pub fn series_to_finite_f64(series: &Series, label: &str) -> Result<Vec<f64>, AppError> {
+pub fn series_to_finite_f64(series: &Series, label: &str) -> Result<Vec<f64>, DomainError> {
     let casted = series
         .cast(&DataType::Float64)
-        .map_err(|e| AppError::internal(format!("Cast '{label}': {e}")))?;
+        .map_err(|e| DomainError::internal(format!("Cast '{label}': {e}")))?;
     let ca = casted
         .f64()
-        .map_err(|e| AppError::internal(format!("Read '{label}': {e}")))?;
+        .map_err(|e| DomainError::internal(format!("Read '{label}': {e}")))?;
     Ok(ca
         .into_iter()
         .filter_map(|v| v.filter(|f| f.is_finite()))
@@ -432,7 +432,6 @@ fn rank_with_ties(values: &[f64]) -> Vec<f64> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod correlation_tests {
     use super::{kendall_tau, pearson, spearman};
 
@@ -792,7 +791,6 @@ mod tests {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod proptests {
     //! Property-based tests for the statistics primitives.
     //!

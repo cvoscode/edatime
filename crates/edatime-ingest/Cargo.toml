@@ -10,12 +10,8 @@ workspace = true
 [dependencies]
 edatime-core = { path = "../edatime-core" }
 polars.workspace = true
-arrow.workspace = true
 serde.workspace = true
-thiserror.workspace = true
 tracing.workspace = true
-bytes.workspace = true
-tokio.workspace = true
 
 [dev-dependencies]
 tempfile = { workspace = true }

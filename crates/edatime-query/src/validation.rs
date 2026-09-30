@@ -2,24 +2,24 @@ use chrono::{DateTime, Utc};
 use polars::prelude::{DataFrame, LazyFrame};
 
 use edatime_core::config::ValidationSettings;
-use edatime_core::error::AppError;
+use edatime_core::error::DomainError;
 
-pub fn validate_time_window(start: DateTime<Utc>, end: DateTime<Utc>) -> Result<(), AppError> {
+pub fn validate_time_window(start: DateTime<Utc>, end: DateTime<Utc>) -> Result<(), DomainError> {
     if start >= end {
-        return Err(AppError::InvalidTimeRange(
+        return Err(DomainError::InvalidTimeRange(
             "Start time must be before end time".to_string(),
         ));
     }
     Ok(())
 }
 
-pub fn validate_width(width: usize, limits: &ValidationSettings) -> Result<(), AppError> {
+pub fn validate_width(width: usize, limits: &ValidationSettings) -> Result<(), DomainError> {
     // Enforce BOTH the lower and upper bounds so the `width=1` raw-data
     // escape hatch (audit issue 1.2) cannot resurface via direct API
     // calls. The frontend already clamps to 50 in
     // `services/api/timeseries.ts`; this makes the backend authoritative.
     if width < limits.min_viewport_width || width > limits.max_viewport_width {
-        return Err(AppError::InvalidWidth(format!(
+        return Err(DomainError::InvalidWidth(format!(
             "Width must be between {} and {} pixels",
             limits.min_viewport_width, limits.max_viewport_width
         )));
@@ -27,9 +27,12 @@ pub fn validate_width(width: usize, limits: &ValidationSettings) -> Result<(), A
     Ok(())
 }
 
-pub fn validate_bucket_count(buckets: usize, limits: &ValidationSettings) -> Result<(), AppError> {
+pub fn validate_bucket_count(
+    buckets: usize,
+    limits: &ValidationSettings,
+) -> Result<(), DomainError> {
     if buckets == 0 || buckets > limits.max_buckets {
-        return Err(AppError::InvalidBuckets(format!(
+        return Err(DomainError::InvalidBuckets(format!(
             "Buckets must be between 1 and {}",
             limits.max_buckets
         )));
@@ -37,25 +40,28 @@ pub fn validate_bucket_count(buckets: usize, limits: &ValidationSettings) -> Res
     Ok(())
 }
 
-pub fn validate_window_ms(window_ms: i64, step_ms: Option<i64>) -> Result<(), AppError> {
+pub fn validate_window_ms(window_ms: i64, step_ms: Option<i64>) -> Result<(), DomainError> {
     if window_ms <= 0 {
-        return Err(AppError::BadRequest(
+        return Err(DomainError::BadRequest(
             "Window size must be greater than 0 ms".to_string(),
         ));
     }
     if let Some(step) = step_ms
         && step <= 0
     {
-        return Err(AppError::BadRequest(
+        return Err(DomainError::BadRequest(
             "Window step must be greater than 0 ms".to_string(),
         ));
     }
     Ok(())
 }
 
-pub fn validate_scatter_limit(limit: usize, limits: &ValidationSettings) -> Result<(), AppError> {
+pub fn validate_scatter_limit(
+    limit: usize,
+    limits: &ValidationSettings,
+) -> Result<(), DomainError> {
     if limit == 0 || limit > limits.max_scatter_limit {
-        return Err(AppError::InvalidScatterLimit(format!(
+        return Err(DomainError::InvalidScatterLimit(format!(
             "Scatter limit must be between 1 and {}",
             limits.max_scatter_limit
         )));
@@ -66,9 +72,9 @@ pub fn validate_scatter_limit(limit: usize, limits: &ValidationSettings) -> Resu
 pub fn validate_upload_size_with_limit(
     total_bytes: usize,
     max_upload_bytes: usize,
-) -> Result<(), AppError> {
+) -> Result<(), DomainError> {
     if total_bytes > max_upload_bytes {
-        return Err(AppError::UploadTooLarge(format!(
+        return Err(DomainError::UploadTooLarge(format!(
             "Upload exceeds the {} MB limit",
             max_upload_bytes / (1024 * 1024)
         )));
@@ -80,9 +86,9 @@ pub fn validate_numeric_columns(
     df: &DataFrame,
     columns: &[String],
     limits: &ValidationSettings,
-) -> Result<Vec<String>, AppError> {
+) -> Result<Vec<String>, DomainError> {
     if columns.len() > limits.max_selected_columns {
-        return Err(AppError::InvalidColumnSelection(format!(
+        return Err(DomainError::InvalidColumnSelection(format!(
             "At most {} columns may be requested at once",
             limits.max_selected_columns
         )));
@@ -97,10 +103,10 @@ pub fn validate_numeric_columns(
 
         let series = df
             .column(name)
-            .map_err(|_| AppError::ColumnNotFound(format!("Unknown column '{}'", name)))?;
+            .map_err(|_| DomainError::ColumnNotFound(format!("Unknown column '{}'", name)))?;
 
         if !series.dtype().is_numeric() {
-            return Err(AppError::InvalidColumnSelection(format!(
+            return Err(DomainError::InvalidColumnSelection(format!(
                 "Column '{}' must be numeric for this endpoint",
                 name
             )));
@@ -110,7 +116,7 @@ pub fn validate_numeric_columns(
     }
 
     if out.is_empty() {
-        return Err(AppError::InvalidColumnSelection(
+        return Err(DomainError::InvalidColumnSelection(
             "No valid numeric columns were requested".to_string(),
         ));
     }
@@ -122,9 +128,9 @@ pub fn validate_numeric_columns_lazy(
     lf: &LazyFrame,
     columns: &[String],
     limits: &ValidationSettings,
-) -> Result<Vec<String>, AppError> {
+) -> Result<Vec<String>, DomainError> {
     if columns.len() > limits.max_selected_columns {
-        return Err(AppError::InvalidColumnSelection(format!(
+        return Err(DomainError::InvalidColumnSelection(format!(
             "At most {} columns may be requested at once",
             limits.max_selected_columns
         )));
@@ -133,7 +139,7 @@ pub fn validate_numeric_columns_lazy(
     let schema = lf
         .clone()
         .collect_schema()
-        .map_err(|e| AppError::BadRequest(format!("Failed to get schema: {}", e)))?;
+        .map_err(|e| DomainError::BadRequest(format!("Failed to get schema: {}", e)))?;
 
     let mut out = Vec::new();
     for column in columns {
@@ -144,10 +150,10 @@ pub fn validate_numeric_columns_lazy(
 
         let dtype = schema
             .get(name)
-            .ok_or_else(|| AppError::ColumnNotFound(format!("Unknown column '{}'", name)))?;
+            .ok_or_else(|| DomainError::ColumnNotFound(format!("Unknown column '{}'", name)))?;
 
         if !dtype.is_numeric() {
-            return Err(AppError::InvalidColumnSelection(format!(
+            return Err(DomainError::InvalidColumnSelection(format!(
                 "Column '{}' must be numeric for this endpoint",
                 name
             )));
@@ -157,7 +163,7 @@ pub fn validate_numeric_columns_lazy(
     }
 
     if out.is_empty() {
-        return Err(AppError::InvalidColumnSelection(
+        return Err(DomainError::InvalidColumnSelection(
             "No valid numeric columns were requested".to_string(),
         ));
     }
@@ -166,7 +172,6 @@ pub fn validate_numeric_columns_lazy(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
 

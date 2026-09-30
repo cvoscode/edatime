@@ -13,14 +13,9 @@ path = "src/main.rs"
 
 [dependencies]
 edatime-core = { path = "../edatime-core" }
-edatime-query = { path = "../edatime-query" }
-edatime-store = { path = "../edatime-store" }
 edatime-service = { path = "../edatime-service" }
-polars.workspace = true
 tokio.workspace = true
-serde.workspace = true
+polars.workspace = true
+axum.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
-axum.workspace = true
-toml.workspace = true
-tower-http = { workspace = true }

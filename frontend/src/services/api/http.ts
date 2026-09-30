@@ -75,7 +75,7 @@ async function ensureArrowParser(): Promise<TableFromIPCFn> {
         tableFromIPCFn = arrow.tableFromIPC as TableFromIPCFn;
         return tableFromIPCFn;
     } catch (e) {
-        throw new Error(`Failed to load Apache Arrow parser: ${(e as Error).message}`);
+        throw new Error(`Failed to load Apache Arrow parser: ${e instanceof Error ? e.message : String(e)}`);
     }
 }
 

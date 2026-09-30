@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Bounded multi-series `/data` overview benchmark.
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};

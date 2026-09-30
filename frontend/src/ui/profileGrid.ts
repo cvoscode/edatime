@@ -1,4 +1,4 @@
-import { sampledProfileDescription } from '../services/profile/samplingDescription.js';
+import { sampledProfileDescription, sampledProfileRowCount } from '../services/profile/samplingDescription.js';
 import {
     PROFILE_COLUMNS,
     PROFILE_OVERSCAN,
@@ -170,7 +170,7 @@ export function profileRowsFromMetadata(metadata: DatasetMetadata | null | undef
     const profileByName = new Map<string, ProfileRow>();
 
     const status = metadata?.profile_status ?? 'unavailable';
-    const sampleRows = metadata?.profile_sample_rows ?? null;
+    const sampleRows = metadata?.profile_status === 'sampled' ? sampledProfileRowCount(metadata) : metadata?.profile_sample_rows ?? null;
     const timeColumn = metadata?.time_column ?? null;
     for (const raw of incoming) {
         const profile = createProfileRow(raw, status, sampleRows, timeColumn, metadata?.time_quality);
@@ -402,7 +402,7 @@ function setQualityDetails(root: HTMLElement, profile: ProfileRow, focus = true)
     summary.textContent = `Quality details for ${profile.name} · ${qualityStatusLabel(quality?.status ?? 'unavailable')}`;
     const description = createElement('p', 'profile-grid-quality-details__status');
     if (quality?.status === 'exact') description.textContent = 'Statistics describe the full source dataset for this report.';
-    else if (quality?.status === 'sampled') description.textContent = quality.samplingDescription ?? `Statistics are estimates from ${quality.sampleRows?.toLocaleString() ?? 'an unspecified number of'} sampled rows; sampling method unavailable.`;
+    else if (quality?.status === 'sampled') description.textContent = `Statistics are estimates from ${quality.sampleRows?.toLocaleString() ?? 'an unspecified number of'} sampled rows. ${quality.samplingDescription ?? 'Sampling method unavailable.'}`;
     else if (quality?.status === 'immediate') description.textContent = 'Completed column statistics are unavailable until a sampled or exact report is built.';
     else description.textContent = 'No profile statistics are available for this column.';
     if (profile.profilePending) description.textContent += ' This column has not been profiled in the current report.';

@@ -6,3 +6,5 @@ docs/
 *.py
 *.csv
 .github/
+_to_delete/
+_unsure/

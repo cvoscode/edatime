@@ -50,56 +50,6 @@ export function announceDataUpdate(pageName: string): void {
     announce(`Data updated on ${pageName} page.`, 'polite');
 }
 
-/* ── Global Loading Indicator ──────────────────────── */
-
-let _loadingCount = 0;
-const _loadingEl: HTMLElement | null = null;
-let _loadingTimeout: ReturnType<typeof setTimeout> | null = null;
-
-export function showGlobalLoading(message = 'Loading…'): void {
-    _loadingCount++;
-    const existing = document.getElementById('header-global-loading');
-    if (existing) {
-        existing.querySelector('.header-loading-text')!.textContent = message;
-        existing.hidden = false;
-        return;
-    }
-
-    const el = document.createElement('div');
-    el.id = 'header-global-loading';
-    el.className = 'header-loading';
-    el.setAttribute('role', 'status');
-    el.setAttribute('aria-live', 'polite');
-    el.innerHTML = `
-        <span class="header-loading-spinner"></span>
-        <span class="header-loading-text">${message}</span>
-    `;
-
-    const meta = document.getElementById('header-meta');
-    if (meta) {
-        meta.insertBefore(el, meta.firstChild);
-    }
-
-    // Clear any pending timeout
-    if (_loadingTimeout) {
-        clearTimeout(_loadingTimeout);
-        _loadingTimeout = null;
-    }
-}
-
-export function hideGlobalLoading(delay = 200): void {
-    _loadingCount = Math.max(0, _loadingCount - 1);
-    if (_loadingCount > 0) return;
-
-    _loadingTimeout = setTimeout(() => {
-        const el = document.getElementById('header-global-loading');
-        if (el) {
-            el.classList.add('header-loading--hiding');
-            setTimeout(() => el.remove(), 300);
-        }
-    }, delay);
-}
-
 /* ── Keyboard Shortcuts Help ──────────────────────── */
 
 export interface KeyboardShortcut {

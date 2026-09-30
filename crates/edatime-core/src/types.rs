@@ -30,7 +30,7 @@ impl TimeContext {
     pub fn from_schema(
         lf: &LazyFrame,
         time_column: Option<&str>,
-    ) -> Result<Self, crate::error::AppError> {
+    ) -> Result<Self, crate::error::DomainError> {
         let ts_col_name = time_column.unwrap_or("ts").to_string();
         let dtype = Self::ts_dtype_lazy(lf, &ts_col_name)?;
         let multiplier = Self::unit_multiplier(&dtype);
@@ -41,12 +41,12 @@ impl TimeContext {
         })
     }
 
-    fn ts_dtype_lazy(lf: &LazyFrame, ts_col: &str) -> Result<DataType, crate::error::AppError> {
+    fn ts_dtype_lazy(lf: &LazyFrame, ts_col: &str) -> Result<DataType, crate::error::DomainError> {
         let schema = lf.clone().collect_schema().map_err(|e| {
-            crate::error::AppError::Internal(format!("LazyFrame schema unavailable: {}", e))
+            crate::error::DomainError::Internal(format!("LazyFrame schema unavailable: {}", e))
         })?;
         schema.get(ts_col).cloned().ok_or_else(|| {
-            crate::error::AppError::NotFound(format!("Missing time column '{}'", ts_col))
+            crate::error::DomainError::NotFound(format!("Missing time column '{}'", ts_col))
         })
     }
 

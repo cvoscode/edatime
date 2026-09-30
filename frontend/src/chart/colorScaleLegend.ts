@@ -3,6 +3,11 @@ import { getPlotColorScale } from '../utils/settings.js';
 import { COLOR_SCALES } from '../utils/colorScales.js';
 import { categoryColorFor, type ColorScaleInfo } from './colorScale.js';
 
+function setText(id: string, text: string): void {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+}
+
 export function renderColorScaleLegend(column: string | null, scaleInfo: ColorScaleInfo | null): void {
     const colorbar = document.getElementById('timeseries-colorbar-wrap');
     const categorical = document.getElementById('timeseries-categorical-wrap');
@@ -13,9 +18,9 @@ export function renderColorScaleLegend(column: string | null, scaleInfo: ColorSc
     if (scaleInfo.isNumeric && colorbar) {
         colorbar.hidden = false;
         colorbar.style.display = 'grid';
-        document.getElementById('timeseries-colorbar-name')!.textContent = column;
-        document.getElementById('timeseries-colorbar-min')!.textContent = formatTwoDecimals(scaleInfo.min);
-        document.getElementById('timeseries-colorbar-max')!.textContent = formatTwoDecimals(scaleInfo.max);
+        setText('timeseries-colorbar-name', column);
+        setText('timeseries-colorbar-min', formatTwoDecimals(scaleInfo.min));
+        setText('timeseries-colorbar-max', formatTwoDecimals(scaleInfo.max));
         const caption = document.getElementById('timeseries-colorbar-caption');
         if (caption) {
             const activeChips = document.querySelectorAll('#column-toggles .series-chip.active');
@@ -26,15 +31,17 @@ export function renderColorScaleLegend(column: string | null, scaleInfo: ColorSc
         }
         const scale = getPlotColorScale('signals');
         const colors = COLOR_SCALES[scale] ?? COLOR_SCALES.viridis;
-        document.getElementById('timeseries-colorbar')!.style.background = `linear-gradient(90deg, ${colors.join(',')})`;
+        const bar = document.getElementById('timeseries-colorbar');
+        if (bar) bar.style.background = `linear-gradient(90deg, ${colors.join(',')})`;
         return;
     }
 
     if (!scaleInfo.isNumeric && categorical) {
         categorical.hidden = false;
         categorical.style.display = 'grid';
-        document.getElementById('timeseries-categorical-name')!.textContent = column;
-        const legend = document.getElementById('timeseries-categorical-legend')!;
+        setText('timeseries-categorical-name', column);
+        const legend = document.getElementById('timeseries-categorical-legend');
+        if (!legend) return;
         legend.replaceChildren();
         for (const category of scaleInfo.categories) {
             const item = document.createElement('div');

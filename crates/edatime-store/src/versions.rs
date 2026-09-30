@@ -13,7 +13,7 @@ use polars::prelude::{
 use serde::Serialize;
 use serde_json::Value;
 
-use edatime_core::error::AppError;
+use edatime_core::error::DomainError;
 
 use crate::artifacts::{DatasetArtifactDescriptor, DatasetArtifactProvenance};
 
@@ -60,7 +60,7 @@ enum DatasetVersionSource {
 }
 
 impl DatasetVersionSource {
-    fn snapshot(&self) -> Result<LazyFrame, AppError> {
+    fn snapshot(&self) -> Result<LazyFrame, DomainError> {
         match self {
             Self::Resident { frame, .. } => Ok(frame.clone()),
             Self::Parquet(path) => LazyFrame::scan_parquet(
@@ -68,7 +68,7 @@ impl DatasetVersionSource {
                 ScanArgsParquet::default(),
             )
             .map_err(|error| {
-                AppError::internal(format!(
+                DomainError::internal(format!(
                     "Open retained Parquet artifact '{}': {error}",
                     path.display()
                 ))
@@ -168,10 +168,10 @@ pub fn fingerprints_for_frame(df: &DataFrame) -> (String, String) {
     (dataset_fingerprint, schema_fingerprint)
 }
 
-fn schema_fingerprint(mut frame: LazyFrame) -> Result<String, AppError> {
-    let schema = frame
-        .collect_schema()
-        .map_err(|error| AppError::internal(format!("Read retained artifact schema: {error}")))?;
+fn schema_fingerprint(mut frame: LazyFrame) -> Result<String, DomainError> {
+    let schema = frame.collect_schema().map_err(|error| {
+        DomainError::internal(format!("Read retained artifact schema: {error}"))
+    })?;
     let columns = schema
         .iter_fields()
         .map(|field| format!("{}:{}", field.name(), field.dtype()))
@@ -227,51 +227,51 @@ impl DatasetVersionRegistry {
         }
     }
 
-    pub fn current(&self) -> Result<DatasetVersionRecord, AppError> {
+    pub fn current(&self) -> Result<DatasetVersionRecord, DomainError> {
         let id = self
             .current_id
             .read()
-            .map_err(|_| AppError::internal("dataset version selection lock poisoned"))?
+            .map_err(|_| DomainError::internal("dataset version selection lock poisoned"))?
             .clone();
         self.record(&id)
     }
 
-    pub fn record(&self, id: &str) -> Result<DatasetVersionRecord, AppError> {
+    pub fn record(&self, id: &str) -> Result<DatasetVersionRecord, DomainError> {
         self.entries
             .read()
-            .map_err(|_| AppError::internal("dataset version registry lock poisoned"))?
+            .map_err(|_| DomainError::internal("dataset version registry lock poisoned"))?
             .get(id)
             .map(|entry| entry.record.clone())
-            .ok_or_else(|| AppError::NotFound(format!("Unknown dataset version '{id}'")))
+            .ok_or_else(|| DomainError::NotFound(format!("Unknown dataset version '{id}'")))
     }
 
-    pub fn snapshot(&self, id: &str) -> Result<LazyFrame, AppError> {
+    pub fn snapshot(&self, id: &str) -> Result<LazyFrame, DomainError> {
         let source = self
             .entries
             .read()
-            .map_err(|_| AppError::internal("dataset version registry lock poisoned"))?
+            .map_err(|_| DomainError::internal("dataset version registry lock poisoned"))?
             .get(id)
-            .ok_or_else(|| AppError::NotFound(format!("Unknown dataset version '{id}'")))?
+            .ok_or_else(|| DomainError::NotFound(format!("Unknown dataset version '{id}'")))?
             .source
             .clone();
         source.snapshot()
     }
 
-    pub fn list(&self) -> Result<Vec<DatasetVersionRecord>, AppError> {
+    pub fn list(&self) -> Result<Vec<DatasetVersionRecord>, DomainError> {
         Ok(self
             .entries
             .read()
-            .map_err(|_| AppError::internal("dataset version registry lock poisoned"))?
+            .map_err(|_| DomainError::internal("dataset version registry lock poisoned"))?
             .values()
             .map(|entry| entry.record.clone())
             .collect())
     }
 
-    pub fn retention_snapshot(&self) -> Result<VersionRetentionSnapshot, AppError> {
+    pub fn retention_snapshot(&self) -> Result<VersionRetentionSnapshot, DomainError> {
         let entries = self
             .entries
             .read()
-            .map_err(|_| AppError::internal("dataset version registry lock poisoned"))?;
+            .map_err(|_| DomainError::internal("dataset version registry lock poisoned"))?;
         let resident_versions = entries
             .values()
             .filter(|entry| matches!(entry.source, DatasetVersionSource::Resident { .. }))
@@ -300,7 +300,7 @@ impl DatasetVersionRegistry {
         pending_bytes: u64,
         max_versions: usize,
         max_bytes: u64,
-    ) -> Result<(), AppError> {
+    ) -> Result<(), DomainError> {
         let lineage = match parent_id {
             Some(parent) => self.lineage_ids(parent)?,
             None => BTreeSet::new(),
@@ -308,7 +308,7 @@ impl DatasetVersionRegistry {
         let entries = self
             .entries
             .read()
-            .map_err(|_| AppError::internal("dataset version registry lock poisoned"))?;
+            .map_err(|_| DomainError::internal("dataset version registry lock poisoned"))?;
         let lineage_versions = lineage
             .iter()
             .filter(|id| {
@@ -328,7 +328,7 @@ impl DatasetVersionRegistry {
         let required_versions = lineage_versions.saturating_add(1);
         let required_bytes = lineage_bytes.saturating_add(pending_bytes);
         if required_versions > max_versions.max(1) || required_bytes > max_bytes.max(1) {
-            return Err(AppError::Validation(format!(
+            return Err(DomainError::Validation(format!(
                 "resident dataset retention budget exceeded: versions={required_versions}/{}, bytes={required_bytes}/{}; configure managed artifact storage or raise the retention limit",
                 max_versions.max(1),
                 max_bytes.max(1)
@@ -344,17 +344,17 @@ impl DatasetVersionRegistry {
         &self,
         max_versions: usize,
         max_bytes: u64,
-    ) -> Result<Vec<String>, AppError> {
+    ) -> Result<Vec<String>, DomainError> {
         let current = self
             .current_id
             .read()
-            .map_err(|_| AppError::internal("dataset version selection lock poisoned"))?
+            .map_err(|_| DomainError::internal("dataset version selection lock poisoned"))?
             .clone();
         let protected = self.lineage_ids(&current)?;
         let mut entries = self
             .entries
             .write()
-            .map_err(|_| AppError::internal("dataset version registry lock poisoned"))?;
+            .map_err(|_| DomainError::internal("dataset version registry lock poisoned"))?;
         let mut candidates = entries
             .iter()
             .filter(|(id, entry)| {
@@ -394,19 +394,19 @@ impl DatasetVersionRegistry {
     /// Return a root-to-leaf lineage for `version_id`. Retention must keep
     /// every member of this set or catalog recovery could lose a child’s
     /// immutable parent chain after restart.
-    pub fn lineage_ids(&self, version_id: &str) -> Result<BTreeSet<String>, AppError> {
+    pub fn lineage_ids(&self, version_id: &str) -> Result<BTreeSet<String>, DomainError> {
         let entries = self
             .entries
             .read()
-            .map_err(|_| AppError::internal("dataset version registry lock poisoned"))?;
+            .map_err(|_| DomainError::internal("dataset version registry lock poisoned"))?;
         let mut lineage = BTreeSet::new();
         let mut next = Some(version_id.to_string());
         while let Some(id) = next {
             let entry = entries
                 .get(&id)
-                .ok_or_else(|| AppError::NotFound(format!("Unknown dataset version '{id}'")))?;
+                .ok_or_else(|| DomainError::NotFound(format!("Unknown dataset version '{id}'")))?;
             if !lineage.insert(id) {
-                return Err(AppError::internal(
+                return Err(DomainError::internal(
                     "Dataset version lineage contains a cycle",
                 ));
             }
@@ -417,20 +417,20 @@ impl DatasetVersionRegistry {
 
     /// Drop versions that are no longer backed by retained artifacts. The
     /// active version may never be removed.
-    pub fn retain_ids(&self, retained: &BTreeSet<String>) -> Result<(), AppError> {
+    pub fn retain_ids(&self, retained: &BTreeSet<String>) -> Result<(), DomainError> {
         let current = self
             .current_id
             .read()
-            .map_err(|_| AppError::internal("dataset version selection lock poisoned"))?
+            .map_err(|_| DomainError::internal("dataset version selection lock poisoned"))?
             .clone();
         if !retained.contains(&current) {
-            return Err(AppError::internal(
+            return Err(DomainError::internal(
                 "Artifact retention cannot remove the active dataset version",
             ));
         }
         self.entries
             .write()
-            .map_err(|_| AppError::internal("dataset version registry lock poisoned"))?
+            .map_err(|_| DomainError::internal("dataset version registry lock poisoned"))?
             .retain(|id, _| retained.contains(id));
         Ok(())
     }
@@ -441,7 +441,7 @@ impl DatasetVersionRegistry {
         revision: u64,
         source_name: Option<String>,
         time_column: Option<String>,
-    ) -> Result<DatasetVersionRecord, AppError> {
+    ) -> Result<DatasetVersionRecord, DomainError> {
         let resident_bytes = frame.estimated_size() as u64;
         let (dataset_fingerprint, schema_fingerprint) = fingerprints_for_frame(&frame);
         self.register_root_with_identity(
@@ -464,7 +464,7 @@ impl DatasetVersionRegistry {
         source_name: Option<String>,
         time_column: Option<String>,
         identity: ResidentVersionIdentity,
-    ) -> Result<DatasetVersionRecord, AppError> {
+    ) -> Result<DatasetVersionRecord, DomainError> {
         let id = self.allocate_version_id();
         let record = DatasetVersionRecord {
             id: id.clone(),
@@ -482,7 +482,7 @@ impl DatasetVersionRegistry {
         };
         self.entries
             .write()
-            .map_err(|_| AppError::internal("dataset version registry lock poisoned"))?
+            .map_err(|_| DomainError::internal("dataset version registry lock poisoned"))?
             .insert(
                 id.clone(),
                 DatasetVersionEntry {
@@ -496,7 +496,7 @@ impl DatasetVersionRegistry {
         *self
             .current_id
             .write()
-            .map_err(|_| AppError::internal("dataset version selection lock poisoned"))? = id;
+            .map_err(|_| DomainError::internal("dataset version selection lock poisoned"))? = id;
         Ok(record)
     }
 
@@ -506,7 +506,7 @@ impl DatasetVersionRegistry {
         frame: DataFrame,
         revision: u64,
         plan_hash: String,
-    ) -> Result<DatasetVersionRecord, AppError> {
+    ) -> Result<DatasetVersionRecord, DomainError> {
         let resident_bytes = frame.estimated_size() as u64;
         let (dataset_fingerprint, schema_fingerprint) = fingerprints_for_frame(&frame);
         self.register_child_with_identity(
@@ -524,6 +524,9 @@ impl DatasetVersionRegistry {
         )
     }
 
+    // Each argument is a distinct field of the child record; a parameter struct
+    // would only rename them.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn register_child_with_identity(
         &self,
         parent_id: &str,
@@ -533,7 +536,7 @@ impl DatasetVersionRegistry {
         time_column: Option<String>,
         applied_plan: Option<Value>,
         identity: ResidentVersionIdentity,
-    ) -> Result<DatasetVersionRecord, AppError> {
+    ) -> Result<DatasetVersionRecord, DomainError> {
         let parent = self.record(parent_id)?;
         let id = self.allocate_version_id();
         let record = DatasetVersionRecord {
@@ -552,7 +555,7 @@ impl DatasetVersionRegistry {
         };
         self.entries
             .write()
-            .map_err(|_| AppError::internal("dataset version registry lock poisoned"))?
+            .map_err(|_| DomainError::internal("dataset version registry lock poisoned"))?
             .insert(
                 id.clone(),
                 DatasetVersionEntry {
@@ -566,7 +569,7 @@ impl DatasetVersionRegistry {
         *self
             .current_id
             .write()
-            .map_err(|_| AppError::internal("dataset version selection lock poisoned"))? = id;
+            .map_err(|_| DomainError::internal("dataset version selection lock poisoned"))? = id;
         Ok(record)
     }
 
@@ -598,9 +601,9 @@ impl DatasetVersionRegistry {
         revision: u64,
         source_name: Option<String>,
         time_column: Option<String>,
-    ) -> Result<DatasetVersionRecord, AppError> {
+    ) -> Result<DatasetVersionRecord, DomainError> {
         if artifact.format != "parquet" {
-            return Err(AppError::bad_request(format!(
+            return Err(DomainError::bad_request(format!(
                 "Unsupported retained artifact format '{}'",
                 artifact.format
             )));
@@ -624,9 +627,9 @@ impl DatasetVersionRegistry {
         let mut entries = self
             .entries
             .write()
-            .map_err(|_| AppError::internal("dataset version registry lock poisoned"))?;
+            .map_err(|_| DomainError::internal("dataset version registry lock poisoned"))?;
         if entries.contains_key(&record.id) {
-            return Err(AppError::bad_request(format!(
+            return Err(DomainError::bad_request(format!(
                 "Dataset version '{}' is already retained",
                 record.id
             )));
@@ -642,7 +645,7 @@ impl DatasetVersionRegistry {
         *self
             .current_id
             .write()
-            .map_err(|_| AppError::internal("dataset version selection lock poisoned"))? =
+            .map_err(|_| DomainError::internal("dataset version selection lock poisoned"))? =
             record.id.clone();
         Ok(record)
     }
@@ -658,9 +661,9 @@ impl DatasetVersionRegistry {
         plan_hash: String,
         time_column: Option<String>,
         applied_plan: Option<Value>,
-    ) -> Result<DatasetVersionRecord, AppError> {
+    ) -> Result<DatasetVersionRecord, DomainError> {
         if artifact.format != "parquet" {
-            return Err(AppError::bad_request(format!(
+            return Err(DomainError::bad_request(format!(
                 "Unsupported retained artifact format '{}'",
                 artifact.format
             )));
@@ -685,9 +688,9 @@ impl DatasetVersionRegistry {
         let mut entries = self
             .entries
             .write()
-            .map_err(|_| AppError::internal("dataset version registry lock poisoned"))?;
+            .map_err(|_| DomainError::internal("dataset version registry lock poisoned"))?;
         if entries.contains_key(&record.id) {
-            return Err(AppError::bad_request(format!(
+            return Err(DomainError::bad_request(format!(
                 "Dataset version '{}' is already retained",
                 record.id
             )));
@@ -703,7 +706,7 @@ impl DatasetVersionRegistry {
         *self
             .current_id
             .write()
-            .map_err(|_| AppError::internal("dataset version selection lock poisoned"))? =
+            .map_err(|_| DomainError::internal("dataset version selection lock poisoned"))? =
             record.id.clone();
         Ok(record)
     }
@@ -714,7 +717,7 @@ impl DatasetVersionRegistry {
     pub fn restore_artifacts(
         &self,
         artifacts: Vec<DatasetArtifactDescriptor>,
-    ) -> Result<Vec<DatasetVersionRecord>, AppError> {
+    ) -> Result<Vec<DatasetVersionRecord>, DomainError> {
         let mut pending = artifacts;
         pending.sort_by_key(|artifact| artifact.created_at);
         let mut restored = Vec::with_capacity(pending.len());
@@ -730,18 +733,20 @@ impl DatasetVersionRegistry {
                     })
             });
             let Some(index) = next else {
-                return Err(AppError::bad_request(
+                return Err(DomainError::bad_request(
                     "Retained artifact catalog has missing provenance or unresolved parent versions",
                 ));
             };
             let artifact = pending.remove(index);
             let provenance = artifact.provenance.clone().ok_or_else(|| {
-                AppError::bad_request("Retained artifact catalog entry has no version provenance")
+                DomainError::bad_request(
+                    "Retained artifact catalog entry has no version provenance",
+                )
             })?;
             let source = parquet_source(&artifact)?;
             let actual_schema_fingerprint = schema_fingerprint(source.snapshot()?)?;
             if actual_schema_fingerprint != provenance.schema_fingerprint {
-                return Err(AppError::bad_request(format!(
+                return Err(DomainError::bad_request(format!(
                     "Retained artifact '{}' schema fingerprint does not match its catalog",
                     artifact.version_id
                 )));
@@ -750,9 +755,9 @@ impl DatasetVersionRegistry {
             let mut entries = self
                 .entries
                 .write()
-                .map_err(|_| AppError::internal("dataset version registry lock poisoned"))?;
+                .map_err(|_| DomainError::internal("dataset version registry lock poisoned"))?;
             if entries.contains_key(&record.id) {
-                return Err(AppError::bad_request(format!(
+                return Err(DomainError::bad_request(format!(
                     "Dataset version '{}' is already retained",
                     record.id
                 )));
@@ -771,7 +776,7 @@ impl DatasetVersionRegistry {
             *self
                 .current_id
                 .write()
-                .map_err(|_| AppError::internal("dataset version selection lock poisoned"))? =
+                .map_err(|_| DomainError::internal("dataset version selection lock poisoned"))? =
                 current.id.clone();
         }
         Ok(restored)
@@ -780,28 +785,30 @@ impl DatasetVersionRegistry {
     /// Select an already-retained immutable snapshot as the working dataset.
     /// Version identity stays immutable; the compatibility repository owns the
     /// separate active-session revision used to invalidate live requests.
-    pub fn select(&self, id: &str) -> Result<DatasetVersionRecord, AppError> {
+    pub fn select(&self, id: &str) -> Result<DatasetVersionRecord, DomainError> {
         let entries = self
             .entries
             .read()
-            .map_err(|_| AppError::internal("dataset version registry lock poisoned"))?;
+            .map_err(|_| DomainError::internal("dataset version registry lock poisoned"))?;
         let entry = entries
             .get(id)
-            .ok_or_else(|| AppError::NotFound(format!("Unknown dataset version '{id}'")))?;
+            .ok_or_else(|| DomainError::NotFound(format!("Unknown dataset version '{id}'")))?;
         let record = entry.record.clone();
         drop(entries);
         *self
             .current_id
             .write()
-            .map_err(|_| AppError::internal("dataset version selection lock poisoned"))? =
+            .map_err(|_| DomainError::internal("dataset version selection lock poisoned"))? =
             id.to_string();
         Ok(record)
     }
 }
 
-fn parquet_source(artifact: &DatasetArtifactDescriptor) -> Result<DatasetVersionSource, AppError> {
+fn parquet_source(
+    artifact: &DatasetArtifactDescriptor,
+) -> Result<DatasetVersionSource, DomainError> {
     if artifact.format != "parquet" {
-        return Err(AppError::bad_request(format!(
+        return Err(DomainError::bad_request(format!(
             "Unsupported retained artifact format '{}'",
             artifact.format
         )));
@@ -812,9 +819,9 @@ fn parquet_source(artifact: &DatasetArtifactDescriptor) -> Result<DatasetVersion
 fn record_from_artifact(
     artifact: &DatasetArtifactDescriptor,
     provenance: DatasetArtifactProvenance,
-) -> Result<DatasetVersionRecord, AppError> {
+) -> Result<DatasetVersionRecord, DomainError> {
     if provenance.parent_id.is_none() && provenance.root_id != artifact.version_id {
-        return Err(AppError::bad_request(format!(
+        return Err(DomainError::bad_request(format!(
             "Root artifact '{}' must use itself as rootId",
             artifact.version_id
         )));
@@ -847,275 +854,4 @@ fn prepared_display_name(parent: &DatasetVersionRecord, revision: u64) -> String
 }
 
 #[cfg(test)]
-mod tests {
-    use std::fs::{self, File};
-
-    use chrono::Utc;
-    use polars::prelude::{DataFrame, NamedFrom, ParquetWriter, Series};
-
-    use crate::artifacts::{DatasetArtifactDescriptor, DatasetArtifactProvenance};
-
-    use super::DatasetVersionRegistry;
-
-    fn frame(values: Vec<i64>) -> DataFrame {
-        DataFrame::new(
-            values.len(),
-            vec![Series::new("value".into(), values).into()],
-        )
-        .expect("frame")
-    }
-
-    #[test]
-    fn preserves_root_and_child_snapshots() {
-        let registry =
-            DatasetVersionRegistry::new(frame(vec![1, 2]), 0, Some("root.csv".to_string()));
-        let root = registry.current().expect("root");
-        let child = registry
-            .register_child(&root.id, frame(vec![2]), 1, "plan-hash".to_string())
-            .expect("child");
-
-        assert_eq!(child.root_id, root.id);
-        assert_eq!(child.parent_id.as_deref(), Some(root.id.as_str()));
-        assert_eq!(
-            registry
-                .snapshot(&root.id)
-                .expect("root frame")
-                .collect()
-                .expect("collect")
-                .height(),
-            2
-        );
-        assert_eq!(
-            registry
-                .snapshot(&child.id)
-                .expect("child frame")
-                .collect()
-                .expect("collect")
-                .height(),
-            1
-        );
-    }
-
-    #[test]
-    fn selecting_a_version_does_not_rewrite_its_identity() {
-        let registry = DatasetVersionRegistry::new(frame(vec![1, 2]), 4, None);
-        let root = registry.current().expect("root");
-        let child = registry
-            .register_child(&root.id, frame(vec![2]), 5, "plan".to_string())
-            .expect("child");
-
-        let selected = registry.select(&root.id).expect("select root");
-
-        assert_eq!(selected.revision, 4);
-        assert_eq!(
-            registry.record(&child.id).expect("child record").revision,
-            5
-        );
-    }
-
-    #[test]
-    fn same_shape_sources_have_distinct_content_fingerprints() {
-        let registry = DatasetVersionRegistry::new(frame(vec![1, 2]), 0, None);
-        let first = registry.current().expect("first source");
-        let second = registry
-            .register_root(frame(vec![1, 3]), 1, None, None)
-            .expect("second source");
-
-        assert_eq!(first.schema_fingerprint, second.schema_fingerprint);
-        assert_ne!(first.dataset_fingerprint, second.dataset_fingerprint);
-        assert!(first.dataset_fingerprint.starts_with("fnv1a-content-"));
-    }
-
-    #[test]
-    fn resident_retention_evicts_old_independent_roots_but_keeps_active_lineage() {
-        let registry = DatasetVersionRegistry::new(frame(vec![1]), 0, None);
-        let first = registry.current().expect("first root");
-        let second = registry
-            .register_root(frame(vec![2]), 1, None, None)
-            .expect("second root");
-        let child = registry
-            .register_child(&second.id, frame(vec![3]), 2, "plan".into())
-            .expect("active child");
-
-        let removed = registry
-            .enforce_resident_retention(2, u64::MAX)
-            .expect("enforce retention");
-        assert_eq!(removed, vec![first.id.clone()]);
-        assert!(registry.record(&first.id).is_err());
-        assert!(registry.record(&second.id).is_ok());
-        assert!(registry.record(&child.id).is_ok());
-        let snapshot = registry.retention_snapshot().expect("retention snapshot");
-        assert_eq!(snapshot.resident_versions, 2);
-        assert_eq!(snapshot.resident_evictions, 1);
-    }
-
-    #[test]
-    fn prospective_child_is_rejected_when_its_required_lineage_cannot_fit() {
-        let registry = DatasetVersionRegistry::new(frame(vec![1, 2]), 0, None);
-        let root = registry.current().expect("root");
-        let root_bytes = registry
-            .retention_snapshot()
-            .expect("retention snapshot")
-            .resident_bytes;
-
-        let error = registry
-            .ensure_resident_registration_fits(Some(&root.id), 1, 1, root_bytes)
-            .expect_err("root plus child must exceed the version cap");
-        assert!(
-            error
-                .to_string()
-                .contains("resident dataset retention budget exceeded")
-        );
-        assert_eq!(registry.list().expect("unchanged registry").len(), 1);
-        assert_eq!(registry.current().expect("unchanged current").id, root.id);
-    }
-
-    #[test]
-    fn retained_parquet_versions_reopen_a_scan_for_each_snapshot() {
-        let root = std::env::temp_dir().join(format!(
-            "edatime-retained-version-{}",
-            Utc::now().timestamp_nanos_opt().unwrap_or_default()
-        ));
-        fs::create_dir_all(&root).expect("create artifact test directory");
-        let path = root.join("source-7.parquet");
-        let mut persisted = frame(vec![4, 9]);
-        ParquetWriter::new(File::create(&path).expect("create parquet"))
-            .finish(&mut persisted)
-            .expect("write parquet");
-        let registry = DatasetVersionRegistry::new(frame(vec![1]), 0, None);
-        let retained = registry
-            .register_root_artifact(
-                DatasetArtifactDescriptor {
-                    version_id: "source-7".to_string(),
-                    path,
-                    format: "parquet".to_string(),
-                    byte_size: 1,
-                    content_fingerprint: "fixture-content".to_string(),
-                    created_at: Utc::now(),
-                    provenance: None,
-                },
-                7,
-                Some("retained.parquet".to_string()),
-                None,
-            )
-            .expect("register retained artifact");
-
-        assert_eq!(retained.id, "source-7");
-        assert_eq!(retained.dataset_fingerprint, "fixture-content");
-        assert_eq!(
-            registry
-                .snapshot(&retained.id)
-                .expect("open retained snapshot")
-                .collect()
-                .expect("collect retained snapshot")
-                .height(),
-            2
-        );
-        assert_eq!(registry.current().expect("current version").id, retained.id);
-
-        fs::remove_dir_all(root).expect("clean retained artifact directory");
-    }
-
-    #[test]
-    fn restores_catalogued_artifacts_with_parent_provenance() {
-        let root = std::env::temp_dir().join(format!(
-            "edatime-restored-versions-{}",
-            Utc::now().timestamp_nanos_opt().unwrap_or_default()
-        ));
-        fs::create_dir_all(&root).expect("create artifact test directory");
-        let root_path = root.join("artifact-root.parquet");
-        let child_path = root.join("artifact-child.parquet");
-        let mut root_frame = frame(vec![1, 2]);
-        ParquetWriter::new(File::create(&root_path).expect("create root parquet"))
-            .finish(&mut root_frame)
-            .expect("write root parquet");
-        let mut child_frame = frame(vec![2]);
-        ParquetWriter::new(File::create(&child_path).expect("create child parquet"))
-            .finish(&mut child_frame)
-            .expect("write child parquet");
-
-        let schema_fingerprint = DatasetVersionRegistry::new(frame(vec![0]), 0, None)
-            .current()
-            .expect("schema record")
-            .schema_fingerprint;
-        let created_at = Utc::now();
-        let restored = DatasetVersionRegistry::new(frame(vec![0]), 0, None);
-        let records = restored
-            .restore_artifacts(vec![
-                DatasetArtifactDescriptor {
-                    version_id: "artifact-child".to_string(),
-                    path: child_path,
-                    format: "parquet".to_string(),
-                    byte_size: 1,
-                    content_fingerprint: "child-content".to_string(),
-                    created_at: created_at + chrono::Duration::seconds(1),
-                    provenance: Some(DatasetArtifactProvenance {
-                        root_id: "artifact-root".to_string(),
-                        parent_id: Some("artifact-root".to_string()),
-                        revision: 2,
-                        schema_fingerprint: schema_fingerprint.clone(),
-                        source_name: Some("input.csv".to_string()),
-                        display_name: Some("input.csv · prepared v2".to_string()),
-                        time_column: None,
-                        materialized_from_plan_hash: Some("plan-1".to_string()),
-                        applied_plan: Some(serde_json::json!({"id": "plan-1"})),
-                        row_count: 1,
-                        column_names: vec!["value".to_string()],
-                    }),
-                },
-                DatasetArtifactDescriptor {
-                    version_id: "artifact-root".to_string(),
-                    path: root_path,
-                    format: "parquet".to_string(),
-                    byte_size: 1,
-                    content_fingerprint: "root-content".to_string(),
-                    created_at,
-                    provenance: Some(DatasetArtifactProvenance {
-                        root_id: "artifact-root".to_string(),
-                        parent_id: None,
-                        revision: 1,
-                        schema_fingerprint,
-                        source_name: Some("input.csv".to_string()),
-                        display_name: Some("input.csv".to_string()),
-                        time_column: None,
-                        materialized_from_plan_hash: None,
-                        applied_plan: None,
-                        row_count: 2,
-                        column_names: vec!["value".to_string()],
-                    }),
-                },
-            ])
-            .expect("restore catalog");
-
-        assert_eq!(records.len(), 2);
-        let current = restored.current().expect("current child");
-        assert_eq!(current.id, "artifact-child");
-        assert_eq!(
-            current.display_name.as_deref(),
-            Some("input.csv · prepared v2")
-        );
-        assert_eq!(
-            current.applied_plan,
-            Some(serde_json::json!({"id": "plan-1"}))
-        );
-        assert_eq!(
-            restored
-                .record("artifact-child")
-                .expect("child record")
-                .parent_id
-                .as_deref(),
-            Some("artifact-root")
-        );
-        assert_eq!(
-            restored
-                .snapshot("artifact-root")
-                .expect("root scan")
-                .collect()
-                .expect("collect root")
-                .height(),
-            2
-        );
-
-        fs::remove_dir_all(root).expect("clean restored artifact directory");
-    }
-}
+mod tests;

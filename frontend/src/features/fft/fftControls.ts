@@ -1,4 +1,12 @@
+import type { FftDetrend } from '../../contracts/api/v1/analytics.js';
 import type { ClipMode, ScaleMode, SpectralScaleOptions } from '../../utils/spectralScaling.js';
+
+const FFT_DETRENDS: readonly FftDetrend[] = ['none', 'constant', 'linear'];
+
+/** Read the detrend control, falling back to the API default for unknown values. */
+export function parseFftDetrend(value: string | null | undefined): FftDetrend {
+    return FFT_DETRENDS.find((detrend) => detrend === value) ?? 'constant';
+}
 
 export function buildFftScaleOptions(input: {
     mode: string | null | undefined;

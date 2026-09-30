@@ -114,7 +114,7 @@
 .signals-toolbar #draw-width { width: 100%; padding: 4px; text-align: center; }
 .signals-toolbar__adaptive { display: grid; justify-items: start; gap: 8px; border-top: 1px solid var(--border); padding-top: 12px; }
 .signals-toolbar__hint { margin: 0; font-size: .75rem; color: var(--text-dim); line-height: 1.5; }
-.signals-toolbar .field-error { margin: 0; color: var(--danger); font-size: .75rem; }
+.signals-toolbar .field-error { margin: 0; color: var(--red); font-size: .75rem; }
 .signals-toolbar .field-error:empty { display: none; }
 .signals-toolbar__export .signals-toolbar__panel { left: auto; right: 0; width: 220px; gap: 6px; }
 .signals-toolbar__export .signals-toolbar__panel .btn { justify-content: flex-start; text-align: left; }

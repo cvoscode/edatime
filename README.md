@@ -10,7 +10,7 @@ The backend is written in Rust (Axum + Polars) and streams data as Apache Arrow 
 
 ### Requirements
 
-| **Rust 1.86+ stable toolchain** | Install from [rustup.rs](https://rustup.rs) |
+| **Rust 1.88+ stable toolchain** | Install from [rustup.rs](https://rustup.rs) |
 | **A modern browser** | Chrome 113+, Edge 113+, or any browser with WebGPU support recommended. Firefox works via a Canvas fallback. |
 | **Node.js** | Required to build the packaged browser frontend from source |
 
@@ -295,44 +295,32 @@ ts,temperature,pressure
 
 ```
 edatime/
-├── src/
-│   ├── main.rs           — Axum router and server startup
-│   ├── config.rs         — Configuration loading and defaults
-│   ├── ingest.rs         — CSV / Parquet ingestion
-│   ├── pipeline.rs       — Filter, downsample, and serialize pipeline
-│   ├── downsample.rs     — MinMaxLTTB downsampling integration
-│   ├── arrow_export.rs   — Apache Arrow IPC serialization
-│   ├── query.rs          — Shared query parsing helpers
-│   ├── cache.rs          — In-memory response cache
-│   ├── rates.rs          — Per-client rate limiting
-│   ├── middleware.rs     — Request identity and response/body telemetry
-│   └── routes/           — HTTP route handlers
+├── crates/
+│   ├── edatime-core/     — Shared config, errors, metrics, expression and stats utilities
+│   ├── edatime-ingest/   — CSV / Parquet loading, normalisation, profiling
+│   ├── edatime-query/    — Query pipeline, filters, downsampling, cleaning, Arrow export
+│   ├── edatime-store/    — Datasets, versions, artifacts, caches, jobs
+│   ├── edatime-service/  — Axum routes, analytics, middleware, rate limiting
+│   └── edatime-bin/      — The `edatime` executable (serves API + packaged frontend)
+├── contracts/            — Canonical API route table (api-v1.json) and generated OpenAPI spec
 ├── frontend/
 │   ├── index.html        — Application shell
-│   ├── css/style.css     — Dark UI styling
-│   └── src/              — TypeScript source (compiled to js/ by esbuild)
-│       ├── app.ts        — Bootstrap and page orchestration
-│       ├── chart/
-│       │   ├── DataChart.ts         — Time-series chart adapter (ChartGPU)
-│       │   ├── FftChart.ts          — FFT / PSD chart adapter
-│       │   ├── chartInteractions.ts — Shared chart interaction utilities
-│       │   ├── colorScale.ts        — Color scale helpers
-│       │   └── ticks.ts             — Axis tick formatting
-│       ├── dataClient.ts — HTTP/Arrow fetch helpers
-│       ├── scatter/       — Scatter/density analytics page
-│       ├── state.ts      — Shared frontend state
-│       ├── utils/dom.ts  — DOM utilities (debounce, escapeHtml, download)
-│       └── ui/           — Series chips, toolbar, upload, profile grid
-├── scripts/
-│   ├── build-frontend.mjs — esbuild bundler (--prod for minification)
-│   └── check-frontend.mjs — Syntax validator
-├── docs/
-│   └── developer-guide.md — Development, benchmarks, CI details
+│   ├── css/              — Plain CSS modules and design tokens
+│   ├── libs/chartgpu/    — Vendored WebGPU chart library
+│   └── src/              — TypeScript source, bundled by Vite
+│       ├── app.ts        — Composition root; pages load lazily via app/pageModules.ts
+│       ├── features/     — One folder per page (timeseries, prepare, scatter, fft, …)
+│       ├── workspace/    — Cross-feature workspace store
+│       └── services/api/ — HTTP / Arrow client (the only fetch boundary)
+├── scripts/              — Build, dev server, contract generators, architecture checks
+├── tests/                — Playwright end-to-end specs
+├── docs/                 — Sphinx user, developer, and API reference docs
+├── ETTm2.csv             — Built-in sample dataset
 ├── Dockerfile            — Multi-stage Docker build
-├── Makefile              — Common build/run targets
-├── sample.csv            — Minimal example dataset
-└── Cargo.toml
+└── Makefile              — Common build/run/check targets
 ```
+
+See `AGENTS.md` for architecture rules and contributor workflow.
 
 ---
 

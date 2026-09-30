@@ -1,8 +1,7 @@
 # Backend Refactor Plan — 2026-05-21
 
 > **Status**: Historical plan. The workspace split and single `edatime-bin`
-> executable described below are now implemented; use
-> `backend_improvments.md` for the current backlog.
+> executable described below are now implemented.
 > **Scope**: Full backend restructuring in the `edatime` Rust workspace
 > **Driver**: Analytical workloads, LazyFrame-first pipeline architecture, long-term maintainability
 

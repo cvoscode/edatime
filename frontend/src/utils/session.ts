@@ -22,6 +22,8 @@ import { getDropdownValue, setDropdownValue } from '../ui/primitives/Dropdown.js
 import { emitFeatureEvent } from '../platform/featureEvents.js';
 import { onNavigationChange } from '../platform/navigationEvents.js';
 import type { WorkspaceStore } from '../workspace/workspaceStore.js';
+import { errorMessage } from './errors.js';
+import { parseSessionSnapshot, type SessionInput, type SessionSnapshot } from './sessionSnapshot.js';
 
 const STORAGE_KEY = 'edatime-session';
 type SessionWorkspace = Pick<WorkspaceStore, 'getSnapshot' | 'setSelection' | 'setFilters' | 'setViewport' | 'subscribe'> & Partial<Pick<WorkspaceStore, 'setAppearance'>>;
@@ -29,34 +31,6 @@ let configuredWorkspace: SessionWorkspace | null = null;
 
 export function configureSessionWorkspace(workspace: SessionWorkspace | null): void {
     configuredWorkspace = workspace;
-}
-
-/** The serialisable subset of the focused frontend store. */
-export interface SessionSnapshot {
-    version: 1;
-    timestamp: number;
-    page: string;
-    selectedCols: string[];
-    seriesColors: Record<string, string>;
-    columnRanges: Record<string, { from: number; to: number }>;
-    adaptiveLineFilters: Array<{
-        column: string; x1: number; y1: number; x2: number; y2: number; keepAbove: boolean;
-    }>;
-    currentStart: number | null;
-    currentEnd: number | null;
-    selectedColorColumn: string | null;
-    chartText: { title: string; xLabel: string; yLabel: string };
-    rollingEnabled: boolean;
-    rollingWindow: number;
-    rollingDisplayMode?: 'raw' | 'smooth' | 'both';
-    anomalyEnabled: boolean;
-    anomalyMethod: string;
-    anomalyThreshold: number;
-    scatterX: string;
-    scatterY: string;
-    scatterColorColumn: string;
-    scatterRenderMode: string;
-    datasetRevision?: number;
 }
 
 export interface ApplySessionOptions {
@@ -116,7 +90,7 @@ export function captureSession(): SessionSnapshot {
 
 /** Restore the focused store from a snapshot. Does NOT trigger re-renders — caller should. */
 export function applySession(
-    snap: SessionSnapshot,
+    snap: SessionInput,
     options: ApplySessionOptions = {},
 ): ApplySessionResult {
     const workspace = options.workspace ?? configuredWorkspace;
@@ -235,16 +209,16 @@ export function applySession(
 
     if (snap.chartText) workspace?.setAppearance?.({ chartText: snap.chartText });
     if (snap.rollingEnabled !== undefined) setRollingEnabled(snap.rollingEnabled);
-    if (Number.isFinite(snap.rollingWindow)) setRollingWindow(snap.rollingWindow);
+    if (snap.rollingWindow !== undefined && Number.isFinite(snap.rollingWindow)) setRollingWindow(snap.rollingWindow);
     if (snap.rollingDisplayMode === 'raw' || snap.rollingDisplayMode === 'smooth' || snap.rollingDisplayMode === 'both') {
         setRollingDisplayMode(snap.rollingDisplayMode);
     }
     if (snap.anomalyEnabled !== undefined) setAnomalyEnabled(snap.anomalyEnabled);
     if (snap.anomalyMethod) setAnomalyMethod(snap.anomalyMethod);
-    if (Number.isFinite(snap.anomalyThreshold)) setAnomalyThreshold(snap.anomalyThreshold);
+    if (snap.anomalyThreshold !== undefined && Number.isFinite(snap.anomalyThreshold)) setAnomalyThreshold(snap.anomalyThreshold);
 
     // Restore scatter dropdowns
-    const setSelect = (id: string, val: string) => {
+    const setSelect = (id: string, val: string | undefined) => {
         if (val) setDropdownValue(id, val);
     };
     setSelect('scatter-x-col', snap.scatterX);
@@ -284,13 +258,11 @@ export function autoSaveSession(): void {
     } catch { /* quota exceeded — silent */ }
 }
 
-export function autoRestoreSession(): SessionSnapshot | null {
+export function autoRestoreSession(): SessionInput | null {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return null;
-        const snap = JSON.parse(raw) as SessionSnapshot;
-        if (snap?.version !== 1) return null;
-        return snap;
+        return parseSessionSnapshot(JSON.parse(raw));
     } catch {
         return null;
     }
@@ -319,13 +291,13 @@ export function importSessionFromFile(): void {
         const reader = new FileReader();
         reader.onload = () => {
             try {
-                const snap = JSON.parse(reader.result as string) as SessionSnapshot;
-                if (snap?.version !== 1) throw new Error('Invalid session file');
+                const snap = parseSessionSnapshot(JSON.parse(String(reader.result)));
+                if (!snap) throw new Error('Invalid session file');
                 applySession(snap);
                 toast('Session restored from file', 'success');
                 emitFeatureEvent('session:restored', undefined);
-            } catch (e: any) {
-                toast(`Failed to import session: ${e.message}`, 'error');
+            } catch (e) {
+                toast(`Failed to import session: ${errorMessage(e)}`, 'error');
             }
         };
         reader.readAsText(file);

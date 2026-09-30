@@ -66,14 +66,7 @@ pub(crate) fn resolve_cleaning_context(
         state.config.budgets.max_cleaning_stages as u128,
     )?;
     let (version, plan_hash) = validate_envelope(state, envelope)?;
-    let key = (version.id.clone(), plan_hash.clone());
-    let cached = state
-        .working_plan_cache
-        .lock()
-        .map_err(|_| AppError::internal("Working plan cache lock poisoned"))?
-        .get(&key)
-        .cloned();
-    if let Some(frame) = cached {
+    if let Some(frame) = state.cached_working_plan(&version.id, &plan_hash) {
         return Ok(CompiledCleaningContext {
             version,
             plan_hash,
@@ -82,22 +75,8 @@ pub(crate) fn resolve_cleaning_context(
     }
 
     let source = state.dataset_snapshot_for_version(&version.id)?;
-    let frame = compile_cleaning_plan(source, &envelope.plan).map_err(AppError::from)?;
-    let mut cache = state
-        .working_plan_cache
-        .lock()
-        .map_err(|_| AppError::internal("Working plan cache lock poisoned"))?;
-    if let Some(winner) = cache.get(&key) {
-        return Ok(CompiledCleaningContext {
-            version,
-            plan_hash,
-            frame: winner.clone(),
-        });
-    }
-    if cache.len() >= 8 {
-        cache.clear();
-    }
-    cache.insert(key, frame.clone());
+    let compiled = compile_cleaning_plan(source, &envelope.plan).map_err(AppError::from)?;
+    let frame = state.store_working_plan(&version.id, &plan_hash, compiled);
     Ok(CompiledCleaningContext {
         version,
         plan_hash,

@@ -13,7 +13,7 @@ use edatime_store::versions::DatasetVersionRecord;
 fn code_quote(value: &str) -> String {
     // JSON strings are valid quoted literals in both generated Python and
     // Rust source, and keep arbitrary column names from escaping the script.
-    serde_json::to_string(value).expect("string serialization cannot fail")
+    serde_json::to_string(value).unwrap_or_else(|_| format!("{value:?}"))
 }
 
 fn code_number(value: f64) -> String {

@@ -111,7 +111,7 @@ pub async fn post_connect(
         )
         .await
         .map_err(|_| {
-            edatime_core::error::AppError::database_timeout("Database snapshot timed out")
+            edatime_core::error::DomainError::database_timeout("Database snapshot timed out")
         })??;
         let n = df.height();
         state
@@ -227,7 +227,7 @@ pub struct ColumnsQuery {
     pub table: String,
 }
 
-#[tracing::instrument(skip(state), fields(schema = %q.schema, table = %q.table))]
+#[tracing::instrument(skip(state, q), fields(schema = %q.schema, table = %q.table))]
 pub async fn get_columns(
     State(state): State<AppState>,
     Query(q): Query<ColumnsQuery>,
@@ -299,7 +299,7 @@ pub async fn post_load(
         ),
     )
     .await
-    .map_err(|_| edatime_core::error::AppError::database_timeout("Database load timed out"))??;
+    .map_err(|_| edatime_core::error::DomainError::database_timeout("Database load timed out"))??;
 
     let n = df.height();
     let numeric_cols: Vec<String> = df

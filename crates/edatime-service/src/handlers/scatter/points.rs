@@ -11,7 +11,7 @@ use std::sync::Arc;
 use crate::error::AppError;
 use edatime_query::arrow_export::dataframe_to_arrow_ipc;
 use edatime_query::validation::{validate_scatter_limit, validate_time_window};
-use edatime_store::cache::{CacheReservation, CachedResponse};
+use edatime_store::cache::{CacheKeyBuilder, CacheReservation, CachedResponse};
 use edatime_store::state::AppState;
 
 use super::collect::collect_filtered_scatter_frame;
@@ -31,7 +31,7 @@ fn time_color_mode_label(mode: TimeColorMode) -> &'static str {
 
 // ── Handlers ─────────────────────────────────────────────────────────────────
 
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(skip(state, params))]
 pub async fn post_scatter_points(
     State(state): State<AppState>,
     Json(params): Json<ScatterPointsQuery>,
@@ -86,21 +86,20 @@ async fn scatter_points_response(
     let limit = clamp_limit(parsed_limit, &state.config.validation);
     validate_scatter_limit(limit, &state.config.validation)?;
     let time_color_mode = TimeColorMode::from_query(params.time_color_mode.as_deref());
-    let cache_key = format!(
-        "scatter:source={}:revision={}:x={}:y={}:color={}:size={}:start={}:end={}:plan={}:limit={}:format={}:time-color={}",
-        identity.source_version_id,
-        identity.source_revision,
-        x_col,
-        y_col,
-        color_col.as_deref().unwrap_or(""),
-        size_col.as_deref().unwrap_or(""),
-        start.map(|value| value.to_string()).unwrap_or_default(),
-        end.map(|value| value.to_string()).unwrap_or_default(),
-        identity.plan_hash.as_deref().unwrap_or("none"),
-        limit,
-        params.format.as_deref().unwrap_or("arrow"),
-        time_color_mode_label(time_color_mode),
-    );
+    let cache_key = CacheKeyBuilder::new("scatter")
+        .text("source", &identity.source_version_id)
+        .display("revision", identity.source_revision)
+        .text("x", &x_col)
+        .text("y", &y_col)
+        .opt_text("color", color_col.as_deref())
+        .opt_text("size", size_col.as_deref())
+        .opt_display("start", start)
+        .opt_display("end", end)
+        .opt_text("plan", identity.plan_hash.as_deref())
+        .display("limit", limit)
+        .text("format", params.format.as_deref().unwrap_or("arrow"))
+        .text("time_color", time_color_mode_label(time_color_mode))
+        .build();
     // The seed deliberately excludes response format and requested capacity:
     // equivalent scatter geometry should retain the same source points across
     // Arrow/JSON transports and smaller limits should be a subset of larger
@@ -161,6 +160,8 @@ async fn scatter_points_response(
     )?;
 
     let executor = Arc::clone(&state.query_executor);
+    let max_effective_points = state.config.validation.max_scatter_effective_points;
+    let max_color_cardinality = state.config.validation.max_color_cardinality;
     let inner_metrics = Arc::clone(&metrics);
     let (
         total_points,
@@ -180,8 +181,7 @@ async fn scatter_points_response(
         .run_interactive(edatime_core::metrics::CpuStage::Scatter, move || {
             (|| {
                 let collect_start = std::time::Instant::now();
-                let effective_limit =
-                    limit.min(state.config.validation.max_scatter_effective_points);
+                let effective_limit = limit.min(max_effective_points);
 
                 let (total, sampled_rows, color_kind) = collect_sampled_xyc_rows_streaming(
                     lazy_frame,
@@ -251,7 +251,7 @@ async fn scatter_points_response(
                 // because no row in `color_strings` is `Some` there.
                 let (color_strings, color_cardinality) =
                     if matches!(color_kind, Some(ScatterColorKind::Categorical)) {
-                        let cap = state.config.validation.max_color_cardinality;
+                        let cap = max_color_cardinality;
                         let (rewritten, info) =
                             super::cap_categorical_cardinality(color_strings, cap);
                         (rewritten, Some(info))
@@ -439,245 +439,4 @@ async fn scatter_points_response(
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used, clippy::unwrap_used)]
-mod tests {
-    use super::post_scatter_points;
-    use crate::handlers::routes::cleaning::PlanRequestEnvelope;
-    use crate::handlers::scatter::ScatterPointsQuery;
-    use axum::{Json, extract::State, http::header};
-    use edatime_core::config::AppConfig;
-    use edatime_query::cleaning::CleaningPlanDto;
-    use edatime_store::state::AppState;
-    use polars::prelude::{DataFrame, NamedFrom, Series};
-
-    fn envelope(state: &AppState) -> PlanRequestEnvelope {
-        let version = state.current_dataset_version().expect("version");
-        PlanRequestEnvelope {
-            expected_plan_hash: None,
-            expected_source_version_id: version.id.clone(),
-            expected_dataset_revision: version.revision,
-            plan: CleaningPlanDto {
-                schema_version: 1,
-                id: "scatter-test-plan".to_string(),
-                plan_revision: 1,
-                source_version_id: version.id,
-                dataset_revision: version.revision,
-                dataset_fingerprint: Some(version.dataset_fingerprint),
-                schema_fingerprint: version.schema_fingerprint,
-                time_column: "ts".to_string(),
-                source_name: None,
-                stages: vec![],
-                created_at: "now".to_string(),
-                updated_at: "now".to_string(),
-            },
-        }
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn scatter_points_allow_color_column_matching_axis() {
-        let df = DataFrame::new(
-            3,
-            vec![
-                Series::new("LULL".into(), [1.0_f64, 2.0, 3.0]).into(),
-                Series::new("HULL".into(), [10.0_f64, 20.0, 30.0]).into(),
-            ],
-        )
-        .expect("test dataframe should build");
-        let state = AppState::new(df, AppConfig::default());
-        let params = ScatterPointsQuery {
-            x: "LULL".to_string(),
-            y: "HULL".to_string(),
-            color: Some("LULL".to_string()),
-            size: None,
-            start: None,
-            end: None,
-            cleaning_plan: envelope(&state),
-            limit: 10,
-            format: None,
-            time_color_mode: None,
-        };
-
-        let result = post_scatter_points(State(state), Json(params)).await;
-
-        assert!(
-            result.is_ok(),
-            "scatter points request should succeed: {result:?}"
-        );
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn scatter_points_cache_reuses_identical_requests() {
-        let df = DataFrame::new(
-            3,
-            vec![
-                Series::new("LULL".into(), [1.0_f64, 2.0, 3.0]).into(),
-                Series::new("HULL".into(), [10.0_f64, 20.0, 30.0]).into(),
-            ],
-        )
-        .expect("test dataframe should build");
-        let state = AppState::new(df, AppConfig::default());
-        let params = ScatterPointsQuery {
-            x: "LULL".to_string(),
-            y: "HULL".to_string(),
-            color: None,
-            size: None,
-            start: None,
-            end: None,
-            cleaning_plan: envelope(&state),
-            limit: 10,
-            format: Some("arrow".to_string()),
-            time_color_mode: None,
-        };
-
-        let first = post_scatter_points(State(state.clone()), Json(params.clone()))
-            .await
-            .expect("first scatter points request should succeed");
-        let second = post_scatter_points(State(state), Json(params))
-            .await
-            .expect("second scatter points request should succeed");
-
-        assert_eq!(
-            first
-                .headers()
-                .get("x-edatime-cache")
-                .and_then(|v| v.to_str().ok()),
-            Some("miss")
-        );
-        assert_eq!(
-            first
-                .headers()
-                .get("x-edatime-source-version")
-                .and_then(|value| value.to_str().ok()),
-            Some("source-0")
-        );
-        assert!(
-            first
-                .headers()
-                .get("x-edatime-plan-hash")
-                .and_then(|value| value.to_str().ok())
-                .is_some_and(|value| !value.is_empty()),
-            "plan-aware requests must expose their plan hash"
-        );
-        assert_eq!(
-            first
-                .headers()
-                .get("x-edatime-sampling-algorithm")
-                .and_then(|value| value.to_str().ok()),
-            Some("reservoir-stream-v1")
-        );
-        assert!(
-            first
-                .headers()
-                .get("x-edatime-schema-fingerprint")
-                .and_then(|value| value.to_str().ok())
-                .is_some_and(|value| value.starts_with("fnv1a-"))
-        );
-        assert_eq!(
-            second
-                .headers()
-                .get("x-edatime-cache")
-                .and_then(|v| v.to_str().ok()),
-            Some("hit")
-        );
-    }
-
-    #[test]
-    fn scatter_points_reject_legacy_filter_fields() {
-        let error = serde_json::from_value::<ScatterPointsQuery>(serde_json::json!({
-            "x": "HUFL", "y": "HULL", "filters": "[]"
-        }))
-        .expect_err("legacy scatter filters must not deserialize");
-        assert!(error.to_string().contains("unknown field `filters`"));
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn scatter_points_apply_the_canonical_plan() {
-        let df = DataFrame::new(
-            3,
-            vec![
-                Series::new(
-                    "ts".into(),
-                    [
-                        1_467_331_200_000_i64,
-                        1_491_469_996_429_i64,
-                        1_530_042_300_000_i64,
-                    ],
-                )
-                .into(),
-                Series::new("HUFL".into(), [70.0_f64, 80.0, 90.0]).into(),
-                Series::new("HULL".into(), [10.0_f64, 20.0, 30.0]).into(),
-            ],
-        )
-        .expect("test dataframe should build");
-        let state = AppState::new(df, AppConfig::default());
-        let params = ScatterPointsQuery {
-            x: "HUFL".to_string(),
-            y: "HULL".to_string(),
-            color: None,
-            size: None,
-            start: Some(1_467_331_200_000.0),
-            end: Some(1_530_042_300_000.0),
-            cleaning_plan: envelope(&state),
-            limit: 10,
-            format: Some("arrow".to_string()),
-            time_color_mode: None,
-        };
-
-        let result = post_scatter_points(State(state), Json(params)).await;
-
-        assert!(
-            result.is_ok(),
-            "scatter points request should execute its canonical plan: {result:?}"
-        );
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn scatter_points_format_json_returns_application_json() {
-        // Regression test for audit issue 3.4: previously `format=json`
-        // was silently ignored and the response was always Arrow IPC.
-        let df = DataFrame::new(
-            5,
-            vec![
-                Series::new("LULL".into(), [1.0_f64, 2.0, 3.0, 4.0, 5.0]).into(),
-                Series::new("HULL".into(), [10.0_f64, 20.0, 30.0, 40.0, 50.0]).into(),
-            ],
-        )
-        .expect("test dataframe should build");
-        let state = AppState::new(df, AppConfig::default());
-        let params = ScatterPointsQuery {
-            x: "LULL".to_string(),
-            y: "HULL".to_string(),
-            color: None,
-            size: None,
-            start: None,
-            end: None,
-            cleaning_plan: envelope(&state),
-            limit: 10,
-            format: Some("json".to_string()),
-            time_color_mode: None,
-        };
-
-        let response = post_scatter_points(State(state), Json(params))
-            .await
-            .expect("scatter points request with format=json should succeed");
-        let content_type = response
-            .headers()
-            .get(header::CONTENT_TYPE)
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or_default();
-        assert!(
-            content_type.starts_with("application/json"),
-            "format=json must return application/json, got {content_type}"
-        );
-        let body = axum::body::to_bytes(response.into_body(), 1_000_000)
-            .await
-            .expect("read body");
-        let parsed: serde_json::Value =
-            serde_json::from_slice(&body).expect("body should be valid JSON");
-        let points = parsed
-            .get("points")
-            .and_then(|v| v.as_array())
-            .expect("JSON body must include `points` array");
-        assert_eq!(points.len(), 5, "all 5 input rows should be returned");
-    }
-}
+mod tests;

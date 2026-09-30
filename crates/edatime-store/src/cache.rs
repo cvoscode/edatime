@@ -5,6 +5,77 @@ use std::time::{Duration, Instant};
 
 use bytes::Bytes;
 
+/// Builds a response-cache key whose encoding is injective: every value is
+/// length-prefixed, so a column named `a,b` can never collide with the two
+/// columns `a` and `b`, and an absent optional never equals an empty string.
+#[derive(Debug)]
+pub struct CacheKeyBuilder {
+    key: String,
+}
+
+impl CacheKeyBuilder {
+    pub fn new(kind: &str) -> Self {
+        Self {
+            key: kind.to_string(),
+        }
+    }
+
+    fn push_text(&mut self, value: &str) {
+        use std::fmt::Write;
+        // Writing to a String cannot fail.
+        let _ = write!(self.key, "{}:{value}", value.len());
+    }
+
+    /// A required text field.
+    pub fn text(mut self, name: &str, value: &str) -> Self {
+        self.key.push('|');
+        self.key.push_str(name);
+        self.key.push('=');
+        self.push_text(value);
+        self
+    }
+
+    /// An optional text field; `None` is distinct from `Some("")`.
+    pub fn opt_text(mut self, name: &str, value: Option<&str>) -> Self {
+        match value {
+            Some(value) => self.text(name, value),
+            None => {
+                self.key.push('|');
+                self.key.push_str(name);
+                self.key.push_str("=-");
+                self
+            }
+        }
+    }
+
+    /// Any value with a stable, non-ambiguous `Display` form (numbers, bools).
+    pub fn display(self, name: &str, value: impl std::fmt::Display) -> Self {
+        self.text(name, &value.to_string())
+    }
+
+    /// An optional displayable value; `None` is distinct from every `Some`.
+    pub fn opt_display(self, name: &str, value: Option<impl std::fmt::Display>) -> Self {
+        let rendered = value.map(|value| value.to_string());
+        self.opt_text(name, rendered.as_deref())
+    }
+
+    /// An ordered list of text values.
+    pub fn list<S: AsRef<str>>(mut self, name: &str, values: &[S]) -> Self {
+        use std::fmt::Write;
+        self.key.push('|');
+        self.key.push_str(name);
+        let _ = write!(self.key, "=[{}]", values.len());
+        for value in values {
+            self.push_text(value.as_ref());
+        }
+        self
+    }
+
+    pub fn build(self) -> String {
+        self.key
+    }
+}
+
 /// Correlation matrices and aligned sample counts. Unrequested metrics are
 /// empty in a mode-specific working cache entry.
 #[derive(Debug, Clone, PartialEq)]
@@ -283,14 +354,11 @@ pub struct CacheProducer {
 
 impl Drop for CacheProducer {
     fn drop(&mut self) {
-        let Ok(mut flights) = self
+        let mut flights = self
             .cache
             .in_flight
             .lock()
-            .map_err(|error| error.into_inner())
-        else {
-            return;
-        };
+            .unwrap_or_else(|error| error.into_inner());
         flights.remove(&self.key);
         if let Some(sender) = self.sender.take() {
             let _ = sender.send(true);
@@ -381,15 +449,13 @@ impl ResponseCache {
     }
 
     pub async fn get(&self, key: &str) -> Option<CachedResponse> {
-        let mut state = self.state.lock().map_err(|e| e.into_inner()).ok()?;
+        let mut state = self.state.lock().unwrap_or_else(|error| error.into_inner());
         self.maybe_prune(&mut state);
         state.entries.get(key).map(|entry| entry.response.clone())
     }
 
     pub async fn insert(&self, key: String, response: CachedResponse) {
-        let Ok(mut state) = self.state.lock().map_err(|e| e.into_inner()) else {
-            return;
-        };
+        let mut state = self.state.lock().unwrap_or_else(|error| error.into_inner());
         self.maybe_prune(&mut state);
 
         if let Some(previous) = state.entries.remove(&key) {
@@ -472,9 +538,7 @@ impl ResponseCache {
 
     /// Clear all cached entries.
     pub async fn invalidate_all(&self) {
-        let Ok(mut state) = self.state.lock().map_err(|e| e.into_inner()) else {
-            return;
-        };
+        let mut state = self.state.lock().unwrap_or_else(|error| error.into_inner());
         state.entries.clear();
         state.order.clear();
         state.total_bytes = 0;
@@ -483,6 +547,28 @@ impl ResponseCache {
 
 #[cfg(test)]
 mod tests {
+    use super::CacheKeyBuilder;
+
+    #[test]
+    fn cache_keys_distinguish_ambiguous_columns_and_absent_options() {
+        let joined = CacheKeyBuilder::new("t").list("cols", &["a,b"]).build();
+        let split = CacheKeyBuilder::new("t").list("cols", &["a", "b"]).build();
+        assert_ne!(joined, split);
+
+        let none = CacheKeyBuilder::new("t").opt_text("color", None).build();
+        let empty = CacheKeyBuilder::new("t")
+            .opt_text("color", Some(""))
+            .build();
+        assert_ne!(none, empty);
+
+        let shifted_a = CacheKeyBuilder::new("t").text("x", "1|y=1:2").build();
+        let shifted_b = CacheKeyBuilder::new("t")
+            .text("x", "1")
+            .text("y", "2")
+            .build();
+        assert_ne!(shifted_a, shifted_b);
+    }
+
     use super::{
         CacheConfig, CacheReservation, CachedResponse, ResponseCache, WorkingCorrelationCache,
     };

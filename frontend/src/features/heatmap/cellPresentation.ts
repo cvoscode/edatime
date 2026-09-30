@@ -3,6 +3,8 @@ import { correlationColor, correlationTextColor, correlationToneClass } from './
 export interface HeatmapCellPresentation {
     toneClass: string;
     signedValue: string;
+    /** Four-decimal value for readouts and copied summaries; 'unavailable' when missing. */
+    preciseValue: string;
     background: string;
     textColor: string;
     tooltip: string;
@@ -26,6 +28,7 @@ export function buildHeatmapCellPresentation(options: {
     return {
         toneClass: correlationToneClass(value),
         signedValue,
+        preciseValue,
         background: value === null ? 'transparent' : correlationColor(value, colorDomainMax),
         textColor: correlationTextColor(value, colorDomainMax),
         tooltip: `${rowName} × ${columnName}: ${preciseValue}${interactive ? ' — click for pair details' : ''}`,

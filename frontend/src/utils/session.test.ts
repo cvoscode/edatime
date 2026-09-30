@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { applySession, captureSession, configureSessionWorkspace, initAutoSave, type SessionSnapshot } from './session.js';
+import { applySession, captureSession, configureSessionWorkspace, initAutoSave } from './session.js';
+import type { SessionSnapshot } from './sessionSnapshot.js';
 import { createWorkspaceStore } from '../workspace/workspaceStore.js';
 
 vi.mock('./toast.js', () => ({

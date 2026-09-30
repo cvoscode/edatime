@@ -201,9 +201,7 @@ Response: {
 ## Layout notes (2026-07-11 refactor)
 
 The spectrogram toolbar was refactored to fit a single row at ≥1280 px and
-to mirror patterns already proven on the FFT page. See
-`superpowers/plans/2026-07-11-spectrogram-ui-improvements.md` for the full
-plan, before/after measurements, and verification matrix.
+to mirror patterns already proven on the FFT page.
 
 ### Toolbar
 

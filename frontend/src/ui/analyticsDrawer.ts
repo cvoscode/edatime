@@ -4,7 +4,7 @@
  * accessible modal behavior used by the other chart tools.
  */
 
-import { createModalController } from './shell/createModalController';
+import { createModalController } from './shell/createModalController.js';
 
 let controller: ReturnType<typeof createModalController> | null = null;
 let disposeAnalyticsDrawer: (() => void) | null = null;

@@ -1,5 +1,4 @@
 import * as echarts from 'echarts';
-import { SCATTER_PLOT_GRID } from '../features/scatter/index.js';
 import { getChartPalette, onThemeChange } from '../utils/theme.js';
 
 export class EchartsScatterChart {
@@ -67,7 +66,7 @@ export class EchartsScatterChart {
         this._chart.setOption({
             animation: false,
             backgroundColor: palette.background,
-            grid: option?.grid || { ...SCATTER_PLOT_GRID },
+            grid: option?.grid,
             tooltip: option?.tooltip || { show: true, trigger: 'item' },
             legend: { show: false },
             xAxis: {

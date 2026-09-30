@@ -22,7 +22,6 @@ fn backend_to_str(b: &DatabaseBackend) -> &'static str {
         DatabaseBackend::None => "none",
         DatabaseBackend::Postgres => "postgres",
         DatabaseBackend::Timescale => "timescale",
-        DatabaseBackend::Sqlite => "sqlite",
     }
 }
 

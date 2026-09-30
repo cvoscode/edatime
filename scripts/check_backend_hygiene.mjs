@@ -18,6 +18,8 @@ for (const obsolete of [
 }
 
 for await (const relative of glob('crates/**/src/**/*.rs', { cwd: new URL(root), exclude: ['**/target/**'] })) {
+    // `#[cfg(test)] mod tests;` modules live in sibling tests.rs files.
+    if (relative.endsWith('/tests.rs')) continue;
     const source = await readFile(new URL(relative, root), 'utf8');
     const productionSource = source.split(/#\[cfg\(test\)\]/, 1)[0];
     if (relative !== 'crates/edatime-query/src/executor.rs' && productionSource.includes('tokio::task::spawn_blocking')) {

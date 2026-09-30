@@ -180,3 +180,13 @@ pub fn estimate_sample_rate_hz(ts_ms: &[f64]) -> f64 {
         1.0
     }
 }
+
+/// Symmetric Hann window of length `n` (`w[0] == w[n - 1] == 0`).
+///
+/// `n` must be at least 2: a single-sample window has no defined shape.
+pub fn hann_window(n: usize) -> Vec<f64> {
+    let denominator = n as f64 - 1.0;
+    (0..n)
+        .map(|i| 0.5 * (1.0 - (2.0 * std::f64::consts::PI * i as f64 / denominator).cos()))
+        .collect()
+}

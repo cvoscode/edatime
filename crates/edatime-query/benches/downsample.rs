@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Criterion coverage for the shared time-series downsampler.
 //!
 //! These cases represent a 1M-row uploaded series reduced to a 2,000-point

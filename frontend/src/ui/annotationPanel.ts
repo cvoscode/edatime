@@ -49,20 +49,20 @@ function renderAnnotationsList(requestOverlayRender: () => void): void {
     container.innerHTML = anns.map((ann) => {
         const date = new Date(ann.createdAt).toLocaleString();
         const timeInfo = ann.timeRange
-            ? `<span style="font-size:11px;color:var(--text-muted,#888)">${new Date(ann.timeRange.start).toISOString().slice(0, 16).replace('T', ' ')}${ann.timeRange.end !== ann.timeRange.start ? ' – ' + new Date(ann.timeRange.end).toISOString().slice(0, 16).replace('T', ' ') : ''}</span>`
+            ? `<span style="font-size:11px;color:var(--text-muted)">${new Date(ann.timeRange.start).toISOString().slice(0, 16).replace('T', ' ')}${ann.timeRange.end !== ann.timeRange.start ? ' – ' + new Date(ann.timeRange.end).toISOString().slice(0, 16).replace('T', ' ') : ''}</span>`
             : '';
         return `
-            <div class="annotation-item" data-ann-id="${escapeAttr(ann.id)}" style="border-left:3px solid ${escapeAttr(ann.color)};padding:8px 12px;margin-bottom:8px;background:var(--surface2,#1e1e2e);border-radius:4px;">
+            <div class="annotation-item" data-ann-id="${escapeAttr(ann.id)}" style="border-left:3px solid ${escapeAttr(ann.color)};padding:8px 12px;margin-bottom:8px;background:var(--surface-2);border-radius:4px;">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
                     <strong>${escapeHtml(ann.title)}</strong>
                     <div style="display:flex;gap:6px;">
-                        <span style="font-size:11px;color:var(--text-muted,#888)">${ann.type} · ${ann.page}</span>
+                        <span style="font-size:11px;color:var(--text-muted)">${ann.type} · ${ann.page}</span>
                         <button class="btn btn-ghost btn-xs ann-delete-btn" data-ann-id="${escapeAttr(ann.id)}" type="button" title="Delete">✕</button>
                     </div>
                 </div>
                 ${timeInfo}
-                ${ann.content ? `<p style="margin:4px 0 0;font-size:12px;color:var(--text-secondary,#ccc)">${escapeHtml(ann.content)}</p>` : ''}
-                <div style="font-size:11px;color:var(--text-muted,#888);margin-top:2px">${date}</div>
+                ${ann.content ? `<p style="margin:4px 0 0;font-size:12px;color:var(--text-dim)">${escapeHtml(ann.content)}</p>` : ''}
+                <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${date}</div>
             </div>
         `;
     }).join('');

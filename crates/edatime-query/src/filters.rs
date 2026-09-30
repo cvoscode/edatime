@@ -7,7 +7,7 @@
 use polars::prelude::*;
 use serde::Deserialize;
 
-use edatime_core::error::AppError;
+use edatime_core::error::DomainError;
 use edatime_core::temporal;
 
 // ── Filter specification types ─────────────────────────────────────────────
@@ -23,7 +23,6 @@ pub struct RangeFilter {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct LineFilter {
-    #[allow(dead_code)]
     #[serde(default)]
     pub id: Option<String>,
     pub column: String,
@@ -37,20 +36,20 @@ pub struct LineFilter {
 
 // ── Parsing helpers ────────────────────────────────────────────────────────
 
-pub fn parse_range_filters(raw: Option<&str>) -> Result<Vec<RangeFilter>, AppError> {
+pub fn parse_range_filters(raw: Option<&str>) -> Result<Vec<RangeFilter>, DomainError> {
     let Some(raw) = raw.map(str::trim).filter(|v| !v.is_empty()) else {
         return Ok(Vec::new());
     };
     serde_json::from_str::<Vec<RangeFilter>>(raw)
-        .map_err(|e| AppError::bad_request(format!("Invalid range filters payload: {}", e)))
+        .map_err(|e| DomainError::bad_request(format!("Invalid range filters payload: {}", e)))
 }
 
-pub fn parse_line_filters(raw: Option<&str>) -> Result<Vec<LineFilter>, AppError> {
+pub fn parse_line_filters(raw: Option<&str>) -> Result<Vec<LineFilter>, DomainError> {
     let Some(raw) = raw.map(str::trim).filter(|v| !v.is_empty()) else {
         return Ok(Vec::new());
     };
     serde_json::from_str::<Vec<LineFilter>>(raw)
-        .map_err(|e| AppError::bad_request(format!("Invalid line filters payload: {}", e)))
+        .map_err(|e| DomainError::bad_request(format!("Invalid line filters payload: {}", e)))
 }
 
 // ── Expression builders ────────────────────────────────────────────────────
@@ -67,13 +66,12 @@ fn temporal_range_expr(
     dtype: &DataType,
     from: f64,
     to: f64,
-) -> Result<Expr, AppError> {
+) -> Result<Expr, DomainError> {
     let start = temporal::epoch_ms_to_native(from, dtype, false)?;
     let end = temporal::epoch_ms_to_native(to, dtype, true)?;
-    Ok(col(column)
-        .cast(DataType::Int64)
-        .gt_eq(lit(start))
-        .and(col(column).cast(DataType::Int64).lt_eq(lit(end))))
+    Ok(edatime_core::temporal::native_time_range(
+        column, dtype, start, end,
+    ))
 }
 
 fn temporal_ms_expr(column: &str, dtype: &DataType) -> Expr {
@@ -108,17 +106,19 @@ pub fn apply_time_range_stage<I: Into<LazyFrame>>(
     start_ms: f64,
     end_ms: f64,
     keep_inside: bool,
-) -> Result<LazyFrame, AppError> {
+) -> Result<LazyFrame, DomainError> {
     let lf: LazyFrame = df.into();
     let column = time_column.trim();
     if column.is_empty() {
-        return Err(AppError::bad_request("Missing time column for time filter"));
+        return Err(DomainError::bad_request(
+            "Missing time column for time filter",
+        ));
     }
     let schema = lf.clone().collect_schema().map_err(|error| {
-        AppError::bad_request(format!("Failed to get schema for time filter: {error}"))
+        DomainError::bad_request(format!("Failed to get schema for time filter: {error}"))
     })?;
     let dtype = schema.get(column).ok_or_else(|| {
-        AppError::bad_request(format!("Missing time column '{column}' for time filter"))
+        DomainError::bad_request(format!("Missing time column '{column}' for time filter"))
     })?;
     let predicate = temporal_range_expr(column, dtype, start_ms.min(end_ms), start_ms.max(end_ms))?;
     Ok(lf.filter(keep_or_drop_predicate(predicate, keep_inside)))
@@ -130,22 +130,22 @@ pub fn apply_range_stage<I: Into<LazyFrame>>(
     filter: &RangeFilter,
     keep_inside: bool,
     retain_nulls: bool,
-) -> Result<LazyFrame, AppError> {
+) -> Result<LazyFrame, DomainError> {
     let lf: LazyFrame = df.into();
     let column = filter.column.trim();
     if column.is_empty() {
-        return Err(AppError::bad_request(
+        return Err(DomainError::bad_request(
             "Cleaning range stage requires a column",
         ));
     }
     let schema = lf.clone().collect_schema().map_err(|error| {
-        AppError::bad_request(format!(
+        DomainError::bad_request(format!(
             "Failed to get schema for filter column '{column}': {error}"
         ))
     })?;
     let dtype = schema
         .get(column)
-        .ok_or_else(|| AppError::bad_request(format!("Unknown filter column '{column}'")))?;
+        .ok_or_else(|| DomainError::bad_request(format!("Unknown filter column '{column}'")))?;
     let predicate = match dtype {
         dtype if dtype.is_numeric() => numeric_range_expr(
             column,
@@ -159,7 +159,7 @@ pub fn apply_range_stage<I: Into<LazyFrame>>(
             filter.from.max(filter.to),
         )?,
         _ => {
-            return Err(AppError::bad_request(format!(
+            return Err(DomainError::bad_request(format!(
                 "Filter column '{column}' is not numeric or temporal"
             )));
         }
@@ -186,25 +186,25 @@ pub fn apply_line_stage<I: Into<LazyFrame>>(
     time_column: &str,
     filter: &LineFilter,
     apply_within_segment_only: bool,
-) -> Result<LazyFrame, AppError> {
+) -> Result<LazyFrame, DomainError> {
     let lf: LazyFrame = df.into();
     let time_column = time_column.trim();
     let column = filter.column.trim();
     if time_column.is_empty() || column.is_empty() || filter.x1 == filter.x2 {
-        return Err(AppError::bad_request(
+        return Err(DomainError::bad_request(
             "Adaptive filter requires a time column, numeric column, and non-zero line segment",
         ));
     }
     let schema = lf.clone().collect_schema().map_err(|error| {
-        AppError::bad_request(format!("Failed to get schema for line filter: {error}"))
+        DomainError::bad_request(format!("Failed to get schema for line filter: {error}"))
     })?;
     let ts_dtype = schema.get(time_column).ok_or_else(|| {
-        AppError::bad_request(format!(
+        DomainError::bad_request(format!(
             "Missing time column '{time_column}' for adaptive filter"
         ))
     })?;
     if !schema.get(column).is_some_and(|dtype| dtype.is_numeric()) {
-        return Err(AppError::bad_request(format!(
+        return Err(DomainError::bad_request(format!(
             "Adaptive filter column '{column}' must be numeric"
         )));
     }
@@ -245,7 +245,7 @@ pub fn apply_filters<I: Into<LazyFrame>>(
     end_ms: Option<f64>,
     range_filters: &[RangeFilter],
     line_filters: &[LineFilter],
-) -> Result<LazyFrame, AppError> {
+) -> Result<LazyFrame, DomainError> {
     let mut lf: LazyFrame = df.into();
 
     if let (Some(start), Some(end)) = (start_ms, end_ms) {
@@ -253,30 +253,25 @@ pub fn apply_filters<I: Into<LazyFrame>>(
             .map(str::trim)
             .filter(|column| !column.is_empty())
             .ok_or_else(|| {
-                AppError::bad_request("Missing time column for time filter".to_string())
+                DomainError::bad_request("Missing time column for time filter".to_string())
             })?;
         let schema = lf.clone().collect_schema().map_err(|e| {
-            AppError::bad_request(format!("Failed to get schema for time filter: {}", e))
+            DomainError::bad_request(format!("Failed to get schema for time filter: {}", e))
         })?;
         let ts_dtype = schema.get(time_column).ok_or_else(|| {
-            AppError::bad_request(format!(
+            DomainError::bad_request(format!(
                 "Missing time column '{}' for time filter",
                 time_column
             ))
         })?;
         let start_native = temporal::epoch_ms_to_native(start.min(end), ts_dtype, false)?;
         let end_native = temporal::epoch_ms_to_native(start.max(end), ts_dtype, true)?;
-        lf = lf
-            .filter(
-                col(time_column)
-                    .cast(DataType::Int64)
-                    .gt_eq(lit(start_native)),
-            )
-            .filter(
-                col(time_column)
-                    .cast(DataType::Int64)
-                    .lt_eq(lit(end_native)),
-            );
+        lf = lf.filter(edatime_core::temporal::native_time_range(
+            time_column,
+            ts_dtype,
+            start_native,
+            end_native,
+        ));
     }
 
     for filter in range_filters {
@@ -285,14 +280,14 @@ pub fn apply_filters<I: Into<LazyFrame>>(
             continue;
         }
         let schema = lf.clone().collect_schema().map_err(|e| {
-            AppError::bad_request(format!(
+            DomainError::bad_request(format!(
                 "Failed to get schema for filter column '{}': {}",
                 column, e
             ))
         })?;
-        let dtype = schema
-            .get(column)
-            .ok_or_else(|| AppError::bad_request(format!("Unknown filter column '{}'", column)))?;
+        let dtype = schema.get(column).ok_or_else(|| {
+            DomainError::bad_request(format!("Unknown filter column '{}'", column))
+        })?;
         let from = filter.from.min(filter.to);
         let to = filter.from.max(filter.to);
         let expr = match dtype {
@@ -301,7 +296,7 @@ pub fn apply_filters<I: Into<LazyFrame>>(
                 temporal_range_expr(column, dtype, from, to)?
             }
             _ => {
-                return Err(AppError::bad_request(format!(
+                return Err(DomainError::bad_request(format!(
                     "Filter column '{}' is not numeric or temporal",
                     column
                 )));
@@ -318,13 +313,13 @@ pub fn apply_filters<I: Into<LazyFrame>>(
             .map(str::trim)
             .filter(|column| !column.is_empty())
             .ok_or_else(|| {
-                AppError::bad_request("Missing time column for adaptive filter".to_string())
+                DomainError::bad_request("Missing time column for adaptive filter".to_string())
             })?;
         let schema = lf.clone().collect_schema().map_err(|e| {
-            AppError::bad_request(format!("Failed to get schema for line filter: {}", e))
+            DomainError::bad_request(format!("Failed to get schema for line filter: {}", e))
         })?;
         let ts_dtype = schema.get(time_column).ok_or_else(|| {
-            AppError::bad_request(format!(
+            DomainError::bad_request(format!(
                 "Missing time column '{}' for adaptive filter",
                 time_column
             ))
@@ -337,13 +332,13 @@ pub fn apply_filters<I: Into<LazyFrame>>(
                 continue;
             }
             let schema = lf.clone().collect_schema().map_err(|e| {
-                AppError::bad_request(format!(
+                DomainError::bad_request(format!(
                     "Unknown adaptive filter column '{}': {}",
                     column, e
                 ))
             })?;
             if !schema.get(column).is_some_and(|d| d.is_numeric()) {
-                return Err(AppError::bad_request(format!(
+                return Err(DomainError::bad_request(format!(
                     "Adaptive filter column '{}' must be numeric",
                     column
                 )));
@@ -373,7 +368,6 @@ pub fn apply_filters<I: Into<LazyFrame>>(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::parse_line_filters;
 

@@ -3,17 +3,20 @@ import type { AnalysisSampling } from '../contracts/api/v1/analytics.js';
 export function formatSamplingCadence(cadenceMs: number | null | undefined): string {
     if (!Number.isFinite(cadenceMs) || Number(cadenceMs) <= 0) return 'not available';
     const ms = Number(cadenceMs);
-    const units: Array<{ size: number; name: string }> = [
-        { size: 86_400_000, name: 'day' },
-        { size: 3_600_000, name: 'hour' },
+    // `plural` is set only for spelled-out units; abbreviations stay unchanged.
+    const units: Array<{ size: number; name: string; plural?: string }> = [
+        { size: 86_400_000, name: 'day', plural: 'days' },
+        { size: 3_600_000, name: 'hour', plural: 'hours' },
         { size: 60_000, name: 'min' },
         { size: 1_000, name: 's' },
         { size: 1, name: 'ms' },
     ];
     const unit = units.find(({ size }) => ms >= size) ?? units[units.length - 1]!;
     const amount = ms / unit.size;
-    const formatted = Number.isInteger(amount) ? String(amount) : amount.toFixed(amount < 100 ? 2 : 1);
-    return `${formatted} ${unit.name}`;
+    // Two decimals below 100, one above, without padding zeros (31.9 min, not 31.90 min).
+    const scale = amount < 100 ? 100 : 10;
+    const rounded = Math.round(amount * scale) / scale;
+    return `${rounded} ${rounded !== 1 && unit.plural ? unit.plural : unit.name}`;
 }
 
 export function formatAnalysisSamplingContext(sampling: AnalysisSampling): string {

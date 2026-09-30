@@ -17,18 +17,16 @@ use edatime_query::query::{
 use edatime_query::validation::{
     validate_bucket_count, validate_numeric_columns_lazy, validate_time_window, validate_window_ms,
 };
-use edatime_store::cache::{CacheReservation, CachedResponse};
+use edatime_store::cache::{CacheKeyBuilder, CacheReservation, CachedResponse};
 use edatime_store::state::AppState;
 
 use super::shared::cached_response;
 
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(skip(state, params))]
 pub async fn get_aggregate(
     State(state): State<AppState>,
     Query(params): Query<AggregateQuery>,
 ) -> Result<Response, AppError> {
-    tracing::info!("get_aggregate called with params: {:?}", params);
-
     validate_time_window(params.start, params.end)?;
     let limits = &state.config.validation;
     if matches!(params.window_mode, AggregateWindowMode::Buckets) {
@@ -77,19 +75,18 @@ pub async fn get_aggregate(
         }
     };
 
-    let cache_key = format!(
-        "agg:v2:{}:{}:{}:{}:{:?}:{:?}:{}:{}:{}:{}",
-        state.dataset_revision(),
-        params.start.timestamp_millis(),
-        params.end.timestamp_millis(),
-        value_cols.join(","),
-        params.agg,
-        params.window_mode,
-        params.buckets,
-        params.window_ms.unwrap_or_default(),
-        params.step_ms.unwrap_or_default(),
-        params.format.as_deref().unwrap_or("arrow"),
-    );
+    let cache_key = CacheKeyBuilder::new("agg:v3")
+        .display("revision", state.dataset_revision())
+        .display("start", params.start.timestamp_millis())
+        .display("end", params.end.timestamp_millis())
+        .list("columns", &value_cols)
+        .display("agg", format!("{:?}", params.agg))
+        .display("window_mode", format!("{:?}", params.window_mode))
+        .display("buckets", params.buckets)
+        .opt_display("window_ms", params.window_ms)
+        .opt_display("step_ms", params.step_ms)
+        .text("format", params.format.as_deref().unwrap_or("arrow"))
+        .build();
     let _cache_producer = match state.cache.reserve(&cache_key).await {
         CacheReservation::Hit {
             response,
@@ -113,7 +110,8 @@ pub async fn get_aggregate(
     // the ts column to be present, and `filter_time_range` is the single
     // source of truth for the column-projection shape used by the line/scatter
     // paths (see shared::filter_preamble).
-    let filtered_lf = pipeline::filter_time_range(lf, start_ts, end_ts, &value_cols, &ts_col)?;
+    let filtered_lf =
+        pipeline::filter_time_range(lf, start_ts, end_ts, &value_cols, &ts_col, &dtype)?;
 
     // Collect via QueryExecutor — runs on Rayon thread pool via spawn_blocking
     let filtered: types::DataFrame = state.query_executor.execute_async(filtered_lf).await?;

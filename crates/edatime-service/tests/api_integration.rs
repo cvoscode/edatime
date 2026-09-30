@@ -281,10 +281,15 @@ async fn sampled_profile_v1_returns_estimated_metadata() {
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let profile: serde_json::Value = serde_json::from_slice(&body).unwrap();
         if profile["status"] == "ready" {
-            assert_eq!(profile["algorithmVersion"], "sample-v1");
+            assert_eq!(profile["algorithmVersion"], "sample-v2");
             assert_eq!(profile["metadata"]["profile_status"], "sampled");
             assert_eq!(profile["metadata"]["profile_sample_rows"], 720);
-            assert!(profile["metadata"]["time_quality"].is_object());
+            // Sampled profiles omit exact time-quality statistics by design.
+            assert!(
+                profile["metadata"]
+                    .get("time_quality")
+                    .is_none_or(|v| v.is_null())
+            );
             return;
         }
         tokio::time::sleep(std::time::Duration::from_millis(5)).await;
@@ -1405,4 +1410,39 @@ async fn cors_exposes_execution_identity_headers_on_responses() {
             "missing exposed header {name}: {exposed}"
         );
     }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn sample_dataset_endpoint_streams_known_files_and_404s_unknown_names() {
+    let app = test_app();
+    let known = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/sample/ETTm2.csv")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(known.status(), StatusCode::OK);
+    assert_eq!(known.headers()["content-type"], "text/csv");
+    let declared: usize = known.headers()["content-length"]
+        .to_str()
+        .unwrap()
+        .parse()
+        .unwrap();
+    let body = known.into_body().collect().await.unwrap().to_bytes();
+    assert_eq!(body.len(), declared);
+
+    let unknown = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/sample/passwd")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(unknown.status(), StatusCode::NOT_FOUND);
 }

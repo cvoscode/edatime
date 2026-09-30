@@ -96,7 +96,7 @@ describe('sampling indicator', () => {
             });
             expect(out).toEqual({
                 label: 'Exact',
-                detail: 'Showing 69.7k original observations',
+                detail: 'Showing 69,680 original observations',
                 level: 'info',
             });
         });
@@ -109,7 +109,7 @@ describe('sampling indicator', () => {
             });
             expect(out).toEqual({
                 label: 'Envelope sample',
-                detail: '1000 eligible observations → 4 candidates → 4 returned · 4 rendered · envelope-lttb-v1',
+                detail: '1,000 eligible observations → 4 candidates → 4 returned · 4 rendered · envelope-lttb-v1',
                 level: 'warn',
             });
         });
@@ -130,7 +130,7 @@ describe('sampling indicator', () => {
                 kind: 'sampled', eligibleRows: null, candidateRows: null, returnedRows: null,
                 target: 69680, ratio: null, algorithm: null, approximate: false, downsampled: true,
             });
-            expect(out?.detail).toBe('Target ~69.7k points · final reduction');
+            expect(out?.detail).toBe('Target ~69,680 points · final reduction');
         });
     });
 });

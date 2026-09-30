@@ -40,11 +40,13 @@ describe('causal page help button', () => {
         const modal = document.getElementById('page-help-modal');
         expect(modal).not.toBeNull();
         expect(modal?.textContent).toContain('Causality — Help');
-        expect(modal?.textContent).toContain('Method picker');
-        expect(modal?.textContent).toContain('PCMCI');
+        for (const section of ['Methods and assumptions', 'Time range and point budget', 'Parameters', 'Results and export', 'Graph editing and run comparison']) {
+            expect(modal?.textContent).toContain(section);
+        }
         expect(modal?.textContent).toContain('PCMCI+');
         expect(modal?.textContent).toContain('LPCMCI');
-        expect(modal?.textContent).toContain('Graph view');
+        expect(modal?.textContent).toContain('+ Edge');
+        expect(modal?.textContent).toContain('Save Run');
     });
 
     it('initCausalHelp is safe to call twice (idempotent)', async () => {

@@ -89,7 +89,11 @@ vi.mock('../../utils/chartExport.js', () => ({
     exportElementPNG: vi.fn(),
     exportElementSVG: vi.fn(),
     exportElementHTML: vi.fn(),
-    exportMatrixCSV: vi.fn(),
+}));
+
+vi.mock('../../utils/dom.js', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('../../utils/dom.js')>()),
+    downloadBlob: vi.fn(),
 }));
 
 vi.mock('../../utils/bindExportButtons.js', () => ({
@@ -387,7 +391,7 @@ describe('heatmapPage with clustering', () => {
     it('names CSV exports from the metric selected at click time', async () => {
         const { initHeatmapPage } = await import('./page.js');
         const { bindExportButtons } = await import('../../utils/bindExportButtons.js');
-        const { exportMatrixCSV } = await import('../../utils/chartExport.js');
+        const { downloadBlob } = await import('../../utils/dom.js');
         await initHeatmapPage({ showPage: vi.fn() });
         await activateHeatmap();
         const metricSelect = document.getElementById('heatmap-metric') as HTMLSelectElement;
@@ -398,11 +402,10 @@ describe('heatmapPage with clustering', () => {
         const config = vi.mocked(bindExportButtons).mock.calls.at(-1)?.[1];
         config?.csv?.fn(config.csv.filename);
 
-        expect(exportMatrixCSV).toHaveBeenCalledWith(
-            DEFAULT_MATRIX_RESPONSE.columns,
-            DEFAULT_MATRIX_RESPONSE.kendall_diff,
-            'edatime_correlation_kendall_diff.csv',
-        );
+        expect(downloadBlob).toHaveBeenCalledWith(expect.any(Blob), 'edatime_correlation_kendall_diff.csv');
+        const csv = await vi.mocked(downloadBlob).mock.calls.at(-1)![0].text();
+        expect(csv.split('\n')[1].startsWith('"a1","a1","kendall_diff",')).toBe(true);
+        expect(csv).not.toContain('pearson_raw');
     });
 
     it('closes the Export disclosure on Escape and restores summary focus', async () => {

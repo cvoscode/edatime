@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use edatime_service::causal::{
     CausalDataFrame, CondIndTest, IndependenceTestKind, Lpcmci, Pcmci, PcmciPlus,
