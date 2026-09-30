@@ -146,4 +146,23 @@ describe('bindExportButtons', () => {
         expect(htmlMock).toHaveBeenCalledTimes(1);
         expect(csvMock).toHaveBeenCalledTimes(1);
     });
+
+    it('returns a disposer that removes every listener', () => {
+        document.body.innerHTML = `
+            <button id="my-export-png-btn" type="button"></button>
+            <button id="my-export-csv-btn" type="button"></button>`;
+        const dispose = bindExportButtons('my', {
+            png: { fn: pngMock, filename: 'a.png' },
+            svg: { fn: svgMock, filename: 'a.svg' },
+            html: { fn: htmlMock, filename: 'a.html' },
+            csv: { fn: csvMock, filename: 'a.csv' },
+        });
+
+        dispose();
+        document.getElementById('my-export-png-btn')!.click();
+        document.getElementById('my-export-csv-btn')!.click();
+
+        expect(pngMock).not.toHaveBeenCalled();
+        expect(csvMock).not.toHaveBeenCalled();
+    });
 });

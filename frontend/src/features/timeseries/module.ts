@@ -69,25 +69,20 @@ export function createTimeseriesModule(deps: TimeseriesModuleDeps) {
         loadProfile: typeof import('../upload/index.js').loadProfile;
         hydrateColumnProfiles: typeof import('../upload/index.js').hydrateColumnProfiles;
         renderColumnProfilesGrid: typeof import('../upload/index.js').renderColumnProfilesGrid;
-        applyPartialTimeRangeFromMetadata: typeof import('../upload/partialLoadControls.js').applyPartialTimeRangeFromMetadata;
-        setProfileMode: typeof import('../upload/preview.js').setProfileMode;
-        setUploadPreviewStatus: typeof import('../upload/preview.js').setUploadPreviewStatus;
+        applyPartialTimeRangeFromMetadata: typeof import('../upload/index.js').applyPartialTimeRangeFromMetadata;
+        setProfileMode: typeof import('../upload/index.js').setProfileMode;
+        setUploadPreviewStatus: typeof import('../upload/index.js').setUploadPreviewStatus;
     }> | null = null;
 
     function ensureDatasetUiModules() {
         if (!datasetUiModulesPromise) {
-            datasetUiModulesPromise = Promise.all([
-                import('../upload/index.js'),
-                import('../upload/preview.js'),
-                import('../upload/partialLoadControls.js'),
-            ]).then(([profileModule, previewModule, partialLoadModule]) => ({
-                loadProfile: profileModule.loadProfile,
-                hydrateColumnProfiles: profileModule.hydrateColumnProfiles,
-                renderColumnProfilesGrid: profileModule.renderColumnProfilesGrid,
-                applyPartialTimeRangeFromMetadata: partialLoadModule.applyPartialTimeRangeFromMetadata,
-                setProfileMode: previewModule.setProfileMode,
-                setUploadPreviewStatus: previewModule.setUploadPreviewStatus,
-                applyTimeRangeFromMetadata: partialLoadModule.applyPartialTimeRangeFromMetadata,
+            datasetUiModulesPromise = import('../upload/index.js').then((upload) => ({
+                loadProfile: upload.loadProfile,
+                hydrateColumnProfiles: upload.hydrateColumnProfiles,
+                renderColumnProfilesGrid: upload.renderColumnProfilesGrid,
+                applyPartialTimeRangeFromMetadata: upload.applyPartialTimeRangeFromMetadata,
+                setProfileMode: upload.setProfileMode,
+                setUploadPreviewStatus: upload.setUploadPreviewStatus,
             }));
         }
         return datasetUiModulesPromise;

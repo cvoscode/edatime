@@ -4,9 +4,8 @@ import {
     formatTriggerReason,
     severityScore,
     type DriftInvestigationResponse,
-    type DriftResponse,
-    type DriftWindowStats,
 } from './viewModels.js';
+import type { DriftResponse, DriftWindowStats } from '../../contracts/api/v1/drift.js';
 
 export interface DriftSummaryPanelHtml {
     summaryStrip: string;

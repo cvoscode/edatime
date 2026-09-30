@@ -4,8 +4,8 @@ import type {
     DriftInvestigationResponse,
     DriftQualityIssueRank,
     DriftRelationshipRank,
-    DriftResponse,
 } from './viewModels.js';
+import type { DriftResponse } from '../../contracts/api/v1/drift.js';
 
 export interface DriftInvestigationPanelHtml {
     overview: string;

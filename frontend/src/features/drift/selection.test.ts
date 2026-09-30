@@ -15,7 +15,7 @@ import {
     _setSelectionState,
     _getSelectionState,
 } from './selection.js';
-import type { DriftResponse } from './viewModels.js';
+import type { DriftResponse } from '../../contracts/api/v1/drift.js';
 
 const mockResponse = (): DriftResponse => ({
     column: 'test_col',

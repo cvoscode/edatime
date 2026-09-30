@@ -58,21 +58,28 @@ export function createAnalysisPageRuntime(options: AnalysisPageRuntimeOptions) {
     });
 
     const shouldBindOnInit = options.bindExportsOnInit ?? true;
-    let bound = false;
+    let unbindExports: (() => void) | null = null;
+
+    function bind(): void {
+        if (!options.exportConfig || unbindExports) return;
+        // A mocked or absent binder returns nothing; keep a no-op so it still counts as bound.
+        unbindExports = bindExportButtons(options.exportConfig.key, {
+            png: options.exportConfig.png,
+            svg: options.exportConfig.svg,
+            html: options.exportConfig.html,
+            csv: options.exportConfig.csv,
+        }) ?? (() => {});
+    }
 
     return {
         mount() {
             const unregister = base.mount();
-            if (shouldBindOnInit && options.exportConfig) {
-                bindExportButtons(options.exportConfig.key, {
-                    png: options.exportConfig.png,
-                    svg: options.exportConfig.svg,
-                    html: options.exportConfig.html,
-                    csv: options.exportConfig.csv,
-                });
-                bound = true;
-            }
-            return unregister;
+            if (shouldBindOnInit) bind();
+            return () => {
+                unregister();
+                unbindExports?.();
+                unbindExports = null;
+            };
         },
         activate() {
             base.activate();
@@ -92,16 +99,6 @@ export function createAnalysisPageRuntime(options: AnalysisPageRuntimeOptions) {
          * Idempotent — calling multiple times only binds once.
          * Use this for deferred binding when `bindExportsOnInit` is false.
          */
-        bindExports() {
-            if (!options.exportConfig) return;
-            if (bound) return;
-            bound = true;
-            bindExportButtons(options.exportConfig.key, {
-                png: options.exportConfig.png,
-                svg: options.exportConfig.svg,
-                html: options.exportConfig.html,
-                csv: options.exportConfig.csv,
-            });
-        },
+        bindExports: bind,
     };
 }

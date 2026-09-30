@@ -48,17 +48,6 @@ interface SpectrogramPageDeps {
     workspace?: Pick<WorkspaceStore, 'getSnapshot'> & Partial<Pick<WorkspaceStore, 'subscribe'>>;
 }
 
-// ── Module-level page result state ───────────────────────────────────────────
-let spectrogramChartController: SpectrogramChartController | null = null;
-let spectrogramResult: SpectrogramResult | null = null;
-let spectrogramSampling: SpectrogramResponse['sampling'] | undefined;
-let spectrogramRenderError: string | null = null;
-let spectrogramAppliedScaleMode: ScaleMode = 'none';
-let spectrogramAppliedClipMode: ClipMode = 'none';
-let spectrogramAppliedClipParam = 0.5;
-let appliedWindowSize = 96;
-let appliedHopSize = 48;
-
 /**
  * CSV export for the spectrogram. Mirrors the per-page export pattern used
  * by PNG/SVG/HTML but reads the cached `spectrogramResult` (set after a
@@ -88,36 +77,48 @@ export function buildSpectrogramCsv(result: SpectrogramResult): string {
     return lines.join('\n');
 }
 
-export function exportSpectrogramCsv(filename = 'edatime_spectrogram.csv'): void {
-    const result = spectrogramResult;
-    if (!result || !result.times_ms.length || !result.frequencies.length) {
-        toast('Compute the spectrogram before exporting CSV.', 'warning');
-        return;
-    }
-    const csv = buildSpectrogramCsv(result);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    downloadBlob(blob, filename);
-    toast(`CSV exported (${result.times_ms.length * result.frequencies.length} rows).`, 'success');
-}
-
-export function __resetSpectrogramChartRuntimeForTests(): void {
-    spectrogramChartController?.dispose();
-    spectrogramChartController = null;
-    spectrogramResult = null;
-    spectrogramSampling = undefined;
-    document.getElementById('spectrogram-peak-summary')?.setAttribute('hidden', '');
-    document.getElementById('spectrogram-frequency-callout')?.replaceChildren();
-    document.getElementById('spectrogram-peak-table-wrap')?.replaceChildren();
-    document.getElementById('spectrogram-peak-focus')?.replaceChildren();
-    document.getElementById('spectrogram-sampling-context')?.setAttribute('hidden', '');
-    spectrogramRenderError = null;
-    spectrogramAppliedScaleMode = 'none';
-    spectrogramAppliedClipMode = 'none';
-    spectrogramAppliedClipParam = 0.5;
-}
-
 // ── Runtime factory ───────────────────────────────────────────────────────────
 export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
+    // Result state belongs to this runtime instance and is dropped with it.
+    let spectrogramChartController: SpectrogramChartController | null = null;
+    let spectrogramResult: SpectrogramResult | null = null;
+    let spectrogramSampling: SpectrogramResponse['sampling'] | undefined;
+    let spectrogramRenderError: string | null = null;
+    let spectrogramAppliedScaleMode: ScaleMode = 'none';
+    let spectrogramAppliedClipMode: ClipMode = 'none';
+    let spectrogramAppliedClipParam = 0.5;
+    let appliedWindowSize = 96;
+    let appliedHopSize = 48;
+
+    function exportSpectrogramCsv(filename = 'edatime_spectrogram.csv'): void {
+        const result = spectrogramResult;
+        if (!result || !result.times_ms.length || !result.frequencies.length) {
+            toast('Compute the spectrogram before exporting CSV.', 'warning');
+            return;
+        }
+        const csv = buildSpectrogramCsv(result);
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+        downloadBlob(blob, filename);
+        toast(`CSV exported (${result.times_ms.length * result.frequencies.length} rows).`, 'success');
+    }
+
+    /** Drop the computed result and clear the result panels this instance filled. */
+    function resetResultState(): void {
+        spectrogramChartController?.dispose();
+        spectrogramChartController = null;
+        spectrogramResult = null;
+        spectrogramSampling = undefined;
+        document.getElementById('spectrogram-peak-summary')?.setAttribute('hidden', '');
+        document.getElementById('spectrogram-frequency-callout')?.replaceChildren();
+        document.getElementById('spectrogram-peak-table-wrap')?.replaceChildren();
+        document.getElementById('spectrogram-peak-focus')?.replaceChildren();
+        document.getElementById('spectrogram-sampling-context')?.setAttribute('hidden', '');
+        spectrogramRenderError = null;
+        spectrogramAppliedScaleMode = 'none';
+        spectrogramAppliedClipMode = 'none';
+        spectrogramAppliedClipParam = 0.5;
+    }
+
     let spectrogramRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
     let autoComputeStarted = false;
     let autoComputeExplained = false;
@@ -677,7 +678,13 @@ export function createSpectrogramChartRuntime(deps: SpectrogramPageDeps) {
     });
 
     return {
-        mount: () => spectrogramRuntime.mount(),
+        mount: () => {
+            const unmount = spectrogramRuntime.mount();
+            return () => {
+                unmount();
+                resetResultState();
+            };
+        },
         activate: () => spectrogramRuntime.activate(),
     };
 }

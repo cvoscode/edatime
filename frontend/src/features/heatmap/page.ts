@@ -52,49 +52,19 @@ interface HeatmapPageDeps {
     workspace?: Pick<WorkspaceStore, 'getSnapshot' | 'subscribe'>;
 }
 
-let heatmapCellSize = 36;
-let heatmapClusterEnabled = true;
-// When `heatmapFitToScreen` is on, the matrix snaps to fill the available
-// panel width regardless of the cell-size slider. The slider still drives
-// the cell-size slider's display value, but its max is bypassed for layout.
-// Default to fit-on so the matrix fills the available panel width on first
-// load; users can still turn it off when they want slider-driven overflow.
-let heatmapFitToScreen = true;
-let heatmapAxisFit = false;
-let heatmapOrderLocked = false;
-let lastRenderedOrder: string[] | null = null;
 const HEATMAP_FIT_STORAGE_KEY = 'edatime_heatmap_fit_to_screen';
 const HEATMAP_METRIC_STORAGE_KEY = 'edatime_heatmap_metric';
 // Hardcoded clustering cutoff. Exposed as a constant (rather than a slider)
 // because the threshold is rarely useful to tune interactively and the
 // default 0.85 works well across the datasets we have seen.
 const HEATMAP_CLUSTER_THRESHOLD = 0.85;
-let matrixData: CorrelationMatrixResponse | null = null;
-let metric: CorrelationMetric = 'pearson_raw';
-let matrixLoadSequence = 0;
-let heatmapRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
-let heatmapResizeObserver: ResizeObserver | null = null;
-let heatmapPageCleanup: (() => void) | null = null;
-let heatmapControlAbort: AbortController | null = null;
-let toolbarPopovers: ReturnType<typeof initToolbarPopovers> | null = null;
-/** User's manual column/row order from drag-reorder. Persists across
- *  metric switches so users don't lose their custom sequence. Reset
- *  whenever clustering is toggled or a new dataset loads. */
-let userColumnOrder: string[] | null = null;
-let workspaceContextUnsubscribe: (() => void) | null = null;
-let planContextUnsubscribe: (() => void) | null = null;
+// Disposer of the mounted instance, so a re-init never leaves two instances
+// bound to the same DOM. All page state lives in mountHeatmapPage.
+let disposeActiveInstance: (() => void) | null = null;
 
 /** Release the current Heatmap feature instance and invalidate its loading work. */
 export function disposeHeatmapPage(): void {
-    matrixLoadSequence += 1;
-    heatmapPageCleanup?.();
-    heatmapPageCleanup = null;
-    workspaceContextUnsubscribe?.();
-    workspaceContextUnsubscribe = null;
-    planContextUnsubscribe?.();
-    planContextUnsubscribe = null;
-    matrixData = null;
-    userColumnOrder = null;
+    disposeActiveInstance?.();
 }
 
 function readHeatmapFitPref(): boolean {
@@ -151,17 +121,6 @@ function updateRangeFill(input: HTMLInputElement | null): void {
     input.style.setProperty('--range-fill', `${pct.toFixed(2)}%`);
 }
 
-function syncHeatmapEmptyState(message: string, visible: boolean, reason = '', title = ''): void {
-    heatmapRuntime?.updateEmptyState({
-        visible,
-        reason: visible ? (reason || 'no-data') : '',
-        title: title || (visible ? 'Correlation heatmap unavailable' : ''),
-        message,
-        fallbackText: message,
-    });
-    setHeatmapLoading(false);
-}
-
 function setHeatmapLoading(loading: boolean, label?: string): void {
     const overlay = document.getElementById('heatmap-loading');
     if (!overlay) return;
@@ -172,7 +131,7 @@ function setHeatmapLoading(loading: boolean, label?: string): void {
     }
 }
 
-function syncMetricGuide(): void {
+function syncMetricGuide(metric: CorrelationMetric): void {
     const infoIcon = document.getElementById('heatmap-metric-info');
     if (!infoIcon) return;
     infoIcon.setAttribute('data-info-tip', getCorrelationModeGuide(metric));
@@ -180,6 +139,49 @@ function syncMetricGuide(): void {
 
 export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void> {
     disposeHeatmapPage();
+    const dispose = mountHeatmapPage(deps);
+    disposeActiveInstance = dispose;
+    return dispose;
+}
+
+function mountHeatmapPage(deps: HeatmapPageDeps): () => void {
+    let heatmapCellSize = 36;
+    let heatmapClusterEnabled = true;
+    // When `heatmapFitToScreen` is on, the matrix snaps to fill the available
+    // panel width regardless of the cell-size slider. The slider still drives
+    // the cell-size slider's display value, but its max is bypassed for layout.
+    // Default to fit-on so the matrix fills the available panel width on first
+    // load; users can still turn it off when they want slider-driven overflow.
+    let heatmapFitToScreen = true;
+    let heatmapAxisFit = false;
+    let heatmapOrderLocked = false;
+    let lastRenderedOrder: string[] | null = null;
+    let matrixData: CorrelationMatrixResponse | null = null;
+    let metric: CorrelationMetric = 'pearson_raw';
+    let matrixLoadSequence = 0;
+    let heatmapRuntime: ReturnType<typeof createAnalysisPageRuntime> | null = null;
+    let heatmapResizeObserver: ResizeObserver | null = null;
+    let heatmapControlAbort: AbortController | null = null;
+    let toolbarPopovers: ReturnType<typeof initToolbarPopovers> | null = null;
+    /** User's manual column/row order from drag-reorder. Persists across
+     *  metric switches so users don't lose their custom sequence. Reset
+     *  whenever clustering is toggled or a new dataset loads. */
+    let userColumnOrder: string[] | null = null;
+    let workspaceContextUnsubscribe: (() => void) | null = null;
+    let planContextUnsubscribe: (() => void) | null = null;
+    let disposed = false;
+
+    function syncHeatmapEmptyState(message: string, visible: boolean, reason = '', title = ''): void {
+        heatmapRuntime?.updateEmptyState({
+            visible,
+            reason: visible ? (reason || 'no-data') : '',
+            title: title || (visible ? 'Correlation heatmap unavailable' : ''),
+            message,
+            fallbackText: message,
+        });
+        setHeatmapLoading(false);
+    }
+
     const syncSelectedPair = (x: string, y: string): void => {
         document.querySelectorAll<HTMLElement>('#heatmap-container .heatmap-cell').forEach((cell) => {
             const selected = cell.dataset.rowName === x && cell.dataset.colName === y;
@@ -869,14 +871,17 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
             if (diagonalModeSelect) setDropdownValue('heatmap-diagonal-mode', displayModes.diagonal);
             if (pairModeSelect) setDropdownValue('heatmap-pair-mode', displayModes.pairs);
             setDropdownDisabled('heatmap-color-column', displayModes.pairs === 'density');
-            syncMetricGuide();
+            syncMetricGuide(metric);
             bindInfoPopovers();
             // Release page-level help with the controls that own it.
             controlAbort.signal.addEventListener('abort', initHeatmapHelp(), { once: true });
 
-            // Sync initial control state with module-level defaults.
-            if (clusterToggle) clusterToggle.checked = heatmapClusterEnabled;
-            if (lockOrderToggle) lockOrderToggle.checked = heatmapOrderLocked;
+            // The toolbar controls outlive a page instance, so they carry the
+            // user's display choices across dataset switches. Start from them.
+            heatmapClusterEnabled = clusterToggle?.checked ?? heatmapClusterEnabled;
+            heatmapOrderLocked = lockOrderToggle?.checked ?? heatmapOrderLocked;
+            heatmapAxisFit = axisFitToggle ? axisFitToggle.getAttribute('aria-pressed') === 'true' : heatmapAxisFit;
+            heatmapCellSize = sizeInput ? Math.max(24, Math.min(72, Number(sizeInput.value || 36))) : heatmapCellSize;
             if (lockOrderStatus) lockOrderStatus.hidden = !heatmapOrderLocked;
             // Restore the "Fit to screen" pref, defaulting to on so the
             // heatmap uses the page width on first visit.
@@ -898,7 +903,7 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
             metricSelect?.addEventListener('change', () => {
                 metric = normalizeCorrelationMetric(getDropdownValue('heatmap-metric'));
                 writeHeatmapMetricPref(metric);
-                syncMetricGuide();
+                syncMetricGuide(metric);
                 void loadMatrix(metric);
             }, listenerOptions);
             diagonalModeSelect?.addEventListener('change', () => {
@@ -978,15 +983,26 @@ export async function initHeatmapPage(deps: HeatmapPageDeps): Promise<() => void
     });
 
     const disposeRuntime = heatmapRuntime.mount();
-    heatmapPageCleanup = () => {
+
+    function dispose(): void {
+        if (disposed) return;
+        disposed = true;
+        if (disposeActiveInstance === dispose) disposeActiveInstance = null;
+        // Invalidates any in-flight loadMatrix call from this instance.
+        matrixLoadSequence += 1;
         heatmapControlAbort?.abort();
         heatmapControlAbort = null;
         heatmapResizeObserver?.disconnect();
         heatmapResizeObserver = null;
         toolbarPopovers?.dispose();
         toolbarPopovers = null;
+        workspaceContextUnsubscribe?.();
+        planContextUnsubscribe?.();
         disposeRuntime();
         heatmapRuntime = null;
-    };
-    return disposeHeatmapPage;
+        // The cell click handler is assigned (not added) during render and captures this instance.
+        const container = document.getElementById('heatmap-container');
+        if (container) container.onclick = null;
+    }
+    return dispose;
 }

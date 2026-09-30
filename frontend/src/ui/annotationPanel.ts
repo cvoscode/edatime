@@ -26,6 +26,14 @@ export interface AnnotationPanelDeps {
 
 /* ── Annotations list modal ─────────────────────────── */
 
+/** Stored annotations are untrusted; only a hex colour may reach the style attribute. */
+function annotationColorStyle(color: unknown): string {
+    return typeof color === 'string' && /^#[0-9a-f]{3,8}$/i.test(color)
+        ? ` style="--annotation-color:${color}"`
+        : '';
+}
+
+
 function openAnnotationsModal(requestOverlayRender: () => void): void {
     const modal = document.getElementById('annotations-modal');
     if (!modal) return;
@@ -43,26 +51,26 @@ function renderAnnotationsList(requestOverlayRender: () => void): void {
     if (!container) return;
     const anns = getAnnotations();
     if (anns.length === 0) {
-        container.innerHTML = '<p style="color:var(--text-muted, #888);padding:8px 0;">No annotations yet. Use "+ Note" or "+ Bookmark" to add.</p>';
+        container.innerHTML = '<p class="annotation-empty">No annotations yet. Use "+ Note" or "+ Bookmark" to add.</p>';
         return;
     }
     container.innerHTML = anns.map((ann) => {
         const date = new Date(ann.createdAt).toLocaleString();
         const timeInfo = ann.timeRange
-            ? `<span style="font-size:11px;color:var(--text-muted)">${new Date(ann.timeRange.start).toISOString().slice(0, 16).replace('T', ' ')}${ann.timeRange.end !== ann.timeRange.start ? ' – ' + new Date(ann.timeRange.end).toISOString().slice(0, 16).replace('T', ' ') : ''}</span>`
+            ? `<span class="annotation-item__meta">${new Date(ann.timeRange.start).toISOString().slice(0, 16).replace('T', ' ')}${ann.timeRange.end !== ann.timeRange.start ? ' – ' + new Date(ann.timeRange.end).toISOString().slice(0, 16).replace('T', ' ') : ''}</span>`
             : '';
         return `
-            <div class="annotation-item" data-ann-id="${escapeAttr(ann.id)}" style="border-left:3px solid ${escapeAttr(ann.color)};padding:8px 12px;margin-bottom:8px;background:var(--surface-2);border-radius:4px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+            <div class="annotation-item" data-ann-id="${escapeAttr(ann.id)}"${annotationColorStyle(ann.color)}>
+                <div class="annotation-item__header">
                     <strong>${escapeHtml(ann.title)}</strong>
-                    <div style="display:flex;gap:6px;">
-                        <span style="font-size:11px;color:var(--text-muted)">${ann.type} · ${ann.page}</span>
+                    <div class="annotation-item__actions">
+                        <span class="annotation-item__meta">${escapeHtml(String(ann.type))} · ${escapeHtml(String(ann.page))}</span>
                         <button class="btn btn-ghost btn-xs ann-delete-btn" data-ann-id="${escapeAttr(ann.id)}" type="button" title="Delete">✕</button>
                     </div>
                 </div>
                 ${timeInfo}
-                ${ann.content ? `<p style="margin:4px 0 0;font-size:12px;color:var(--text-dim)">${escapeHtml(ann.content)}</p>` : ''}
-                <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${date}</div>
+                ${ann.content ? `<p class="annotation-item__content">${escapeHtml(ann.content)}</p>` : ''}
+                <div class="annotation-item__meta annotation-item__date">${date}</div>
             </div>
         `;
     }).join('');

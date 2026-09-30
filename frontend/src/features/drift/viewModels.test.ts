@@ -9,8 +9,8 @@ import {
     filterResponseForEvaluation,
     statusSummary,
     timelineTooltipFormatter,
-    type DriftResponse,
 } from './viewModels.js';
+import type { DriftResponse } from '../../contracts/api/v1/drift.js';
 
 function makeResponse(column: string, windows: DriftResponse['windows']): DriftResponse {
     return {
@@ -200,6 +200,18 @@ describe('drift view models', () => {
         expect(rows.some((row) => row.label === 'Triggered by' && row.value.includes('PSI major'))).toBe(true);
         expect(rows.some((row) => row.label === 'Jensen-Shannon')).toBe(true);
         expect(rows.some((row) => row.label === 'Completeness delta' && row.value.includes('-18.0%'))).toBe(true);
+    });
+
+    it('escapes dataset column names and labels in the timeline tooltip HTML', () => {
+        const html = timelineTooltipFormatter({
+            seriesName: 'fallback',
+            data: { meta: { column: '<img src=x onerror=alert(1)>', range_label: '<b>range</b>', drift_level: 'red' } },
+        });
+
+        expect(html).not.toContain('<img');
+        expect(html).not.toContain('<b>');
+        expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+        expect(html).toContain('&lt;b&gt;range&lt;/b&gt;');
     });
 
     it('adds exact ranges and trigger reasons to the timeline tooltip', () => {

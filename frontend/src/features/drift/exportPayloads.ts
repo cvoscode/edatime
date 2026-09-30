@@ -1,4 +1,5 @@
-import { buildColumnSummary, type DriftEvaluationMode, type DriftInvestigationResponse, type DriftResponse } from './viewModels.js';
+import { buildColumnSummary, type DriftEvaluationMode, type DriftInvestigationResponse } from './viewModels.js';
+import type { DriftResponse } from '../../contracts/api/v1/drift.js';
 
 export function buildDriftCsv(responsesByColumn: Map<string, DriftResponse>): string {
     const rows: string[] = [

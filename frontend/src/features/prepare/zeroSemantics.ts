@@ -5,10 +5,10 @@ import { previewCleaningPlan } from '../../cleaning/api.js';
 import type { CleaningPlan, DerivedColumnStage } from '../../cleaning/types.js';
 import type { DatasetMetadata } from '../../contracts/api/v1/dataset.js';
 import type { CorrelationMatrixResponse, FftResponse } from '../../contracts/api/v1/analytics.js';
-import type { DriftResponse } from '../drift/viewModels.js';
 import { apiV1Routes } from '../../contracts/api/v1/routes.js';
 import { postJson } from '../../services/api/http.js';
 import { formatSamplingCadence } from '../spectralSampling.js';
+import type { DriftResponse } from '../../contracts/api/v1/drift.js';
 
 export function zeroMissingStage(column: string): DerivedColumnStage {
     const now = new Date().toISOString();

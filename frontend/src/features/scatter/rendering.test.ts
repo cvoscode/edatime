@@ -163,11 +163,27 @@ describe('scatter marginal rendering modes', () => {
 
         renderMode.value = 'density';
         syncModeUI();
-        expect(field.style.display).toBe('none');
+        expect(field.hidden).toBe(true);
 
         renderMode.value = 'scatter';
         syncModeUI();
-        expect(field.style.display).toBe('');
+        expect(field.hidden).toBe(false);
+    });
+
+    it('reveals the density controls, which start hidden in the markup, in density mode', () => {
+        const renderMode = document.getElementById('scatter-render-mode') as HTMLSelectElement;
+        const density = document.createElement('div');
+        density.id = 'scatter-density-controls';
+        density.hidden = true;
+        document.body.appendChild(density);
+
+        renderMode.value = 'density';
+        syncModeUI();
+        expect(density.hidden).toBe(false);
+
+        renderMode.value = 'scatter';
+        syncModeUI();
+        expect(density.hidden).toBe(true);
     });
 
     it('draws histogram, kde, and boxplot marginals in density mode', () => {

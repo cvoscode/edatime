@@ -8,4 +8,11 @@ describe('formatFftTooltip', () => {
         expect(html).toContain('pre-scale');
         expect(html).toContain('raw');
     });
+
+    it('escapes the series name, which is a dataset column name', () => {
+        const html = formatFftTooltip({ value: [0.01, 2], seriesName: '<img src=x onerror=alert(1)>', dataIndex: 0 }, { xMax: 1, unit: 'Hz', scaleMode: 'none', scaleLabel: 'Raw' });
+
+        expect(html).not.toContain('<img');
+        expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+    });
 });

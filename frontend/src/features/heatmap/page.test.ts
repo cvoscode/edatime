@@ -408,6 +408,20 @@ describe('heatmapPage with clustering', () => {
         expect(csv).not.toContain('pearson_raw');
     });
 
+    it('releases its export bindings when the page is disposed', async () => {
+        const { initHeatmapPage } = await import('./page.js');
+        const { bindExportButtons } = await import('../../utils/bindExportButtons.js');
+        const unbind = vi.fn();
+        vi.mocked(bindExportButtons).mockReturnValue(unbind);
+        const dispose = await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+        expect(unbind).not.toHaveBeenCalled();
+
+        dispose();
+
+        expect(unbind).toHaveBeenCalledTimes(1);
+    });
+
     it('closes the Export disclosure on Escape and restores summary focus', async () => {
         const { initHeatmapPage } = await import('./page.js');
         await initHeatmapPage({ showPage: vi.fn() });
@@ -783,6 +797,38 @@ describe('heatmapPage with clustering', () => {
         expect(headers).toEqual(['a1', 'a2', 'a3', 'b1', 'b2', 'b3']);
     });
 
+    it('keeps the toolbar display choices when the page is initialized again', async () => {
+        const { initHeatmapPage } = await import('./page.js');
+        const dispose = await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+        const toggle = document.getElementById('heatmap-cluster-toggle') as HTMLInputElement;
+        toggle.checked = false;
+        toggle.dispatchEvent(new Event('change', { bubbles: true }));
+
+        dispose();
+        await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+
+        expect(toggle.checked).toBe(false);
+        // Cluster-start markers only appear when clustering is enabled.
+        expect(document.querySelectorAll('.heatmap-header--cluster-start')).toHaveLength(0);
+    });
+
+    it('does not render a matrix that arrives after the page is disposed', async () => {
+        const { initHeatmapPage } = await import('./page.js');
+        const { fetchCorrelationMatrix } = await import('../../services/api/index.js');
+        let resolveMatrix: (value: unknown) => void = () => {};
+        vi.mocked(fetchCorrelationMatrix).mockReturnValue(new Promise((resolve) => { resolveMatrix = resolve; }) as any);
+        const dispose = await initHeatmapPage({ showPage: vi.fn() });
+        await activateHeatmap();
+
+        dispose();
+        resolveMatrix(structuredClone(DEFAULT_MATRIX_RESPONSE));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(document.querySelector('.heatmap-grid')).toBeNull();
+    });
+
     it('refetches the selected first-difference matrix mode on metric change', async () => {
         const { fetchCorrelationMatrix } = await import('../../services/api/index.js');
         vi.mocked(fetchCorrelationMatrix)
@@ -967,10 +1013,8 @@ describe('heatmapPage audit follow-ups (C1–C11)', () => {
     beforeEach(async () => {
         vi.restoreAllMocks();
         vi.clearAllMocks();
-        // Re-import the page so module-level flags (`heatmapClusterEnabled`,
-        // `metric`, `userColumnOrder`, etc.) reset to their module defaults.
-        // Without this, tests in the upper describe can leak state via the
-        // cluster toggle, fit toggle, or metric select into the tests here.
+        // Page state is per instance, but shared modules the page imports
+        // (settings, scatter state) are not; re-import so they start fresh.
         vi.resetModules();
         window.localStorage.clear();
         window.sessionStorage.clear();

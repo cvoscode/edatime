@@ -1,7 +1,7 @@
 /**
  * Spectrogram page — thin delegator to spectrogramChartRuntime.
  */
-import { createSpectrogramChartRuntime, __resetSpectrogramChartRuntimeForTests } from './runtime.js';
+import { createSpectrogramChartRuntime } from './runtime.js';
 import { initSpectrogramHelp } from './help.js';
 import type { WorkspaceStore } from '../../workspace/workspaceStore.js';
 
@@ -10,34 +10,34 @@ interface SpectrogramPageDeps {
     workspace?: Pick<WorkspaceStore, 'getSnapshot'>;
 }
 
-let spectrogramRuntime: ReturnType<typeof createSpectrogramChartRuntime> | null = null;
-let spectrogramPageCleanup: (() => void) | null = null;
+// Disposer of the mounted instance, so a re-init never leaves two instances
+// bound to the same DOM. All page state lives in the runtime instance.
+let disposeActiveInstance: (() => void) | null = null;
 
+/** Release the current Spectrogram feature instance and its page-owned resources. */
 export function disposeSpectrogramPage(): void {
-    spectrogramPageCleanup?.();
-    spectrogramPageCleanup = null;
-    spectrogramRuntime = null;
-    __resetSpectrogramChartRuntimeForTests();
+    disposeActiveInstance?.();
 }
 
 export async function initSpectrogramPage(deps: SpectrogramPageDeps): Promise<() => void> {
     disposeSpectrogramPage();
-    spectrogramRuntime = createSpectrogramChartRuntime(deps);
-    const disposeRuntime = spectrogramRuntime.mount();
+    const runtime = createSpectrogramChartRuntime(deps);
+    const disposeRuntime = runtime.mount();
     // This feature can be loaded after the router has already displayed its
     // page. Activate its local lifecycle directly instead of relying on a
     // synthetic global page-change event.
-    spectrogramRuntime.activate();
+    runtime.activate();
     // Page-level "?" help button. Idempotent so safe to call on every
     // page init.
     const disposeHelp = initSpectrogramHelp();
-    spectrogramPageCleanup = () => {
+    let disposed = false;
+    const dispose = () => {
+        if (disposed) return;
+        disposed = true;
+        if (disposeActiveInstance === dispose) disposeActiveInstance = null;
         disposeHelp();
         disposeRuntime();
     };
-    return disposeSpectrogramPage;
-}
-
-export function __resetSpectrogramPageForTests(): void {
-    disposeSpectrogramPage();
+    disposeActiveInstance = dispose;
+    return dispose;
 }

@@ -18,6 +18,21 @@ const retiredSourceRoots = [
 // are an explicit migration inventory, not a permission to add new ones.
 // Remove a path when its feature slice is migrated; any new production import
 // fails the architecture check immediately.
+// The Correlation matrix page renders pair previews with Pair plot's matrix
+// machinery, which shares scatterState. Importing features/scatter/index.js
+// instead would bootstrap the scatter runtime and pull in ECharts, so these
+// pairs are an explicit inventory to shrink (by extracting a shared pair-preview
+// module), not permission for new cross-feature internal imports.
+const crossFeatureInternalImports = new Set([
+  'frontend/src/features/heatmap/page.ts -> frontend/src/features/scatter/state.js',
+  'frontend/src/features/heatmap/page.ts -> frontend/src/features/scatter/pairIntent.js',
+  'frontend/src/features/heatmap/page.ts -> frontend/src/features/scatter/helpers.js',
+  'frontend/src/features/heatmap/scatterMatrix.ts -> frontend/src/features/scatter/state.js',
+  'frontend/src/features/heatmap/scatterMatrix.ts -> frontend/src/features/scatter/helpers.js',
+  'frontend/src/features/heatmap/scatterMatrix.ts -> frontend/src/features/scatter/miniDensity.js',
+  'frontend/src/features/heatmap/scatterMatrix.ts -> frontend/src/features/scatter/matrix.js',
+]);
+
 async function listTsFiles(dir) {
   const entries = await readdir(dir, { withFileTypes: true });
   const files = [];
@@ -199,6 +214,20 @@ for (const file of files) {
       if (resolved.startsWith('frontend/src/features/') && !/\/index\.js$/.test(resolved)) {
         add(file, 'external feature consumers must import through features/<name>/index.js', lineOf(text, match.index ?? 0));
       }
+    }
+  }
+
+  // Rule 14b: one feature must not reach into another feature's internals.
+  // Shared modules at the features/ root (e.g. spectralSampling.ts) are fine.
+  const ownFeature = /^frontend\/src\/features\/([^/]+)\//.exec(rel)?.[1];
+  if (!isTest && ownFeature) {
+    const importRe = /(?:from\s+|import\()['\"]([^'\"]+)['\"]/g;
+    for (const match of text.matchAll(importRe)) {
+      const resolved = resolveImportPath(match[1], rel);
+      const target = /^frontend\/src\/features\/([^/]+)\/(.+)$/.exec(resolved);
+      if (!target || target[1] === ownFeature || target[2] === 'index.js') continue;
+      if (crossFeatureInternalImports.has(`${rel} -> ${resolved}`)) continue;
+      add(file, `features/${ownFeature} must import features/${target[1]} through its index.js`, lineOf(text, match.index ?? 0));
     }
   }
 

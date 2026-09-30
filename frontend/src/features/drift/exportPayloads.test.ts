@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { DriftInvestigationResponse, DriftResponse } from './viewModels.js';
+import type { DriftInvestigationResponse } from './viewModels.js';
 import { buildDriftCsv, buildDriftJsonExport } from './exportPayloads.js';
+import type { DriftResponse } from '../../contracts/api/v1/drift.js';
 
 const response = {
     column: 'temperature',

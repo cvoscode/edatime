@@ -43,7 +43,7 @@ import {
     drawDensityMarginalY,
 } from './renderingDensity.js';
 import { buildNormalScatterSeries as buildSeriesByPolicy } from './seriesPolicy.js';
-import { buildScatterTooltipHtml } from './tooltipPresentation.js';
+import { buildScatterTooltipHtml, firstTooltipParam } from './tooltipPresentation.js';
 import { buildScatterColorbarPresentation } from './colorbarPresentation.js';
 
 /* ── Series builders ──────────────────────────────────── */
@@ -59,8 +59,8 @@ export function buildNormalScatterSeries(points: [number, number][], controls: S
 }
 
 export function scatterTooltipFormatterFactory(controls: ScatterControls) {
-    return (params: any) => {
-        const p = Array.isArray(params) ? params[0] : params;
+    return (params: unknown) => {
+        const p = firstTooltipParam(params);
         if (!p) return '';
         return buildScatterTooltipHtml({
             xColumn: controls.x,
@@ -546,7 +546,9 @@ export function syncModeUI(): void {
     const isDensity = isPlot && ctl.renderMode === 'density';
     const isScatter = isPlot && ctl.renderMode === 'scatter';
     const densityFallback = document.getElementById('scatter-chart')?.dataset.scatterDensitySupport === 'false';
-    const toggle = (el: HTMLElement | null, visible: boolean) => { if (el) el.style.display = visible ? '' : 'none'; };
+    // `hidden` (not inline display) so markup that starts hidden, such as the
+    // density controls, can be revealed: the global [hidden] rule is !important.
+    const toggle = (el: HTMLElement | null, visible: boolean) => { if (el) el.hidden = !visible; };
 
     // Keep the Plot/Matrix switch visible in both views. Only the pair-axis
     // fields are irrelevant in Matrix mode; hiding their parent used to

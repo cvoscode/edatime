@@ -68,7 +68,11 @@ and target ES2022. Types are checked only. Vite does the build.
 - **Named exports only.** There is one `export default` in the tree. Don't add more.
 - **Each feature folder has an `index.ts` that is its public surface**
   (`features/fft/index.ts` exports `initFftPage` and `disposeFftPage`). Other
-  code imports from that surface. It must not reach into a feature's internal files.
+  code, including other features, imports from that surface, never a feature's
+  internal files. `check-frontend-architecture.mjs` enforces this; its only
+  exception is an allowlist for the heatmap's pair previews, which reuse Pair plot
+  matrix modules. API response types belong in `contracts/api/v1/`, not in a
+  feature's view models, so any feature can use them.
 - **Import order:** services and contracts, then feature-local modules, then
   types, then side-effect imports such as `./fft.css`. The exact order is loose in
   practice. Keep imports grouped, and don't scatter them through a file.
@@ -130,10 +134,15 @@ Include units in names when they are not obvious (`delayMs`, `sampleRateHz`).
 - **Inject dependencies through an options or `deps` object.** Don't reach for
   globals. This is what makes features testable.
 - **No new module-level mutable state.** `AGENTS.md` requires disposable
-  instances. Existing pages such as `features/fft/page.ts` still keep
-  `let fftTraces…`, `let fftChart…` at module scope. That is legacy. In new code,
-  or when refactoring, put the state in a closure created by `init…Page()` and
-  have `dispose()` drop it.
+  instances. Follow `features/fft/page.ts`, `features/heatmap/page.ts`, or
+  `features/spectrogram/page.ts`: `init…Page()` disposes any previous instance,
+  calls a `mount…Page(deps)` closure that owns all page state, and returns that
+  instance's disposer. The module keeps only the active instance's disposer and,
+  where a behaviour needs it, a documented carry-over value (FFT's
+  `recomputeOnNextVisit`). Toolbar controls outlive an instance, so read a
+  display choice back from its control rather than from module state. Pair plot
+  (`features/scatter/`) still uses module and store flags and is the remaining
+  migration.
 - Persist UI preferences in `localStorage` under an `edatime_<feature>_<thing>`
   key. Wrap access in `try/catch`, because storage can throw.
 
@@ -192,7 +201,13 @@ Every feature mounts as an instance and releases everything on dispose.
   names, file names). If you must build HTML, run values through `escapeHtml()`.
   Never assign a dataset value to `innerHTML` unescaped.
 - **Show and hide with the `hidden` attribute** and toggle state with
-  classes or `data-*` attributes. Don't set inline `style.display`.
+  classes or `data-*` attributes. `layout.css` has a global
+  `[hidden] { display: none !important; }`, so `hidden` always wins, and an
+  inline `display` on the same element can only cause trouble (an element whose
+  markup starts `hidden` can never be revealed by setting `style.display`).
+  The exception is overlays built and positioned in JavaScript (drag-selection
+  boxes, text overlays), which set `style.display` next to their other inline
+  geometry.
 - **Static markup goes in `frontend/index.html`.** Dynamic markup goes in small
   render functions that return or fill a container. Many tests assert against
   `index.html`, so update them with markup changes.

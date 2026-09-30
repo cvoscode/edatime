@@ -1,4 +1,5 @@
 import type { ExecutionIdentity } from '../../contracts/api/v1/identity.js';
+import type { DriftResponse, DriftWindowStats, WindowDistributionStats } from '../../contracts/api/v1/drift.js';
 /**
  * drift/viewModels.ts — Derived response shaping and formatting helpers for drift charts.
  *
@@ -9,6 +10,8 @@ import type { ExecutionIdentity } from '../../contracts/api/v1/identity.js';
 import type { EChartLike } from './types.js';
 import { getChartPalette, getPaletteColor } from '../../utils/theme.js';
 import { formatUtcDatetimeInputValue } from '../../utils/datetimeInput.js';
+import { escapeHtml } from '../../utils/dom.js';
+import type { CustomSeriesRenderItemAPI, CustomSeriesRenderItemParams } from 'echarts';
 
 // ── Color constants (mirrored from driftPage for co-location) ─────────────────────
 
@@ -43,62 +46,6 @@ export function DRIFT_TEXT_DIM(): string {
 
 export function DRIFT_DIM(): string {
     return getPaletteColor('borderHi') ?? COLOR_DIM_FALLBACK;
-}
-
-// ── Interfaces (duplicated from driftPage for module cohesion) ────────────────────
-
-export interface WindowDistributionStats {
-    start_ms: number;
-    end_ms: number;
-    label: string;
-    count: number;
-    null_count: number;
-    completeness: number;
-    mean: number;
-    std: number;
-    min: number;
-    max: number;
-    quantiles: number[];
-    hist_bins: number[];
-    hist_counts: number[];
-    ecdf_x: number[];
-    ecdf_y: number[];
-}
-
-export interface DriftWindowStats extends WindowDistributionStats {
-    ks_stat: number;
-    ks_pvalue: number;
-    es_stat: number;
-    es_pvalue: number;
-    wasserstein: number;
-    psi: number;
-    jensen_shannon: number;
-    drift_level: 'green' | 'yellow' | 'red';
-    trigger_reasons: string[];
-    completeness_delta: number;
-    low_sample_warning: boolean;
-}
-
-export interface DriftResponse {
-    column: string;
-    reference: WindowDistributionStats;
-    windows: DriftWindowStats[];
-    thresholds: {
-        ks_pvalue_threshold: number;
-        es_pvalue_threshold: number;
-        wasserstein_threshold: number;
-        psi_minor_threshold: number;
-        psi_major_threshold: number;
-    };
-    metadata?: {
-        computation_time_ms: number;
-        num_windows: number;
-        reference_samples: number;
-        bin_count_warning?: boolean;
-        effective_bins?: number;
-        psi_sample_ratio_warning?: boolean;
-        avg_window_samples?: number;
-    };
 }
 
 export type DriftEvaluationMode = 'all' | 'latest' | 'latest-n';
@@ -417,25 +364,72 @@ export function statusSummary(
     return { text, windowsTotal, flaggedTotal, refSamples, computeMs, psiWarning, binWarning };
 }
 
+// ── ECharts callback types ──────────────────────────────────────────────────────
+
+/** The `meta` object attached to drift chart data items. */
+export interface DriftPointMeta {
+    column?: string;
+    name?: string;
+    window_index?: number;
+    range_label?: string;
+    ref?: boolean;
+    count?: number;
+    drift_level?: string;
+    box?: number[];
+    normalized_box?: number[];
+    psi?: number;
+    ks_pvalue?: number;
+    wasserstein?: number;
+    trigger_reasons?: string[];
+}
+
+/** The parts of an ECharts formatter parameter these tooltips read. */
+export interface DriftTooltipParam {
+    data?: unknown;
+    value?: unknown;
+    name?: string;
+    seriesName?: string;
+    color?: unknown;
+    axisValueLabel?: string;
+}
+
+function pointMeta(param: DriftTooltipParam | null | undefined): DriftPointMeta {
+    const data = param?.data;
+    if (typeof data !== 'object' || data === null || !('meta' in data)) return {};
+    return (data as { meta?: DriftPointMeta }).meta ?? {};
+}
+
+/** Tooltip HTML is rendered as markup; column names and labels come from the dataset. */
+function html(value: unknown): string {
+    return escapeHtml(String(value ?? ''));
+}
+
+/** Pixel size of one data unit along an axis (0 when the coordinate system has none). */
+function unitSize(api: CustomSeriesRenderItemAPI, dataSize: number[], axis: 0 | 1): number {
+    const size = api.size?.(dataSize);
+    const value = Array.isArray(size) ? size[axis] : size;
+    return Math.abs(Number(value ?? 0));
+}
+
 // ── Tooltip formatter (module-level to avoid per-render closure allocation) ─────
 
-export const timelineTooltipFormatter = (params: any): string => {
-    const meta = params?.data?.meta || {};
+export const timelineTooltipFormatter = (params: DriftTooltipParam): string => {
+    const meta = pointMeta(params);
     if (meta.ref) {
         return [
-            `<strong>${meta.column || params.seriesName}</strong>`,
-            `${meta.range_label || 'Reference baseline'}`,
+            `<strong>${html(meta.column || params?.seriesName)}</strong>`,
+            html(meta.range_label || 'Reference baseline'),
             `Reference samples: ${meta.count ?? '-'}`,
         ].join('<br/>');
     }
     const lines = [
-        `<strong>${meta.column || params.seriesName}</strong>`,
-        `${meta.range_label || params.name || ''}`,
-        `Drift: ${(meta.drift_level || '-').toUpperCase()}`,
-        `PSI: ${isFinite(meta.psi) ? Number(meta.psi).toFixed(4) : '-'}`,
-        `Wasserstein: ${isFinite(meta.wasserstein) ? formatValue(Number(meta.wasserstein)) : '-'}`,
-        `KS p-value: ${isFinite(meta.ks_pvalue) ? Number(meta.ks_pvalue).toFixed(4) : '-'}`,
-        `Triggered by: ${formatTriggerReasons(meta.trigger_reasons)}`,
+        `<strong>${html(meta.column || params?.seriesName)}</strong>`,
+        html(meta.range_label || params?.name || ''),
+        `Drift: ${html((meta.drift_level || '-').toUpperCase())}`,
+        `PSI: ${Number.isFinite(meta.psi) ? Number(meta.psi).toFixed(4) : '-'}`,
+        `Wasserstein: ${Number.isFinite(meta.wasserstein) ? formatValue(Number(meta.wasserstein)) : '-'}`,
+        `KS p-value: ${Number.isFinite(meta.ks_pvalue) ? Number(meta.ks_pvalue).toFixed(4) : '-'}`,
+        `Triggered by: ${html(formatTriggerReasons(meta.trigger_reasons))}`,
     ];
     return lines.join('<br/>');
 };
@@ -478,7 +472,7 @@ function groupedTimelineOption(
     const borderColor = getPaletteColor('border') ?? DRIFT_DIM();
     const visibleCount = 18;
     const start = categories.length > visibleCount ? Math.max(0, 100 - (visibleCount / categories.length) * 100) : 0;
-    const series: any[] = [];
+    const series: Record<string, unknown>[] = [];
 
     responses.forEach((response, responseIndex) => {
         const color = COLUMN_PALETTE[responseIndex % COLUMN_PALETTE.length]!;
@@ -568,18 +562,18 @@ function groupedTimelineOption(
             borderColor,
             backgroundColor: TOOLTIP_BG(),
             textStyle: { color: DRIFT_TEXT(), fontSize: 11 },
-            formatter: (params: any) => {
-                const items = (Array.isArray(params) ? params : [params]).filter((item: any) => item?.data?.meta);
+            formatter: (params: DriftTooltipParam | DriftTooltipParam[]) => {
+                const items = (Array.isArray(params) ? params : [params]).filter((item) => pointMeta(item).column !== undefined);
                 const heading = items[0]?.axisValueLabel || items[0]?.name || '';
-                const rows = items.map((item: any) => {
-                    const meta = item.data.meta;
+                const rows = items.map((item) => {
+                    const meta = pointMeta(item);
                     const box = meta.box ?? [];
                     return [
-                        `<span style="color:${item.color}">●</span> <strong>${meta.column}</strong>: ${formatValue(box[2])}`,
+                        `<span style="color:${html(item.color)}">●</span> <strong>${html(meta.column)}</strong>: ${formatValue(box[2])}`,
                         `<span style="color:${DRIFT_TEXT_DIM()}">IQR ${formatValue(box[1])} – ${formatValue(box[3])}</span>`,
                     ].join(' ');
                 });
-                return [`<strong>${heading}</strong>`, ...rows].join('<br/>');
+                return [`<strong>${html(heading)}</strong>`, ...rows].join('<br/>');
             },
         },
         legend: {
@@ -635,15 +629,15 @@ function timelineDistributionOption(
             borderColor,
             backgroundColor: TOOLTIP_BG(),
             textStyle: { color: DRIFT_TEXT(), fontSize: 11 },
-            formatter: (params: any) => {
-                const meta = params?.data?.meta ?? {};
+            formatter: (params: DriftTooltipParam) => {
+                const meta = pointMeta(params);
                 const box = meta.box ?? [];
                 return [
-                    `<strong>${response.column}</strong>`,
-                    meta.range_label ?? params.name ?? '',
+                    `<strong>${html(response.column)}</strong>`,
+                    html(meta.range_label ?? params?.name ?? ''),
                     `Median: ${formatValue(box[2])}`,
                     `IQR: ${formatValue(box[1])} – ${formatValue(box[3])}`,
-                    meta.ref ? 'Reference baseline' : `Drift: ${(meta.drift_level ?? '-').toUpperCase()}`,
+                    meta.ref ? 'Reference baseline' : `Drift: ${html((meta.drift_level ?? '-').toUpperCase())}`,
                 ].join('<br/>');
             },
         },
@@ -708,12 +702,12 @@ function timelineDistributionOption(
             },
         };
     });
-    const renderItem = (params: any, api: any) => {
+    const renderItem = (params: CustomSeriesRenderItemParams, api: CustomSeriesRenderItemAPI) => {
         const index = params.dataIndex;
         const stats = allStats[index];
         if (!stats || stats.hist_bins.length < 2) return null;
         const density = normalizedCounts(stats.hist_counts);
-        const halfWidth = Math.max(2, Math.min(16, Math.abs(api.size([1, 0])[0]) * 0.35));
+        const halfWidth = Math.max(2, Math.min(16, unitSize(api, [1, 0], 0) * 0.35));
         const centers = stats.hist_bins.slice(0, -1).map((value, binIndex) => (value + stats.hist_bins[binIndex + 1]!) / 2);
         const right = centers.map((value, binIndex) => {
             const point = api.coord([index, value]);
@@ -774,7 +768,7 @@ export function buildTimelineOption(ctx: TimelineOptionContext): Record<string, 
     const visibleTickStep = Math.max(1, Math.ceil(categories.length / 7));
     const surfaceColor = getPaletteColor('surface') ?? '#FFFFFF';
     const referenceColor = getPaletteColor('border') ?? '#CDD6E0';
-    const heatmapData: any[] = [];
+    const heatmapData: Array<{ value: number[]; itemStyle: Record<string, unknown>; meta: DriftPointMeta }> = [];
 
     columns.forEach((column, columnIndex) => {
         const response = responsesByColumn.get(column)!;
@@ -961,12 +955,12 @@ function buildEvidenceDetailOption(ctx: DetailOptionContext): Record<string, unk
                 axisLine: { show: false },
             };
 
-    const densityRenderItem = (params: any, api: any) => {
+    const densityRenderItem = (params: CustomSeriesRenderItemParams, api: CustomSeriesRenderItemAPI) => {
         const index = params.dataIndex;
         const stats = distributionStats[index];
         if (!stats || stats.hist_bins.length < 2) return null;
         const density = normalizedCounts(stats.hist_counts);
-        const halfHeight = Math.max(5, Math.min(24, Math.abs(api.size([0, 1])[1]) * 0.28));
+        const halfHeight = Math.max(5, Math.min(24, unitSize(api, [0, 1], 1) * 0.28));
         const centers = stats.hist_bins.slice(0, -1).map((value, binIndex) => (value + stats.hist_bins[binIndex + 1]!) / 2);
         const upper = centers.map((value, binIndex) => {
             const point = api.coord([value, index]);
@@ -991,7 +985,7 @@ function buildEvidenceDetailOption(ctx: DetailOptionContext): Record<string, unk
         itemStyle: { color: `${distributionColors[index]}38`, stroke: distributionColors[index], lineWidth: 1.3 },
         meta: { name: distributionNames[index], box: distributionBox(stats) },
     }));
-    const rightSeries: any[] = resolvedPlotType === 'ecdf'
+    const rightSeries: Record<string, unknown>[] = resolvedPlotType === 'ecdf'
         ? distributionStats.map((stats, index) => ({
             name: distributionNames[index], type: 'line', xAxisIndex: 1, yAxisIndex: 1,
             data: stats.ecdf_x.map((value, pointIndex) => [value, stats.ecdf_y[pointIndex] ?? 0]),

@@ -24,6 +24,7 @@ import {
     getWindowSort,
     setSelectedWindowIdx,
 } from './selection.js';
+import type { DriftResponse } from '../../contracts/api/v1/drift.js';
 
 // ── Chart instance (owned by this module) ────────────────────────────────────
 
@@ -68,7 +69,7 @@ export function disposeDetailChart(): void {
 
 /** Build the context object for buildDetailOption. */
 export function buildDetailContext(plotType: string): {
-    responsesByColumn: Map<string, import('./viewModels.js').DriftResponse>;
+    responsesByColumn: Map<string, DriftResponse>;
     activeDetailColumn: string | null;
     selectedWindowIdx: number | null;
     plotType: string;

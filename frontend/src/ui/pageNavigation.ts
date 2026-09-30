@@ -150,7 +150,6 @@ export function initPageNavigation(deps: PageNavigationDeps): PageNavigation {
         for (const p of pages) {
             const hide = p.dataset.pageName !== resolvedPageName;
             p.hidden = hide;
-            p.style.display = hide ? 'none' : 'flex';
         }
         for (const btn of navButtons) {
             btn.classList.toggle('active', btn.dataset.page === pageName);

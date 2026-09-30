@@ -1,4 +1,5 @@
 import { formatTwoDecimals } from '../../formatUtils.js';
+import { firstTooltipParam } from './tooltipPresentation.js';
 import { scatterState } from '../../store/scatterState.js';
 import { getChartPalette } from '../../utils/theme.js';
 import {
@@ -135,13 +136,14 @@ export function buildDensityTooltipCache(series: any[], controls: ScatterControl
 }
 
 export function densityTooltipFormatterFactory(controls: ScatterControls, container: HTMLElement | null) {
-    return (params: any) => {
-        const p = Array.isArray(params) ? params[0] : params;
+    return (params: unknown) => {
+        const p = firstTooltipParam(params);
         if (!p) return '';
         const cache = scatterState.densityTooltipCache || buildDensityTooltipCache(scatterState.lastOptionSeries || [], controls, container);
-        const x = Number(p?.value?.[0]);
-        const y = Number(p?.value?.[1]);
-        const seriesIndex = Number(p?.seriesIndex);
+        const point = Array.isArray(p.value) ? p.value : [];
+        const x = Number(point[0]);
+        const y = Number(point[1]);
+        const seriesIndex = Number(p.seriesIndex);
         let density: number | null = null;
         const bins = cache?.binsBySeriesIndex?.get(seriesIndex);
         const metrics = cache?.metrics;

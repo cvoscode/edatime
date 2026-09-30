@@ -5,6 +5,8 @@
  * duplicated between DataChart and FftChart into reusable helpers.
  */
 
+import { escapeHtml } from '../utils/dom.js';
+
 /* ── Drag state ────────────────────────────────────────── */
 
 export interface DragState {
@@ -607,11 +609,12 @@ export function initWheelZoomViewport(opts: WheelZoomViewportOptions): void {
 
 /* ── Tooltip builders ──────────────────────────────────── */
 
+/** One tooltip row. `name` is plain text (often a column name) and is escaped. */
 export function tooltipRow(name: string, value: string, color?: string): string {
     const dot = color
         ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:6px;"></span>`
         : '';
-    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">${dot}<span>${name}</span><span style="font-variant-numeric:tabular-nums;font-weight:600;">${value}</span></div>`;
+    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">${dot}<span>${escapeHtml(name)}</span><span style="font-variant-numeric:tabular-nums;font-weight:600;">${value}</span></div>`;
 }
 
 export function tooltipWrap(header: string, rows: string): string {

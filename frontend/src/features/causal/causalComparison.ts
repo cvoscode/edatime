@@ -188,22 +188,22 @@ function renderDiff(runA: SavedCausalRun, runB: SavedCausalRun): string {
     ).join('');
 
     if (added.length === 0 && removed.length === 0 && changed.length === 0) {
-        return '<p style="color:var(--text-muted,#888);padding:8px 0">Graphs are identical (same edges).</p>';
+        return '<p class="causal-compare-empty">Graphs are identical (same edges).</p>';
     }
 
     return `
-        <table style="width:100%;border-collapse:collapse;font-size:12px;">
-            <thead><tr style="color:var(--text-dim,#aaa)"><th>From</th><th></th><th>To</th><th>Lag</th><th>Type</th><th>p-value</th></tr></thead>
+        <table class="causal-diff-table">
+            <thead><tr><th>From</th><th></th><th>To</th><th>Lag</th><th>Type</th><th>p-value</th></tr></thead>
             <tbody>
                 ${removed.map((l) => linkRow(l, 'diff-removed', '−')).join('')}
                 ${added.map((l) => linkRow(l, 'diff-added', '+')).join('')}
                 ${changedRows}
             </tbody>
         </table>
-        <div style="font-size:11px;color:var(--text-dim,#aaa);margin-top:6px">
-            <span style="color:#f44">−${removed.length} removed</span> &nbsp;
-            <span style="color:#4c4">+${added.length} added</span> &nbsp;
-            ${changed.length > 0 ? `<span style="color:#ffc041">${changed.length} changed edges</span>` : ''}
+        <div class="causal-diff-summary">
+            <span class="causal-diff-summary__removed">−${removed.length} removed</span>
+            <span class="causal-diff-summary__added">+${added.length} added</span>
+            ${changed.length > 0 ? `<span class="causal-diff-summary__changed">${changed.length} changed edges</span>` : ''}
         </div>`;
 }
 
@@ -273,12 +273,12 @@ function refreshCompareUI(): void {
     const savedList = document.getElementById('causal-saved-runs-list');
     if (savedList) {
         if (_savedRuns.length === 0) {
-            savedList.innerHTML = '<p style="color:var(--text-muted,#888);font-size:12px">Run Compute first, then save a run to compare it here.</p>';
+            savedList.innerHTML = '<p class="causal-compare-empty">Run Compute first, then save a run to compare it here.</p>';
         } else {
             savedList.innerHTML = _savedRuns.map((r) => `
-                <div class="causal-run-item" style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px;border-bottom:1px solid var(--border);">
+                <div class="causal-run-item">
                     <span>${escHtml(r.label)}</span>
-                    <span style="color:var(--text-dim,#aaa)">${r.links.length} edges · ${new Date(r.timestamp).toLocaleString()}</span>
+                    <span class="causal-run-item__meta">${r.links.length} edges · ${new Date(r.timestamp).toLocaleString()}</span>
                     <button class="btn btn-ghost btn-xs causal-run-delete-btn" data-run-id="${escHtml(r.id)}" type="button" title="Delete saved run" aria-label="Delete saved run ${escHtml(r.label)}">✕</button>
                 </div>`).join('');
 

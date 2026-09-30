@@ -1,3 +1,4 @@
+import type { DriftResponse } from '../../contracts/api/v1/drift.js';
 /**
  * drift/selection.ts — Canonical owner of drift selection and sort state.
  *
@@ -9,7 +10,6 @@
  * This module is page-local (drift-specific policy), NOT promoted to ui/*.
  */
 
-import type { DriftResponse } from './viewModels.js';
 
 // ── State ───────────────────────────────────────────────────────────────────
 

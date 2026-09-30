@@ -29,7 +29,35 @@ import { setStatus } from './statusView.js';
 import { getPaletteColor, getChartPalette } from '../../utils/theme.js';
 import { buildCausalLinksTableHtml } from './linkTable.js';
 
-export let _eChart: any = null;
+/** Fields of an ECharts graph event or formatter parameter the causal view reads. */
+interface CausalChartEvent {
+    dataType?: string;
+    data?: {
+        id?: unknown;
+        name?: unknown;
+        x?: unknown;
+        y?: unknown;
+        _key?: unknown;
+        _labelText?: unknown;
+    };
+    event?: { event?: MouseEvent };
+}
+
+/** The ECharts instance surface the causal graph uses. */
+interface CausalChart {
+    setOption: (option: Record<string, unknown>, notMerge?: boolean) => void;
+    resize: () => void;
+    clear: () => void;
+    dispose: () => void;
+    on: (event: string, handler: (params: unknown) => void) => void;
+}
+
+/** ECharts passes event parameters as `unknown`; every field read here is optional. */
+function asCausalEvent(params: unknown): CausalChartEvent {
+    return typeof params === 'object' && params !== null ? params as CausalChartEvent : {};
+}
+
+export let _eChart: CausalChart | null = null;
 export let _chartEl: HTMLDivElement | null = null;
 
 let _chartEventsBound = false;
@@ -152,7 +180,8 @@ export function attachChartEvents(): void {
     if (!_eChart || _chartEventsBound) return;
     _chartEventsBound = true;
 
-    _eChart.on('dblclick', (params: any) => {
+    _eChart.on('dblclick', (event: unknown) => {
+        const params = asCausalEvent(event);
         if (params.dataType !== 'node' || _addEdgeMode) return;
         const col = String(params.data?.id || '');
         if (!col) return;
@@ -162,8 +191,8 @@ export function attachChartEvents(): void {
         input.value = currentLabel;
         input.className = 'causal-node-edit';
         input.style.position = 'fixed';
-        input.style.left = `${params.event.event.clientX - 60}px`;
-        input.style.top = `${params.event.event.clientY - 14}px`;
+        input.style.left = `${(params.event?.event?.clientX ?? 60) - 60}px`;
+        input.style.top = `${(params.event?.event?.clientY ?? 14) - 14}px`;
         input.style.width = '120px';
         input.style.zIndex = '999';
         document.body.appendChild(input);
@@ -182,15 +211,19 @@ export function attachChartEvents(): void {
         });
     });
 
-    _eChart.on('contextmenu', (params: any) => {
-        params.event.event.preventDefault();
-        const x = params.event.event.clientX;
-        const y = params.event.event.clientY;
-        if (params.dataType === 'node') { showCtxMenu(x, y, { kind: 'node', col: String(params.data.id) }); return; }
+    _eChart.on('contextmenu', (event: unknown) => {
+        const params = asCausalEvent(event);
+        const mouse = params.event?.event;
+        if (!mouse) return;
+        mouse.preventDefault();
+        const x = mouse.clientX;
+        const y = mouse.clientY;
+        if (params.dataType === 'node') { showCtxMenu(x, y, { kind: 'node', col: String(params.data?.id ?? '') }); return; }
         if (params.dataType === 'edge' && typeof params.data?._key === 'string') { showCtxMenu(x, y, { kind: 'edge', key: String(params.data._key) }); }
     });
 
-    _eChart.on('click', (params: any) => {
+    _eChart.on('click', (event: unknown) => {
+        const params = asCausalEvent(event);
         if (!_addEdgeMode || params.dataType !== 'node') return;
         const col = String(params.data?.id || '');
         if (!col) return;
@@ -212,7 +245,8 @@ export function attachChartEvents(): void {
         setStatus('Pair connection added. Right-click the edge to edit its lag, type, and metadata.', 'success');
     });
 
-    _eChart.on('mouseup', (params: any) => {
+    _eChart.on('mouseup', (event: unknown) => {
+        const params = asCausalEvent(event);
         if (params.dataType === 'node' && params.data?.id) {
             const x = Number(params.data.x);
             const y = Number(params.data.y);
@@ -278,7 +312,7 @@ function edgeLabelText(group: PairEdgeGroup, compact: boolean): string {
     return `${firstLine}\n${secondLine}`;
 }
 
-function buildLegendGraphic(): any[] {
+function buildLegendGraphic(): Record<string, unknown>[] {
     const palette = getChartPalette();
     const items = [
         { color: palette.cyan, dash: false, label: 'Mostly positive effect' },
@@ -297,7 +331,7 @@ function buildLegendGraphic(): any[] {
     }));
 }
 
-function buildPairEdge(group: PairEdgeGroup): any {
+function buildPairEdge(group: PairEdgeGroup): Record<string, unknown> {
     const palette = getChartPalette();
     const absVal = Math.min(1, Math.abs(group.meanValue || 0));
     const baseColor = group.meanValue >= 0 ? palette.cyan : palette.danger;
@@ -392,8 +426,8 @@ export function renderEChartsGraph(): boolean {
             label: {
                 show: true, position: 'inside' as const, color: palette.text,
                 fontSize: 10, fontWeight: 'bold' as const,
-                formatter: (params: any) => {
-                    const value = String(params.data.name || '');
+                formatter: (params: CausalChartEvent) => {
+                    const value = String(params.data?.name || '');
                     return value.length > 8 ? `${value.slice(0, 7)}…` : value;
                 },
             },
@@ -411,9 +445,9 @@ export function renderEChartsGraph(): boolean {
                 trigger: 'item', enterable: true, confine: true,
                 backgroundColor: chartPalette.surfaceElevated, borderColor: chartPalette.borderHi, borderWidth: 1,
                 padding: [8, 12], textStyle: { color: chartPalette.text, fontSize: 12 },
-                formatter: (params: any) => {
-                    if (params.dataType === 'node') return nodeTooltip(String(params.data.id), selfLoops);
-                    if (params.dataType === 'edge') { const group = getPairGroup(String(params.data._key)); if (group) return edgeTooltip(group); }
+                formatter: (params: CausalChartEvent) => {
+                    if (params.dataType === 'node') return nodeTooltip(String(params.data?.id ?? ''), selfLoops);
+                    if (params.dataType === 'edge') { const group = getPairGroup(String(params.data?._key ?? '')); if (group) return edgeTooltip(group); }
                     return '';
                 },
             },
@@ -430,7 +464,7 @@ export function renderEChartsGraph(): boolean {
                     backgroundColor: chartPalette.background, borderColor: chartPalette.borderHi,
                     borderWidth: 1, borderRadius: 14, padding: [6, 10],
                     shadowBlur: 16, shadowColor: 'rgba(0,0,0,0.32)',
-                    formatter: (params: any) => String(params.data?._labelText || ''),
+                    formatter: (params: CausalChartEvent) => String(params.data?._labelText || ''),
                 },
                 emphasis: { focus: 'adjacency', edgeLabel: { show: true } },
             }],

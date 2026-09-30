@@ -46,6 +46,11 @@ vi.mock('../../utils/chartExport.js', () => ({
     exportTraceCSV: vi.fn(),
 }));
 
+const copyTextMock = vi.fn();
+vi.mock('../../utils/copyText.js', () => ({
+    copyTextToClipboard: (...args: unknown[]) => copyTextMock(...args),
+}));
+
 vi.mock('../../utils/toast.js', () => ({
     toast: (...args: unknown[]) => toastMock(...args),
 }));
@@ -117,7 +122,7 @@ describe('initFftPage', () => {
 
     afterEach(async () => {
         const module = await import('./page');
-        module.__resetFftPageForTests();
+        module.disposeFftPage();
         setSpectralFilterPreview(null);
     });
 
@@ -329,6 +334,142 @@ describe('initFftPage', () => {
         const reconciledCheckbox = reconciledChip.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
         expect(reconciledChip.classList.contains('active')).toBe(true);
         expect(reconciledCheckbox.checked).toBe(true);
+    });
+
+    it('the returned disposer unbinds the page controls', async () => {
+        const { initFftPage } = await import('./page');
+        const dispose = await initFftPage({ workspace, renderTimeseries: vi.fn() });
+        emitNavigationChange({ page: 'fft' });
+
+        dispose();
+        (document.getElementById('fft-zoom-reset-btn') as HTMLButtonElement).click();
+
+        expect(fftChartInstance.resetView).not.toHaveBeenCalled();
+    });
+
+    it('recomputes on the next visible visit after being disposed with results', async () => {
+        fetchFftMock.mockImplementation(async (_start: string, _end: string, column: string) => ({
+            sample_count: 64,
+            results: [{ column, frequencies: [1, 2, 3], magnitudes: [10, 8, 6], psd: [100, 64, 36] }],
+        }));
+        workspace.commitDataset(workspace.beginDatasetSession(), {
+            total_rows: 10, columns: [], numeric_columns: ['value'], time_column: 'ts',
+            time_range: { min: 0, max: 1000 }, column_profiles: [],
+        } as any, 0);
+        workspace.setViewport({ xMin: 0, xMax: 1000, yMin: null, yMax: null });
+        document.body.insertAdjacentHTML('afterbegin', '<section id="page-fft"></section>');
+
+        const { initFftPage } = await import('./page');
+        const dispose = await initFftPage({ workspace, renderTimeseries: vi.fn() });
+        emitNavigationChange({ page: 'fft' });
+        (document.getElementById('fft-compute-btn') as HTMLButtonElement).click();
+        await vi.waitFor(() => expect(fetchFftMock).toHaveBeenCalledTimes(1));
+        await vi.waitFor(() => expect(document.getElementById('fft-analysis-status')?.textContent).toBe('Spectrum updated.'));
+
+        dispose();
+        await initFftPage({ workspace, renderTimeseries: vi.fn() });
+        emitNavigationChange({ page: 'fft' });
+
+        await vi.waitFor(() => expect(fetchFftMock).toHaveBeenCalledTimes(2));
+        expect(fetchFftMock.mock.calls[1][2]).toBe('value');
+    });
+
+    describe('remounting on the same DOM', () => {
+        const spectrum = (column: string, frequency: number, magnitude: number) => ({
+            sample_count: 64,
+            results: [{
+                column, frequencies: [frequency], magnitudes: [magnitude], psd: [magnitude * magnitude],
+                sample_rate_hz: 100, nyquist_hz: 50,
+                dominant_peaks: [{ frequency_hz: frequency, magnitude, power: magnitude * magnitude, rank: 1 }],
+            }],
+        });
+
+        async function mount(columns: string[]) {
+            workspace.commitDataset(workspace.beginDatasetSession(), {
+                total_rows: 10, columns: [], numeric_columns: columns, time_column: 'ts',
+                time_range: { min: 0, max: 1000 }, column_profiles: [],
+            } as any, 0);
+            workspace.setViewport({ xMin: 0, xMax: 1000, yMin: null, yMax: null });
+            const { initFftPage } = await import('./page');
+            const dispose = await initFftPage({ workspace, renderTimeseries: vi.fn() });
+            emitNavigationChange({ page: 'fft' });
+            return { initFftPage, dispose };
+        }
+
+        async function computeAndWait(): Promise<void> {
+            // The status text survives a remount; clear it so the wait below sees this run.
+            document.getElementById('fft-analysis-status')!.textContent = '';
+            (document.getElementById('fft-compute-btn') as HTMLButtonElement).click();
+            await vi.waitFor(() => expect(document.getElementById('fft-analysis-status')?.textContent).toBe('Spectrum updated.'));
+        }
+
+        it('exports only the current instance result', async () => {
+            fetchFftMock.mockImplementation(async (_s: string, _e: string, column: string) => spectrum(column, 1, 10));
+            const { initFftPage, dispose } = await mount(['value']);
+            await computeAndWait();
+            dispose();
+
+            fetchFftMock.mockImplementation(async (_s: string, _e: string, column: string) => spectrum(column, 2, 5));
+            await initFftPage({ workspace, renderTimeseries: vi.fn() });
+            emitNavigationChange({ page: 'fft' });
+            await computeAndWait();
+            const { exportTraceCSV } = await import('../../utils/chartExport.js');
+            vi.mocked(exportTraceCSV).mockClear();
+
+            (document.getElementById('fft-export-csv-btn') as HTMLButtonElement).click();
+
+            expect(exportTraceCSV).toHaveBeenCalledTimes(1);
+            expect(vi.mocked(exportTraceCSV).mock.calls[0]![0]).toEqual([{ column: 'value', xs: [2], ys: [5] }]);
+        });
+
+        it('keeps chip toggles controlling the active instance', async () => {
+            fetchFftMock.mockImplementation(async (_s: string, _e: string, column: string) => spectrum(column, 1, 10));
+            window.localStorage.setItem('edatime_fft_selected_columns', JSON.stringify(['value', 'temp']));
+            const { initFftPage, dispose } = await mount(['value', 'temp']);
+            dispose();
+
+            await initFftPage({ workspace, renderTimeseries: vi.fn() });
+            emitNavigationChange({ page: 'fft' });
+            const tempChip = document.querySelector<HTMLElement>('.fft-trace-chip[data-col="temp"]')!;
+            (tempChip.querySelector('input[type="checkbox"]') as HTMLInputElement).click();
+            fetchFftMock.mockClear();
+            await computeAndWait();
+
+            expect(fetchFftMock.mock.calls.map((call) => call[2])).toEqual(['value']);
+        });
+
+        it('copies the current instance summary, not a previous one', async () => {
+            copyTextMock.mockResolvedValue(true);
+            fetchFftMock.mockImplementation(async (_s: string, _e: string, column: string) => spectrum(column, 1, 10));
+            const { initFftPage, dispose } = await mount(['value']);
+            await computeAndWait();
+            dispose();
+
+            fetchFftMock.mockImplementation(async (_s: string, _e: string, column: string) => spectrum(column, 2, 5));
+            await initFftPage({ workspace, renderTimeseries: vi.fn() });
+            emitNavigationChange({ page: 'fft' });
+            await computeAndWait();
+
+            (document.getElementById('fft-copy-summary-btn') as HTMLButtonElement).click();
+            await vi.waitFor(() => expect(copyTextMock).toHaveBeenCalledTimes(1));
+
+            const text = String(copyTextMock.mock.calls[0]![0]);
+            expect(text).toContain('Spectrum for value');
+            expect(text).toMatch(/\b2(\.0+)? Hz\b/);
+            expect(text).not.toMatch(/\b1(\.0+)? Hz\b/);
+        });
+
+        it('does not build a fallback chart when the WebGPU chart fails after disposal', async () => {
+            let rejectInit: (error: Error) => void = () => {};
+            fftChartInstance.init.mockImplementation(() => new Promise<undefined>((_resolve, reject) => { rejectInit = reject; }));
+            const { dispose } = await mount(['value']);
+
+            dispose();
+            rejectInit(new Error('WebGPU unavailable'));
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            expect(echartsInitMock).not.toHaveBeenCalled();
+        });
     });
 
     it('starts from an empty trace state when the page is initialized again on a fresh DOM', async () => {

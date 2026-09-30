@@ -11,13 +11,12 @@ function setText(id: string, text: string): void {
 export function renderColorScaleLegend(column: string | null, scaleInfo: ColorScaleInfo | null): void {
     const colorbar = document.getElementById('timeseries-colorbar-wrap');
     const categorical = document.getElementById('timeseries-categorical-wrap');
-    if (colorbar) { colorbar.hidden = true; colorbar.style.display = 'none'; }
-    if (categorical) { categorical.hidden = true; categorical.style.display = 'none'; }
+    if (colorbar) colorbar.hidden = true;
+    if (categorical) categorical.hidden = true;
     if (!column || !scaleInfo) return;
 
     if (scaleInfo.isNumeric && colorbar) {
         colorbar.hidden = false;
-        colorbar.style.display = 'grid';
         setText('timeseries-colorbar-name', column);
         setText('timeseries-colorbar-min', formatTwoDecimals(scaleInfo.min));
         setText('timeseries-colorbar-max', formatTwoDecimals(scaleInfo.max));
@@ -38,7 +37,6 @@ export function renderColorScaleLegend(column: string | null, scaleInfo: ColorSc
 
     if (!scaleInfo.isNumeric && categorical) {
         categorical.hidden = false;
-        categorical.style.display = 'grid';
         setText('timeseries-categorical-name', column);
         const legend = document.getElementById('timeseries-categorical-legend');
         if (!legend) return;

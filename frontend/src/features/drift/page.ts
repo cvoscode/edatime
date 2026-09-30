@@ -7,7 +7,7 @@
 
 import { DEBUG } from '../../debug.js';
 import { fetchDriftInvestigation, fetchDriftPreflight } from '../../services/api/index.js';
-import type { DriftPreflightResponse } from '../../contracts/api/v1/drift.js';
+import type { DriftPreflightResponse, DriftResponse } from '../../contracts/api/v1/drift.js';
 import { cleaningPlanStore } from '../../cleaning/store.js';
 import { buildPlanRequestSnapshot } from '../../cleaning/compiler.js';
 import { bindDriftControls, getSelectedColumns, resetDriftControlsState } from './controls.js';
@@ -23,7 +23,6 @@ import {
 import type {
     DriftEvaluationMode,
     DriftInvestigationResponse,
-    DriftResponse,
 } from './viewModels.js';
 import { exportEChartsPNG } from '../../utils/chartExport.js';
 import { downloadBlob } from '../../utils/dom.js';

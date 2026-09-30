@@ -122,6 +122,9 @@ These are enforced by checks. `scripts/check-frontend-architecture.mjs`,
 - `workspace/workspaceStore.ts` owns dataset identity, selection, filters, and
   viewport intent. Don't add new imports of legacy store modules; the checker
   keeps an allowlist that is meant to shrink.
+- Code outside a feature, and other features, import it only through
+  `features/<name>/index.js`. The heatmap's use of Pair plot matrix modules is
+  an allowlisted exception in `check-frontend-architecture.mjs`; don't add to it.
 - Feature pages are loaded on demand through `app/pageModules.ts`. The startup
   shell (`app.ts`, `app/shell*`, `ui/pageNavigation.ts`) must not statically
   import heavy libraries (echarts, apache-arrow, chartgpu, DataChart).

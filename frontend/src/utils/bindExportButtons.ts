@@ -26,7 +26,16 @@ export interface ExportButtonConfig {
     csv?: { fn: (filename: string) => void; filename: string; dataCheck?: () => boolean };
 }
 
-export function bindExportButtons(prefix: string, config: ExportButtonConfig): void {
+/**
+ * Wire the export buttons for one page instance. The returned function removes
+ * every listener, so a remounted page never exports through a previous
+ * instance's handlers (and the data they captured).
+ */
+export function bindExportButtons(prefix: string, config: ExportButtonConfig): () => void {
+    const controller = new AbortController();
+    const bindOne = (id: string, handler: () => void): void => {
+        document.getElementById(id)?.addEventListener('click', handler, { signal: controller.signal });
+    };
     bindOne(`${prefix}-export-png-btn`, () => config.png.fn(config.png.filename));
     bindOne(`${prefix}-export-svg-btn`, () => config.svg.fn(config.svg.filename));
     bindOne(`${prefix}-export-html-btn`, () => config.html.fn(config.html.filename));
@@ -41,8 +50,5 @@ export function bindExportButtons(prefix: string, config: ExportButtonConfig): v
             fn(filename);
         });
     }
-}
-
-function bindOne(id: string, handler: () => void): void {
-    document.getElementById(id)?.addEventListener('click', handler);
+    return () => controller.abort();
 }

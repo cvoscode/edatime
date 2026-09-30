@@ -306,7 +306,6 @@ export function bindDriftControls(cb: DriftControlCallbacks, opts: DriftControlO
         const fieldContainer = latestNInput.closest<HTMLElement>('.scatter-toolbar__field, .drift-toolbar__field');
         if (fieldContainer) {
             fieldContainer.hidden = !enabled;
-            fieldContainer.style.display = enabled ? '' : 'none';
         }
         if (latestNHelper) {
             latestNHelper.hidden = enabled;

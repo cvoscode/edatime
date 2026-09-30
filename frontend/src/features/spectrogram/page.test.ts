@@ -143,8 +143,8 @@ describe('spectrogramPage', () => {
     });
 
     afterEach(async () => {
-        const { __resetSpectrogramPageForTests } = await import('./page.js');
-        __resetSpectrogramPageForTests();
+        const { disposeSpectrogramPage } = await import('./page.js');
+        disposeSpectrogramPage();
         disposeSpectrogramDropdowns();
     });
 
@@ -304,8 +304,8 @@ describe('spectrogramPage colorbar filter', () => {
     });
 
     afterEach(async () => {
-        const { __resetSpectrogramPageForTests } = await import('./page.js');
-        __resetSpectrogramPageForTests();
+        const { disposeSpectrogramPage } = await import('./page.js');
+        disposeSpectrogramPage();
         disposeSpectrogramDropdowns();
     });
 
@@ -343,6 +343,24 @@ describe('spectrogramPage colorbar filter', () => {
         expect(fetchMock.mock.calls[0]?.[6]?.signal?.aborted).toBe(true);
         expect(document.getElementById('spectrogram-summary')?.getAttribute('aria-label')).toBe(previousResult);
         expect((document.getElementById('spectrogram-loading') as HTMLElement).hidden).toBe(true);
+    });
+
+    it('does not export a previous instance result after the page is re-initialized', async () => {
+        await mountAndCompute();
+        const { bindExportButtons } = await import('../../utils/bindExportButtons.js');
+        const exportCsv = () => {
+            const config = vi.mocked(bindExportButtons).mock.calls.at(-1)?.[1];
+            config?.csv?.fn(config.csv.filename);
+        };
+        exportCsv();
+        expect(toastMock).toHaveBeenLastCalledWith(expect.stringContaining('CSV exported'), 'success');
+
+        const { disposeSpectrogramPage, initSpectrogramPage } = await import('./page.js');
+        disposeSpectrogramPage();
+        await initSpectrogramPage({ setLoading: vi.fn(), workspace: createViewportWorkspace(Number.NaN, Number.NaN) });
+        exportCsv();
+
+        expect(toastMock).toHaveBeenLastCalledWith('Compute the spectrogram before exporting CSV.', 'warning');
     });
 
     it('shows and populates the DOM colorbar after compute', async () => {

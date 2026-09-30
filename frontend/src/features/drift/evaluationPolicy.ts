@@ -1,5 +1,6 @@
-import type { DriftEvaluationMode, DriftResponse } from './viewModels.js';
+import type { DriftEvaluationMode } from './viewModels.js';
 import { filterResponseForEvaluation } from './viewModels.js';
+import type { DriftResponse } from '../../contracts/api/v1/drift.js';
 
 export function normalizeDriftEvaluationMode(value: string | null | undefined): DriftEvaluationMode {
     return value === 'latest' || value === 'latest-n' ? value : 'all';

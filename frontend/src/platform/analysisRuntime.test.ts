@@ -326,4 +326,69 @@ describe('createAnalysisPageRuntime', () => {
         expect(init).toHaveBeenCalledTimes(1);
         expect(onEveryPageChange).toHaveBeenCalledTimes(1);
     });
+
+    describe('export bindings', () => {
+        const exportConfig = (png: () => void, csv: () => void) => ({
+            key: 'demo',
+            png: { fn: png, filename: 'a.png' },
+            svg: { fn: vi.fn(), filename: 'a.svg' },
+            html: { fn: vi.fn(), filename: 'a.html' },
+            csv: { fn: csv, filename: 'a.csv' },
+        });
+
+        afterEach(() => {
+            document.body.innerHTML = '';
+        });
+
+        it('removes the export listeners when the runtime unmounts', () => {
+            document.body.innerHTML = '<button id="demo-export-png-btn"></button><button id="demo-export-csv-btn"></button>';
+            const png = vi.fn();
+            const csv = vi.fn();
+            const unmount = createAnalysisPageRuntime({
+                page: 'demo', emptyStateRootId: 'demo-empty', exportConfig: exportConfig(png, csv),
+            }).mount();
+
+            unmount();
+            document.getElementById('demo-export-png-btn')!.click();
+            document.getElementById('demo-export-csv-btn')!.click();
+
+            expect(png).not.toHaveBeenCalled();
+            expect(csv).not.toHaveBeenCalled();
+        });
+
+        it('exports through the latest runtime only after a remount', () => {
+            document.body.innerHTML = '<button id="demo-export-png-btn"></button>';
+            const firstPng = vi.fn();
+            const secondPng = vi.fn();
+            createAnalysisPageRuntime({
+                page: 'demo', emptyStateRootId: 'demo-empty', exportConfig: exportConfig(firstPng, vi.fn()),
+            }).mount()();
+            createAnalysisPageRuntime({
+                page: 'demo', emptyStateRootId: 'demo-empty', exportConfig: exportConfig(secondPng, vi.fn()),
+            }).mount();
+
+            document.getElementById('demo-export-png-btn')!.click();
+
+            expect(firstPng).not.toHaveBeenCalled();
+            expect(secondPng).toHaveBeenCalledTimes(1);
+        });
+
+        it('binds deferred exports once and releases them on unmount', () => {
+            document.body.innerHTML = '<button id="demo-export-png-btn"></button>';
+            const png = vi.fn();
+            const runtime = createAnalysisPageRuntime({
+                page: 'demo', emptyStateRootId: 'demo-empty', bindExportsOnInit: false, exportConfig: exportConfig(png, vi.fn()),
+            });
+            const unmount = runtime.mount();
+            runtime.bindExports();
+            runtime.bindExports();
+
+            document.getElementById('demo-export-png-btn')!.click();
+            expect(png).toHaveBeenCalledTimes(1);
+
+            unmount();
+            document.getElementById('demo-export-png-btn')!.click();
+            expect(png).toHaveBeenCalledTimes(1);
+        });
+    });
 });

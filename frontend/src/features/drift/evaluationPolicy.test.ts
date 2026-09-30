@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { DriftResponse } from './viewModels.js';
 import {
     filterDriftResponsesForEvaluation,
     normalizeDriftEvaluationMode,
     normalizeLatestWindowCount,
 } from './evaluationPolicy.js';
+import type { DriftResponse } from '../../contracts/api/v1/drift.js';
 
 describe('drift evaluation policy', () => {
     it('normalizes supported evaluation modes and latest window count', () => {

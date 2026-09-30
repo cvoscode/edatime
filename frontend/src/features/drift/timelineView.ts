@@ -11,7 +11,7 @@
  */
 
 import type { EChartLike } from './types.js';
-import type { DriftResponse, TimelineMode } from './viewModels.js';
+import type { TimelineMode } from './viewModels.js';
 import { buildTimelineOption } from './viewModels.js';
 import {
     getActiveDetailColumn,
@@ -20,6 +20,7 @@ import {
     setSelectedWindowIdx,
     getResponsesByColumn,
 } from './selection.js';
+import type { DriftResponse } from '../../contracts/api/v1/drift.js';
 
 // ── Chart instance (owned by this module) ────────────────────────────────────
 

@@ -1,6 +1,20 @@
 import { formatTwoDecimals } from '../../formatUtils.js';
 import { escapeHtml, formatValueForColumn } from './helpers.js';
 
+/** The fields of an ECharts item-tooltip parameter the Pair plot tooltips read. */
+export interface ScatterTooltipParam {
+    value?: unknown;
+    seriesName?: unknown;
+    seriesIndex?: unknown;
+    dataIndex?: unknown;
+}
+
+/** ECharts hands formatters `unknown` (one item, or an array for axis tooltips); take the first item. */
+export function firstTooltipParam(params: unknown): ScatterTooltipParam | null {
+    const first = Array.isArray(params) ? params[0] : params;
+    return typeof first === 'object' && first !== null ? first as ScatterTooltipParam : null;
+}
+
 export function buildScatterTooltipHtml(options: {
     xColumn: string | null;
     yColumn: string | null;
